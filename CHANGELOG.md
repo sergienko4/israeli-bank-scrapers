@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.7.8](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.7...v6.7.8) (2026-02-24)
+
+
+### Bug Fixes
+
+* ratchet coverage thresholds to prevent regression ([#29](https://github.com/sergienko4/israeli-bank-scrapers/issues/29)) ([ed824c8](https://github.com/sergienko4/israeli-bank-scrapers/commit/ed824c837e3d780921e242dd7ab2c35f9132e840))
+
 ## [6.7.7](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.6...v6.7.7) (2026-02-24)
 
 
