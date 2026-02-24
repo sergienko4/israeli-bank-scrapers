@@ -12,20 +12,7 @@ import {
   pageEvalAll,
   waitUntilIframeFound,
 } from './elements-interactions';
-
-function createMockPage() {
-  return {
-    waitForSelector: jest.fn().mockResolvedValue(undefined),
-    $eval: jest.fn().mockResolvedValue(undefined),
-    $$eval: jest.fn().mockResolvedValue([]),
-    $: jest.fn().mockResolvedValue({}),
-    type: jest.fn().mockResolvedValue(undefined),
-    select: jest.fn().mockResolvedValue(undefined),
-    evaluate: jest.fn().mockResolvedValue([]),
-    waitForFunction: jest.fn().mockResolvedValue(undefined),
-    frames: jest.fn().mockReturnValue([]),
-  } as any;
-}
+import { createMockPage } from '../tests/mock-page';
 
 describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {
