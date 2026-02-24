@@ -1,4 +1,5 @@
 import { fetchGet, fetchPost, fetchGraphql, fetchGetWithinPage, fetchPostWithinPage } from './fetch';
+import { createMockPage } from '../tests/mock-page';
 
 jest.mock('node-fetch', () => {
   return jest.fn();
@@ -82,62 +83,50 @@ describe('fetchGraphql', () => {
 });
 
 describe('fetchGetWithinPage', () => {
-  function createMockPage(evaluateResult: any) {
-    return {
-      evaluate: jest.fn().mockResolvedValue(evaluateResult),
-    } as any;
-  }
-
   it('returns parsed JSON on success', async () => {
-    const page = createMockPage([JSON.stringify({ balance: 1000 }), 200]);
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue([JSON.stringify({ balance: 1000 }), 200]) });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/balance');
     expect(result).toEqual({ balance: 1000 });
   });
 
   it('returns null for 204 status', async () => {
-    const page = createMockPage([null, 204]);
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue([null, 204]) });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/empty');
     expect(result).toBeNull();
   });
 
   it('throws on invalid JSON when ignoreErrors is false', async () => {
-    const page = createMockPage(['not json', 200]);
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['not json', 200]) });
     await expect(fetchGetWithinPage(page, 'https://bank.co.il/api/bad')).rejects.toThrow('parse error');
   });
 
   it('returns null on invalid JSON when ignoreErrors is true', async () => {
-    const page = createMockPage(['not json', 200]);
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['not json', 200]) });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/bad', true);
     expect(result).toBeNull();
   });
 });
 
 describe('fetchPostWithinPage', () => {
-  function createMockPage(evaluateResult: any) {
-    return {
-      evaluate: jest.fn().mockResolvedValue(evaluateResult),
-    } as any;
-  }
-
   it('returns parsed JSON on success', async () => {
-    const page = createMockPage(JSON.stringify({ result: 'ok' }));
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(JSON.stringify({ result: 'ok' })) });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/action', { key: 'value' });
     expect(result).toEqual({ result: 'ok' });
   });
 
   it('returns null for 204 status', async () => {
-    const page = createMockPage(null);
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(null) });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/empty', {});
     expect(result).toBeNull();
   });
 
   it('throws on invalid JSON when ignoreErrors is false', async () => {
-    const page = createMockPage('invalid json');
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue('invalid json') });
     await expect(fetchPostWithinPage(page, 'https://bank.co.il/api/bad', {})).rejects.toThrow('parse error');
   });
 
   it('returns null on invalid JSON when ignoreErrors is true', async () => {
-    const page = createMockPage('invalid json');
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue('invalid json') });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/bad', {}, {}, true);
     expect(result).toBeNull();
   });

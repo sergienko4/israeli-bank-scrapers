@@ -5,28 +5,23 @@ import {
   waitForRedirect,
   waitForUrl,
 } from './navigation';
+import { createMockPage } from '../tests/mock-page';
 
-function createMockPage(currentUrl = 'https://bank.co.il/login') {
-  let url = currentUrl;
-  return {
-    waitForNavigation: jest.fn().mockResolvedValue(undefined),
-    url: jest.fn(() => url),
-    evaluate: jest.fn(() => Promise.resolve(url)),
-    _setUrl(newUrl: string) {
-      url = newUrl;
-    },
-  } as any;
+function createNavMockPage(currentUrl = 'https://bank.co.il/login') {
+  const urlMock = jest.fn(() => currentUrl);
+  const evaluateMock = jest.fn(() => Promise.resolve(currentUrl));
+  return createMockPage({ url: urlMock, evaluate: evaluateMock });
 }
 
 describe('waitForNavigation', () => {
   it('calls page.waitForNavigation with options', async () => {
-    const page = createMockPage();
+    const page = createNavMockPage();
     await waitForNavigation(page, { waitUntil: 'load' });
     expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'load' });
   });
 
   it('calls page.waitForNavigation without options', async () => {
-    const page = createMockPage();
+    const page = createNavMockPage();
     await waitForNavigation(page);
     expect(page.waitForNavigation).toHaveBeenCalledWith(undefined);
   });
@@ -34,7 +29,7 @@ describe('waitForNavigation', () => {
 
 describe('waitForNavigationAndDomLoad', () => {
   it('waits for domcontentloaded', async () => {
-    const page = createMockPage();
+    const page = createNavMockPage();
     await waitForNavigationAndDomLoad(page);
     expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'domcontentloaded' });
   });
@@ -42,19 +37,19 @@ describe('waitForNavigationAndDomLoad', () => {
 
 describe('getCurrentUrl', () => {
   it('returns URL from page.url() when clientSide is false', () => {
-    const page = createMockPage('https://bank.co.il/dashboard');
+    const page = createNavMockPage('https://bank.co.il/dashboard');
     const result = getCurrentUrl(page, false);
     expect(result).toBe('https://bank.co.il/dashboard');
   });
 
   it('returns URL from page.evaluate when clientSide is true', async () => {
-    const page = createMockPage('https://bank.co.il/dashboard');
+    const page = createNavMockPage('https://bank.co.il/dashboard');
     const result = await getCurrentUrl(page, true);
     expect(result).toBe('https://bank.co.il/dashboard');
   });
 
   it('defaults to server-side URL', () => {
-    const page = createMockPage('https://bank.co.il');
+    const page = createNavMockPage('https://bank.co.il');
     const result = getCurrentUrl(page);
     expect(result).toBe('https://bank.co.il');
   });
@@ -62,7 +57,7 @@ describe('getCurrentUrl', () => {
 
 describe('waitForRedirect', () => {
   it('resolves when URL changes', async () => {
-    const page = createMockPage('https://bank.co.il/login');
+    const page = createNavMockPage('https://bank.co.il/login');
     let callCount = 0;
     page.url = jest.fn(() => {
       callCount += 1;
@@ -74,7 +69,7 @@ describe('waitForRedirect', () => {
   });
 
   it('skips URLs in ignoreList before resolving', async () => {
-    const page = createMockPage('https://bank.co.il/login');
+    const page = createNavMockPage('https://bank.co.il/login');
     let callCount = 0;
     page.url = jest.fn(() => {
       callCount += 1;
@@ -89,7 +84,7 @@ describe('waitForRedirect', () => {
 
 describe('waitForUrl', () => {
   it('resolves when URL matches string', async () => {
-    const page = createMockPage();
+    const page = createNavMockPage();
     let callCount = 0;
     page.url = jest.fn(() => {
       callCount += 1;
@@ -100,7 +95,7 @@ describe('waitForUrl', () => {
   });
 
   it('resolves when URL matches regex', async () => {
-    const page = createMockPage();
+    const page = createNavMockPage();
     let callCount = 0;
     page.url = jest.fn(() => {
       callCount += 1;

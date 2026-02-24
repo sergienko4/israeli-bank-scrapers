@@ -1,18 +1,11 @@
 import { BaseScraper } from './base-scraper';
-import { ScraperProgressTypes, CompanyTypes } from '../definitions';
+import { ScraperProgressTypes } from '../definitions';
 import { ScraperErrorTypes } from './errors';
 import { TimeoutError } from '../helpers/waiting';
-import type { ScraperOptions, ScraperLoginResult, ScraperScrapingResult } from './interface';
+import type { ScraperCredentials, ScraperLoginResult, ScraperScrapingResult } from './interface';
+import { createMockScraperOptions } from '../tests/mock-page';
 
-function createOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
-  return {
-    companyId: CompanyTypes.hapoalim,
-    startDate: new Date('2024-01-01'),
-    ...overrides,
-  } as ScraperOptions;
-}
-
-class TestScraper extends BaseScraper<any> {
+class TestScraper extends BaseScraper<ScraperCredentials> {
   loginResult: ScraperLoginResult = { success: true };
 
   fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
@@ -47,14 +40,14 @@ class TestScraper extends BaseScraper<any> {
 describe('BaseScraper', () => {
   describe('scrape lifecycle', () => {
     it('returns scrape result on successful login and fetch', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(true);
       expect(result.accounts).toEqual([]);
     });
 
     it('returns login error when login fails', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.loginResult = {
         success: false,
         errorType: ScraperErrorTypes.InvalidPassword,
@@ -66,7 +59,7 @@ describe('BaseScraper', () => {
     });
 
     it('handles login throw with generic error', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.loginError = new Error('network failure');
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(false);
@@ -75,7 +68,7 @@ describe('BaseScraper', () => {
     });
 
     it('handles login throw with timeout error', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.loginError = new TimeoutError('login timed out');
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(false);
@@ -83,7 +76,7 @@ describe('BaseScraper', () => {
     });
 
     it('handles fetchData throw with generic error', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.fetchError = new Error('parse failure');
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(false);
@@ -91,7 +84,7 @@ describe('BaseScraper', () => {
     });
 
     it('handles fetchData throw with timeout error', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.fetchError = new TimeoutError('fetch timed out');
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(false);
@@ -99,7 +92,7 @@ describe('BaseScraper', () => {
     });
 
     it('handles terminate throw with generic error', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.terminateError = new Error('cleanup failed');
       const result = await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(result.success).toBe(false);
@@ -107,13 +100,13 @@ describe('BaseScraper', () => {
     });
 
     it('calls terminate after scrape', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(scraper.terminated).toBe(true);
     });
 
     it('does not fetch data when login fails', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       scraper.loginResult = {
         success: false,
         errorType: ScraperErrorTypes.InvalidPassword,
@@ -128,7 +121,7 @@ describe('BaseScraper', () => {
 
   describe('progress events', () => {
     it('emits StartScraping and EndScraping events', async () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       const events: ScraperProgressTypes[] = [];
       scraper.onProgress((_companyId, payload) => {
         events.push(payload.type);
@@ -143,12 +136,12 @@ describe('BaseScraper', () => {
 
   describe('2FA methods', () => {
     it('triggerTwoFactorAuth throws not implemented', () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       expect(() => scraper.triggerTwoFactorAuth('0541234567')).toThrow('triggerOtp()');
     });
 
     it('getLongTermTwoFactorToken throws not implemented', () => {
-      const scraper = new TestScraper(createOptions());
+      const scraper = new TestScraper(createMockScraperOptions());
       expect(() => scraper.getLongTermTwoFactorToken('123456')).toThrow('getPermanentOtpToken()');
     });
   });

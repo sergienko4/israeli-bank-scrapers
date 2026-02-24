@@ -56,9 +56,10 @@ defining its own factory.
 
 ## Acceptance Criteria
 
-- [ ] Single `createMockPage()` in `src/tests/mock-page.ts`
-- [ ] All 6 test files import from shared utility
-- [ ] Zero `as any` on mock page objects
-- [ ] `BaseScraper<ScraperCredentials>` in base-scraper.test.ts
-- [ ] All tests still pass
-- [ ] ESLint clean
+- [x] Single `createMockPage()` in `src/tests/mock-page.ts`
+- [x] All 5 test files import from shared utility (+ thin wrappers in navigation/storage)
+- [x] Zero `as any` on mock page objects in test files
+- [x] `BaseScraper<ScraperCredentials>` in base-scraper.test.ts
+- [x] `createMockScraperOptions()` shared utility added
+- [x] All 158 tests pass
+- [x] ESLint, TypeScript, Prettier clean

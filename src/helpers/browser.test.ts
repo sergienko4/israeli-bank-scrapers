@@ -1,16 +1,5 @@
 import { applyAntiDetection, isBotDetectionScript, maskHeadlessUserAgent, interceptionPriorities } from './browser';
-
-function createMockPage() {
-  return {
-    evaluateOnNewDocument: jest.fn().mockResolvedValue(undefined),
-    evaluate: jest.fn().mockResolvedValue('Mozilla/5.0 HeadlessChrome/131.0.0.0'),
-    setUserAgent: jest.fn().mockResolvedValue(undefined),
-    setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
-    browser: jest.fn().mockReturnValue({
-      version: jest.fn().mockResolvedValue('HeadlessChrome/131.0.6778.85'),
-    }),
-  } as any;
-}
+import { createMockPage } from '../tests/mock-page';
 
 describe('isBotDetectionScript', () => {
   it('detects detector-dom.min.js', () => {
