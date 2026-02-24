@@ -419,13 +419,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
     this.emitProgress(ScraperProgressTypes.LoggingIn);
 
-    const validateResult = await this.validateCredentials(credentials);
-    if (!validateResult) {
+    const validatedData = await this.validateCredentials(credentials);
+    if (!validatedData) {
       const pageUrl = this.page.url();
       throw new Error(`login validation failed (pageUrl=${pageUrl}). Possible WAF block.`);
     }
 
-    const validatedData = validateResult.ValidateIdDataBean!;
     const validateReturnCode = validatedData.returnCode;
     debug(`user validate with return code '${validateReturnCode}'`);
     if (validateReturnCode === '1') {
@@ -479,7 +478,9 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
-  private async validateCredentials(credentials: ScraperSpecificCredentials): Promise<ScrapedLoginValidation | null> {
+  private async validateCredentials(
+    credentials: ScraperSpecificCredentials,
+  ): Promise<{ userName?: string; returnCode: string } | null> {
     const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
     const validateRequest = {
       id: credentials.id,
@@ -492,7 +493,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     debug('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, validateRequest);
     if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) return null;
-    return result;
+    return result.ValidateIdDataBean;
   }
 
   async fetchData() {

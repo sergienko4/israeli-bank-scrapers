@@ -22,25 +22,29 @@ async function applyStealthScript(page: Page): Promise<void> {
 }
 
 /**
+ * Extract major Chrome version from browser version string.
+ */
+async function getChromeVersion(page: Page): Promise<string> {
+  const version = await page.browser().version();
+  return version.match(/Chrome\/(\d+)/)?.[1] ?? '131';
+}
+
+/**
  * Set realistic User-Agent with dynamic Chrome version.
  */
-async function setRealisticUserAgent(page: Page): Promise<void> {
-  const version = await page.browser().version();
-  const major = version.match(/Chrome\/(\d+)/)?.[1] ?? '131';
+async function setRealisticUserAgent(page: Page, chromeVersion: string): Promise<void> {
   await page.setUserAgent(
-    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`,
+    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`,
   );
 }
 
 /**
  * Set HTTP headers that WAFs expect from real browsers.
  */
-async function setRealisticHeaders(page: Page): Promise<void> {
-  const version = await page.browser().version();
-  const major = version.match(/Chrome\/(\d+)/)?.[1] ?? '131';
+async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<void> {
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-    'sec-ch-ua': `"Google Chrome";v="${major}", "Chromium";v="${major}", "Not_A Brand";v="24"`,
+    'sec-ch-ua': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not_A Brand";v="24"`,
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
   });
@@ -51,9 +55,10 @@ async function setRealisticHeaders(page: Page): Promise<void> {
  * Call BEFORE any navigation — overrides run on every new page load.
  */
 export async function applyAntiDetection(page: Page): Promise<void> {
+  const chromeVersion = await getChromeVersion(page);
   await applyStealthScript(page);
-  await setRealisticUserAgent(page);
-  await setRealisticHeaders(page);
+  await setRealisticUserAgent(page, chromeVersion);
+  await setRealisticHeaders(page, chromeVersion);
 }
 
 /**
