@@ -24,6 +24,13 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     browser: jest.fn().mockReturnValue({
       version: jest.fn().mockResolvedValue('HeadlessChrome/131.0.6778.85'),
     }),
+    setCacheEnabled: jest.fn().mockResolvedValue(undefined),
+    setDefaultTimeout: jest.fn(),
+    setViewport: jest.fn().mockResolvedValue(undefined),
+    goto: jest.fn().mockResolvedValue({ ok: () => true, status: () => 200 }),
+    on: jest.fn(),
+    screenshot: jest.fn().mockResolvedValue(undefined),
+    close: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
