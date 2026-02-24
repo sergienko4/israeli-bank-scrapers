@@ -1,6 +1,7 @@
 import puppeteer, { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
 import { ScraperProgressTypes } from '../definitions';
 import { getDebug } from '../helpers/debug';
+import { applyAntiDetection } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
 import { BaseScraper } from './base-scraper';
@@ -124,6 +125,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       debug("execute 'preparePage' interceptor provided in options");
       await this.options.preparePage(this.page);
     }
+
+    // Anti-detection: realistic UA, client hints, stealth JS — runs for ALL scrapers
+    debug('applying anti-detection overrides');
+    await applyAntiDetection(this.page);
 
     const viewport = this.getViewPort();
     debug(`set viewport to width ${viewport.width}, height ${viewport.height}`);

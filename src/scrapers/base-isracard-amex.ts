@@ -18,7 +18,7 @@ import {
 import { BaseScraperWithBrowser } from './base-scraper-with-browser';
 import { ScraperErrorTypes } from './errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { applyAntiDetection, interceptionPriorities, isBotDetectionScript } from '../helpers/browser';
+import { interceptionPriorities, isBotDetectionScript } from '../helpers/browser';
 
 const RATE_LIMIT = {
   SLEEP_BETWEEN: 1000,
@@ -402,8 +402,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
   }
 
   async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
-    // Anti-detection: realistic UA, client hints, stealth JS — must run BEFORE navigation
-    await applyAntiDetection(this.page);
+    // Anti-detection already applied in base class initialize()
 
     await this.page.setRequestInterception(true);
     this.page.on('request', request => {

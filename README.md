@@ -7,7 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **This is a maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
-> with WAF bypass fixes for Amex and Isracard scrapers.
+> with anti-detection for **all 18 banks** — realistic User-Agent, client hints, stealth JS.
+> Bypasses WAF blocking on Amex, Isracard, and any other bank that detects headless Chrome.
 >
 > Install: `npm install @sergienko4/israeli-bank-scrapers`
 
