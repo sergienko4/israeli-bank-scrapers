@@ -35,6 +35,8 @@ const describeIfVisaCal = hasVisaCalCredentials() ? describe : describe.skip;
 const describeIfDiscount = hasDiscountCredentials() ? describe : describe.skip;
 
 function assertSuccessfulScrape(result: ScraperScrapingResult) {
+  const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+  expect(error).toBe('');
   expect(result.success).toBe(true);
   expect(result.accounts).toBeDefined();
   expect(result.accounts!.length).toBeGreaterThan(0);
