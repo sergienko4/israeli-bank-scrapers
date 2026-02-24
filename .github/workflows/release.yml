@@ -66,5 +66,7 @@ jobs:
           npx tsc --emitDeclarationOnly
           npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
           npx rimraf lib/tests
-      - name: Publish with provenance (Trusted Publishing)
+      - name: Publish with provenance
         run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
