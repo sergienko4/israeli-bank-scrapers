@@ -18,7 +18,7 @@ import {
 import { BaseScraperWithBrowser } from './base-scraper-with-browser';
 import { ScraperErrorTypes } from './errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { interceptionPriorities, maskHeadlessUserAgent } from '../helpers/browser';
+import { applyAntiDetection, interceptionPriorities, isBotDetectionScript } from '../helpers/browser';
 
 const RATE_LIMIT = {
   SLEEP_BETWEEN: 1000,
@@ -402,46 +402,34 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
   }
 
   async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
+    // Anti-detection: realistic UA, client hints, stealth JS — must run BEFORE navigation
+    await applyAntiDetection(this.page);
+
     await this.page.setRequestInterception(true);
     this.page.on('request', request => {
-      if (request.url().includes('detector-dom.min.js')) {
-        debug('force abort for request do download detector-dom.min.js resource');
+      if (isBotDetectionScript(request.url())) {
+        debug(`blocking bot detection script: ${request.url()}`);
         void request.abort(undefined, interceptionPriorities.abort);
       } else {
         void request.continue(undefined, interceptionPriorities.continue);
       }
     });
 
-    await maskHeadlessUserAgent(this.page);
-
+    debug(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
-
     this.emitProgress(ScraperProgressTypes.LoggingIn);
 
-    const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
-    const validateRequest = {
-      id: credentials.id,
-      cardSuffix: credentials.card6Digits,
-      countryCode: COUNTRY_CODE,
-      idType: ID_TYPE,
-      checkLevel: '1',
-      companyCode: this.companyCode,
-    };
-    debug('logging in with validate request');
-    const validateResult = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, validateRequest);
-    if (
-      !validateResult ||
-      !validateResult.Header ||
-      validateResult.Header.Status !== '1' ||
-      !validateResult.ValidateIdDataBean
-    ) {
-      throw new Error('unknown error during login');
+    const validateResult = await this.validateCredentials(credentials);
+    if (!validateResult) {
+      const pageUrl = this.page.url();
+      throw new Error(`login validation failed (pageUrl=${pageUrl}). Possible WAF block.`);
     }
 
-    const validateReturnCode = validateResult.ValidateIdDataBean.returnCode;
+    const validatedData = validateResult.ValidateIdDataBean!;
+    const validateReturnCode = validatedData.returnCode;
     debug(`user validate with return code '${validateReturnCode}'`);
     if (validateReturnCode === '1') {
-      const { userName } = validateResult.ValidateIdDataBean;
+      const { userName } = validatedData;
 
       const loginUrl = `${this.servicesUrl}?reqName=performLogonI`;
       const request = {
@@ -489,6 +477,22 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       success: false,
       errorType: ScraperErrorTypes.InvalidPassword,
     };
+  }
+
+  private async validateCredentials(credentials: ScraperSpecificCredentials): Promise<ScrapedLoginValidation | null> {
+    const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
+    const validateRequest = {
+      id: credentials.id,
+      cardSuffix: credentials.card6Digits,
+      countryCode: COUNTRY_CODE,
+      idType: ID_TYPE,
+      checkLevel: '1',
+      companyCode: this.companyCode,
+    };
+    debug('validating credentials');
+    const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, validateRequest);
+    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) return null;
+    return result;
   }
 
   async fetchData() {

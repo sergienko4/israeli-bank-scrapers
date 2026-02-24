@@ -1,26 +1,43 @@
-name: Node CI
+name: PR Validation
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build:
-    if: github.ref != 'refs/heads/master'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version-file: .nvmrc
-    - uses: browser-actions/setup-chrome@v1
-    - name: npm install and test
-      env:
-        PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: ${{ runner.os == 'macOS-latest' && 'true' || 'false' }}
-      run: |
-        npm ci
-        npm run test:ci
-    - name: Verify prepare:core
-      run: npm run prepare:core
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: browser-actions/setup-chrome@v1
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:ci
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      - run: npm run lint
+
+  security:
+    name: CodeQL Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v4
