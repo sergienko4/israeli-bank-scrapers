@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.7.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.5...v6.7.6) (2026-02-24)
+
+
+### Code Refactoring
+
+* **ci:** improve workflow quality from review ([#19](https://github.com/sergienko4/israeli-bank-scrapers/issues/19)) ([8084b1c](https://github.com/sergienko4/israeli-bank-scrapers/commit/8084b1c054e213b2b6fa3e28b6a60123f97a178f))
+
 ## [6.7.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.4...v6.7.5) (2026-02-24)
 
 
