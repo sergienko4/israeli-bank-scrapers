@@ -1,13 +1,15 @@
-# Israeli Bank Scrapers - Get closer to your own data!
+# Israeli Bank Scrapers (Fork) — @sergienko4/israeli-bank-scrapers
 
 <img src="./logo.png" width="100" height="100" alt="Logo" align="left" />
 
-[![NPM](https://nodei.co/npm/israeli-bank-scrapers.png)](https://nodei.co/npm/israeli-bank-scrapers/)
+[![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
+[![CI](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/nodeCI.yml/badge.svg)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/nodeCI.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[![npm version](https://badge.fury.io/js/israeli-bank-scrapers.svg)](https://badge.fury.io/js/israeli-bank-scrapers)
-[![dependencies Status](https://david-dm.org/eshaham/israeli-bank-scrapers/status.svg)](https://david-dm.org/eshaham/israeli-bank-scrapers)
-[![devDependencies Status](https://david-dm.org/eshaham/israeli-bank-scrapers/dev-status.svg)](https://david-dm.org/eshaham/israeli-bank-scrapers?type=dev)
-[![Discord](https://img.shields.io/discord/924617301209260103?logo=discord)](https://discord.gg/2UvGM7aX4p)
+> **This is a maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
+> with WAF bypass fixes for Amex and Isracard scrapers.
+>
+> Install: `npm install @sergienko4/israeli-bank-scrapers`
 
 > Important!
 > 
@@ -40,7 +42,7 @@ To use this you will need to have [Node.js](https://nodejs.org) >= 22.12.0 insta
 # Getting started
 To use these scrapers you'll need to install the package from npm:
 ```sh
-npm install israeli-bank-scrapers --save
+npm install @sergienko4/israeli-bank-scrapers
 ```
 Then you can simply import and use it in your node module:
 
