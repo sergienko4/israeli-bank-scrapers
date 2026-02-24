@@ -23,7 +23,7 @@ jobs:
           cache: npm
       - uses: browser-actions/setup-chrome@v1
       - run: npm ci
-      - run: ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
       - name: Run E2E tests
         run: npx jest --ci --testPathPattern='tests/e2e' --verbose
         env:

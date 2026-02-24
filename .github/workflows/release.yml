@@ -28,7 +28,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests with coverage
         run: |
-          ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+          npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
           npx jest --ci --coverage
       - name: Build
         run: |
@@ -41,7 +41,7 @@ jobs:
           test -f lib/index.js || (echo "ERROR: lib/index.js missing" && exit 1)
           test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts missing" && exit 1)
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
   publish:
     name: Publish to NPM

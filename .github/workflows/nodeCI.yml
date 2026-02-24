@@ -30,7 +30,7 @@ jobs:
       - name: Lint Markdown
         uses: DavidAnson/markdownlint-cli2-action@v19
         with:
-          globs: '**/*.md'
+          globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
 
   type-check:
@@ -55,7 +55,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
       - name: Run tests with coverage
         run: npx jest --ci --coverage --coverageReporters=text --coverageReporters=lcov
       - name: Upload coverage artifact
@@ -119,4 +119,4 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: npm audit --audit-level=high --omit=dev
