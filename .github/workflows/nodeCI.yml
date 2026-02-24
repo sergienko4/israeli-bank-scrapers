@@ -2,33 +2,90 @@ name: PR Validation
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  lint:
+    name: Lint & Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: ESLint (warnings as errors)
+        run: npx eslint src --ext .ts --max-warnings 0
+      - name: Prettier check
+        run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - name: Run tests with coverage
+        run: npx jest --ci --coverage --coverageReporters=text --coverageReporters=lcov
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: Build Verification
+    needs: [lint, type-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
       - uses: browser-actions/setup-chrome@v1
       - run: npm ci
-      - run: npm run build
-      - run: npm run test:ci
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-      - run: npm ci
-      - run: npm run lint
+      - run: npx rimraf lib
+      - run: npx tsc --emitDeclarationOnly
+      - run: npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
+      - run: npx rimraf lib/tests
+      - name: Verify build output
+        run: |
+          test -f lib/index.js || (echo "ERROR: lib/index.js not found" && exit 1)
+          test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
 
   security:
     name: CodeQL Security Scan
@@ -41,3 +98,25 @@ jobs:
         with:
           languages: javascript-typescript
       - uses: github/codeql-action/analyze@v4
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  audit:
+    name: npm Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high

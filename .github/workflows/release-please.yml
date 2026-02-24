@@ -2,8 +2,7 @@ name: Release Please
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
@@ -15,5 +14,5 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          release-type: node
-          include-component-in-tag: false
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

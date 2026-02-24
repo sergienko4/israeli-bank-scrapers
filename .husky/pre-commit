@@ -1,4 +1,6 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-npm run lint
+npx eslint src --ext .ts --max-warnings 0
+npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
+npx tsc --noEmit

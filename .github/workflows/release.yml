@@ -2,29 +2,66 @@ name: Publish to NPM
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  publish:
+  validate:
+    name: Full Validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: browser-actions/setup-chrome@v1
+      - run: npm ci
+      - name: Lint (warnings as errors)
+        run: npx eslint src --ext .ts --max-warnings 0
+      - name: Format check
+        run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Unit tests with coverage
+        run: |
+          ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+          npx jest --ci --coverage
+      - name: Build
+        run: |
+          npx rimraf lib
+          npx tsc --emitDeclarationOnly
+          npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
+          npx rimraf lib/tests
+      - name: Verify build output
+        run: |
+          test -f lib/index.js || (echo "ERROR: lib/index.js missing" && exit 1)
+          test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts missing" && exit 1)
+      - name: Security audit
+        run: npm audit --audit-level=high
 
+  publish:
+    name: Publish to NPM
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org/
-
+          cache: npm
       - run: npm ci
-      - run: npm run build
-      - run: npm test
-
-      - name: Publish to NPM
+      - name: Build
+        run: |
+          npx rimraf lib
+          npx tsc --emitDeclarationOnly
+          npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
+          npx rimraf lib/tests
+      - name: Publish
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -57,8 +57,12 @@ typings/
 # dotenv environment variables file
 .env
 
-# NPM package related — lib/ is committed for GitHub install support
-# lib/
+# NPM package build output
+lib/
+
+# Claude Code (local only)
+CLAUDE.md
+.claude/
 
 # IDEs
 .idea

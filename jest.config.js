@@ -13,6 +13,19 @@ const config = {
     './tests/jest-setup.ts',
   ],
   testEnvironment: 'node',
+  collectCoverageFrom: [
+    '**/*.ts',
+    '!tests/**',
+    '!**/*.test.ts',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 3,
+      functions: 3,
+      lines: 20,
+      statements: 20,
+    },
+  },
 };
 
 module.exports = config;

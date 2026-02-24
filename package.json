@@ -1,7 +1,6 @@
 {
-  "name": "israeli-bank-scrapers",
+  "name": "@sergienko4/israeli-bank-scrapers",
   "version": "6.7.2",
-  "private": true,
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
     "node": ">= 22.12.0"
@@ -15,7 +14,7 @@
   "scripts": {
     "clean": "rimraf lib",
     "test": "jest",
-    "test:ci": "ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js && npm run test",
+    "test:ci": "ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js && jest --ci --coverage",
     "lint": "eslint src --ext .ts && npm run format:check",
     "lint:fix": "eslint src --ext .ts --fix && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -28,11 +27,12 @@
     "postbuild": "rimraf lib/tests",
     "prepare:core": "git reset --hard && node utils/prepare-israeli-bank-scrapers-core.js && npm i --package-lock-only && npm ci && npm run lint:fix && npm run build",
     "prepare:default": "git reset --hard && npm ci && npm run build",
+    "prepare": "npm run build",
     "reset": "git reset --hard && npm ci"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eshaham/israeli-bank-scrapers.git"
+    "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
   "keywords": [
     "israel",
@@ -42,9 +42,9 @@
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/eshaham/israeli-bank-scrapers/issues"
+    "url": "https://github.com/sergienko4/israeli-bank-scrapers/issues"
   },
-  "homepage": "https://github.com/eshaham/israeli-bank-scrapers#readme",
+  "homepage": "https://github.com/sergienko4/israeli-bank-scrapers#readme",
   "devDependencies": {
     "@babel/cli": "^7.4.4",
     "@babel/core": "^7.4.5",
