@@ -53,7 +53,7 @@
     "@json2csv/plainjs": "^7.0.6",
     "@types/debug": "^4.1.7",
     "@types/jest": "^29.5.12",
-    "@types/lodash": "^4.14.149",
+    "@types/lodash": "^4.17.24",
     "@types/node-fetch": "^2.5.6",
     "@types/source-map-support": "^0.5.1",
     "@types/uuid": "^9.0.1",
