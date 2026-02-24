@@ -59,6 +59,8 @@ jobs:
           node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org/
           cache: npm
+      - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
+        run: npm install -g npm@latest
       - run: npm ci
       - name: Build
         run: |
@@ -66,5 +68,5 @@ jobs:
           npx tsc --emitDeclarationOnly
           npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
           npx rimraf lib/tests
-      - name: Publish with provenance (Trusted Publishing)
+      - name: Publish with provenance (Trusted Publishing OIDC)
         run: npm publish --access public --provenance
