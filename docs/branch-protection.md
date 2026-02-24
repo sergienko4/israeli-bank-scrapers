@@ -1,48 +1,59 @@
 # Branch Protection Configuration
 
-These settings must be configured manually in GitHub repository settings.
+Protection is managed via a **GitHub Ruleset** (not classic branch protection rules).
+View at: Settings > Rules > Rulesets > `main`
 
-## Settings > Branches > Add rule
+## Ruleset: `main`
 
-### Branch name pattern: `main`
+### Pull Request Rules
 
 - [x] **Require a pull request before merging**
-  - [x] Require approvals: 1
-  - [x] Dismiss stale pull request approvals when new commits are pushed
+- [x] Approvals: 0 (CI checks are the gatekeepers; Dependabot PRs auto-merge)
+- [x] Dismiss stale reviews on push
+- [x] Require thread resolution
+- [x] Squash merge only
 
-- [x] **Require status checks to pass before merging**
-  - [x] Require branches to be up to date before merging
-  - Required status checks:
-    - `Lint & Format`
-    - `Type Check`
-    - `Unit Tests`
-    - `Build Verification`
-    - `CodeQL Security Scan`
-    - `Dependency Review`
-    - `npm Audit`
-    - `Validate PR Title`
-    - `E2E Tests`
+### Required Status Checks (7)
 
-- [x] **Require signed commits** (recommended)
+All must pass before merge:
 
-- [x] **Do not allow bypassing the above settings**
+- `Lint & Format` — ESLint (--max-warnings 0) + Prettier + Markdown lint
+- `Type Check` — tsc --noEmit (strict mode)
+- `Unit Tests` — Jest with coverage thresholds
+- `Build Verification` — Full build + output verification
+- `npm Audit` — npm audit --audit-level=high (production deps)
+- `Validate PR Title` — Conventional commit format
+- `E2E Tests` — Factory + error handling with Chrome
 
-- [x] **Restrict force pushes**
+### Branch Rules
 
-- [x] **Restrict deletions**
+- [x] No force push
+- [x] No deletion
+- [x] Linear history required
+- [x] Branch must be up to date before merge
 
-## Settings > Code security and analysis
+## Security Features
 
-- [x] **Dependency graph** - Enable
-- [x] **Dependabot alerts** - Enable
-- [x] **Dependabot security updates** - Enable
-- [x] **Secret scanning** - Enable
-- [x] **Push protection** - Enable
-- [x] **Code scanning** - Enabled via CodeQL workflow
+Configure at: Settings > Code security and analysis
 
-## Settings > Environments (optional)
+- [x] **Dependency graph** — enabled
+- [x] **Dependabot alerts** — enabled
+- [x] **Dependabot security updates** — enabled
+- [x] **Secret scanning** — enabled
+- [x] **Push protection** — enabled
+- [x] **Private vulnerability reporting** — enabled
+- [x] **CodeQL** — via PR Validation workflow
 
-Create an environment named `npm-publish`:
+## Environments
 
-- [x] Required reviewers: add yourself
-- [x] Allow administrators to bypass for emergency releases
+### `npm-publish`
+
+Used by the release workflow for npm Trusted Publishing (OIDC).
+No required reviewers — publishing is gated by the validate job.
+
+## Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `RELEASE_TOKEN` | GitHub PAT for release-please (so PRs trigger CI) |
+| npm Trusted Publishing | OIDC — no secret needed |
