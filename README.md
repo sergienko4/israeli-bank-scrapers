@@ -34,10 +34,10 @@ Currently only the following banks are supported:
 - Yahav (Thanks to [@gczobel](https://github.com/gczobel))
 - Beyhad Bishvilha - [ביחד בשבילך](https://www.hist.org.il/) (thanks [@esakal](https://github.com/esakal))
 - OneZero (Experimental) (thanks [@orzarchi](https://github.com/orzarchi))
-- Behatsdaa - [בהצדעה](behatsdaa.org.il) (thanks [@daniel-hauser](https://github.com/daniel-hauser))
+- Behatsdaa - [בהצדעה](https://behatsdaa.org.il) (thanks [@daniel-hauser](https://github.com/daniel-hauser))
 
 # Prerequisites
-To use this you will need to have [Node.js](https://nodejs.org) >= 22.12.0 installed.
+To use this you will need to have [Node.js](https://nodejs.org) >= 22.14.0 installed.
 
 # Getting started
 To use these scrapers you'll need to install the package from npm:
@@ -185,7 +185,7 @@ await browser.close();
 Some scrapers support opt-in features that can be enabled by passing the `optInFeatures` option when creating the scraper.
 Opt in features are usually used for breaking changes that are not enabled by default to avoid breaking existing users.
 
-See the [OptInFeatures](https://github.com/eshaham/israeli-bank-scrapers/blob/master/src/scrapers/interface.ts#:~:text=export-,type%20OptInFeatures) interface for available features.
+See the [OptInFeatures](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/scrapers/interface.ts#:~:text=export-,type%20OptInFeatures) interface for available features.
 
 ## Two-Factor Authentication Scrapers
 

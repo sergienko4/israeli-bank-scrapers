@@ -2,12 +2,12 @@
 
 ## Current State
 
-Coverage baseline (as of CI/CD setup):
+Coverage baseline (updated Feb 2026 after Phase 2+3 test additions):
 
-- Statements: 21.89%
-- Branches: 3.99%
-- Functions: 3.51%
-- Lines: 22.62%
+- Statements: 31.38%
+- Branches: 16.84%
+- Functions: 18.59%
+- Lines: 31.94%
 
 ## Target
 

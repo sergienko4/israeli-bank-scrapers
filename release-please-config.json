@@ -7,11 +7,12 @@
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },
         { "type": "perf", "section": "Performance Improvements" },
-        { "type": "refactor", "section": "Code Refactoring" },
-        { "type": "docs", "section": "Documentation" },
-        { "type": "chore", "section": "Miscellaneous" },
+        { "type": "refactor", "section": "Code Refactoring", "hidden": true },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
         { "type": "ci", "section": "CI/CD", "hidden": true },
-        { "type": "test", "section": "Tests", "hidden": true }
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Build", "hidden": true }
       ],
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
