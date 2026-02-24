@@ -15,7 +15,7 @@
     "clean": "rimraf lib",
     "test": "jest",
     "test:ci": "ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js && jest --ci --coverage",
-    "lint": "eslint src --ext .ts && npm run format:check",
+    "lint": "eslint src --ext .ts --max-warnings 0 && npm run format:check",
     "lint:fix": "eslint src --ext .ts --fix && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -27,7 +27,7 @@
     "postbuild": "rimraf lib/tests",
     "prepare:core": "git reset --hard && node utils/prepare-israeli-bank-scrapers-core.js && npm i --package-lock-only && npm ci && npm run lint:fix && npm run build",
     "prepare:default": "git reset --hard && npm ci && npm run build",
-    "prepare": "npm run build",
+    "prepare": "npm run clean && npm run build:types && npm run build:js",
     "reset": "git reset --hard && npm ci"
   },
   "repository": {

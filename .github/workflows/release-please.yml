@@ -46,16 +46,6 @@ jobs:
         run: |
           npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
           npx jest --ci --coverage
-      - name: Build
-        run: |
-          npx rimraf lib
-          npx tsc --emitDeclarationOnly
-          npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
-          npx rimraf lib/tests
-      - name: Verify build output
-        run: |
-          test -f lib/index.js || (echo "ERROR: lib/index.js missing" && exit 1)
-          test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts missing" && exit 1)
       - name: Security audit
         run: npm audit --audit-level=high --omit=dev
 
@@ -76,7 +66,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
       - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
       - run: npm ci
       - name: Build
         run: |
