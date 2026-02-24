@@ -47,7 +47,7 @@ npm install @sergienko4/israeli-bank-scrapers
 Then you can simply import and use it in your node module:
 
 ```node
-import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 (async function() {
   try {
@@ -118,7 +118,7 @@ The structure of the result object is as follows:
 
 You can also use the `SCRAPERS` list to get scraper metadata:
 ```node
-import { SCRAPERS } from 'israeli-bank-scrapers';
+import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
 ```
 
 The return value is a list of scraper metadata:
@@ -144,7 +144,7 @@ Example:
 
 ```typescript
 import puppeteer from 'puppeteer';
-import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const browser = await puppeteer.launch();
 const options = {
@@ -166,7 +166,7 @@ Example:
 
 ```typescript
 import puppeteer from 'puppeteer';
-import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const browser = await puppeteer.launch();
 const browserContext = await browser.createBrowserContext();
@@ -195,7 +195,7 @@ Some companies require two-factor authentication, and as such the scraper cannot
 
 
 ```node
-import { CompanyTypes, createScraper } from 'israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 import { prompt } from 'enquirer';
 
 // Option 1 - Provide a callback
