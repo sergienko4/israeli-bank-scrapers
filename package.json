@@ -3,7 +3,7 @@
   "version": "6.7.4",
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
-    "node": ">= 22.12.0"
+    "node": ">= 22.14.0"
   },
   "publishConfig": {
     "access": "public",
