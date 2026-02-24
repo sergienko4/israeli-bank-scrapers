@@ -31,6 +31,7 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     on: jest.fn(),
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
+    setRequestInterception: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
