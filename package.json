@@ -83,7 +83,7 @@
     "debug": "^4.3.2",
     "lodash": "^4.17.23",
     "moment": "^2.22.2",
-    "moment-timezone": "^0.5.37",
+    "moment-timezone": "^0.6.0",
     "node-fetch": "^2.2.0",
     "puppeteer": "22.15.0",
     "utility-types": "^3.11.0",
