@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.7.7](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.6...v6.7.7) (2026-02-24)
+
+
+### Bug Fixes
+
+* **ci:** use PAT for release-please to trigger CI on PRs ([#22](https://github.com/sergienko4/israeli-bank-scrapers/issues/22)) ([664c323](https://github.com/sergienko4/israeli-bank-scrapers/commit/664c32367531607c4bf17367fe57b471de2d4157))
+
+
+### Documentation
+
+* update documentation to match current CI/CD setup ([#23](https://github.com/sergienko4/israeli-bank-scrapers/issues/23)) ([e248f5f](https://github.com/sergienko4/israeli-bank-scrapers/commit/e248f5f0c0cf903a623780469ace58aa21b7659c))
+
 ## [6.7.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.5...v6.7.6) (2026-02-24)
 
 
