@@ -171,8 +171,6 @@ describe('waitUntilIframeFound', () => {
   it('throws when frame is not found within timeout', async () => {
     const page = createMockPage();
     page.frames.mockReturnValue([]);
-    await expect(
-      waitUntilIframeFound(page, () => false, 'missing frame', 100),
-    ).rejects.toThrow();
+    await expect(waitUntilIframeFound(page, () => false, 'missing frame', 100)).rejects.toThrow();
   });
 });

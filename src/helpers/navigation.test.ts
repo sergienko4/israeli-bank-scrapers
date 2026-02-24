@@ -1,4 +1,10 @@
-import { waitForNavigation, waitForNavigationAndDomLoad, getCurrentUrl, waitForRedirect, waitForUrl } from './navigation';
+import {
+  waitForNavigation,
+  waitForNavigationAndDomLoad,
+  getCurrentUrl,
+  waitForRedirect,
+  waitForUrl,
+} from './navigation';
 
 function createMockPage(currentUrl = 'https://bank.co.il/login') {
   let url = currentUrl;

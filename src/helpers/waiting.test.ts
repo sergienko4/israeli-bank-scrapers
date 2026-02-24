@@ -40,20 +40,13 @@ describe('waitUntil', () => {
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(
-      waitUntil(() => Promise.resolve(false), 'never true', 100, 10),
-    ).rejects.toThrow(TimeoutError);
+    await expect(waitUntil(() => Promise.resolve(false), 'never true', 100, 10)).rejects.toThrow(TimeoutError);
   });
 
   // waitUntil's catch handler calls reject() with no value (undefined)
   it('rejects when async test throws', async () => {
     await expect(
-      waitUntil(
-        () => Promise.reject(new Error('test error')),
-        'failing test',
-        5000,
-        10,
-      ),
+      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', 5000, 10),
     ).rejects.toBeUndefined();
   });
 });
@@ -65,14 +58,15 @@ describe('raceTimeout', () => {
   });
 
   it('returns undefined when promise times out', async () => {
-    const result = await raceTimeout(50, sleep(200).then(() => 'slow'));
+    const result = await raceTimeout(
+      50,
+      sleep(200).then(() => 'slow'),
+    );
     expect(result).toBeUndefined();
   });
 
   it('throws non-timeout errors from the promise', async () => {
-    await expect(
-      raceTimeout(5000, Promise.reject(new Error('real error'))),
-    ).rejects.toThrow('real error');
+    await expect(raceTimeout(5000, Promise.reject(new Error('real error')))).rejects.toThrow('real error');
   });
 });
 
@@ -94,10 +88,7 @@ describe('runSerial', () => {
   });
 
   it('propagates errors from actions', async () => {
-    const actions = [
-      () => Promise.resolve(1),
-      () => Promise.reject(new Error('fail')),
-    ];
+    const actions = [() => Promise.resolve(1), () => Promise.reject(new Error('fail'))];
     await expect(runSerial(actions)).rejects.toThrow('fail');
   });
 });

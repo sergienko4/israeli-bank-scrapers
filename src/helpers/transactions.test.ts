@@ -129,9 +129,7 @@ describe('filterOldTransactions', () => {
   });
 
   it('with combineInstallments still filters old normal transactions', () => {
-    const txns = [
-      createTransaction({ date: '2024-01-01T00:00:00.000Z', type: TransactionTypes.Normal }),
-    ];
+    const txns = [createTransaction({ date: '2024-01-01T00:00:00.000Z', type: TransactionTypes.Normal })];
     const result = filterOldTransactions(txns, startMoment, true);
     expect(result).toHaveLength(0);
   });

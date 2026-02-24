@@ -7,6 +7,7 @@ import type { ScraperScrapingResult } from '../scrapers/interface';
 dotenv.config();
 
 const SCRAPE_TIMEOUT = 120000;
+const BROWSER_ARGS = process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
 
 const FAILED_LOGIN_TYPES: string[] = [
   LoginResults.InvalidPassword,
@@ -64,6 +65,7 @@ describeIfAmex('E2E: Amex (real credentials)', () => {
       companyId: CompanyTypes.amex,
       startDate: lastMonthStartDate(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
@@ -80,6 +82,7 @@ describeIfAmex('E2E: Amex (real credentials)', () => {
       companyId: CompanyTypes.amex,
       startDate: new Date(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
@@ -102,6 +105,7 @@ describeIfVisaCal('E2E: VisaCal (real credentials)', () => {
       companyId: CompanyTypes.visaCal,
       startDate: lastMonthStartDate(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
@@ -117,6 +121,7 @@ describeIfVisaCal('E2E: VisaCal (real credentials)', () => {
       companyId: CompanyTypes.visaCal,
       startDate: new Date(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
@@ -138,6 +143,7 @@ describeIfDiscount('E2E: Discount Bank (real credentials)', () => {
       companyId: CompanyTypes.discount,
       startDate: lastMonthStartDate(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
@@ -154,6 +160,7 @@ describeIfDiscount('E2E: Discount Bank (real credentials)', () => {
       companyId: CompanyTypes.discount,
       startDate: new Date(),
       showBrowser: false,
+      args: BROWSER_ARGS,
     });
 
     const result = await scraper.scrape({
