@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.7.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.4...v6.7.5) (2026-02-24)
+
+
+### Bug Fixes
+
+* **ci:** install npm 11+ for Trusted Publishing OIDC support ([0a22fc1](https://github.com/sergienko4/israeli-bank-scrapers/commit/0a22fc1f7509a08055a0bb36f5280a2ac5a2a653))
+* update Node to 22.14.0 for npm Trusted Publishing support ([37625ba](https://github.com/sergienko4/israeli-bank-scrapers/commit/37625ba2ea040259d61a7d85fb4abc7b8c1534b6))
+
 ## [6.7.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.3...v6.7.4) (2026-02-24)
 
 

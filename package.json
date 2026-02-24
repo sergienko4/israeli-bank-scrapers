@@ -1,6 +1,6 @@
 {
   "name": "@sergienko4/israeli-bank-scrapers",
-  "version": "6.7.4",
+  "version": "6.7.5",
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
     "node": ">= 22.14.0"
