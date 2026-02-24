@@ -3,6 +3,18 @@ name: PR Validation
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - '.babelrc.js'
+      - 'babel.config.js'
+      - 'jest.config.js'
+      - '.eslintrc.js'
+      - '.prettierrc.js'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:

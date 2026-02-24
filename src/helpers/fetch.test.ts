@@ -1,0 +1,144 @@
+import { fetchGet, fetchPost, fetchGraphql, fetchGetWithinPage, fetchPostWithinPage } from './fetch';
+
+jest.mock('node-fetch', () => {
+  return jest.fn();
+});
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeFetch = require('node-fetch') as jest.Mock;
+
+describe('fetchGet', () => {
+  beforeEach(() => {
+    nodeFetch.mockReset();
+  });
+
+  it('sends GET request with JSON headers', async () => {
+    nodeFetch.mockResolvedValue({ status: 200, json: () => Promise.resolve({ data: 'test' }) });
+    const result = await fetchGet('https://api.bank.co.il/data', {});
+    expect(result).toEqual({ data: 'test' });
+    expect(nodeFetch).toHaveBeenCalledWith('https://api.bank.co.il/data', expect.objectContaining({ method: 'GET' }));
+  });
+
+  it('merges extra headers', async () => {
+    nodeFetch.mockResolvedValue({ status: 200, json: () => Promise.resolve({}) });
+    await fetchGet('https://api.bank.co.il/data', { Authorization: 'Bearer token' });
+    const callArgs = nodeFetch.mock.calls[0][1];
+    expect(callArgs.headers.Authorization).toBe('Bearer token');
+    expect(callArgs.headers.Accept).toBe('application/json');
+  });
+
+  it('throws when status is not 200', async () => {
+    nodeFetch.mockResolvedValue({ status: 500, json: () => Promise.resolve({}) });
+    await expect(fetchGet('https://api.bank.co.il/data', {})).rejects.toThrow('status code 500');
+  });
+});
+
+describe('fetchPost', () => {
+  beforeEach(() => {
+    nodeFetch.mockReset();
+  });
+
+  it('sends POST request with JSON body', async () => {
+    nodeFetch.mockResolvedValue({ json: () => Promise.resolve({ success: true }) });
+    const result = await fetchPost('https://api.bank.co.il/login', { user: 'test' });
+    expect(result).toEqual({ success: true });
+    const callArgs = nodeFetch.mock.calls[0][1];
+    expect(callArgs.method).toBe('POST');
+    expect(callArgs.body).toBe(JSON.stringify({ user: 'test' }));
+  });
+
+  it('returns JSON even on non-200 status', async () => {
+    nodeFetch.mockResolvedValue({ status: 500, json: () => Promise.resolve({ error: true }) });
+    const result = await fetchPost('https://api.bank.co.il/fail', {});
+    expect(result).toEqual({ error: true });
+  });
+});
+
+describe('fetchGraphql', () => {
+  beforeEach(() => {
+    nodeFetch.mockReset();
+  });
+
+  it('sends GraphQL query and returns data', async () => {
+    nodeFetch.mockResolvedValue({ json: () => Promise.resolve({ data: { accounts: [] } }) });
+    const result = await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts { id } }');
+    expect(result).toEqual({ accounts: [] });
+  });
+
+  it('throws when GraphQL response has errors', async () => {
+    nodeFetch.mockResolvedValue({
+      json: () => Promise.resolve({ errors: [{ message: 'Unauthorized' }] }),
+    });
+    await expect(fetchGraphql('https://api.bank.co.il/graphql', 'query')).rejects.toThrow('Unauthorized');
+  });
+
+  it('sends variables in the request body', async () => {
+    nodeFetch.mockResolvedValue({ json: () => Promise.resolve({ data: {} }) });
+    await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts }', { id: '123' });
+    const body = JSON.parse(nodeFetch.mock.calls[0][1].body);
+    expect(body.variables).toEqual({ id: '123' });
+    expect(body.query).toBe('{ accounts }');
+  });
+});
+
+describe('fetchGetWithinPage', () => {
+  function createMockPage(evaluateResult: any) {
+    return {
+      evaluate: jest.fn().mockResolvedValue(evaluateResult),
+    } as any;
+  }
+
+  it('returns parsed JSON on success', async () => {
+    const page = createMockPage([JSON.stringify({ balance: 1000 }), 200]);
+    const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/balance');
+    expect(result).toEqual({ balance: 1000 });
+  });
+
+  it('returns null for 204 status', async () => {
+    const page = createMockPage([null, 204]);
+    const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/empty');
+    expect(result).toBeNull();
+  });
+
+  it('throws on invalid JSON when ignoreErrors is false', async () => {
+    const page = createMockPage(['not json', 200]);
+    await expect(fetchGetWithinPage(page, 'https://bank.co.il/api/bad')).rejects.toThrow('parse error');
+  });
+
+  it('returns null on invalid JSON when ignoreErrors is true', async () => {
+    const page = createMockPage(['not json', 200]);
+    const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/bad', true);
+    expect(result).toBeNull();
+  });
+});
+
+describe('fetchPostWithinPage', () => {
+  function createMockPage(evaluateResult: any) {
+    return {
+      evaluate: jest.fn().mockResolvedValue(evaluateResult),
+    } as any;
+  }
+
+  it('returns parsed JSON on success', async () => {
+    const page = createMockPage(JSON.stringify({ result: 'ok' }));
+    const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/action', { key: 'value' });
+    expect(result).toEqual({ result: 'ok' });
+  });
+
+  it('returns null for 204 status', async () => {
+    const page = createMockPage(null);
+    const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/empty', {});
+    expect(result).toBeNull();
+  });
+
+  it('throws on invalid JSON when ignoreErrors is false', async () => {
+    const page = createMockPage('invalid json');
+    await expect(fetchPostWithinPage(page, 'https://bank.co.il/api/bad', {})).rejects.toThrow('parse error');
+  });
+
+  it('returns null on invalid JSON when ignoreErrors is true', async () => {
+    const page = createMockPage('invalid json');
+    const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/bad', {}, {}, true);
+    expect(result).toBeNull();
+  });
+});

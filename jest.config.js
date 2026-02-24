@@ -13,6 +13,7 @@ const config = {
     './tests/jest-setup.ts',
   ],
   testEnvironment: 'node',
+  testPathIgnorePatterns: ['/node_modules/', 'e2e-real\\.test\\.ts$'],
   collectCoverageFrom: [
     '**/*.ts',
     '!tests/**',
@@ -20,10 +21,10 @@ const config = {
   ],
   coverageThreshold: {
     global: {
-      branches: 3,
-      functions: 3,
-      lines: 20,
-      statements: 20,
+      branches: 15,
+      functions: 17,
+      lines: 30,
+      statements: 30,
     },
   },
 };

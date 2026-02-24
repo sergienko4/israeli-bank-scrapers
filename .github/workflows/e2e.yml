@@ -3,6 +3,13 @@ name: E2E Tests
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'jest.config.js'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
   workflow_dispatch:
 
 concurrency:
@@ -10,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e:
-    name: E2E Tests
+  e2e-smoke:
+    name: E2E Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -23,7 +30,34 @@ jobs:
       - uses: browser-actions/setup-chrome@v2
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
-      - name: Run E2E tests
-        run: npx jest --ci --testPathPattern='tests/e2e' --verbose
+      - name: Run E2E smoke tests
+        run: npx jest --ci --testPathPattern='tests/e2e\\.test' --verbose
         env:
           PUPPETEER_HEADLESS: 'true'
+
+  e2e-real:
+    name: E2E Real Bank Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: browser-actions/setup-chrome@v2
+      - run: npm ci
+      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - name: Run real E2E tests
+        run: npx jest --ci --testPathPattern='tests/e2e-real' --testPathIgnorePatterns='/node_modules/' --verbose
+        env:
+          PUPPETEER_HEADLESS: 'true'
+          AMEX_ID: ${{ secrets.AMEX_ID }}
+          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
+          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
+          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
+          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
