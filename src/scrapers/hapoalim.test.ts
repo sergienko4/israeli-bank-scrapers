@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
 import { applyAntiDetection } from '../helpers/browser';

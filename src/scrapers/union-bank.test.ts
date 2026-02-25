@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { SHEKEL_CURRENCY } from '../constants';
 import { elementPresentOnPage, pageEvalAll, dropdownElements } from '../helpers/elements-interactions';

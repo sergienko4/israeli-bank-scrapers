@@ -79,14 +79,14 @@ beforeEach(() => {
 describe('getViewPort', () => {
   it('returns default 1024x768 when no custom viewport', () => {
     const scraper = createScraper();
-    // eslint-disable-next-line @typescript-eslint/dot-notation
+
     const viewport = scraper['getViewPort']();
     expect(viewport).toEqual({ width: 1024, height: 768 });
   });
 
   it('returns custom viewport from options', () => {
     const scraper = createScraper({ viewportSize: { width: 1920, height: 1080 } });
-    // eslint-disable-next-line @typescript-eslint/dot-notation
+
     const viewport = scraper['getViewPort']();
     expect(viewport).toEqual({ width: 1920, height: 1080 });
   });

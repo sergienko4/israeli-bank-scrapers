@@ -282,7 +282,6 @@ function createLoginFields(credentials: ScraperSpecificCredentials) {
 type ScraperSpecificCredentials = { userCode: string; password: string };
 
 class HapoalimScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  // eslint-disable-next-line class-methods-use-this
   get baseUrl() {
     return 'https://login.bankhapoalim.co.il';
   }

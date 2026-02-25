@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { pageEval, pageEvalAll } from '../helpers/elements-interactions';
 import { filterOldTransactions } from '../helpers/transactions';

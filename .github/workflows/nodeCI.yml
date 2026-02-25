@@ -1,6 +1,14 @@
 name: PR Validation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
@@ -12,7 +20,7 @@ on:
       - '.babelrc.js'
       - 'babel.config.js'
       - 'jest.config.js'
-      - '.eslintrc.js'
+      - 'eslint.config.mjs'
       - '.prettierrc.js'
       - '.github/workflows/**'
   workflow_dispatch:
@@ -37,7 +45,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: ESLint (warnings as errors)
-        run: npx eslint src --ext .ts --max-warnings 0
+        run: npx eslint src --max-warnings 0
       - name: Prettier check
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
@@ -76,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: coverage-report
-          path: coverage/
+          path: src/coverage/
           retention-days: 7
 
   build:

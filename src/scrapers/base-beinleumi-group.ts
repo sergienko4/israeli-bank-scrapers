@@ -388,7 +388,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
     });
 
     return accountLabels;
-  } catch (error) {
+  } catch {
     return []; // Graceful fallback
   }
 }
