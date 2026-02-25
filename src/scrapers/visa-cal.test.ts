@@ -93,6 +93,37 @@ function scrapedTxn(overrides: any = {}): any {
   };
 }
 
+function pendingTxn(overrides: Record<string, unknown> = {}) {
+  return {
+    merchantID: 'M1',
+    merchantName: 'Pending Shop',
+    trnPurchaseDate: '2025-06-10',
+    walletTranInd: 0,
+    transactionsOrigin: 0,
+    trnAmt: 75,
+    tpaApprovalAmount: null,
+    trnCurrencySymbol: 'ILS',
+    trnTypeCode: '5',
+    trnType: 'רגילה',
+    branchCodeDesc: '',
+    transCardPresentInd: false,
+    j5Indicator: '',
+    numberOfPayments: 0,
+    firstPaymentAmount: 0,
+    transTypeCommentDetails: [],
+    ...overrides,
+  };
+}
+
+function mockPendingResponse(txns: ReturnType<typeof pendingTxn>[] = [pendingTxn()]) {
+  return {
+    statusCode: 1,
+    result: {
+      cardsList: [{ cardUniqueID: 'card-1', authDetalisList: txns }],
+    },
+  };
+}
+
 function mockCardTransactionDetails(txns: any[] = [], overrides: any = {}) {
   return {
     statusCode: 1,
@@ -328,5 +359,124 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].category).toBe('מסעדות');
+  });
+
+  it('merges pending transactions with completed ones', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce(mockPendingResponse([pendingTxn({ branchCodeDesc: 'קניות' })]))
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    const completed = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Completed);
+    expect(pending).toBeDefined();
+    expect(pending!.description).toBe('Pending Shop');
+    expect(pending!.originalAmount).toBe(-75);
+    expect(completed).toBeDefined();
+  });
+
+  it('handles standing order transaction type', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '9' })]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].type).toBe(TransactionTypes.Normal);
+  });
+
+  it('skips filtering when enableTransactionsFilterByDate is false', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions({ outputData: { enableTransactionsFilterByDate: false } }));
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(filterOldTransactions).not.toHaveBeenCalled();
+  });
+
+  it('handles failed pending transactions gracefully', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 0, title: 'Pending failed' })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts![0].txns).toHaveLength(1);
+  });
+
+  it('handles foreign currency transactions', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(
+        mockCardTransactionDetails([
+          scrapedTxn({
+            trnCurrencySymbol: 'USD',
+            debCrdCurrencySymbol: 'ILS',
+            trnAmt: 50,
+            amtBeforeConvAndIndex: 180,
+          }),
+        ]),
+      );
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalCurrency).toBe('USD');
+    expect(t.chargedCurrency).toBe('ILS');
+    expect(t.originalAmount).toBe(-50);
+    expect(t.chargedAmount).toBe(-180);
+  });
+
+  it('sets chargedCurrency only for completed transactions', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce(
+        mockPendingResponse([pendingTxn({ merchantName: 'Pending', trnAmt: 100, trnCurrencySymbol: 'USD' })]),
+      )
+      .mockResolvedValueOnce(mockCardTransactionDetails([]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const pendingResult = result.accounts![0].txns[0];
+    expect(pendingResult.chargedCurrency).toBeUndefined();
+  });
+
+  it('handles installment date shift', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(
+        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '8', numOfPayments: 6, curPaymentNum: 3 })]),
+      );
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.installments).toEqual({ number: 3, total: 6 });
+    // Date should be shifted by (curPaymentNum - 1) months from purchase date
+    expect(t.date).toBeDefined();
   });
 });
