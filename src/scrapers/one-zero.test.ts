@@ -130,6 +130,7 @@ describe('login', () => {
 
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(result.errorMessage).toContain('Invalid otpLongTermToken');
   });
 
   it('returns error when phone number does not start with +', async () => {
@@ -165,6 +166,12 @@ describe('fetchData', () => {
     expect(result.accounts).toHaveLength(1);
     expect(result.accounts![0].accountNumber).toBe('ACC-001');
     expect(result.accounts![0].txns).toHaveLength(1);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalAmount).toBe(-100);
+    expect(t.originalCurrency).toBe('ILS');
+    expect(t.description).toBe('Test Payment');
+    expect(t.type).toBe(TransactionTypes.Normal);
   });
 
   it('negates DEBIT amounts', async () => {

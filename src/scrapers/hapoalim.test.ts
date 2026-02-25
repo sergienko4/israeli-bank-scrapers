@@ -155,6 +155,9 @@ describe('fetchData', () => {
 
     const t = result.accounts![0].txns[0];
     expect(t.description).toBe('קניה');
+    expect(t.originalCurrency).toBe('ILS');
+    expect(t.type).toBe(TransactionTypes.Normal);
+    expect(t.originalAmount).toBe(-250);
   });
 
   it('negates outbound transactions (eventActivityTypeCode=2)', async () => {

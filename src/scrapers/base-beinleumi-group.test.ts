@@ -7,6 +7,7 @@ import { sleep } from '../helpers/waiting';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeinleumiGroupBaseScraper from './base-beinleumi-group';
+import { ScraperErrorTypes } from './errors';
 import { TransactionTypes } from '../transactions';
 
 jest.mock('puppeteer', () => ({ launch: jest.fn() }));
@@ -67,6 +68,22 @@ function createPageWithAccountFeatures(overrides: Record<string, any> = {}) {
   });
 }
 
+const COMPLETED_COLUMN_TYPES = [
+  { colClass: 'date first', index: 0 },
+  { colClass: 'reference wrap_normal', index: 1 },
+  { colClass: 'details', index: 2 },
+  { colClass: 'debit', index: 3 },
+  { colClass: 'credit', index: 4 },
+];
+
+function mockTransactionTable(rows: Array<{ innerTds: string[] }>) {
+  (pageEvalAll as jest.Mock)
+    .mockResolvedValueOnce([]) // pending column types
+    .mockResolvedValueOnce([]) // pending rows
+    .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
+    .mockResolvedValueOnce(rows);
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
@@ -89,32 +106,13 @@ describe('login', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
   });
 });
 
 describe('fetchData', () => {
   it('fetches transactions for single account (no dropdown)', async () => {
-    // No accounts found in dropdown → uses current account
-    (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
-
-    // Mock completed transactions table extraction
-    (pageEvalAll as jest.Mock)
-      .mockResolvedValueOnce([]) // column types for pending table
-      .mockResolvedValueOnce([]) // pending table rows
-      .mockResolvedValueOnce([
-        // column types for completed table
-        { colClass: 'date first', index: 0 },
-        { colClass: 'reference wrap_normal', index: 1 },
-        { colClass: 'details', index: 2 },
-        { colClass: 'debit', index: 3 },
-        { colClass: 'credit', index: 4 },
-      ])
-      .mockResolvedValueOnce([
-        // completed table rows
-        {
-          innerTds: ['15/06/2024', 'סופר שופ', '12345', '₪150.00', ''],
-        },
-      ]);
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'סופר שופ', '12345', '₪150.00', ''] }]);
 
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -125,19 +123,7 @@ describe('fetchData', () => {
   });
 
   it('converts transaction amounts correctly (credit - debit)', async () => {
-    (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
-
-    (pageEvalAll as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { colClass: 'date first', index: 0 },
-        { colClass: 'reference wrap_normal', index: 1 },
-        { colClass: 'details', index: 2 },
-        { colClass: 'debit', index: 3 },
-        { colClass: 'credit', index: 4 },
-      ])
-      .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Payment', '100', '₪200.00', '₪50.00'] }]);
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Payment', '100', '₪200.00', '₪50.00'] }]);
 
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -161,22 +147,10 @@ describe('fetchData', () => {
   });
 
   it('skips rows with empty date', async () => {
-    (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
-
-    (pageEvalAll as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { colClass: 'date first', index: 0 },
-        { colClass: 'reference wrap_normal', index: 1 },
-        { colClass: 'details', index: 2 },
-        { colClass: 'debit', index: 3 },
-        { colClass: 'credit', index: 4 },
-      ])
-      .mockResolvedValueOnce([
-        { innerTds: ['15/06/2024', 'Valid', '100', '₪100.00', ''] },
-        { innerTds: ['', 'Invalid', '', '', ''] },
-      ]);
+    mockTransactionTable([
+      { innerTds: ['15/06/2024', 'Valid', '100', '₪100.00', ''] },
+      { innerTds: ['', 'Invalid', '', '', ''] },
+    ]);
 
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -185,19 +159,7 @@ describe('fetchData', () => {
   });
 
   it('includes rawTransaction when option set', async () => {
-    (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
-
-    (pageEvalAll as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { colClass: 'date first', index: 0 },
-        { colClass: 'reference wrap_normal', index: 1 },
-        { colClass: 'details', index: 2 },
-        { colClass: 'debit', index: 3 },
-        { colClass: 'credit', index: 4 },
-      ])
-      .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Test', '100', '₪100.00', ''] }]);
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '100', '₪100.00', ''] }]);
 
     const scraper = new TestBeinleumiScraper(createMockScraperOptions({ includeRawTransaction: true }));
     const result = await scraper.scrape(CREDS);
@@ -206,19 +168,7 @@ describe('fetchData', () => {
   });
 
   it('parses reference number as integer', async () => {
-    (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
-
-    (pageEvalAll as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { colClass: 'date first', index: 0 },
-        { colClass: 'reference wrap_normal', index: 1 },
-        { colClass: 'details', index: 2 },
-        { colClass: 'debit', index: 3 },
-        { colClass: 'credit', index: 4 },
-      ])
-      .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Test', '12345', '₪100.00', ''] }]);
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '12345', '₪100.00', ''] }]);
 
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
