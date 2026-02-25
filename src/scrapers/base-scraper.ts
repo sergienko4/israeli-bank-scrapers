@@ -63,17 +63,15 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     return scrapeResult;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/require-await
   triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
     throw new Error(`triggerOtp() is not created in ${this.options.companyId}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/require-await
   getLongTermTwoFactorToken(_otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult> {
     throw new Error(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await
   protected async login(_credentials: TCredentials): Promise<ScraperLoginResult> {
     throw new Error(`login() is not created in ${this.options.companyId}`);
   }
@@ -83,7 +81,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     throw new Error(`fetchData() is not created in ${this.options.companyId}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await
   protected async terminate(_success: boolean) {
     this.emitProgress(ScraperProgressTypes.Terminating);
   }

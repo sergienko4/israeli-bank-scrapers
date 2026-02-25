@@ -15,13 +15,12 @@ enum LoginBaseResults {
   UnknownError = 'UNKNOWN_ERROR',
 }
 
-const { Timeout, Generic, General, ...rest } = ScraperErrorTypes;
+const { Timeout: _Timeout, Generic: _Generic, General: _General, ...rest } = ScraperErrorTypes;
 export const LoginResults = {
   ...rest,
   ...LoginBaseResults,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type LoginResults =
   | Exclude<ScraperErrorTypes, ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.General>
   | LoginBaseResults;
@@ -220,7 +219,6 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
     throw new Error(`getLoginOptions() is not created in ${this.options.companyId}`);
   }

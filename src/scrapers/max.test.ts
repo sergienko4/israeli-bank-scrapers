@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import moment from 'moment';
 import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../constants';

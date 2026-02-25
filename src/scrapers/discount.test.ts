@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { fetchGetWithinPage } from '../helpers/fetch';
 import { waitForNavigation } from '../helpers/navigation';

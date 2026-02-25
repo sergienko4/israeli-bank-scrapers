@@ -22,6 +22,6 @@
     "inlineSourceMap": true,
     "inlineSources": true
   },
-  "include": ["src/**/*",".eslintrc.js","jest.config.js"],
+  "include": ["src/**/*","jest.config.js"],
   "exclude": ["node_modules"]
 }

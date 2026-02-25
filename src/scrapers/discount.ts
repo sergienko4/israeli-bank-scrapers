@@ -139,7 +139,7 @@ async function fetchAccountData(page: Page, options: ScraperOptions): Promise<Sc
 async function navigateOrErrorLabel(page: Page) {
   try {
     await waitForNavigation(page);
-  } catch (e) {
+  } catch {
     await waitUntilElementFound(page, '#general-error', false, 100);
   }
 }
