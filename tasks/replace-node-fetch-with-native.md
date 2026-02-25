@@ -4,8 +4,8 @@
 
 ## Current State
 
-- `node-fetch` v2.2.0 (CommonJS)
-- `@types/node-fetch` v2.5.6
+- `node-fetch` ^2.2.0 (CommonJS)
+- `@types/node-fetch` ^2.6.13
 - Project requires Node >= 22.14.0 which has native `fetch()` built-in
 - node-fetch v3 is ESM-only and incompatible with this CommonJS project
 
