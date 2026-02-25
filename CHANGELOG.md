@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.8...v6.8.0) (2026-02-24)
+
+
+### Features
+
+* apply anti-detection to ALL scrapers via base class ([#32](https://github.com/sergienko4/israeli-bank-scrapers/issues/32)) ([d8e9e5e](https://github.com/sergienko4/israeli-bank-scrapers/commit/d8e9e5e2f04e9cb22c9980e76fbaeab88df2317e))
+
 ## [6.7.8](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.7...v6.7.8) (2026-02-24)
 
 
