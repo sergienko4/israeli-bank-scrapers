@@ -303,7 +303,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
 
     const plainString = text.replace(/\u202d/gi, '').trim();
     const hebrewSubStringsRanges = [...plainString.matchAll(HEBREW_WORDS_REGEX)];
-    const rangesToReverse = hebrewSubStringsRanges.map(str => ({ start: str.index!, end: str.index! + str[0].length }));
+    const rangesToReverse = hebrewSubStringsRanges.map(str => ({ start: str.index, end: str.index + str[0].length }));
     const out = [];
     let index = 0;
 
