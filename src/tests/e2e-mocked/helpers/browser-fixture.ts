@@ -1,4 +1,11 @@
-import puppeteer, { type Browser } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { type Browser } from 'puppeteer';
+
+const stealth = StealthPlugin();
+stealth.enabledEvasions.delete('user-agent-override');
+stealth.enabledEvasions.delete('navigator.languages');
+puppeteer.use(stealth);
 
 let sharedBrowser: Browser | null = null;
 

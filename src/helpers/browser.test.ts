@@ -1,4 +1,4 @@
-import { applyAntiDetection, isBotDetectionScript, maskHeadlessUserAgent, interceptionPriorities } from './browser';
+import { applyAntiDetection, isBotDetectionScript, interceptionPriorities } from './browser';
 import { createMockPage } from '../tests/mock-page';
 
 describe('isBotDetectionScript', () => {
@@ -39,10 +39,9 @@ describe('interceptionPriorities', () => {
 });
 
 describe('applyAntiDetection', () => {
-  it('applies stealth script, user agent, and headers', async () => {
+  it('sets realistic user agent, headers, and Hebrew locale', async () => {
     const page = createMockPage();
     await applyAntiDetection(page);
-    expect(page.evaluateOnNewDocument).toHaveBeenCalled();
     expect(page.setUserAgent).toHaveBeenCalledWith(expect.stringContaining('Chrome/131'));
     expect(page.setExtraHTTPHeaders).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -52,6 +51,7 @@ describe('applyAntiDetection', () => {
         'sec-ch-ua-platform': '"Windows"',
       }),
     );
+    expect(page.evaluateOnNewDocument).toHaveBeenCalled();
   });
 
   it('extracts Chrome version from browser version', async () => {
@@ -66,21 +66,5 @@ describe('applyAntiDetection', () => {
     page.browser().version.mockResolvedValue('UnknownBrowser/1.0');
     await applyAntiDetection(page);
     expect(page.setUserAgent).toHaveBeenCalledWith(expect.stringContaining('Chrome/131'));
-  });
-});
-
-describe('maskHeadlessUserAgent', () => {
-  it('replaces HeadlessChrome with Chrome in user agent', async () => {
-    const page = createMockPage();
-    page.evaluate.mockResolvedValue('Mozilla/5.0 HeadlessChrome/131.0.0.0 Safari/537.36');
-    await maskHeadlessUserAgent(page);
-    expect(page.setUserAgent).toHaveBeenCalledWith('Mozilla/5.0 Chrome/131.0.0.0 Safari/537.36');
-  });
-
-  it('handles user agent without HeadlessChrome', async () => {
-    const page = createMockPage();
-    page.evaluate.mockResolvedValue('Mozilla/5.0 Chrome/131.0.0.0 Safari/537.36');
-    await maskHeadlessUserAgent(page);
-    expect(page.setUserAgent).toHaveBeenCalledWith('Mozilla/5.0 Chrome/131.0.0.0 Safari/537.36');
   });
 });
