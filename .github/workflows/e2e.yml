@@ -10,6 +10,7 @@ on:
       - 'jest.config.js'
       - 'tsconfig.json'
       - 'tsconfig.build.json'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 concurrency:
