@@ -36,6 +36,7 @@ Currently only the following banks are supported:
 - Beyhad Bishvilha - [ביחד בשבילך](https://www.hist.org.il/) (thanks [@esakal](https://github.com/esakal))
 - OneZero (Experimental) (thanks [@orzarchi](https://github.com/orzarchi))
 - Behatsdaa - [בהצדעה](https://behatsdaa.org.il) (thanks [@daniel-hauser](https://github.com/daniel-hauser))
+- Pagi Bank
 
 # Prerequisites
 To use this you will need to have [Node.js](https://nodejs.org) >= 22.14.0 installed.
@@ -230,8 +231,8 @@ result = {
  */
 ```
 
-# Getting deployed version of latest changes in master
-This library is deployed automatically to NPM with any change merged into the master branch. 
+# Getting deployed version of latest changes in main
+This library is deployed automatically to NPM with any change merged into the main branch.
 
 # `Israeli-bank-scrapers-core` library
 
@@ -384,7 +385,7 @@ This scraper supports fetching transaction from up to one year.
 This scraper expects the following credentials object:
 ```node
 const credentials = {
-  username: <user identification number>,
+  id: <user identification number>,
   card6Digits: <6 last digits of card>
   password: <user password>
 };
