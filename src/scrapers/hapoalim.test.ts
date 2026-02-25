@@ -271,4 +271,96 @@ describe('fetchData', () => {
 
     expect(result.accounts![0].txns[0].type).toBe(TransactionTypes.Normal);
   });
+
+  it('constructs memo with only partial beneficiary details', async () => {
+    setupLoginAndAccounts();
+    mockBalance();
+    mockTransactions([
+      scrapedTxn({
+        beneficiaryDetailsData: {
+          partyHeadline: 'Wire',
+          partyName: undefined,
+          messageHeadline: undefined,
+          messageDetail: undefined,
+        },
+      }),
+    ]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].memo).toBe('Wire');
+  });
+
+  it('returns empty memo when beneficiary details are all empty', async () => {
+    setupLoginAndAccounts();
+    mockBalance();
+    mockTransactions([scrapedTxn({ beneficiaryDetailsData: {} })]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].memo).toBe('');
+  });
+
+  it('returns empty memo when no beneficiary details', async () => {
+    setupLoginAndAccounts();
+    mockBalance();
+    mockTransactions([scrapedTxn({ beneficiaryDetailsData: undefined })]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].memo).toBe('');
+  });
+
+  it('handles empty accounts list', async () => {
+    setupLoginAndAccounts([]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(0);
+  });
+
+  it('handles multiple open accounts', async () => {
+    setupLoginAndAccounts([
+      { bankNumber: '12', branchNumber: '100', accountNumber: '001', accountClosingReasonCode: 0 },
+      { bankNumber: '12', branchNumber: '200', accountNumber: '002', accountClosingReasonCode: 0 },
+    ]);
+    mockBalance(5000);
+    mockTransactions([scrapedTxn({ activityDescription: 'Acc1' })]);
+    mockBalance(3000);
+    mockTransactions([scrapedTxn({ activityDescription: 'Acc2' })]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts).toHaveLength(2);
+    expect(result.accounts![0].accountNumber).toBe('12-100-001');
+    expect(result.accounts![1].accountNumber).toBe('12-200-002');
+  });
+
+  it('handles null balance response', async () => {
+    setupLoginAndAccounts();
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null); // balance
+    mockTransactions([scrapedTxn()]);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBeUndefined();
+  });
+
+  it('handles empty transactions response', async () => {
+    setupLoginAndAccounts();
+    mockBalance();
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(null);
+
+    const scraper = new HapoalimScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(0);
+  });
 });

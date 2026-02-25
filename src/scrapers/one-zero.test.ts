@@ -317,4 +317,57 @@ describe('fetchData', () => {
 
     expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Completed);
   });
+
+  it('handles multiple portfolios', async () => {
+    setupLongTermLogin();
+    mockCustomer([
+      { portfolioId: 'p1', portfolioNum: 'ACC-001', accounts: [{ accountId: 'a1' }] },
+      { portfolioId: 'p2', portfolioNum: 'ACC-002', accounts: [{ accountId: 'a2' }] },
+    ]);
+    mockMovements([movement({ description: 'Txn1' })]);
+    mockMovements([movement({ description: 'Txn2' })]);
+
+    const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
+    const result = await scraper.scrape(LONG_TERM_CREDS);
+
+    expect(result.accounts).toHaveLength(2);
+    expect(result.accounts![0].accountNumber).toBe('ACC-001');
+    expect(result.accounts![1].accountNumber).toBe('ACC-002');
+  });
+
+  it('handles movement with zero balance', async () => {
+    setupLongTermLogin();
+    mockCustomer([{ portfolioId: 'p1', portfolioNum: 'ACC-001', accounts: [{ accountId: 'a1' }] }]);
+    mockMovements([movement({ runningBalance: '0' })]);
+
+    const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
+    const result = await scraper.scrape(LONG_TERM_CREDS);
+
+    expect(result.accounts![0].balance).toBe(0);
+  });
+
+  it('returns error when missing otpCodeRetriever and no token', async () => {
+    const scraper = new OneZeroScraper(createMockScraperOptions());
+    // @ts-expect-error testing validation of incomplete credentials (no otpLongTermToken or otpCodeRetriever)
+    const result = await scraper.scrape({
+      email: 'test@example.com',
+      password: 'pass',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
+  });
+
+  it('returns error when phoneNumber is missing with otpCodeRetriever', async () => {
+    const scraper = new OneZeroScraper(createMockScraperOptions());
+    // @ts-expect-error testing validation of missing phoneNumber with otpCodeRetriever
+    const result = await scraper.scrape({
+      email: 'test@example.com',
+      password: 'pass',
+      otpCodeRetriever: jest.fn(),
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('phoneNumber is required');
+  });
 });

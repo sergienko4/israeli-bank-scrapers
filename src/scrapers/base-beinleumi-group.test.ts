@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { SHEKEL_CURRENCY } from '../constants';
-import { elementPresentOnPage, pageEvalAll } from '../helpers/elements-interactions';
+import { clickButton, elementPresentOnPage, pageEvalAll } from '../helpers/elements-interactions';
 import { applyAntiDetection } from '../helpers/browser';
 import { sleep } from '../helpers/waiting';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeinleumiGroupBaseScraper from './base-beinleumi-group';
 import { ScraperErrorTypes } from './errors';
-import { TransactionTypes } from '../transactions';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
 jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
@@ -71,6 +71,14 @@ function createPageWithAccountFeatures(overrides: Record<string, any> = {}) {
 const COMPLETED_COLUMN_TYPES = [
   { colClass: 'date first', index: 0 },
   { colClass: 'reference wrap_normal', index: 1 },
+  { colClass: 'details', index: 2 },
+  { colClass: 'debit', index: 3 },
+  { colClass: 'credit', index: 4 },
+];
+
+const PENDING_COLUMN_TYPES = [
+  { colClass: 'first date', index: 0 },
+  { colClass: 'details wrap_normal', index: 1 },
   { colClass: 'details', index: 2 },
   { colClass: 'debit', index: 3 },
   { colClass: 'credit', index: 4 },
@@ -174,5 +182,107 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].identifier).toBe(12345);
+  });
+
+  it('sets identifier to undefined when reference is empty', async () => {
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '', '₪100.00', ''] }]);
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].identifier).toBeUndefined();
+  });
+
+  it('extracts pending transactions with pending column layout', async () => {
+    (pageEvalAll as jest.Mock)
+      .mockResolvedValueOnce(PENDING_COLUMN_TYPES) // pending column types
+      .mockResolvedValueOnce([{ innerTds: ['20/06/2024', 'Pending Purchase', '999', '₪75.00', ''] }]) // pending rows
+      .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES) // completed column types
+      .mockResolvedValueOnce([]); // completed rows (empty)
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(1);
+    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
+    expect(result.accounts![0].txns[0].description).toBe('Pending Purchase');
+    expect(result.accounts![0].txns[0].originalAmount).toBe(-75);
+  });
+
+  it('combines pending and completed transactions', async () => {
+    (pageEvalAll as jest.Mock)
+      .mockResolvedValueOnce(PENDING_COLUMN_TYPES)
+      .mockResolvedValueOnce([{ innerTds: ['20/06/2024', 'Pending', '', '₪50.00', ''] }])
+      .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
+      .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Completed', '100', '₪100.00', ''] }]);
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(2);
+    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    const completed = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Completed);
+    expect(pending).toBeDefined();
+    expect(completed).toBeDefined();
+  });
+
+  it('paginates completed transactions when next page exists', async () => {
+    // First call: pending (empty)
+    (pageEvalAll as jest.Mock)
+      .mockResolvedValueOnce([]) // pending column types
+      .mockResolvedValueOnce([]) // pending rows
+      // First page of completed
+      .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
+      .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Page1', '100', '₪100.00', ''] }]);
+
+    // After first page: next page link exists
+    (elementPresentOnPage as jest.Mock)
+      .mockResolvedValueOnce(false) // NO_DATA check
+      .mockResolvedValueOnce(true); // hasNextPage = true
+
+    // Second page of completed
+    (pageEvalAll as jest.Mock)
+      .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
+      .mockResolvedValueOnce([{ innerTds: ['16/06/2024', 'Page2', '200', '₪200.00', ''] }]);
+
+    // After second page: no next page
+    (elementPresentOnPage as jest.Mock).mockResolvedValueOnce(false); // hasNextPage = false
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(2);
+    expect(result.accounts![0].txns[0].description).toBe('Page1');
+    expect(result.accounts![0].txns[1].description).toBe('Page2');
+    expect(clickButton).toHaveBeenCalledWith(expect.anything(), 'a#Npage.paging');
+  });
+
+  it('retries iframe detection with sleep', async () => {
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '100', '₪100.00', ''] }]);
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    // getTransactionsFrame calls sleep(2000) up to 3 times when no iframe found
+    expect(result.success).toBe(true);
+    expect(sleep).toHaveBeenCalledWith(2000);
+  });
+
+  it('extracts balance from page', async () => {
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '100', '₪100.00', ''] }]);
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBe(5000);
+  });
+
+  it('handles commas in currency amounts', async () => {
+    mockTransactionTable([{ innerTds: ['15/06/2024', 'Big Purchase', '100', '₪1,500.50', ''] }]);
+
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].originalAmount).toBe(-1500.5);
   });
 });
