@@ -1,54 +1,332 @@
-import { SCRAPERS } from '../definitions';
-import { exportTransactions, extendAsyncTimeout, getTestsConfig, maybeTestCompanyAPI } from '../tests/tests-utils';
-import { LoginResults } from './base-scraper-with-browser';
+/* eslint-disable @typescript-eslint/unbound-method */
+import puppeteer from 'puppeteer';
+import { fetchPost } from '../helpers/fetch';
+import { getFromSessionStorage } from '../helpers/storage';
+import { elementPresentOnPage } from '../helpers/elements-interactions';
+import { applyAntiDetection } from '../helpers/browser';
+import { filterOldTransactions } from '../helpers/transactions';
+import { getCurrentUrl } from '../helpers/navigation';
+import { waitUntil } from '../helpers/waiting';
+import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import VisaCalScraper from './visa-cal';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-const COMPANY_ID = 'visaCal'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('../helpers/fetch', () => ({ fetchPost: jest.fn() }));
+jest.mock('../helpers/storage', () => ({ getFromSessionStorage: jest.fn() }));
+jest.mock('../helpers/elements-interactions', () => ({
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+  pageEval: jest.fn().mockResolvedValue(''),
+}));
+jest.mock('../helpers/navigation', () => ({
+  getCurrentUrl: jest.fn().mockResolvedValue('https://digital-web.cal-online.co.il/dashboard'),
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/browser', () => ({
+  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  isBotDetectionScript: jest.fn(() => false),
+  interceptionPriorities: { abort: 1000, continue: 10 },
+}));
+jest.mock('../helpers/transactions', () => ({
+  filterOldTransactions: jest.fn((txns: any[]) => txns),
+  getRawTransaction: jest.fn((data: any) => data),
+}));
+jest.mock('../helpers/waiting', () => ({
+  waitUntil: jest.fn(async (fn: () => Promise<any>) => fn()),
+  TimeoutError: class TimeoutError extends Error {},
+  SECOND: 1000,
+  sleep: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-describe('VisaCal legacy scraper', () => {
-  beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
-  });
+function visaCalOptions(overrides: Record<string, any> = {}) {
+  return createMockScraperOptions({ startDate: new Date(), futureMonthsToScrape: 0, ...overrides });
+}
 
-  test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.visaCal).toBeDefined();
-    expect(SCRAPERS.visaCal.loginFields).toContain('username');
-    expect(SCRAPERS.visaCal.loginFields).toContain('password');
-  });
+const mockBrowser = {
+  newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
+const CREDS = { username: 'testuser', password: 'testpass' };
 
-      const scraper = new VisaCalScraper(options);
+function scrapedTxn(overrides: any = {}): any {
+  return {
+    amtBeforeConvAndIndex: 100,
+    branchCodeDesc: 'מזון',
+    cashAccountTrnAmt: 100,
+    chargeExternalToCardComment: '',
+    comments: [],
+    curPaymentNum: 0,
+    debCrdCurrencySymbol: 'ILS',
+    debCrdDate: '2025-06-15',
+    debitSpreadInd: false,
+    immediateComments: [],
+    isImmediateCommentInd: false,
+    isImmediateHHKInd: false,
+    isMargarita: false,
+    isSpreadPaymenstAbroad: false,
+    linkedComments: [],
+    merchantAddress: '',
+    merchantName: 'סופר שופ',
+    merchantPhoneNo: '',
+    numOfPayments: 0,
+    onGoingTransactionsComment: '',
+    refundInd: false,
+    transCardPresentInd: false,
+    transTypeCommentDetails: [],
+    trnAmt: 100,
+    trnCurrencySymbol: 'ILS',
+    trnExacWay: 0,
+    trnIntId: 'TRN-001',
+    trnNumaretor: 0,
+    trnPurchaseDate: '2025-06-10',
+    trnType: 'רגילה',
+    trnTypeCode: '5',
+    walletProviderCode: 0,
+    walletProviderDesc: '',
+    earlyPaymentInd: false,
+    ...overrides,
+  };
+}
 
-      const result = await scraper.scrape({ username: '971sddksmsl', password: '3f3ssdkSD3d' });
-
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
+function mockCardTransactionDetails(txns: any[] = [], overrides: any = {}) {
+  return {
+    statusCode: 1,
+    statusDescription: 'OK',
+    statusTitle: '',
+    title: '',
+    result: {
+      bankAccounts: [
+        {
+          bankAccountNum: '12345',
+          bankName: 'Test',
+          choiceExternalTransactions: null,
+          currentBankAccountInd: true,
+          debitDates: [
+            {
+              date: '2025-06-15',
+              fromPurchaseDate: '2025-05-01',
+              toPurchaseDate: '2025-05-31',
+              transactions: txns,
+              totalDebits: [{ currencySymbol: 'ILS', amount: 100 }],
+              totalBasketAmount: 0,
+              isChoiceRepaiment: false,
+              choiceHHKDebit: 0,
+              fixDebitAmount: 0,
+              debitReason: null,
+              basketAmountComment: null,
+            },
+          ],
+          immidiateDebits: { totalDebits: [], debitDays: [] },
+        },
+      ],
+      blockedCardInd: false,
     },
-  );
+    ...overrides,
+  };
+}
 
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
-    const options = {
-      ...testsConfig.options,
-      companyId: COMPANY_ID,
-    };
+function setupVisaCalMocks() {
+  const page = createMockPage({
+    frames: jest.fn().mockReturnValue([
+      {
+        url: () => 'https://connect.cal-online.co.il/login',
+        waitForSelector: jest.fn().mockResolvedValue(undefined),
+      },
+    ]),
+    waitForRequest: jest.fn().mockResolvedValue({
+      headers: () => ({ authorization: 'Bearer auth-token' }),
+    }),
+  });
+  mockBrowser.newPage.mockResolvedValue(page);
 
-    const scraper = new VisaCalScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.visaCal);
-    expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
-    expect(error).toBe('');
-    expect(result.success).toBeTruthy();
-    // uncomment to test multiple accounts
-    // expect(result?.accounts?.length).toEqual(2)
-    exportTransactions(COMPANY_ID, result.accounts || []);
+  // waitUntil: return session storage data
+  (waitUntil as jest.Mock).mockImplementation(async (fn: () => Promise<any>) => {
+    return fn();
+  });
+
+  // getFromSessionStorage: return init data with cards
+  (getFromSessionStorage as jest.Mock).mockImplementation((_page: any, key: string) => {
+    if (key === 'init') {
+      return Promise.resolve({
+        result: {
+          cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }],
+        },
+      });
+    }
+    if (key === 'auth-module') {
+      return Promise.resolve({
+        auth: { calConnectToken: 'cal-auth-token' },
+      });
+    }
+    return Promise.resolve(null);
+  });
+
+  return page;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (getCurrentUrl as jest.Mock).mockResolvedValue('https://digital-web.cal-online.co.il/dashboard');
+  (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
+});
+
+describe('login', () => {
+  it('succeeds with valid credentials', async () => {
+    setupVisaCalMocks();
+    // Frames response
+    (fetchPost as jest.Mock).mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } });
+    // Pending transactions
+    (fetchPost as jest.Mock).mockResolvedValueOnce({ statusCode: 96 });
+    // Month data
+    (fetchPost as jest.Mock).mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(applyAntiDetection).toHaveBeenCalled();
+  });
+});
+
+describe('fetchData', () => {
+  it('fetches and converts normal transactions', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(
+        mockCardTransactionDetails([scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: '5' })]),
+      );
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts![0].accountNumber).toBe('4580');
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalAmount).toBe(-250);
+    expect(t.description).toBe('רמי לוי');
+    expect(t.type).toBe(TransactionTypes.Normal);
+    expect(t.status).toBe(TransactionStatuses.Completed);
+  });
+
+  it('detects installment transactions', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(
+        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '8', numOfPayments: 12, curPaymentNum: 3 })]),
+      );
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.type).toBe(TransactionTypes.Installments);
+    expect(t.installments).toEqual({ number: 3, total: 12 });
+  });
+
+  it('handles credit transactions with positive amount', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '6', trnAmt: 50 })]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].originalAmount).toBe(50);
+  });
+
+  it('handles pending transactions with statusCode 96 (no data)', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('throws on failed month data fetch', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce({ statusCode: 0, title: 'Error' });
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('failed to fetch transactions');
+  });
+
+  it('calls filterOldTransactions when enabled', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
+
+    expect(filterOldTransactions).toHaveBeenCalled();
+  });
+
+  it('includes rawTransaction when option set', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const result = await new VisaCalScraper(visaCalOptions({ includeRawTransaction: true })).scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+  });
+
+  it('extracts balance from frames data', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({
+        result: {
+          bankIssuedCards: {
+            cardLevelFrames: [{ cardUniqueId: 'card-1', nextTotalDebit: 5000 }],
+          },
+        },
+      })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBe(-5000);
+  });
+
+  it('assigns category from branchCodeDesc', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ branchCodeDesc: 'מסעדות' })]));
+
+    const scraper = new VisaCalScraper(visaCalOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].category).toBe('מסעדות');
   });
 });

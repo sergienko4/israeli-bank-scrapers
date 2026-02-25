@@ -2,12 +2,14 @@
 
 ## Current State
 
-Coverage baseline (updated Feb 2026 after Phase 2+3 test additions):
+Coverage baseline (updated Feb 2026 after all scraper unit tests):
 
-- Statements: 31.38%
-- Branches: 16.84%
-- Functions: 18.59%
-- Lines: 31.94%
+- Statements: 86%
+- Branches: 73.89%
+- Functions: 75.2%
+- Lines: 87.47%
+
+Remaining gaps are mostly browser-context callbacks inside `page.evaluate()` / `page.$eval()` — these can't be covered by mocked unit tests (validated by E2E tests instead).
 
 ## Target
 
