@@ -100,7 +100,7 @@ export async function fetchPostWithinPage<TResult>(
         method: 'POST',
         body: JSON.stringify(innerData),
         credentials: 'include',
-        // eslint-disable-next-line prefer-object-spread
+
         headers: Object.assign(
           { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
           innerExtraHeaders,

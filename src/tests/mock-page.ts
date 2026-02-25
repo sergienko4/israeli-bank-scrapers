@@ -1,10 +1,8 @@
 import { CompanyTypes } from '../definitions';
 import { type ScraperOptions } from '../scrapers/interface';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MockOverrides = Record<string, jest.Mock | ((...args: any[]) => any)>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createMockPage(overrides: MockOverrides = {}): any {
   return {
     waitForSelector: jest.fn().mockResolvedValue(undefined),

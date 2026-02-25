@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import puppeteer from 'puppeteer';
 import { fetchPost } from '../helpers/fetch';
 import { getFromSessionStorage } from '../helpers/storage';
