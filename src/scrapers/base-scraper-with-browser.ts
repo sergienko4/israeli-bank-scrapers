@@ -1,4 +1,6 @@
-import puppeteer, { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
 import { ScraperProgressTypes } from '../definitions';
 import { getDebug } from '../helpers/debug';
 import { applyAntiDetection } from '../helpers/browser';
@@ -7,6 +9,11 @@ import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
 import { BaseScraper } from './base-scraper';
 import { ScraperErrorTypes } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
+
+const stealth = StealthPlugin();
+stealth.enabledEvasions.delete('user-agent-override'); // We set our own Hebrew-locale UA
+stealth.enabledEvasions.delete('navigator.languages'); // We set Hebrew locale in applyAntiDetection
+puppeteer.use(stealth);
 
 const debug = getDebug('base-scraper-with-browser');
 

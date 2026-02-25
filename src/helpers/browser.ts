@@ -3,25 +3,6 @@ import { type Page } from 'puppeteer';
 const BOT_DETECTION_PATTERNS = ['detector-dom.min.js', 'detector-dom', 'bot-detect'];
 
 /**
- * Inject JS overrides that hide headless Chrome fingerprints.
- */
-async function applyStealthScript(page: Page): Promise<void> {
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
-    const origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-    Object.defineProperty(window.navigator.permissions, 'query', {
-      value: (params: PermissionDescriptor) =>
-        params.name === 'notifications'
-          ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
-          : origQuery(params),
-    });
-  });
-}
-
-/**
  * Extract major Chrome version from browser version string.
  */
 async function getChromeVersion(page: Page): Promise<string> {
@@ -39,7 +20,8 @@ async function setRealisticUserAgent(page: Page, chromeVersion: string): Promise
 }
 
 /**
- * Set HTTP headers that WAFs expect from real browsers.
+ * Set HTTP headers that Israeli bank WAFs expect from real browsers.
+ * Hebrew locale + client hints matching the dynamic Chrome version.
  */
 async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<void> {
   await page.setExtraHTTPHeaders({
@@ -51,14 +33,25 @@ async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<v
 }
 
 /**
- * Apply full anti-detection suite to hide headless Chrome from WAFs.
- * Call BEFORE any navigation — overrides run on every new page load.
+ * Apply bank-specific anti-detection overrides on top of puppeteer-extra-plugin-stealth.
+ *
+ * The stealth plugin handles: navigator.webdriver, plugins, chrome object,
+ * permissions, WebGL, canvas, iframe prototype chain, etc.
+ *
+ * This function adds Israeli-bank-specific customizations:
+ * - Hebrew-first locale in User-Agent and Accept-Language
+ * - Client hints headers matching the actual Chrome version
  */
 export async function applyAntiDetection(page: Page): Promise<void> {
   const chromeVersion = await getChromeVersion(page);
-  await applyStealthScript(page);
   await setRealisticUserAgent(page, chromeVersion);
   await setRealisticHeaders(page, chromeVersion);
+
+  // Override stealth plugin's defaults with Israeli-specific locale and timezone
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
+  });
+  await page.emulateTimezone('Asia/Jerusalem');
 }
 
 /**
@@ -66,14 +59,6 @@ export async function applyAntiDetection(page: Page): Promise<void> {
  */
 export function isBotDetectionScript(url: string): boolean {
   return BOT_DETECTION_PATTERNS.some(pattern => url.includes(pattern));
-}
-
-/**
- * @deprecated Use applyAntiDetection() instead.
- */
-export async function maskHeadlessUserAgent(page: Page): Promise<void> {
-  const userAgent = await page.evaluate(() => navigator.userAgent);
-  await page.setUserAgent(userAgent.replace('HeadlessChrome/', 'Chrome/'));
 }
 
 /**

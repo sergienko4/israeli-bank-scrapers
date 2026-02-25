@@ -11,7 +11,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - SOLID principles, especially OCP (maps over if/else)
 - Max 10 lines per method — extract helpers
 - TypeScript strict mode — no `any`, no unused vars
-- Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint (airbnb-typescript)
+- Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint 9 flat config
 
 ## Workflow
 
@@ -25,14 +25,17 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Key Files
 
-- `src/helpers/browser.ts` — anti-detection helpers (applyAntiDetection, setRealisticUserAgent, etc.)
+- `src/helpers/browser.ts` — bank-specific anti-detection (Hebrew UA, client hints, Israel timezone)
+- `src/helpers/elements-interactions.ts` — human-like delays on fillInput/clickButton
 - `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with WAF bypass
-- `src/scrapers/base-scraper-with-browser.ts` — base class for browser-based scrapers
+- `src/scrapers/base-scraper-with-browser.ts` — base class, uses puppeteer-extra with stealth plugin
 - `src/scrapers/interface.ts` — type definitions (ScraperOptions, ScraperCredentials, etc.)
 
 ## Changes from upstream
 
-- `src/helpers/browser.ts`: Added `applyAntiDetection()` with realistic UA, client hints, stealth JS
-- `src/scrapers/base-scraper-with-browser.ts`: Calls `applyAntiDetection()` for all browser scrapers
+- Anti-detection: `puppeteer-extra-plugin-stealth` (17 evasion modules) + Hebrew locale + Israel timezone
+- `src/helpers/browser.ts`: Bank-specific UA, client hints, Hebrew locale override
+- `src/scrapers/base-scraper-with-browser.ts`: Uses `puppeteer-extra` with stealth plugin
+- `src/helpers/elements-interactions.ts`: Human-like delays (300-1200ms) on form interactions
 - `src/scrapers/base-isracard-amex.ts`: Better error messages for WAF blocks
 - CI/CD: release-please + npm publish pipeline

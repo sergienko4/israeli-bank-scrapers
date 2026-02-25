@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
 import moment from 'moment';
 import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../constants';
 import { fetchGetWithinPage } from '../helpers/fetch';
@@ -11,7 +11,8 @@ import MaxScraper, { getMemo } from './max';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
+jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));

@@ -1,5 +1,5 @@
 import { type Frame, type Page } from 'puppeteer';
-import { waitUntil } from './waiting';
+import { humanDelay, waitUntil } from './waiting';
 
 async function waitUntilElementFound(
   page: Page | Frame,
@@ -39,12 +39,13 @@ async function waitUntilIframeFound(
 }
 
 async function fillInput(pageOrFrame: Page | Frame, inputSelector: string, inputValue: string): Promise<void> {
+  await humanDelay(200, 600);
   await pageOrFrame.$eval(inputSelector, (input: Element) => {
     const inputElement = input;
     // @ts-ignore
     inputElement.value = '';
   });
-  await pageOrFrame.type(inputSelector, inputValue);
+  await pageOrFrame.type(inputSelector, inputValue, { delay: 50 + Math.random() * 100 });
 }
 
 async function setValue(pageOrFrame: Page | Frame, inputSelector: string, inputValue: string): Promise<void> {
@@ -60,6 +61,7 @@ async function setValue(pageOrFrame: Page | Frame, inputSelector: string, inputV
 }
 
 async function clickButton(page: Page | Frame, buttonSelector: string) {
+  await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => (el as HTMLElement).click());
 }
 

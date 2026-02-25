@@ -30,6 +30,7 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
     setRequestInterception: jest.fn().mockResolvedValue(undefined),
+    emulateTimezone: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
