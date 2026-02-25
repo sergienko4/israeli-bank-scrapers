@@ -39,10 +39,12 @@ Instead, please use one of the following methods:
 
 This project employs the following security measures:
 
-- CodeQL static analysis on every pull request
-- Dependency review for new/changed dependencies
-- npm audit checks for known vulnerabilities
+- CodeQL static analysis with `security-extended` query suite on every pull request
+- Dependency review for new/changed dependencies (blocks moderate+ severity, GPL/AGPL licenses)
+- npm audit checks for known vulnerabilities (production and dev dependencies)
 - OSSF Scorecard analysis (weekly)
 - Dependabot automated security updates
 - Secret scanning with push protection
 - npm provenance attestation on published packages
+- All GitHub Actions pinned by commit SHA to prevent supply chain attacks
+- CODEOWNERS enforcement for code review
