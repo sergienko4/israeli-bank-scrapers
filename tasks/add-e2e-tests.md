@@ -12,41 +12,15 @@ Basic E2E test exists at `src/tests/e2e.test.ts` covering:
 
 Full end-to-end coverage of the scraper lifecycle without hitting real bank APIs.
 
-## Planned E2E Tests
+## Acceptance Criteria
 
-### 1. Browser Anti-Detection Verification
-
-Test that `applyAntiDetection()` correctly configures a real browser:
-
-- navigator.webdriver is hidden
-- User agent matches expected pattern
-- Client hints are set
-- Known bot detection scripts are blocked
-
-### 2. Scraper Lifecycle Tests
-
-For each scraper type, mock the bank's web pages and verify:
-
-- Login page detection and form filling
-- Navigation through multi-step flows
-- Transaction data extraction from mock HTML
-- Proper cleanup (browser close) on success and failure
-
-### 3. Error Scenario Tests
-
-- Network timeout handling
-- Invalid login detection
-- Two-factor authentication flow
-- Bank maintenance page detection
-- Session expiry during scraping
-
-### 4. Integration with External Browser
-
-Test `ExternalBrowserOptions` and `ExternalBrowserContextOptions`:
-
-- Connect to existing browser instance
-- Use existing browser context
-- Verify no browser launch when external provided
+- [x] Anti-detection verification (5 tests in `anti-detection.e2e-mocked.test.ts`)
+- [x] Amex full lifecycle + error scenarios (4 tests in `amex.e2e-mocked.test.ts`)
+- [x] Isracard lifecycle + error scenarios (3 tests in `isracard.e2e-mocked.test.ts`)
+- [x] Error scenarios: HTTP 500, invalid validate (2 tests in `error-scenarios.e2e-mocked.test.ts`)
+- [x] External browser: shared browser, browser context, sequential scrapes (3 tests in `external-browser.e2e-mocked.test.ts`)
+- [x] Mocked E2E tests included in `npm test` (removed from testPathIgnorePatterns)
+- [x] Shared route helper extracted (`helpers/amex-routes.ts`)
 
 ## Implementation Approach
 
