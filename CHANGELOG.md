@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.9.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.2...v6.9.0) (2026-02-25)
+
+
+### Features
+
+* integrate puppeteer-extra-plugin-stealth for enhanced anti-detection ([#47](https://github.com/sergienko4/israeli-bank-scrapers/issues/47)) ([fadb0dc](https://github.com/sergienko4/israeli-bank-scrapers/commit/fadb0dc7362aaf3a9c85955a82d0c813e2ec9425))
+
 ## [6.8.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.1...v6.8.2) (2026-02-25)
 
 
