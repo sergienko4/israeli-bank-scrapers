@@ -32,7 +32,7 @@ jobs:
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
       - name: Run E2E smoke tests
-        run: npx jest --ci --testPathPattern='tests/e2e\.test' --verbose
+        run: npx jest --ci --testPathPatterns='tests/e2e\.test' --verbose
         env:
           PUPPETEER_HEADLESS: 'true'
 
@@ -50,7 +50,7 @@ jobs:
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
       - name: Run mocked E2E tests
-        run: npx jest --ci --testPathPattern='e2e-mocked' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: npx jest --ci --testPathPatterns='e2e-mocked' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           PUPPETEER_HEADLESS: 'true'
 
@@ -69,7 +69,7 @@ jobs:
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
       - name: Run real E2E tests
-        run: npx jest --ci --testPathPattern='tests/e2e-real' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: npx jest --ci --testPathPatterns='tests/e2e-real' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           PUPPETEER_HEADLESS: 'true'
           AMEX_ID: ${{ secrets.AMEX_ID }}
