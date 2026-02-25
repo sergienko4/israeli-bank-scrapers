@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.8.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.0...v6.8.1) (2026-02-25)
+
+
+### Bug Fixes
+
+* replace node-fetch with native fetch() API ([#41](https://github.com/sergienko4/israeli-bank-scrapers/issues/41)) ([9e12cef](https://github.com/sergienko4/israeli-bank-scrapers/commit/9e12cefd260c5890d0ea35c0f995160badf07fd6))
+
 ## [6.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.7.8...v6.8.0) (2026-02-24)
 
 
