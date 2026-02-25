@@ -1,53 +1,218 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+import puppeteer from 'puppeteer';
+import { pageEval, pageEvalAll } from '../helpers/elements-interactions';
+import { filterOldTransactions } from '../helpers/transactions';
+import { applyAntiDetection } from '../helpers/browser';
+import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeyahadBishvilhaScraper from './beyahad-bishvilha';
-import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
-import { SCRAPERS } from '../definitions';
-import { LoginResults } from './base-scraper-with-browser';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-const COMPANY_ID = 'beyahadBishvilha'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('../helpers/elements-interactions', () => ({
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  pageEval: jest.fn().mockResolvedValue(null),
+  pageEvalAll: jest.fn().mockResolvedValue([]),
+}));
+jest.mock('../helpers/navigation', () => ({
+  getCurrentUrl: jest.fn().mockResolvedValue('https://www.hist.org.il/'),
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/browser', () => ({
+  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  isBotDetectionScript: jest.fn(() => false),
+  interceptionPriorities: { abort: 1000, continue: 10 },
+}));
+jest.mock('../helpers/transactions', () => ({
+  filterOldTransactions: jest.fn((txns: any[]) => txns),
+  getRawTransaction: jest.fn((data: any) => data),
+}));
+jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-describe('Beyahad Bishvilha scraper', () => {
-  beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
+const mockBrowser = {
+  newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+
+const CREDS = { id: '123456789', password: 'pass123' };
+
+function setupPage() {
+  const page = createMockPage({
+    $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
+  });
+  mockBrowser.newPage.mockResolvedValue(page);
+  return page;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  setupPage();
+});
+
+describe('login', () => {
+  it('succeeds with valid credentials', async () => {
+    (pageEval as jest.Mock)
+      .mockResolvedValueOnce('1234567890') // accountNumber
+      .mockResolvedValueOnce('₪5,000.00'); // balance
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(applyAntiDetection).toHaveBeenCalled();
+  });
+});
+
+describe('fetchData', () => {
+  it('extracts transactions from page', async () => {
+    (pageEval as jest.Mock)
+      .mockResolvedValueOnce('מספר כרטיס 12345') // accountNumber
+      .mockResolvedValueOnce('₪5,000.00'); // balance
+
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN001',
+        description: 'סופר שופ',
+        type: 'רכישה',
+        chargedAmount: '₪150.00',
+      },
+    ]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts![0].txns).toHaveLength(1);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.description).toBe('סופר שופ');
+    expect(t.originalAmount).toBe(150);
+    expect(t.originalCurrency).toBe('ILS');
+    expect(t.status).toBe(TransactionStatuses.Completed);
+    expect(t.type).toBe(TransactionTypes.Normal);
+    expect(t.identifier).toBe('TXN001');
   });
 
-  test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.beyahadBishvilha).toBeDefined();
-    expect(SCRAPERS.beyahadBishvilha.loginFields).toContain('id');
-    expect(SCRAPERS.beyahadBishvilha.loginFields).toContain('password');
+  it('parses dollar amounts', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('$1,000.00');
+
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN002',
+        description: 'Amazon',
+        type: 'רכישה',
+        chargedAmount: '$50.00',
+      },
+    ]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].originalCurrency).toBe('USD');
+    expect(result.accounts![0].txns[0].originalAmount).toBe(50);
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
+  it('parses euro amounts', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('€500.00');
 
-      const scraper = new BeyahadBishvilhaScraper(options);
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN003',
+        description: 'Europe Shop',
+        type: 'רכישה',
+        chargedAmount: '€75.50',
+      },
+    ]);
 
-      const result = await scraper.scrape({ id: 'e10s12', password: '3f3ss3d' });
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
 
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
-    },
-  );
+    expect(result.accounts![0].txns[0].originalCurrency).toBe('EUR');
+    expect(result.accounts![0].txns[0].originalAmount).toBe(75.5);
+  });
 
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
-    const options = {
-      ...testsConfig.options,
-      companyId: COMPANY_ID,
-    };
+  it('parses space-separated currency format', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
-    const scraper = new BeyahadBishvilhaScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.beyahadBishvilha);
-    expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
-    expect(error).toBe('');
-    expect(result.success).toBeTruthy();
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN004',
+        description: 'GBP Payment',
+        type: 'רכישה',
+        chargedAmount: 'GBP 200.00',
+      },
+    ]);
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].originalCurrency).toBe('GBP');
+    expect(result.accounts![0].txns[0].originalAmount).toBe(200);
+  });
+
+  it('filters null transactions from DOM extraction', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN001',
+        description: 'Valid',
+        type: 'רכישה',
+        chargedAmount: '₪100.00',
+      },
+      null,
+    ]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(1);
+  });
+
+  it('calls filterOldTransactions when enabled', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN001',
+        description: 'Test',
+        type: 'רכישה',
+        chargedAmount: '₪100.00',
+      },
+    ]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    await scraper.scrape(CREDS);
+
+    expect(filterOldTransactions).toHaveBeenCalled();
+  });
+
+  it('includes rawTransaction when option set', async () => {
+    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      {
+        date: '15/06/24',
+        identifier: 'TXN001',
+        description: 'Test',
+        type: 'רכישה',
+        chargedAmount: '₪100.00',
+      },
+    ]);
+
+    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions({ includeRawTransaction: true }));
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
   });
 });

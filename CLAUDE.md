@@ -33,5 +33,6 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 ## Changes from upstream
 
 - `src/helpers/browser.ts`: Added `applyAntiDetection()` with realistic UA, client hints, stealth JS
-- `src/scrapers/base-isracard-amex.ts`: Uses new anti-detection, better error messages
+- `src/scrapers/base-scraper-with-browser.ts`: Calls `applyAntiDetection()` for all browser scrapers
+- `src/scrapers/base-isracard-amex.ts`: Better error messages for WAF blocks
 - CI/CD: release-please + npm publish pipeline

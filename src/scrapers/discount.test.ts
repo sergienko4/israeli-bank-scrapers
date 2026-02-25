@@ -1,54 +1,255 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+import puppeteer from 'puppeteer';
+import { fetchGetWithinPage } from '../helpers/fetch';
+import { waitForNavigation } from '../helpers/navigation';
+import { waitUntilElementFound } from '../helpers/elements-interactions';
+import { applyAntiDetection } from '../helpers/browser';
+import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
+import { getCurrentUrl } from '../helpers/navigation';
 import DiscountScraper from './discount';
-import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
-import { SCRAPERS } from '../definitions';
-import { LoginResults } from './base-scraper-with-browser';
+import { ScraperErrorTypes } from './errors';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-const COMPANY_ID = 'discount'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('../helpers/fetch', () => ({
+  fetchGetWithinPage: jest.fn(),
+}));
+jest.mock('../helpers/browser', () => ({
+  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  isBotDetectionScript: jest.fn(() => false),
+  interceptionPriorities: { abort: 1000, continue: 10 },
+}));
+jest.mock('../helpers/navigation', () => ({
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+  getCurrentUrl: jest.fn().mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE'),
+}));
+jest.mock('../helpers/elements-interactions', () => ({
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/transactions', () => ({
+  getRawTransaction: jest.fn((data: any) => data),
+}));
+jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-describe('Discount legacy scraper', () => {
-  beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
-  });
+const mockBrowser = {
+  newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
 
-  test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.discount).toBeDefined();
-    expect(SCRAPERS.discount.loginFields).toContain('id');
-    expect(SCRAPERS.discount.loginFields).toContain('password');
-    expect(SCRAPERS.discount.loginFields).toContain('num');
-  });
+const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
-
-      const scraper = new DiscountScraper(options);
-
-      const result = await scraper.scrape({ id: 'e10s12', password: '3f3ss3d', num: '1234' });
-
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
+function mockAccountsData(accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }]) {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    UserAccountsData: {
+      DefaultAccountNumber: accounts[0].AccountID,
+      UserAccounts: accounts.map(a => ({ NewAccountInfo: a })),
     },
-  );
+  });
+}
 
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
-    const options = {
-      ...testsConfig.options,
-      companyId: COMPANY_ID,
-    };
+function mockTransactions(txns: any[] = [], futureTxns: any[] = [], balance = 5000) {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    CurrentAccountLastTransactions: {
+      OperationEntry: txns,
+      CurrentAccountInfo: { AccountBalance: balance },
+      FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
+    },
+  });
+}
 
-    const scraper = new DiscountScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.discount);
-    expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
-    expect(error).toBe('');
-    expect(result.success).toBeTruthy();
+function txn(overrides: any = {}): any {
+  return {
+    OperationNumber: 1001,
+    OperationDate: '20240615',
+    ValueDate: '20240616',
+    OperationAmount: -150,
+    OperationDescriptionToDisplay: 'סופר שופ',
+    ...overrides,
+  };
+}
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+beforeEach(() => {
+  jest.clearAllMocks();
+  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (getCurrentUrl as jest.Mock).mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE');
+});
+
+describe('login', () => {
+  it('succeeds when navigating to success URL', async () => {
+    mockAccountsData();
+    mockTransactions([txn()]);
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(true);
+    expect(applyAntiDetection).toHaveBeenCalled();
+  });
+
+  it('returns InvalidPassword for invalid password URL', async () => {
+    (getCurrentUrl as jest.Mock).mockResolvedValue(
+      'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE',
+    );
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+  });
+
+  it('returns ChangePassword for password renewal URL', async () => {
+    (getCurrentUrl as jest.Mock).mockResolvedValue(
+      'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW',
+    );
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+  });
+});
+
+describe('fetchData', () => {
+  it('fetches and converts transactions for a single account', async () => {
+    mockAccountsData([{ AccountID: '12-345-67890' }]);
+    mockTransactions([txn({ OperationAmount: -250, OperationDescriptionToDisplay: 'רמי לוי' })]);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts![0].accountNumber).toBe('12-345-67890');
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalAmount).toBe(-250);
+    expect(t.description).toBe('רמי לוי');
+    expect(t.originalCurrency).toBe('ILS');
+    expect(t.status).toBe(TransactionStatuses.Completed);
+    expect(t.type).toBe(TransactionTypes.Normal);
+  });
+
+  it('handles multiple accounts', async () => {
+    mockAccountsData([{ AccountID: '111' }, { AccountID: '222' }]);
+    mockTransactions([txn()]);
+    mockTransactions([txn({ OperationAmount: -50 })]);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(2);
+    expect(result.accounts![0].accountNumber).toBe('111');
+    expect(result.accounts![1].accountNumber).toBe('222');
+  });
+
+  it('returns error when accountInfo is null', async () => {
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(result.errorMessage).toBe('failed to get account data');
+  });
+
+  it('returns error when transaction response has Error field', async () => {
+    mockAccountsData();
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+      Error: { MsgText: 'שגיאה בשרת' },
+    });
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('שגיאה בשרת');
+  });
+
+  it('returns error when CurrentAccountLastTransactions is missing', async () => {
+    mockAccountsData();
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({});
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('unknown error');
+  });
+
+  it('includes pending (future) transactions', async () => {
+    mockAccountsData();
+    mockTransactions(
+      [txn({ OperationAmount: -100 })],
+      [txn({ OperationAmount: -50, OperationDescriptionToDisplay: 'עתידי' })],
+    );
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(2);
+    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    expect(pending).toBeDefined();
+    expect(pending!.description).toBe('עתידי');
+  });
+
+  it('returns empty when transactions array is null', async () => {
+    mockAccountsData();
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+      CurrentAccountLastTransactions: {
+        OperationEntry: null,
+        CurrentAccountInfo: { AccountBalance: 0 },
+        FutureTransactionsBlock: { FutureTransactionEntry: null },
+      },
+    });
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts![0].txns).toHaveLength(0);
+  });
+
+  it('includes rawTransaction when option is set', async () => {
+    mockAccountsData();
+    mockTransactions([txn()]);
+
+    const scraper = new DiscountScraper(createMockScraperOptions({ includeRawTransaction: true }));
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+  });
+
+  it('includes account balance', async () => {
+    mockAccountsData();
+    mockTransactions([txn()], [], 12345);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBe(12345);
+  });
+});
+
+describe('navigateOrErrorLabel', () => {
+  it('calls waitForNavigation in postAction', async () => {
+    mockAccountsData();
+    mockTransactions([txn()]);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    await scraper.scrape(CREDS);
+
+    expect(waitForNavigation).toHaveBeenCalled();
+  });
+
+  it('falls back to error element when navigation throws', async () => {
+    (waitForNavigation as jest.Mock).mockRejectedValueOnce(new Error('nav timeout'));
+    mockAccountsData();
+    mockTransactions([txn()]);
+
+    const scraper = new DiscountScraper(createMockScraperOptions());
+    await scraper.scrape(CREDS);
+
+    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', false, 100);
   });
 });
