@@ -144,6 +144,12 @@ describe('pageEvalAll', () => {
     const result = await pageEvalAll(page, '.missing', [], (els: any) => els);
     expect(result).toEqual([]);
   });
+
+  it('rethrows non-selector errors', async () => {
+    const page = createMockPage();
+    page.$$eval.mockRejectedValue(new Error('network error'));
+    await expect(pageEvalAll(page, '.broken', [], (els: any) => els)).rejects.toThrow('network error');
+  });
 });
 
 describe('waitUntilIframeFound', () => {

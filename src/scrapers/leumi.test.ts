@@ -1,53 +1,202 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+import puppeteer from 'puppeteer';
+import { SHEKEL_CURRENCY } from '../constants';
+import { pageEval } from '../helpers/elements-interactions';
+import { applyAntiDetection } from '../helpers/browser';
+import { getCurrentUrl } from '../helpers/navigation';
+import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import LeumiScraper from './leumi';
-import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
-import { SCRAPERS } from '../definitions';
-import { LoginResults } from './base-scraper-with-browser';
+import { ScraperErrorTypes } from './errors';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-const COMPANY_ID = 'leumi'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('../helpers/elements-interactions', () => ({
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  pageEval: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/login'),
+  pageEvalAll: jest.fn().mockResolvedValue(''),
+}));
+jest.mock('../helpers/navigation', () => ({
+  getCurrentUrl: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx'),
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/browser', () => ({
+  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  isBotDetectionScript: jest.fn(() => false),
+  interceptionPriorities: { abort: 1000, continue: 10 },
+}));
+jest.mock('../helpers/transactions', () => ({
+  getRawTransaction: jest.fn((data: any) => data),
+}));
+jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-describe('Leumi legacy scraper', () => {
-  beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
+const mockBrowser = {
+  newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+
+const CREDS = { username: 'testuser', password: 'testpass' };
+
+function createLeumiPage(accountIds: string[] = ['123/456']) {
+  const mockResponse = {
+    json: jest.fn().mockResolvedValue({
+      jsonResp: JSON.stringify({
+        TodayTransactionsItems: [],
+        HistoryTransactionsItems: [
+          {
+            DateUTC: '2025-06-15T00:00:00',
+            Amount: -100,
+            Description: 'Test Transaction',
+            ReferenceNumberLong: 12345,
+            AdditionalData: 'memo text',
+          },
+        ],
+        BalanceDisplay: '5000.00',
+      }),
+    }),
+  };
+
+  return createMockPage({
+    evaluate: jest.fn().mockResolvedValue(accountIds),
+    goto: jest.fn().mockResolvedValue({ ok: () => true, status: () => 200 }),
+    waitForResponse: jest.fn().mockResolvedValue(mockResponse),
+    waitForSelector: jest.fn().mockResolvedValue(undefined),
+    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
+    focus: jest.fn().mockResolvedValue(undefined),
+    $: jest.fn().mockResolvedValue(null),
+  });
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockBrowser.newPage.mockResolvedValue(createLeumiPage());
+  (getCurrentUrl as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx');
+  (pageEval as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/login');
+});
+
+describe('login', () => {
+  it('succeeds with valid credentials', async () => {
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(applyAntiDetection).toHaveBeenCalled();
   });
 
-  test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.leumi).toBeDefined();
-    expect(SCRAPERS.leumi.loginFields).toContain('username');
-    expect(SCRAPERS.leumi.loginFields).toContain('password');
+  it('returns ChangePassword for authenticate URL', async () => {
+    (getCurrentUrl as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/authenticate');
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+  });
+});
+
+describe('fetchData', () => {
+  it('fetches and converts transactions', async () => {
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts![0].accountNumber).toBe('123_456');
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalAmount).toBe(-100);
+    expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
+    expect(t.type).toBe(TransactionTypes.Normal);
+    expect(t.status).toBe(TransactionStatuses.Completed);
+    expect(t.description).toBe('Test Transaction');
+    expect(t.memo).toBe('memo text');
+    expect(t.identifier).toBe(12345);
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
-
-      const scraper = new LeumiScraper(options);
-
-      const result = await scraper.scrape({ username: 'e10s12', password: '3f3ss3d' });
-
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
-    },
-  );
-
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions', async () => {
-    const options = {
-      ...testsConfig.options,
-      companyId: COMPANY_ID,
+  it('separates pending and completed transactions', async () => {
+    const mockResponse = {
+      json: jest.fn().mockResolvedValue({
+        jsonResp: JSON.stringify({
+          TodayTransactionsItems: [
+            { DateUTC: '2025-06-15T00:00:00', Amount: -50, Description: 'Pending', ReferenceNumberLong: 1 },
+          ],
+          HistoryTransactionsItems: [
+            { DateUTC: '2025-06-14T00:00:00', Amount: -100, Description: 'Completed', ReferenceNumberLong: 2 },
+          ],
+        }),
+      }),
     };
 
-    const scraper = new LeumiScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.leumi);
-    expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
-    expect(error).toBe('');
-    expect(result.success).toBeTruthy();
+    const page = createLeumiPage();
+    page.waitForResponse.mockResolvedValue(mockResponse);
+    mockBrowser.newPage.mockResolvedValue(page);
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    const completed = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Completed);
+    expect(pending).toBeDefined();
+    expect(completed).toBeDefined();
+    expect(pending!.description).toBe('Pending');
+    expect(completed!.description).toBe('Completed');
+  });
+
+  it('handles empty transaction arrays', async () => {
+    const mockResponse = {
+      json: jest.fn().mockResolvedValue({
+        jsonResp: JSON.stringify({
+          TodayTransactionsItems: null,
+          HistoryTransactionsItems: [],
+        }),
+      }),
+    };
+
+    const page = createLeumiPage();
+    page.waitForResponse.mockResolvedValue(mockResponse);
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(0);
+  });
+
+  it('throws on empty account IDs', async () => {
+    const page = createLeumiPage();
+    page.evaluate.mockResolvedValue([]);
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('Failed to extract');
+  });
+
+  it('extracts balance from response', async () => {
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBe(5000);
+  });
+
+  it('removes special characters from account ID', async () => {
+    const page = createLeumiPage(['123&/456']);
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].accountNumber).toBe('123_456');
+  });
+
+  it('includes rawTransaction when option set', async () => {
+    const scraper = new LeumiScraper(createMockScraperOptions({ includeRawTransaction: true }));
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
   });
 });
