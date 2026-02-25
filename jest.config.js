@@ -13,7 +13,7 @@ const config = {
     './tests/jest-setup.ts',
   ],
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', 'e2e-real\\.test\\.ts$', 'e2e-mocked/'],
+  testPathIgnorePatterns: ['/node_modules/', 'e2e-real\\.test\\.ts$'],
   collectCoverageFrom: [
     '**/*.ts',
     '!tests/**',
