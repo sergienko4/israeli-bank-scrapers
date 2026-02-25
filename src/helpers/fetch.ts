@@ -1,4 +1,3 @@
-import nodeFetch from 'node-fetch';
 import { type Page } from 'puppeteer';
 
 const JSON_CONTENT_TYPE = 'application/json';
@@ -19,13 +18,13 @@ export async function fetchGet<TResult>(url: string, extraHeaders: Record<string
     method: 'GET',
     headers,
   };
-  const fetchResult = await nodeFetch(url, request);
+  const fetchResult = await fetch(url, request);
 
   if (fetchResult.status !== 200) {
     throw new Error(`sending a request to the institute server returned with status code ${fetchResult.status}`);
   }
 
-  return fetchResult.json();
+  return (await fetchResult.json()) as TResult;
 }
 
 export async function fetchPost<TResult = any>(
@@ -38,8 +37,8 @@ export async function fetchPost<TResult = any>(
     headers: { ...getJsonHeaders(), ...extraHeaders },
     body: JSON.stringify(data),
   };
-  const result = await nodeFetch(url, request);
-  return result.json();
+  const result = await fetch(url, request);
+  return (await result.json()) as TResult;
 }
 
 export async function fetchGraphql<TResult>(
