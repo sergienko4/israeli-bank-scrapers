@@ -38,24 +38,31 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function createLeumiPage(accountIds: string[] = ['123/456']) {
-  const mockResponse = {
+function createLeumiResponse(overrides: Record<string, unknown> = {}) {
+  return {
     json: jest.fn().mockResolvedValue({
       jsonResp: JSON.stringify({
         TodayTransactionsItems: [],
-        HistoryTransactionsItems: [
-          {
-            DateUTC: '2025-06-15T00:00:00',
-            Amount: -100,
-            Description: 'Test Transaction',
-            ReferenceNumberLong: 12345,
-            AdditionalData: 'memo text',
-          },
-        ],
-        BalanceDisplay: '5000.00',
+        HistoryTransactionsItems: [],
+        ...overrides,
       }),
     }),
   };
+}
+
+function createLeumiPage(accountIds: string[] = ['123/456']) {
+  const mockResponse = createLeumiResponse({
+    BalanceDisplay: '5000.00',
+    HistoryTransactionsItems: [
+      {
+        DateUTC: '2025-06-15T00:00:00',
+        Amount: -100,
+        Description: 'Test Transaction',
+        ReferenceNumberLong: 12345,
+        AdditionalData: 'memo text',
+      },
+    ],
+  });
 
   return createMockPage({
     evaluate: jest.fn().mockResolvedValue(accountIds),
@@ -198,5 +205,55 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+  });
+
+  it('handles multiple accounts with clicking', async () => {
+    const page = createLeumiPage(['111/222', '333/444']);
+    page.waitForResponse.mockResolvedValue(
+      createLeumiResponse({
+        HistoryTransactionsItems: [
+          { DateUTC: '2025-06-15T00:00:00', Amount: -100, Description: 'Txn', ReferenceNumberLong: 1 },
+        ],
+        BalanceDisplay: '3000.00',
+      }),
+    );
+    page.waitForSelector.mockResolvedValue(undefined);
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(2);
+    expect(result.accounts![0].accountNumber).toBe('111_222');
+    expect(result.accounts![1].accountNumber).toBe('333_444');
+  });
+
+  it('handles undefined balance gracefully', async () => {
+    const page = createLeumiPage();
+    page.waitForResponse.mockResolvedValue(createLeumiResponse());
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].balance).toBeUndefined();
+  });
+
+  it('uses empty string for missing description and memo', async () => {
+    const page = createLeumiPage();
+    page.waitForResponse.mockResolvedValue(
+      createLeumiResponse({
+        HistoryTransactionsItems: [{ DateUTC: '2025-06-15T00:00:00', Amount: -50 }],
+        BalanceDisplay: '1000.00',
+      }),
+    );
+    mockBrowser.newPage.mockResolvedValue(page);
+
+    const scraper = new LeumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].description).toBe('');
+    expect(result.accounts![0].txns[0].memo).toBe('');
   });
 });
