@@ -123,7 +123,7 @@ async function fetchTransactions(page: Page, options: ScraperOptions) {
   debug(`fetched ${rawTransactions.length} raw transactions from page`);
 
   const accountTransactions = convertTransactions(
-    rawTransactions.filter(item => !!item) as ScrapedTransaction[],
+    rawTransactions.filter(item => !!item),
     options,
   );
 

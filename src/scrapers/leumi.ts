@@ -170,9 +170,9 @@ async function fetchTransactions(
   // runtime for some accounts after 1-2 seconds so we need to hang the process for a short while.
   await hangProcess(4000);
 
-  const accountsIds = (await page.evaluate(() =>
+  const accountsIds = await page.evaluate(() =>
     Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
-  )) as string[];
+  );
 
   // due to a bug, the altered value might include undesired signs like & that should be removed
 

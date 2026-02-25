@@ -61,7 +61,7 @@ function getPossibleLoginResults(page: Page): PossibleLoginResults {
 async function getAccountID(page: Page): Promise<string> {
   try {
     const selectedSnifAccount = await page.$eval(ACCOUNT_ID_SELECTOR, (element: Element) => {
-      return element.textContent as string;
+      return element.textContent;
     });
 
     return selectedSnifAccount;
