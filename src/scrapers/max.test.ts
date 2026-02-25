@@ -1,55 +1,91 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+import puppeteer from 'puppeteer';
+import moment from 'moment';
+import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../constants';
+import { fetchGetWithinPage } from '../helpers/fetch';
+import { applyAntiDetection } from '../helpers/browser';
+import { filterOldTransactions, fixInstallments } from '../helpers/transactions';
+import { elementPresentOnPage } from '../helpers/elements-interactions';
+import { getCurrentUrl } from '../helpers/navigation';
+import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import MaxScraper, { getMemo } from './max';
-import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
-import { SCRAPERS } from '../definitions';
-import { LoginResults } from './base-scraper-with-browser';
+import { ScraperErrorTypes } from './errors';
+import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-const COMPANY_ID = 'max'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('../helpers/fetch', () => ({
+  fetchGetWithinPage: jest.fn(),
+}));
+jest.mock('../helpers/browser', () => ({
+  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  isBotDetectionScript: jest.fn(() => false),
+  interceptionPriorities: { abort: 1000, continue: 10 },
+}));
+jest.mock('../helpers/elements-interactions', () => ({
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+}));
+jest.mock('../helpers/navigation', () => ({
+  getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il/homepage/personal'),
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../helpers/transactions', () => ({
+  fixInstallments: jest.fn((txns: any[]) => txns),
+  filterOldTransactions: jest.fn((txns: any[]) => txns),
+  sortTransactionsByDate: jest.fn((txns: any[]) => txns),
+  getRawTransaction: jest.fn((data: any) => data),
+}));
+jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../helpers/dates', () => {
+  return jest.fn(() => [moment('2024-06-01')]);
+});
 
-describe('Max scraper', () => {
-  beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
+const mockBrowser = {
+  newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+
+const CREDS = { username: 'testuser', password: 'testpass' };
+
+function mockCategories() {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    result: [{ id: 1, name: 'מזון' }],
   });
+}
 
-  test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.max).toBeDefined();
-    expect(SCRAPERS.max.loginFields).toContain('username');
-    expect(SCRAPERS.max.loginFields).toContain('password');
+function mockTxnMonth(txns: any[] = []) {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    result: { transactions: txns },
   });
+}
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
+function rawTxn(overrides: any = {}): any {
+  return {
+    shortCardNumber: '4580',
+    paymentDate: '2024-06-15',
+    purchaseDate: '2024-06-10',
+    actualPaymentAmount: '100',
+    paymentCurrency: 376,
+    originalCurrency: SHEKEL_CURRENCY,
+    originalAmount: 100,
+    planName: 'רגילה',
+    planTypeId: 5,
+    comments: '',
+    merchantName: 'סופר שופ',
+    categoryId: 1,
+    ...overrides,
+  };
+}
 
-      const scraper = new MaxScraper(options);
-
-      const result = await scraper.scrape({ username: 'e10s12', password: '3f3ss3d' });
-
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
-    },
-  );
-
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
-    const options = {
-      ...testsConfig.options,
-      companyId: COMPANY_ID,
-    };
-
-    const scraper = new MaxScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.max);
-    expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
-    expect(error).toBe('');
-    expect(result.success).toBeTruthy();
-
-    exportTransactions(COMPANY_ID, result.accounts || []);
-  });
+beforeEach(() => {
+  jest.clearAllMocks();
+  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
+  (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
 
 describe('getMemo', () => {
@@ -59,8 +95,202 @@ describe('getMemo', () => {
     [{ comments: 'comment without funds' }, 'comment without funds'],
     [{ comments: '', fundsTransferReceiverOrTransfer: 'Daniel H' }, 'Daniel H'],
     [{ comments: '', fundsTransferReceiverOrTransfer: 'Daniel', fundsTransferComment: 'Foo bar' }, 'Daniel: Foo bar'],
+    [
+      { comments: 'tip', fundsTransferReceiverOrTransfer: 'Daniel', fundsTransferComment: 'Foo bar' },
+      'tip Daniel: Foo bar',
+    ],
   ])('%o should create memo: %s', (transaction, expected) => {
     const memo = getMemo(transaction);
     expect(memo).toBe(expected);
+  });
+});
+
+describe('login', () => {
+  it('succeeds with valid credentials', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn()]);
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(true);
+    expect(applyAntiDetection).toHaveBeenCalled();
+  });
+
+  it('returns InvalidPassword when error dialog appears', async () => {
+    (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
+    (elementPresentOnPage as jest.Mock)
+      .mockResolvedValueOnce(false) // #closePopup check in preAction
+      .mockResolvedValueOnce(false) // .login-link#private check in preAction
+      .mockResolvedValueOnce(true) // #popupWrongDetails check (InvalidPassword)
+      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError check
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+  });
+
+  it('returns ChangePassword for renewal URL', async () => {
+    (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/renew-password');
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+  });
+});
+
+describe('fetchData', () => {
+  it('fetches and converts normal transactions', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ originalAmount: 250, actualPaymentAmount: '250', merchantName: 'רמי לוי' })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts![0].accountNumber).toBe('4580');
+
+    const t = result.accounts![0].txns[0];
+    expect(t.originalAmount).toBe(-250);
+    expect(t.description).toBe('רמי לוי');
+    expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
+    expect(t.chargedCurrency).toBe(SHEKEL_CURRENCY);
+    expect(t.status).toBe(TransactionStatuses.Completed);
+    expect(t.type).toBe(TransactionTypes.Normal);
+  });
+
+  it('detects installment transactions from planName', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ planName: 'תשלומים', comments: 'תשלום 3 מתוך 12' })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.type).toBe(TransactionTypes.Installments);
+    expect(t.installments).toEqual({ number: 3, total: 12 });
+  });
+
+  it('detects installments from planTypeId fallback', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ planName: 'unknown plan', planTypeId: 2, comments: 'תשלום 1 מתוך 6' })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    const t = result.accounts![0].txns[0];
+    expect(t.type).toBe(TransactionTypes.Installments);
+  });
+
+  it('marks pending transactions (paymentDate=null)', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ paymentDate: null })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
+  });
+
+  it('maps currency IDs correctly', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ paymentCurrency: 840, originalCurrency: DOLLAR_CURRENCY })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns[0].chargedCurrency).toBe(DOLLAR_CURRENCY);
+  });
+
+  it('handles empty month response', async () => {
+    mockCategories();
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(0);
+  });
+
+  it('filters out summary rows without planName', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn(), rawTxn({ planName: '' })]);
+
+    const scraper = new MaxScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.accounts![0].txns).toHaveLength(1);
+  });
+
+  it('calls fixInstallments when combineInstallments=false', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn()]);
+
+    await new MaxScraper(createMockScraperOptions({ combineInstallments: false })).scrape(CREDS);
+    expect(fixInstallments).toHaveBeenCalled();
+  });
+
+  it('skips fixInstallments when combineInstallments=true', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn()]);
+
+    await new MaxScraper(createMockScraperOptions({ combineInstallments: true })).scrape(CREDS);
+    expect(fixInstallments).not.toHaveBeenCalled();
+  });
+
+  it('calls filterOldTransactions by default', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn()]);
+
+    await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
+    expect(filterOldTransactions).toHaveBeenCalled();
+  });
+
+  it('includes rawTransaction when option set', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn()]);
+
+    const result = await new MaxScraper(createMockScraperOptions({ includeRawTransaction: true })).scrape(CREDS);
+    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+  });
+
+  it('builds identifier from ARN and installment number', async () => {
+    mockCategories();
+    mockTxnMonth([
+      rawTxn({
+        planName: 'תשלומים',
+        comments: 'תשלום 2 מתוך 5',
+        dealData: { arn: 'ARN123' },
+      }),
+    ]);
+
+    const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
+    expect(result.accounts![0].txns[0].identifier).toBe('ARN123_2');
+  });
+
+  it('uses ARN alone when no installments', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ dealData: { arn: 'ARN456' } })]);
+
+    const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
+    expect(result.accounts![0].txns[0].identifier).toBe('ARN456');
+  });
+
+  it('groups transactions by card number', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ shortCardNumber: '1111' }), rawTxn({ shortCardNumber: '2222' })]);
+
+    const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
+    expect(result.accounts).toHaveLength(2);
+    expect(result.accounts!.map(a => a.accountNumber).sort()).toEqual(['1111', '2222']);
+  });
+
+  it('assigns category from loaded categories', async () => {
+    mockCategories();
+    mockTxnMonth([rawTxn({ categoryId: 1 })]);
+
+    const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
+    expect(result.accounts![0].txns[0].category).toBe('מזון');
   });
 });
