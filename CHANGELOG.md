@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.8.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.1...v6.8.2) (2026-02-25)
+
+
+### Bug Fixes
+
+* resolve Jest 30 test-exclude crash on Node 22 ([#45](https://github.com/sergienko4/israeli-bank-scrapers/issues/45)) ([e146bf2](https://github.com/sergienko4/israeli-bank-scrapers/commit/e146bf2529f015c9010050127b829d35dd4b217c))
+
 ## [6.8.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.0...v6.8.1) (2026-02-25)
 
 
