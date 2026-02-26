@@ -1,429 +1,369 @@
-# Israeli Bank Scrapers (Fork) — @sergienko4/israeli-bank-scrapers
+<a id="readme-top"></a>
 
-<img src="./logo.png" width="100" height="100" alt="Logo" align="left" />
+<!-- PROJECT SHIELDS -->
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![npm version][npm-shield]][npm-url]
+[![CI][ci-shield]][ci-url]
+[![MIT License][license-shield]][license-url]
 
-[![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
-[![CI](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/nodeCI.yml/badge.svg)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/nodeCI.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="https://github.com/sergienko4/israeli-bank-scrapers">
+    <img src="./logo.png" alt="Logo" width="120" height="120">
+  </a>
 
-> **This is a maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
-> with anti-detection for **all 18 banks** — realistic User-Agent, client hints, stealth JS.
-> Bypasses WAF blocking on Amex, Isracard, and any other bank that detects headless Chrome.
->
-> Install: `npm install @sergienko4/israeli-bank-scrapers`
+  <h3 align="center">Israeli Bank Scrapers (Fork)</h3>
 
-> Important!
-> 
-> The scrapers are set to use timezone `Asia/Jerusalem` to avoid conflicts in case you're running the scrapers outside Israel.
- 
-# What's here?
-What you can find here is scrapers for all major Israeli banks and credit card companies. That's the plan at least.
-Currently only the following banks are supported:
-- Bank Hapoalim (thanks [@sebikaplun](https://github.com/sebikaplun))
-- Leumi Bank (thanks [@esakal](https://github.com/esakal))
-- Discount Bank
-- Mercantile Bank (thanks [@ezzatq](https://github.com/ezzatq) and [@kfirarad](https://github.com/kfirarad)))
-- Mizrahi Bank (thanks [@baruchiro](https://github.com/baruchiro))
-- Otsar Hahayal Bank (thanks [@matanelgabsi](https://github.com/matanelgabsi))
-- Visa Cal (thanks [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal) and [@nirgin](https://github.com/nirgin))
-- Max (Formerly Leumi Card)
-- Isracard
-- Amex (thanks [@erezd](https://github.com/erezd))
-- Union Bank (Thanks to Intuit FDP OpenSource Team [@dratler](https://github.com/dratler),[@kalinoy](https://github.com/kalinoy),[@shanigad](https://github.com/shanigad),[@dudiventura](https://github.com/dudiventura) and [@NoamGoren](https://github.com/NoamGoren))
-- Beinleumi (Thanks to [@dudiventura](https://github.com/dudiventura) from the Intuit FDP OpenSource Team)
-- Massad
-- Yahav (Thanks to [@gczobel](https://github.com/gczobel))
-- Beyhad Bishvilha - [ביחד בשבילך](https://www.hist.org.il/) (thanks [@esakal](https://github.com/esakal))
-- OneZero (Experimental) (thanks [@orzarchi](https://github.com/orzarchi))
-- Behatsdaa - [בהצדעה](https://behatsdaa.org.il) (thanks [@daniel-hauser](https://github.com/daniel-hauser))
-- Pagi Bank
+  <p align="center">
+    Scrape transactions from all 18 Israeli banks with <strong>Cloudflare WAF bypass</strong>
+    <br />
+    <code>npm install @sergienko4/israeli-bank-scrapers</code>
+    <br />
+    <br />
+    <a href="https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers">npm</a>
+    &middot;
+    <a href="https://github.com/sergienko4/israeli-bank-scrapers/issues/new?labels=bug">Report Bug</a>
+    &middot;
+    <a href="https://github.com/sergienko4/israeli-bank-scrapers/issues/new?labels=enhancement">Request Feature</a>
+  </p>
+</div>
 
-# Prerequisites
-To use this you will need to have [Node.js](https://nodejs.org) >= 22.14.0 installed.
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about">About</a></li>
+    <li><a href="#supported-banks">Supported Banks</a></li>
+    <li><a href="#getting-started">Getting Started</a></li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#waf-troubleshooting">WAF Troubleshooting</a></li>
+    <li><a href="#advanced-options">Advanced Options</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#known-projects">Known Projects</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</details>
 
-# Getting started
-To use these scrapers you'll need to install the package from npm:
+---
+
+## About
+
+**Maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with anti-detection that bypasses Cloudflare Bot Management — the main blocker for Amex and Isracard scraping since early 2026.
+
+### What's different from upstream?
+
+| Feature | Upstream | This Fork |
+|---------|----------|-----------|
+| Cloudflare WAF bypass | No | Automatic retry with exponential backoff (30s/60s/120s) |
+| Anti-detection | Basic | Manual stealth overrides (webdriver, plugins, chrome.runtime) |
+| WAF error reporting | "Unknown error" | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions |
+| Request interception | Blocks bot detection scripts (detectable) | Removed (CDP detection signal) |
+| Human-like timing | Partial | Full (1.5-3s delay before API calls, randomized form input) |
+
+Anti-detection and Cloudflare WAF bypass by [@sergienko4](https://github.com/sergienko4). Validated on Amex, Isracard, Discount, and Visa Cal across Azure and Oracle Cloud servers.
+
+### Built With
+
+[![TypeScript][ts-shield]][ts-url] [![Node.js][node-shield]][node-url] [![Puppeteer][pptr-shield]][pptr-url] [![Jest][jest-shield]][jest-url] [![ESLint][eslint-shield]][eslint-url]
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Supported Banks
+
+All 18 Israeli banks and credit card companies:
+
+<table>
+<tr><td>
+
+| Bank | Contributors |
+|------|-------------|
+| Bank Hapoalim | [@sebikaplun](https://github.com/sebikaplun) |
+| Leumi Bank | [@esakal](https://github.com/esakal) |
+| Discount Bank | |
+| Mercantile Bank | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad) |
+| Mizrahi Bank | [@baruchiro](https://github.com/baruchiro) |
+| Otsar Hahayal | [@matanelgabsi](https://github.com/matanelgabsi) |
+| Union Bank | Intuit FDP: [@dratler](https://github.com/dratler), [@kalinoy](https://github.com/kalinoy), [@shanigad](https://github.com/shanigad), [@dudiventura](https://github.com/dudiventura), [@NoamGoren](https://github.com/NoamGoren) |
+| Massad | |
+| Pagi Bank | |
+
+</td><td>
+
+| Bank | Contributors |
+|------|-------------|
+| Visa Cal | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal), [@nirgin](https://github.com/nirgin) |
+| Max (formerly Leumi Card) | |
+| Isracard | WAF bypass by [@sergienko4](https://github.com/sergienko4) |
+| Amex | [@erezd](https://github.com/erezd), WAF bypass by [@sergienko4](https://github.com/sergienko4) |
+| Beinleumi | [@dudiventura](https://github.com/dudiventura) |
+| Yahav | [@gczobel](https://github.com/gczobel) |
+| Beyhad Bishvilha | [@esakal](https://github.com/esakal) |
+| OneZero (experimental) | [@orzarchi](https://github.com/orzarchi) |
+| Behatsdaa | [@daniel-hauser](https://github.com/daniel-hauser) |
+
+</td></tr>
+</table>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Getting Started
+
+### Prerequisites
+
+* [Node.js](https://nodejs.org) >= 22.14.0
+
+### Installation
+
 ```sh
 npm install @sergienko4/israeli-bank-scrapers
 ```
-Then you can simply import and use it in your node module:
 
-```node
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Usage
+
+```typescript
 import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
-(async function() {
-  try {
-    // read documentation below for available options
-    const options = {
-      companyId: CompanyTypes.leumi, 
-      startDate: new Date('2020-05-01'),
-      combineInstallments: false,
-      showBrowser: true 
-    };
+const scraper = createScraper({
+  companyId: CompanyTypes.amex,
+  startDate: new Date('2024-01-01'),
+  combineInstallments: false,
+});
 
-    // read documentation below for information about credentials
-    const credentials = {
-      username: 'vr29485',
-      password: 'sometingsomething'
-    };
+const result = await scraper.scrape({
+  id: '123456789',
+  card6Digits: '123456',
+  password: 'mypassword',
+});
 
-    const scraper = createScraper(options);
-    const scrapeResult = await scraper.scrape(credentials);
-
-    if (scrapeResult.success) {
-      scrapeResult.accounts.forEach((account) => {
-        console.log(`found ${account.txns.length} transactions for account number ${account.accountNumber}`);
-      });
-    }
-    else {
-      throw new Error(scrapeResult.errorType);
-    }
-  } catch(e) {
-    console.error(`scraping failed for the following reason: ${e.message}`);
+if (result.success) {
+  for (const account of result.accounts!) {
+    console.log(`${account.accountNumber}: ${account.txns.length} transactions`);
   }
-})();
+} else {
+  console.error(result.errorType, result.errorMessage);
+  if (result.errorDetails) {
+    console.error('Provider:', result.errorDetails.provider);
+    console.error('Suggestions:', result.errorDetails.suggestions);
+  }
+}
 ```
 
-Check the options declaration [here](./src/scrapers/interface.ts#L29) for available options.
+### Credentials per Bank
 
-Regarding credentials, you should provide the relevant credentials for the chosen company. See [this file](./src/definitions.ts) with list of credentials per company.
+| Bank | Fields |
+|------|--------|
+| Hapoalim | `userCode`, `password` |
+| Leumi | `username`, `password` |
+| Discount, Mercantile | `id`, `password`, `num` |
+| Mizrahi | `username`, `password` |
+| Otsar Hahayal, Visa Cal, Max | `username`, `password` |
+| Isracard, Amex | `id`, `card6Digits`, `password` |
+| Yahav | `username`, `password`, `nationalID` |
+| Beinleumi, Massad | `username`, `password` |
+| Beyhad Bishvilha, Behatsdaa | `id`, `password` |
+| Pagi | `username`, `password` |
 
-The structure of the result object is as follows:
+All scrapers support up to one year of transaction history.
 
-```node
+### Result Structure
+
+```typescript
 {
-  success: boolean,
-  accounts: [{
-    accountNumber: string,
-    balance?: number, // Account balance. Not implemented for all accounts.
+  success: boolean;
+  accounts?: [{
+    accountNumber: string;
+    balance?: number;
     txns: [{
-      type: string, // can be either 'normal' or 'installments'
-      identifier: int, // only if exists
-      date: string, // ISO date string
-      processedDate: string, // ISO date string
-      originalAmount: double,
-      originalCurrency: string,
-      chargedAmount: double,
-      description: string,
-      memo: string, // can be null or empty
-      installments: { // only if exists
-        number: int, // the current installment number
-        total: int, // the total number of installments
-      },
-      status: string //can either be 'completed' or 'pending'
-    }],
-  }],
-  errorType: "INVALID_PASSWORD"|"CHANGE_PASSWORD"|"ACCOUNT_BLOCKED"|"UNKNOWN_ERROR"|"TIMEOUT"|"GENERIC", // only on success=false
-  errorMessage: string, // only on success=false
+      type: 'normal' | 'installments';
+      identifier?: number;
+      date: string;          // ISO date
+      processedDate: string; // ISO date
+      originalAmount: number;
+      originalCurrency: string;
+      chargedAmount: number;
+      description: string;
+      memo?: string;
+      installments?: { number: number; total: number };
+      status: 'completed' | 'pending';
+    }];
+  }];
+  // On failure:
+  errorType?: 'INVALID_PASSWORD' | 'CHANGE_PASSWORD' | 'ACCOUNT_BLOCKED'
+            | 'TIMEOUT' | 'GENERIC' | 'GENERAL_ERROR' | 'WAF_BLOCKED';
+  errorMessage?: string;
+  errorDetails?: {          // Only on WAF_BLOCKED
+    provider: 'cloudflare' | 'unknown';
+    httpStatus: number;
+    pageTitle: string;
+    pageUrl: string;
+    responseSnippet?: string;
+    suggestions: string[];  // Actionable fix suggestions
+  };
 }
 ```
 
-You can also use the `SCRAPERS` list to get scraper metadata:
-```node
+### Scraper Metadata
+
+```typescript
 import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
+// Returns: { [companyId]: { name: string, loginFields: string[] } }
 ```
 
-The return value is a list of scraper metadata:
-```node
-{
-  <companyId>: {
-    name: string, // the name of the scraper
-    loginFields: [ // a list of login field required by this scraper
-      '<some field>' // the name of the field
-    ]
-  }
-}
-```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Advanced options
+## WAF Troubleshooting
 
-### ExternalBrowserOptions
+When Cloudflare blocks access, the scraper returns `errorType: 'WAF_BLOCKED'` with actionable suggestions:
 
-This option allows you to provide an externally created browser instance. You can get a browser directly from puppeteer via `puppeteer.launch()`.  
-Note that for backwards compatibility, the browser will be closed by the library after the scraper finishes unless `skipCloseBrowser` is set to true.
+| Scenario | What happens | Suggestions |
+|----------|-------------|-------------|
+| First-time 403 | Cloudflare challenge page, auto-retry with 30s backoff | Usually resolves on 2nd attempt |
+| Repeated blocks | IP flagged from too many rapid attempts | Wait 1-2 hours between scrape runs |
+| Datacenter IP | Oracle Cloud, AWS IPs are lower trust | Use Azure or residential proxy |
+| Turnstile CAPTCHA | Cannot be solved by headless Chrome | Use a trusted IP provider |
 
-Example:
+> **Tip:** run scrapes 1-2 times per day with at least 1 hour between runs for best results.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Advanced Options
+
+### External Browser
+
+Pass your own Puppeteer browser instance:
 
 ```typescript
 import puppeteer from 'puppeteer';
-import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const browser = await puppeteer.launch();
-const options = {
+const scraper = createScraper({
   companyId: CompanyTypes.leumi,
-  startDate: new Date('2020-05-01'),
+  startDate: new Date('2024-01-01'),
   browser,
-  skipCloseBrowser: true, // Or false [default] if you want it to auto-close
-};
-const scraper = createScraper(options);
-const scrapeResult = await scraper.scrape({ username: 'vr29485', password: 'sometingsomething' });
-await browser.close(); // Or not if `skipCloseBrowser` is false
-```
-
-### ExternalBrowserContextOptions
-
-This option allows you to provide a [browser context](https://pptr.dev/api/puppeteer.browsercontext). This is useful if you don't want to share cookies with other scrapers (i.e. multiple parallel runs of the same scraper with different users) without creating a new browser for each scraper.
-
-Example:
-
-```typescript
-import puppeteer from 'puppeteer';
-import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
-
-const browser = await puppeteer.launch();
-const browserContext = await browser.createBrowserContext();
-const options = {
-  companyId: CompanyTypes.leumi,
-  startDate: new Date('2020-05-01'),
-  browserContext
-};
-const scraper = createScraper(options);
-const scrapeResult = await scraper.scrape({ username: 'vr29485', password: 'sometingsomething' });
+  skipCloseBrowser: true,
+});
+const result = await scraper.scrape(credentials);
 await browser.close();
 ```
 
-### OptIn Features
+### Browser Context
 
-Some scrapers support opt-in features that can be enabled by passing the `optInFeatures` option when creating the scraper.
-Opt in features are usually used for breaking changes that are not enabled by default to avoid breaking existing users.
+Use isolated browser contexts for parallel scraping:
 
-See the [OptInFeatures](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/scrapers/interface.ts#:~:text=export-,type%20OptInFeatures) interface for available features.
-
-## Two-Factor Authentication Scrapers
-
-Some companies require two-factor authentication, and as such the scraper cannot be fully automated. When using the relevant scrapers, you have two options:
-1. Provide an async callback that knows how to retrieve real time secrets like OTP codes.
-2. When supported by the scraper - provide a "long term token". These are usually available if the financial provider only requires Two-Factor authentication periodically, and not on every login. You can retrieve your long term token from the relevant credit/banking app using reverse engineering and a MITM proxy, or use helper functions that are provided by some Two-Factor Auth scrapers (e.g. OneZero).
-
-
-```node
-import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
-import { prompt } from 'enquirer';
-
-// Option 1 - Provide a callback
-
-const result = await scraper.login({
- email: relevantAccount.credentials.email,
- password: relevantAccount.credentials.password,
- phoneNumber,
- otpCodeRetriever: async () => {
-  let otpCode;
-  while (!otpCode) {
-   otpCode = await questions('OTP Code?');
-  }
-
-  return otpCode[0];
- }
+```typescript
+const browser = await puppeteer.launch();
+const browserContext = await browser.createBrowserContext();
+const scraper = createScraper({
+  companyId: CompanyTypes.leumi,
+  startDate: new Date('2024-01-01'),
+  browserContext,
 });
-
-// Option 2 - Retrieve a long term otp token (OneZero)
-await scraper.triggerTwoFactorAuth(phoneNumber);
-
-// OTP is sent, retrieve it somehow
-const otpCode='...';
-
-const result = scraper.getLongTermTwoFactorToken(otpCode);
-/*
-result = {
-  success: true;
-  longTermTwoFactorAuthToken: 'eyJraWQiOiJiNzU3OGM5Yy0wM2YyLTRkMzktYjBm...';
-}
- */
 ```
 
-# Getting deployed version of latest changes in main
-This library is deployed automatically to NPM with any change merged into the main branch.
+### Two-Factor Authentication
 
-# `Israeli-bank-scrapers-core` library
+Some companies require 2FA. Provide an OTP callback or a long-term token:
 
-> TL;DR this is the same library as the default library. The only difference is that it is using `puppeteer-core` instead of `puppeteer` which is useful if you are using frameworks like Electron to pack your application. 
->
-> In most cases you will probably want to use the default library (read [Getting Started](#getting-started) section).
-
-Israeli bank scrapers library is published  twice:
- 1. [israeli-bank-scrapers](https://www.npmjs.com/package/israeli-bank-scrapers) - the default variation, great for common usage as node dependency in server application or cli.
- 2. [israeli-bank-scrapers-core](https://www.npmjs.com/package/israeli-bank-scrapers-core) - extremely useful for applications that bundle `node_modules` like Electron applications. 
- 
- ## Differences between default and core variations
-  
- The default variation [israeli-bank-scrapers](https://www.npmjs.com/package/israeli-bank-scrapers) is using [puppeteer](https://www.npmjs.com/package/puppeteer) which handles the installation of local chroumium on its' own. This behavior is very handy since it takes care on all the hard work figuring which chromium to download and manage the actual download process.  As a side effect it increases node_modules by several hundred megabytes. 
- 
- The core variation [israeli-bank-scrapers-core](https://www.npmjs.com/package/israeli-bank-scrapers-core) is using [puppeteer-core](https://www.npmjs.com/package/puppeteer-core) which is exactly the same library as `puppeteer` except that it doesn't download chromium when installed by npm. It is up to you to make sure the specific version of chromium is installed locally and provide a path to that version. It is useful in Electron applications since it doesn't bloat the size of the application and you can provide a much friendlier experience like loading the application and download it later when needed. 
- 
- To install `israeli-bank-scrapers-core`:
-```sh
-npm install israeli-bank-scrapers-core --save
+```typescript
+const result = await scraper.scrape({
+  email: 'user@example.com',
+  password: 'pass',
+  phoneNumber: '+972...',
+  otpCodeRetriever: async () => {
+    return '123456'; // Return OTP from SMS/email
+  },
+});
 ```
 
-## Getting chromium version used by puppeteer-core
-When using the `israeli-bank-scrapers-core` it is up to you to make sure the relevant chromium version exists. You must:
-1. query for the specific chromium revision required by the `puppeteer-core` library being used.
-2. make sure that you have local version of that revision.
-3. provide an absolute path to `israeli-bank-scrapers-core` scrapers.
+### Opt-In Features
 
-Please read the following to learn more about the process: 
-1. To get the required chromium revision use the following code:
-```
-import { getPuppeteerConfig } from 'israeli-bank-scrapers-core';
+Some scrapers support opt-in features for breaking changes. See the [OptInFeatures type](./src/scrapers/interface.ts).
 
-const chromiumVersion = getPuppeteerConfig().chromiumRevision;
-```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-2. Once you have the chromium revision, you can either download it manually or use other liraries like [download-chromium](https://www.npmjs.com/package/download-chromium) to fetch that version. The mentioned library is very handy as it caches the download and provide useful helpers like download progress information.
- 
- 3. provide the path to chromium to the library using the option key `executablePath`. 
+## Roadmap
 
-# Specific definitions per scraper
+- [x] Cloudflare WAF bypass with retry + exponential backoff
+- [x] Structured `WAF_BLOCKED` error type with actionable suggestions
+- [x] Remove `puppeteer-extra-plugin-stealth` (detected by Cloudflare)
+- [ ] Playwright migration for reduced CDP fingerprint
+- [ ] Configurable proxy support for residential IP routing
+- [ ] Upstream PR to [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
 
-## Bank Hapoalim scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  userCode: <user identification code>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
 
-## Bank Leumi scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Discount scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  id: <user identification number>,
-  password: <user password>,
-  num: <user identificaiton code>
-};
-```
-This scraper supports fetching transaction from up to one year (minus 1 day).
+## Contributing
 
-## Mercantile scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  id: <user identification number>,
-  password: <user password>,
-  num: <user identificaiton code>
-};
-```
-This scraper supports fetching transaction from up to one year (minus 1 day).
+Contributions are welcome!
 
+1. Fork the repo
+2. Create your branch (`git checkout -b fix/description`)
+3. Make changes, run `npm run build && npm test && npm run lint`
+4. Commit with [conventional commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `refactor:`)
+5. Push and open a PR
 
-### Known Limitations
-- Missing memo field
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Mizrahi scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user identification number>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+## Known Projects
 
-## Beinleumi & Massad
-These scrapers are essentially identical and expect the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>
-};
-```
+Projects using this library:
 
-## Bank Otsar Hahayal scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+- [israeli-bank-scrapers-to-actual-budget](https://github.com/sergienko4/israeli-bank-scrapers-to-actual-budget) — Automatic bank transaction sync to Actual Budget
+- [Israeli YNAB updater](https://github.com/eshaham/israeli-ynab-updater) — Export bank data to YNAB
+- [Caspion](https://github.com/brafdlog/caspion) — Auto-send transactions to budget tracking apps
+- [Moneyman](https://github.com/daniel-hauser/moneyman) — Save transactions via GitHub Actions
+- [Firefly III Importer](https://github.com/itairaz1/israeli-bank-firefly-importer) — Import to Firefly III
+- [Clarify](https://github.com/tomyweiss/clarify-expences) — Personal finance tracking
+- [Asher MCP](https://github.com/shlomiuziel/asher-mcp) — Financial data via Model Context Protocol
 
-## Visa Cal scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Max scraper (Formerly Leumi-Card)
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+## License
 
-## Isracard scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  id: <user identification number>,
-  card6Digits: <6 last digits of card>
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+Distributed under the MIT License. See `LICENSE` for more information.
 
-## Amex scraper
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  id: <user identification number>,
-  card6Digits: <6 last digits of card>
-  password: <user password>
-};
-```
-This scraper supports fetching transaction from up to one year.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Yahav
-This scraper expects the following credentials object:
-```node
-const credentials = {
-  username: <user name>,
-  password: <user password>,
-  nationalID: <user national ID>
-};
-```
-This scraper supports fetching transaction from up to six months.
+## Contact
 
-## Beyhad Bishvilha
-This scraper expects the following credentials object::
-```node
-const credentials = {
-  id: <user identification number>,
-  password: <user password>
-};
-```
+Eugene Sergienko — [@sergienko4](https://github.com/sergienko4)
 
-# Known projects
-These are the projects known to be using this module:
-- [Israeli YNAB updater](https://github.com/eshaham/israeli-ynab-updater) - A command line tool for exporting banks data to CSVs, formatted specifically for [YNAB](https://www.youneedabudget.com)
-- [Caspion](https://github.com/brafdlog/caspion) - An app for automatically sending transactions from Israeli banks and credit cards to budget tracking apps
-- [Finance Notifier](https://github.com/LiranBri/finance-notifier) - A simple script with the ability to send custom financial alerts to multiple contacts and platforms
-- [Moneyman](https://github.com/daniel-hauser/moneyman) - Automatically save transactions from all major Israeli banks and credit card companies, using GitHub actions (or a self hosted docker image)
-- [Firefly iii Importer](https://github.com/itairaz1/israeli-bank-firefly-importer) - A tool to import your banks data into [Firefly iii](https://www.firefly-iii.org/), a free and open source financial manager.
-- [Actual Budget Importer](https://github.com/tomerh2001/israeli-banks-actual-budget-importer) - A tool to import your banks data into [Actual Budget](https://actualbudget.com/), a free and open source financial manager.
-- [Clarify](https://github.com/tomyweiss/clarify-expences) - A full-stack personal finance app for tracking income and expenses.
-- [Asher MCP](https://github.com/shlomiuziel/asher-mcp) - Scrape & access your financial data with LLM using the Model Context Protocol.
+Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/sergienko4/israeli-bank-scrapers)
 
-Built something interesting you want to share here? [Let me know](https://goo.gl/forms/5Fb9JAjvzMIpmzqo2).
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-# License
-The MIT License
+<!-- MARKDOWN LINKS & IMAGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
+[contributors-url]: https://github.com/sergienko4/israeli-bank-scrapers/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
+[forks-url]: https://github.com/sergienko4/israeli-bank-scrapers/network/members
+[stars-shield]: https://img.shields.io/github/stars/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
+[stars-url]: https://github.com/sergienko4/israeli-bank-scrapers/stargazers
+[issues-shield]: https://img.shields.io/github/issues/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
+[issues-url]: https://github.com/sergienko4/israeli-bank-scrapers/issues
+[license-shield]: https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
+[license-url]: https://github.com/sergienko4/israeli-bank-scrapers/blob/main/LICENSE
+[npm-shield]: https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white
+[npm-url]: https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers
+[ci-shield]: https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/nodeCI.yml?style=for-the-badge&logo=github&label=CI
+[ci-url]: https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/nodeCI.yml
+[ts-shield]: https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white
+[ts-url]: https://www.typescriptlang.org
+[node-shield]: https://img.shields.io/badge/Node.js-%3E%3D22.14-339933?style=for-the-badge&logo=node.js&logoColor=white
+[node-url]: https://nodejs.org
+[pptr-shield]: https://img.shields.io/badge/Puppeteer-24-40B5A4?style=for-the-badge&logo=puppeteer&logoColor=white
+[pptr-url]: https://pptr.dev
+[jest-shield]: https://img.shields.io/badge/Jest-30-C21325?style=for-the-badge&logo=jest&logoColor=white
+[jest-url]: https://jestjs.io
+[eslint-shield]: https://img.shields.io/badge/ESLint-9-4B32C3?style=for-the-badge&logo=eslint&logoColor=white
+[eslint-url]: https://eslint.org

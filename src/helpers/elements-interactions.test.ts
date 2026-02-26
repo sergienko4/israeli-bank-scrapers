@@ -41,7 +41,11 @@ describe('fillInput', () => {
     const page = createMockPage();
     await fillInput(page, '#username', 'testuser');
     expect(page.$eval).toHaveBeenCalledWith('#username', expect.any(Function));
-    expect(page.type).toHaveBeenCalledWith('#username', 'testuser');
+    expect(page.type).toHaveBeenCalledWith(
+      '#username',
+      'testuser',
+      expect.objectContaining({ delay: expect.any(Number) }),
+    );
   });
 });
 

@@ -1,12 +1,36 @@
 import { type Page } from 'puppeteer';
+import { getDebug } from './debug';
+
+const debug = getDebug('fetch');
 
 const JSON_CONTENT_TYPE = 'application/json';
+const WAF_BLOCK_PATTERNS = ['block automation', 'attention required', 'just a moment', 'access denied'] as const;
 
 function getJsonHeaders() {
   return {
     Accept: JSON_CONTENT_TYPE,
     'Content-Type': JSON_CONTENT_TYPE,
   };
+}
+
+export function detectWafBlock(status: number, body: string | null): string | null {
+  if (status === 403 || status === 429 || status === 503) {
+    return `HTTP ${status}`;
+  }
+  if (!body) return null;
+  const lower = body.toLowerCase();
+  const match = WAF_BLOCK_PATTERNS.find(pattern => lower.includes(pattern));
+  return match ? `response contains "${match}"` : null;
+}
+
+function logResponseIssues(status: number, text: string | null, url: string): void {
+  if (status !== 200 && status !== 204) {
+    debug('non-200 response: status=%d url=%s body=%s', status, url, text?.substring(0, 200) ?? 'empty');
+  }
+  const wafReason = detectWafBlock(status, text);
+  if (wafReason) {
+    debug('WAF block detected: %s, url=%s', wafReason, url);
+  }
 }
 
 export async function fetchGet<TResult>(url: string, extraHeaders: Record<string, any>): Promise<TResult> {
@@ -94,36 +118,37 @@ export async function fetchPostWithinPage<TResult>(
   extraHeaders: Record<string, any> = {},
   ignoreErrors = false,
 ): Promise<TResult | null> {
-  const result = await page.evaluate(
+  const [text, status] = await page.evaluate(
     async (innerUrl: string, innerData: Record<string, any>, innerExtraHeaders: Record<string, any>) => {
       const response = await fetch(innerUrl, {
         method: 'POST',
         body: JSON.stringify(innerData),
         credentials: 'include',
-
         headers: Object.assign(
           { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
           innerExtraHeaders,
         ),
       });
       if (response.status === 204) {
-        return null;
+        return [null, 204] as const;
       }
-      return response.text();
+      return [await response.text(), response.status] as const;
     },
     url,
     data,
     extraHeaders,
   );
 
+  logResponseIssues(status, text, url);
+
   try {
-    if (result !== null) {
-      return JSON.parse(result);
+    if (text !== null) {
+      return JSON.parse(text);
     }
   } catch (e) {
     if (!ignoreErrors) {
       throw new Error(
-        `fetchPostWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, data: ${JSON.stringify(data)}, extraHeaders: ${JSON.stringify(extraHeaders)}, result: ${result}`,
+        `fetchPostWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, data: ${JSON.stringify(data)}, extraHeaders: ${JSON.stringify(extraHeaders)}, result: ${text}, status: ${status}`,
       );
     }
   }

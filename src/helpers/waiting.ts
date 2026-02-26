@@ -63,3 +63,12 @@ export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
 export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Random delay that mimics human interaction timing.
+ * Default range: 300-1200ms (realistic for clicks and navigation).
+ */
+export function humanDelay(minMs = 300, maxMs = 1200) {
+  const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  return sleep(delay);
+}

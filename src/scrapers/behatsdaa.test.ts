@@ -10,8 +10,6 @@ jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.behatsdaa.org.il/'),

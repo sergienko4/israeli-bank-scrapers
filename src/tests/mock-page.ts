@@ -15,6 +15,7 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     frames: jest.fn().mockReturnValue([]),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     url: jest.fn().mockReturnValue('https://example.com'),
+    title: jest.fn().mockResolvedValue('Test Page'),
     evaluate: jest.fn().mockResolvedValue(undefined),
     evaluateOnNewDocument: jest.fn().mockResolvedValue(undefined),
     setUserAgent: jest.fn().mockResolvedValue(undefined),
@@ -30,6 +31,7 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
     setRequestInterception: jest.fn().mockResolvedValue(undefined),
+    emulateTimezone: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

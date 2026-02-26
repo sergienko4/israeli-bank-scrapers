@@ -22,8 +22,6 @@ jest.mock('../helpers/navigation', () => ({
 }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),

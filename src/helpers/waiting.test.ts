@@ -1,4 +1,4 @@
-import { TimeoutError, waitUntil, raceTimeout, runSerial, sleep, SECOND } from './waiting';
+import { TimeoutError, waitUntil, raceTimeout, runSerial, sleep, humanDelay, SECOND } from './waiting';
 
 describe('SECOND', () => {
   it('equals 1000', () => {
@@ -90,5 +90,22 @@ describe('runSerial', () => {
   it('propagates errors from actions', async () => {
     const actions = [() => Promise.resolve(1), () => Promise.reject(new Error('fail'))];
     await expect(runSerial(actions)).rejects.toThrow('fail');
+  });
+});
+
+describe('humanDelay', () => {
+  it('resolves after a delay within the specified range', async () => {
+    const start = Date.now();
+    await humanDelay(10, 50);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(9);
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  it('uses default range when no arguments given', async () => {
+    const start = Date.now();
+    await humanDelay();
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(250);
   });
 });

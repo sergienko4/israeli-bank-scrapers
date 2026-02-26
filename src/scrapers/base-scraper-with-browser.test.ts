@@ -8,9 +8,7 @@ import { BaseScraperWithBrowser, LoginResults, type LoginOptions } from './base-
 import { ScraperErrorTypes } from './errors';
 import type { ScraperCredentials, ScraperScrapingResult } from './interface';
 
-jest.mock('puppeteer', () => ({
-  launch: jest.fn(),
-}));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),

@@ -7,7 +7,7 @@ import getAllMonthMoments from '../helpers/dates';
 import { getDebug } from '../helpers/debug';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
 import { filterOldTransactions, fixInstallments, getRawTransaction } from '../helpers/transactions';
-import { runSerial, sleep } from '../helpers/waiting';
+import { humanDelay, runSerial, sleep } from '../helpers/waiting';
 import {
   TransactionStatuses,
   TransactionTypes,
@@ -16,9 +16,8 @@ import {
   type TransactionsAccount,
 } from '../transactions';
 import { BaseScraperWithBrowser } from './base-scraper-with-browser';
-import { ScraperErrorTypes } from './errors';
+import { ScraperErrorTypes, WafBlockError } from './errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { interceptionPriorities, isBotDetectionScript } from '../helpers/browser';
 
 const RATE_LIMIT = {
   SLEEP_BETWEEN: 1000,
@@ -402,26 +401,24 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
   }
 
   async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
-    // Anti-detection already applied in base class initialize()
-
-    await this.page.setRequestInterception(true);
-    this.page.on('request', request => {
-      if (isBotDetectionScript(request.url())) {
-        debug(`blocking bot detection script: ${request.url()}`);
-        void request.abort(undefined, interceptionPriorities.abort);
-      } else {
-        void request.continue(undefined, interceptionPriorities.continue);
+    this.page.on('response', response => {
+      const url = response.url();
+      if (url.includes('ProxyRequestHandler') || url.includes('personalarea')) {
+        debug('response: %d %s', response.status(), url.substring(0, 120));
       }
     });
 
     debug(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
+    await this.page.waitForFunction(() => document.readyState === 'complete');
+    await humanDelay(1500, 3000);
     this.emitProgress(ScraperProgressTypes.LoggingIn);
 
     const validatedData = await this.validateCredentials(credentials);
     if (!validatedData) {
       const pageUrl = this.page.url();
-      throw new Error(`login validation failed (pageUrl=${pageUrl}). Possible WAF block.`);
+      const pageTitle = await this.page.title();
+      throw WafBlockError.apiBlock(0, pageUrl, pageTitle, 'validateCredentials returned null');
     }
 
     const validateReturnCode = validatedData.returnCode;
@@ -491,7 +488,10 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
     debug('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, validateRequest);
-    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) return null;
+    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) {
+      debug('validation failed: result=%s', JSON.stringify(result)?.substring(0, 300) ?? 'null');
+      return null;
+    }
     return result.ValidateIdDataBean;
   }
 

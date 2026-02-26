@@ -16,6 +16,7 @@ const FAILED_LOGIN_TYPES: string[] = [
   ScraperErrorTypes.General,
   ScraperErrorTypes.Timeout,
   ScraperErrorTypes.ChangePassword,
+  ScraperErrorTypes.WafBlocked,
 ];
 
 function hasAmexCredentials() {

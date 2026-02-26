@@ -15,8 +15,6 @@ jest.mock('../helpers/fetch', () => ({
 }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),

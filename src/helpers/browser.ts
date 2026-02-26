@@ -1,26 +1,5 @@
 import { type Page } from 'puppeteer';
 
-const BOT_DETECTION_PATTERNS = ['detector-dom.min.js', 'detector-dom', 'bot-detect'];
-
-/**
- * Inject JS overrides that hide headless Chrome fingerprints.
- */
-async function applyStealthScript(page: Page): Promise<void> {
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
-    const origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-    Object.defineProperty(window.navigator.permissions, 'query', {
-      value: (params: PermissionDescriptor) =>
-        params.name === 'notifications'
-          ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
-          : origQuery(params),
-    });
-  });
-}
-
 /**
  * Extract major Chrome version from browser version string.
  */
@@ -39,7 +18,8 @@ async function setRealisticUserAgent(page: Page, chromeVersion: string): Promise
 }
 
 /**
- * Set HTTP headers that WAFs expect from real browsers.
+ * Set HTTP headers that Israeli bank WAFs expect from real browsers.
+ * Hebrew locale + client hints matching the dynamic Chrome version.
  */
 async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<void> {
   await page.setExtraHTTPHeaders({
@@ -51,35 +31,34 @@ async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<v
 }
 
 /**
- * Apply full anti-detection suite to hide headless Chrome from WAFs.
- * Call BEFORE any navigation — overrides run on every new page load.
+ * Lightweight stealth overrides that bypass Cloudflare without triggering
+ * detection of puppeteer-extra-plugin-stealth's proxy-based patterns.
+ */
+async function applyStealthOverrides(page: Page): Promise<void> {
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
+    // @ts-expect-error -- chrome.runtime stub to appear as real Chrome
+    window.chrome = { runtime: {} };
+    const originalQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
+    window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
+      parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+        : originalQuery(parameters);
+  });
+}
+
+/**
+ * Apply anti-detection overrides for Israeli bank scrapers.
+ *
+ * Uses lightweight manual stealth instead of puppeteer-extra-plugin-stealth,
+ * which Cloudflare detects via its proxy-based iframe.contentWindow patterns.
  */
 export async function applyAntiDetection(page: Page): Promise<void> {
   const chromeVersion = await getChromeVersion(page);
-  await applyStealthScript(page);
   await setRealisticUserAgent(page, chromeVersion);
   await setRealisticHeaders(page, chromeVersion);
+  await applyStealthOverrides(page);
+  await page.emulateTimezone('Asia/Jerusalem');
 }
-
-/**
- * Check if a URL matches known bot detection scripts.
- */
-export function isBotDetectionScript(url: string): boolean {
-  return BOT_DETECTION_PATTERNS.some(pattern => url.includes(pattern));
-}
-
-/**
- * @deprecated Use applyAntiDetection() instead.
- */
-export async function maskHeadlessUserAgent(page: Page): Promise<void> {
-  const userAgent = await page.evaluate(() => navigator.userAgent);
-  await page.setUserAgent(userAgent.replace('HeadlessChrome/', 'Chrome/'));
-}
-
-/**
- * Priorities for request interception.
- */
-export const interceptionPriorities = {
-  abort: 1000,
-  continue: 10,
-};

@@ -60,6 +60,8 @@ describe('Error Scenarios: Mocked E2E', () => {
 
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result.errorDetails).toBeDefined();
+    expect(result.errorDetails?.suggestions.length).toBeGreaterThan(0);
   }, 60000);
 });

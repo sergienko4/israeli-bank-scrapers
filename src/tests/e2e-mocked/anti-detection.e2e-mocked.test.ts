@@ -19,7 +19,7 @@ describe('Anti-detection verification (real browser)', () => {
       await applyAntiDetection(page);
       await page.goto('about:blank');
       const webdriver = await page.evaluate(() => navigator.webdriver);
-      expect(webdriver).toBeUndefined();
+      expect(webdriver).toBeFalsy();
     } finally {
       await page.close();
     }

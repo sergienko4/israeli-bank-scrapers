@@ -2,7 +2,13 @@ import puppeteer, { type Browser } from 'puppeteer';
 
 let sharedBrowser: Browser | null = null;
 
-const BROWSER_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
+const BROWSER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-gpu',
+  '--disable-dev-shm-usage',
+  '--disable-blink-features=AutomationControlled',
+];
 
 export async function getSharedBrowser(): Promise<Browser> {
   if (!sharedBrowser) {
