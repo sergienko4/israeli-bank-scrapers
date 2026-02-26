@@ -77,7 +77,6 @@ jobs:
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          # Discount Bank blocks datacenter IPs — run locally only
-          # DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
-          # DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
-          # DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}

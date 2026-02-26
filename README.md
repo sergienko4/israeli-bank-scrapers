@@ -296,7 +296,6 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 - [x] Remove `puppeteer-extra-plugin-stealth` (detected by Cloudflare)
 - [ ] Playwright migration for reduced CDP fingerprint
 - [ ] Configurable proxy support for residential IP routing
-- [ ] Upstream PR to [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
 
