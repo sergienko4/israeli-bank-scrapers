@@ -1,4 +1,4 @@
-import { type Browser, type Page } from 'puppeteer';
+import { type Browser, type Page } from 'playwright';
 import { CompanyTypes } from '../../definitions';
 import { createScraper } from '../../index';
 import { getSharedBrowser, closeSharedBrowser } from './helpers/browser-fixture';
@@ -25,7 +25,7 @@ describe('External Browser: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async page => {
+      preparePage: async (page) => {
         await setupRequestInterception(page, amexRoutes());
       },
     });
@@ -40,14 +40,14 @@ describe('External Browser: Mocked E2E', () => {
   }, 60000);
 
   it('uses provided browser context', async () => {
-    const context = await browser.createBrowserContext();
+    const context = await browser.newContext();
 
     const scraper = createScraper({
       companyId: CompanyTypes.amex,
       startDate: new Date('2026-01-01'),
       browserContext: context,
       defaultTimeout: 15000,
-      preparePage: async page => {
+      preparePage: async (page) => {
         await setupRequestInterception(page, amexRoutes());
       },
     });
