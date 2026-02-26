@@ -140,9 +140,7 @@ describe('initializePage', () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
     const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() };
-    const scraper = new TestBrowserScraper(
-      createMockScraperOptions({ browser, skipCloseBrowser: true } as any),
-    );
+    const scraper = new TestBrowserScraper(createMockScraperOptions({ browser, skipCloseBrowser: true } as any));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.close).not.toHaveBeenCalled();
   });

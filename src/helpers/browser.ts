@@ -1,16 +1,13 @@
 import { type BrowserContextOptions } from 'playwright';
 
 const CHROME_VERSION = '131';
-const HEBREW_UA =
-  `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
+const HEBREW_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
 
 /**
  * Build Playwright browser context options with Israeli bank-friendly defaults:
  * Hebrew locale, Israel timezone, realistic Chrome UA and client hints.
  */
-export function buildContextOptions(
-  viewport?: { width: number; height: number },
-): BrowserContextOptions {
+export function buildContextOptions(viewport?: { width: number; height: number }): BrowserContextOptions {
   return {
     userAgent: HEBREW_UA,
     locale: 'he-IL',

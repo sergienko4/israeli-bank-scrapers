@@ -25,7 +25,7 @@ describe('External Browser: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async (page) => {
+      preparePage: async page => {
         await setupRequestInterception(page, amexRoutes());
       },
     });
@@ -47,7 +47,7 @@ describe('External Browser: Mocked E2E', () => {
       startDate: new Date('2026-01-01'),
       browserContext: context,
       defaultTimeout: 15000,
-      preparePage: async (page) => {
+      preparePage: async page => {
         await setupRequestInterception(page, amexRoutes());
       },
     });

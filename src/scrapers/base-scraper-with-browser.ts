@@ -121,7 +121,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       await this.options.preparePage(this.page);
     }
 
-    this.page.on('requestfailed', (request) => {
+    this.page.on('requestfailed', request => {
       debug('Request failed: %s %s', request.failure()?.errorText, request.url());
     });
   }
