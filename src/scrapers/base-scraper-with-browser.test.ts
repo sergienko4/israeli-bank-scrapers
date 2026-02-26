@@ -157,6 +157,22 @@ describe('initializePage', () => {
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(prepareBrowser).toHaveBeenCalledWith(mockBrowser);
   });
+
+  it('launches successfully without executablePath (uses Playwright bundled Chromium)', async () => {
+    const scraper = createScraper();
+    const result = await scraper.scrape({ userCode: 'test', password: 'test' });
+    expect(result.success).toBe(true);
+    expect(chromium.launch).toHaveBeenCalledWith(
+      expect.not.objectContaining({ executablePath: expect.any(String) }),
+    );
+  });
+
+  it('rejects custom executablePath to prevent system Chromium usage', async () => {
+    const scraper = createScraper({ executablePath: '/usr/bin/chromium' } as any);
+    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
+      'Custom executablePath "/usr/bin/chromium" is not supported',
+    );
+  });
 });
 
 describe('navigateTo', () => {

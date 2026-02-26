@@ -135,18 +135,18 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     return context.newPage();
   }
 
-  private warnIfMismatchedBrowser(browser: Browser) {
-    try {
-      const version = browser.version();
-      if (!version.includes('131')) {
-        debug(
-          'WARNING: Browser version %s does not match Playwright 1.58 (expects Chromium ~131). ' +
-            'Use npx playwright install chromium instead of system Chromium.',
-          version,
-        );
-      }
-    } catch {
-      // version() may not exist in test mocks — skip check
+  private rejectCustomExecutablePath() {
+    if ('executablePath' in this.options && this.options.executablePath) {
+      throw new Error(
+        `Custom executablePath "${this.options.executablePath}" is not supported.\n\n` +
+          'PROBLEM: System Chromium (from apt-get) is incompatible with Playwright.\n' +
+          'It causes Cloudflare 403 blocks, session storage timeouts, and WAF detection.\n\n' +
+          'FIX: Remove the executablePath option and install Playwright\'s bundled Chromium:\n' +
+          '  npx playwright install chromium --with-deps\n\n' +
+          'For Docker, add to your Dockerfile:\n' +
+          '  ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers\n' +
+          '  RUN npx playwright install chromium --with-deps',
+      );
     }
   }
 
@@ -177,8 +177,8 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     const headless = !showBrowser;
     debug(`launch a browser with headless mode = ${headless}`);
 
+    this.rejectCustomExecutablePath();
     const browser = await chromium.launch({ headless, executablePath, args, timeout });
-    this.warnIfMismatchedBrowser(browser);
     this.registerBrowserCleanup(browser);
 
     if (this.options.prepareBrowser) {
