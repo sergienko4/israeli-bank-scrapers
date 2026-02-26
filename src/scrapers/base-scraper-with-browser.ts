@@ -4,6 +4,7 @@ import { getDebug } from '../helpers/debug';
 import { buildContextOptions } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../helpers/navigation';
+import { sleep } from '../helpers/waiting';
 import { BaseScraper } from './base-scraper';
 import { ScraperErrorTypes } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
@@ -185,11 +186,31 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     if (response.ok()) return;
 
     const status = response.status();
+    if (status === 403) return this.retryOn403(url, waitUntil);
     if (retries > 0) {
       debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
       return this.navigateTo(url, waitUntil, retries - 1);
     }
     throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
+  }
+
+  private async retryOn403(url: string, waitUntil: WaitUntilState | undefined, attempt = 0): Promise<void> {
+    const MAX_RETRIES = 2;
+    const DELAY_MS = 15_000;
+
+    if (attempt >= MAX_RETRIES) {
+      throw new Error(`Failed to navigate to url ${url}, status code: 403 (after ${MAX_RETRIES} retries)`);
+    }
+
+    debug('WAF 403 on %s, waiting %ds before retry %d/%d', url, DELAY_MS / 1000, attempt + 1, MAX_RETRIES);
+    await sleep(DELAY_MS);
+    const currentStatus = (await this.page.goto(url, { waitUntil }))?.status() ?? 0;
+    if (currentStatus === 200 || (currentStatus >= 300 && currentStatus < 400)) {
+      debug('WAF 403 resolved after retry %d', attempt + 1);
+      return;
+    }
+
+    return this.retryOn403(url, waitUntil, attempt + 1);
   }
 
   getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
