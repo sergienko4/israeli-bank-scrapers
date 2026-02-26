@@ -76,7 +76,11 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
 
 ## Supported Institutions
 
-All 18 Israeli banks and credit card companies:
+<details>
+  <summary>All 18 Israeli banks and credit card companies:</summary>
+  <ol>
+  
+ 
 
 | Institution | Type | Credentials | Contributors |
 |-------------|------|-------------|-------------|
@@ -98,7 +102,8 @@ All 18 Israeli banks and credit card companies:
 | Isracard | Credit Card | `id`, `card6Digits`, `password` | [@sergienko4](https://github.com/sergienko4) |
 | Visa Cal | Credit Card | `username`, `password` | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal) |
 | Max | Credit Card | `username`, `password` | |
-
+ </ol>
+</details>
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting Started
