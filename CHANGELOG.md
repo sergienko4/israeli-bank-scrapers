@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.9.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.1...v6.9.2) (2026-02-26)
+
+
+### Bug Fixes
+
+* CodeQL incomplete-sanitization in max.ts + enable Discount in CI ([#52](https://github.com/sergienko4/israeli-bank-scrapers/issues/52)) ([dccf481](https://github.com/sergienko4/israeli-bank-scrapers/commit/dccf481df80b1569d4175fe6bcbf0abcd4d37b6c))
+
 ## [6.9.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.0...v6.9.1) (2026-02-26)
 
 
