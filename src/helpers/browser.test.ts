@@ -1,42 +1,5 @@
-import { applyAntiDetection, isBotDetectionScript, interceptionPriorities } from './browser';
+import { applyAntiDetection } from './browser';
 import { createMockPage } from '../tests/mock-page';
-
-describe('isBotDetectionScript', () => {
-  it('detects detector-dom.min.js', () => {
-    expect(isBotDetectionScript('https://example.com/scripts/detector-dom.min.js')).toBe(true);
-  });
-
-  it('detects detector-dom without min', () => {
-    expect(isBotDetectionScript('https://example.com/detector-dom/init.js')).toBe(true);
-  });
-
-  it('detects bot-detect pattern', () => {
-    expect(isBotDetectionScript('https://cdn.example.com/bot-detect.js')).toBe(true);
-  });
-
-  it('allows normal scripts', () => {
-    expect(isBotDetectionScript('https://example.com/app.js')).toBe(false);
-  });
-
-  it('allows scripts with partial match', () => {
-    expect(isBotDetectionScript('https://example.com/editor-dom.js')).toBe(false);
-  });
-
-  it('returns false for empty string', () => {
-    expect(isBotDetectionScript('')).toBe(false);
-  });
-});
-
-describe('interceptionPriorities', () => {
-  it('has abort and continue priorities', () => {
-    expect(interceptionPriorities.abort).toBe(1000);
-    expect(interceptionPriorities.continue).toBe(10);
-  });
-
-  it('abort is higher priority than continue', () => {
-    expect(interceptionPriorities.abort).toBeGreaterThan(interceptionPriorities.continue);
-  });
-});
 
 describe('applyAntiDetection', () => {
   it('sets realistic user agent, headers, and Hebrew locale', async () => {
@@ -66,5 +29,11 @@ describe('applyAntiDetection', () => {
     page.browser().version.mockResolvedValue('UnknownBrowser/1.0');
     await applyAntiDetection(page);
     expect(page.setUserAgent).toHaveBeenCalledWith(expect.stringContaining('Chrome/131'));
+  });
+
+  it('sets Israel timezone', async () => {
+    const page = createMockPage();
+    await applyAntiDetection(page);
+    expect(page.emulateTimezone).toHaveBeenCalledWith('Asia/Jerusalem');
   });
 });

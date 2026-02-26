@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { fetchPostWithinPage } from '../helpers/fetch';
 import { applyAntiDetection } from '../helpers/browser';
 import { getCurrentUrl } from '../helpers/navigation';
@@ -6,13 +6,10 @@ import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BehatsdaaScraper from './behatsdaa';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.behatsdaa.org.il/'),

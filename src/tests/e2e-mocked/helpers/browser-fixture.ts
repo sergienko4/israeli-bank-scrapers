@@ -1,15 +1,14 @@
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { type Browser } from 'puppeteer';
-
-const stealth = StealthPlugin();
-stealth.enabledEvasions.delete('user-agent-override');
-stealth.enabledEvasions.delete('navigator.languages');
-puppeteer.use(stealth);
+import puppeteer, { type Browser } from 'puppeteer';
 
 let sharedBrowser: Browser | null = null;
 
-const BROWSER_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
+const BROWSER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-gpu',
+  '--disable-dev-shm-usage',
+  '--disable-blink-features=AutomationControlled',
+];
 
 export async function getSharedBrowser(): Promise<Browser> {
   if (!sharedBrowser) {

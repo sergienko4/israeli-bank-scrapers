@@ -25,17 +25,20 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Key Files
 
-- `src/helpers/browser.ts` — bank-specific anti-detection (Hebrew UA, client hints, Israel timezone)
+- `src/helpers/browser.ts` — manual stealth overrides (webdriver, plugins, chrome.runtime, permissions) + Hebrew UA/locale
 - `src/helpers/elements-interactions.ts` — human-like delays on fillInput/clickButton
-- `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with WAF bypass
-- `src/scrapers/base-scraper-with-browser.ts` — base class, uses puppeteer-extra with stealth plugin
+- `src/helpers/fetch.ts` — HTTP status capture, WAF block detection in fetchPostWithinPage
+- `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with WAF bypass + human delay
+- `src/scrapers/base-scraper-with-browser.ts` — base class, Cloudflare challenge handling with retry+backoff
+- `src/scrapers/errors.ts` — WafBlockError class with structured WafErrorDetails (provider, suggestions)
 - `src/scrapers/interface.ts` — type definitions (ScraperOptions, ScraperCredentials, etc.)
 
 ## Changes from upstream
 
-- Anti-detection: `puppeteer-extra-plugin-stealth` (17 evasion modules) + Hebrew locale + Israel timezone
-- `src/helpers/browser.ts`: Bank-specific UA, client hints, Hebrew locale override
-- `src/scrapers/base-scraper-with-browser.ts`: Uses `puppeteer-extra` with stealth plugin
+- Anti-detection: lightweight manual stealth overrides (NOT puppeteer-extra-plugin-stealth — Cloudflare detects it)
+- `src/helpers/browser.ts`: Manual stealth JS (webdriver, plugins, chrome.runtime, permissions), Hebrew UA, client hints
+- `src/scrapers/base-scraper-with-browser.ts`: Cloudflare challenge wait (15s) + retry with exponential backoff (30s/60s/120s)
 - `src/helpers/elements-interactions.ts`: Human-like delays (300-1200ms) on form interactions
-- `src/scrapers/base-isracard-amex.ts`: Better error messages for WAF blocks
+- `src/scrapers/base-isracard-amex.ts`: Removed request interception, added human delay before API calls
+- `src/scrapers/errors.ts`: WafBlockError with WafErrorDetails (provider, httpStatus, pageTitle, suggestions)
 - CI/CD: release-please + npm publish pipeline

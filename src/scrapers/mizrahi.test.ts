@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { SHEKEL_CURRENCY } from '../constants';
 import { fetchPostWithinPage } from '../helpers/fetch';
 import { elementPresentOnPage } from '../helpers/elements-interactions';
@@ -8,8 +8,7 @@ import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import MizrahiScraper from './mizrahi';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -29,8 +28,6 @@ jest.mock('../helpers/navigation', () => ({
 }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),

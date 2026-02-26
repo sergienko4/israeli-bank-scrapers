@@ -1,19 +1,14 @@
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import puppeteer from 'puppeteer';
 import { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
 import { ScraperProgressTypes } from '../definitions';
 import { getDebug } from '../helpers/debug';
 import { applyAntiDetection } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
+import { sleep } from '../helpers/waiting';
 import { BaseScraper } from './base-scraper';
-import { ScraperErrorTypes } from './errors';
+import { ScraperErrorTypes, WafBlockError } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
-
-const stealth = StealthPlugin();
-stealth.enabledEvasions.delete('user-agent-override'); // We set our own Hebrew-locale UA
-stealth.enabledEvasions.delete('navigator.languages'); // We set Hebrew locale in applyAntiDetection
-puppeteer.use(stealth);
 
 const debug = getDebug('base-scraper-with-browser');
 
@@ -22,14 +17,17 @@ enum LoginBaseResults {
   UnknownError = 'UNKNOWN_ERROR',
 }
 
-const { Timeout: _Timeout, Generic: _Generic, General: _General, ...rest } = ScraperErrorTypes;
+const { Timeout: _Timeout, Generic: _Generic, General: _General, WafBlocked: _WafBlocked, ...rest } = ScraperErrorTypes;
 export const LoginResults = {
   ...rest,
   ...LoginBaseResults,
 };
 
 export type LoginResults =
-  | Exclude<ScraperErrorTypes, ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.General>
+  | Exclude<
+      ScraperErrorTypes,
+      ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.General | ScraperErrorTypes.WafBlocked
+    >
   | LoginBaseResults;
 
 export type PossibleLoginResults = {
@@ -172,16 +170,20 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       return browser.newPage();
     }
 
-    const { timeout, args, executablePath, showBrowser } = this.options;
+    const { timeout, args = [], executablePath, showBrowser } = this.options;
 
     const headless = !showBrowser;
     debug(`launch a browser with headless mode = ${headless}`);
+
+    const launchArgs = args.includes('--disable-blink-features=AutomationControlled')
+      ? args
+      : [...args, '--disable-blink-features=AutomationControlled'];
 
     const browser = await puppeteer.launch({
       env: this.options.verbose ? { DEBUG: '*', ...process.env } : undefined,
       headless,
       executablePath,
-      args,
+      args: launchArgs,
       timeout,
     });
 
@@ -205,24 +207,60 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     retries = this.options.navigationRetryCount ?? 0,
   ): Promise<void> {
     const response = await this.page?.goto(url, { waitUntil });
-    if (response === null) {
-      // note: response will be null when navigating to same url while changing the hash part.
-      // the condition below will always accept null as valid result.
-      return;
+    // response is null when navigating to same url while changing the hash part
+    if (response === null) return;
+    if (!response) throw new Error(`Error while trying to navigate to url ${url}, response is undefined`);
+    if (response.ok()) return;
+
+    const status = response.status();
+    if (retries > 0) {
+      debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
+      return this.navigateTo(url, waitUntil, retries - 1);
+    }
+    if (status === 403) return this.handleCloudflareChallenge(url);
+    throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
+  }
+
+  private async handleCloudflareChallenge(url: string): Promise<void> {
+    const MAX_RETRIES = 3;
+    const BASE_DELAY_MS = 30_000;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (await this.tryChallengeAttempt(attempt, MAX_RETRIES)) return;
+      if (attempt < MAX_RETRIES) await this.backoffAndReload(BASE_DELAY_MS, attempt);
     }
 
-    if (!response) {
-      throw new Error(`Error while trying to navigate to url ${url}, response is undefined`);
-    }
+    throw WafBlockError.cloudflareBlock(403, await this.page.title(), url);
+  }
 
-    if (!response.ok()) {
-      const status = response.status();
-      if (retries > 0) {
-        debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
-        await this.navigateTo(url, waitUntil, retries - 1);
-      } else {
-        throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
-      }
+  private async tryChallengeAttempt(attempt: number, maxRetries: number): Promise<boolean> {
+    const title = await this.page.title();
+    if (!this.isCloudflareTitle(title)) {
+      if (attempt > 0) debug('Cloudflare challenge resolved after %d retries', attempt);
+      return true;
+    }
+    debug('Cloudflare challenge (attempt %d/%d, title="%s")', attempt + 1, maxRetries + 1, title);
+    return this.tryWaitForChallenge(title);
+  }
+
+  private async backoffAndReload(baseDelayMs: number, attempt: number): Promise<void> {
+    const delay = baseDelayMs * Math.pow(2, attempt);
+    debug('Challenge failed, backing off %ds...', delay / 1000);
+    await sleep(delay);
+    await this.page.reload({ waitUntil: 'load' });
+  }
+
+  private isCloudflareTitle(title: string): boolean {
+    return /cloudflare|attention required|just a moment|רק רגע/i.test(title);
+  }
+
+  private async tryWaitForChallenge(title: string): Promise<boolean> {
+    try {
+      await this.page.waitForFunction((t: string) => document.title !== t, { timeout: 15000 }, title);
+      debug('Challenge resolved, new title: "%s"', await this.page.title());
+      return true;
+    } catch {
+      return false;
     }
   }
 

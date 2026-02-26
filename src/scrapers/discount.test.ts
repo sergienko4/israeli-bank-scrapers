@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { fetchGetWithinPage } from '../helpers/fetch';
 import { waitForNavigation } from '../helpers/navigation';
 import { waitUntilElementFound } from '../helpers/elements-interactions';
@@ -9,15 +9,12 @@ import DiscountScraper from './discount';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),

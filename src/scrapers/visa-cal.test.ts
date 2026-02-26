@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { fetchPost } from '../helpers/fetch';
 import { getFromSessionStorage } from '../helpers/storage';
 import { elementPresentOnPage } from '../helpers/elements-interactions';
@@ -10,8 +10,7 @@ import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import VisaCalScraper from './visa-cal';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({ fetchPost: jest.fn() }));
 jest.mock('../helpers/storage', () => ({ getFromSessionStorage: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
@@ -27,8 +26,6 @@ jest.mock('../helpers/navigation', () => ({
 }));
 jest.mock('../helpers/browser', () => ({
   applyAntiDetection: jest.fn().mockResolvedValue(undefined),
-  isBotDetectionScript: jest.fn(() => false),
-  interceptionPriorities: { abort: 1000, continue: 10 },
 }));
 jest.mock('../helpers/transactions', () => ({
   filterOldTransactions: jest.fn((txns: any[]) => txns),
