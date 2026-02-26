@@ -70,7 +70,7 @@ Anti-detection and Cloudflare WAF bypass by [@sergienko4](https://github.com/ser
 
 ### Built With
 
-[![TypeScript][ts-shield]][ts-url] [![Node.js][node-shield]][node-url] [![Puppeteer][pptr-shield]][pptr-url] [![Jest][jest-shield]][jest-url] [![ESLint][eslint-shield]][eslint-url]
+[![TypeScript][ts-shield]][ts-url] [![Node.js][node-shield]][node-url] [![Playwright][pw-shield]][pw-url] [![Jest][jest-shield]][jest-url] [![ESLint][eslint-shield]][eslint-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -238,12 +238,12 @@ When Cloudflare blocks access, the scraper returns `errorType: 'WAF_BLOCKED'` wi
 
 ### External Browser
 
-Pass your own Puppeteer browser instance:
+Pass your own Playwright browser instance:
 
 ```typescript
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 
-const browser = await puppeteer.launch();
+const browser = await chromium.launch();
 const scraper = createScraper({
   companyId: CompanyTypes.leumi,
   startDate: new Date('2024-01-01'),
@@ -259,8 +259,8 @@ await browser.close();
 Use isolated browser contexts for parallel scraping:
 
 ```typescript
-const browser = await puppeteer.launch();
-const browserContext = await browser.createBrowserContext();
+const browser = await chromium.launch();
+const browserContext = await browser.newContext();
 const scraper = createScraper({
   companyId: CompanyTypes.leumi,
   startDate: new Date('2024-01-01'),
@@ -291,10 +291,9 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 
 ## Roadmap
 
-- [x] Cloudflare WAF bypass with retry + exponential backoff
+- [x] Cloudflare WAF bypass (Playwright — no stealth or retry needed)
 - [x] Structured `WAF_BLOCKED` error type with actionable suggestions
-- [x] Remove `puppeteer-extra-plugin-stealth` (detected by Cloudflare)
-- [ ] Playwright migration for reduced CDP fingerprint
+- [x] Playwright migration — bypasses WAF natively, no CDP fingerprint
 - [ ] Configurable proxy support for residential IP routing
 - [ ] Upstream PR to [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
 
@@ -361,8 +360,8 @@ Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/s
 [ts-url]: https://www.typescriptlang.org
 [node-shield]: https://img.shields.io/badge/Node.js-%3E%3D22.14-339933?style=for-the-badge&logo=node.js&logoColor=white
 [node-url]: https://nodejs.org
-[pptr-shield]: https://img.shields.io/badge/Puppeteer-24-40B5A4?style=for-the-badge&logo=puppeteer&logoColor=white
-[pptr-url]: https://pptr.dev
+[pw-shield]: https://img.shields.io/badge/Playwright-1.58-2EAD33?style=for-the-badge&logo=playwright&logoColor=white
+[pw-url]: https://playwright.dev
 [jest-shield]: https://img.shields.io/badge/Jest-30-C21325?style=for-the-badge&logo=jest&logoColor=white
 [jest-url]: https://jestjs.io
 [eslint-shield]: https://img.shields.io/badge/ESLint-9-4B32C3?style=for-the-badge&logo=eslint&logoColor=white

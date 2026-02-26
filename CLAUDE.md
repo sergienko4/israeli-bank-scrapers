@@ -2,7 +2,7 @@
 
 ## Project
 
-Fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with WAF bypass fixes for Amex/Isracard.
+Fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with WAF bypass via Playwright.
 
 Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
@@ -25,20 +25,20 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Key Files
 
-- `src/helpers/browser.ts` — manual stealth overrides (webdriver, plugins, chrome.runtime, permissions) + Hebrew UA/locale
+- `src/helpers/browser.ts` — `buildContextOptions()`: Hebrew UA/locale, Israel timezone, client hints for Playwright context
 - `src/helpers/elements-interactions.ts` — human-like delays on fillInput/clickButton
 - `src/helpers/fetch.ts` — HTTP status capture, WAF block detection in fetchPostWithinPage
-- `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with WAF bypass + human delay
-- `src/scrapers/base-scraper-with-browser.ts` — base class, Cloudflare challenge handling with retry+backoff
+- `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with human delay before API calls
+- `src/scrapers/base-scraper-with-browser.ts` — base class, Playwright browser engine (`chromium.launch` → `newContext` → `newPage`)
 - `src/scrapers/errors.ts` — WafBlockError class with structured WafErrorDetails (provider, suggestions)
 - `src/scrapers/interface.ts` — type definitions (ScraperOptions, ScraperCredentials, etc.)
 
 ## Changes from upstream
 
-- Anti-detection: lightweight manual stealth overrides (NOT puppeteer-extra-plugin-stealth — Cloudflare detects it)
-- `src/helpers/browser.ts`: Manual stealth JS (webdriver, plugins, chrome.runtime, permissions), Hebrew UA, client hints
-- `src/scrapers/base-scraper-with-browser.ts`: Cloudflare challenge wait (15s) + retry with exponential backoff (30s/60s/120s)
+- Browser engine: Playwright instead of Puppeteer — bypasses Cloudflare WAF natively, no stealth needed
+- `src/helpers/browser.ts`: `buildContextOptions()` with Hebrew UA, locale, timezone, client hints (no stealth overrides)
+- `src/scrapers/base-scraper-with-browser.ts`: `chromium.launch()` → `browser.newContext()` → `context.newPage()`
 - `src/helpers/elements-interactions.ts`: Human-like delays (300-1200ms) on form interactions
-- `src/scrapers/base-isracard-amex.ts`: Removed request interception, added human delay before API calls
+- `src/scrapers/base-isracard-amex.ts`: Human delay before API calls
 - `src/scrapers/errors.ts`: WafBlockError with WafErrorDetails (provider, httpStatus, pageTitle, suggestions)
-- CI/CD: release-please + npm publish pipeline
+- CI/CD: release-please + npm publish pipeline, Playwright browser install in CI

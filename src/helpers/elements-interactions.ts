@@ -87,7 +87,7 @@ async function pageEvalAll<R>(
     await page.waitForFunction(() => document.readyState === 'complete');
     result = await page.$$eval(selector, callback, ...args);
   } catch (e) {
-    // TODO temporary workaround to puppeteer@1.5.0 which breaks $$eval bevahvior until they will release a new version.
+    // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find elements matching selector')) {
       throw e;
     }
@@ -108,7 +108,7 @@ async function pageEval<R>(
     await pageOrFrame.waitForFunction(() => document.readyState === 'complete');
     result = await pageOrFrame.$eval(selector, callback, ...args);
   } catch (e) {
-    // TODO temporary workaround to puppeteer@1.5.0 which breaks $$eval bevahvior until they will release a new version.
+    // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find element matching selector')) {
       throw e;
     }

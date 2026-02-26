@@ -355,7 +355,7 @@ async function getAccountIdsOldUI(page: Page): Promise<string[]> {
  * - If any error occurs (e.g., selectors not found, timing issues, UI version changes),
  *   the function returns an empty list.
  *
- * @param page Puppeteer Page object.
+ * @param page Playwright Page object.
  * @returns An array of available account labels (e.g., ["127 | XXXX1", "127 | XXXX2"]),
  *          or an empty array if something goes wrong.
  */
@@ -410,7 +410,7 @@ async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
  * - Checks if the provided account label exists in the list.
  * - Finds and clicks the matching account option if found.
  *
- * @param page Puppeteer Page object.
+ * @param page Playwright Page object.
  * @param accountLabel The text of the account to select (e.g., "127 | XXXXX").
  * @returns True if the account option was found and clicked; false otherwise.
  */
