@@ -141,7 +141,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
         `Custom executablePath "${this.options.executablePath}" is not supported.\n\n` +
           'PROBLEM: System Chromium (from apt-get) is incompatible with Playwright.\n' +
           'It causes Cloudflare 403 blocks, session storage timeouts, and WAF detection.\n\n' +
-          'FIX: Remove the executablePath option and install Playwright\'s bundled Chromium:\n' +
+          "FIX: Remove the executablePath option and install Playwright's bundled Chromium:\n" +
           '  npx playwright install chromium --with-deps\n\n' +
           'For Docker, add to your Dockerfile:\n' +
           '  ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers\n' +

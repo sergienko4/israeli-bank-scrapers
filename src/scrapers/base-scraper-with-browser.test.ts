@@ -162,9 +162,7 @@ describe('initializePage', () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-    expect(chromium.launch).toHaveBeenCalledWith(
-      expect.not.objectContaining({ executablePath: expect.any(String) }),
-    );
+    expect(chromium.launch).toHaveBeenCalledWith(expect.not.objectContaining({ executablePath: expect.any(String) }));
   });
 
   it('rejects custom executablePath to prevent system Chromium usage', async () => {
