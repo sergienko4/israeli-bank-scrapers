@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.9.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.0...v6.9.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* bypass Cloudflare WAF for Amex/Isracard with retry + manual stealth ([dd3a6a1](https://github.com/sergienko4/israeli-bank-scrapers/commit/dd3a6a18f50757517000f2341d4ea892e23bb752))
+* bypass Cloudflare WAF for Amex/Isracard with retry + manual stealth ([#49](https://github.com/sergienko4/israeli-bank-scrapers/issues/49)) ([dd3a6a1](https://github.com/sergienko4/israeli-bank-scrapers/commit/dd3a6a18f50757517000f2341d4ea892e23bb752))
+
 ## [6.9.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.8.2...v6.9.0) (2026-02-25)
 
 
