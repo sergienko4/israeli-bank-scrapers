@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.0.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.1...v7.0.2) (2026-02-26)
+
+
+### Bug Fixes
+
+* throw error browser version mismatches Playwright's expected Chromium ([#59](https://github.com/sergienko4/israeli-bank-scrapers/issues/59)) ([a15b018](https://github.com/sergienko4/israeli-bank-scrapers/commit/a15b01843f7e4c31612069bf7b38432473d700e2))
+
 ## [7.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.0...v7.0.1) (2026-02-26)
 
 
