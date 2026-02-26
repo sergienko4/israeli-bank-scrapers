@@ -136,13 +136,17 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
   }
 
   private warnIfMismatchedBrowser(browser: Browser) {
-    const version = browser.version();
-    if (!version.includes('131')) {
-      debug(
-        'WARNING: Browser version %s does not match Playwright 1.58 (expects Chromium ~131). ' +
-          'Use npx playwright install chromium instead of system Chromium.',
-        version,
-      );
+    try {
+      const version = browser.version();
+      if (!version.includes('131')) {
+        debug(
+          'WARNING: Browser version %s does not match Playwright 1.58 (expects Chromium ~131). ' +
+            'Use npx playwright install chromium instead of system Chromium.',
+          version,
+        );
+      }
+    } catch {
+      // version() may not exist in test mocks — skip check
     }
   }
 

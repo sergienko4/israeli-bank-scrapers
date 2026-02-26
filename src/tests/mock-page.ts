@@ -44,6 +44,7 @@ export function createMockBrowser(context?: any) {
   return {
     newContext: jest.fn().mockResolvedValue(mockCtx),
     close: jest.fn().mockResolvedValue(undefined),
+    version: jest.fn().mockReturnValue('131.0.0.0'),
   };
 }
 
