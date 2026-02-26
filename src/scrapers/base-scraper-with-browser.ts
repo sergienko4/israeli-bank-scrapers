@@ -207,27 +207,18 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     retries = this.options.navigationRetryCount ?? 0,
   ): Promise<void> {
     const response = await this.page?.goto(url, { waitUntil });
-    if (response === null) {
-      // note: response will be null when navigating to same url while changing the hash part.
-      // the condition below will always accept null as valid result.
-      return;
-    }
+    // response is null when navigating to same url while changing the hash part
+    if (response === null) return;
+    if (!response) throw new Error(`Error while trying to navigate to url ${url}, response is undefined`);
+    if (response.ok()) return;
 
-    if (!response) {
-      throw new Error(`Error while trying to navigate to url ${url}, response is undefined`);
+    const status = response.status();
+    if (retries > 0) {
+      debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
+      return this.navigateTo(url, waitUntil, retries - 1);
     }
-
-    if (!response.ok()) {
-      const status = response.status();
-      if (retries > 0) {
-        debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
-        await this.navigateTo(url, waitUntil, retries - 1);
-      } else if (status === 403) {
-        await this.handleCloudflareChallenge(url);
-      } else {
-        throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
-      }
-    }
+    if (status === 403) return this.handleCloudflareChallenge(url);
+    throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
   }
 
   private async handleCloudflareChallenge(url: string): Promise<void> {
