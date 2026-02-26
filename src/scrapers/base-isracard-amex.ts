@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { ALT_SHEKEL_CURRENCY, SHEKEL_CURRENCY, SHEKEL_CURRENCY_KEYWORD } from '../constants';
 import { ScraperProgressTypes } from '../definitions';
 import getAllMonthMoments from '../helpers/dates';

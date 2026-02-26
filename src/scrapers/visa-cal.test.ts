@@ -1,8 +1,8 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { fetchPost } from '../helpers/fetch';
 import { getFromSessionStorage } from '../helpers/storage';
 import { elementPresentOnPage } from '../helpers/elements-interactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { filterOldTransactions } from '../helpers/transactions';
 import { getCurrentUrl } from '../helpers/navigation';
 import { waitUntil } from '../helpers/waiting';
@@ -10,7 +10,7 @@ import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import VisaCalScraper from './visa-cal';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({ fetchPost: jest.fn() }));
 jest.mock('../helpers/storage', () => ({ getFromSessionStorage: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
@@ -25,7 +25,7 @@ jest.mock('../helpers/navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
   filterOldTransactions: jest.fn((txns: any[]) => txns),
@@ -43,8 +43,12 @@ function visaCalOptions(overrides: Record<string, any> = {}) {
   return createMockScraperOptions({ startDate: new Date(), futureMonthsToScrape: 0, ...overrides });
 }
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -170,7 +174,7 @@ function setupVisaCalMocks() {
       headers: () => ({ authorization: 'Bearer auth-token' }),
     }),
   });
-  mockBrowser.newPage.mockResolvedValue(page);
+  mockContext.newPage.mockResolvedValue(page);
 
   // waitUntil: return session storage data
   (waitUntil as jest.Mock).mockImplementation(async (fn: () => Promise<any>) => {
@@ -199,7 +203,7 @@ function setupVisaCalMocks() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://digital-web.cal-online.co.il/dashboard');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -218,7 +222,7 @@ describe('login', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 });
 

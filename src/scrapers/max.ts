@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../constants';
 import getAllMonthMoments from '../helpers/dates';
 import { getDebug } from '../helpers/debug';

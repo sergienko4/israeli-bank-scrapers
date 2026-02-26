@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { v4 as uuid4 } from 'uuid';
 import { getDebug } from '../helpers/debug';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
@@ -132,7 +132,7 @@ async function fetchPoalimXSRFWithinPage(
   url: string,
   pageUuid: string,
 ): Promise<FetchedAccountTransactionsData | null> {
-  const cookies = await page.cookies();
+  const cookies = await page.context().cookies();
   const XSRFCookie = cookies.find(cookie => cookie.name === 'XSRF-TOKEN');
   const headers: Record<string, any> = {};
   if (XSRFCookie != null) {

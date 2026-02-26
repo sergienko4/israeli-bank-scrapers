@@ -25,7 +25,6 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build:js": "babel src --out-dir lib --extensions \".ts\" --source-maps inline --verbose",
     "postbuild": "rimraf lib/tests",
-    "prepare:core": "git reset --hard && node utils/prepare-israeli-bank-scrapers-core.js && npm i --package-lock-only && npm ci && npm run lint:fix && npm run build",
     "prepare:default": "git reset --hard && npm ci && npm run build",
     "prepare": "npm run clean && npm run build:types && npm run build:js",
     "reset": "git reset --hard && npm ci"
@@ -82,7 +81,7 @@
     "lodash": "^4.17.23",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
-    "puppeteer": "24.37.5",
+    "playwright": "^1.58.2",
     "utility-types": "^3.11.0",
     "uuid": "^11.1.0"
   },

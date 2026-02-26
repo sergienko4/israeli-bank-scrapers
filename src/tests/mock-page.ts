@@ -10,29 +10,40 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     $$eval: jest.fn().mockResolvedValue([]),
     $: jest.fn().mockResolvedValue({}),
     type: jest.fn().mockResolvedValue(undefined),
-    select: jest.fn().mockResolvedValue(undefined),
+    selectOption: jest.fn().mockResolvedValue(undefined),
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     url: jest.fn().mockReturnValue('https://example.com'),
     title: jest.fn().mockResolvedValue('Test Page'),
     evaluate: jest.fn().mockResolvedValue(undefined),
-    evaluateOnNewDocument: jest.fn().mockResolvedValue(undefined),
-    setUserAgent: jest.fn().mockResolvedValue(undefined),
+    addInitScript: jest.fn().mockResolvedValue(undefined),
     setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
-    browser: jest.fn().mockReturnValue({
-      version: jest.fn().mockResolvedValue('HeadlessChrome/131.0.6778.85'),
+    context: jest.fn().mockReturnValue({
+      browser: () => ({ version: () => 'chromium-131' }),
+      cookies: jest.fn().mockResolvedValue([]),
     }),
-    setCacheEnabled: jest.fn().mockResolvedValue(undefined),
     setDefaultTimeout: jest.fn(),
-    setViewport: jest.fn().mockResolvedValue(undefined),
     goto: jest.fn().mockResolvedValue({ ok: () => true, status: () => 200 }),
     on: jest.fn(),
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
-    setRequestInterception: jest.fn().mockResolvedValue(undefined),
-    emulateTimezone: jest.fn().mockResolvedValue(undefined),
     ...overrides,
+  };
+}
+
+export function createMockContext(page?: any) {
+  return {
+    newPage: jest.fn().mockResolvedValue(page ?? createMockPage()),
+    close: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+export function createMockBrowser(context?: any) {
+  const mockCtx = context ?? createMockContext();
+  return {
+    newContext: jest.fn().mockResolvedValue(mockCtx),
+    close: jest.fn().mockResolvedValue(undefined),
   };
 }
 

@@ -1,4 +1,4 @@
-import { type Page, type HTTPRequest } from 'puppeteer';
+import { type Page, type Request, type Route } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
@@ -6,37 +6,30 @@ interface MockRoute {
   match: string | RegExp;
   method?: 'GET' | 'POST';
   contentType: string;
-  body: string | ((request: HTTPRequest) => string);
+  body: string | ((request: Request) => string);
   status?: number;
 }
-
-const INTERCEPTION_PRIORITY = 500;
 
 export function loadFixture(fixturePath: string): string {
   return fs.readFileSync(path.resolve(__dirname, '..', 'fixtures', fixturePath), 'utf-8');
 }
 
 export async function setupRequestInterception(page: Page, routes: MockRoute[]): Promise<void> {
-  await page.setRequestInterception(true);
-
-  page.on('request', (request: HTTPRequest) => {
+  await page.route('**/*', async (route: Route, request: Request) => {
     const url = request.url();
     const method = request.method();
 
-    for (const route of routes) {
-      const urlMatch = route.match instanceof RegExp ? route.match.test(url) : url.includes(route.match);
-      const methodMatch = !route.method || route.method === method;
+    for (const mockRoute of routes) {
+      const urlMatch = mockRoute.match instanceof RegExp ? mockRoute.match.test(url) : url.includes(mockRoute.match);
+      const methodMatch = !mockRoute.method || mockRoute.method === method;
 
       if (urlMatch && methodMatch) {
-        const body = typeof route.body === 'function' ? route.body(request) : route.body;
-        void request.respond(
-          { status: route.status ?? 200, contentType: route.contentType, body },
-          INTERCEPTION_PRIORITY,
-        );
+        const body = typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
+        await route.fulfill({ status: mockRoute.status ?? 200, contentType: mockRoute.contentType, body });
         return;
       }
     }
 
-    void request.continue(undefined, 0);
+    await route.continue();
   });
 }

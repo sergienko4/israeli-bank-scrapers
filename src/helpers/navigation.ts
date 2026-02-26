@@ -1,5 +1,12 @@
-import { type Frame, type Page, type WaitForOptions } from 'puppeteer';
+import { type Frame, type Page } from 'playwright';
 import { waitUntil } from './waiting';
+
+export type WaitUntilState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
+
+interface WaitForOptions {
+  waitUntil?: WaitUntilState;
+  timeout?: number;
+}
 
 export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions) {
   await pageOrFrame.waitForNavigation(options);

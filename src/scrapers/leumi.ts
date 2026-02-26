@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import { getDebug } from '../helpers/debug';
 import { clickButton, fillInput, pageEval, pageEvalAll, waitUntilElementFound } from '../helpers/elements-interactions';
@@ -102,7 +102,7 @@ function hangProcess(timeout: number) {
 }
 
 async function clickByXPath(page: Page, xpath: string): Promise<void> {
-  await page.waitForSelector(xpath, { timeout: 30000, visible: true });
+  await page.waitForSelector(xpath, { timeout: 30000, state: 'visible' });
   const elm = await page.$$(xpath);
   await elm[0].click();
 }
@@ -185,8 +185,8 @@ async function fetchTransactions(
   for (const accountId of accountsIds) {
     if (accountsIds.length > 1) {
       // get list of accounts and check accountId
-      await clickByXPath(page, 'xpath///*[contains(@class, "number") and contains(@class, "combo-inner")]');
-      await clickByXPath(page, `xpath///span[contains(text(), '${accountId}')]`);
+      await clickByXPath(page, 'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]');
+      await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
     }
 
     accounts.push(await fetchTransactionsForAccount(page, startDate, removeSpecialCharacters(accountId), options));
@@ -205,8 +205,8 @@ async function navigateToLogin(page: Page): Promise<void> {
   });
   debug(`navigating to page (${loginUrl})`);
   await page.goto(loginUrl);
-  debug('waiting for page to be loaded (networkidle2)');
-  await waitForNavigation(page, { waitUntil: 'networkidle2' });
+  debug('waiting for page to be loaded (networkidle)');
+  await waitForNavigation(page, { waitUntil: 'networkidle' });
   debug('waiting for components of login to enter credentials');
   await Promise.all([
     waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', true),
@@ -219,7 +219,7 @@ async function waitForPostLogin(page: Page): Promise<void> {
   await Promise.race([
     waitUntilElementFound(page, 'a[title="דלג לחשבון"]', true, 60000),
     waitUntilElementFound(page, 'div.main-content', false, 60000),
-    page.waitForSelector(`xpath//div[contains(string(),"${INVALID_PASSWORD_MSG}")]`),
+    page.waitForSelector(`xpath=//div[contains(string(),"${INVALID_PASSWORD_MSG}")]`),
     waitUntilElementFound(page, 'form[action="/changepassword"]', true, 60000), // not sure if they kept this one
   ]);
 }

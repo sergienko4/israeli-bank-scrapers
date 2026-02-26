@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { ScraperProgressTypes } from '../definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
+import { createMockPage, createMockContext, createMockBrowser, createMockScraperOptions } from '../tests/mock-page';
 import { BaseScraperWithBrowser, LoginResults, type LoginOptions } from './base-scraper-with-browser';
 import { ScraperErrorTypes } from './errors';
 import type { ScraperCredentials, ScraperScrapingResult } from './interface';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -25,12 +25,13 @@ jest.mock('../helpers/debug', () => ({
   getDebug: () => jest.fn(),
 }));
 
+jest.mock('../helpers/browser', () => ({
+  buildContextOptions: jest.fn().mockReturnValue({}),
+}));
+
 const mockPage = createMockPage();
-const mockBrowser = {
-  newPage: jest.fn().mockResolvedValue(mockPage),
-  close: jest.fn().mockResolvedValue(undefined),
-  version: jest.fn().mockResolvedValue('HeadlessChrome/131'),
-};
+const mockContext = createMockContext(mockPage);
+const mockBrowser = createMockBrowser(mockContext);
 
 function defaultLoginOptions(): LoginOptions {
   return {
@@ -69,38 +70,39 @@ function createScraper(overrides = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  const freshPage = createMockPage();
+  const freshContext = createMockContext(freshPage);
+  mockBrowser.newContext.mockResolvedValue(freshContext);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/dashboard');
 });
 
 describe('getViewPort', () => {
-  it('returns default 1024x768 when no custom viewport', () => {
+  it('returns undefined when no custom viewport (uses buildContextOptions default)', () => {
     const scraper = createScraper();
-
     const viewport = scraper['getViewPort']();
-    expect(viewport).toEqual({ width: 1024, height: 768 });
+    expect(viewport).toBeUndefined();
   });
 
   it('returns custom viewport from options', () => {
     const scraper = createScraper({ viewportSize: { width: 1920, height: 1080 } });
-
     const viewport = scraper['getViewPort']();
     expect(viewport).toEqual({ width: 1920, height: 1080 });
   });
 });
 
 describe('initialize', () => {
-  it('launches browser and creates page', async () => {
+  it('launches browser and creates context + page', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(puppeteer.launch).toHaveBeenCalled();
-    expect(mockBrowser.newPage).toHaveBeenCalled();
+    expect(chromium.launch).toHaveBeenCalled();
+    expect(mockBrowser.newContext).toHaveBeenCalled();
   });
 
   it('sets default timeout when provided in options', async () => {
     const page = createMockPage();
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ defaultTimeout: 60000 });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.setDefaultTimeout).toHaveBeenCalledWith(60000);
@@ -112,14 +114,6 @@ describe('initialize', () => {
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(preparePage).toHaveBeenCalled();
   });
-
-  it('sets viewport dimensions', async () => {
-    const page = createMockPage();
-    mockBrowser.newPage.mockResolvedValue(page);
-    const scraper = createScraper({ viewportSize: { width: 800, height: 600 } });
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(page.setViewport).toHaveBeenCalledWith({ width: 800, height: 600 });
-  });
 });
 
 describe('initializePage', () => {
@@ -129,21 +123,23 @@ describe('initializePage', () => {
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext } as any));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browserContext.newPage).toHaveBeenCalled();
-    expect(puppeteer.launch).not.toHaveBeenCalled();
+    expect(chromium.launch).not.toHaveBeenCalled();
   });
 
-  it('uses external browser when provided', async () => {
+  it('uses external browser and creates context', async () => {
     const page = createMockPage();
-    const browser = { newPage: jest.fn().mockResolvedValue(page), close: jest.fn() };
+    const ctx = createMockContext(page);
+    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() };
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browser } as any));
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(browser.newPage).toHaveBeenCalled();
-    expect(puppeteer.launch).not.toHaveBeenCalled();
+    expect(browser.newContext).toHaveBeenCalled();
+    expect(chromium.launch).not.toHaveBeenCalled();
   });
 
   it('skips browser close cleanup when skipCloseBrowser is true', async () => {
     const page = createMockPage();
-    const browser = { newPage: jest.fn().mockResolvedValue(page), close: jest.fn() };
+    const ctx = createMockContext(page);
+    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() };
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browser, skipCloseBrowser: true } as any));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.close).not.toHaveBeenCalled();
@@ -152,7 +148,7 @@ describe('initializePage', () => {
   it('launches new browser with headless mode', async () => {
     const scraper = createScraper({ showBrowser: false });
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(puppeteer.launch).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
+    expect(chromium.launch).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
   });
 
   it('calls prepareBrowser hook when provided', async () => {
@@ -167,7 +163,8 @@ describe('navigateTo', () => {
   it('navigates to URL successfully', async () => {
     const page = createMockPage();
     page.goto.mockResolvedValue({ ok: () => true, status: () => 200 });
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.goto).toHaveBeenCalledWith('https://bank.co.il/login', { waitUntil: 'load' });
@@ -176,7 +173,8 @@ describe('navigateTo', () => {
   it('accepts null response (hash navigation)', async () => {
     const page = createMockPage();
     page.goto.mockResolvedValue(null);
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBeDefined();
@@ -187,7 +185,8 @@ describe('navigateTo', () => {
     page.goto
       .mockResolvedValueOnce({ ok: () => false, status: () => 503 })
       .mockResolvedValueOnce({ ok: () => true, status: () => 200 });
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 1 });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.goto).toHaveBeenCalledTimes(2);
@@ -196,7 +195,8 @@ describe('navigateTo', () => {
   it('throws when retries exhausted', async () => {
     const page = createMockPage();
     page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 0 });
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(false);
@@ -233,15 +233,6 @@ describe('login', () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-  });
-
-  it('sets custom user agent when provided', async () => {
-    const page = createMockPage();
-    mockBrowser.newPage.mockResolvedValue(page);
-    const scraper = createScraper();
-    scraper.loginOpts = { ...defaultLoginOptions(), userAgent: 'CustomBot/1.0' };
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(page.setUserAgent).toHaveBeenCalledWith('CustomBot/1.0');
   });
 
   it('calls checkReadiness when provided', async () => {
@@ -330,7 +321,8 @@ describe('login', () => {
 describe('terminate', () => {
   it('skips screenshot on success', async () => {
     const page = createMockPage();
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ storeFailureScreenShotPath: '/tmp/fail.png' });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.screenshot).not.toHaveBeenCalled();
@@ -339,7 +331,8 @@ describe('terminate', () => {
   it('captures screenshot on failure when path configured', async () => {
     const page = createMockPage();
     page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
-    mockBrowser.newPage.mockResolvedValue(page);
+    const ctx = createMockContext(page);
+    mockBrowser.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({
       storeFailureScreenShotPath: '/tmp/fail.png',
       navigationRetryCount: 0,

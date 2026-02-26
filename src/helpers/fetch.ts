@@ -1,4 +1,4 @@
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { getDebug } from './debug';
 
 const debug = getDebug('fetch');
@@ -119,7 +119,15 @@ export async function fetchPostWithinPage<TResult>(
   ignoreErrors = false,
 ): Promise<TResult | null> {
   const [text, status] = await page.evaluate(
-    async (innerUrl: string, innerData: Record<string, any>, innerExtraHeaders: Record<string, any>) => {
+    async ({
+      innerUrl,
+      innerData,
+      innerExtraHeaders,
+    }: {
+      innerUrl: string;
+      innerData: Record<string, any>;
+      innerExtraHeaders: Record<string, any>;
+    }) => {
       const response = await fetch(innerUrl, {
         method: 'POST',
         body: JSON.stringify(innerData),
@@ -134,9 +142,7 @@ export async function fetchPostWithinPage<TResult>(
       }
       return [await response.text(), response.status] as const;
     },
-    url,
-    data,
-    extraHeaders,
+    { innerUrl: url, innerData: data, innerExtraHeaders: extraHeaders },
   );
 
   logResponseIssues(status, text, url);

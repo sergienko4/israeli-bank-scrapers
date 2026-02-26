@@ -1,12 +1,12 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { pageEval, pageEvalAll } from '../helpers/elements-interactions';
 import { filterOldTransactions } from '../helpers/transactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeyahadBishvilhaScraper from './beyahad-bishvilha';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -19,7 +19,7 @@ jest.mock('../helpers/navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
   filterOldTransactions: jest.fn((txns: any[]) => txns),
@@ -27,8 +27,12 @@ jest.mock('../helpers/transactions', () => ({
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -38,13 +42,13 @@ function setupPage() {
   const page = createMockPage({
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
   });
-  mockBrowser.newPage.mockResolvedValue(page);
+  mockContext.newPage.mockResolvedValue(page);
   return page;
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   setupPage();
 });
 
@@ -59,7 +63,7 @@ describe('login', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 });
 

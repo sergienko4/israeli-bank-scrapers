@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import moment from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { waitUntilElementFound } from '../helpers/elements-interactions';
 import { fetchGetWithinPage } from '../helpers/fetch';
 import { waitForNavigation } from '../helpers/navigation';

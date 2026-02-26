@@ -1,18 +1,12 @@
-import puppeteer, { type Browser } from 'puppeteer';
+import { chromium, type Browser } from 'playwright';
 
 let sharedBrowser: Browser | null = null;
 
-const BROWSER_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-gpu',
-  '--disable-dev-shm-usage',
-  '--disable-blink-features=AutomationControlled',
-];
+const BROWSER_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
 
 export async function getSharedBrowser(): Promise<Browser> {
   if (!sharedBrowser) {
-    sharedBrowser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+    sharedBrowser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
   }
   return sharedBrowser;
 }

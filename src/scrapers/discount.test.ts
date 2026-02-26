@@ -1,20 +1,20 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { fetchGetWithinPage } from '../helpers/fetch';
 import { waitForNavigation } from '../helpers/navigation';
 import { waitUntilElementFound } from '../helpers/elements-interactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import { getCurrentUrl } from '../helpers/navigation';
 import DiscountScraper from './discount';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
@@ -30,8 +30,12 @@ jest.mock('../helpers/transactions', () => ({
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -69,8 +73,8 @@ function txn(overrides: any = {}): any {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE');
 });
 
@@ -81,7 +85,7 @@ describe('login', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 
   it('returns InvalidPassword for invalid password URL', async () => {

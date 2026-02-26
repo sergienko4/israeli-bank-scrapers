@@ -35,8 +35,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2
       - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
       - name: Lint (warnings as errors)
         run: npx eslint src --ext .ts --max-warnings 0
       - name: Format check
