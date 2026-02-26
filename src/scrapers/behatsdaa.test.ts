@@ -1,15 +1,15 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { fetchPostWithinPage } from '../helpers/fetch';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BehatsdaaScraper from './behatsdaa';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.behatsdaa.org.il/'),
@@ -30,8 +30,12 @@ jest.mock('../helpers/transactions', () => ({
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -57,8 +61,8 @@ function createBehatsdaaPage(token: string | null = 'mock-token') {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createBehatsdaaPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createBehatsdaaPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
 });
 
@@ -72,13 +76,13 @@ describe('login', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 });
 
 describe('fetchData', () => {
   it('returns error when token not in localStorage', async () => {
-    mockBrowser.newPage.mockResolvedValue(createBehatsdaaPage(null));
+    mockContext.newPage.mockResolvedValue(createBehatsdaaPage(null));
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

@@ -28,13 +28,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
       - name: Run E2E smoke tests
         run: npx jest --ci --testPathPatterns='tests/e2e\.test' --verbose
-        env:
-          PUPPETEER_HEADLESS: 'true'
 
   e2e-mocked:
     name: E2E Mocked Tests
@@ -46,13 +45,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
       - name: Run mocked E2E tests
         run: npx jest --ci --testPathPatterns='e2e-mocked' --testPathIgnorePatterns='/node_modules/' --verbose
-        env:
-          PUPPETEER_HEADLESS: 'true'
 
   e2e-real:
     name: E2E Real Bank Tests
@@ -65,13 +63,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2
       - run: npm ci
       - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
       - name: Run real E2E tests
         run: npx jest --ci --testPathPatterns='tests/e2e-real' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
-          PUPPETEER_HEADLESS: 'true'
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}

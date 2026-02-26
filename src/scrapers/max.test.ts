@@ -1,8 +1,8 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import moment from 'moment';
 import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../constants';
 import { fetchGetWithinPage } from '../helpers/fetch';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { filterOldTransactions, fixInstallments } from '../helpers/transactions';
 import { elementPresentOnPage } from '../helpers/elements-interactions';
 import { getCurrentUrl } from '../helpers/navigation';
@@ -11,12 +11,12 @@ import MaxScraper, { getMemo } from './max';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -40,8 +40,12 @@ jest.mock('../helpers/dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -79,8 +83,8 @@ function rawTxn(overrides: any = {}): any {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -109,7 +113,7 @@ describe('login', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {

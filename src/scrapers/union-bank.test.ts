@@ -1,14 +1,14 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import { elementPresentOnPage, pageEvalAll, dropdownElements } from '../helpers/elements-interactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import UnionBankScraper from './union-bank';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -23,15 +23,19 @@ jest.mock('../helpers/navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -60,8 +64,8 @@ const STANDARD_HEADERS = [
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createUnionPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createUnionPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://hb.unionbank.co.il/eBanking/Accounts/ExtendedActivity.aspx');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
   (dropdownElements as jest.Mock).mockResolvedValue([{ name: 'Account 1', value: '123' }]);
@@ -77,7 +81,7 @@ describe('login', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 
   it('returns InvalidPassword for login page URL', async () => {
@@ -153,7 +157,7 @@ describe('fetchData', () => {
     (elementPresentOnPage as jest.Mock).mockImplementation((_p: any, selector: string) => {
       return selector === '.errInfo';
     });
-    mockBrowser.newPage.mockResolvedValue(
+    mockContext.newPage.mockResolvedValue(
       createMockPage({
         $eval: jest.fn().mockImplementation((selector: string) => {
           if (selector.includes('option[selected')) return '123/456789';

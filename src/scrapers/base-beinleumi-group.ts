@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Frame, type Page } from 'puppeteer';
+import { type Frame, type Page } from 'playwright';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 import {
   clickButton,
@@ -355,7 +355,7 @@ async function getAccountIdsOldUI(page: Page): Promise<string[]> {
  * - If any error occurs (e.g., selectors not found, timing issues, UI version changes),
  *   the function returns an empty list.
  *
- * @param page Puppeteer Page object.
+ * @param page Playwright Page object.
  * @returns An array of available account labels (e.g., ["127 | XXXX1", "127 | XXXX2"]),
  *          or an empty array if something goes wrong.
  */
@@ -368,7 +368,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
     // Check if dropdown is already open
     const dropdownVisible = await page
       .$eval(dropdownPanelSelector, el => {
-        return el && window.getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+        return el && window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null;
       })
       .catch(() => false); // catch if dropdown is not in the DOM yet
 
@@ -410,7 +410,7 @@ async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
  * - Checks if the provided account label exists in the list.
  * - Finds and clicks the matching account option if found.
  *
- * @param page Puppeteer Page object.
+ * @param page Playwright Page object.
  * @param accountLabel The text of the account to select (e.g., "127 | XXXXX").
  * @returns True if the account option was found and clicked; false otherwise.
  */
@@ -463,7 +463,7 @@ async function selectAccountBothUIs(page: Page, accountId: string): Promise<void
   const accountSelected = await selectAccountFromDropdown(page, accountId);
   if (!accountSelected) {
     // Old UI format
-    await page.select('#account_num_select', accountId);
+    await page.selectOption('#account_num_select', accountId);
     await waitUntilElementFound(page, '#account_num_select', true);
   }
 }

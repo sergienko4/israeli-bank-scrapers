@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'puppeteer';
+import { type Frame, type Page } from 'playwright';
 import { humanDelay, waitUntil } from './waiting';
 
 async function waitUntilElementFound(
@@ -7,11 +7,11 @@ async function waitUntilElementFound(
   onlyVisible = false,
   timeout?: number,
 ) {
-  await page.waitForSelector(elementSelector, { visible: onlyVisible, timeout });
+  await page.waitForSelector(elementSelector, { state: onlyVisible ? 'visible' : 'attached', timeout });
 }
 
 async function waitUntilElementDisappear(page: Page, elementSelector: string, timeout?: number) {
-  await page.waitForSelector(elementSelector, { hidden: true, timeout });
+  await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
 }
 
 async function waitUntilIframeFound(
@@ -87,7 +87,7 @@ async function pageEvalAll<R>(
     await page.waitForFunction(() => document.readyState === 'complete');
     result = await page.$$eval(selector, callback, ...args);
   } catch (e) {
-    // TODO temporary workaround to puppeteer@1.5.0 which breaks $$eval bevahvior until they will release a new version.
+    // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find elements matching selector')) {
       throw e;
     }
@@ -108,7 +108,7 @@ async function pageEval<R>(
     await pageOrFrame.waitForFunction(() => document.readyState === 'complete');
     result = await pageOrFrame.$eval(selector, callback, ...args);
   } catch (e) {
-    // TODO temporary workaround to puppeteer@1.5.0 which breaks $$eval bevahvior until they will release a new version.
+    // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find element matching selector')) {
       throw e;
     }
@@ -122,7 +122,7 @@ async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string)
 }
 
 async function dropdownSelect(page: Page, selectSelector: string, value: string) {
-  await page.select(selectSelector, value);
+  await page.selectOption(selectSelector, value);
 }
 
 async function dropdownElements(page: Page, selector: string) {

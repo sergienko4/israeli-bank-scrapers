@@ -1,4 +1,4 @@
-import { type Browser } from 'puppeteer';
+import { type Browser } from 'playwright';
 import { CompanyTypes } from '../../definitions';
 import { createScraper } from '../../index';
 import { ScraperErrorTypes } from '../../scrapers/errors';

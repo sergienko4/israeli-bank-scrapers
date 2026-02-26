@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Frame, type HTTPRequest, type Page } from 'puppeteer';
+import { type Frame, type Page, type Request } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import {
   pageEvalAll,
@@ -115,7 +115,7 @@ async function isLoggedIn(options: { page?: Page | undefined } | undefined) {
     return false;
   }
   const oshXPath = `//a//span[contains(., "${checkingAccountTabHebrewName}") or contains(., "${checkingAccountTabEnglishName}")]`;
-  const oshTab = await options.page.$$(`xpath${oshXPath}`);
+  const oshTab = await options.page.$$(`xpath=${oshXPath}`);
   return oshTab.length > 0;
 }
 
@@ -182,7 +182,7 @@ async function getExtraTransactionDetails(
   };
 }
 
-function createDataFromRequest(request: HTTPRequest, optionsStartDate: Date) {
+function createDataFromRequest(request: Request, optionsStartDate: Date) {
   const data = JSON.parse(request.postData() || '{}');
 
   data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
@@ -192,7 +192,7 @@ function createDataFromRequest(request: HTTPRequest, optionsStartDate: Date) {
   return data;
 }
 
-function createHeadersFromRequest(request: HTTPRequest) {
+function createHeadersFromRequest(request: Request) {
   return {
     mizrahixsrftoken: request.headers().mizrahixsrftoken,
     'Content-Type': request.headers()['content-type'],

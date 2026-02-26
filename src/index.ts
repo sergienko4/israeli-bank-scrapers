@@ -13,7 +13,3 @@ export {
 } from './scrapers/interface';
 
 export { default as OneZeroScraper } from './scrapers/one-zero';
-
-export function getPuppeteerConfig() {
-  return { chromiumRevision: '1250580' }; // https://github.com/puppeteer/puppeteer/releases/tag/puppeteer-core-v22.5.0
-}
