@@ -126,10 +126,19 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     });
   }
 
-  private async createContextAndPage(browser: Browser): Promise<Page> {
+  private async createContextAndPage(browser: Browser, registerContextCleanup = true): Promise<Page> {
     const context = await browser.newContext(buildContextOptions(this.getViewPort()));
-    this.cleanups.push(async () => context.close());
+    if (registerContextCleanup) {
+      this.cleanups.push(async () => context.close());
+    }
     return context.newPage();
+  }
+
+  private registerBrowserCleanup(browser: Browser) {
+    this.cleanups.push(async () => {
+      debug('closing the browser');
+      await browser.close();
+    });
   }
 
   private async initializePage() {
@@ -142,41 +151,26 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     if ('browser' in this.options) {
       debug('Using the browser instance provided in options');
       const { browser } = this.options;
-
       if (!this.options.skipCloseBrowser) {
-        this.cleanups.push(async () => {
-          debug('closing the browser');
-          await browser.close();
-        });
+        this.registerBrowserCleanup(browser);
       }
-
       return this.createContextAndPage(browser);
     }
 
     const { timeout, args = [], executablePath, showBrowser } = this.options;
-
     const headless = !showBrowser;
     debug(`launch a browser with headless mode = ${headless}`);
 
-    const browser = await chromium.launch({
-      headless,
-      executablePath,
-      args,
-      timeout,
-    });
-
-    this.cleanups.push(async () => {
-      debug('closing the browser');
-      await browser.close();
-    });
+    const browser = await chromium.launch({ headless, executablePath, args, timeout });
+    this.registerBrowserCleanup(browser);
 
     if (this.options.prepareBrowser) {
       debug("execute 'prepareBrowser' interceptor provided in options");
       await this.options.prepareBrowser(browser);
     }
 
-    debug('create a new browser page');
-    return this.createContextAndPage(browser);
+    // Skip context cleanup — browser.close() disposes all contexts
+    return this.createContextAndPage(browser, false);
   }
 
   async navigateTo(
