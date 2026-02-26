@@ -1,7 +1,5 @@
 import { type Page } from 'puppeteer';
 
-const BOT_DETECTION_PATTERNS = ['detector-dom.min.js', 'detector-dom', 'bot-detect'];
-
 /**
  * Extract major Chrome version from browser version string.
  */
@@ -64,18 +62,3 @@ export async function applyAntiDetection(page: Page): Promise<void> {
   await applyStealthOverrides(page);
   await page.emulateTimezone('Asia/Jerusalem');
 }
-
-/**
- * Check if a URL matches known bot detection scripts.
- */
-export function isBotDetectionScript(url: string): boolean {
-  return BOT_DETECTION_PATTERNS.some(pattern => url.includes(pattern));
-}
-
-/**
- * Priorities for request interception.
- */
-export const interceptionPriorities = {
-  abort: 1000,
-  continue: 10,
-};

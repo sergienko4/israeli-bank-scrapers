@@ -14,6 +14,7 @@ export interface WafErrorDetails {
   httpStatus: number;
   pageTitle: string;
   pageUrl: string;
+  responseSnippet?: string;
   suggestions: string[];
 }
 
@@ -82,12 +83,13 @@ export class WafBlockError extends Error {
     });
   }
 
-  static apiBlock(httpStatus: number, pageUrl: string, responseSnippet: string): WafBlockError {
+  static apiBlock(httpStatus: number, pageUrl: string, pageTitle: string, responseSnippet?: string): WafBlockError {
     return new WafBlockError({
       provider: 'unknown',
       httpStatus,
-      pageTitle: responseSnippet.substring(0, 100),
+      pageTitle,
       pageUrl,
+      responseSnippet: responseSnippet?.substring(0, 200),
       suggestions: [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.avoidRapidRetries],
     });
   }

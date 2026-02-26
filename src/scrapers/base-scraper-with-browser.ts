@@ -235,25 +235,28 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     const BASE_DELAY_MS = 30_000;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      const title = await this.page.title();
-      if (!this.isCloudflareTitle(title)) {
-        if (attempt > 0) debug('Cloudflare challenge resolved after %d retries', attempt);
-        return;
-      }
-
-      debug('Cloudflare challenge (attempt %d/%d, title="%s")', attempt + 1, MAX_RETRIES + 1, title);
-
-      if (await this.tryWaitForChallenge(title)) return;
-
-      if (attempt < MAX_RETRIES) {
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
-        debug('Challenge failed, backing off %ds...', delay / 1000);
-        await sleep(delay);
-        await this.page.reload({ waitUntil: 'load' });
-      }
+      if (await this.tryChallengeAttempt(attempt, MAX_RETRIES)) return;
+      if (attempt < MAX_RETRIES) await this.backoffAndReload(BASE_DELAY_MS, attempt);
     }
 
     throw WafBlockError.cloudflareBlock(403, await this.page.title(), url);
+  }
+
+  private async tryChallengeAttempt(attempt: number, maxRetries: number): Promise<boolean> {
+    const title = await this.page.title();
+    if (!this.isCloudflareTitle(title)) {
+      if (attempt > 0) debug('Cloudflare challenge resolved after %d retries', attempt);
+      return true;
+    }
+    debug('Cloudflare challenge (attempt %d/%d, title="%s")', attempt + 1, maxRetries + 1, title);
+    return this.tryWaitForChallenge(title);
+  }
+
+  private async backoffAndReload(baseDelayMs: number, attempt: number): Promise<void> {
+    const delay = baseDelayMs * Math.pow(2, attempt);
+    debug('Challenge failed, backing off %ds...', delay / 1000);
+    await sleep(delay);
+    await this.page.reload({ waitUntil: 'load' });
   }
 
   private isCloudflareTitle(title: string): boolean {

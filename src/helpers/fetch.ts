@@ -4,8 +4,6 @@ import { getDebug } from './debug';
 const debug = getDebug('fetch');
 
 const JSON_CONTENT_TYPE = 'application/json';
-const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8';
-
 const WAF_BLOCK_PATTERNS = ['block automation', 'attention required', 'just a moment', 'access denied'] as const;
 
 function getJsonHeaders() {
@@ -23,6 +21,16 @@ export function detectWafBlock(status: number, body: string | null): string | nu
   const lower = body.toLowerCase();
   const match = WAF_BLOCK_PATTERNS.find(pattern => lower.includes(pattern));
   return match ? `response contains "${match}"` : null;
+}
+
+function logResponseIssues(status: number, text: string | null, url: string): void {
+  if (status !== 200 && status !== 204) {
+    debug('non-200 response: status=%d url=%s body=%s', status, url, text?.substring(0, 200) ?? 'empty');
+  }
+  const wafReason = detectWafBlock(status, text);
+  if (wafReason) {
+    debug('WAF block detected: %s, url=%s', wafReason, url);
+  }
 }
 
 export async function fetchGet<TResult>(url: string, extraHeaders: Record<string, any>): Promise<TResult> {
@@ -109,20 +117,17 @@ export async function fetchPostWithinPage<TResult>(
   data: Record<string, any>,
   extraHeaders: Record<string, any> = {},
   ignoreErrors = false,
-  contentType: string = FORM_CONTENT_TYPE,
 ): Promise<TResult | null> {
   const [text, status] = await page.evaluate(
-    async (
-      innerUrl: string,
-      innerData: Record<string, any>,
-      innerExtraHeaders: Record<string, any>,
-      innerContentType: string,
-    ) => {
+    async (innerUrl: string, innerData: Record<string, any>, innerExtraHeaders: Record<string, any>) => {
       const response = await fetch(innerUrl, {
         method: 'POST',
         body: JSON.stringify(innerData),
         credentials: 'include',
-        headers: Object.assign({ 'Content-Type': innerContentType }, innerExtraHeaders),
+        headers: Object.assign(
+          { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+          innerExtraHeaders,
+        ),
       });
       if (response.status === 204) {
         return [null, 204] as const;
@@ -132,18 +137,9 @@ export async function fetchPostWithinPage<TResult>(
     url,
     data,
     extraHeaders,
-    contentType,
   );
 
-  if (status !== 200 && status !== 204) {
-    const snippet = text?.substring(0, 200) ?? 'empty';
-    debug('non-200 response: status=%d url=%s body=%s', status, url, snippet);
-  }
-
-  const wafReason = detectWafBlock(status, text);
-  if (wafReason) {
-    debug('WAF block detected: %s, url=%s', wafReason, url);
-  }
+  logResponseIssues(status, text, url);
 
   try {
     if (text !== null) {

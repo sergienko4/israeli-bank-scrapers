@@ -418,7 +418,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     if (!validatedData) {
       const pageUrl = this.page.url();
       const pageTitle = await this.page.title();
-      throw WafBlockError.apiBlock(0, pageUrl, `validation failed (title="${pageTitle}")`);
+      throw WafBlockError.apiBlock(0, pageUrl, pageTitle, 'validateCredentials returned null');
     }
 
     const validateReturnCode = validatedData.returnCode;
