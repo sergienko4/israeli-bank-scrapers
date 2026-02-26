@@ -1,14 +1,14 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import { fetchPostWithinPage } from '../helpers/fetch';
 import { elementPresentOnPage } from '../helpers/elements-interactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import MizrahiScraper from './mizrahi';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -27,15 +27,19 @@ jest.mock('../helpers/navigation', () => ({
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -91,8 +95,8 @@ function createMizrahiPage() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createMizrahiPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createMizrahiPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -105,7 +109,7 @@ describe('login', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 });
 
@@ -161,7 +165,7 @@ describe('fetchData', () => {
         jsonValue: jest.fn().mockResolvedValue(''),
       }),
     });
-    mockBrowser.newPage.mockResolvedValue(page);
+    mockContext.newPage.mockResolvedValue(page);
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -246,7 +250,7 @@ describe('fetchData', () => {
   it('handles multiple accounts', async () => {
     const page = createMizrahiPage();
     page.$$.mockResolvedValue([{ click: jest.fn() }, { click: jest.fn() }]);
-    mockBrowser.newPage.mockResolvedValue(page);
+    mockContext.newPage.mockResolvedValue(page);
 
     // Promise.any over 2 URLs consumes 2 mocks per account
     (fetchPostWithinPage as jest.Mock)

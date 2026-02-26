@@ -1,9 +1,9 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import moment from 'moment';
 import { SHEKEL_CURRENCY } from '../constants';
 import { ScraperProgressTypes } from '../definitions';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { filterOldTransactions, fixInstallments } from '../helpers/transactions';
 import { sleep } from '../helpers/waiting';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
@@ -11,13 +11,13 @@ import IsracardAmexBaseScraper from './base-isracard-amex';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
@@ -46,8 +46,12 @@ class TestAmexScraper extends IsracardAmexBaseScraper {
   }
 }
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -111,8 +115,8 @@ function txn(overrides: any = {}): any {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createMockPage());
 });
 
 describe('login', () => {
@@ -122,7 +126,7 @@ describe('login', () => {
     const scraper = new TestAmexScraper();
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
   });
 
   it('returns ChangePassword when returnCode=4', async () => {

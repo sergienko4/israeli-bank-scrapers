@@ -1,7 +1,7 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import { clickButton, elementPresentOnPage, pageEvalAll } from '../helpers/elements-interactions';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { sleep } from '../helpers/waiting';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
@@ -9,7 +9,7 @@ import BeinleumiGroupBaseScraper from './base-beinleumi-group';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer', () => ({ launch: jest.fn() }));
+jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -23,7 +23,7 @@ jest.mock('../helpers/navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://test.fibi.co.il/Resources/PortalNG/shell'),
 }));
 jest.mock('../helpers/browser', () => ({
-  applyAntiDetection: jest.fn().mockResolvedValue(undefined),
+  buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),
@@ -43,8 +43,12 @@ class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
   TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
 }
 
-const mockBrowser = {
+const mockContext = {
   newPage: jest.fn(),
+  close: jest.fn().mockResolvedValue(undefined),
+};
+const mockBrowser = {
+  newContext: jest.fn().mockResolvedValue(mockContext),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -91,8 +95,8 @@ function mockTransactionTable(rows: Array<{ innerTds: string[] }>) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockBrowser.newPage.mockResolvedValue(createPageWithAccountFeatures());
+  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  mockContext.newPage.mockResolvedValue(createPageWithAccountFeatures());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://test.fibi.co.il/Resources/PortalNG/shell');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -102,7 +106,7 @@ describe('login', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
-    expect(applyAntiDetection).toHaveBeenCalled();
+    expect(buildContextOptions).toHaveBeenCalled();
     expect(sleep).toHaveBeenCalledWith(1000);
   });
 

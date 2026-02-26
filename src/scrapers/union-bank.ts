@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import {
   clickButton,

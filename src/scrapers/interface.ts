@@ -1,4 +1,4 @@
-import { type BrowserContext, type Browser, type Page } from 'puppeteer';
+import { type BrowserContext, type Browser, type Page } from 'playwright';
 import { type CompanyTypes, type ScraperProgressTypes } from '../definitions';
 import { type TransactionsAccount } from '../transactions';
 import { type ErrorResult, type ScraperErrorTypes, type WafErrorDetails } from './errors';
@@ -38,7 +38,7 @@ export interface FutureDebit {
 interface ExternalBrowserOptions {
   /**
    * An externally created browser instance.
-   * you can get a browser directly from puppeteer via `puppeteer.launch()`
+   * you can get a browser directly from playwright via `chromium.launch()`
    *
    * Note: The browser will be closed by the library after the scraper finishes unless `skipCloseBrowser` is set to true
    */
@@ -64,8 +64,7 @@ interface DefaultBrowserOptions {
   showBrowser?: boolean;
 
   /**
-   * provide a patch to local chromium to be used by puppeteer. Relevant when using
-   * `israeli-bank-scrapers-core` library
+   * provide a path to local chromium to be used by playwright
    */
   executablePath?: string;
 
@@ -132,7 +131,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
   storeFailureScreenShotPath?: string;
 
   /**
-   * if set, will set the timeout in milliseconds of puppeteer's `page.setDefaultTimeout`.
+   * if set, will set the timeout in milliseconds of `page.setDefaultTimeout`.
    */
   defaultTimeout?: number;
 

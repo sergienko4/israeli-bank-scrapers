@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type HTTPRequest, type Frame, type Page } from 'puppeteer';
+import { type Frame, type Page, type Request } from 'playwright';
 import { getDebug } from '../helpers/debug';
 import { clickButton, elementPresentOnPage, pageEval, waitUntilElementFound } from '../helpers/elements-interactions';
 import { fetchPost } from '../helpers/fetch';
@@ -344,7 +344,7 @@ type ScraperSpecificCredentials = { username: string; password: string };
 class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
   private authorization: string | undefined = undefined;
 
-  private authRequestPromise: Promise<HTTPRequest | undefined> | undefined;
+  private authRequestPromise: Promise<Request | undefined> | undefined;
 
   openLoginPopup = async () => {
     debug('open login popup, wait until login button available');
@@ -439,7 +439,6 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
           throw e;
         }
       },
-      userAgent: apiHeaders['User-Agent'],
     };
   }
 

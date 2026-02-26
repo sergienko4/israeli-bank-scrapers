@@ -1,13 +1,11 @@
-import puppeteer from 'puppeteer';
-import { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
+import { chromium, type Browser, type Frame, type Page } from 'playwright';
 import { ScraperProgressTypes } from '../definitions';
 import { getDebug } from '../helpers/debug';
-import { applyAntiDetection } from '../helpers/browser';
+import { buildContextOptions } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
-import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
-import { sleep } from '../helpers/waiting';
+import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../helpers/navigation';
 import { BaseScraper } from './base-scraper';
-import { ScraperErrorTypes, WafBlockError } from './errors';
+import { ScraperErrorTypes } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
 
 const debug = getDebug('base-scraper-with-browser');
@@ -42,8 +40,7 @@ export interface LoginOptions {
   preAction?: () => Promise<Frame | void>;
   postAction?: () => Promise<void>;
   possibleResults: PossibleLoginResults;
-  userAgent?: string;
-  waitUntil?: PuppeteerLifeCycleEvent;
+  waitUntil?: WaitUntilState;
 }
 
 async function getKeyByValue(object: PossibleLoginResults, value: string, page: Page): Promise<LoginResults> {
@@ -91,17 +88,12 @@ async function safeCleanup(cleanup: () => Promise<void>) {
 class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends BaseScraper<TCredentials> {
   private cleanups: Array<() => Promise<void>> = [];
 
-  private defaultViewportSize = {
-    width: 1024,
-    height: 768,
-  };
-
   // NOTICE - it is discouraged to use bang (!) in general. It is used here because
   // all the classes that inherit from this base assume is it mandatory.
   protected page!: Page;
 
   protected getViewPort() {
-    return this.options.viewportSize ?? this.defaultViewportSize;
+    return this.options.viewportSize;
   }
 
   async initialize() {
@@ -110,7 +102,6 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     this.emitProgress(ScraperProgressTypes.Initializing);
 
     const page = await this.initializePage();
-    await page.setCacheEnabled(false); // Clear cache and avoid 300's response status
 
     if (!page) {
       debug('failed to initiate a browser page, exit');
@@ -130,20 +121,15 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       await this.options.preparePage(this.page);
     }
 
-    // Anti-detection: realistic UA, client hints, stealth JS — runs for ALL scrapers
-    debug('applying anti-detection overrides');
-    await applyAntiDetection(this.page);
-
-    const viewport = this.getViewPort();
-    debug(`set viewport to width ${viewport.width}, height ${viewport.height}`);
-    await this.page.setViewport({
-      width: viewport.width,
-      height: viewport.height,
-    });
-
-    this.page.on('requestfailed', request => {
+    this.page.on('requestfailed', (request) => {
       debug('Request failed: %s %s', request.failure()?.errorText, request.url());
     });
+  }
+
+  private async createContextAndPage(browser: Browser): Promise<Page> {
+    const context = await browser.newContext(buildContextOptions(this.getViewPort()));
+    this.cleanups.push(async () => context.close());
+    return context.newPage();
   }
 
   private async initializePage() {
@@ -157,9 +143,6 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       debug('Using the browser instance provided in options');
       const { browser } = this.options;
 
-      /**
-       * For backward compatibility, we will close the browser even if we didn't create it
-       */
       if (!this.options.skipCloseBrowser) {
         this.cleanups.push(async () => {
           debug('closing the browser');
@@ -167,7 +150,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
         });
       }
 
-      return browser.newPage();
+      return this.createContextAndPage(browser);
     }
 
     const { timeout, args = [], executablePath, showBrowser } = this.options;
@@ -175,15 +158,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     const headless = !showBrowser;
     debug(`launch a browser with headless mode = ${headless}`);
 
-    const launchArgs = args.includes('--disable-blink-features=AutomationControlled')
-      ? args
-      : [...args, '--disable-blink-features=AutomationControlled'];
-
-    const browser = await puppeteer.launch({
-      env: this.options.verbose ? { DEBUG: '*', ...process.env } : undefined,
+    const browser = await chromium.launch({
       headless,
       executablePath,
-      args: launchArgs,
+      args,
       timeout,
     });
 
@@ -198,12 +176,12 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     }
 
     debug('create a new browser page');
-    return browser.newPage();
+    return this.createContextAndPage(browser);
   }
 
   async navigateTo(
     url: string,
-    waitUntil: PuppeteerLifeCycleEvent | undefined = 'load',
+    waitUntil: WaitUntilState | undefined = 'load',
     retries = this.options.navigationRetryCount ?? 0,
   ): Promise<void> {
     const response = await this.page?.goto(url, { waitUntil });
@@ -217,51 +195,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
       return this.navigateTo(url, waitUntil, retries - 1);
     }
-    if (status === 403) return this.handleCloudflareChallenge(url);
     throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
-  }
-
-  private async handleCloudflareChallenge(url: string): Promise<void> {
-    const MAX_RETRIES = 3;
-    const BASE_DELAY_MS = 30_000;
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      if (await this.tryChallengeAttempt(attempt, MAX_RETRIES)) return;
-      if (attempt < MAX_RETRIES) await this.backoffAndReload(BASE_DELAY_MS, attempt);
-    }
-
-    throw WafBlockError.cloudflareBlock(403, await this.page.title(), url);
-  }
-
-  private async tryChallengeAttempt(attempt: number, maxRetries: number): Promise<boolean> {
-    const title = await this.page.title();
-    if (!this.isCloudflareTitle(title)) {
-      if (attempt > 0) debug('Cloudflare challenge resolved after %d retries', attempt);
-      return true;
-    }
-    debug('Cloudflare challenge (attempt %d/%d, title="%s")', attempt + 1, maxRetries + 1, title);
-    return this.tryWaitForChallenge(title);
-  }
-
-  private async backoffAndReload(baseDelayMs: number, attempt: number): Promise<void> {
-    const delay = baseDelayMs * Math.pow(2, attempt);
-    debug('Challenge failed, backing off %ds...', delay / 1000);
-    await sleep(delay);
-    await this.page.reload({ waitUntil: 'load' });
-  }
-
-  private isCloudflareTitle(title: string): boolean {
-    return /cloudflare|attention required|just a moment|רק רגע/i.test(title);
-  }
-
-  private async tryWaitForChallenge(title: string): Promise<boolean> {
-    try {
-      await this.page.waitForFunction((t: string) => document.title !== t, { timeout: 15000 }, title);
-      debug('Challenge resolved, new title: "%s"', await this.page.title());
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
@@ -288,11 +222,6 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
 
     debug('execute login process');
     const loginOptions = this.getLoginOptions(credentials);
-
-    if (loginOptions.userAgent) {
-      debug('set custom user agent provided in options');
-      await this.page.setUserAgent(loginOptions.userAgent);
-    }
 
     debug('navigate to login url');
     await this.navigateTo(loginOptions.loginUrl, loginOptions.waitUntil);

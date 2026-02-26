@@ -1,64 +1,26 @@
-import { type Page } from 'puppeteer';
+import { type BrowserContextOptions } from 'playwright';
+
+const CHROME_VERSION = '131';
+const HEBREW_UA =
+  `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
 
 /**
- * Extract major Chrome version from browser version string.
+ * Build Playwright browser context options with Israeli bank-friendly defaults:
+ * Hebrew locale, Israel timezone, realistic Chrome UA and client hints.
  */
-async function getChromeVersion(page: Page): Promise<string> {
-  const version = await page.browser().version();
-  return version.match(/Chrome\/(\d+)/)?.[1] ?? '131';
-}
-
-/**
- * Set realistic User-Agent with dynamic Chrome version.
- */
-async function setRealisticUserAgent(page: Page, chromeVersion: string): Promise<void> {
-  await page.setUserAgent(
-    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`,
-  );
-}
-
-/**
- * Set HTTP headers that Israeli bank WAFs expect from real browsers.
- * Hebrew locale + client hints matching the dynamic Chrome version.
- */
-async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<void> {
-  await page.setExtraHTTPHeaders({
-    'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-    'sec-ch-ua': `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not_A Brand";v="24"`,
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-  });
-}
-
-/**
- * Lightweight stealth overrides that bypass Cloudflare without triggering
- * detection of puppeteer-extra-plugin-stealth's proxy-based patterns.
- */
-async function applyStealthOverrides(page: Page): Promise<void> {
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
-    // @ts-expect-error -- chrome.runtime stub to appear as real Chrome
-    window.chrome = { runtime: {} };
-    const originalQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-    window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
-      parameters.name === 'notifications'
-        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
-        : originalQuery(parameters);
-  });
-}
-
-/**
- * Apply anti-detection overrides for Israeli bank scrapers.
- *
- * Uses lightweight manual stealth instead of puppeteer-extra-plugin-stealth,
- * which Cloudflare detects via its proxy-based iframe.contentWindow patterns.
- */
-export async function applyAntiDetection(page: Page): Promise<void> {
-  const chromeVersion = await getChromeVersion(page);
-  await setRealisticUserAgent(page, chromeVersion);
-  await setRealisticHeaders(page, chromeVersion);
-  await applyStealthOverrides(page);
-  await page.emulateTimezone('Asia/Jerusalem');
+export function buildContextOptions(
+  viewport?: { width: number; height: number },
+): BrowserContextOptions {
+  return {
+    userAgent: HEBREW_UA,
+    locale: 'he-IL',
+    timezoneId: 'Asia/Jerusalem',
+    viewport: viewport ?? { width: 1024, height: 768 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+      'sec-ch-ua': `"Google Chrome";v="${CHROME_VERSION}", "Chromium";v="${CHROME_VERSION}", "Not_A Brand";v="24"`,
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+    },
+  };
 }

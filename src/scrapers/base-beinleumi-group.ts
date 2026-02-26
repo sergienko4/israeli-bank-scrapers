@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Frame, type Page } from 'puppeteer';
+import { type Frame, type Page } from 'playwright';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 import {
   clickButton,
@@ -368,7 +368,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
     // Check if dropdown is already open
     const dropdownVisible = await page
       .$eval(dropdownPanelSelector, el => {
-        return el && window.getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+        return el && window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null;
       })
       .catch(() => false); // catch if dropdown is not in the DOM yet
 
@@ -463,7 +463,7 @@ async function selectAccountBothUIs(page: Page, accountId: string): Promise<void
   const accountSelected = await selectAccountFromDropdown(page, accountId);
   if (!accountSelected) {
     // Old UI format
-    await page.select('#account_num_select', accountId);
+    await page.selectOption('#account_num_select', accountId);
     await waitUntilElementFound(page, '#account_num_select', true);
   }
 }

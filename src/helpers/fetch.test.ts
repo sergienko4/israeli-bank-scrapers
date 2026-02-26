@@ -140,11 +140,15 @@ describe('fetchPostWithinPage', () => {
     await expect(fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', {})).rejects.toThrow('status: 403');
   });
 
-  it('passes extraHeaders to page.evaluate', async () => {
+  it('passes extraHeaders to page.evaluate as single arg', async () => {
     const evaluate = jest.fn().mockResolvedValue([JSON.stringify({ ok: true }), 200]);
     const page = createMockPage({ evaluate });
     await fetchPostWithinPage(page, 'https://bank.co.il/api', {}, { 'X-Custom': 'val' });
-    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), 'https://bank.co.il/api', {}, { 'X-Custom': 'val' });
+    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), {
+      innerUrl: 'https://bank.co.il/api',
+      innerData: {},
+      innerExtraHeaders: { 'X-Custom': 'val' },
+    });
   });
 });
 

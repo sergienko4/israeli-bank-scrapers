@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page } from 'puppeteer';
+import { type Page } from 'playwright';
 import {
   DOLLAR_CURRENCY,
   DOLLAR_CURRENCY_SYMBOL,
@@ -174,7 +174,7 @@ class BeyahadBishvilhaScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       loginUrl: LOGIN_URL,
       fields: createLoginFields(credentials),
       submitButtonSelector: async () => {
-        const button = await this.page.$('xpath//button[contains(., "התחבר")]');
+        const button = await this.page.$('xpath=//button[contains(., "התחבר")]');
         if (button) {
           await button.click();
         }

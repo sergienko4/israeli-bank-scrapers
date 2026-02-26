@@ -18,13 +18,13 @@ describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {
     const page = createMockPage();
     await waitUntilElementFound(page, '#login-btn');
-    expect(page.waitForSelector).toHaveBeenCalledWith('#login-btn', { visible: false, timeout: undefined });
+    expect(page.waitForSelector).toHaveBeenCalledWith('#login-btn', { state: 'attached', timeout: undefined });
   });
 
   it('passes onlyVisible and timeout options', async () => {
     const page = createMockPage();
     await waitUntilElementFound(page, '.form', true, 5000);
-    expect(page.waitForSelector).toHaveBeenCalledWith('.form', { visible: true, timeout: 5000 });
+    expect(page.waitForSelector).toHaveBeenCalledWith('.form', { state: 'visible', timeout: 5000 });
   });
 });
 
@@ -32,7 +32,7 @@ describe('waitUntilElementDisappear', () => {
   it('waits for element to be hidden', async () => {
     const page = createMockPage();
     await waitUntilElementDisappear(page, '.spinner', 3000);
-    expect(page.waitForSelector).toHaveBeenCalledWith('.spinner', { hidden: true, timeout: 3000 });
+    expect(page.waitForSelector).toHaveBeenCalledWith('.spinner', { state: 'hidden', timeout: 3000 });
   });
 });
 
@@ -90,10 +90,10 @@ describe('elementPresentOnPage', () => {
 });
 
 describe('dropdownSelect', () => {
-  it('calls page.select with value', async () => {
+  it('calls page.selectOption with value', async () => {
     const page = createMockPage();
     await dropdownSelect(page, '#account-type', 'savings');
-    expect(page.select).toHaveBeenCalledWith('#account-type', 'savings');
+    expect(page.selectOption).toHaveBeenCalledWith('#account-type', 'savings');
   });
 });
 
