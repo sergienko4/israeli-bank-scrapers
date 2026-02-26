@@ -9,7 +9,6 @@ dotenv.config();
 const SCRAPE_TIMEOUT = 120000;
 const IS_CI = !!process.env.CI;
 const BROWSER_ARGS = IS_CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
-const itLocal = IS_CI ? it.skip : it;
 
 const FAILED_LOGIN_TYPES: string[] = [
   LoginResults.InvalidPassword,
@@ -105,7 +104,7 @@ describeIfVisaCal('E2E: VisaCal (real credentials)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  itLocal('scrapes transactions successfully', async () => {
+  it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.visaCal,
       startDate: lastMonthStartDate(),
@@ -143,7 +142,7 @@ describeIfDiscount('E2E: Discount Bank (real credentials)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  itLocal('scrapes transactions successfully', async () => {
+  it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.discount,
       startDate: lastMonthStartDate(),
