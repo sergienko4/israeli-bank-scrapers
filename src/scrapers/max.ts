@@ -126,7 +126,7 @@ async function loadCategories(page: Page) {
 }
 
 function getTransactionType(planName: string, planTypeId: number) {
-  const cleanedUpTxnTypeStr = planName.replace('\t', ' ').trim() as MaxPlanName;
+  const cleanedUpTxnTypeStr = planName.replaceAll('\t', ' ').trim() as MaxPlanName;
   switch (cleanedUpTxnTypeStr) {
     case MaxPlanName.ImmediateCharge:
     case MaxPlanName.Normal:
