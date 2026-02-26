@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { SHEKEL_CURRENCY } from '../constants';
 import { pageEval } from '../helpers/elements-interactions';
 import { applyAntiDetection } from '../helpers/browser';
@@ -8,8 +8,7 @@ import LeumiScraper from './leumi';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),

@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
 import { applyAntiDetection } from '../helpers/browser';
 import { waitUntil } from '../helpers/waiting';
@@ -8,8 +8,7 @@ import HapoalimScraper from './hapoalim';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),

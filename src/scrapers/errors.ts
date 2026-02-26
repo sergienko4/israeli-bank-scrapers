@@ -6,6 +6,7 @@ export enum ScraperErrorTypes {
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
   General = 'GENERAL_ERROR',
+  WafBlocked = 'WAF_BLOCKED',
 }
 
 export type ErrorResult = {
@@ -28,4 +29,19 @@ export function createTimeoutError(errorMessage: string): ErrorResult {
 
 export function createGenericError(errorMessage: string): ErrorResult {
   return createErrorResult(ScraperErrorTypes.Generic, errorMessage);
+}
+
+export function createWafBlockedError(errorMessage: string): ErrorResult {
+  return createErrorResult(ScraperErrorTypes.WafBlocked, errorMessage);
+}
+
+export class WafBlockError extends Error {
+  constructor(
+    public readonly reason: string,
+    public readonly pageUrl: string,
+    public readonly httpStatus?: number,
+  ) {
+    super(`WAF blocked: ${reason} (pageUrl=${pageUrl})`);
+    this.name = 'WafBlockError';
+  }
 }

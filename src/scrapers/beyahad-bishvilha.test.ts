@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { pageEval, pageEvalAll } from '../helpers/elements-interactions';
 import { filterOldTransactions } from '../helpers/transactions';
 import { applyAntiDetection } from '../helpers/browser';
@@ -6,8 +6,7 @@ import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeyahadBishvilhaScraper from './beyahad-bishvilha';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),

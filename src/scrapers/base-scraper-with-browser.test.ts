@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import { ScraperProgressTypes } from '../definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
@@ -8,8 +8,7 @@ import { BaseScraperWithBrowser, LoginResults, type LoginOptions } from './base-
 import { ScraperErrorTypes } from './errors';
 import type { ScraperCredentials, ScraperScrapingResult } from './interface';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 
 jest.mock('../helpers/elements-interactions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),

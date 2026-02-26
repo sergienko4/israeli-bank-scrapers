@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
 import moment from 'moment';
 import { SHEKEL_CURRENCY } from '../constants';
 import { ScraperProgressTypes } from '../definitions';
@@ -11,8 +11,7 @@ import IsracardAmexBaseScraper from './base-isracard-amex';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
-jest.mock('puppeteer-extra', () => ({ launch: jest.fn(), use: jest.fn() }));
-jest.mock('puppeteer-extra-plugin-stealth', () => () => ({ enabledEvasions: new Set() }));
+jest.mock('puppeteer', () => ({ launch: jest.fn() }));
 jest.mock('../helpers/fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
@@ -157,17 +156,19 @@ describe('login', () => {
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
   });
 
-  it('throws when validateCredentials returns null (WAF block)', async () => {
+  it('returns WafBlocked when validateCredentials returns null', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(null);
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('WAF block');
+    expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result.errorMessage).toContain('WAF blocked');
   });
 
-  it('throws when validate Header.Status is not 1', async () => {
+  it('returns WafBlocked when validate Header.Status is not 1', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
   });
 });
 

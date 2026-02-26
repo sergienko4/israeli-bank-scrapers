@@ -2,7 +2,13 @@ import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
 import { type CompanyTypes, ScraperProgressTypes } from '../definitions';
 import { TimeoutError } from '../helpers/waiting';
-import { createGenericError, createTimeoutError } from './errors';
+import {
+  type ErrorResult,
+  WafBlockError,
+  createGenericError,
+  createTimeoutError,
+  createWafBlockedError,
+} from './errors';
 import {
   type Scraper,
   type ScraperCredentials,
@@ -14,6 +20,12 @@ import {
 } from './interface';
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
+
+function categorizeError(e: unknown): ErrorResult {
+  if (e instanceof TimeoutError) return createTimeoutError((e as Error).message);
+  if (e instanceof WafBlockError) return createWafBlockedError((e as Error).message);
+  return createGenericError((e as Error).message);
+}
 
 export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {
   private eventEmitter = new EventEmitter();
@@ -34,8 +46,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     try {
       loginResult = await this.login(credentials);
     } catch (e) {
-      loginResult =
-        e instanceof TimeoutError ? createTimeoutError((e as Error).message) : createGenericError((e as Error).message);
+      loginResult = categorizeError(e);
     }
 
     let scrapeResult;
@@ -43,10 +54,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       try {
         scrapeResult = await this.fetchData();
       } catch (e) {
-        scrapeResult =
-          e instanceof TimeoutError
-            ? createTimeoutError((e as Error).message)
-            : createGenericError((e as Error).message);
+        scrapeResult = categorizeError(e);
       }
     } else {
       scrapeResult = loginResult;

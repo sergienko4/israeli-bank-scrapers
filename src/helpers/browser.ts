@@ -33,24 +33,35 @@ async function setRealisticHeaders(page: Page, chromeVersion: string): Promise<v
 }
 
 /**
- * Apply bank-specific anti-detection overrides on top of puppeteer-extra-plugin-stealth.
+ * Lightweight stealth overrides that bypass Cloudflare without triggering
+ * detection of puppeteer-extra-plugin-stealth's proxy-based patterns.
+ */
+async function applyStealthOverrides(page: Page): Promise<void> {
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
+    // @ts-expect-error -- chrome.runtime stub to appear as real Chrome
+    window.chrome = { runtime: {} };
+    const originalQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
+    window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
+      parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+        : originalQuery(parameters);
+  });
+}
+
+/**
+ * Apply anti-detection overrides for Israeli bank scrapers.
  *
- * The stealth plugin handles: navigator.webdriver, plugins, chrome object,
- * permissions, WebGL, canvas, iframe prototype chain, etc.
- *
- * This function adds Israeli-bank-specific customizations:
- * - Hebrew-first locale in User-Agent and Accept-Language
- * - Client hints headers matching the actual Chrome version
+ * Uses lightweight manual stealth instead of puppeteer-extra-plugin-stealth,
+ * which Cloudflare detects via its proxy-based iframe.contentWindow patterns.
  */
 export async function applyAntiDetection(page: Page): Promise<void> {
   const chromeVersion = await getChromeVersion(page);
   await setRealisticUserAgent(page, chromeVersion);
   await setRealisticHeaders(page, chromeVersion);
-
-  // Override stealth plugin's defaults with Israeli-specific locale and timezone
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'languages', { get: () => ['he-IL', 'he', 'en-US', 'en'] });
-  });
+  await applyStealthOverrides(page);
   await page.emulateTimezone('Asia/Jerusalem');
 }
 

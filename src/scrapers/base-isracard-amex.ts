@@ -16,7 +16,7 @@ import {
   type TransactionsAccount,
 } from '../transactions';
 import { BaseScraperWithBrowser } from './base-scraper-with-browser';
-import { ScraperErrorTypes } from './errors';
+import { ScraperErrorTypes, WafBlockError } from './errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
 import { interceptionPriorities, isBotDetectionScript } from '../helpers/browser';
 
@@ -413,6 +413,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
         void request.continue(undefined, interceptionPriorities.continue);
       }
     });
+    this.page.on('response', response => {
+      const url = response.url();
+      if (url.includes('ProxyRequestHandler') || url.includes('personalarea')) {
+        debug('response: %d %s', response.status(), url.substring(0, 120));
+      }
+    });
 
     debug(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
@@ -421,7 +427,8 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     const validatedData = await this.validateCredentials(credentials);
     if (!validatedData) {
       const pageUrl = this.page.url();
-      throw new Error(`login validation failed (pageUrl=${pageUrl}). Possible WAF block.`);
+      const pageTitle = await this.page.title();
+      throw new WafBlockError(`login validation failed (title="${pageTitle}")`, pageUrl);
     }
 
     const validateReturnCode = validatedData.returnCode;
@@ -491,7 +498,10 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
     debug('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, validateRequest);
-    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) return null;
+    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) {
+      debug('validation failed: result=%s', JSON.stringify(result)?.substring(0, 300) ?? 'null');
+      return null;
+    }
     return result.ValidateIdDataBean;
   }
 

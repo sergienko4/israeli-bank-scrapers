@@ -1,5 +1,4 @@
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import puppeteer from 'puppeteer';
 import { type Frame, type Page, type PuppeteerLifeCycleEvent } from 'puppeteer';
 import { ScraperProgressTypes } from '../definitions';
 import { getDebug } from '../helpers/debug';
@@ -7,13 +6,8 @@ import { applyAntiDetection } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
 import { BaseScraper } from './base-scraper';
-import { ScraperErrorTypes } from './errors';
+import { ScraperErrorTypes, WafBlockError } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
-
-const stealth = StealthPlugin();
-stealth.enabledEvasions.delete('user-agent-override'); // We set our own Hebrew-locale UA
-stealth.enabledEvasions.delete('navigator.languages'); // We set Hebrew locale in applyAntiDetection
-puppeteer.use(stealth);
 
 const debug = getDebug('base-scraper-with-browser');
 
@@ -22,14 +16,17 @@ enum LoginBaseResults {
   UnknownError = 'UNKNOWN_ERROR',
 }
 
-const { Timeout: _Timeout, Generic: _Generic, General: _General, ...rest } = ScraperErrorTypes;
+const { Timeout: _Timeout, Generic: _Generic, General: _General, WafBlocked: _WafBlocked, ...rest } = ScraperErrorTypes;
 export const LoginResults = {
   ...rest,
   ...LoginBaseResults,
 };
 
 export type LoginResults =
-  | Exclude<ScraperErrorTypes, ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.General>
+  | Exclude<
+      ScraperErrorTypes,
+      ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.General | ScraperErrorTypes.WafBlocked
+    >
   | LoginBaseResults;
 
 export type PossibleLoginResults = {
@@ -172,16 +169,20 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       return browser.newPage();
     }
 
-    const { timeout, args, executablePath, showBrowser } = this.options;
+    const { timeout, args = [], executablePath, showBrowser } = this.options;
 
     const headless = !showBrowser;
     debug(`launch a browser with headless mode = ${headless}`);
+
+    const launchArgs = args.includes('--disable-blink-features=AutomationControlled')
+      ? args
+      : [...args, '--disable-blink-features=AutomationControlled'];
 
     const browser = await puppeteer.launch({
       env: this.options.verbose ? { DEBUG: '*', ...process.env } : undefined,
       headless,
       executablePath,
-      args,
+      args: launchArgs,
       timeout,
     });
 
@@ -220,10 +221,22 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       if (retries > 0) {
         debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
         await this.navigateTo(url, waitUntil, retries - 1);
+      } else if (status === 403) {
+        const title = await this.page.title();
+        throw this.createNavigationError(url, status, title);
       } else {
         throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
       }
     }
+  }
+
+  private createNavigationError(url: string, status: number, title: string): Error {
+    const isCloudflare = /cloudflare|attention required|just a moment/i.test(title);
+    if (!isCloudflare) {
+      return new Error(`Failed to navigate to url ${url}, status code: ${status}`);
+    }
+    const reason = `Cloudflare blocked access (page title: "${title}"). IP may be flagged as datacenter traffic.`;
+    return new WafBlockError(reason, url, status);
   }
 
   getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
