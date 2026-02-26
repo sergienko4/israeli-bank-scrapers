@@ -37,7 +37,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about">About</a></li>
-    <li><a href="#supported-banks">Supported Banks</a></li>
+    <li><a href="#supported-institutions">Supported Institutions</a></li>
     <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#waf-troubleshooting">WAF Troubleshooting</a></li>
@@ -58,15 +58,15 @@
 
 ### What's different from upstream?
 
-| Feature | Upstream | This Fork |
-|---------|----------|-----------|
-| Cloudflare WAF bypass | No | Automatic retry with exponential backoff (30s/60s/120s) |
-| Anti-detection | Basic | Manual stealth overrides (webdriver, plugins, chrome.runtime) |
+| Feature | Upstream (Puppeteer) | This Fork (Playwright) |
+|---------|---------------------|----------------------|
+| Browser engine | Puppeteer (CDP fingerprint detected) | Playwright (bypasses WAF natively) |
+| Cloudflare WAF bypass | No | First-attempt pass — no stealth or retry needed |
 | WAF error reporting | "Unknown error" | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions |
-| Request interception | Blocks bot detection scripts (detectable) | Removed (CDP detection signal) |
 | Human-like timing | Partial | Full (1.5-3s delay before API calls, randomized form input) |
+| E2E test coverage | 3 banks | All 18 institutions |
 
-Anti-detection and Cloudflare WAF bypass by [@sergienko4](https://github.com/sergienko4). Validated on Amex, Isracard, Discount, and Visa Cal across Azure and Oracle Cloud servers.
+Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
 
 ### Built With
 
@@ -74,41 +74,30 @@ Anti-detection and Cloudflare WAF bypass by [@sergienko4](https://github.com/ser
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Supported Banks
+## Supported Institutions
 
 All 18 Israeli banks and credit card companies:
 
-<table>
-<tr><td>
-
-| Bank | Contributors |
-|------|-------------|
-| Bank Hapoalim | [@sebikaplun](https://github.com/sebikaplun) |
-| Leumi Bank | [@esakal](https://github.com/esakal) |
-| Discount Bank | |
-| Mercantile Bank | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad) |
-| Mizrahi Bank | [@baruchiro](https://github.com/baruchiro) |
-| Otsar Hahayal | [@matanelgabsi](https://github.com/matanelgabsi) |
-| Union Bank | Intuit FDP: [@dratler](https://github.com/dratler), [@kalinoy](https://github.com/kalinoy), [@shanigad](https://github.com/shanigad), [@dudiventura](https://github.com/dudiventura), [@NoamGoren](https://github.com/NoamGoren) |
-| Massad | |
-| Pagi Bank | |
-
-</td><td>
-
-| Bank | Contributors |
-|------|-------------|
-| Visa Cal | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal), [@nirgin](https://github.com/nirgin) |
-| Max (formerly Leumi Card) | |
-| Isracard | WAF bypass by [@sergienko4](https://github.com/sergienko4) |
-| Amex | [@erezd](https://github.com/erezd), WAF bypass by [@sergienko4](https://github.com/sergienko4) |
-| Beinleumi | [@dudiventura](https://github.com/dudiventura) |
-| Yahav | [@gczobel](https://github.com/gczobel) |
-| Beyhad Bishvilha | [@esakal](https://github.com/esakal) |
-| OneZero (experimental) | [@orzarchi](https://github.com/orzarchi) |
-| Behatsdaa | [@daniel-hauser](https://github.com/daniel-hauser) |
-
-</td></tr>
-</table>
+| Institution | Type | Credentials | Contributors |
+|-------------|------|-------------|-------------|
+| Bank Hapoalim | Bank | `userCode`, `password` | [@sebikaplun](https://github.com/sebikaplun) |
+| Bank Leumi | Bank | `username`, `password` | [@esakal](https://github.com/esakal) |
+| Discount Bank | Bank | `id`, `password`, `num` | |
+| Mercantile Bank | Bank | `id`, `password`, `num` | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad) |
+| Mizrahi Tefahot | Bank | `username`, `password` | [@baruchiro](https://github.com/baruchiro) |
+| Bank Otsar Hahayal | Bank | `username`, `password` | [@matanelgabsi](https://github.com/matanelgabsi) |
+| Union Bank | Bank | `username`, `password` | [@dratler](https://github.com/dratler), [@dudiventura](https://github.com/dudiventura) |
+| Bank Yahav | Bank | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel) |
+| Bank Massad | Bank | `username`, `password` | |
+| Pagi Bank | Bank | `username`, `password` | |
+| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi) |
+| Beinleumi | Bank | `username`, `password` | [@dudiventura](https://github.com/dudiventura) |
+| Beyahad Bishvilha | Bank | `id`, `password` | [@esakal](https://github.com/esakal) |
+| Behatsdaa | Bank | `id`, `password` | [@daniel-hauser](https://github.com/daniel-hauser) |
+| Amex | Credit Card | `id`, `card6Digits`, `password` | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4) |
+| Isracard | Credit Card | `id`, `card6Digits`, `password` | [@sergienko4](https://github.com/sergienko4) |
+| Visa Cal | Credit Card | `username`, `password` | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal) |
+| Max | Credit Card | `username`, `password` | |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -156,22 +145,7 @@ if (result.success) {
 }
 ```
 
-### Credentials per Bank
-
-| Bank | Fields |
-|------|--------|
-| Hapoalim | `userCode`, `password` |
-| Leumi | `username`, `password` |
-| Discount, Mercantile | `id`, `password`, `num` |
-| Mizrahi | `username`, `password` |
-| Otsar Hahayal, Visa Cal, Max | `username`, `password` |
-| Isracard, Amex | `id`, `card6Digits`, `password` |
-| Yahav | `username`, `password`, `nationalID` |
-| Beinleumi, Massad | `username`, `password` |
-| Beyhad Bishvilha, Behatsdaa | `id`, `password` |
-| Pagi | `username`, `password` |
-
-All scrapers support up to one year of transaction history.
+All scrapers support up to one year of transaction history. See credentials per institution in the [Supported Institutions](#supported-institutions) table.
 
 ### Result Structure
 
@@ -221,16 +195,15 @@ import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
 
 ## WAF Troubleshooting
 
-When Cloudflare blocks access, the scraper returns `errorType: 'WAF_BLOCKED'` with actionable suggestions:
+Playwright bypasses most Cloudflare challenges automatically. If you still get `errorType: 'WAF_BLOCKED'`:
 
-| Scenario | What happens | Suggestions |
-|----------|-------------|-------------|
-| First-time 403 | Cloudflare challenge page, auto-retry with 30s backoff | Usually resolves on 2nd attempt |
-| Repeated blocks | IP flagged from too many rapid attempts | Wait 1-2 hours between scrape runs |
-| Datacenter IP | Oracle Cloud, AWS IPs are lower trust | Use Azure or residential proxy |
-| Turnstile CAPTCHA | Cannot be solved by headless Chrome | Use a trusted IP provider |
+| Scenario | What happens | Fix |
+|----------|-------------|-----|
+| API-level 403 | Login succeeds but API calls blocked | Wait 1-2 hours, reduce scrape frequency |
+| Datacenter IP block | Cloud provider IPs rate-limited | Use residential proxy or Azure |
+| Turnstile CAPTCHA | Interactive challenge on login page | Use a trusted IP provider |
 
-> **Tip:** run scrapes 1-2 times per day with at least 1 hour between runs for best results.
+> **Tip:** Playwright passes WAF on first attempt from most IPs. No stealth or retry needed.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
