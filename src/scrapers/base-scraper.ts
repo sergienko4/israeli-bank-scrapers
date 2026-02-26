@@ -23,7 +23,7 @@ const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
 function categorizeError(e: unknown): ErrorResult {
   if (e instanceof TimeoutError) return createTimeoutError((e as Error).message);
-  if (e instanceof WafBlockError) return createWafBlockedError((e as Error).message);
+  if (e instanceof WafBlockError) return createWafBlockedError(e.message, e.details);
   return createGenericError((e as Error).message);
 }
 

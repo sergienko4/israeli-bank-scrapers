@@ -222,21 +222,26 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
         debug(`Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`);
         await this.navigateTo(url, waitUntil, retries - 1);
       } else if (status === 403) {
-        const title = await this.page.title();
-        throw this.createNavigationError(url, status, title);
+        await this.handleCloudflareChallenge(url);
       } else {
         throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
       }
     }
   }
 
-  private createNavigationError(url: string, status: number, title: string): Error {
-    const isCloudflare = /cloudflare|attention required|just a moment/i.test(title);
+  private async handleCloudflareChallenge(url: string): Promise<void> {
+    const title = await this.page.title();
+    const isCloudflare = /cloudflare|attention required|just a moment|רק רגע/i.test(title);
     if (!isCloudflare) {
-      return new Error(`Failed to navigate to url ${url}, status code: ${status}`);
+      throw new Error(`Failed to navigate to url ${url}, status code: 403`);
     }
-    const reason = `Cloudflare blocked access (page title: "${title}"). IP may be flagged as datacenter traffic.`;
-    return new WafBlockError(reason, url, status);
+    debug('Cloudflare challenge detected (title="%s"), waiting up to 15s...', title);
+    try {
+      await this.page.waitForFunction((t: string) => document.title !== t, { timeout: 15000 }, title);
+      debug('Cloudflare challenge resolved, new title: "%s"', await this.page.title());
+    } catch {
+      throw WafBlockError.cloudflareBlock(403, title, url);
+    }
   }
 
   getLoginOptions(_credentials: ScraperCredentials): LoginOptions {

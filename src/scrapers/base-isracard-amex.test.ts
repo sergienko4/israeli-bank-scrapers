@@ -23,6 +23,7 @@ jest.mock('../helpers/browser', () => ({
 }));
 jest.mock('../helpers/waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
+  humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn((actions: (() => Promise<any>)[]) => {
     return actions.reduce((p, a) => p.then(async r => [...r, await a()]), Promise.resolve([] as any[]));
   }),
@@ -156,12 +157,14 @@ describe('login', () => {
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
   });
 
-  it('returns WafBlocked when validateCredentials returns null', async () => {
+  it('returns WafBlocked with details when validateCredentials returns null', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(null);
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
     expect(result.errorMessage).toContain('WAF blocked');
+    expect(result.errorDetails).toBeDefined();
+    expect(result.errorDetails?.suggestions.length).toBeGreaterThan(0);
   });
 
   it('returns WafBlocked when validate Header.Status is not 1', async () => {
@@ -169,6 +172,7 @@ describe('login', () => {
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result.errorDetails).toBeDefined();
   });
 });
 
