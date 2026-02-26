@@ -5,6 +5,7 @@ import { getDebug } from '../helpers/debug';
 import { applyAntiDetection } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
+import { sleep } from '../helpers/waiting';
 import { BaseScraper } from './base-scraper';
 import { ScraperErrorTypes, WafBlockError } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
@@ -230,17 +231,42 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
   }
 
   private async handleCloudflareChallenge(url: string): Promise<void> {
-    const title = await this.page.title();
-    const isCloudflare = /cloudflare|attention required|just a moment|רק רגע/i.test(title);
-    if (!isCloudflare) {
-      throw new Error(`Failed to navigate to url ${url}, status code: 403`);
+    const MAX_RETRIES = 3;
+    const BASE_DELAY_MS = 30_000;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const title = await this.page.title();
+      if (!this.isCloudflareTitle(title)) {
+        if (attempt > 0) debug('Cloudflare challenge resolved after %d retries', attempt);
+        return;
+      }
+
+      debug('Cloudflare challenge (attempt %d/%d, title="%s")', attempt + 1, MAX_RETRIES + 1, title);
+
+      if (await this.tryWaitForChallenge(title)) return;
+
+      if (attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        debug('Challenge failed, backing off %ds...', delay / 1000);
+        await sleep(delay);
+        await this.page.reload({ waitUntil: 'load' });
+      }
     }
-    debug('Cloudflare challenge detected (title="%s"), waiting up to 15s...', title);
+
+    throw WafBlockError.cloudflareBlock(403, await this.page.title(), url);
+  }
+
+  private isCloudflareTitle(title: string): boolean {
+    return /cloudflare|attention required|just a moment|רק רגע/i.test(title);
+  }
+
+  private async tryWaitForChallenge(title: string): Promise<boolean> {
     try {
       await this.page.waitForFunction((t: string) => document.title !== t, { timeout: 15000 }, title);
-      debug('Cloudflare challenge resolved, new title: "%s"', await this.page.title());
+      debug('Challenge resolved, new title: "%s"', await this.page.title());
+      return true;
     } catch {
-      throw WafBlockError.cloudflareBlock(403, title, url);
+      return false;
     }
   }
 
