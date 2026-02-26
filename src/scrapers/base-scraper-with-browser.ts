@@ -135,6 +135,17 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     return context.newPage();
   }
 
+  private warnIfMismatchedBrowser(browser: Browser) {
+    const version = browser.version();
+    if (!version.includes('131')) {
+      debug(
+        'WARNING: Browser version %s does not match Playwright 1.58 (expects Chromium ~131). ' +
+          'Use npx playwright install chromium instead of system Chromium.',
+        version,
+      );
+    }
+  }
+
   private registerBrowserCleanup(browser: Browser) {
     this.cleanups.push(async () => {
       debug('closing the browser');
@@ -163,6 +174,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     debug(`launch a browser with headless mode = ${headless}`);
 
     const browser = await chromium.launch({ headless, executablePath, args, timeout });
+    this.warnIfMismatchedBrowser(browser);
     this.registerBrowserCleanup(browser);
 
     if (this.options.prepareBrowser) {
