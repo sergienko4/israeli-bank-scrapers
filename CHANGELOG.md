@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.2...v7.0.0) (2026-02-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* browser/browserContext/preparePage options now expect Playwright types. getPuppeteerConfig() removed.
+
+### Features
+
+* migrate from Puppeteer to Playwright ([#54](https://github.com/sergienko4/israeli-bank-scrapers/issues/54)) ([4974e0f](https://github.com/sergienko4/israeli-bank-scrapers/commit/4974e0f1e49fd4545ac01249df0f23ef2dafd93f))
+
 ## [6.9.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.1...v6.9.2) (2026-02-26)
 
 
