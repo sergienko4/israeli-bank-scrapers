@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.0...v7.0.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* add 403 retry with 15s delay for WAF-blocked datacenter IPs ([#57](https://github.com/sergienko4/israeli-bank-scrapers/issues/57)) ([98eadd7](https://github.com/sergienko4/israeli-bank-scrapers/commit/98eadd70d318a66574cb4a3328d10a4e1ee66ba7))
+
 ## [7.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v6.9.2...v7.0.0) (2026-02-26)
 
 
