@@ -57,7 +57,7 @@ jobs:
   e2e-real:
     name: E2E Real Bank Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -77,7 +77,6 @@ jobs:
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          # Discount Bank blocks datacenter IPs — run locally only
-          # DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
-          # DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
-          # DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
