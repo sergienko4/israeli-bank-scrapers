@@ -4,6 +4,8 @@ import { getDebug } from '../helpers/debug';
 import { buildContextOptions } from '../helpers/browser';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../helpers/navigation';
+import { extractCredentialKey, resolveFieldContext } from '../helpers/selector-resolver';
+import { type FieldConfig } from './login-config';
 import { sleep } from '../helpers/waiting';
 import { BaseScraper } from './base-scraper';
 import { ScraperErrorTypes } from './errors';
@@ -36,7 +38,13 @@ export type PossibleLoginResults = {
 export interface LoginOptions {
   loginUrl: string;
   checkReadiness?: () => Promise<void>;
-  fields: { selector: string; value: string }[];
+  /**
+   * Each field carries the CSS selector and value to type.
+   * `credentialKey` is optional — when provided it enables WELL_KNOWN_SELECTORS
+   * (Round 3) lookup so the field is found even if the CSS id changes.
+   * If omitted, the key is inferred from the selector via extractCredentialKey().
+   */
+  fields: { selector: string; value: string; credentialKey?: string }[];
   submitButtonSelector: string | (() => Promise<void>);
   preAction?: () => Promise<Frame | void>;
   postAction?: () => Promise<void>;
@@ -88,6 +96,15 @@ async function safeCleanup(cleanup: () => Promise<void>) {
 
 class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends BaseScraper<TCredentials> {
   private cleanups: Array<() => Promise<void>> = [];
+  /**
+   * Tracks the Page/Frame context where form inputs were last found.
+   * Set during fillInputs() when Round 4 (iframe detection) resolves a field
+   * inside a child iframe instead of the main page.
+   * The submit button click reuses this frame so the entire login interaction
+   * stays within the same context.
+   * Reset to null at the start of each login() call.
+   */
+  protected activeLoginContext: Page | Frame | null = null;
 
   // NOTICE - it is discouraged to use bang (!) in general. It is used here because
   // all the classes that inherit from this base assume is it mandatory.
@@ -233,16 +250,26 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     throw new Error(`getLoginOptions() is not created in ${this.options.companyId}`);
   }
 
-  async fillInputs(pageOrFrame: Page | Frame, fields: { selector: string; value: string }[]): Promise<void> {
-    const modified = [...fields];
-    const input = modified.shift();
-
-    if (!input) {
-      return;
-    }
-    await fillInput(pageOrFrame, input.selector, input.value);
-    if (modified.length) {
-      await this.fillInputs(pageOrFrame, modified);
+  async fillInputs(
+    pageOrFrame: Page | Frame,
+    fields: { selector: string; value: string; credentialKey?: string }[],
+  ): Promise<void> {
+    for (const field of fields) {
+      const key = field.credentialKey ?? extractCredentialKey(field.selector);
+      const fc: FieldConfig = { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
+      try {
+        // Resolves via: Round 1 (CSS id) → Round 3 (WELL_KNOWN_SELECTORS) → Round 4 (iframes)
+        const { selector, context } = await resolveFieldContext(
+          this.activeLoginContext ?? pageOrFrame,
+          fc,
+          this.page.url(),
+        );
+        this.activeLoginContext = context; // track iframe if detected
+        await fillInput(context, selector, field.value);
+      } catch {
+        // Fall back to direct fillInput when selector resolution fails.
+        await fillInput(this.activeLoginContext ?? pageOrFrame, field.selector, field.value);
+      }
     }
   }
 
@@ -251,6 +278,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       return createGeneralError();
     }
 
+    this.activeLoginContext = null; // reset before each login
     debug('execute login process');
     const loginOptions = this.getLoginOptions(credentials);
 
@@ -273,8 +301,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     debug('fill login components input with relevant values');
     await this.fillInputs(loginFrameOrPage, loginOptions.fields);
     debug('click on login submit button');
+    // Use the iframe where inputs were found (if Round 4 detected one); else the original context.
+    const submitCtx = this.activeLoginContext ?? loginFrameOrPage;
     if (typeof loginOptions.submitButtonSelector === 'string') {
-      await clickButton(loginFrameOrPage, loginOptions.submitButtonSelector);
+      await clickButton(submitCtx, loginOptions.submitButtonSelector);
     } else {
       await loginOptions.submitButtonSelector();
     }
