@@ -3,31 +3,20 @@ import { type Page } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import {
   clickButton,
-  elementPresentOnPage,
   pageEvalAll,
   waitUntilElementDisappear,
   waitUntilElementFound,
 } from '../helpers/elements-interactions';
-import { waitForNavigation } from '../helpers/navigation';
 import { getRawTransaction } from '../helpers/transactions';
 import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
 import { type ScraperOptions } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
-const LOGIN_URL = 'https://login.yahav.co.il/login/';
-const BASE_URL = 'https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/';
-const INVALID_DETAILS_SELECTOR = '.ui-dialog-buttons';
-const CHANGE_PASSWORD_OLD_PASS = 'input#ef_req_parameter_old_credential';
-const BASE_WELCOME_URL = `${BASE_URL}main/home`;
-
-const ACCOUNT_ID_SELECTOR = 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]';
 const ACCOUNT_DETAILS_SELECTOR = '.account-details';
+const ACCOUNT_ID_SELECTOR = 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]';
 const DATE_FORMAT = 'DD/MM/YYYY';
-
-const USER_ELEM = '#username';
-const PASSWD_ELEM = '#password';
-const NATIONALID_ELEM = '#pinno';
-const SUBMIT_LOGIN_SELECTOR = '.btn';
 
 interface ScrapedTransaction {
   credit: string;
@@ -37,25 +26,6 @@ interface ScrapedTransaction {
   description: string;
   memo: string;
   status: TransactionStatuses;
-}
-
-function getPossibleLoginResults(page: Page): PossibleLoginResults {
-  // checkout file `base-scraper-with-browser.ts` for available result types
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [`${BASE_WELCOME_URL}`];
-  urls[LoginResults.InvalidPassword] = [
-    async () => {
-      return elementPresentOnPage(page, `${INVALID_DETAILS_SELECTOR}`);
-    },
-  ];
-
-  urls[LoginResults.ChangePassword] = [
-    async () => {
-      return elementPresentOnPage(page, `${CHANGE_PASSWORD_OLD_PASS}`);
-    },
-  ];
-
-  return urls;
 }
 
 async function getAccountID(page: Page): Promise<string> {
@@ -245,46 +215,11 @@ async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOpt
   return accounts;
 }
 
-async function waitReadinessForAll(page: Page) {
-  await waitUntilElementFound(page, `${USER_ELEM}`, true);
-  await waitUntilElementFound(page, `${PASSWD_ELEM}`, true);
-  await waitUntilElementFound(page, `${NATIONALID_ELEM}`, true);
-  await waitUntilElementFound(page, `${SUBMIT_LOGIN_SELECTOR}`, true);
-}
-
-async function redirectOrDialog(page: Page) {
-  // Click on bank messages if any.
-  await waitForNavigation(page);
-  await waitUntilElementDisappear(page, '.loading-bar-spinner');
-  const hasMessage = await elementPresentOnPage(page, '.messaging-links-container');
-  if (hasMessage) {
-    await clickButton(page, '.link-1');
-  }
-
-  const promise1 = page.waitForSelector(ACCOUNT_DETAILS_SELECTOR, { timeout: 30000 });
-  const promise2 = page.waitForSelector(CHANGE_PASSWORD_OLD_PASS, { timeout: 30000 });
-  const promises = [promise1, promise2];
-
-  await Promise.race(promises);
-  await waitUntilElementDisappear(page, '.loading-bar-spinner');
-}
-
 type ScraperSpecificCredentials = { username: string; password: string; nationalID: string };
 
-class YahavScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: `${LOGIN_URL}`,
-      fields: [
-        { selector: `${USER_ELEM}`, value: credentials.username },
-        { selector: `${PASSWD_ELEM}`, value: credentials.password },
-        { selector: `${NATIONALID_ELEM}`, value: credentials.nationalID },
-      ],
-      submitButtonSelector: `${SUBMIT_LOGIN_SELECTOR}`,
-      checkReadiness: async () => waitReadinessForAll(this.page),
-      postAction: async () => redirectOrDialog(this.page),
-      possibleResults: getPossibleLoginResults(this.page),
-    };
+class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.yahav]!);
   }
 
   async fetchData() {

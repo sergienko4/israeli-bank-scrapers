@@ -12,7 +12,7 @@ import { waitForNavigation } from '../helpers/navigation';
 import { getRawTransaction } from '../helpers/transactions';
 import { sleep } from '../helpers/waiting';
 import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
+import { GenericBankScraper } from './generic-bank-scraper';
 import { type ScraperOptions } from './interface';
 
 const DATE_FORMAT = 'DD/MM/YYYY';
@@ -47,24 +47,6 @@ interface ScrapedTransaction {
   memo?: string;
   description: string;
   status: TransactionStatuses;
-}
-
-export function getPossibleLoginResults(): PossibleLoginResults {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [
-    /fibi.*accountSummary/, // New UI pattern
-    /Resources\/PortalNG\/shell/, // New UI pattern
-    /FibiMenu\/Online/, // Old UI pattern
-  ];
-  urls[LoginResults.InvalidPassword] = [/FibiMenu\/Marketing\/Private\/Home/];
-  return urls;
-}
-
-export function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#username', value: credentials.username },
-    { selector: '#password', value: credentials.password },
-  ];
 }
 
 function getAmountData(amountStr: string) {
@@ -502,27 +484,12 @@ async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOpt
 
 type ScraperSpecificCredentials = { username: string; password: string };
 
-class BeinleumiGroupBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  BASE_URL = '';
+abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  abstract BASE_URL: string;
 
-  LOGIN_URL = '';
+  abstract TRANSACTIONS_URL: string;
 
-  TRANSACTIONS_URL = '';
-
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: `${this.LOGIN_URL}`,
-      fields: createLoginFields(credentials),
-      submitButtonSelector: '#continueBtn',
-      postAction: async () => waitForPostLogin(this.page),
-      possibleResults: getPossibleLoginResults(),
-      // HACK: For some reason, though the login button (#continueBtn) is present and visible, the click action does not perform.
-      // Adding this delay fixes the issue.
-      preAction: async () => {
-        await sleep(1000);
-      },
-    };
-  }
+  // loginConfig is provided by concrete subclasses via BANK_REGISTRY — getLoginOptions() is handled by GenericBankScraper
 
   async fetchData() {
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');

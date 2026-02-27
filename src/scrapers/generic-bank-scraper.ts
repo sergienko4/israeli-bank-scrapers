@@ -66,8 +66,13 @@ export abstract class GenericBankScraper<
       submitButtonSelector: async () => {
         // activeLoginContext (from base class) is set after fillInputs if an iframe was detected.
         const ctx = this.activeLoginContext ?? page;
-        const { selector, context } = await resolveFieldContext(ctx, submitField, page.url());
-        await clickButton(context, selector);
+        try {
+          const { selector, context } = await resolveFieldContext(ctx, submitField, page.url());
+          await clickButton(context, selector);
+        } catch {
+          // Fall back to the first configured submit candidate when resolution fails.
+          await clickButton(ctx, candidateToCss(submitCands[0]));
+        }
       },
       checkReadiness: config.checkReadiness ? () => config.checkReadiness!(page) : undefined,
       preAction: config.preAction ? () => config.preAction!(page) : undefined,
@@ -85,14 +90,25 @@ export abstract class GenericBankScraper<
       const fieldConfig = this.fieldConfigs[i];
       const value = fields[i].value;
       if (fieldConfig) {
-        // Use full FieldConfig (explicit display-name candidates from LoginConfig) for Rounds 1-4.
-        const { selector, context } = await resolveFieldContext(
-          this.activeLoginContext ?? pageOrFrame,
-          fieldConfig,
-          this.page.url(),
-        );
-        this.activeLoginContext = context;
-        await fillInput(context, selector, value);
+        try {
+          // Use full FieldConfig (explicit display-name candidates from LoginConfig) for Rounds 1-4.
+          const { selector, context } = await resolveFieldContext(
+            this.activeLoginContext ?? pageOrFrame,
+            fieldConfig,
+            this.page.url(),
+          );
+          this.activeLoginContext = context;
+          await fillInput(context, selector, value);
+        } catch (resolveError) {
+          // Fall back to direct fillInput when selector resolution fails.
+          // Re-throws the original resolution error if the fallback also fails,
+          // so callers see the descriptive "Could not find" message.
+          try {
+            await fillInput(this.activeLoginContext ?? pageOrFrame, fields[i].selector, value);
+          } catch {
+            throw resolveError;
+          }
+        }
       } else {
         await fillInput(this.activeLoginContext ?? pageOrFrame, fields[i].selector, value);
       }

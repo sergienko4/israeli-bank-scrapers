@@ -3,10 +3,12 @@ import { type Page } from 'playwright';
 import { v4 as uuid4 } from 'uuid';
 import { getDebug } from '../helpers/debug';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
-import { waitForRedirect } from '../helpers/navigation';
+import {} from '../helpers/navigation';
 import { waitUntil } from '../helpers/waiting';
 import { type Transaction, TransactionStatuses, TransactionTypes, type TransactionsAccount } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 import { type ScraperOptions } from './interface';
 import { getRawTransaction } from '../helpers/transactions';
 
@@ -255,45 +257,15 @@ async function fetchAccountData(page: Page, baseUrl: string, options: ScraperOpt
   return accountData;
 }
 
-function getPossibleLoginResults(baseUrl: string) {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [
-    `${baseUrl}/portalserver/HomePage`,
-    `${baseUrl}/ng-portals-bt/rb/he/homepage`,
-    `${baseUrl}/ng-portals/rb/he/homepage`,
-  ];
-  urls[LoginResults.InvalidPassword] = [
-    `${baseUrl}/AUTHENTICATE/LOGON?flow=AUTHENTICATE&state=LOGON&errorcode=1.6&callme=false`,
-  ];
-  urls[LoginResults.ChangePassword] = [
-    `${baseUrl}/MCP/START?flow=MCP&state=START&expiredDate=null`,
-    /\/ABOUTTOEXPIRE\/START/i,
-  ];
-  return urls;
-}
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#userCode', value: credentials.userCode },
-    { selector: '#password', value: credentials.password },
-  ];
-}
-
 type ScraperSpecificCredentials = { userCode: string; password: string };
 
-class HapoalimScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
+class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   get baseUrl() {
     return 'https://login.bankhapoalim.co.il';
   }
 
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: `${this.baseUrl}/cgi-bin/poalwwwc?reqName=getLogonPage`,
-      fields: createLoginFields(credentials),
-      submitButtonSelector: '.login-btn',
-      postAction: async () => waitForRedirect(this.page),
-      possibleResults: getPossibleLoginResults(this.baseUrl),
-    };
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.hapoalim]!);
   }
 
   async fetchData() {

@@ -1,20 +1,16 @@
 import moment from 'moment';
 import { type Frame, type Page, type Request } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
-import {
-  pageEvalAll,
-  waitUntilElementDisappear,
-  waitUntilElementFound,
-  waitUntilIframeFound,
-} from '../helpers/elements-interactions';
+import { pageEvalAll, waitUntilElementFound, waitUntilIframeFound } from '../helpers/elements-interactions';
 import { fetchPostWithinPage } from '../helpers/fetch';
-import { waitForUrl } from '../helpers/navigation';
 import { type Transaction, TransactionStatuses, TransactionTypes, type TransactionsAccount } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
 import { ScraperErrorTypes } from './errors';
 import { getDebug } from '../helpers/debug';
 import { getRawTransaction } from '../helpers/transactions';
 import { type ScraperOptions } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
 const debug = getDebug('mizrahi');
 
@@ -74,10 +70,7 @@ type MoreDetails = {
   memo: string | undefined;
 };
 
-const BASE_WEBSITE_URL = 'https://www.mizrahi-tefahot.co.il';
-const LOGIN_URL = `${BASE_WEBSITE_URL}/login/index.html#/auth-page-he`;
 const BASE_APP_URL = 'https://mto.mizrahi-tefahot.co.il';
-const AFTER_LOGIN_BASE_URL = /https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/;
 const OSH_PAGE = '/osh/legacy/legacy-Osh-Main';
 const TRANSACTIONS_PAGE = '/osh/legacy/root-main-osh-p428New';
 const TRANSACTIONS_REQUEST_URLS = [
@@ -87,45 +80,12 @@ const TRANSACTIONS_REQUEST_URLS = [
 const PENDING_TRANSACTIONS_PAGE = '/osh/legacy/legacy-Osh-p420';
 const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
 const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
-const CHANGE_PASSWORD_URL = /https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/;
 const DATE_FORMAT = 'DD/MM/YYYY';
 const MAX_ROWS_PER_REQUEST = 10000000000;
 
-const usernameSelector = '#userNumberDesktopHeb';
-const passwordSelector = '#passwordDesktopHeb';
-const submitButtonSelector = 'button.btn.btn-primary';
-const invalidPasswordSelector = 'a[href*="https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx"]';
-const afterLoginSelector = '#dropdownBasic';
-const loginSpinnerSelector = 'div.ngx-overlay.loading-foreground';
 const accountDropDownItemSelector = '#AccountPicker .item';
 const pendingTrxIdentifierId = '#ctl00_ContentPlaceHolder2_panel1';
-const checkingAccountTabHebrewName = 'עובר ושב';
-const checkingAccountTabEnglishName = 'Checking Account';
 const genericDescriptions = ['העברת יומן לבנק זר מסניף זר'];
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: usernameSelector, value: credentials.username },
-    { selector: passwordSelector, value: credentials.password },
-  ];
-}
-
-async function isLoggedIn(options: { page?: Page | undefined } | undefined) {
-  if (!options?.page) {
-    return false;
-  }
-  const oshXPath = `//a//span[contains(., "${checkingAccountTabHebrewName}") or contains(., "${checkingAccountTabEnglishName}")]`;
-  const oshTab = await options.page.$$(`xpath=${oshXPath}`);
-  return oshTab.length > 0;
-}
-
-function getPossibleLoginResults(page: Page): PossibleLoginResults {
-  return {
-    [LoginResults.Success]: [AFTER_LOGIN_BASE_URL, isLoggedIn],
-    [LoginResults.InvalidPassword]: [async () => !!(await page.$(invalidPasswordSelector))],
-    [LoginResults.ChangePassword]: [CHANGE_PASSWORD_URL],
-  };
-}
 
 function getStartMoment(optionsStartDate: Date) {
   const defaultStartMoment = moment().subtract(1, 'years');
@@ -274,26 +234,11 @@ async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
     }));
 }
 
-async function postLogin(page: Page) {
-  await Promise.race([
-    waitUntilElementFound(page, afterLoginSelector),
-    waitUntilElementFound(page, invalidPasswordSelector),
-    waitForUrl(page, CHANGE_PASSWORD_URL),
-  ]);
-}
-
 type ScraperSpecificCredentials = { username: string; password: string };
 
-class MizrahiScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: LOGIN_URL,
-      fields: createLoginFields(credentials),
-      submitButtonSelector,
-      checkReadiness: async () => waitUntilElementDisappear(this.page, loginSpinnerSelector),
-      postAction: async () => postLogin(this.page),
-      possibleResults: getPossibleLoginResults(this.page),
-    };
+class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.mizrahi]!);
   }
 
   async fetchData() {

@@ -12,14 +12,14 @@ import { getDebug } from '../helpers/debug';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getRawTransaction, filterOldTransactions } from '../helpers/transactions';
 import { TransactionStatuses, TransactionTypes, type Transaction } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
 import { type ScraperOptions } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
 const debug = getDebug('beyahadBishvilha');
 
 const DATE_FORMAT = 'DD/MM/YY';
-const LOGIN_URL = 'https://www.hist.org.il/login';
-const SUCCESS_URL = 'https://www.hist.org.il/';
 const CARD_URL = 'https://www.hist.org.il/card/balanceAndUses';
 
 interface ScrapedTransaction {
@@ -143,25 +143,9 @@ async function fetchTransactions(page: Page, options: ScraperOptions) {
   };
 }
 
-function getPossibleLoginResults(): PossibleLoginResults {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [SUCCESS_URL];
-  urls[LoginResults.ChangePassword] = []; // TODO
-  urls[LoginResults.InvalidPassword] = []; // TODO
-  urls[LoginResults.UnknownError] = []; // TODO
-  return urls;
-}
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#loginId', value: credentials.id },
-    { selector: '#loginPassword', value: credentials.password },
-  ];
-}
-
 type ScraperSpecificCredentials = { id: string; password: string };
 
-class BeyahadBishvilhaScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
+class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   protected getViewPort(): { width: number; height: number } {
     return {
       width: 1500,
@@ -169,18 +153,8 @@ class BeyahadBishvilhaScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: LOGIN_URL,
-      fields: createLoginFields(credentials),
-      submitButtonSelector: async () => {
-        const button = await this.page.$('xpath=//button[contains(., "התחבר")]');
-        if (button) {
-          await button.click();
-        }
-      },
-      possibleResults: getPossibleLoginResults(),
-    };
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.beyahadBishvilha]!);
   }
 
   async fetchData() {

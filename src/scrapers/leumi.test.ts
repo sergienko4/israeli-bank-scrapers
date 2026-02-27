@@ -88,6 +88,11 @@ describe('login', () => {
   it('succeeds with valid credentials', async () => {
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
+    if (!result.success)
+      console.log(
+        'LEUMI FAILURE:',
+        JSON.stringify({ errorType: result.errorType, errorMessage: result.errorMessage?.substring(0, 200) }),
+      );
 
     expect(result.success).toBe(true);
     expect(buildContextOptions).toHaveBeenCalled();

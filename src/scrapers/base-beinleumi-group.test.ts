@@ -4,8 +4,11 @@ import { clickButton, elementPresentOnPage, pageEvalAll } from '../helpers/eleme
 import { buildContextOptions } from '../helpers/browser';
 import { sleep } from '../helpers/waiting';
 import { getCurrentUrl } from '../helpers/navigation';
+import { CompanyTypes } from '../definitions';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeinleumiGroupBaseScraper from './base-beinleumi-group';
+import { BANK_REGISTRY } from './bank-registry';
+import { type ScraperOptions } from './interface';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
@@ -38,9 +41,11 @@ jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
   BASE_URL = 'https://test.fibi.co.il';
 
-  LOGIN_URL = 'https://test.fibi.co.il/login';
-
   TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
+
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.beinleumi]!);
+  }
 }
 
 const mockContext = {

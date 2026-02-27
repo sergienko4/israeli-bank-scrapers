@@ -1,15 +1,13 @@
 import moment from 'moment';
 import { getDebug } from '../helpers/debug';
-import { waitUntilElementFound } from '../helpers/elements-interactions';
 import { fetchPostWithinPage } from '../helpers/fetch';
-import { sleep } from '../helpers/waiting';
 import { getRawTransaction } from '../helpers/transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../transactions';
-import { BaseScraperWithBrowser, type LoginOptions, LoginResults } from './base-scraper-with-browser';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
-const BASE_URL = 'https://www.behatsdaa.org.il';
-const LOGIN_URL = `${BASE_URL}/login`;
 const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
 
 const debug = getDebug('behatsdaa');
@@ -57,36 +55,9 @@ function variantToTransaction(variant: Variant, options?: ScraperOptions): Trans
   return result;
 }
 
-class BehatsdaaScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  public getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
-    return {
-      loginUrl: LOGIN_URL,
-      fields: [
-        { selector: '#loginId', value: credentials.id },
-        { selector: '#loginPassword', value: credentials.password },
-      ],
-      checkReadiness: async () => {
-        await Promise.all([
-          waitUntilElementFound(this.page, '#loginPassword'),
-          waitUntilElementFound(this.page, '#loginId'),
-        ]);
-      },
-      possibleResults: {
-        [LoginResults.Success]: [`${BASE_URL}/`],
-        [LoginResults.InvalidPassword]: ['.custom-input-error-label'],
-      },
-      submitButtonSelector: async () => {
-        await sleep(1000);
-        debug('Trying to find submit button');
-        const button = await this.page.$('xpath=//button[contains(., "התחברות")]');
-        if (button) {
-          debug('Submit button found');
-          await button.click();
-        } else {
-          debug('Submit button not found');
-        }
-      },
-    };
+class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.behatsdaa]!);
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {

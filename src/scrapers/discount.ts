@@ -1,13 +1,14 @@
 import _ from 'lodash';
 import moment from 'moment';
 import { type Page } from 'playwright';
-import { waitUntilElementFound } from '../helpers/elements-interactions';
 import { fetchGetWithinPage } from '../helpers/fetch';
-import { waitForNavigation } from '../helpers/navigation';
 import { getRawTransaction } from '../helpers/transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 import { ScraperErrorTypes } from './errors';
+import { type LoginConfig } from './login-config';
 import { type ScraperOptions, type ScraperScrapingResult } from './interface';
 
 const BASE_URL = 'https://start.telebank.co.il';
@@ -136,46 +137,11 @@ async function fetchAccountData(page: Page, options: ScraperOptions): Promise<Sc
   return accountData;
 }
 
-async function navigateOrErrorLabel(page: Page) {
-  try {
-    await waitForNavigation(page);
-  } catch {
-    await waitUntilElementFound(page, '#general-error', false, 100);
-  }
-}
-
-function getPossibleLoginResults(): PossibleLoginResults {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [
-    `${BASE_URL}/apollo/retail/#/MY_ACCOUNT_HOMEPAGE`,
-    `${BASE_URL}/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE`,
-    `${BASE_URL}/apollo/retail2/`,
-  ];
-  urls[LoginResults.InvalidPassword] = [`${BASE_URL}/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE`];
-  urls[LoginResults.ChangePassword] = [`${BASE_URL}/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW`];
-  return urls;
-}
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#tzId', value: credentials.id },
-    { selector: '#tzPassword', value: credentials.password },
-    { selector: '#aidnum', value: credentials.num },
-  ];
-}
-
 type ScraperSpecificCredentials = { id: string; password: string; num: string };
 
-class DiscountScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: `${BASE_URL}/login/#/LOGIN_PAGE`,
-      checkReadiness: async () => waitUntilElementFound(this.page, '#tzId'),
-      fields: createLoginFields(credentials),
-      submitButtonSelector: '.sendBtn',
-      postAction: async () => navigateOrErrorLabel(this.page),
-      possibleResults: getPossibleLoginResults(),
-    };
+class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions, config: LoginConfig = BANK_REGISTRY[CompanyTypes.discount]!) {
+    super(options, config);
   }
 
   async fetchData() {

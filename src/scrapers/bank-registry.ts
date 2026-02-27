@@ -58,7 +58,7 @@ async function discountPostAction(page: Page) {
   try {
     await waitForNavigation(page);
   } catch {
-    await page.waitForSelector('#general-error');
+    await waitUntilElementFound(page, '#general-error', false, 100);
   }
 }
 
@@ -137,7 +137,7 @@ async function mizrahiPostAction(page: Page) {
   await Promise.race([
     waitUntilElementFound(page, '#dropdownBasic'),
     waitUntilElementFound(page, MIZRAHI_INVALID_SELECTOR),
-    page.waitForURL(/https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/),
+    waitForNavigation(page), // matches original postLogin which waited for navigation/URL change
   ]);
 }
 
@@ -171,7 +171,7 @@ async function maxPostAction(page: Page) {
 // ─── Yahav helpers ────────────────────────────────────────────────────────────
 
 async function yahavPostAction(page: Page) {
-  await waitForRedirect(page);
+  await waitForNavigation(page); // matches original redirectOrDialog which used waitForNavigation
   await waitUntilElementDisappear(page, '.loader');
   if (await elementPresentOnPage(page, '.messaging-links-container')) {
     await clickButton(page, '.link-1');

@@ -3,9 +3,7 @@ import { type Page } from 'playwright';
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../constants';
 import getAllMonthMoments from '../helpers/dates';
 import { getDebug } from '../helpers/debug';
-import { clickButton, elementPresentOnPage, waitUntilElementFound } from '../helpers/elements-interactions';
 import { fetchGetWithinPage } from '../helpers/fetch';
-import { waitForRedirect } from '../helpers/navigation';
 import {
   filterOldTransactions,
   fixInstallments,
@@ -13,13 +11,10 @@ import {
   getRawTransaction,
 } from '../helpers/transactions';
 import { TransactionStatuses, TransactionTypes, type Transaction } from '../transactions';
-import {
-  BaseScraperWithBrowser,
-  LoginResults,
-  type LoginOptions,
-  type PossibleLoginResults,
-} from './base-scraper-with-browser';
 import { type ScraperOptions } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
 const debug = getDebug('max');
 
@@ -44,11 +39,6 @@ export interface ScrapedTransaction {
 }
 
 const BASE_API_ACTIONS_URL = 'https://onlinelcapi.max.co.il';
-const BASE_WELCOME_URL = 'https://www.max.co.il';
-
-const LOGIN_URL = `${BASE_WELCOME_URL}/login`;
-const PASSWORD_EXPIRED_URL = `${BASE_WELCOME_URL}/renew-password`;
-const SUCCESS_URL = `${BASE_WELCOME_URL}/homepage/personal`;
 
 enum MaxPlanName {
   Normal = 'רגילה',
@@ -76,18 +66,7 @@ enum MaxPlanName {
   MonthlyChargeDistribution = 'חלוקת חיוב חודשי',
 }
 
-const INVALID_DETAILS_SELECTOR = '#popupWrongDetails';
-const LOGIN_ERROR_SELECTOR = '#popupCardHoldersLoginError';
-
 const categories = new Map<number, string>();
-
-function redirectOrDialog(page: Page) {
-  return Promise.race([
-    waitForRedirect(page, 20000, false, [BASE_WELCOME_URL, `${BASE_WELCOME_URL}/`]),
-    waitUntilElementFound(page, INVALID_DETAILS_SELECTOR, true),
-    waitUntilElementFound(page, LOGIN_ERROR_SELECTOR, true),
-  ]);
-}
 
 function getTransactionsUrl(monthMoment: Moment) {
   const month = monthMoment.month() + 1;
@@ -326,57 +305,11 @@ async function fetchTransactions(page: Page, options: ScraperOptions) {
   return allResults;
 }
 
-function getPossibleLoginResults(page: Page): PossibleLoginResults {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [SUCCESS_URL];
-  urls[LoginResults.ChangePassword] = [PASSWORD_EXPIRED_URL];
-  urls[LoginResults.InvalidPassword] = [
-    async () => {
-      return elementPresentOnPage(page, INVALID_DETAILS_SELECTOR);
-    },
-  ];
-  urls[LoginResults.UnknownError] = [
-    async () => {
-      return elementPresentOnPage(page, LOGIN_ERROR_SELECTOR);
-    },
-  ];
-  return urls;
-}
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#user-name', value: credentials.username },
-    { selector: '#password', value: credentials.password },
-  ];
-}
-
 type ScraperSpecificCredentials = { username: string; password: string };
 
-class MaxScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
-    return {
-      loginUrl: LOGIN_URL,
-      fields: createLoginFields(credentials),
-      submitButtonSelector: 'app-user-login-form .general-button.send-me-code',
-      preAction: async () => {
-        if (await elementPresentOnPage(this.page, '#closePopup')) {
-          await clickButton(this.page, '#closePopup');
-        }
-        await clickButton(this.page, '.personal-area > a.go-to-personal-area');
-        if (await elementPresentOnPage(this.page, '.login-link#private')) {
-          await clickButton(this.page, '.login-link#private');
-        }
-        await waitUntilElementFound(this.page, '#login-password-link', true);
-        await clickButton(this.page, '#login-password-link');
-        await waitUntilElementFound(this.page, '#login-password.tab-pane.active app-user-login-form', true);
-      },
-      checkReadiness: async () => {
-        await waitUntilElementFound(this.page, '.personal-area > a.go-to-personal-area', true);
-      },
-      postAction: async () => redirectOrDialog(this.page),
-      possibleResults: getPossibleLoginResults(this.page),
-      waitUntil: 'domcontentloaded',
-    };
+class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.max]!);
   }
 
   async fetchData() {

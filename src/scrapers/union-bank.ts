@@ -13,8 +13,10 @@ import {
 import { getRawTransaction } from '../helpers/transactions';
 import { waitForNavigation } from '../helpers/navigation';
 import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
-import { BaseScraperWithBrowser, LoginResults, type PossibleLoginResults } from './base-scraper-with-browser';
 import { type ScraperOptions } from './interface';
+import { CompanyTypes } from '../definitions';
+import { BANK_REGISTRY } from './bank-registry';
+import { GenericBankScraper } from './generic-bank-scraper';
 
 const BASE_URL = 'https://hb.unionbank.co.il';
 const TRANSACTIONS_URL = `${BASE_URL}/eBanking/Accounts/ExtendedActivity.aspx#/`;
@@ -29,20 +31,6 @@ const PENDING_TRANSACTIONS_TABLE_ID = 'trTodayActivityNapaTableUpper';
 const COMPLETED_TRANSACTIONS_TABLE_ID = 'ctlActivityTable';
 const ERROR_MESSAGE_CLASS = 'errInfo';
 const ACCOUNTS_DROPDOWN_SELECTOR = 'select#ddlAccounts_m_ddl';
-
-function getPossibleLoginResults() {
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [/eBanking\/Accounts/];
-  urls[LoginResults.InvalidPassword] = [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/];
-  return urls;
-}
-
-function createLoginFields(credentials: ScraperSpecificCredentials) {
-  return [
-    { selector: '#uid', value: credentials.username },
-    { selector: '#password', value: credentials.password },
-  ];
-}
 
 function getAmountData(amountStr: string) {
   const amountStrCopy = amountStr.replace(',', '');
@@ -299,21 +287,11 @@ async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOpt
   return accounts;
 }
 
-async function waitForPostLogin(page: Page) {
-  return Promise.race([waitUntilElementFound(page, '#signoff', true), waitUntilElementFound(page, '#restore', true)]);
-}
-
 type ScraperSpecificCredentials = { username: string; password: string };
 
-class UnionBankScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      loginUrl: `${BASE_URL}`,
-      fields: createLoginFields(credentials),
-      submitButtonSelector: '#enter',
-      postAction: async () => waitForPostLogin(this.page),
-      possibleResults: getPossibleLoginResults(),
-    };
+class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.union]!);
   }
 
   async fetchData() {
