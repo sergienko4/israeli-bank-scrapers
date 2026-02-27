@@ -5,8 +5,9 @@ import path from 'path';
 interface MockRoute {
   match: string | RegExp;
   method?: 'GET' | 'POST';
-  contentType: string;
-  body: string | ((request: Request) => string);
+  abort?: boolean;
+  contentType?: string;
+  body?: string | ((request: Request) => string);
   status?: number;
 }
 
@@ -24,8 +25,12 @@ export async function setupRequestInterception(page: Page, routes: MockRoute[]):
       const methodMatch = !mockRoute.method || mockRoute.method === method;
 
       if (urlMatch && methodMatch) {
+        if (mockRoute.abort) {
+          await route.abort('failed');
+          return;
+        }
         const body = typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
-        await route.fulfill({ status: mockRoute.status ?? 200, contentType: mockRoute.contentType, body });
+        await route.fulfill({ status: mockRoute.status ?? 200, contentType: mockRoute.contentType!, body });
         return;
       }
     }

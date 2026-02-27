@@ -456,6 +456,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       return {
         success: false,
         errorType: ScraperErrorTypes.InvalidPassword,
+        errorMessage: `Login failed with status: ${loginResult?.status ?? 'unknown'}`,
       };
     }
 
@@ -471,6 +472,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     return {
       success: false,
       errorType: ScraperErrorTypes.InvalidPassword,
+      errorMessage: `Validate failed with returnCode: ${validateReturnCode}`,
     };
   }
 

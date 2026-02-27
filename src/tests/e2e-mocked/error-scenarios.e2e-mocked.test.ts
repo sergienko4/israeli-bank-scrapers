@@ -38,6 +38,27 @@ describe('Error Scenarios: Mocked E2E', () => {
     expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   }, 60000);
 
+  it('handles validate network error (fetch throws inside page.evaluate)', async () => {
+    const scraper = createScraper({
+      companyId: CompanyTypes.amex,
+      startDate: new Date('2026-01-01'),
+      browser,
+      skipCloseBrowser: true,
+      defaultTimeout: 10000,
+      preparePage: async page => {
+        await setupRequestInterception(page, [
+          { match: '/personalarea/Login', contentType: 'text/html', body: '<html><body>Login</body></html>' },
+          { match: 'reqName=ValidateIdData', method: 'POST', abort: true },
+        ]);
+      },
+    });
+
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBeTruthy();
+    expect(result.errorMessage).toMatch(/fetchPostWithinPage error/);
+  }, 60000);
+
   it('handles validate returning invalid response', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.amex,
