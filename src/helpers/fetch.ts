@@ -128,15 +128,22 @@ export async function fetchPostWithinPage<TResult>(
       innerData: Record<string, any>;
       innerExtraHeaders: Record<string, any>;
     }) => {
-      const response = await fetch(innerUrl, {
-        method: 'POST',
-        body: JSON.stringify(innerData),
-        credentials: 'include',
-        headers: Object.assign(
-          { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-          innerExtraHeaders,
-        ),
-      });
+      let response: Response | undefined;
+      try {
+        response = await fetch(innerUrl, {
+          method: 'POST',
+          body: JSON.stringify(innerData),
+          credentials: 'include',
+          headers: Object.assign(
+            { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            innerExtraHeaders,
+          ),
+        });
+      } catch (e) {
+        throw new Error(
+          `fetchPostWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
+        );
+      }
       if (response.status === 204) {
         return [null, 204] as const;
       }
