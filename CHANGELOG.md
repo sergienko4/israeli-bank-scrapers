@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.0.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.2...v7.0.3) (2026-02-27)
+
+
+### Bug Fixes
+
+* surface network errors in fetchPostWithinPage and fix Amex login diagnostics ([#61](https://github.com/sergienko4/israeli-bank-scrapers/issues/61)) ([4da69dd](https://github.com/sergienko4/israeli-bank-scrapers/commit/4da69dd4a5738a0cb4d76813c2dce709cabbb4a3))
+
 ## [7.0.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.1...v7.0.2) (2026-02-26)
 
 
