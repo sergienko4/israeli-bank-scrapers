@@ -67,8 +67,8 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     await waitUntilElementFound(frame, '#regular-login');
     debug('navigate to the password login tab');
     await clickButton(frame, '#regular-login');
-    debug('wait until the password login tab is active');
-    await waitUntilElementFound(frame, 'regular-login');
+    debug('wait until the regular-login form is ready');
+    await waitUntilElementFound(frame, '[formcontrolname="userName"]');
 
     return frame;
   };
