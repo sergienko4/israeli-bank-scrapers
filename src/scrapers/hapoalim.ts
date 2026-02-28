@@ -18,7 +18,7 @@ const DATE_FORMAT = 'YYYYMMDD';
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 declare namespace window {
-  const bnhpApp: any;
+  const bnhpApp: { restContext: string };
 }
 
 interface ScrapedTransaction {
@@ -101,7 +101,7 @@ function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOption
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
-async function getRestContext(page: Page) {
+async function getRestContext(page: Page): Promise<string> {
   await waitUntil(() => {
     return page.evaluate(() => !!window.bnhpApp);
   }, 'waiting for app data load');
@@ -120,7 +120,7 @@ async function fetchPoalimXSRFWithinPage(
 ): Promise<FetchedAccountTransactionsData | null> {
   const cookies = await page.context().cookies();
   const XSRFCookie = cookies.find(cookie => cookie.name === 'XSRF-TOKEN');
-  const headers: Record<string, any> = {};
+  const headers: Record<string, string> = {};
   if (XSRFCookie != null) {
     headers['X-XSRF-TOKEN'] = XSRFCookie.value;
   }
@@ -173,7 +173,7 @@ interface GetAccountTxnsOpts {
   options?: ScraperOptions;
 }
 
-async function getAccountTransactions(opts: GetAccountTxnsOpts) {
+async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
   const { apiSiteUrl, accountNumber, startDate, endDate, baseUrl, page, additionalTransactionInformation = false, options } = opts;
   const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=1000&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=1`;
   const txnsResult = await fetchPoalimXSRFWithinPage(page, txnsUrl, '/current-account/transactions');
@@ -183,7 +183,7 @@ async function getAccountTransactions(opts: GetAccountTxnsOpts) {
   return convertTransactions(finalResult?.transactions ?? [], options);
 }
 
-async function getAccountBalance(apiSiteUrl: string, page: Page, accountNumber: string) {
+async function getAccountBalance(apiSiteUrl: string, page: Page, accountNumber: string): Promise<number | undefined> {
   const balanceAndCreditLimitUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details&lang=he`;
   const balanceAndCreditLimit = await fetchGetWithinPage<BalanceAndCreditLimit>(page, balanceAndCreditLimitUrl);
 
@@ -199,7 +199,7 @@ interface FetchOneAccountOpts {
   options: ScraperOptions;
 }
 
-async function fetchOneAccount(opts: FetchOneAccountOpts) {
+async function fetchOneAccount(opts: FetchOneAccountOpts): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
   const { page, baseUrl, apiSiteUrl, account, dateOpts, options } = opts;
   const accountNumber = `${account.bankNumber}-${account.branchNumber}-${account.accountNumber}`;
   debug('getting information for account %s', accountNumber);
@@ -208,7 +208,7 @@ async function fetchOneAccount(opts: FetchOneAccountOpts) {
   return { accountNumber, balance, txns };
 }
 
-async function fetchAccountData(page: Page, baseUrl: string, options: ScraperOptions) {
+async function fetchAccountData(page: Page, baseUrl: string, options: ScraperOptions): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[] }> {
   const restContext = await getRestContext(page);
   const apiSiteUrl = `${baseUrl}/${restContext}`;
   const accountsInfo = (await fetchGetWithinPage<FetchedAccountData>(page, `${baseUrl}/ServerServices/general/accounts`)) || [];
@@ -225,7 +225,7 @@ async function fetchAccountData(page: Page, baseUrl: string, options: ScraperOpt
 type ScraperSpecificCredentials = { userCode: string; password: string };
 
 class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  get baseUrl() {
+  get baseUrl(): string {
     return 'https://login.bankhapoalim.co.il';
   }
 
@@ -233,7 +233,7 @@ class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.hapoalim]!);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[] }> {
     return fetchAccountData(this.page, this.baseUrl, this.options);
   }
 }

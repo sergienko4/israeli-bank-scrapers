@@ -1,34 +1,46 @@
+import { type Frame, type Page } from 'playwright';
 import { detectOtpScreen, extractPhoneHint, findOtpSubmitSelector, clickOtpTriggerIfPresent } from './otp-detector';
 
 jest.mock('./debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockTryInContext = jest.fn();
 jest.mock('./selector-resolver', () => ({
-  tryInContext: (...args: unknown[]) => mockTryInContext(...args),
+  tryInContext: (...args: unknown[]): unknown => mockTryInContext(...args),
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
 
-function makePage(bodyText: string | undefined): any {
-  const mainFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test') };
+type OtpMockPage = {
+  evaluate: jest.Mock;
+  frames: jest.Mock;
+  mainFrame: jest.Mock;
+  url: jest.Mock;
+  click: jest.Mock;
+  frameLocator: jest.Mock;
+};
+
+function makePage(bodyText: string | undefined): OtpMockPage & Page {
+  const mainFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test') } as unknown as Frame;
   return {
     evaluate: jest.fn().mockResolvedValue(bodyText),
     frames: jest.fn().mockReturnValue([mainFrame]),
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
-  };
+    frameLocator: jest.fn().mockReturnValue({ locator: jest.fn().mockReturnValue({ waitFor: jest.fn().mockRejectedValue(new Error('not found')), hover: jest.fn(), click: jest.fn() }) }),
+  } as unknown as OtpMockPage & Page;
 }
 
-function makePageWithIframe(bodyText: string): any {
-  const mainFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test') };
-  const childFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test/frame') };
+function makePageWithIframe(bodyText: string): OtpMockPage & Page {
+  const mainFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test') } as unknown as Frame;
+  const childFrame = { $: jest.fn().mockResolvedValue(null), url: jest.fn().mockReturnValue('https://bank.test/frame') } as unknown as Frame;
   return {
     evaluate: jest.fn().mockResolvedValue(bodyText),
     frames: jest.fn().mockReturnValue([mainFrame, childFrame]),
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
-  };
+    frameLocator: jest.fn().mockReturnValue({ locator: jest.fn().mockReturnValue({ waitFor: jest.fn().mockRejectedValue(new Error('not found')), hover: jest.fn(), click: jest.fn() }) }),
+  } as unknown as OtpMockPage & Page;
 }
 
 // ── detectOtpScreen ───────────────────────────────────────────────────────────

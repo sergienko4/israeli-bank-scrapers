@@ -8,6 +8,7 @@ import { getCurrentUrl } from '../helpers/navigation';
 import { waitUntil } from '../helpers/waiting';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import VisaCalScraper from './visa-cal';
+import { TrnTypeCode, type ScrapedTransaction, type ScrapedPendingTransaction } from './visa-cal-types';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
@@ -28,18 +29,18 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  filterOldTransactions: jest.fn((txns: any[]) => txns),
-  getRawTransaction: jest.fn((data: any) => data),
+  filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/waiting', () => ({
-  waitUntil: jest.fn(async (fn: () => Promise<any>) => fn()),
+  waitUntil: jest.fn(async <T>(fn: () => Promise<T>) => fn()),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
   sleep: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-function visaCalOptions(overrides: Record<string, any> = {}) {
+function visaCalOptions(overrides: Record<string, unknown> = {}): ReturnType<typeof createMockScraperOptions> {
   return createMockScraperOptions({ startDate: new Date(), futureMonthsToScrape: 0, ...overrides });
 }
 
@@ -54,10 +55,12 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function scrapedTxn(overrides: any = {}): any {
+function scrapedTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     amtBeforeConvAndIndex: 100,
     branchCodeDesc: 'מזון',
+    cashAccManagerName: null,
+    cashAccountManager: null,
     cashAccountTrnAmt: 100,
     chargeExternalToCardComment: '',
     comments: [],
@@ -65,6 +68,8 @@ function scrapedTxn(overrides: any = {}): any {
     debCrdCurrencySymbol: 'ILS',
     debCrdDate: '2025-06-15',
     debitSpreadInd: false,
+    discountAmount: null,
+    discountReason: null,
     immediateComments: [],
     isImmediateCommentInd: false,
     isImmediateHHKInd: false,
@@ -77,6 +82,10 @@ function scrapedTxn(overrides: any = {}): any {
     numOfPayments: 0,
     onGoingTransactionsComment: '',
     refundInd: false,
+    roundingAmount: null,
+    roundingReason: null,
+    tokenInd: 0,
+    tokenNumberPart4: '',
     transCardPresentInd: false,
     transTypeCommentDetails: [],
     trnAmt: 100,
@@ -86,7 +95,7 @@ function scrapedTxn(overrides: any = {}): any {
     trnNumaretor: 0,
     trnPurchaseDate: '2025-06-10',
     trnType: 'רגילה',
-    trnTypeCode: '5',
+    trnTypeCode: TrnTypeCode.regular,
     walletProviderCode: 0,
     walletProviderDesc: '',
     earlyPaymentInd: false,
@@ -94,7 +103,7 @@ function scrapedTxn(overrides: any = {}): any {
   };
 }
 
-function pendingTxn(overrides: Record<string, unknown> = {}) {
+function pendingTxn(overrides: Partial<ScrapedPendingTransaction> = {}): ScrapedPendingTransaction {
   return {
     merchantID: 'M1',
     merchantName: 'Pending Shop',
@@ -104,7 +113,7 @@ function pendingTxn(overrides: Record<string, unknown> = {}) {
     trnAmt: 75,
     tpaApprovalAmount: null,
     trnCurrencySymbol: 'ILS',
-    trnTypeCode: '5',
+    trnTypeCode: TrnTypeCode.regular,
     trnType: 'רגילה',
     branchCodeDesc: '',
     transCardPresentInd: false,
@@ -116,7 +125,7 @@ function pendingTxn(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockPendingResponse(txns: ReturnType<typeof pendingTxn>[] = [pendingTxn()]) {
+function mockPendingResponse(txns: ScrapedPendingTransaction[] = [pendingTxn()]): object {
   return {
     statusCode: 1,
     result: {
@@ -125,7 +134,7 @@ function mockPendingResponse(txns: ReturnType<typeof pendingTxn>[] = [pendingTxn
   };
 }
 
-function mockCardTransactionDetails(txns: any[] = [], overrides: any = {}) {
+function mockCardTransactionDetails(txns: ScrapedTransaction[] = [], overrides: Record<string, unknown> = {}): object {
   return {
     statusCode: 1,
     statusDescription: 'OK',
@@ -162,7 +171,7 @@ function mockCardTransactionDetails(txns: any[] = [], overrides: any = {}) {
   };
 }
 
-function setupVisaCalMocks() {
+function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
   const page = createMockPage({
     frames: jest.fn().mockReturnValue([
       {
@@ -177,12 +186,12 @@ function setupVisaCalMocks() {
   mockContext.newPage.mockResolvedValue(page);
 
   // waitUntil: return session storage data
-  (waitUntil as jest.Mock).mockImplementation(async (fn: () => Promise<any>) => {
+  (waitUntil as jest.Mock).mockImplementation(async <T>(fn: () => Promise<T>) => {
     return fn();
   });
 
   // getFromSessionStorage: return init data with cards
-  (getFromSessionStorage as jest.Mock).mockImplementation((_page: any, key: string) => {
+  (getFromSessionStorage as jest.Mock).mockImplementation((_page: unknown, key: string) => {
     if (key === 'init') {
       return Promise.resolve({
         result: {
@@ -233,7 +242,7 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: '5' })]),
+        mockCardTransactionDetails([scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: TrnTypeCode.regular })]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());
@@ -255,7 +264,7 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '8', numOfPayments: 12, curPaymentNum: 3 })]),
+        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 12, curPaymentNum: 3 })]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());
@@ -271,7 +280,7 @@ describe('fetchData', () => {
     (fetchPost as jest.Mock)
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '6', trnAmt: 50 })]));
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.credit, trnAmt: 50 })]));
 
     const scraper = new VisaCalScraper(visaCalOptions());
     const result = await scraper.scrape(CREDS);
@@ -385,7 +394,7 @@ describe('fetchData', () => {
     (fetchPost as jest.Mock)
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '9' })]));
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.standingOrder })]));
 
     const scraper = new VisaCalScraper(visaCalOptions());
     const result = await scraper.scrape(CREDS);
@@ -469,7 +478,7 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: '8', numOfPayments: 6, curPaymentNum: 3 })]),
+        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 6, curPaymentNum: 3 })]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());

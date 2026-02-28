@@ -12,7 +12,7 @@ const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
 const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking Account';
 const MIZRAHI_INVALID_SELECTOR = 'a[href*="https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx"]';
 
-async function leumiCheckReadiness(page: Page) {
+async function leumiCheckReadiness(page: Page): Promise<void> {
   await waitUntilElementFound(page, '.enter_account');
   const loginUrl = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
   await page.goto(loginUrl);
@@ -24,7 +24,7 @@ async function leumiCheckReadiness(page: Page) {
   ]);
 }
 
-async function leumiPostAction(page: Page) {
+async function leumiPostAction(page: Page): Promise<void> {
   await Promise.race([
     waitUntilElementFound(page, 'a[title="דלג לחשבון"]', { visible: true, timeout: 60000 }),
     waitUntilElementFound(page, 'div.main-content', { visible: false, timeout: 60000 }),
@@ -33,13 +33,13 @@ async function leumiPostAction(page: Page) {
   ]);
 }
 
-async function mizrahiIsLoggedIn(opts?: { page?: Page }) {
+async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
   const xpath = `//a//span[contains(., "${MIZRAHI_CHECKING_ACCOUNT_HE}") or contains(., "${MIZRAHI_CHECKING_ACCOUNT_EN}")]`;
   return (await opts.page.$$(`xpath=${xpath}`)).length > 0;
 }
 
-async function mizrahiPostAction(page: Page) {
+async function mizrahiPostAction(page: Page): Promise<void> {
   await Promise.race([
     waitUntilElementFound(page, '#dropdownBasic'),
     waitUntilElementFound(page, MIZRAHI_INVALID_SELECTOR),
@@ -47,24 +47,24 @@ async function mizrahiPostAction(page: Page) {
   ]);
 }
 
-async function maxPreActionStep1(page: Page) {
+async function maxPreActionStep1(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '#closePopup')) await page.$eval('#closePopup', el => (el as HTMLElement).click());
   await page.$eval('.personal-area > a.go-to-personal-area', el => (el as HTMLElement).click());
 }
 
-async function maxPreActionStep2(page: Page) {
+async function maxPreActionStep2(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '.login-link#private')) await page.$eval('.login-link#private', el => (el as HTMLElement).click());
   await waitUntilElementFound(page, '#login-password-link', { visible: true });
   await page.$eval('#login-password-link', el => (el as HTMLElement).click());
   await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', { visible: true });
 }
 
-async function maxPreAction(page: Page) {
+async function maxPreAction(page: Page): Promise<void> {
   await maxPreActionStep1(page);
   await maxPreActionStep2(page);
 }
 
-async function maxPostAction(page: Page) {
+async function maxPostAction(page: Page): Promise<void> {
   await Promise.race([
     waitForRedirect(page, { timeout: 20000, ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'] }),
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
@@ -72,7 +72,7 @@ async function maxPostAction(page: Page) {
   ]);
 }
 
-async function yahavPostAction(page: Page) {
+async function yahavPostAction(page: Page): Promise<void> {
   await waitForNavigation(page);
   await waitUntilElementDisappear(page, '.loader');
   if (await elementPresentOnPage(page, '.messaging-links-container')) {

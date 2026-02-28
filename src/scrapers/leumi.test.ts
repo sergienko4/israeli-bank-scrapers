@@ -24,7 +24,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -39,7 +39,7 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function createLeumiResponse(overrides: Record<string, unknown> = {}) {
+function createLeumiResponse(overrides: Record<string, unknown> = {}): { json: jest.Mock } {
   return {
     json: jest.fn().mockResolvedValue({
       jsonResp: JSON.stringify({
@@ -51,7 +51,7 @@ function createLeumiResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createLeumiPage(accountIds: string[] = ['123/456']) {
+function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof createMockPage> {
   const mockResponse = createLeumiResponse({
     BalanceDisplay: '5000.00',
     HistoryTransactionsItems: [

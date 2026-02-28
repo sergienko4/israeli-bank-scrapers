@@ -31,7 +31,7 @@ const baseCfg: LoginConfig = {
   ],
   preAction: async page => {
     await page.waitForTimeout(1000);
-    return page as any;
+    return;
   },
   postAction: async page => {
     await Promise.race([
@@ -60,7 +60,7 @@ describe('E2E: Selector fallback — Beinleumi', () => {
         defaultTimeout: 60000,
       },
       baseCfg,
-    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestBNL' } as any);
+    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestBNL' } as { username: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

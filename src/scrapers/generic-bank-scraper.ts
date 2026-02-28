@@ -36,7 +36,7 @@ interface SubmitButtonOpts {
   page: () => Page;
 }
 
-function buildSubmitButtonFunction(opts: SubmitButtonOpts) {
+function buildSubmitButtonFunction(opts: SubmitButtonOpts): () => Promise<void> {
   const { submitCands, submitField, ctx, page } = opts;
   return async () => {
     const activeCtx = ctx() ?? page();
@@ -49,10 +49,10 @@ function buildSubmitButtonFunction(opts: SubmitButtonOpts) {
   };
 }
 
-function buildFieldList(config: LoginConfig, credentials: ScraperCredentials) {
+function buildFieldList(config: LoginConfig, credentials: ScraperCredentials): { selector: string; value: string; credentialKey: string }[] {
   return config.fields.map(f => ({
     selector: candidateToCss(f.selectors[0]),
-    value: (credentials as any)[f.credentialKey] ?? '',
+    value: (credentials as Record<string, string>)[f.credentialKey] ?? '',
     credentialKey: f.credentialKey,
   }));
 }
@@ -92,11 +92,11 @@ export abstract class GenericBankScraper<
     };
   }
 
-  private async fillWithFallback(ctx: Page | Frame, selector: string, value: string) {
+  private async fillWithFallback(ctx: Page | Frame, selector: string, value: string): Promise<void> {
     await fillInput(ctx, selector, value);
   }
 
-  private async fillFieldWithFallback(pageOrFrame: Page | Frame, fieldConfig: FieldConfig, field: { selector: string; value: string }) {
+  private async fillFieldWithFallback(pageOrFrame: Page | Frame, fieldConfig: FieldConfig, field: { selector: string; value: string }): Promise<void> {
     try {
       const { selector, context } = await resolveFieldContext(this.activeLoginContext ?? pageOrFrame, fieldConfig, this.page.url());
       this.activeLoginContext = context;

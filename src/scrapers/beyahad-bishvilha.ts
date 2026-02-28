@@ -36,7 +36,7 @@ const CURRENCY_SYMBOLS: [string, string][] = [
   [EURO_CURRENCY_SYMBOL, EURO_CURRENCY],
 ];
 
-function parseCurrencyAmount(amountStrCln: string) {
+function parseCurrencyAmount(amountStrCln: string): { amount: number; currency: string } {
   for (const [symbol, currency] of CURRENCY_SYMBOLS) {
     if (amountStrCln.includes(symbol)) {
       return { amount: parseFloat(amountStrCln.replace(symbol, '')), currency };
@@ -46,7 +46,7 @@ function parseCurrencyAmount(amountStrCln: string) {
   return { amount: parseFloat(parts[1]), currency: parts[0] };
 }
 
-function getAmountData(amountStr: string) {
+function getAmountData(amountStr: string): { amount: number; currency: string } {
   return parseCurrencyAmount(amountStr.replace(',', ''));
 }
 
@@ -87,13 +87,13 @@ async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | 
   });
 }
 
-async function scrapeAccountInfo(page: Page) {
-  const accountNumber = await pageEval(page, { selector: '.wallet-details div:nth-of-type(2)', defaultResult: null, callback: element => (element as any).innerText.replace('מספר כרטיס ', '') });
-  const balance = await pageEval(page, { selector: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)', defaultResult: null, callback: element => (element as any).innerText });
+async function scrapeAccountInfo(page: Page): Promise<{ accountNumber: string; balance: string }> {
+  const accountNumber = await pageEval(page, { selector: '.wallet-details div:nth-of-type(2)', defaultResult: '', callback: element => (element as HTMLElement).innerText.replace('מספר כרטיס ', '') });
+  const balance = await pageEval(page, { selector: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)', defaultResult: '', callback: element => (element as HTMLElement).innerText });
   return { accountNumber, balance };
 }
 
-async function fetchTransactions(page: Page, options: ScraperOptions) {
+async function fetchTransactions(page: Page, options: ScraperOptions): Promise<{ accountNumber: string; balance: number; txns: Transaction[] }> {
   await page.goto(CARD_URL);
   await waitUntilElementFound(page, '.react-loading.hide', { visible: false });
   const defaultStartMoment = moment().subtract(1, 'years');
@@ -122,7 +122,7 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     super(options, BANK_REGISTRY[CompanyTypes.beyahadBishvilha]!);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number; txns: Transaction[] }[] }> {
     const account = await fetchTransactions(this.page, this.options);
     return {
       success: true,

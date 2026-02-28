@@ -39,7 +39,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   constructor(public options: ScraperOptions) {}
 
   // eslint-disable-next-line  @typescript-eslint/require-await
-  async initialize() {
+  async initialize(): Promise<void> {
     this.emitProgress(ScraperProgressTypes.Initializing);
     moment.tz.setDefault('Asia/Jerusalem');
   }
@@ -95,19 +95,19 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  protected async terminate(_success: boolean) {
+  protected async terminate(_success: boolean): Promise<void> {
     this.emitProgress(ScraperProgressTypes.Terminating);
   }
 
-  protected emitProgress(type: ScraperProgressTypes) {
+  protected emitProgress(type: ScraperProgressTypes): void {
     this.emit(SCRAPE_PROGRESS, { type });
   }
 
-  protected emit(eventName: string, payload: Record<string, any>) {
+  protected emit(eventName: string, payload: Record<string, unknown>): void {
     this.eventEmitter.emit(eventName, this.options.companyId, payload);
   }
 
-  onProgress(func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void) {
+  onProgress(func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void): void {
     this.eventEmitter.on(SCRAPE_PROGRESS, func);
   }
 }

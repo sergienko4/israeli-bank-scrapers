@@ -2,6 +2,8 @@ import MercantileScraper from './mercantile';
 import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
 import { SCRAPERS } from '../definitions';
 import { LoginResults } from './base-scraper-with-browser';
+import type { ScraperOptions } from './interface';
+
 
 const COMPANY_ID = 'mercantile'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();
@@ -26,9 +28,9 @@ describe('Mercantile legacy scraper', () => {
         companyId: COMPANY_ID,
       };
 
-      const scraper = new MercantileScraper(options);
+      const scraper = new MercantileScraper(options as unknown as ScraperOptions);
 
-      const result = await scraper.scrape(testsConfig.credentials.mercantile);
+      const result = await scraper.scrape(testsConfig.credentials.mercantile as Parameters<typeof scraper.scrape>[0]);
 
       expect(result).toBeDefined();
       expect(result.success).toBeFalsy();
@@ -42,8 +44,8 @@ describe('Mercantile legacy scraper', () => {
       companyId: COMPANY_ID,
     };
 
-    const scraper = new MercantileScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.mercantile);
+    const scraper = new MercantileScraper(options as unknown as ScraperOptions);
+    const result = await scraper.scrape(testsConfig.credentials.mercantile as Parameters<typeof scraper.scrape>[0]);
     expect(result).toBeDefined();
     const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
     expect(error).toBe('');

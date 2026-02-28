@@ -47,7 +47,7 @@ const DATE_FORMAT = 'DD/MM/YYYY';
 
 const debug = getDebug('base-isracard-amex');
 
-function getAccountsUrl(servicesUrl: string, monthMoment: Moment) {
+function getAccountsUrl(servicesUrl: string, monthMoment: Moment): string {
   const billingDate = monthMoment.format('YYYY-MM-DD');
   const url = new URL(servicesUrl);
   url.searchParams.set('reqName', 'DashboardMonth');
@@ -74,7 +74,7 @@ async function fetchAccounts(page: Page, servicesUrl: string, monthMoment: Momen
   return [];
 }
 
-function getTransactionsUrl(servicesUrl: string, monthMoment: Moment) {
+function getTransactionsUrl(servicesUrl: string, monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
   const monthStr = month < 10 ? `0${month}` : month.toString();
@@ -86,7 +86,7 @@ function getTransactionsUrl(servicesUrl: string, monthMoment: Moment) {
   return url.toString();
 }
 
-function convertCurrency(currencyStr: string) {
+function convertCurrency(currencyStr: string): string {
   return (currencyStr === SHEKEL_CURRENCY_KEYWORD || currencyStr === ALT_SHEKEL_CURRENCY) ? SHEKEL_CURRENCY : currencyStr;
 }
 
@@ -97,7 +97,7 @@ function getInstallmentsInfo(txn: ScrapedTransaction): TransactionInstallments |
   return { number: parseInt(matches[0], 10), total: parseInt(matches[1], 10) };
 }
 
-function getTransactionType(txn: ScrapedTransaction) {
+function getTransactionType(txn: ScrapedTransaction): TransactionTypes {
   return getInstallmentsInfo(txn) ? TransactionTypes.Installments : TransactionTypes.Normal;
 }
 
@@ -126,7 +126,7 @@ function buildTransaction(txn: ScrapedTransaction, processedDate: string, option
   return result;
 }
 
-function filterValidTransactions(txns: ScrapedTransaction[]) {
+function filterValidTransactions(txns: ScrapedTransaction[]): ScrapedTransaction[] {
   return txns.filter(
     txn =>
       txn.dealSumType !== '1' &&
@@ -139,7 +139,7 @@ function convertTransactions(txns: ScrapedTransaction[], processedDate: string, 
   return filterValidTransactions(txns).map(txn => buildTransaction(txn, processedDate, options));
 }
 
-function collectAccountTxns(opts: CollectTxnsOpts) {
+function collectAccountTxns(opts: CollectTxnsOpts): Transaction[] {
   const { txnGroups, account, options, startMoment } = opts;
   let allTxns: Transaction[] = [];
   txnGroups.forEach(txnGroup => {
@@ -213,7 +213,7 @@ async function getAdditionalTransactionInformation(opts: AdditionalInfoOpts): Pr
   return runSerial(accountsWithIndex.map((a, i) => () => getExtraScrapAccount({ page, options, accountMap: a, month: allMonths[i] })));
 }
 
-function combineTxnsFromResults(finalResult: ScrapedAccountsWithIndex[]) {
+function combineTxnsFromResults(finalResult: ScrapedAccountsWithIndex[]): Record<string, Transaction[]> {
   const combinedTxns: Record<string, Transaction[]> = {};
   finalResult.forEach(result => {
     Object.keys(result).forEach(accountNumber => {
@@ -224,7 +224,7 @@ function combineTxnsFromResults(finalResult: ScrapedAccountsWithIndex[]) {
   return combinedTxns;
 }
 
-async function fetchAllTransactions(opts: FetchAllOpts) {
+async function fetchAllTransactions(opts: FetchAllOpts): Promise<{ success: boolean; accounts: { accountNumber: string; txns: Transaction[] }[] }> {
   const { page, options, companyServiceOptions, startMoment } = opts;
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
   const allMonths = getAllMonthMoments(startMoment, futureMonthsToScrape);
@@ -256,7 +256,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     this.servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
-  private async validateCredentials(credentials: ScraperSpecificCredentials) {
+  private async validateCredentials(credentials: ScraperSpecificCredentials): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
     const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
     const validateRequest = { id: credentials.id, cardSuffix: credentials.card6Digits, countryCode: COUNTRY_CODE, idType: ID_TYPE, checkLevel: '1', companyCode: this.companyCode };
     debug('validating credentials');
@@ -268,7 +268,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     return result.ValidateIdDataBean;
   }
 
-  private buildLoginRequest(credentials: ScraperSpecificCredentials, userName: string) {
+  private buildLoginRequest(credentials: ScraperSpecificCredentials, userName: string): Record<string, string> {
     return { KodMishtamesh: userName, MisparZihuy: credentials.id, Sisma: credentials.password, cardSuffix: credentials.card6Digits, countryCode: COUNTRY_CODE, idType: ID_TYPE };
   }
 
@@ -293,14 +293,14 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     return { success: false, errorType: ScraperErrorTypes.InvalidPassword, errorMessage: `Validate failed with returnCode: ${returnCode}` };
   }
 
-  private setupResponseLogging() {
+  private setupResponseLogging(): void {
     this.page.on('response', response => {
       const url = response.url();
       if (url.includes('ProxyRequestHandler') || url.includes('personalarea')) debug('response: %d %s', response.status(), url.substring(0, 120));
     });
   }
 
-  private async navigateToLoginPage() {
+  private async navigateToLoginPage(): Promise<void> {
     debug(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
@@ -320,7 +320,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     return validateReturnCode === '1' ? this.performLogin(credentials, validatedData.userName ?? '') : this.handleValidateReturnCode(validateReturnCode);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; txns: Transaction[] }[] }> {
     const defaultStartMoment = moment().subtract(1, 'years');
     const startDate = this.options.startDate || defaultStartMoment.toDate();
     const startMoment = moment.max(defaultStartMoment, moment(startDate));

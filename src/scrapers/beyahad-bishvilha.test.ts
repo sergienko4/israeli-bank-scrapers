@@ -22,8 +22,8 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  filterOldTransactions: jest.fn((txns: any[]) => txns),
-  getRawTransaction: jest.fn((data: any) => data),
+  filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -38,7 +38,7 @@ const mockBrowser = {
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
-function setupPage() {
+function setupPage(): ReturnType<typeof createMockPage> {
   const page = createMockPage({
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
   });

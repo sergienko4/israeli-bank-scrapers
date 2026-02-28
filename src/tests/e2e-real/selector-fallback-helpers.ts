@@ -18,7 +18,7 @@ export const VALID_REACHED_BANK: string[] = [
 ];
 
 /** Regex matching "Could not find '<key>' field" for the given credential keys. */
-export function selectorErrorFor(...keys: string[]) {
+export function selectorErrorFor(...keys: string[]): RegExp {
   return new RegExp(`Could not find '(${keys.join('|')})' field`);
 }
 

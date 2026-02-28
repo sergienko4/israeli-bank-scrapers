@@ -26,7 +26,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -41,7 +41,7 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function createUnionPage() {
+function createUnionPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
     $eval: jest.fn().mockImplementation((selector: string) => {
       if (selector.includes('option[selected')) return '123/456789';
@@ -50,7 +50,7 @@ function createUnionPage() {
   });
 }
 
-function mockTransactionTable(headers: any[], rows: any[]) {
+function mockTransactionTable(headers: Array<{ text: string; index: number }>, rows: Array<{ id: string; innerTds: string[] }>): void {
   (pageEvalAll as jest.Mock).mockResolvedValueOnce(headers).mockResolvedValueOnce(rows);
 }
 
@@ -154,7 +154,7 @@ describe('fetchData', () => {
   });
 
   it('handles no transactions in date range', async () => {
-    (elementPresentOnPage as jest.Mock).mockImplementation((_p: any, selector: string) => {
+    (elementPresentOnPage as jest.Mock).mockImplementation((_p: unknown, selector: string) => {
       return selector === '.errInfo';
     });
     mockContext.newPage.mockResolvedValue(

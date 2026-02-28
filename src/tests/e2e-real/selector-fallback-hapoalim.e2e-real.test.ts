@@ -62,7 +62,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
         defaultTimeout: 60000,
       },
       baseCfg,
-    ).scrape({ userCode: 'INVALID_USER', password: 'FallbackTestHPO' } as any);
+    ).scrape({ userCode: 'INVALID_USER', password: 'FallbackTestHPO' } as { userCode: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     // result.success=true is also valid: stub fetchData returns success when login works.
     if (!result.success) {
@@ -90,7 +90,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
         defaultTimeout: 60000,
       },
       iframeCfg,
-    ).scrape({ userCode: 'INVALID_USER', password: 'IframeTestHPO' } as any);
+    ).scrape({ userCode: 'INVALID_USER', password: 'IframeTestHPO' } as { userCode: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

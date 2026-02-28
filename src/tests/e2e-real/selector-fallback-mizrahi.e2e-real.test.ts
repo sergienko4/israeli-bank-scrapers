@@ -58,7 +58,7 @@ describe('E2E: Selector fallback — Mizrahi', () => {
         defaultTimeout: 60000,
       },
       baseCfg,
-    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMZR' } as any);
+    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMZR' } as { username: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

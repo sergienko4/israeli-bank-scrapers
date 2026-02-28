@@ -101,12 +101,12 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   private accessToken?: string;
 
   private async fetchDeviceToken(): Promise<string> {
-    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/devices/token`, { extClientId: 'mobile', os: 'Android' });
+    const resp = await fetchPost<{ resultData: { deviceToken: string } }>(`${IDENTITY_SERVER_URL}/devices/token`, { extClientId: 'mobile', os: 'Android' });
     return resp.resultData.deviceToken;
   }
 
   private async prepareOtp(phoneNumber: string, deviceToken: string): Promise<string> {
-    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/otp/prepare`, { factorValue: phoneNumber, deviceToken, otpChannel: 'SMS_OTP' });
+    const resp = await fetchPost<{ resultData: { otpContext: string } }>(`${IDENTITY_SERVER_URL}/otp/prepare`, { factorValue: phoneNumber, deviceToken, otpChannel: 'SMS_OTP' });
     return resp.resultData.otpContext;
   }
 
@@ -127,7 +127,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     }
 
     debug('Requesting OTP token');
-    const otpVerifyResponse = await fetchPost(`${IDENTITY_SERVER_URL}/otp/verify`, {
+    const otpVerifyResponse = await fetchPost<{ resultData: { otpToken: string } }>(`${IDENTITY_SERVER_URL}/otp/verify`, {
       otpContext: this.otpContext,
       otpCode,
     });
@@ -159,12 +159,12 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   }
 
   private async getIdToken(otpSmsToken: string, email: string, pass: string): Promise<string> {
-    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/getIdToken`, { otpSmsToken, email, pass, pinCode: '' });
+    const resp = await fetchPost<{ resultData: { idToken: string } }>(`${IDENTITY_SERVER_URL}/getIdToken`, { otpSmsToken, email, pass, pinCode: '' });
     return resp.resultData.idToken;
   }
 
   private async getSessionToken(idToken: string, pass: string): Promise<string> {
-    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/sessions/token`, { idToken, pass });
+    const resp = await fetchPost<{ resultData: { accessToken: string } }>(`${IDENTITY_SERVER_URL}/sessions/token`, { idToken, pass });
     return resp.resultData.accessToken;
   }
 
@@ -234,7 +234,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
    * one zero hebrew strings are reversed with a unicode control character that forces display in LTR order
    * We need to remove the unicode control character, and then reverse hebrew substrings inside the string
    */
-  private sanitizeHebrew(text: string) {
+  private sanitizeHebrew(text: string): string {
     if (!text.includes('\u202d')) {
       return text.trim();
     }

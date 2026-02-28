@@ -9,7 +9,9 @@ import { sleep } from '../helpers/waiting';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import IsracardAmexBaseScraper from './base-isracard-amex';
 import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { TransactionStatuses, TransactionTypes, type Transaction } from '../transactions';
+import type { ScrapedTransaction } from './base-isracard-amex-types';
+import type { ScraperOptions } from './interface';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../helpers/fetch', () => ({
@@ -22,16 +24,19 @@ jest.mock('../helpers/browser', () => ({
 jest.mock('../helpers/waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn((actions: (() => Promise<any>)[]) => {
-    return actions.reduce((p, a) => p.then(async r => [...r, await a()]), Promise.resolve([] as any[]));
+  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+    return actions.reduce(
+      (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
+      Promise.resolve([] as T[]),
+    );
   }),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
 jest.mock('../helpers/transactions', () => ({
-  fixInstallments: jest.fn((txns: any[]) => txns),
-  filterOldTransactions: jest.fn((txns: any[]) => txns),
-  getRawTransaction: jest.fn((data: any) => data),
+  fixInstallments: jest.fn((txns: Transaction[]) => txns),
+  filterOldTransactions: jest.fn((txns: Transaction[]) => txns),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 jest.mock('../helpers/dates', () => {
@@ -41,7 +46,7 @@ jest.mock('../helpers/dates', () => {
 const BASE_URL = 'https://digital.americanexpress.co.il';
 
 class TestAmexScraper extends IsracardAmexBaseScraper {
-  constructor(overrides = {}) {
+  constructor(overrides: Partial<ScraperOptions> = {}) {
     super(createMockScraperOptions(overrides), BASE_URL, '77');
   }
 }
@@ -57,18 +62,18 @@ const mockBrowser = {
 
 const CREDS = { id: '123456789', password: 'pass123', card6Digits: '123456' };
 
-function mockValidate(returnCode = '1', userName = 'TestUser') {
+function mockValidate(returnCode = '1', userName = 'TestUser'): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
     Header: { Status: '1' },
     ValidateIdDataBean: { returnCode, userName },
   });
 }
 
-function mockLogin(status = '1') {
+function mockLogin(status = '1'): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ status });
 }
 
-function mockAccounts(cardNumber = '1234') {
+function mockAccounts(cardNumber = '1234'): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     Header: { Status: '1' },
     DashboardMonthBean: {
@@ -77,8 +82,8 @@ function mockAccounts(cardNumber = '1234') {
   });
 }
 
-function mockTxns(txnIsrael: any[] = [], txnAbroad: any[] = []) {
-  const txnGroups: any = {};
+function mockTxns(txnIsrael: ScrapedTransaction[] = [], txnAbroad: ScrapedTransaction[] = []): void {
+  const txnGroups: { txnIsrael?: ScrapedTransaction[]; txnAbroad?: ScrapedTransaction[] } = {};
   if (txnIsrael.length) txnGroups.txnIsrael = txnIsrael;
   if (txnAbroad.length) txnGroups.txnAbroad = txnAbroad;
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
@@ -89,12 +94,12 @@ function mockTxns(txnIsrael: any[] = [], txnAbroad: any[] = []) {
   });
 }
 
-function setupFullLogin() {
+function setupFullLogin(): void {
   mockValidate('1');
   mockLogin('1');
 }
 
-function txn(overrides: any = {}): any {
+function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     dealSumType: '0',
     voucherNumberRatz: '123456789',

@@ -18,7 +18,7 @@ const FAILED_LOGIN_TYPES: string[] = [
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
 
-export function assertSuccessfulScrape(result: ScraperScrapingResult) {
+export function assertSuccessfulScrape(result: ScraperScrapingResult): void {
   const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
   expect(error).toBe('');
   expect(result.success).toBe(true);
@@ -30,12 +30,12 @@ export function assertSuccessfulScrape(result: ScraperScrapingResult) {
   }
 }
 
-export function assertFailedLogin(result: ScraperScrapingResult) {
+export function assertFailedLogin(result: ScraperScrapingResult): void {
   expect(result.success).toBe(false);
   expect(FAILED_LOGIN_TYPES).toContain(result.errorType);
 }
 
-export function lastMonthStartDate() {
+export function lastMonthStartDate(): Date {
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - 1);
   return startDate;

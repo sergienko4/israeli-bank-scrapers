@@ -77,16 +77,18 @@ export interface InitResponse {
   };
 }
 export type CurrencySymbol = string;
-export interface CardTransactionDetailsError {
+export interface CardApiStatus {
   title: string;
   statusCode: number;
 }
-export interface CardTransactionDetails extends CardTransactionDetailsError {
+/** @deprecated use CardApiStatus */
+export type CardTransactionDetailsError = CardApiStatus;
+export interface CardTransactionDetails extends CardApiStatus {
   result: {
     bankAccounts: {
       bankAccountNum: string;
       bankName: string;
-      choiceExternalTransactions: any;
+      choiceExternalTransactions: unknown;
       currentBankAccountInd: boolean;
       debitDates: {
         basketAmountComment: unknown;
@@ -143,11 +145,11 @@ export interface AuthModule {
   };
 }
 
-export function isAuthModule(result: any): result is AuthModule {
-  return Boolean(result?.auth?.calConnectToken && String(result.auth.calConnectToken).trim());
+export function isAuthModule(result: unknown): result is AuthModule {
+  return Boolean((result as AuthModule)?.auth?.calConnectToken && String((result as AuthModule).auth.calConnectToken).trim());
 }
 
-export function authModuleOrUndefined(result: any): AuthModule | undefined {
+export function authModuleOrUndefined(result: unknown): AuthModule | undefined {
   return isAuthModule(result) ? result : undefined;
 }
 

@@ -34,8 +34,8 @@ const InvalidPasswordMessage = 'שם המשתמש או הסיסמה שהוזנו
 
 const debug = getDebug('visa-cal');
 
-import { TrnTypeCode, type AuthModule, type CardPendingTransactionDetails, type CardTransactionDetails, type FramesResponse, type InitResponse, type ScrapedPendingTransaction, type ScrapedTransaction, authModuleOrUndefined, isPending, isCardTransactionDetails, isCardPendingTransactionDetails } from './visa-cal-types';
-async function getLoginFrame(page: Page) {
+import { TrnTypeCode, type AuthModule, type CardApiStatus, type CardPendingTransactionDetails, type CardTransactionDetails, type FramesResponse, type InitResponse, type ScrapedPendingTransaction, type ScrapedTransaction, authModuleOrUndefined, isPending, isCardTransactionDetails, isCardPendingTransactionDetails } from './visa-cal-types';
+async function getLoginFrame(page: Page): Promise<Frame> {
   let frame: Frame | null = null;
   debug('wait until login frame found');
   await waitUntil(
@@ -55,7 +55,7 @@ async function getLoginFrame(page: Page) {
   return frame;
 }
 
-async function hasInvalidPasswordError(page: Page) {
+async function hasInvalidPasswordError(page: Page): Promise<boolean> {
   const frame = await getLoginFrame(page);
   const errorFound = await elementPresentOnPage(frame, 'div.general-error > div');
   const errorMessage = errorFound
@@ -64,7 +64,7 @@ async function hasInvalidPasswordError(page: Page) {
   return errorMessage === InvalidPasswordMessage;
 }
 
-async function hasChangePasswordForm(page: Page) {
+async function hasChangePasswordForm(page: Page): Promise<boolean> {
   const frame = await getLoginFrame(page);
   const errorFound = await elementPresentOnPage(frame, '.change-password-subtitle');
   return errorFound;
@@ -75,7 +75,7 @@ const loginResultCheckers = {
   changePassword: async (options?: { page?: Page }) => options?.page ? hasChangePasswordForm(options.page) : false,
 };
 
-function getPossibleLoginResults() {
+function getPossibleLoginResults(): Record<string, (Array<string | RegExp | ((options?: { page?: Page }) => Promise<boolean>)>)> {
   debug('return possible login results');
   return {
     [LoginResults.Success]: [/dashboard/i],
@@ -84,7 +84,7 @@ function getPossibleLoginResults() {
   };
 }
 
-function createLoginFields(credentials: ScraperSpecificCredentials) {
+function createLoginFields(credentials: ScraperSpecificCredentials): Array<{ selector: string; value: string }> {
   debug('create login fields for username and password');
   return [
     { selector: '[formcontrolname="userName"]', value: credentials.username },
@@ -92,12 +92,12 @@ function createLoginFields(credentials: ScraperSpecificCredentials) {
   ];
 }
 
-function getInstallments(transaction: ScrapedTransaction | ScrapedPendingTransaction) {
+function getInstallments(transaction: ScrapedTransaction | ScrapedPendingTransaction): { number: number; total: number } | undefined {
   const numOfPayments = isPending(transaction) ? transaction.numberOfPayments : transaction.numOfPayments;
   return numOfPayments ? { number: isPending(transaction) ? 1 : transaction.curPaymentNum, total: numOfPayments } : undefined;
 }
 
-function getTransactionAmounts(transaction: ScrapedTransaction | ScrapedPendingTransaction) {
+function getTransactionAmounts(transaction: ScrapedTransaction | ScrapedPendingTransaction): { chargedAmount: number; originalAmount: number } {
   return {
     chargedAmount: (isPending(transaction) ? transaction.trnAmt : transaction.amtBeforeConvAndIndex) * -1,
     originalAmount: transaction.trnAmt * (transaction.trnTypeCode === TrnTypeCode.credit ? 1 : -1),
@@ -124,7 +124,7 @@ function mapOneTransaction(transaction: ScrapedTransaction | ScrapedPendingTrans
   return result;
 }
 
-function collectAllTransactions(data: CardTransactionDetails[], pendingData?: CardPendingTransactionDetails | null) {
+function collectAllTransactions(data: CardTransactionDetails[], pendingData?: CardPendingTransactionDetails | null): (ScrapedTransaction | ScrapedPendingTransaction)[] {
   const pendingTransactions = pendingData?.result ? pendingData.result.cardsList.flatMap(card => card.authDetalisList) : [];
   const bankAccounts = data.flatMap(monthData => monthData.result.bankAccounts);
   const completedTransactions = [...bankAccounts.flatMap(a => a.debitDates), ...bankAccounts.flatMap(a => a.immidiateDebits.debitDays)].flatMap(d => d.transactions);
@@ -142,7 +142,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   private authRequestPromise: Promise<Request | undefined> | undefined;
 
-  openLoginPopup = async () => {
+  openLoginPopup = async (): Promise<Frame> => {
     debug('open login popup, wait until login button available');
     await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', { visible: true });
     debug('click on the login button');
@@ -159,7 +159,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return frame;
   };
 
-  async getCards() {
+  async getCards(): Promise<Array<{ cardUniqueId: string; last4Digits: string }>> {
     const initData = await waitUntil(
       () => getFromSessionStorage<InitResponse>(this.page, 'init'),
       'get init data in session storage',
@@ -171,7 +171,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return initData?.result.cards.map(({ cardUniqueId, last4Digits }) => ({ cardUniqueId, last4Digits }));
   }
 
-  async getAuthorizationHeader() {
+  async getAuthorizationHeader(): Promise<string> {
     if (!this.authorization) {
       debug('fetching authorization header');
       const authModule = await waitUntil(
@@ -184,7 +184,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return this.authorization;
   }
 
-  async getXSiteId() {
+  async getXSiteId(): Promise<string> {
     /*
       I don't know if the constant below will change in the feature.
       If so, use the next code:
@@ -232,20 +232,20 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     };
   }
 
-  private buildApiHeaders(Authorization: string, xSiteId: string) {
+  private buildApiHeaders(Authorization: string, xSiteId: string): Record<string, string> {
     return { Authorization, 'X-Site-Id': xSiteId, 'Content-Type': 'application/json', ...apiHeaders };
   }
 
   private async fetchMonthData(card: { cardUniqueId: string; last4Digits: string }, month: moment.Moment, hdrs: Record<string, string>): Promise<CardTransactionDetails> {
-    const monthData = await fetchPost(TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') }, hdrs);
+    const monthData = await fetchPost<CardTransactionDetails | CardApiStatus>(TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') }, hdrs);
     if (monthData?.statusCode !== 1) throw new Error(`failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`);
     if (!isCardTransactionDetails(monthData)) throw new Error('monthData is not of type CardTransactionDetails');
     return monthData;
   }
 
-  private async fetchPendingData(card: { cardUniqueId: string; last4Digits: string }, hdrs: Record<string, string>) {
+  private async fetchPendingData(card: { cardUniqueId: string; last4Digits: string }, hdrs: Record<string, string>): Promise<CardPendingTransactionDetails | null> {
     debug(`fetch pending transactions for card ${card.cardUniqueId}`);
-    let pendingData = await fetchPost(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
+    let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<CardPendingTransactionDetails | CardApiStatus>(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
     if (pendingData?.statusCode !== 1 && pendingData?.statusCode !== 96) {
       debug(`failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData?.title || ''}`);
       pendingData = null;
@@ -262,7 +262,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return allMonthsData;
   }
 
-  private async fetchCardData(card: { cardUniqueId: string; last4Digits: string }, opts: { startMoment: moment.Moment; futureMonthsToScrape: number; hdrs: Record<string, string> }) {
+  private async fetchCardData(card: { cardUniqueId: string; last4Digits: string }, opts: { startMoment: moment.Moment; futureMonthsToScrape: number; hdrs: Record<string, string> }): Promise<CardTransactionDetails[]> {
     const { startMoment, futureMonthsToScrape, hdrs } = opts;
     const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
     const months = finalMonthToFetchMoment.diff(startMoment, 'months');
@@ -271,7 +271,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return this.fetchCardDataMonths(card, allMonths, hdrs);
   }
 
-  private async fetchAllCardAccounts(cards: Array<{ cardUniqueId: string; last4Digits: string }>, ctx: { startDate: Date; startMoment: moment.Moment; hdrs: Record<string, string>; frames: FramesResponse }) {
+  private async fetchAllCardAccounts(cards: Array<{ cardUniqueId: string; last4Digits: string }>, ctx: { startDate: Date; startMoment: moment.Moment; hdrs: Record<string, string>; frames: FramesResponse }): Promise<TransactionsAccount[]> {
     const { startDate, startMoment, hdrs, frames } = ctx;
     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
     return Promise.all(cards.map(async card => {

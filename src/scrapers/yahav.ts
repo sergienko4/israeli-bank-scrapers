@@ -43,12 +43,12 @@ async function getAccountID(page: Page): Promise<string> {
   }
 }
 
-function getAmountData(amountStr: string) {
+function getAmountData(amountStr: string): number {
   const amountStrCopy = amountStr.replace(',', '');
   return parseFloat(amountStrCopy);
 }
 
-function getTxnAmount(txn: ScrapedTransaction) {
+function getTxnAmount(txn: ScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
@@ -79,7 +79,7 @@ function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOption
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
-function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr) {
+function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr): void {
   const div = txnRow.innerDivs;
 
   // Remove anything except digits.
@@ -119,7 +119,7 @@ async function getAccountTransactions(page: Page, options?: ScraperOptions): Pro
   return convertTransactions(txns, options);
 }
 
-async function selectYearFromGrid(page: Page, targetYear: string) {
+async function selectYearFromGrid(page: Page, targetYear: string): Promise<void> {
   for (let i = 1; i < 13; i += 1) {
     const selector = `.pmu-years > div:nth-child(${i})`;
     const year = await page.$eval(selector, y => (y as HTMLElement).innerText);
@@ -127,7 +127,7 @@ async function selectYearFromGrid(page: Page, targetYear: string) {
   }
 }
 
-async function selectDayFromGrid(page: Page, targetDay: string) {
+async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
   for (let i = 1; i < 42; i += 1) {
     const selector = `.pmu-days > div:nth-child(${i})`;
     const day = await page.$eval(selector, d => (d as HTMLElement).innerText);
@@ -135,14 +135,14 @@ async function selectDayFromGrid(page: Page, targetDay: string) {
   }
 }
 
-async function openDatePicker(page: Page) {
+async function openDatePicker(page: Page): Promise<void> {
   const dateFromPick = 'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
   await waitUntilElementFound(page, dateFromPick, { visible: true });
   await clickButton(page, dateFromPick);
   await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
 }
 
-async function searchByDates(page: Page, startDate: Moment) {
+async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   const startDateDay = startDate.format('D');
   const startDateMonth = startDate.format('M');
   const startDateYear = startDate.format('Y');
@@ -194,7 +194,7 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.yahav]!);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     // Goto statements page
     await waitUntilElementFound(this.page, ACCOUNT_DETAILS_SELECTOR, { visible: true });
     await clickButton(this.page, ACCOUNT_DETAILS_SELECTOR);

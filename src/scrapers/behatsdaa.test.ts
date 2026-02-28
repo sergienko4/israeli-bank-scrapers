@@ -27,7 +27,7 @@ jest.mock('../helpers/waiting', () => ({
 }));
 jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -42,7 +42,15 @@ const mockBrowser = {
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
-function variant(overrides: any = {}): any {
+interface BehatsdaaVariant {
+  name: string;
+  variantName: string;
+  customerPrice: number;
+  orderDate: string;
+  tTransactionID: string;
+}
+
+function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
   return {
     name: 'Test Product',
     variantName: 'Size L',
@@ -53,7 +61,7 @@ function variant(overrides: any = {}): any {
   };
 }
 
-function createBehatsdaaPage(token: string | null = 'mock-token') {
+function createBehatsdaaPage(token: string | null = 'mock-token'): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest.fn().mockResolvedValue(token),
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
@@ -157,10 +165,11 @@ describe('fetchData', () => {
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
+    const extraHeadersMatcher = { authorization: 'Bearer mock-token' };
     expect(fetchPostWithinPage).toHaveBeenCalledWith(
       expect.anything(),
-      expect.any(String),
-      expect.objectContaining({ extraHeaders: expect.objectContaining({ authorization: 'Bearer mock-token' }) }),
+      expect.any(String) as string,
+      expect.objectContaining({ extraHeaders: expect.objectContaining(extraHeadersMatcher) as Record<string, string> }),
     );
   });
 });

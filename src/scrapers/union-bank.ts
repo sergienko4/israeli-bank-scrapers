@@ -32,7 +32,7 @@ const COMPLETED_TRANSACTIONS_TABLE_ID = 'ctlActivityTable';
 const ERROR_MESSAGE_CLASS = 'errInfo';
 const ACCOUNTS_DROPDOWN_SELECTOR = 'select#ddlAccounts_m_ddl';
 
-function getAmountData(amountStr: string) {
+function getAmountData(amountStr: string): number {
   const amountStrCopy = amountStr.replace(',', '');
   return parseFloat(amountStrCopy);
 }
@@ -47,7 +47,7 @@ interface ScrapedTransaction {
   status: TransactionStatuses;
 }
 
-function getTxnAmount(txn: ScrapedTransaction) {
+function getTxnAmount(txn: ScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
@@ -80,23 +80,23 @@ type TransactionsTr = { id: string; innerTds: TransactionsTrTds };
 type TransactionTableHeaders = Record<string, number>;
 type TransactionsTrTds = string[];
 
-function getTransactionDate(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders) {
+function getTransactionDate(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders): string {
   return (tds[txnsTableHeaders[DATE_HEADER]] || '').trim();
 }
 
-function getTransactionDescription(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders) {
+function getTransactionDescription(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders): string {
   return (tds[txnsTableHeaders[DESCRIPTION_HEADER]] || '').trim();
 }
 
-function getTransactionReference(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders) {
+function getTransactionReference(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders): string {
   return (tds[txnsTableHeaders[REFERENCE_HEADER]] || '').trim();
 }
 
-function getTransactionDebit(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders) {
+function getTransactionDebit(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders): string {
   return (tds[txnsTableHeaders[DEBIT_HEADER]] || '').trim();
 }
 
-function getTransactionCredit(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders) {
+function getTransactionCredit(tds: TransactionsTrTds, txnsTableHeaders: TransactionTableHeaders): string {
   return (tds[txnsTableHeaders[CREDIT_HEADER]] || '').trim();
 }
 
@@ -117,7 +117,7 @@ function extractTransactionDetails(
   };
 }
 
-function isExpandedDescRow(txnRow: TransactionsTr) {
+function isExpandedDescRow(txnRow: TransactionsTr): boolean {
   return txnRow.id === 'rowAdded';
 }
 
@@ -133,7 +133,7 @@ interface HandleTxnRowOpts {
   txnType: TransactionStatuses;
 }
 
-function handleTransactionRow(opts: HandleTxnRowOpts) {
+function handleTransactionRow(opts: HandleTxnRowOpts): void {
   const { txns, txnsTableHeaders, txnRow, txnType } = opts;
   if (isExpandedDescRow(txnRow)) {
     const lastTransaction = txns.pop();
@@ -144,11 +144,11 @@ function handleTransactionRow(opts: HandleTxnRowOpts) {
   }
 }
 
-async function getTransactionsTableHeaders(page: Page, tableTypeId: string) {
-  const headersMap: Record<string, any> = [];
+async function getTransactionsTableHeaders(page: Page, tableTypeId: string): Promise<Record<string, number>> {
+  const headersMap: Record<string, number> = {};
   const headersObjs = await pageEvalAll(page, {
     selector: `#WorkSpaceBox #${tableTypeId} tr[class='header'] th`,
-    defaultResult: null,
+    defaultResult: [] as Array<{ text: string; index: number }>,
     callback: ths => ths.map((th, index) => ({ text: (th as HTMLElement).innerText.trim(), index })),
   });
 
@@ -181,7 +181,7 @@ async function extractTransactionsFromTable(
   return txns;
 }
 
-async function isNoTransactionInDateRangeError(page: Page) {
+async function isNoTransactionInDateRangeError(page: Page): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (hasErrorInfoElement) {
     const errorText = await page.$eval(`.${ERROR_MESSAGE_CLASS}`, errorElement => {
@@ -192,14 +192,14 @@ async function isNoTransactionInDateRangeError(page: Page) {
   return false;
 }
 
-async function chooseAccount(page: Page, accountId: string) {
+async function chooseAccount(page: Page, accountId: string): Promise<void> {
   const hasDropDownList = await elementPresentOnPage(page, ACCOUNTS_DROPDOWN_SELECTOR);
   if (hasDropDownList) {
     await dropdownSelect(page, ACCOUNTS_DROPDOWN_SELECTOR, accountId);
   }
 }
 
-async function searchByDates(page: Page, startDate: Moment) {
+async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   await dropdownSelect(page, 'select#ddlTransactionPeriod', '004');
   await waitUntilElementFound(page, 'select#ddlTransactionPeriod');
   await fillInput(page, 'input#dtFromDate_textBox', startDate.format(DATE_FORMAT));
@@ -207,7 +207,7 @@ async function searchByDates(page: Page, startDate: Moment) {
   await waitForNavigation(page);
 }
 
-async function getAccountNumber(page: Page) {
+async function getAccountNumber(page: Page): Promise<string> {
   const selectedSnifAccount = await page.$eval('#ddlAccounts_m_ddl option[selected="selected"]', option => {
     return (option as HTMLElement).innerText;
   });
@@ -215,7 +215,7 @@ async function getAccountNumber(page: Page) {
   return selectedSnifAccount.replace('/', '_');
 }
 
-async function expandTransactionsTable(page: Page) {
+async function expandTransactionsTable(page: Page): Promise<void> {
   const hasExpandAllButton = await elementPresentOnPage(page, "a[id*='lnkCtlExpandAll']");
   if (hasExpandAllButton) {
     await clickButton(page, "a[id*='lnkCtlExpandAll']");
@@ -268,7 +268,7 @@ async function fetchAccountData(opts: FetchAccOpts): Promise<TransactionsAccount
   return { accountNumber, txns };
 }
 
-async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOptions) {
+async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount[]> {
   const accounts: TransactionsAccount[] = [];
   const accountsList = await dropdownElements(page, ACCOUNTS_DROPDOWN_SELECTOR);
   for (const account of accountsList) {
@@ -288,7 +288,7 @@ class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.union]!);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
     const startDate = this.options.startDate || defaultStartMoment.toDate();
     const startMoment = moment.max(defaultStartMoment, moment(startDate));

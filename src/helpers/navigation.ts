@@ -8,15 +8,15 @@ interface WaitForOptions {
   timeout?: number;
 }
 
-export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions) {
+export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions): Promise<void> {
   await pageOrFrame.waitForNavigation(options);
 }
 
-export async function waitForNavigationAndDomLoad(page: Page) {
+export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
 }
 
-export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false) {
+export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false): Promise<string> | string {
   if (clientSide) {
     return pageOrFrame.evaluate(() => window.location.href);
   }
@@ -30,7 +30,7 @@ export interface WaitForRedirectOptions {
   ignoreList?: string[];
 }
 
-export async function waitForRedirect(pageOrFrame: Page | Frame, opts: WaitForRedirectOptions = {}) {
+export async function waitForRedirect(pageOrFrame: Page | Frame, opts: WaitForRedirectOptions = {}): Promise<void> {
   const { timeout = 20000, clientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, clientSide);
 
@@ -49,7 +49,7 @@ export interface WaitForUrlOptions {
   clientSide?: boolean;
 }
 
-export async function waitForUrl(pageOrFrame: Page | Frame, url: string | RegExp, opts: WaitForUrlOptions = {}) {
+export async function waitForUrl(pageOrFrame: Page | Frame, url: string | RegExp, opts: WaitForUrlOptions = {}): Promise<void> {
   const { timeout = 20000, clientSide = false } = opts;
   await waitUntil(
     async () => {

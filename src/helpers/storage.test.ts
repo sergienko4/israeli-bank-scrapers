@@ -1,7 +1,7 @@
 import { getFromSessionStorage } from './storage';
 import { createMockPage } from '../tests/mock-page';
 
-function createSessionMockPage(sessionData: Record<string, string | null>) {
+function createSessionMockPage(sessionData: Record<string, string | null>): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest.fn((_fn: (k: string) => string | null, key: string) => {
       return Promise.resolve(sessionData[key] ?? null);

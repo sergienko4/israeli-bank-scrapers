@@ -84,7 +84,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       wrongIdConfig,
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as any);
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
 
     // ConcreteGenericScraper.fetchData() returns { success: true, accounts: [] }
     // Login must have succeeded via selector fallback for fetchData to be reached.
@@ -128,7 +128,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       emptyPageConfig,
     );
 
-    const result = await scraper.scrape({ username: 'u', password: 'p' } as any);
+    const result = await scraper.scrape({ username: 'u', password: 'p' } as { username: string; password: string });
 
     expect(result.success).toBe(false);
     // Error message must list the failed candidates and hint at redesign
@@ -207,7 +207,7 @@ describe('Selector fallback Round 4: iframe detection', () => {
       iframeConfig,
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as any);
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
 
     // Round 4 must have found the inputs in the iframe.
     // Login succeeded → fetchData() stub returns success.

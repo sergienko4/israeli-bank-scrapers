@@ -15,19 +15,27 @@ const FILTERED_TRANSACTIONS_URL = `${BASE_URL}/ChannelWCF/Broker.svc/ProcessRequ
 
 const DATE_FORMAT = 'DD.MM.YY';
 
-function mapOneTxn(rawTransaction: any, status: TransactionStatuses, options?: ScraperOptions): Transaction {
+interface LeumiRawTransaction {
+  DateUTC: string;
+  Description?: string;
+  ReferenceNumberLong?: number;
+  AdditionalData?: string;
+  Amount: number;
+}
+
+function mapOneTxn(rawTransaction: LeumiRawTransaction, status: TransactionStatuses, options?: ScraperOptions): Transaction {
   const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
   const tx: Transaction = { status, type: TransactionTypes.Normal, date, processedDate: date, description: rawTransaction.Description || '', identifier: rawTransaction.ReferenceNumberLong, memo: rawTransaction.AdditionalData || '', originalCurrency: SHEKEL_CURRENCY, chargedAmount: rawTransaction.Amount, originalAmount: rawTransaction.Amount };
   if (options?.includeRawTransaction) tx.rawTransaction = getRawTransaction(rawTransaction);
   return tx;
 }
 
-function extractTransactionsFromPage(transactions: any[], status: TransactionStatuses, options?: ScraperOptions): Transaction[] {
+function extractTransactionsFromPage(transactions: LeumiRawTransaction[], status: TransactionStatuses, options?: ScraperOptions): Transaction[] {
   if (!transactions || transactions.length === 0) return [];
   return transactions.map(rawTransaction => mapOneTxn(rawTransaction, status, options));
 }
 
-function hangProcess(timeout: number) {
+function hangProcess(timeout: number): Promise<void> {
   return new Promise<void>(resolve => {
     setTimeout(() => {
       resolve();
@@ -52,7 +60,7 @@ interface FetchForAccountOpts {
   options: ScraperOptions;
 }
 
-async function applyDateFilter(page: Page, startDate: Moment) {
+async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
   await waitUntilElementFound(page, 'button[title="חיפוש מתקדם"]', { visible: true });
   await clickButton(page, 'button[title="חיפוש מתקדם"]');
   await waitUntilElementFound(page, 'bll-radio-button', { visible: true });
@@ -68,9 +76,9 @@ async function fetchTransactionsForAccount(opts: FetchForAccountOpts): Promise<T
   await hangProcess(4000);
   await applyDateFilter(page, startDate);
   const finalResponse = await page.waitForResponse(response => response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST');
-  const responseJson: any = await finalResponse.json();
+  const responseJson = await finalResponse.json() as { jsonResp: string };
   const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
-  const response = JSON.parse(responseJson.jsonResp);
+  const response = JSON.parse(responseJson.jsonResp) as { BalanceDisplay?: string; TodayTransactionsItems: LeumiRawTransaction[]; HistoryTransactionsItems: LeumiRawTransaction[] };
   const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
   const pendingTxns = extractTransactionsFromPage(response.TodayTransactionsItems, TransactionStatuses.Pending, options);
   const completedTxns = extractTransactionsFromPage(response.HistoryTransactionsItems, TransactionStatuses.Completed, options);

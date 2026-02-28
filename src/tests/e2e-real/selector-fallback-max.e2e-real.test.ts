@@ -78,7 +78,7 @@ describe('E2E: Selector fallback — Max', () => {
         defaultTimeout: 60000,
       },
       baseCfg,
-    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMAX' } as any);
+    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMAX' } as { username: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     if (!result.success) {
       expect(VALID_REACHED_BANK).toContain(result.errorType);

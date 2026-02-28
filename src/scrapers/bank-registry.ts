@@ -18,7 +18,7 @@ import {
   YAHAV_CONFIG,
 } from './bank-registry-extra';
 
-async function beinleumiPostAction(page: Page) {
+async function beinleumiPostAction(page: Page): Promise<void> {
   await Promise.race([
     page.waitForSelector('#card-header'),
     page.waitForSelector('#account_num'),
@@ -43,7 +43,7 @@ const BEINLEUMI_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {
   invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],
 };
 
-async function beinleumiPreAction(page: Page) {
+async function beinleumiPreAction(page: Page): Promise<void> {
   const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
   if (hasTrigger) {
     await page.evaluate(() => {
@@ -67,7 +67,7 @@ function beinleumiConfig(loginUrl: string): LoginConfig {
   };
 }
 
-async function discountPostAction(page: Page) {
+async function discountPostAction(page: Page): Promise<void> {
   try {
     await waitForNavigation(page);
   } catch {

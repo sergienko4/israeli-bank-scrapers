@@ -8,26 +8,26 @@ export interface WaitOptions {
 
 export interface PageEvalOpts<R> {
   selector: string;
-  defaultResult: any;
-  callback: (element: Element, ...args: any) => R;
+  defaultResult: R;
+  callback: (element: Element, ...args: unknown[]) => R;
 }
 
 export interface PageEvalAllOpts<R> {
   selector: string;
-  defaultResult: any;
-  callback: (elements: Element[], ...args: any) => R;
+  defaultResult: R;
+  callback: (elements: Element[], ...args: unknown[]) => R;
 }
 
-async function waitUntilElementFound(page: Page | Frame, elementSelector: string, opts: WaitOptions = {}) {
+async function waitUntilElementFound(page: Page | Frame, elementSelector: string, opts: WaitOptions = {}): Promise<void> {
   const state = opts.visible ? 'visible' : 'attached';
   await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
 }
 
-async function waitUntilElementDisappear(page: Page, elementSelector: string, timeout?: number) {
+async function waitUntilElementDisappear(page: Page, elementSelector: string, timeout?: number): Promise<void> {
   await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
 }
 
-async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boolean, timeout: number) {
+async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boolean, timeout: number): Promise<Frame | undefined> {
   let frame: Frame | undefined;
   await waitUntil(
     () => {
@@ -40,7 +40,7 @@ async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boole
   return frame;
 }
 
-async function waitUntilIframeFound(page: Page, framePredicate: (frame: Frame) => boolean, opts: WaitOptions & { description?: string } = {}) {
+async function waitUntilIframeFound(page: Page, framePredicate: (frame: Frame) => boolean, opts: WaitOptions & { description?: string } = {}): Promise<Frame> {
   const { timeout = 30000, description = '' } = opts;
   const frame = await waitForIframe(page, framePredicate, timeout);
 
@@ -73,18 +73,19 @@ async function setValue(pageOrFrame: Page | Frame, inputSelector: string, inputV
   );
 }
 
-async function clickButton(page: Page | Frame, buttonSelector: string) {
+async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
   await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => (el as HTMLElement).click());
 }
 
-async function clickLink(page: Page, aSelector: string) {
-  await page.$eval(aSelector, (el: any) => {
-    if (!el || typeof el.click === 'undefined') {
+async function clickLink(page: Page, aSelector: string): Promise<void> {
+  await page.$eval(aSelector, (el: Element) => {
+    const htmlEl = el as HTMLElement & { click?: () => void };
+    if (!htmlEl || typeof htmlEl.click === 'undefined') {
       return;
     }
 
-    el.click();
+    htmlEl.click();
   });
 }
 
@@ -120,15 +121,15 @@ async function pageEval<R>(page: Page | Frame, opts: PageEvalOpts<R>): Promise<R
   return result;
 }
 
-async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string) {
+async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string): Promise<boolean> {
   return (await pageOrFrame.$(selector)) !== null;
 }
 
-async function dropdownSelect(page: Page, selectSelector: string, value: string) {
+async function dropdownSelect(page: Page, selectSelector: string, value: string): Promise<void> {
   await page.selectOption(selectSelector, value);
 }
 
-async function dropdownElements(page: Page, selector: string) {
+async function dropdownElements(page: Page, selector: string): Promise<{ name: string; value: string }[]> {
   const options = await page.evaluate(optionSelector => {
     return Array.from(document.querySelectorAll<HTMLOptionElement>(optionSelector))
       .filter(o => o.value)

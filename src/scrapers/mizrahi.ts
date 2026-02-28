@@ -7,7 +7,7 @@ import { type Transaction, TransactionStatuses, TransactionTypes, type Transacti
 import { ScraperErrorTypes } from './errors';
 import { getDebug } from '../helpers/debug';
 import { getRawTransaction } from '../helpers/transactions';
-import { type ScraperOptions } from './interface';
+import { type ScraperOptions, type ScraperScrapingResult } from './interface';
 import { CompanyTypes } from '../definitions';
 import { BANK_REGISTRY } from './bank-registry';
 import { GenericBankScraper } from './generic-bank-scraper';
@@ -23,12 +23,12 @@ interface ScrapedTransaction {
   IsTodayTransaction: boolean;
   MC02ErehTaaEZ: string;
   MC02ShowDetailsEZ?: string;
-  MC02KodGoremEZ: any;
-  MC02SugTnuaKaspitEZ: any;
-  MC02AgidEZ: any;
-  MC02SeifMaralEZ: any;
-  MC02NoseMaralEZ: any;
-  TransactionNumber: any;
+  MC02KodGoremEZ: string;
+  MC02SugTnuaKaspitEZ: string;
+  MC02AgidEZ: string;
+  MC02SeifMaralEZ: string;
+  MC02NoseMaralEZ: string;
+  TransactionNumber: string | number;
 }
 
 interface ScrapedTransactionsResult {
@@ -87,13 +87,13 @@ const accountDropDownItemSelector = '#AccountPicker .item';
 const pendingTrxIdentifierId = '#ctl00_ContentPlaceHolder2_panel1';
 const genericDescriptions = ['העברת יומן לבנק זר מסניף זר'];
 
-function getStartMoment(optionsStartDate: Date) {
+function getStartMoment(optionsStartDate: Date): moment.Moment {
   const defaultStartMoment = moment().subtract(1, 'years');
   const startDate = optionsStartDate || defaultStartMoment.toDate();
   return moment.max(defaultStartMoment, moment(startDate));
 }
 
-function buildExtraDetailsParams(item: ScrapedTransaction) {
+function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
   const tarPeula = moment(item.MC02PeulaTaaEZ);
   const tarErech = moment(item.MC02ErehTaaEZ);
   return {
@@ -106,9 +106,9 @@ function buildExtraDetailsParams(item: ScrapedTransaction) {
 }
 
 function parseDetailsFields(fields: Array<{ Label: string; Value: string }>): MoreDetails {
-  const entries = fields.map(record => [record.Label.trim(), record.Value.trim()]);
+  const entries: [string, string][] = fields.map(record => [record.Label.trim(), record.Value.trim()]);
   return {
-    entries: Object.fromEntries(entries),
+    entries: Object.fromEntries(entries) as Record<string, string>,
     memo: entries.filter(([label]) => ['שם', 'מהות', 'חשבון'].some(key => label.startsWith(key))).map(([label, value]) => `${label} ${value}`).join(', '),
   };
 }
@@ -134,8 +134,15 @@ async function getExtraTransactionDetails(page: Page, item: ScrapedTransaction, 
   return { entries: {}, memo: undefined };
 }
 
-function createDataFromRequest(request: Request, optionsStartDate: Date) {
-  const data = JSON.parse(request.postData() || '{}');
+interface MizrahiRequestData {
+  inFromDate: string;
+  inToDate: string;
+  table: { maxRow: number };
+  [key: string]: unknown;
+}
+
+function createDataFromRequest(request: Request, optionsStartDate: Date): MizrahiRequestData {
+  const data = JSON.parse(request.postData() || '{}') as MizrahiRequestData;
 
   data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
   data.inToDate = moment().format(DATE_FORMAT);
@@ -144,7 +151,7 @@ function createDataFromRequest(request: Request, optionsStartDate: Date) {
   return data;
 }
 
-function createHeadersFromRequest(request: Request) {
+function createHeadersFromRequest(request: Request): Record<string, string> {
   return {
     mizrahixsrftoken: request.headers().mizrahixsrftoken,
     'Content-Type': request.headers()['content-type'],
@@ -228,7 +235,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return this.fetchAccount();
   }
 
-  async fetchData() {
+  async fetchData(): Promise<ScraperScrapingResult> {
     await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
     const numOfAccounts = (await this.page.$$(accountDropDownItemSelector)).length;
     try {
@@ -256,7 +263,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return pendingTxn;
   }
 
-  private async navigateToTransactions() {
+  private async navigateToTransactions(): Promise<void> {
     await this.page.waitForSelector(`a[href*="${OSH_PAGE}"]`);
     await this.page.$eval(`a[href*="${OSH_PAGE}"]`, el => (el as HTMLElement).click());
     await waitUntilElementFound(this.page, `a[href*="${TRANSACTIONS_PAGE}"]`);
@@ -271,7 +278,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return accountNumber;
   }
 
-  private async fetchTransactionData() {
+  private async fetchTransactionData(): Promise<readonly [ScrapedTransactionsResult | null, Record<string, string>]> {
     return Promise.any(
       TRANSACTIONS_REQUEST_URLS.map(async url => {
         const request = await this.page.waitForRequest(url);
@@ -282,7 +289,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     );
   }
 
-  private async fetchAccount() {
+  private async fetchAccount(): Promise<TransactionsAccount & { balance: number }> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();

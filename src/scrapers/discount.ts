@@ -77,7 +77,7 @@ interface FetchOneAccOpts {
   options: ScraperOptions;
 }
 
-async function fetchOneAccount(opts: FetchOneAccOpts) {
+async function fetchOneAccount(opts: FetchOneAccOpts): Promise<{ error: string } | { accountNumber: string; balance: number; txns: Transaction[] }> {
   const { page, apiSiteUrl, accountNumber, startDateStr, options } = opts;
   const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
   const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
@@ -114,7 +114,7 @@ class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, config);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<ScraperScrapingResult> {
     return fetchAccountData(this.page, this.options);
   }
 }

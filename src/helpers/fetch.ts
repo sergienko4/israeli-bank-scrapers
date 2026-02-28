@@ -6,7 +6,7 @@ const debug = getDebug('fetch');
 const JSON_CONTENT_TYPE = 'application/json';
 const WAF_BLOCK_PATTERNS = ['block automation', 'attention required', 'just a moment', 'access denied'] as const;
 
-function getJsonHeaders() {
+function getJsonHeaders(): Record<string, string> {
   return {
     Accept: JSON_CONTENT_TYPE,
     'Content-Type': JSON_CONTENT_TYPE,
@@ -33,7 +33,7 @@ function logResponseIssues(status: number, text: string | null, url: string): vo
   }
 }
 
-export async function fetchGet<TResult>(url: string, extraHeaders: Record<string, any>): Promise<TResult> {
+export async function fetchGet<TResult>(url: string, extraHeaders: Record<string, string>): Promise<TResult> {
   let headers = getJsonHeaders();
   if (extraHeaders) {
     headers = Object.assign(headers, extraHeaders);
@@ -47,10 +47,10 @@ export async function fetchGet<TResult>(url: string, extraHeaders: Record<string
   return (await fetchResult.json()) as TResult;
 }
 
-export async function fetchPost<TResult = any>(
+export async function fetchPost<TResult = unknown>(
   url: string,
-  data: Record<string, any>,
-  extraHeaders: Record<string, any> = {},
+  data: Record<string, unknown>,
+  extraHeaders: Record<string, string> = {},
 ): Promise<TResult> {
   const request = {
     method: 'POST',
@@ -63,19 +63,24 @@ export async function fetchPost<TResult = any>(
 
 export interface FetchGraphqlOptions {
   variables?: Record<string, unknown>;
-  extraHeaders?: Record<string, any>;
+  extraHeaders?: Record<string, string>;
+}
+
+interface GraphqlResponse<TResult> {
+  data: TResult;
+  errors?: Array<{ message: string }>;
 }
 
 export async function fetchGraphql<TResult>(url: string, query: string, opts: FetchGraphqlOptions = {}): Promise<TResult> {
   const { variables = {}, extraHeaders = {} } = opts;
-  const result = await fetchPost(url, { operationName: null, query, variables }, extraHeaders);
+  const result = await fetchPost<GraphqlResponse<TResult>>(url, { operationName: null, query, variables }, extraHeaders);
   if (result.errors?.length) {
     throw new Error(result.errors[0].message);
   }
-  return result.data as Promise<TResult>;
+  return result.data;
 }
 
-async function evaluateGet(page: Page, url: string) {
+async function evaluateGet(page: Page, url: string): Promise<readonly [string | null, number]> {
   return page.evaluate(async innerUrl => {
     let response: Response | undefined;
     try {
@@ -101,7 +106,7 @@ function parseGetResult<TResult>(opts: ParseGetOpts): TResult | null {
   const { result, status, url, ignoreErrors } = opts;
   if (result === null) return null;
   try {
-    return JSON.parse(result);
+    return JSON.parse(result) as TResult;
   } catch (e) {
     if (!ignoreErrors) {
       throw new Error(
@@ -122,19 +127,19 @@ export async function fetchGetWithinPage<TResult>(
 }
 
 export interface FetchPostOptions {
-  data: Record<string, any>;
-  extraHeaders?: Record<string, any>;
+  data: Record<string, unknown> | unknown[];
+  extraHeaders?: Record<string, string>;
   ignoreErrors?: boolean;
 }
 
-type PostEvalArgs = { innerUrl: string; innerData: Record<string, any>; innerExtraHeaders: Record<string, any> };
+type PostEvalArgs = { innerUrl: string; innerData: Record<string, unknown> | unknown[]; innerExtraHeaders: Record<string, string> };
 
-async function doPostFetch({ innerUrl, innerData, innerExtraHeaders }: PostEvalArgs) {
+async function doPostFetch({ innerUrl, innerData, innerExtraHeaders }: PostEvalArgs): Promise<readonly [string | null, number]> {
   let response: Response | undefined;
   try {
     response = await fetch(innerUrl, {
       method: 'POST',
-      body: JSON.stringify(innerData),
+      body: JSON.stringify(innerData as unknown),
       credentials: 'include',
       headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, innerExtraHeaders),
     });
@@ -147,7 +152,7 @@ async function doPostFetch({ innerUrl, innerData, innerExtraHeaders }: PostEvalA
   return [await response.text(), response.status] as const;
 }
 
-async function runPostEvaluate(page: Page, args: PostEvalArgs) {
+async function runPostEvaluate(page: Page, args: PostEvalArgs): Promise<readonly [string | null, number]> {
   return page.evaluate(doPostFetch, args);
 }
 
@@ -162,7 +167,7 @@ function parsePostResult<TResult>(pOpts: ParsePostOpts): TResult | null {
   const { text, status, url, opts } = pOpts;
   const { data, extraHeaders = {}, ignoreErrors = false } = opts;
   try {
-    if (text !== null) return JSON.parse(text);
+    if (text !== null) return JSON.parse(text) as TResult;
   } catch (e) {
     if (!ignoreErrors) {
       throw new Error(

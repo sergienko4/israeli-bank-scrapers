@@ -20,7 +20,7 @@ const debug = getDebug('max');
 
 export interface ScrapedTransaction {
   shortCardNumber: string;
-  paymentDate?: string;
+  paymentDate?: string | null;
   purchaseDate: string;
   actualPaymentAmount: string;
   paymentCurrency: number | null;
@@ -68,7 +68,7 @@ enum MaxPlanName {
 
 const categories = new Map<number, string>();
 
-function getTransactionsUrl(monthMoment: Moment) {
+function getTransactionsUrl(monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
   const date = `${year}-${month}-01`;
@@ -95,7 +95,7 @@ interface FetchCategoryResult {
   }>;
 }
 
-async function loadCategories(page: Page) {
+async function loadCategories(page: Page): Promise<void> {
   debug('Loading categories');
   const res = await fetchGetWithinPage<FetchCategoryResult>(page, `${BASE_API_ACTIONS_URL}/api/contents/getCategories`);
   if (res && Array.isArray(res.result)) {
@@ -132,7 +132,7 @@ const PLAN_TYPE_MAP: Partial<Record<MaxPlanName, TransactionTypes>> = {
 
 const PLAN_ID_MAP: Record<number, TransactionTypes> = { 2: TransactionTypes.Installments, 3: TransactionTypes.Installments, 5: TransactionTypes.Normal };
 
-function getTransactionType(planName: string, planTypeId: number) {
+function getTransactionType(planName: string, planTypeId: number): TransactionTypes {
   const cleanedUpTxnTypeStr = planName.replaceAll('\t', ' ').trim() as MaxPlanName;
   const byName = PLAN_TYPE_MAP[cleanedUpTxnTypeStr];
   if (byName !== undefined) return byName;
@@ -141,7 +141,7 @@ function getTransactionType(planName: string, planTypeId: number) {
   throw new Error(`Unknown transaction type ${cleanedUpTxnTypeStr as string}`);
 }
 
-function getInstallmentsInfo(comments: string) {
+function getInstallmentsInfo(comments: string): { number: number; total: number } | undefined {
   if (!comments) {
     return undefined;
   }
@@ -156,7 +156,7 @@ function getInstallmentsInfo(comments: string) {
   };
 }
 
-function getChargedCurrency(currencyId: number | null) {
+function getChargedCurrency(currencyId: number | null): string | undefined {
   switch (currencyId) {
     case 376:
       return SHEKEL_CURRENCY;
@@ -173,7 +173,7 @@ export function getMemo({
   comments,
   fundsTransferReceiverOrTransfer,
   fundsTransferComment,
-}: Pick<ScrapedTransaction, 'comments' | 'fundsTransferReceiverOrTransfer' | 'fundsTransferComment'>) {
+}: Pick<ScrapedTransaction, 'comments' | 'fundsTransferReceiverOrTransfer' | 'fundsTransferComment'>): string {
   if (fundsTransferReceiverOrTransfer) {
     const memo = comments ? `${comments} ${fundsTransferReceiverOrTransfer}` : fundsTransferReceiverOrTransfer;
     return fundsTransferComment ? `${memo}: ${fundsTransferComment}` : memo;
@@ -213,7 +213,7 @@ interface ScrapedTransactionsResult {
   };
 }
 
-async function fetchTransactionsForMonth(page: Page, monthMoment: Moment, options?: ScraperOptions) {
+async function fetchTransactionsForMonth(page: Page, monthMoment: Moment, options?: ScraperOptions): Promise<Record<string, Transaction[]>> {
   const url = getTransactionsUrl(monthMoment);
 
   const data = await fetchGetWithinPage<ScrapedTransactionsResult>(page, url);
@@ -236,7 +236,7 @@ async function fetchTransactionsForMonth(page: Page, monthMoment: Moment, option
   return transactionsByAccount;
 }
 
-function addResult(allResults: Record<string, Transaction[]>, result: Record<string, Transaction[]>) {
+function addResult(allResults: Record<string, Transaction[]>, result: Record<string, Transaction[]>): Record<string, Transaction[]> {
   const clonedResults: Record<string, Transaction[]> = { ...allResults };
   Object.keys(result).forEach(accountNumber => {
     if (!clonedResults[accountNumber]) {
@@ -262,7 +262,7 @@ function prepareTransactions(opts: PrepareOpts): Transaction[] {
   return enableTransactionsFilterByDate ? filterOldTransactions(clonedTxns, startMoment, combineInstallments || false) : clonedTxns;
 }
 
-async function collectAllMonthResults(page: Page, allMonths: Moment[], options: ScraperOptions) {
+async function collectAllMonthResults(page: Page, allMonths: Moment[], options: ScraperOptions): Promise<Record<string, Transaction[]>> {
   let allResults: Record<string, Transaction[]> = {};
   for (const month of allMonths) {
     allResults = addResult(allResults, await fetchTransactionsForMonth(page, month, options));
@@ -270,7 +270,7 @@ async function collectAllMonthResults(page: Page, allMonths: Moment[], options: 
   return allResults;
 }
 
-async function fetchTransactions(page: Page, options: ScraperOptions) {
+async function fetchTransactions(page: Page, options: ScraperOptions): Promise<Record<string, Transaction[]>> {
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
   const defaultStartMoment = moment().subtract(1, 'years');
   const startMoment = moment.max(moment().subtract(4, 'years'), moment(options.startDate || defaultStartMoment.toDate()));
@@ -292,7 +292,7 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.max]!);
   }
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; txns: Transaction[] }[] }> {
     const results = await fetchTransactions(this.page, this.options);
     const accounts = Object.keys(results).map(accountNumber => {
       return {

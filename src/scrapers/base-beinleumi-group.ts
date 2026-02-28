@@ -43,11 +43,11 @@ interface ScrapedTransaction {
   status: TransactionStatuses;
 }
 
-function getAmountData(amountStr: string) {
+function getAmountData(amountStr: string): number {
   return parseFloat(amountStr.replace(SHEKEL_CURRENCY_SYMBOL, '').replaceAll(',', ''));
 }
 
-function getTxnAmount(txn: ScrapedTransaction) {
+function getTxnAmount(txn: ScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
@@ -76,7 +76,7 @@ function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOption
   return txns.map(txn => buildSingleTransaction(txn, options));
 }
 
-function getCol(tds: TransactionsTrTds, cols: TransactionsColsTypes, key: string) {
+function getCol(tds: TransactionsTrTds, cols: TransactionsColsTypes, key: string): string {
   return (tds[cols[key]] || '').trim();
 }
 
@@ -97,7 +97,7 @@ async function getTransactionsColsTypeClasses(page: Page | Frame, tableLocator: 
   const result: TransactionsColsTypes = {};
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
-    defaultResult: null,
+    defaultResult: [] as Array<{ colClass: string | null; index: number }>,
     callback: tds => tds.map((td, index) => ({ colClass: td.getAttribute('class'), index })),
   });
   for (const typeClassObj of typeClassesObjs) {
@@ -113,13 +113,13 @@ interface ExtractTxnOpts {
   transactionsColsTypes: TransactionsColsTypes;
 }
 
-function extractTransaction(opts: ExtractTxnOpts) {
+function extractTransaction(opts: ExtractTxnOpts): void {
   const { txns, transactionStatus, txnRow, transactionsColsTypes } = opts;
   const txn = extractTransactionDetails(txnRow, transactionStatus, transactionsColsTypes);
   if (txn.date !== '') txns.push(txn);
 }
 
-async function extractTransactions(page: Page | Frame, tableLocator: string, transactionStatus: TransactionStatuses) {
+async function extractTransactions(page: Page | Frame, tableLocator: string, transactionStatus: TransactionStatuses): Promise<ScrapedTransaction[]> {
   const txns: ScrapedTransaction[] = [];
   const transactionsColsTypes = await getTransactionsColsTypeClasses(page, tableLocator);
   const transactionsRows = await pageEvalAll<TransactionsTr[]>(page, {
@@ -133,7 +133,7 @@ async function extractTransactions(page: Page | Frame, tableLocator: string, tra
   return txns;
 }
 
-async function isNoTransactionInDateRangeError(page: Page | Frame) {
+async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (hasErrorInfoElement) {
     const errorText = await page.$eval(`.${ERROR_MESSAGE_CLASS}`, errorElement => (errorElement as HTMLElement).innerText);
@@ -142,7 +142,7 @@ async function isNoTransactionInDateRangeError(page: Page | Frame) {
   return false;
 }
 
-async function searchByDates(page: Page | Frame, startDate: Moment) {
+async function searchByDates(page: Page | Frame, startDate: Moment): Promise<void> {
   await clickButton(page, 'a#tabHeader4');
   await waitUntilElementFound(page, 'div#fibi_dates');
   await fillInput(page, 'input#fromDate', startDate.format(DATE_FORMAT));
@@ -185,7 +185,7 @@ async function fetchPendingAndCompleted(page: Page | Frame, options?: ScraperOpt
   return [...pendingTxns, ...completedTxns];
 }
 
-async function getAccountTransactions(page: Page | Frame, options?: ScraperOptions) {
+async function getAccountTransactions(page: Page | Frame, options?: ScraperOptions): Promise<Transaction[]> {
   await Promise.race([
     waitUntilElementFound(page, "div[id*='divTable']", { visible: false }),
     waitUntilElementFound(page, `.${ERROR_MESSAGE_CLASS}`, { visible: false }),
@@ -200,7 +200,7 @@ async function getCurrentBalance(page: Page | Frame): Promise<number> {
   return getAmountData(balanceStr);
 }
 
-export async function waitForPostLogin(page: Page) {
+export async function waitForPostLogin(page: Page): Promise<void> {
   return Promise.race([
     waitUntilElementFound(page, '#card-header', { visible: false }),
     waitUntilElementFound(page, '#account_num', { visible: true }),
@@ -209,7 +209,7 @@ export async function waitForPostLogin(page: Page) {
   ]);
 }
 
-async function fetchAccountData(page: Page | Frame, startDate: Moment, options?: ScraperOptions) {
+async function fetchAccountData(page: Page | Frame, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount> {
   const accountNumber = await getAccountNumber(page);
   const balance = await getCurrentBalance(page);
   await searchByDates(page, startDate);
@@ -248,7 +248,7 @@ abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpeci
 
   abstract TRANSACTIONS_URL: string;
 
-  async fetchData() {
+  async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
     const startMomentLimit = moment({ year: 1600 });
     const startDate = this.options.startDate || defaultStartMoment.toDate();

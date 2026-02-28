@@ -24,7 +24,7 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
 
 function buildWaitPromise<T>(asyncTest: () => Promise<T>, interval: number): Promise<NonNullable<T>> {
   return new Promise<NonNullable<T>>((resolve, reject) => {
-    function wait() {
+    function wait(): void {
       asyncTest()
         .then(value => {
           if (value) {
@@ -59,8 +59,8 @@ export function waitUntil<T>(
   return timeoutPromise(timeout, promise, description) as WaitUntilReturn<T>;
 }
 
-export function raceTimeout(ms: number, promise: Promise<any>) {
-  return timeoutPromise(ms, promise, 'timeout').catch(err => {
+export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {
+  return timeoutPromise(ms, promise, 'timeout').catch((err: unknown) => {
     if (!(err instanceof TimeoutError)) throw err;
   });
 }
@@ -69,7 +69,7 @@ export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
   return actions.reduce((m, a) => m.then(async x => [...x, await a()]), Promise.resolve<T[]>(new Array<T>()));
 }
 
-export function sleep(ms: number) {
+export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -77,7 +77,7 @@ export function sleep(ms: number) {
  * Random delay that mimics human interaction timing.
  * Default range: 300-1200ms (realistic for clicks and navigation).
  */
-export function humanDelay(minMs = 300, maxMs = 1200) {
+export function humanDelay(minMs = 300, maxMs = 1200): Promise<void> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return sleep(delay);
 }

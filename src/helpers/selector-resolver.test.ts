@@ -1,3 +1,4 @@
+import { type Frame, type Page } from 'playwright';
 import { candidateToCss, extractCredentialKey, resolveFieldContext, tryInContext } from './selector-resolver';
 import { type FieldConfig, type SelectorCandidate } from '../scrapers/login-config';
 
@@ -5,7 +6,9 @@ jest.mock('./debug', () => ({ getDebug: () => jest.fn() }));
 
 // ── Minimal Page/Frame mocks ─────────────────────────────────────────────────
 
-function makePage(overrides: Record<string, jest.Mock> = {}): any {
+type MockPageOverrides = Record<string, jest.Mock>;
+
+function makePage(overrides: MockPageOverrides = {}): Page {
   const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
   return {
     $: jest.fn().mockResolvedValue(null),
@@ -14,15 +17,15 @@ function makePage(overrides: Record<string, jest.Mock> = {}): any {
     title: jest.fn().mockResolvedValue('Bank Login'),
     url: jest.fn().mockReturnValue('https://bank.test/login'),
     ...overrides,
-  };
+  } as unknown as Page;
 }
 
-function makeFrame(overrides: Record<string, jest.Mock> = {}): any {
+function makeFrame(overrides: MockPageOverrides = {}): Frame {
   return {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test/frame'),
     ...overrides,
-  };
+  } as unknown as Frame;
 }
 
 // ── candidateToCss ────────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ describe('fetchGet', () => {
   it('merges extra headers', async () => {
     mockFetch.mockResolvedValue({ status: 200, json: () => Promise.resolve({}) });
     await fetchGet('https://api.bank.co.il/data', { Authorization: 'Bearer token' });
-    const callArgs = mockFetch.mock.calls[0][1];
+    const callArgs = (mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }])[1];
     expect(callArgs.headers.Authorization).toBe('Bearer token');
     expect(callArgs.headers.Accept).toBe('application/json');
   });
@@ -47,7 +47,7 @@ describe('fetchPost', () => {
     mockFetch.mockResolvedValue({ json: () => Promise.resolve({ success: true }) });
     const result = await fetchPost('https://api.bank.co.il/login', { user: 'test' });
     expect(result).toEqual({ success: true });
-    const callArgs = mockFetch.mock.calls[0][1];
+    const callArgs = (mockFetch.mock.calls[0] as [string, { method: string; body: string }])[1];
     expect(callArgs.method).toBe('POST');
     expect(callArgs.body).toBe(JSON.stringify({ user: 'test' }));
   });
@@ -80,7 +80,8 @@ describe('fetchGraphql', () => {
   it('sends variables in the request body', async () => {
     mockFetch.mockResolvedValue({ json: () => Promise.resolve({ data: {} }) });
     await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts }', { variables: { id: '123' } });
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const rawBody = (mockFetch.mock.calls[0] as [string, { body: string }])[1].body;
+    const body = JSON.parse(rawBody) as { variables: Record<string, unknown>; query: string };
     expect(body.variables).toEqual({ id: '123' });
     expect(body.query).toBe('{ accounts }');
   });

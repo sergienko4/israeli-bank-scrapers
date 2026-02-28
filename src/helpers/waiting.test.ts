@@ -52,12 +52,12 @@ describe('waitUntil', () => {
 
 describe('raceTimeout', () => {
   it('returns promise result when it resolves before timeout', async () => {
-    const result = await raceTimeout(5000, Promise.resolve('fast'));
+    const result: unknown = await raceTimeout(5000, Promise.resolve('fast'));
     expect(result).toBe('fast');
   });
 
   it('returns undefined when promise times out', async () => {
-    const result = await raceTimeout(
+    const result: unknown = await raceTimeout(
       50,
       sleep(200).then(() => 'slow'),
     );

@@ -47,11 +47,12 @@ export interface LoginOptions {
   waitUntil?: WaitUntilState;
 }
 
+type LoginCondition = string | RegExp | ((options?: { page?: Page }) => Promise<boolean>);
+
 async function getKeyByValue(object: PossibleLoginResults, value: string, page: Page): Promise<LoginResults> {
-  const keys = Object.keys(object);
+  const keys = Object.keys(object) as LoginResults[];
   for (const key of keys) {
-    // @ts-ignore
-    const conditions = object[key];
+    const conditions = object[key] as LoginCondition[];
 
     for (const condition of conditions) {
       let result = false;
@@ -59,13 +60,12 @@ async function getKeyByValue(object: PossibleLoginResults, value: string, page: 
       if (condition instanceof RegExp) {
         result = condition.test(value);
       } else if (typeof condition === 'function') {
-        result = await condition({ page, value });
+        result = await condition({ page });
       } else {
         result = value.toLowerCase() === condition.toLowerCase();
       }
 
       if (result) {
-        // @ts-ignore
         return Promise.resolve(key);
       }
     }
@@ -87,7 +87,7 @@ function createGeneralError(): ScraperScrapingResult {
   return { success: false, errorType: ScraperErrorTypes.General };
 }
 
-async function safeCleanup(cleanup: () => Promise<void>) {
+async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
   try {
     await cleanup();
   } catch (e) {
@@ -102,11 +102,11 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
 
   protected page!: Page;
 
-  protected getViewPort() {
+  protected getViewPort(): { width: number; height: number } | undefined {
     return this.options.viewportSize;
   }
 
-  private async setupPage(page: Page) {
+  private async setupPage(page: Page): Promise<void> {
     this.page = page;
     this.cleanups.push(() => page.close());
     if (this.options.defaultTimeout) this.page.setDefaultTimeout(this.options.defaultTimeout);
@@ -119,7 +119,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     });
   }
 
-  async initialize() {
+  async initialize(): Promise<void> {
     await super.initialize();
     debug('initialize scraper');
     this.emitProgress(ScraperProgressTypes.Initializing);
@@ -134,7 +134,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     return context.newPage();
   }
 
-  private rejectCustomExecutablePath() {
+  private rejectCustomExecutablePath(): void {
     if ('executablePath' in this.options && this.options.executablePath) {
       throw new Error(
         `Custom executablePath "${this.options.executablePath}" is not supported.\n\n` +
@@ -144,11 +144,11 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     }
   }
 
-  private registerBrowserCleanup(browser: Browser) {
+  private registerBrowserCleanup(browser: Browser): void {
     this.cleanups.push(async () => { debug('closing the browser'); await browser.close(); });
   }
 
-  private async initializePage() {
+  private async initializePage(): Promise<Page | undefined> {
     debug('initialize browser page');
     if ('browserContext' in this.options) {
       debug('Using the browser context provided in options');
@@ -276,7 +276,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     return this.handleLoginResult(loginResult);
   }
 
-  async terminate(_success: boolean) {
+  async terminate(_success: boolean): Promise<void> {
     debug(`terminating browser with success = ${_success}`);
     this.emitProgress(ScraperProgressTypes.Terminating);
     if (!_success && !!this.options.storeFailureScreenShotPath) {

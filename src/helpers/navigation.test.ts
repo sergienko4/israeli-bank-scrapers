@@ -7,7 +7,7 @@ import {
 } from './navigation';
 import { createMockPage } from '../tests/mock-page';
 
-function createNavMockPage(currentUrl = 'https://bank.co.il/login') {
+function createNavMockPage(currentUrl = 'https://bank.co.il/login'): ReturnType<typeof createMockPage> {
   const urlMock = jest.fn(() => currentUrl);
   const evaluateMock = jest.fn(() => Promise.resolve(currentUrl));
   return createMockPage({ url: urlMock, evaluate: evaluateMock });

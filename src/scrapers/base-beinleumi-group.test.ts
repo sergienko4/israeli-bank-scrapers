@@ -29,7 +29,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
@@ -62,7 +62,7 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function createPageWithAccountFeatures(overrides: Record<string, any> = {}) {
+function createPageWithAccountFeatures(overrides: Record<string, jest.Mock> = {}): ReturnType<typeof createMockPage> {
   return createMockPage({
     $eval: jest.fn().mockImplementation((selector: string) => {
       if (selector === 'div.fibi_account span.acc_num') return '12/345678';
@@ -93,7 +93,7 @@ const PENDING_COLUMN_TYPES = [
   { colClass: 'credit', index: 4 },
 ];
 
-function mockTransactionTable(rows: Array<{ innerTds: string[] }>) {
+function mockTransactionTable(rows: Array<{ innerTds: string[] }>): void {
   (pageEvalAll as jest.Mock)
     .mockResolvedValueOnce([]) // pending column types
     .mockResolvedValueOnce([]) // pending rows
@@ -152,7 +152,7 @@ describe('fetchData', () => {
   });
 
   it('handles no transactions in date range', async () => {
-    (elementPresentOnPage as jest.Mock).mockImplementation((_page: any, selector: string) => {
+    (elementPresentOnPage as jest.Mock).mockImplementation((_page: unknown, selector: string) => {
       return selector === '.NO_DATA';
     });
 

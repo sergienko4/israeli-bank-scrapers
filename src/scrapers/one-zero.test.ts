@@ -9,42 +9,42 @@ jest.mock('../helpers/fetch', () => ({
   fetchGraphql: jest.fn(),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-function mockDeviceToken(deviceToken = 'device-123') {
+function mockDeviceToken(deviceToken = 'device-123'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });
 }
 
-function mockOtpPrepare(otpContext = 'otp-ctx-456') {
+function mockOtpPrepare(otpContext = 'otp-ctx-456'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpContext } });
 }
 
-function mockOtpVerify(otpToken = 'otp-long-term-token') {
+function mockOtpVerify(otpToken = 'otp-long-term-token'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpToken } });
 }
 
-function mockIdToken(idToken = 'id-token-789') {
+function mockIdToken(idToken = 'id-token-789'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
 }
 
-function mockSessionToken(accessToken = 'access-token-abc') {
+function mockSessionToken(accessToken = 'access-token-abc'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
 }
 
-function setupLongTermLogin() {
+function setupLongTermLogin(): void {
   mockIdToken();
   mockSessionToken();
 }
 
-function mockCustomer(portfolios: any[] = []) {
+function mockCustomer(portfolios: Array<{ portfolioId: string; portfolioNum: string; accounts: Array<{ accountId: string }> }> = []): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
   });
 }
 
-function mockMovements(movements: any[] = [], hasMore = false, cursor = 'next') {
+function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, cursor = 'next'): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
       movements,
@@ -53,19 +53,38 @@ function mockMovements(movements: any[] = [], hasMore = false, cursor = 'next') 
   });
 }
 
-function mockAccountBalance(currentAccountBalance = 5000) {
+function mockAccountBalance(currentAccountBalance = 5000): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     balance: { currentAccountBalance, currentAccountBalanceStr: String(currentAccountBalance), blockedAmountStr: '0', limitAmountStr: '0' },
   });
 }
 
-function recentDate() {
+function recentDate(): string {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   return d.toISOString();
 }
 
-function movement(overrides: any = {}): any {
+interface OneZeroMovement {
+  movementId: string;
+  valueDate: string;
+  movementTimestamp: string;
+  movementAmount: string;
+  movementCurrency: string;
+  creditDebit: string;
+  description: string;
+  runningBalance: string;
+  transaction: null | { enrichment?: { recurrences?: Array<{ isRecurrent: boolean; dataSource?: string }> | null } | null };
+  bankCurrencyAmount?: string;
+  conversionRate?: string;
+  isReversed?: boolean;
+  movementReversedId?: string | null;
+  movementType?: string;
+  portfolioId?: string;
+  accountId?: string;
+}
+
+function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
   const ts = recentDate();
   return {
     movementId: 'mov-001',

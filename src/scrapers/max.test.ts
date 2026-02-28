@@ -7,7 +7,7 @@ import { filterOldTransactions, fixInstallments } from '../helpers/transactions'
 import { elementPresentOnPage } from '../helpers/elements-interactions';
 import { getCurrentUrl } from '../helpers/navigation';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import MaxScraper, { getMemo } from './max';
+import MaxScraper, { getMemo, type ScrapedTransaction } from './max';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
@@ -30,10 +30,10 @@ jest.mock('../helpers/navigation', () => ({
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/transactions', () => ({
-  fixInstallments: jest.fn((txns: any[]) => txns),
-  filterOldTransactions: jest.fn((txns: any[]) => txns),
-  sortTransactionsByDate: jest.fn((txns: any[]) => txns),
-  getRawTransaction: jest.fn((data: any) => data),
+  fixInstallments: jest.fn(<T>(txns: T[]) => txns),
+  filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
+  sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 jest.mock('../helpers/dates', () => {
@@ -51,19 +51,19 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function mockCategories() {
+function mockCategories(): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     result: [{ id: 1, name: 'מזון' }],
   });
 }
 
-function mockTxnMonth(txns: any[] = []) {
+function mockTxnMonth(txns: ScrapedTransaction[] = []): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     result: { transactions: txns },
   });
 }
 
-function rawTxn(overrides: any = {}): any {
+function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     shortCardNumber: '4580',
     paymentDate: '2024-06-15',

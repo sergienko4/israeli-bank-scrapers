@@ -2,6 +2,8 @@ import BeinleumiScraper from './beinleumi';
 import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
 import { SCRAPERS } from '../definitions';
 import { LoginResults } from './base-scraper-with-browser';
+import type { ScraperOptions } from './interface';
+
 
 const COMPANY_ID = 'beinleumi'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();
@@ -25,7 +27,7 @@ describe('Beinleumi', () => {
         companyId: COMPANY_ID,
       };
 
-      const scraper = new BeinleumiScraper(options);
+      const scraper = new BeinleumiScraper(options as unknown as ScraperOptions);
 
       const result = await scraper.scrape({ username: 'e10s12', password: '3f3ss3d' });
 
@@ -41,8 +43,8 @@ describe('Beinleumi', () => {
       companyId: COMPANY_ID,
     };
 
-    const scraper = new BeinleumiScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.beinleumi);
+    const scraper = new BeinleumiScraper(options as unknown as ScraperOptions);
+    const result = await scraper.scrape(testsConfig.credentials.beinleumi as Parameters<typeof scraper.scrape>[0]);
     expect(result).toBeDefined();
     const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
     expect(error).toBe('');

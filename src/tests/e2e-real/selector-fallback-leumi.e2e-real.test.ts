@@ -62,7 +62,7 @@ describe('E2E: Selector fallback — Leumi (Round 3 WELL_KNOWN_SELECTORS)', () =
         defaultTimeout: 60000,
       },
       leumiWellKnownCfg,
-    ).scrape({ username: 'INVALID_USER', password: 'WellKnownTestLMI' } as any);
+    ).scrape({ username: 'INVALID_USER', password: 'WellKnownTestLMI' } as { username: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });
