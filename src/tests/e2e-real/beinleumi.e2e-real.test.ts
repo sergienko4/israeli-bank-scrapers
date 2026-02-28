@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 import { createScraper, CompanyTypes } from '../../index';
+import { ScraperErrorTypes } from '../../scrapers/errors';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS, assertSuccessfulScrape, assertFailedLogin, lastMonthStartDate } from './helpers';
 
 dotenv.config();
@@ -44,6 +45,21 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
       password: process.env.BEINLEUMI_PASSWORD!,
     });
     assertSuccessfulScrape(result);
+  });
+
+  it('reaches OTP screen with valid credentials (no OTP retriever)', async () => {
+    const scraper = createScraper({
+      companyId: CompanyTypes.beinleumi,
+      startDate: new Date(),
+      showBrowser: false,
+      args: BROWSER_ARGS,
+    });
+    const result = await scraper.scrape({
+      username: process.env.BEINLEUMI_USERNAME!,
+      password: process.env.BEINLEUMI_PASSWORD!,
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
   });
 
   it('fails with invalid credentials', async () => {
