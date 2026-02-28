@@ -86,7 +86,6 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
   <summary>All 18 Israeli banks and credit card companies:</summary>
   <ol>
 
-
 | Institution        | Type        | Credentials                          | Contributors                                                                           |
 | ------------------ | ----------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
 | Bank Hapoalim      | Bank        | `userCode`, `password`               | [@sebikaplun](https://github.com/sebikaplun)                                           |
