@@ -14,6 +14,8 @@ const FAILED_LOGIN_TYPES: string[] = [
   ScraperErrorTypes.Timeout,
   ScraperErrorTypes.ChangePassword,
   ScraperErrorTypes.WafBlocked,
+  // Banks that require OTP can't complete login with invalid creds — valid failure
+  ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
 
 export function assertSuccessfulScrape(result: ScraperScrapingResult) {

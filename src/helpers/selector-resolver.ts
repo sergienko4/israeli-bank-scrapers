@@ -64,7 +64,9 @@ const WELL_KNOWN_SELECTORS: Record<string, SelectorCandidate[]> = {
     { kind: 'placeholder', value: 'קוד SMS' },
     { kind: 'placeholder', value: 'קוד אימות' },
     { kind: 'placeholder', value: 'הזן קוד' },
-    { kind: 'ariaLabel', value: 'קוד' },
+    // NOTE: ariaLabel 'קוד' removed — too broad, matches unrelated elements
+    // (e.g. carousel buttons with aria-label containing "הקודם").
+    // Round 4 iframe search handles banks where the OTP form is cross-origin.
     { kind: 'name', value: 'otpCode' },
   ],
 };

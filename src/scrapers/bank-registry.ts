@@ -15,12 +15,15 @@ import { type LoginConfig } from './login-config';
 // ─── BeinleumiGroup shared helpers ───────────────────────────────────────────
 
 async function beinleumiPostAction(page: Page) {
+  // Non-fatal — new portal (fibi.co.il/private) may use different selectors.
+  // getCurrentUrl + possibleResults handles success detection after this resolves.
   await Promise.race([
     page.waitForSelector('#card-header'),
     page.waitForSelector('#account_num'),
     page.waitForSelector('#matafLogoutLink'),
     page.waitForSelector('#validationMsg'),
-  ]);
+    page.waitForSelector('[class*="account-summary"]', { timeout: 30000 }),
+  ]).catch(() => {});
 }
 
 function beinleumiConfig(loginUrl: string): LoginConfig {
@@ -40,12 +43,23 @@ function beinleumiConfig(loginUrl: string): LoginConfig {
       { kind: 'css', value: '#continueBtn' },
       { kind: 'ariaLabel', value: 'כניסה' },
     ],
-    preAction: async () => {
-      await sleep(1000);
-      // returns void — preAction here is a simple delay, not a frame switch
+    preAction: async (page: Page) => {
+      // New portal (fibi.co.il/private): login is in a Bootstrap modal — click the trigger first.
+      // Old MATAF URL: login form shown directly, just needs a short warmup delay.
+      const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
+      if (hasTrigger) {
+        await page.evaluate(() => {
+          const el = document.querySelector('a.login-trigger');
+          if (el instanceof HTMLElement) el.click();
+        });
+        await sleep(2000); // wait for Bootstrap modal animation
+      } else {
+        await sleep(1000);
+      }
     },
     postAction: beinleumiPostAction,
     possibleResults: {
+      // NOTE: the new portal URL pattern will be updated once we observe the post-login URL via NAV logs
       success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/, /FibiMenu\/Online/],
       invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],
     },
@@ -187,7 +201,7 @@ async function yahavPostAction(page: Page) {
 export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   // ── BeinleumiGroup × 4 ───────────────────────────────────────────────────
   [CompanyTypes.beinleumi]: beinleumiConfig(
-    'https://online.fibi.co.il/MatafLoginService/MatafLoginServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE',
+    'https://www.fibi.co.il/private',
   ),
   [CompanyTypes.otsarHahayal]: beinleumiConfig(
     'https://online.bankotsar.co.il/MatafLoginService/MatafLoginServlet?bankId=OTSARPRTAL&site=Private&KODSAFA=HE',

@@ -37,6 +37,9 @@ jest.mock('../helpers/waiting', () => ({
   SECOND: 1000,
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+// OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
+// Return null here so login/fetchData tests are not affected by OTP detection.
+jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
 class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
   BASE_URL = 'https://test.fibi.co.il';
@@ -241,10 +244,12 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
       .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Page1', '100', '₪100.00', ''] }]);
 
-    // After first page: next page link exists
+    // beinleumiConfig.preAction calls elementPresentOnPage(page, 'a.login-trigger') once.
+    // It must be accounted for so subsequent Once values land on the right calls.
     (elementPresentOnPage as jest.Mock)
+      .mockResolvedValueOnce(false) // preAction: no login-trigger in mock env
       .mockResolvedValueOnce(false) // NO_DATA check
-      .mockResolvedValueOnce(true); // hasNextPage = true
+      .mockResolvedValueOnce(true); // hasNextPage = true (after first page)
 
     // Second page of completed
     (pageEvalAll as jest.Mock)

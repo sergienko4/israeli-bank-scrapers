@@ -10,6 +10,7 @@ import { sleep } from '../helpers/waiting';
 import { BaseScraper } from './base-scraper';
 import { ScraperErrorTypes } from './errors';
 import { type ScraperCredentials, type ScraperScrapingResult } from './interface';
+import { handleOtpStep } from '../helpers/otp-handler';
 
 const debug = getDebug('base-scraper-with-browser');
 
@@ -77,6 +78,20 @@ async function getKeyByValue(object: PossibleLoginResults, value: string, page: 
   }
 
   return Promise.resolve(LoginResults.UnknownError);
+}
+
+/**
+ * Returns true if the page's current URL already matches a known possibleResults pattern.
+ * Used to skip waitForNavigation when fast/mocked navigation completed before we got there.
+ * Errors from function-based matchers (e.g. mid-navigation page state) are treated as false.
+ */
+async function alreadyAtResultUrl(possibleResults: PossibleLoginResults, page: Page): Promise<boolean> {
+  try {
+    const result = await getKeyByValue(possibleResults, page.url(), page);
+    return result !== LoginResults.UnknownError;
+  } catch {
+    return false;
+  }
 }
 
 function createGeneralError(): ScraperScrapingResult {
@@ -310,10 +325,18 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     }
     this.emitProgress(ScraperProgressTypes.LoggingIn);
 
+    // Wait for any login-frame content to settle (e.g. Beinleumi loginFrame transitions
+    // from credentials form → OTP "choose phone" screen via AJAX after submit).
+    await sleep(1500);
+
+    // OTP interception — automatic for all DOM banks
+    const otpResult = await handleOtpStep(this.page, this.options);
+    if (otpResult !== null) return otpResult;
+
     if (loginOptions.postAction) {
       debug("execute 'postAction' interceptor provided in login options");
       await loginOptions.postAction();
-    } else {
+    } else if (!await alreadyAtResultUrl(loginOptions.possibleResults, this.page)) {
       debug('wait for page navigation');
       await waitForNavigation(this.page);
     }

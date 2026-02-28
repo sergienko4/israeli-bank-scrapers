@@ -25,6 +25,7 @@ jest.mock('../helpers/waiting', () => ({
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
+jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 jest.mock('../helpers/transactions', () => ({
   getRawTransaction: jest.fn((data: any) => data),
 }));

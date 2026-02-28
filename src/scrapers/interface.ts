@@ -13,14 +13,14 @@ export type ScraperCredentials =
   | { id: string; password: string; card6Digits: string }
   | { username: string; nationalID: string; password: string }
   | ({ email: string; password: string } & (
-      | {
-          otpCodeRetriever: () => Promise<string>;
-          phoneNumber: string;
-        }
-      | {
-          otpLongTermToken: string;
-        }
-    ));
+    | {
+      otpCodeRetriever: () => Promise<string>;
+      phoneNumber: string;
+    }
+    | {
+      otpLongTermToken: string;
+    }
+  ));
 
 export type OptInFeatures =
   | 'isracard-amex:skipAdditionalTransactionInformation'
@@ -170,6 +170,13 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
    */
   optInFeatures?: Array<OptInFeatures>;
+
+  /**
+   * Called when an OTP/2FA screen is detected after login form submission.
+   * Return the one-time code to continue scraping automatically.
+   * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
+   */
+  otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 };
 
 export interface OutputDataOptions {
@@ -198,15 +205,15 @@ export interface Scraper<TCredentials extends ScraperCredentials> {
 export type ScraperTwoFactorAuthTriggerResult =
   | ErrorResult
   | {
-      success: true;
-    };
+    success: true;
+  };
 
 export type ScraperGetLongTermTwoFactorTokenResult =
   | ErrorResult
   | {
-      success: true;
-      longTermTwoFactorAuthToken: string;
-    };
+    success: true;
+    longTermTwoFactorAuthToken: string;
+  };
 
 export interface ScraperLoginResult {
   success: boolean;

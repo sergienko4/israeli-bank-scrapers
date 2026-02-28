@@ -13,6 +13,8 @@ export const VALID_REACHED_BANK: string[] = [
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.Timeout,
   ScraperErrorTypes.General,
+  // Banks that now require OTP still prove the bank was reached
+  ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
 
 /** Regex matching "Could not find '<key>' field" for the given credential keys. */

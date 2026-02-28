@@ -25,6 +25,8 @@ const REFERENCE_COLUMN_CLASS = 'details';
 const DEBIT_COLUMN_CLASS = 'debit';
 const CREDIT_COLUMN_CLASS = 'credit';
 const ERROR_MESSAGE_CLASS = 'NO_DATA';
+// Transactions are scraped from the MATAF iframe (iframe-old-pages), which uses div.fibi_account span.acc_num.
+// Confirmed from real recording: MATAF page has <span class="acc_num">190691</span> inside div.fibi_account.
 const ACCOUNTS_NUMBER = 'div.fibi_account span.acc_num';
 const CLOSE_SEARCH_BY_DATES_BUTTON_CLASS = 'ui-datepicker-close';
 const SHOW_SEARCH_BY_DATES_BUTTON_VALUE = 'הצג';
@@ -427,15 +429,29 @@ export async function selectAccountFromDropdown(page: Page, accountLabel: string
 }
 
 async function getTransactionsFrame(page: Page): Promise<Frame | null> {
-  // Try a few times to find the iframe, as it might not be immediately available
+  // New PortalNG (fibi.co.il/private) embeds old MATAF pages via:
+  //   <iframe id="iframe-old-pages" ...>   ← id attribute, NOT name attribute
+  // Playwright frame.name() returns the `name` attr — so we use contentFrame() via the
+  // element handle. Fall back to frame.name() for the legacy direct-MATAF-URL flow.
   for (let attempt = 0; attempt < 3; attempt++) {
     await sleep(2000);
-    const frames = page.frames();
-    const targetFrame = frames.find(f => f.name() === IFRAME_NAME);
 
-    if (targetFrame) {
-      return targetFrame;
+    // Primary: find by element id (new PortalNG Angular embed — no name attr on iframe)
+    // contentFrame() may not exist on the handle (mock/stale) → try-catch covers both
+    // synchronous throws ("not a function") and async rejections.
+    const iframeEl = await page.$(`#${IFRAME_NAME}`).catch(() => null);
+    if (iframeEl) {
+      try {
+        const frame = await iframeEl.contentFrame();
+        if (frame) return frame;
+      } catch {
+        // handle is stale or element is not an iframe
+      }
     }
+
+    // Fallback: find by frame name (old MATAF direct URL kept the name attr)
+    const byName = page.frames().find(f => f.name() === IFRAME_NAME);
+    if (byName) return byName;
   }
 
   return null;

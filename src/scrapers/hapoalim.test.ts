@@ -28,6 +28,7 @@ jest.mock('../helpers/elements-interactions', () => ({
 }));
 jest.mock('../helpers/waiting', () => ({
   waitUntil: jest.fn().mockResolvedValue(undefined),
+  sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
@@ -36,6 +37,7 @@ jest.mock('../helpers/transactions', () => ({
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
+jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
 const mockContext = {
   newPage: jest.fn(),
