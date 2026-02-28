@@ -28,11 +28,11 @@ export async function getLoginFrame(page: Page): Promise<Frame> {
       return Promise.resolve(!!frame);
     },
     'wait for iframe with login form',
-    { timeout: 10000, interval: 1000 },
+    { timeout: 20000, interval: 1000 },
   );
 
   if (!frame) {
-    debug('failed to find login frame for 10 seconds');
+    debug('failed to find login frame for 20 seconds');
     throw new Error('failed to extract login iframe');
   }
 
