@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.1.0...v7.2.0) (2026-02-28)
+
+
+### Features
+
+* add TypeDoc auto-docs published to GitHub Pages ([#68](https://github.com/sergienko4/israeli-bank-scrapers/issues/68)) ([173ddfc](https://github.com/sergienko4/israeli-bank-scrapers/commit/173ddfcf6d24be8c8d65f1d6300d2bbf6c15cb43))
+
 ## [7.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.3...v7.1.0) (2026-02-28)
 
 
