@@ -275,4 +275,5 @@ fragment MovementsFragment on Movements {
     __typename
     ...PaginationFragment
   }
+}
 `;
