@@ -78,3 +78,5 @@ jobs:
           DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
           DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
