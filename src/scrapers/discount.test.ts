@@ -175,15 +175,15 @@ describe('fetchData', () => {
     expect(result.errorMessage).toBe('שגיאה בשרת');
   });
 
-  it('returns error when CurrentAccountLastTransactions is missing', async () => {
+  it('returns success with 0 transactions when CurrentAccountLastTransactions is absent', async () => {
     mockAccountsData();
     (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({});
 
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('unknown error');
+    expect(result.success).toBe(true);
+    expect(result.accounts![0].txns).toHaveLength(0);
   });
 
   it('includes pending (future) transactions', async () => {

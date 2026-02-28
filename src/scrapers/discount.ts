@@ -105,8 +105,11 @@ async function fetchOneAccount(
   const { page, apiSiteUrl, accountNumber, startDateStr, options } = opts;
   const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
   const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
-  if (!txnsResult || txnsResult.Error || !txnsResult.CurrentAccountLastTransactions) {
+  if (!txnsResult || txnsResult.Error) {
     return { error: txnsResult?.Error?.MsgText ?? 'unknown error' };
+  }
+  if (!txnsResult.CurrentAccountLastTransactions) {
+    return { accountNumber, balance: 0, txns: [] };
   }
   return buildOneAccountResult(txnsResult, accountNumber, options);
 }
