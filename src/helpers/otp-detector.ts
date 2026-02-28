@@ -74,7 +74,8 @@ async function getBodyText(page: Page): Promise<string | null> {
   try {
     const text = await page.evaluate(() => document.body.innerText);
     return typeof text === 'string' ? text : null;
-  } catch {
+  } catch (e: unknown) {
+    debug('getBodyText failed (page context inaccessible): %O', e);
     return null;
   }
 }
@@ -167,10 +168,9 @@ export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {
       await locator.hover();
       await locator.click();
       debug('clicked SMS trigger in #loginFrame: %s', sel);
-      console.log('[SMS-TRIGGER] clicked with hover+click:', sel);
       return;
     } catch (e: unknown) {
-      console.log('[SMS-TRIGGER] failed for', sel, ':', e instanceof Error ? e.message.slice(0, 80) : e);
+      debug('SMS trigger failed for %s: %s', sel, e instanceof Error ? e.message.slice(0, 80) : e);
     }
   }
 

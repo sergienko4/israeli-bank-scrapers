@@ -21,10 +21,16 @@ import {
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
+function extractErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return String(e);
+}
+
 function categorizeError(e: unknown): ErrorResult {
   if (e instanceof TimeoutError) return createTimeoutError(e.message);
   if (e instanceof WafBlockError) return createWafBlockedError(e.message, e.details);
-  return createGenericError((e as Error).message);
+  return createGenericError(extractErrorMessage(e));
 }
 
 export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {

@@ -4,11 +4,14 @@ import { getDebug } from './debug';
 import { fillInput, clickButton } from './elements-interactions';
 import { type ScraperOptions, type ScraperScrapingResult } from '../scrapers/interface';
 import { ScraperErrorTypes } from '../scrapers/errors';
-import { resolveFieldContext, tryInContext } from './selector-resolver';
+import { candidateToCss, resolveFieldContext, tryInContext } from './selector-resolver';
 import { detectOtpScreen, extractPhoneHint, clickOtpTriggerIfPresent, OTP_SUBMIT_CANDIDATES } from './otp-detector';
 import { sleep } from './waiting';
 
 const debug = getDebug('otp-handler');
+
+/** Delay for OTP form CSS transitions to complete before typing (Beinleumi fadeInDown ~300ms). */
+const OTP_ANIMATION_DELAY_MS = 800;
 
 async function saveScreenshot(page: Page, screenshotDir: string): Promise<string> {
   const screenshotPath = path.join(screenshotDir, `otp-required-${Date.now()}.png`);
@@ -24,8 +27,8 @@ async function buildMissingRetrieverResult(page: Page, screenshotDir?: string): 
     try {
       const screenshotPath = await saveScreenshot(page, screenshotDir);
       errorMessage += ` Screenshot saved to ${screenshotPath}`;
-    } catch {
-      // screenshot failed — ignore
+    } catch (e: unknown) {
+      debug('screenshot failed: %O', e);
     }
   }
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
@@ -64,18 +67,17 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
   for (const sel of OTP_FILL_INPUT_SELECTORS) {
     const el = await frame.$(sel).catch(() => null);
     if (!el) continue;
-    // Wait for CSS animations (~800ms) then fire real key events
-    await new Promise(r => setTimeout(r, 800));
+    await sleep(OTP_ANIMATION_DELAY_MS); // wait for CSS transition before typing
     try {
       await frame.locator(sel).first().type(code, { delay: 80 });
-      console.log('[OTP-WAIT] typed code via locator.type() selector:', sel);
-    } catch {
+      debug('typed OTP code via locator.type() selector: %s', sel);
+    } catch (e: unknown) {
+      debug('locator.type() failed (%O), falling back to evaluate injection', e);
       await el.evaluate((input: HTMLInputElement, val: string) => {
         input.focus();
         input.value = val;
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }, code);
-      console.log('[OTP-WAIT] typed code via evaluate fallback selector:', sel);
     }
     return;
   }
@@ -83,7 +85,7 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
 
 async function submitOtpInFrame(frame: Frame): Promise<void> {
   for (const candidate of OTP_SUBMIT_CANDIDATES) {
-    const sel = (await import('./selector-resolver')).candidateToCss(candidate);
+    const sel = candidateToCss(candidate); // static import — no dynamic require
     const el = await frame.$(sel).catch(() => null);
     if (!el) continue;
     await el.evaluate((btn: HTMLElement) => {
@@ -92,7 +94,7 @@ async function submitOtpInFrame(frame: Frame): Promise<void> {
       if (win.$ && btn.id) win.$(`#${btn.id}`).trigger('click');
       else btn.click();
     });
-    console.log('[OTP-SUBMIT] clicked via evaluate:', sel);
+    debug('clicked OTP submit button via evaluate: %s', sel);
     return;
   }
   debug('no OTP submit button found in frame %s', frame.url().slice(-60));
@@ -103,7 +105,7 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
   // No frame ID is hardcoded; the input content (selector list) drives discovery.
   const frame = await findOtpFillFrame(page);
   if (frame) {
-    console.log('[OTP-WAIT] found OTP input in frame:', frame.url().slice(-60));
+    debug('filling OTP in frame: %s', frame.url().slice(-60));
     await typeOtpCode(frame, code);
     await submitOtpInFrame(frame);
     return;

@@ -1,6 +1,7 @@
 import moment, { type Moment } from 'moment';
 import { type Frame, type Page } from 'playwright';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../constants';
+import { getDebug } from '../helpers/debug';
 import {
   clickButton,
   elementPresentOnPage,
@@ -14,6 +15,8 @@ import { sleep } from '../helpers/waiting';
 import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
 import { GenericBankScraper } from './generic-bank-scraper';
 import { type ScraperOptions } from './interface';
+
+const debug = getDebug('base-beinleumi-group');
 
 const DATE_FORMAT = 'DD/MM/YYYY';
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';
@@ -36,6 +39,8 @@ const NEXT_PAGE_LINK = 'a#Npage.paging';
 const CURRENT_BALANCE = '.main_balance';
 const IFRAME_NAME = 'iframe-old-pages';
 const ELEMENT_RENDER_TIMEOUT_MS = 10000;
+const TRANSACTIONS_FRAME_LOAD_ATTEMPTS = 3;
+const TRANSACTIONS_FRAME_WAIT_MS = 2000;
 
 type TransactionsColsTypes = Record<string, number>;
 type TransactionsTrTds = string[];
@@ -433,8 +438,8 @@ async function getTransactionsFrame(page: Page): Promise<Frame | null> {
   //   <iframe id="iframe-old-pages" ...>   ← id attribute, NOT name attribute
   // Playwright frame.name() returns the `name` attr — so we use contentFrame() via the
   // element handle. Fall back to frame.name() for the legacy direct-MATAF-URL flow.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await sleep(2000);
+  for (let attempt = 0; attempt < TRANSACTIONS_FRAME_LOAD_ATTEMPTS; attempt++) {
+    await sleep(TRANSACTIONS_FRAME_WAIT_MS);
 
     // Primary: find by element id (new PortalNG Angular embed — no name attr on iframe)
     // contentFrame() may not exist on the handle (mock/stale) → try-catch covers both
@@ -444,16 +449,18 @@ async function getTransactionsFrame(page: Page): Promise<Frame | null> {
       try {
         const frame = await iframeEl.contentFrame();
         if (frame) return frame;
-      } catch {
-        // handle is stale or element is not an iframe
+      } catch (e: unknown) {
+        debug('attempt %d: iframe element stale or not an iframe: %O', attempt + 1, e);
       }
     }
 
     // Fallback: find by frame name (old MATAF direct URL kept the name attr)
     const byName = page.frames().find(f => f.name() === IFRAME_NAME);
     if (byName) return byName;
+    debug('attempt %d/%d: transactions frame not found, retrying...', attempt + 1, TRANSACTIONS_FRAME_LOAD_ATTEMPTS);
   }
 
+  debug('getTransactionsFrame: failed to find frame after %d attempts', TRANSACTIONS_FRAME_LOAD_ATTEMPTS);
   return null;
 }
 
