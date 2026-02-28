@@ -1,1 +1,6 @@
 src/tests/e2e-mocked/fixtures/
+
+# TypeDoc config and YAML workflows (no prettier-plugin-yaml installed)
+typedoc.json
+*.yml
+*.yaml
