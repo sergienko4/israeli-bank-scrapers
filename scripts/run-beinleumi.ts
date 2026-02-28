@@ -45,7 +45,8 @@ async function waitForOtpFromFile(phoneHint: string): Promise<string> {
         return;
       }
       if (!fs.existsSync(OTP_FILE)) return;
-      const code = fs.readFileSync(OTP_FILE, 'utf-8').trim();
+      // Strip BOM (PowerShell UTF-16 echo) and keep only digits — OTP codes are always numeric
+      const code = fs.readFileSync(OTP_FILE, 'utf-8').replace(/\D/g, '');
       if (!code) return;
       clearInterval(interval);
       cleanOtpFile();
