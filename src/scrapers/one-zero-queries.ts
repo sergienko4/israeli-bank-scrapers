@@ -1,3 +1,14 @@
+export const GET_ACCOUNT_BALANCE = `
+query GetAccountBalance($portfolioId: String!, $accountId: String!) {
+  balance(portfolioId: $portfolioId, accountId: $accountId) {
+    currentAccountBalance
+    currentAccountBalanceStr
+    blockedAmountStr
+    limitAmountStr
+  }
+}
+`;
+
 export const GET_CUSTOMER = `
 query GetCustomer {
   customer {

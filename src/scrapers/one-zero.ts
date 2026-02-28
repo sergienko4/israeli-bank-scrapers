@@ -16,7 +16,7 @@ import {
   type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from './interface';
-import { GET_CUSTOMER, GET_MOVEMENTS } from './one-zero-queries';
+import { GET_ACCOUNT_BALANCE, GET_CUSTOMER, GET_MOVEMENTS } from './one-zero-queries';
 
 const HEBREW_WORDS_REGEX = /[\u0590-\u05FF][\u0590-\u05FF"'\-_ /\\]*[\u0590-\u05FF]/g;
 
@@ -263,10 +263,26 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
 
     movements.sort((x, y) => new Date(x.movementTimestamp).valueOf() - new Date(y.movementTimestamp).valueOf());
 
+    // Fetch the real-time account balance via the dedicated balance query.
+    // This includes pending/blocked transactions and matches what the app shows,
+    // unlike runningBalance which only reflects the last settled movement.
+    let balance = !movements.length ? 0 : parseFloat(movements[movements.length - 1].runningBalance);
+    try {
+      const { balance: accountBalance }: { balance: { currentAccountBalance: number } } = await fetchGraphql(
+        GRAPHQL_API_URL,
+        GET_ACCOUNT_BALANCE,
+        { portfolioId: portfolio.portfolioId, accountId: account.accountId },
+        { authorization: `Bearer ${this.accessToken}` },
+      );
+      balance = accountBalance.currentAccountBalance;
+    } catch {
+      debug('balance query failed — falling back to runningBalance of last movement');
+    }
+
     const matchingMovements = movements.filter(movement => new Date(movement.movementTimestamp) >= startDate);
     return {
       accountNumber: portfolio.portfolioNum,
-      balance: !movements.length ? 0 : parseFloat(movements[movements.length - 1].runningBalance),
+      balance,
       txns: matchingMovements.map((movement): ScrapingTransaction => {
         const hasInstallments = movement.transaction?.enrichment?.recurrences?.some(x => x.isRecurrent);
         const modifier = movement.creditDebit === 'DEBIT' ? -1 : 1;
