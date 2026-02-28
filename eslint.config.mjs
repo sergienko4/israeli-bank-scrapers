@@ -105,15 +105,24 @@ export default tseslint.config(
 
       // Dead code guards
       'no-unreachable': 'error',
+      'no-unused-expressions': 'error',
+      '@typescript-eslint/no-unused-private-class-members': 'error',
+
+      // File length — 300 lines max (source files only; tests/mocks exempt below).
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
 
-  // Test file overrides (replaces src/tests/.eslintrc.js)
+  // Test / spec / mock files — exempt from length limits.
+  // Tests have long 'it()' blocks by design; mocks contain fixture data.
   {
-    files: ['src/**/*.test.ts', 'src/tests/**/*.ts'],
+    files: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/tests/**/*.ts', '**/mocks/**/*.ts'],
     rules: {
       'import/no-extraneous-dependencies': 'off',
       'no-console': 'off',
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+      'max-classes-per-file': 'off',
     },
   },
 );
