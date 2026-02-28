@@ -53,6 +53,12 @@ function mockMovements(movements: any[] = [], hasMore = false, cursor = 'next') 
   });
 }
 
+function mockAccountBalance(currentAccountBalance = 5000) {
+  (fetchGraphql as jest.Mock).mockResolvedValueOnce({
+    balance: { currentAccountBalance, currentAccountBalanceStr: String(currentAccountBalance), blockedAmountStr: '0', limitAmountStr: '0' },
+  });
+}
+
 function recentDate() {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
@@ -246,12 +252,13 @@ describe('fetchData', () => {
     const olderTs = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
     mockMovements([movement({ movementTimestamp: recentTs, movementId: 'mov-2' })], true, 'cursor-2');
     mockMovements([movement({ movementTimestamp: olderTs, movementId: 'mov-1' })], false);
+    mockAccountBalance(5000);
 
     const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
     expect(result.accounts![0].txns).toHaveLength(2);
-    expect(fetchGraphql).toHaveBeenCalledTimes(3); // customer + 2 movements pages
+    expect(fetchGraphql).toHaveBeenCalledTimes(4); // customer + 2 movements pages + balance
   });
 
   it('handles empty portfolios', async () => {
@@ -274,12 +281,13 @@ describe('fetchData', () => {
         accounts: [{ accountId: 'acc-1' }],
       },
     ]);
-    mockMovements([movement({ runningBalance: '10000', movementTimestamp: '2024-06-15T10:00:00Z' })]);
+    mockMovements([movement({ runningBalance: '9000', movementTimestamp: '2024-06-15T10:00:00Z' })]);
+    mockAccountBalance(10000); // real-time balance query returns 10000 (may differ from runningBalance)
 
     const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].balance).toBe(10000);
+    expect(result.accounts![0].balance).toBe(10000); // uses balance query, not runningBalance
   });
 
   it('includes rawTransaction when option set', async () => {

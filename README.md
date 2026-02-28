@@ -94,8 +94,8 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
 | Bank Yahav | Bank | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel) |
 | Bank Massad | Bank | `username`, `password` | |
 | Pagi Bank | Bank | `username`, `password` | |
-| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi) |
-| Beinleumi | Bank | `username`, `password` | [@dudiventura](https://github.com/dudiventura) |
+| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
+| Beinleumi | Bank | `username`, `password`, OTP | [@sergienko4](https://github.com/sergienko4) |
 | Beyahad Bishvilha | Bank | `id`, `password` | [@esakal](https://github.com/esakal) |
 | Behatsdaa | Bank | `id`, `password` | [@daniel-hauser](https://github.com/daniel-hauser) |
 | Amex | Credit Card | `id`, `card6Digits`, `password` | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4) |
@@ -157,9 +157,10 @@ All scrapers support up to one year of transaction history. See credentials per 
 ```typescript
 {
   success: boolean;
+  persistentOtpToken?: string;  // save to reuse on next run (bank-dependent expiry)
   accounts?: [{
     accountNumber: string;
-    balance?: number;
+    balance?: number;           // real-time balance including pending transactions
     txns: [{
       type: 'normal' | 'installments';
       identifier?: number;
@@ -248,17 +249,49 @@ const scraper = createScraper({
 
 ### Two-Factor Authentication
 
-Some companies require 2FA. Provide an OTP callback or a long-term token:
+Several banks require OTP (one-time password / SMS code). The OTP flow differs by bank type:
 
+**DOM banks** (browser-based: Beinleumi, Discount, …) — pass `otpCodeRetriever` in scraper options:
+```typescript
+const scraper = createScraper({
+  companyId: CompanyTypes.beinleumi,
+  startDate,
+  otpCodeRetriever: async (phoneHint) => {
+    console.log(`SMS sent to ${phoneHint}. Enter code:`);
+    return await readCodeFromSomewhere(); // e.g. stdin, file, push notification
+  },
+});
+const result = await scraper.scrape({ username, password });
+```
+
+**API banks** (no browser: OneZero) — pass `otpCodeRetriever` **in credentials**:
 ```typescript
 const result = await scraper.scrape({
   email: 'user@example.com',
   password: 'pass',
   phoneNumber: '+972...',
-  otpCodeRetriever: async () => {
-    return '123456'; // Return OTP from SMS/email
-  },
+  otpCodeRetriever: async () => '123456', // Return OTP from SMS
 });
+// result.persistentOtpToken — save to skip SMS on next run (valid ~1 hour for OneZero)
+```
+
+**Reuse a previous OTP token** (skips SMS entirely):
+```typescript
+const result = await scraper.scrape({
+  email: 'user@example.com',
+  password: 'pass',
+  otpLongTermToken: process.env.ONEZERO_OTP_TOKEN,
+});
+```
+
+**Error handling:**
+```typescript
+if (!result.success && result.errorType === 'INVALID_OTP') {
+  // Wrong or expired OTP code — ask user to try again
+}
+if (!result.success && result.errorType === 'TWO_FACTOR_RETRIEVER_MISSING') {
+  // Bank requires OTP but no otpCodeRetriever was provided
+}
 ```
 
 ### Opt-In Features
@@ -272,6 +305,10 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 - [x] Cloudflare WAF bypass (Playwright — no stealth or retry needed)
 - [x] Structured `WAF_BLOCKED` error type with actionable suggestions
 - [x] Playwright migration — bypasses WAF natively, no CDP fingerprint
+- [x] Automatic OTP handling for DOM banks (Beinleumi, Discount) — no manual steps
+- [x] `INVALID_OTP` error type — fast fail (5s) with clear message when code is wrong/expired
+- [x] OneZero real-time balance via `balance(portfolioId, accountId)` GraphQL query
+- [x] `persistentOtpToken` surfaced in scrape result for session reuse
 - [ ] Configurable proxy support for residential IP routing
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
