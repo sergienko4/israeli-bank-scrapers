@@ -1,4 +1,4 @@
-/** Selector-fallback: Beinleumi — Round 2 (wrong CSS id → fallback CSS id). */
+/** Selector-fallback: Massad (FIBI MATAF portal) — Round 2 (wrong CSS id → fallback CSS id). */
 import { CompanyTypes } from '../../definitions';
 import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
@@ -8,7 +8,8 @@ import { VALID_REACHED_BANK, selectorErrorFor } from './selector-fallback-helper
 const ERR = selectorErrorFor('username', 'password');
 
 const baseCfg: LoginConfig = {
-  loginUrl: 'https://online.fibi.co.il/MatafLoginService/MatafLoginServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE',
+  loginUrl:
+    'https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE',
   fields: [
     {
       credentialKey: 'username',
@@ -45,7 +46,7 @@ const baseCfg: LoginConfig = {
   },
 };
 
-describe('E2E: Selector fallback — Beinleumi', () => {
+describe('E2E: Selector fallback — Massad (FIBI MATAF portal)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -53,14 +54,14 @@ describe('E2E: Selector fallback — Beinleumi', () => {
   it('Round 2 — wrong CSS id → fallback CSS id → form reached', async () => {
     const result = await new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.beinleumi,
+        companyId: CompanyTypes.massad,
         startDate: new Date(),
         showBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       baseCfg,
-    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestBNL' } as { username: string; password: string });
+    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMSD' } as { username: string; password: string });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

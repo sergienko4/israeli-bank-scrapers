@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.3...v7.1.0) (2026-02-28)
+
+
+### Features
+
+* resilient login field detection — 4-round selector fallback + bank registry ([#63](https://github.com/sergienko4/israeli-bank-scrapers/issues/63)) ([d67a59f](https://github.com/sergienko4/israeli-bank-scrapers/commit/d67a59f0b44af42c10f610778049ead24e9c6b07))
+
+
+### Bug Fixes
+
+* **e2e:** replace broken Beinleumi MATAF test with Massad ([#65](https://github.com/sergienko4/israeli-bank-scrapers/issues/65)) ([947f8f3](https://github.com/sergienko4/israeli-bank-scrapers/commit/947f8f3ba7af17814853196d84a50d5740955dc8))
+* **visa-cal:** increase getCards session storage timeout 10s → 30s ([#66](https://github.com/sergienko4/israeli-bank-scrapers/issues/66)) ([a8fc4e5](https://github.com/sergienko4/israeli-bank-scrapers/commit/a8fc4e572c363dcf9ee99e2f70c894aca9d8efe1))
+
 ## [7.0.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.0.2...v7.0.3) (2026-02-27)
 
 

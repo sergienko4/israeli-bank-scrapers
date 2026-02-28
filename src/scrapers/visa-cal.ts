@@ -67,8 +67,8 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     await waitUntilElementFound(frame, '#regular-login');
     debug('navigate to the password login tab');
     await clickButton(frame, '#regular-login');
-    debug('wait until the password login tab is active');
-    await waitUntilElementFound(frame, 'regular-login');
+    debug('wait until the regular-login form is ready');
+    await waitUntilElementFound(frame, '[formcontrolname="userName"]');
 
     return frame;
   };
@@ -77,7 +77,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const initData = await waitUntil(
       () => getFromSessionStorage<InitResponse>(this.page, 'init'),
       'get init data in session storage',
-      { timeout: 10000, interval: 1000 },
+      { timeout: 30000, interval: 1000 },
     );
     if (!initData) {
       throw new Error('could not find "init" data in session storage');
