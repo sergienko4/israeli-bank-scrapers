@@ -96,6 +96,6 @@
   "lint-staged": {
     "*.{ts,tsx}": ["npx eslint --fix --max-warnings 0", "npx prettier --write"],
     "*.json": ["npx prettier --parser json --write"],
-    "*.md": ["npx prettier --write"]
+    "*.md": ["npx prettier --parser markdown --write"]
   }
 }
