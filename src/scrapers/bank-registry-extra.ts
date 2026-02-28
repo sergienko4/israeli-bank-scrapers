@@ -1,5 +1,10 @@
 import { type Page } from 'playwright';
-import { elementPresentOnPage, pageEvalAll, waitUntilElementDisappear, waitUntilElementFound } from '../helpers/elements-interactions';
+import {
+  elementPresentOnPage,
+  pageEvalAll,
+  waitUntilElementDisappear,
+  waitUntilElementFound,
+} from '../helpers/elements-interactions';
 import { waitForNavigation, waitForRedirect } from '../helpers/navigation';
 import { type LoginConfig } from './login-config';
 
@@ -48,12 +53,14 @@ async function mizrahiPostAction(page: Page): Promise<void> {
 }
 
 async function maxPreActionStep1(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '#closePopup')) await page.$eval('#closePopup', el => (el as HTMLElement).click());
+  if (await elementPresentOnPage(page, '#closePopup'))
+    await page.$eval('#closePopup', el => (el as HTMLElement).click());
   await page.$eval('.personal-area > a.go-to-personal-area', el => (el as HTMLElement).click());
 }
 
 async function maxPreActionStep2(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '.login-link#private')) await page.$eval('.login-link#private', el => (el as HTMLElement).click());
+  if (await elementPresentOnPage(page, '.login-link#private'))
+    await page.$eval('.login-link#private', el => (el as HTMLElement).click());
   await waitUntilElementFound(page, '#login-password-link', { visible: true });
   await page.$eval('#login-password-link', el => (el as HTMLElement).click());
   await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', { visible: true });
@@ -90,8 +97,13 @@ export const HAPOALIM_CONFIG: LoginConfig = {
     { credentialKey: 'userCode', selectors: [{ kind: 'css', value: '#userCode' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
   ],
-  submit: [{ kind: 'css', value: '.login-btn' }, { kind: 'ariaLabel', value: 'כניסה' }],
-  postAction: async (page: Page) => { await waitForRedirect(page, {}); },
+  submit: [
+    { kind: 'css', value: '.login-btn' },
+    { kind: 'ariaLabel', value: 'כניסה' },
+  ],
+  postAction: async (page: Page) => {
+    await waitForRedirect(page, {});
+  },
   possibleResults: {
     success: [
       `${HAPOALIM_BASE}/portalserver/HomePage`,
@@ -117,14 +129,22 @@ export const LEUMI_CONFIG: LoginConfig = {
     invalidPassword: [
       async opts => {
         if (!opts?.page) return false;
-        const msg = await pageEvalAll(opts.page, { selector: 'svg#Capa_1', defaultResult: '', callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement)?.innerText });
+        const msg = await pageEvalAll(opts.page, {
+          selector: 'svg#Capa_1',
+          defaultResult: '',
+          callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement)?.innerText,
+        });
         return msg?.startsWith(LEUMI_INVALID_PASSWORD_MSG) ?? false;
       },
     ],
     accountBlocked: [
       async opts => {
         if (!opts?.page) return false;
-        const msg = await pageEvalAll(opts.page, { selector: '.errHeader', defaultResult: '', callback: el => (el[0] as HTMLElement)?.innerText });
+        const msg = await pageEvalAll(opts.page, {
+          selector: '.errHeader',
+          defaultResult: '',
+          callback: el => (el[0] as HTMLElement)?.innerText,
+        });
         return msg?.startsWith(LEUMI_ACCOUNT_BLOCKED_MSG) ?? false;
       },
     ],
@@ -139,7 +159,9 @@ export const MIZRAHI_CONFIG: LoginConfig = {
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#passwordDesktopHeb' }] },
   ],
   submit: [{ kind: 'css', value: 'button.btn.btn-primary' }],
-  checkReadiness: async (page: Page) => { await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground'); },
+  checkReadiness: async (page: Page) => {
+    await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
+  },
   postAction: mizrahiPostAction,
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i, mizrahiIsLoggedIn],
@@ -155,7 +177,9 @@ export const UNION_CONFIG: LoginConfig = {
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
   ],
   submit: [{ kind: 'css', value: '#enter' }],
-  postAction: async (page: Page) => { await Promise.race([page.waitForSelector('#signoff'), page.waitForSelector('#restore')]); },
+  postAction: async (page: Page) => {
+    await Promise.race([page.waitForSelector('#signoff'), page.waitForSelector('#restore')]);
+  },
   possibleResults: {
     success: [/eBanking\/Accounts/],
     invalidPassword: [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/],
@@ -169,7 +193,9 @@ export const MAX_CONFIG: LoginConfig = {
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
   ],
   submit: [{ kind: 'css', value: 'app-user-login-form .general-button.send-me-code' }],
-  checkReadiness: async (page: Page) => { await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true }); },
+  checkReadiness: async (page: Page) => {
+    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
+  },
   preAction: maxPreAction,
   postAction: maxPostAction,
   waitUntil: 'domcontentloaded',
@@ -177,7 +203,9 @@ export const MAX_CONFIG: LoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupWrongDetails')))],
-    unknownError: [async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupCardHoldersLoginError')))],
+    unknownError: [
+      async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupCardHoldersLoginError'))),
+    ],
   },
 };
 
@@ -187,11 +215,18 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
     { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
   ],
-  submit: [{ kind: 'xpath', value: '//button[contains(., "התחברות")]' }, { kind: 'ariaLabel', value: 'התחברות' }],
-  checkReadiness: async (page: Page) => { await Promise.all([waitUntilElementFound(page, '#loginId'), waitUntilElementFound(page, '#loginPassword')]); },
+  submit: [
+    { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
+    { kind: 'ariaLabel', value: 'התחברות' },
+  ],
+  checkReadiness: async (page: Page) => {
+    await Promise.all([waitUntilElementFound(page, '#loginId'), waitUntilElementFound(page, '#loginPassword')]);
+  },
   possibleResults: {
     success: ['https://www.behatsdaa.org.il/'],
-    invalidPassword: [async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '.custom-input-error-label')))],
+    invalidPassword: [
+      async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '.custom-input-error-label'))),
+    ],
   },
 };
 
@@ -201,7 +236,10 @@ export const BEYAHAD_CONFIG: LoginConfig = {
     { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
   ],
-  submit: [{ kind: 'xpath', value: '//button[contains(., "התחבר")]' }, { kind: 'ariaLabel', value: 'התחבר' }],
+  submit: [
+    { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
+    { kind: 'ariaLabel', value: 'התחבר' },
+  ],
   possibleResults: { success: ['https://www.hist.org.il/'] },
 };
 
@@ -214,13 +252,19 @@ export const YAHAV_CONFIG: LoginConfig = {
   ],
   submit: [{ kind: 'css', value: '.btn' }],
   checkReadiness: async (page: Page) => {
-    await Promise.all([waitUntilElementFound(page, '#username'), waitUntilElementFound(page, '#password'), waitUntilElementFound(page, '#pinno'), waitUntilElementFound(page, '.btn')]);
+    await Promise.all([
+      waitUntilElementFound(page, '#username'),
+      waitUntilElementFound(page, '#password'),
+      waitUntilElementFound(page, '#pinno'),
+      waitUntilElementFound(page, '.btn'),
+    ]);
   },
   postAction: yahavPostAction,
   possibleResults: {
     success: ['https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'],
     invalidPassword: [async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '.ui-dialog-buttons')))],
-    changePassword: [async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, 'input#ef_req_parameter_old_credential')))],
+    changePassword: [
+      async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, 'input#ef_req_parameter_old_credential'))),
+    ],
   },
 };
-

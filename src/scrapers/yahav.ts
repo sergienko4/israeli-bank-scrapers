@@ -106,10 +106,11 @@ async function getAccountTransactions(page: Page, options?: ScraperOptions): Pro
   const transactionsDivs = await pageEvalAll<TransactionsTr[]>(page, {
     selector: '.list-item-holder .entire-content-ctr',
     defaultResult: [],
-    callback: divs => (divs as HTMLElement[]).map(div => ({
-      id: div.getAttribute('id') || '',
-      innerDivs: Array.from(div.getElementsByTagName('div')).map(el => (el as HTMLElement).innerText),
-    })),
+    callback: divs =>
+      (divs as HTMLElement[]).map(div => ({
+        id: div.getAttribute('id') || '',
+        innerDivs: Array.from(div.getElementsByTagName('div')).map(el => (el as HTMLElement).innerText),
+      })),
   });
 
   for (const txnRow of transactionsDivs) {
@@ -123,7 +124,10 @@ async function selectYearFromGrid(page: Page, targetYear: string): Promise<void>
   for (let i = 1; i < 13; i += 1) {
     const selector = `.pmu-years > div:nth-child(${i})`;
     const year = await page.$eval(selector, y => (y as HTMLElement).innerText);
-    if (targetYear === year) { await clickButton(page, selector); break; }
+    if (targetYear === year) {
+      await clickButton(page, selector);
+      break;
+    }
   }
 }
 
@@ -131,12 +135,16 @@ async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
   for (let i = 1; i < 42; i += 1) {
     const selector = `.pmu-days > div:nth-child(${i})`;
     const day = await page.$eval(selector, d => (d as HTMLElement).innerText);
-    if (targetDay === day) { await clickButton(page, selector); break; }
+    if (targetDay === day) {
+      await clickButton(page, selector);
+      break;
+    }
   }
 }
 
 async function openDatePicker(page: Page): Promise<void> {
-  const dateFromPick = 'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
+  const dateFromPick =
+    'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
   await waitUntilElementFound(page, dateFromPick, { visible: true });
   await clickButton(page, dateFromPick);
   await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });

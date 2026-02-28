@@ -18,7 +18,11 @@ export interface PageEvalAllOpts<R> {
   callback: (elements: Element[], ...args: unknown[]) => R;
 }
 
-async function waitUntilElementFound(page: Page | Frame, elementSelector: string, opts: WaitOptions = {}): Promise<void> {
+async function waitUntilElementFound(
+  page: Page | Frame,
+  elementSelector: string,
+  opts: WaitOptions = {},
+): Promise<void> {
   const state = opts.visible ? 'visible' : 'attached';
   await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
 }
@@ -27,7 +31,11 @@ async function waitUntilElementDisappear(page: Page, elementSelector: string, ti
   await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
 }
 
-async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boolean, timeout: number): Promise<Frame | undefined> {
+async function waitForIframe(
+  page: Page,
+  framePredicate: (frame: Frame) => boolean,
+  timeout: number,
+): Promise<Frame | undefined> {
   let frame: Frame | undefined;
   await waitUntil(
     () => {
@@ -40,7 +48,11 @@ async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boole
   return frame;
 }
 
-async function waitUntilIframeFound(page: Page, framePredicate: (frame: Frame) => boolean, opts: WaitOptions & { description?: string } = {}): Promise<Frame> {
+async function waitUntilIframeFound(
+  page: Page,
+  framePredicate: (frame: Frame) => boolean,
+  opts: WaitOptions & { description?: string } = {},
+): Promise<Frame> {
   const { timeout = 30000, description = '' } = opts;
   const frame = await waitForIframe(page, framePredicate, timeout);
 

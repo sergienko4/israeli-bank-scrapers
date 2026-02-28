@@ -1,9 +1,6 @@
 import { type Page } from 'playwright';
 import { CompanyTypes } from '../definitions';
-import {
-  elementPresentOnPage,
-  waitUntilElementFound,
-} from '../helpers/elements-interactions';
+import { elementPresentOnPage, waitUntilElementFound } from '../helpers/elements-interactions';
 import { waitForNavigation } from '../helpers/navigation';
 import { sleep } from '../helpers/waiting';
 import { type LoginConfig } from './login-config';
@@ -96,7 +93,9 @@ function discountConfig(loginUrl: string): LoginConfig {
     loginUrl,
     fields: discountFields,
     submit: [{ kind: 'css', value: '.sendBtn' }],
-    checkReadiness: async (page: Page) => { await waitUntilElementFound(page, '#tzId'); },
+    checkReadiness: async (page: Page) => {
+      await waitUntilElementFound(page, '#tzId');
+    },
     postAction: discountPostAction,
     possibleResults: discountPossibleResults,
   };
@@ -104,9 +103,15 @@ function discountConfig(loginUrl: string): LoginConfig {
 
 export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.beinleumi]: beinleumiConfig('https://www.fibi.co.il/private'),
-  [CompanyTypes.otsarHahayal]: beinleumiConfig('https://online.bankotsar.co.il/MatafLoginService/MatafLoginServlet?bankId=OTSARPRTAL&site=Private&KODSAFA=HE'),
-  [CompanyTypes.massad]: beinleumiConfig('https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE'),
-  [CompanyTypes.pagi]: beinleumiConfig('https://online.pagi.co.il/MatafLoginService/MatafLoginServlet?bankId=PAGIPORTAL&site=Private&KODSAFA=HE'),
+  [CompanyTypes.otsarHahayal]: beinleumiConfig(
+    'https://online.bankotsar.co.il/MatafLoginService/MatafLoginServlet?bankId=OTSARPRTAL&site=Private&KODSAFA=HE',
+  ),
+  [CompanyTypes.massad]: beinleumiConfig(
+    'https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE',
+  ),
+  [CompanyTypes.pagi]: beinleumiConfig(
+    'https://online.pagi.co.il/MatafLoginService/MatafLoginServlet?bankId=PAGIPORTAL&site=Private&KODSAFA=HE',
+  ),
   [CompanyTypes.discount]: discountConfig('https://start.telebank.co.il/login/#/LOGIN_PAGE'),
   [CompanyTypes.mercantile]: discountConfig('https://start.telebank.co.il/login/?bank=m'),
   [CompanyTypes.hapoalim]: HAPOALIM_CONFIG,
@@ -118,4 +123,3 @@ export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.beyahadBishvilha]: BEYAHAD_CONFIG,
   [CompanyTypes.yahav]: YAHAV_CONFIG,
 };
-

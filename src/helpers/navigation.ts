@@ -49,7 +49,11 @@ export interface WaitForUrlOptions {
   clientSide?: boolean;
 }
 
-export async function waitForUrl(pageOrFrame: Page | Frame, url: string | RegExp, opts: WaitForUrlOptions = {}): Promise<void> {
+export async function waitForUrl(
+  pageOrFrame: Page | Frame,
+  url: string | RegExp,
+  opts: WaitForUrlOptions = {},
+): Promise<void> {
   const { timeout = 20000, clientSide = false } = opts;
   await waitUntil(
     async () => {

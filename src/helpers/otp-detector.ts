@@ -81,8 +81,14 @@ async function detectByInputField(page: Page): Promise<boolean> {
 
 export async function detectOtpScreen(page: Page): Promise<boolean> {
   const textResult = await detectByText(page);
-  if (textResult === 'otp') { debug('OTP detected by text pattern'); return true; }
-  if (textResult === 'unknown') { debug('Page context inaccessible — skipping OTP input check'); return false; }
+  if (textResult === 'otp') {
+    debug('OTP detected by text pattern');
+    return true;
+  }
+  if (textResult === 'unknown') {
+    debug('Page context inaccessible — skipping OTP input check');
+    return false;
+  }
   const byInput = await detectByInputField(page);
   if (byInput) debug('OTP detected by input field');
   return byInput;

@@ -242,7 +242,9 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: TrnTypeCode.regular })]),
+        mockCardTransactionDetails([
+          scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: TrnTypeCode.regular }),
+        ]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());
@@ -264,7 +266,9 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 12, curPaymentNum: 3 })]),
+        mockCardTransactionDetails([
+          scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 12, curPaymentNum: 3 }),
+        ]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());
@@ -478,7 +482,9 @@ describe('fetchData', () => {
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
       .mockResolvedValueOnce({ statusCode: 96 })
       .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 6, curPaymentNum: 3 })]),
+        mockCardTransactionDetails([
+          scrapedTxn({ trnTypeCode: TrnTypeCode.installments, numOfPayments: 6, curPaymentNum: 3 }),
+        ]),
       );
 
     const scraper = new VisaCalScraper(visaCalOptions());

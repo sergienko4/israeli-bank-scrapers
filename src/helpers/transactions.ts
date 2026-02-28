@@ -39,7 +39,11 @@ export function sortTransactionsByDate(txns: Transaction[]): Transaction[] {
   return _.sortBy(txns, ['date']);
 }
 
-export function filterOldTransactions(txns: Transaction[], startMoment: Moment, combineInstallments: boolean): Transaction[] {
+export function filterOldTransactions(
+  txns: Transaction[],
+  startMoment: Moment,
+  combineInstallments: boolean,
+): Transaction[] {
   return txns.filter(txn => {
     const combineNeededAndInitialOrNormal =
       combineInstallments && (isNormalTransaction(txn) || isInitialInstallmentTransaction(txn));

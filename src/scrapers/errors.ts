@@ -85,7 +85,11 @@ export class WafBlockError extends Error {
     });
   }
 
-  static apiBlock(httpStatus: number, pageUrl: string, opts: { pageTitle?: string; responseSnippet?: string } = {}): WafBlockError {
+  static apiBlock(
+    httpStatus: number,
+    pageUrl: string,
+    opts: { pageTitle?: string; responseSnippet?: string } = {},
+  ): WafBlockError {
     return new WafBlockError({
       provider: 'unknown',
       httpStatus,

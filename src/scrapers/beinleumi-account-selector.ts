@@ -15,14 +15,16 @@ const TRANSACTIONS_FRAME_LOAD_ATTEMPTS = 3;
 const TRANSACTIONS_FRAME_WAIT_MS = 2000;
 
 async function isDropdownOpen(page: Page): Promise<boolean> {
-  return page.$eval(DROPDOWN_PANEL_SELECTOR, el => {
-    return el && window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null;
-  }).catch(() => false);
+  return page
+    .$eval(DROPDOWN_PANEL_SELECTOR, el => {
+      return el && window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null;
+    })
+    .catch(() => false);
 }
 
 export async function clickAccountSelectorGetAccountIds(page: Page): Promise<string[]> {
   try {
-    if (!await isDropdownOpen(page)) {
+    if (!(await isDropdownOpen(page))) {
       await waitUntilElementFound(page, ACCOUNT_SELECTOR, { visible: true, timeout: ELEMENT_RENDER_TIMEOUT_MS });
       await clickButton(page, ACCOUNT_SELECTOR);
       await waitUntilElementFound(page, DROPDOWN_PANEL_SELECTOR, { visible: true, timeout: ELEMENT_RENDER_TIMEOUT_MS });

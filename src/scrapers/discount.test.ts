@@ -259,6 +259,9 @@ describe('navigateOrErrorLabel', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', { visible: false, timeout: 100 });
+    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', {
+      visible: false,
+      timeout: 100,
+    });
   });
 });

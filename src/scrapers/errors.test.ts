@@ -78,7 +78,10 @@ describe('WafBlockError', () => {
   });
 
   it('apiBlock includes pageTitle and responseSnippet separately', () => {
-    const error = WafBlockError.apiBlock(429, 'https://amex.co.il/api', { pageTitle: 'Login Page', responseSnippet: 'Block Automation response body' });
+    const error = WafBlockError.apiBlock(429, 'https://amex.co.il/api', {
+      pageTitle: 'Login Page',
+      responseSnippet: 'Block Automation response body',
+    });
     expect(error.details.provider).toBe('unknown');
     expect(error.details.httpStatus).toBe(429);
     expect(error.details.pageTitle).toBe('Login Page');
@@ -87,7 +90,10 @@ describe('WafBlockError', () => {
 
   it('apiBlock truncates long responseSnippet to 200 chars', () => {
     const longSnippet = 'x'.repeat(500);
-    const error = WafBlockError.apiBlock(403, 'https://amex.co.il/api', { pageTitle: 'Page', responseSnippet: longSnippet });
+    const error = WafBlockError.apiBlock(403, 'https://amex.co.il/api', {
+      pageTitle: 'Page',
+      responseSnippet: longSnippet,
+    });
     expect(error.details.responseSnippet).toHaveLength(200);
   });
 });

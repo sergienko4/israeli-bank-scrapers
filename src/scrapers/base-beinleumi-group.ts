@@ -1,7 +1,13 @@
 import moment, { type Moment } from 'moment';
 import { type Frame, type Page } from 'playwright';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../constants';
-import { clickButton, elementPresentOnPage, fillInput, pageEvalAll, waitUntilElementFound } from '../helpers/elements-interactions';
+import {
+  clickButton,
+  elementPresentOnPage,
+  fillInput,
+  pageEvalAll,
+  waitUntilElementFound,
+} from '../helpers/elements-interactions';
 import { waitForNavigation } from '../helpers/navigation';
 import { getRawTransaction } from '../helpers/transactions';
 import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
@@ -80,20 +86,29 @@ function getCol(tds: TransactionsTrTds, cols: TransactionsColsTypes, key: string
   return (tds[cols[key]] || '').trim();
 }
 
-function extractTransactionDetails(txnRow: TransactionsTr, status: TransactionStatuses, cols: TransactionsColsTypes): ScrapedTransaction {
+function extractTransactionDetails(
+  txnRow: TransactionsTr,
+  status: TransactionStatuses,
+  cols: TransactionsColsTypes,
+): ScrapedTransaction {
   const tds = txnRow.innerTds;
   const isCompleted = status === TransactionStatuses.Completed;
   return {
     status,
     date: isCompleted ? getCol(tds, cols, DATE_COLUMN_CLASS_COMPLETED) : getCol(tds, cols, DATE_COLUMN_CLASS_PENDING),
-    description: isCompleted ? getCol(tds, cols, DESCRIPTION_COLUMN_CLASS_COMPLETED) : getCol(tds, cols, DESCRIPTION_COLUMN_CLASS_PENDING),
+    description: isCompleted
+      ? getCol(tds, cols, DESCRIPTION_COLUMN_CLASS_COMPLETED)
+      : getCol(tds, cols, DESCRIPTION_COLUMN_CLASS_PENDING),
     reference: getCol(tds, cols, REFERENCE_COLUMN_CLASS),
     debit: getCol(tds, cols, DEBIT_COLUMN_CLASS),
     credit: getCol(tds, cols, CREDIT_COLUMN_CLASS),
   };
 }
 
-async function getTransactionsColsTypeClasses(page: Page | Frame, tableLocator: string): Promise<TransactionsColsTypes> {
+async function getTransactionsColsTypeClasses(
+  page: Page | Frame,
+  tableLocator: string,
+): Promise<TransactionsColsTypes> {
   const result: TransactionsColsTypes = {};
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
@@ -119,7 +134,11 @@ function extractTransaction(opts: ExtractTxnOpts): void {
   if (txn.date !== '') txns.push(txn);
 }
 
-async function extractTransactions(page: Page | Frame, tableLocator: string, transactionStatus: TransactionStatuses): Promise<ScrapedTransaction[]> {
+async function extractTransactions(
+  page: Page | Frame,
+  tableLocator: string,
+  transactionStatus: TransactionStatuses,
+): Promise<ScrapedTransaction[]> {
   const txns: ScrapedTransaction[] = [];
   const transactionsColsTypes = await getTransactionsColsTypeClasses(page, tableLocator);
   const transactionsRows = await pageEvalAll<TransactionsTr[]>(page, {
@@ -136,7 +155,10 @@ async function extractTransactions(page: Page | Frame, tableLocator: string, tra
 async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (hasErrorInfoElement) {
-    const errorText = await page.$eval(`.${ERROR_MESSAGE_CLASS}`, errorElement => (errorElement as HTMLElement).innerText);
+    const errorText = await page.$eval(
+      `.${ERROR_MESSAGE_CLASS}`,
+      errorElement => (errorElement as HTMLElement).innerText,
+    );
     return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
   }
   return false;
@@ -170,18 +192,33 @@ async function scrapeTransactions(opts: ScrapeOpts): Promise<Transaction[]> {
   const txns: ScrapedTransaction[] = [];
   let hasNextPage = false;
   do {
-    txns.push(...await extractTransactions(page, tableLocator, transactionStatus));
+    txns.push(...(await extractTransactions(page, tableLocator, transactionStatus)));
     if (needToPaginate) {
       hasNextPage = await elementPresentOnPage(page, NEXT_PAGE_LINK);
-      if (hasNextPage) { await clickButton(page, NEXT_PAGE_LINK); await waitForNavigation(page); }
+      if (hasNextPage) {
+        await clickButton(page, NEXT_PAGE_LINK);
+        await waitForNavigation(page);
+      }
     }
   } while (hasNextPage);
   return convertTransactions(txns, options);
 }
 
 async function fetchPendingAndCompleted(page: Page | Frame, options?: ScraperOptions): Promise<Transaction[]> {
-  const pendingTxns = await scrapeTransactions({ page, tableLocator: PENDING_TRANSACTIONS_TABLE, transactionStatus: TransactionStatuses.Pending, needToPaginate: false, options });
-  const completedTxns = await scrapeTransactions({ page, tableLocator: COMPLETED_TRANSACTIONS_TABLE, transactionStatus: TransactionStatuses.Completed, needToPaginate: true, options });
+  const pendingTxns = await scrapeTransactions({
+    page,
+    tableLocator: PENDING_TRANSACTIONS_TABLE,
+    transactionStatus: TransactionStatuses.Pending,
+    needToPaginate: false,
+    options,
+  });
+  const completedTxns = await scrapeTransactions({
+    page,
+    tableLocator: COMPLETED_TRANSACTIONS_TABLE,
+    transactionStatus: TransactionStatuses.Completed,
+    needToPaginate: true,
+    options,
+  });
   return [...pendingTxns, ...completedTxns];
 }
 
@@ -209,7 +246,11 @@ export async function waitForPostLogin(page: Page): Promise<void> {
   ]);
 }
 
-async function fetchAccountData(page: Page | Frame, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount> {
+async function fetchAccountData(
+  page: Page | Frame,
+  startDate: Moment,
+  options?: ScraperOptions,
+): Promise<TransactionsAccount> {
   const accountNumber = await getAccountNumber(page);
   const balance = await getCurrentBalance(page);
   await searchByDates(page, startDate);
@@ -225,7 +266,11 @@ async function selectAccountBothUIs(page: Page, accountId: string): Promise<void
   }
 }
 
-async function fetchAccountDataBothUIs(page: Page, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount> {
+async function fetchAccountDataBothUIs(
+  page: Page,
+  startDate: Moment,
+  options?: ScraperOptions,
+): Promise<TransactionsAccount> {
   const frame = await getTransactionsFrame(page);
   return fetchAccountData(frame || page, startDate, options);
 }

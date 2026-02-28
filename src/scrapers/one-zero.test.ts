@@ -38,7 +38,9 @@ function setupLongTermLogin(): void {
   mockSessionToken();
 }
 
-function mockCustomer(portfolios: Array<{ portfolioId: string; portfolioNum: string; accounts: Array<{ accountId: string }> }> = []): void {
+function mockCustomer(
+  portfolios: Array<{ portfolioId: string; portfolioNum: string; accounts: Array<{ accountId: string }> }> = [],
+): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
   });
@@ -55,7 +57,12 @@ function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, curso
 
 function mockAccountBalance(currentAccountBalance = 5000): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
-    balance: { currentAccountBalance, currentAccountBalanceStr: String(currentAccountBalance), blockedAmountStr: '0', limitAmountStr: '0' },
+    balance: {
+      currentAccountBalance,
+      currentAccountBalanceStr: String(currentAccountBalance),
+      blockedAmountStr: '0',
+      limitAmountStr: '0',
+    },
   });
 }
 
@@ -74,7 +81,9 @@ interface OneZeroMovement {
   creditDebit: string;
   description: string;
   runningBalance: string;
-  transaction: null | { enrichment?: { recurrences?: Array<{ isRecurrent: boolean; dataSource?: string }> | null } | null };
+  transaction: null | {
+    enrichment?: { recurrences?: Array<{ isRecurrent: boolean; dataSource?: string }> | null } | null;
+  };
   bankCurrencyAmount?: string;
   conversionRate?: string;
   isReversed?: boolean;

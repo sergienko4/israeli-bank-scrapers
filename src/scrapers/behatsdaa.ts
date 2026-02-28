@@ -78,14 +78,28 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       debug('Error fetching data', res.errorDescription || res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
-    if (!res?.data) { debug('No data found'); return { success: false, errorMessage: 'NoData' }; }
+    if (!res?.data) {
+      debug('No data found');
+      return { success: false, errorMessage: 'NoData' };
+    }
     debug('Data fetched successfully');
-    return { success: true, accounts: [{ accountNumber: res.data.memberId, txns: res.data.variants.map(variant => variantToTransaction(variant, this.options)) }] };
+    return {
+      success: true,
+      accounts: [
+        {
+          accountNumber: res.data.memberId,
+          txns: res.data.variants.map(variant => variantToTransaction(variant, this.options)),
+        },
+      ],
+    };
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
-    if (!token) { debug('Token not found in local storage'); return { success: false, errorMessage: 'TokenNotFound' }; }
+    if (!token) {
+      debug('Token not found in local storage');
+      return { success: false, errorMessage: 'TokenNotFound' };
+    }
     const res = await this.fetchWithToken(token);
     debug('Data fetched');
     return this.buildAccountResult(res ?? {});

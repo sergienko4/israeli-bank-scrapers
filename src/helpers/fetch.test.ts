@@ -138,7 +138,9 @@ describe('fetchPostWithinPage', () => {
 
   it('includes status in parse error message', async () => {
     const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['<html>blocked</html>', 403]) });
-    await expect(fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', { data: {} })).rejects.toThrow('status: 403');
+    await expect(fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', { data: {} })).rejects.toThrow(
+      'status: 403',
+    );
   });
 
   it('passes extraHeaders to page.evaluate as single arg', async () => {

@@ -124,7 +124,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     debug('initialize scraper');
     this.emitProgress(ScraperProgressTypes.Initializing);
     const page = await this.initializePage();
-    if (!page) { debug('failed to initiate a browser page, exit'); return; }
+    if (!page) {
+      debug('failed to initiate a browser page, exit');
+      return;
+    }
     await this.setupPage(page);
   }
 
@@ -145,7 +148,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
   }
 
   private registerBrowserCleanup(browser: Browser): void {
-    this.cleanups.push(async () => { debug('closing the browser'); await browser.close(); });
+    this.cleanups.push(async () => {
+      debug('closing the browser');
+      await browser.close();
+    });
   }
 
   private async initializePage(): Promise<Page | undefined> {
@@ -191,7 +197,8 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
   private async retryOn403(url: string, waitUntil: WaitUntilState | undefined, attempt = 0): Promise<void> {
     const MAX_RETRIES = 2;
     const DELAY_MS = 15_000;
-    if (attempt >= MAX_RETRIES) throw new Error(`Failed to navigate to url ${url}, status code: 403 (after ${MAX_RETRIES} retries)`);
+    if (attempt >= MAX_RETRIES)
+      throw new Error(`Failed to navigate to url ${url}, status code: 403 (after ${MAX_RETRIES} retries)`);
     debug('WAF 403 on %s, waiting %ds before retry %d/%d', url, DELAY_MS / 1000, attempt + 1, MAX_RETRIES);
     await sleep(DELAY_MS);
     const currentStatus = (await this.page.goto(url, { waitUntil }))?.status() ?? 0;
@@ -214,7 +221,11 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
       const key = field.credentialKey ?? extractCredentialKey(field.selector);
       const fc: FieldConfig = { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
       try {
-        const { selector, context } = await resolveFieldContext(this.activeLoginContext ?? pageOrFrame, fc, this.page.url());
+        const { selector, context } = await resolveFieldContext(
+          this.activeLoginContext ?? pageOrFrame,
+          fc,
+          this.page.url(),
+        );
         this.activeLoginContext = context;
         await fillInput(context, selector, field.value);
       } catch {
@@ -254,7 +265,7 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     if (loginOptions.postAction) {
       debug("execute 'postAction' interceptor provided in login options");
       await loginOptions.postAction();
-    } else if (!await alreadyAtResultUrl(loginOptions.possibleResults, this.page)) {
+    } else if (!(await alreadyAtResultUrl(loginOptions.possibleResults, this.page))) {
       await waitForNavigation(this.page);
     }
     return null;
@@ -300,7 +311,8 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
     }
     if (loginResult === LoginResults.InvalidPassword || loginResult === LoginResults.UnknownError) {
       this.emitProgress(ScraperProgressTypes.LoginFailed);
-      const errorType = loginResult === LoginResults.InvalidPassword ? ScraperErrorTypes.InvalidPassword : ScraperErrorTypes.General;
+      const errorType =
+        loginResult === LoginResults.InvalidPassword ? ScraperErrorTypes.InvalidPassword : ScraperErrorTypes.General;
       return { success: false, errorType, errorMessage: `Login failed with ${loginResult} error` };
     }
     throw new Error(`unexpected login result "${loginResult}"`);

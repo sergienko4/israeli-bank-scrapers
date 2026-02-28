@@ -117,21 +117,31 @@ describe('pageEval', () => {
   it('returns result of $eval on selector', async () => {
     const page = createMockPage();
     page.$eval.mockResolvedValue('evaluated');
-    const result = await pageEval(page, { selector: '.balance', defaultResult: '', callback: (el: Element) => (el as HTMLElement).textContent ?? '' });
+    const result = await pageEval(page, {
+      selector: '.balance',
+      defaultResult: '',
+      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+    });
     expect(result).toBe('evaluated');
   });
 
   it('returns default when element not found', async () => {
     const page = createMockPage();
     page.$eval.mockRejectedValue(new Error('Error: failed to find element matching selector'));
-    const result = await pageEval(page, { selector: '.missing', defaultResult: 'default', callback: (el: Element) => (el as HTMLElement).textContent ?? '' });
+    const result = await pageEval(page, {
+      selector: '.missing',
+      defaultResult: 'default',
+      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+    });
     expect(result).toBe('default');
   });
 
   it('rethrows non-selector errors', async () => {
     const page = createMockPage();
     page.$eval.mockRejectedValue(new Error('network error'));
-    await expect(pageEval(page, { selector: '.broken', defaultResult: null as Element | null, callback: (el: Element) => el })).rejects.toThrow('network error');
+    await expect(
+      pageEval(page, { selector: '.broken', defaultResult: null as Element | null, callback: (el: Element) => el }),
+    ).rejects.toThrow('network error');
   });
 });
 
@@ -139,21 +149,31 @@ describe('pageEvalAll', () => {
   it('returns result of $$eval on selector', async () => {
     const page = createMockPage();
     page.$$eval.mockResolvedValue(['a', 'b']);
-    const result = await pageEvalAll(page, { selector: '.items', defaultResult: [] as Element[], callback: (els: Element[]) => els });
+    const result = await pageEvalAll(page, {
+      selector: '.items',
+      defaultResult: [] as Element[],
+      callback: (els: Element[]) => els,
+    });
     expect(result).toEqual(['a', 'b']);
   });
 
   it('returns default when no elements found', async () => {
     const page = createMockPage();
     page.$$eval.mockRejectedValue(new Error('Error: failed to find elements matching selector'));
-    const result = await pageEvalAll(page, { selector: '.missing', defaultResult: [] as Element[], callback: (els: Element[]) => els });
+    const result = await pageEvalAll(page, {
+      selector: '.missing',
+      defaultResult: [] as Element[],
+      callback: (els: Element[]) => els,
+    });
     expect(result).toEqual([]);
   });
 
   it('rethrows non-selector errors', async () => {
     const page = createMockPage();
     page.$$eval.mockRejectedValue(new Error('network error'));
-    await expect(pageEvalAll(page, { selector: '.broken', defaultResult: [] as Element[], callback: (els: Element[]) => els })).rejects.toThrow('network error');
+    await expect(
+      pageEvalAll(page, { selector: '.broken', defaultResult: [] as Element[], callback: (els: Element[]) => els }),
+    ).rejects.toThrow('network error');
   });
 });
 
@@ -162,13 +182,18 @@ describe('waitUntilIframeFound', () => {
     const mockFrame = { url: () => 'https://bank.co.il/iframe' } as unknown as Frame;
     const page = createMockPage();
     page.frames.mockReturnValue([mockFrame]);
-    const result = await waitUntilIframeFound(page, (f: Frame) => f.url() === 'https://bank.co.il/iframe', { description: 'test', timeout: 5000 });
+    const result = await waitUntilIframeFound(page, (f: Frame) => f.url() === 'https://bank.co.il/iframe', {
+      description: 'test',
+      timeout: 5000,
+    });
     expect(result).toBe(mockFrame);
   });
 
   it('throws when frame is not found within timeout', async () => {
     const page = createMockPage();
     page.frames.mockReturnValue([]);
-    await expect(waitUntilIframeFound(page, () => false, { description: 'missing frame', timeout: 100 })).rejects.toThrow();
+    await expect(
+      waitUntilIframeFound(page, () => false, { description: 'missing frame', timeout: 100 }),
+    ).rejects.toThrow();
   });
 });

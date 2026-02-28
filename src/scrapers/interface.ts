@@ -13,14 +13,14 @@ export type ScraperCredentials =
   | { id: string; password: string; card6Digits: string }
   | { username: string; nationalID: string; password: string }
   | ({ email: string; password: string } & (
-    | {
-      otpCodeRetriever: () => Promise<string>;
-      phoneNumber: string;
-    }
-    | {
-      otpLongTermToken: string;
-    }
-  ));
+      | {
+          otpCodeRetriever: () => Promise<string>;
+          phoneNumber: string;
+        }
+      | {
+          otpLongTermToken: string;
+        }
+    ));
 
 export type OptInFeatures =
   | 'isracard-amex:skipAdditionalTransactionInformation'
@@ -208,15 +208,15 @@ export interface Scraper<TCredentials extends ScraperCredentials> {
 export type ScraperTwoFactorAuthTriggerResult =
   | ErrorResult
   | {
-    success: true;
-  };
+      success: true;
+    };
 
 export type ScraperGetLongTermTwoFactorTokenResult =
   | ErrorResult
   | {
-    success: true;
-    longTermTwoFactorAuthToken: string;
-  };
+      success: true;
+      longTermTwoFactorAuthToken: string;
+    };
 
 export interface ScraperLoginResult {
   success: boolean;

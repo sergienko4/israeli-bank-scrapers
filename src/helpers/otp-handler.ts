@@ -131,7 +131,10 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
 
 export async function handleOtpStep(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult | null> {
   const otpDetected = await detectOtpScreen(page);
-  if (!otpDetected) { debug('No OTP screen detected — proceeding normally'); return null; }
+  if (!otpDetected) {
+    debug('No OTP screen detected — proceeding normally');
+    return null;
+  }
   debug('OTP screen detected');
 
   const { otpCodeRetriever } = options;

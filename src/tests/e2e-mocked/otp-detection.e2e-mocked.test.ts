@@ -141,7 +141,10 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
+      username: string;
+      password: string;
+    });
 
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
@@ -169,7 +172,10 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
+      username: string;
+      password: string;
+    });
 
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
@@ -198,7 +204,10 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
+      username: string;
+      password: string;
+    });
 
     expect(result.success).toBe(true);
     // Retriever called with phone hint extracted from the page
@@ -223,7 +232,10 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as { username: string; password: string });
+    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
+      username: string;
+      password: string;
+    });
 
     expect(result.success).toBe(true);
     expect(result.errorType).toBeUndefined();
@@ -250,7 +262,10 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'wronguser', password: 'wrongpass' } as { username: string; password: string });
+    const result = await scraper.scrape({ username: 'wronguser', password: 'wrongpass' } as {
+      username: string;
+      password: string;
+    });
 
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);

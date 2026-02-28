@@ -39,7 +39,9 @@ describe('waitUntil', () => {
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 })).rejects.toThrow(TimeoutError);
+    await expect(waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 })).rejects.toThrow(
+      TimeoutError,
+    );
   });
 
   // waitUntil's catch handler calls reject() with no value (undefined)

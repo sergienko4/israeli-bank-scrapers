@@ -50,7 +50,10 @@ function createUnionPage(): ReturnType<typeof createMockPage> {
   });
 }
 
-function mockTransactionTable(headers: Array<{ text: string; index: number }>, rows: Array<{ id: string; innerTds: string[] }>): void {
+function mockTransactionTable(
+  headers: Array<{ text: string; index: number }>,
+  rows: Array<{ id: string; innerTds: string[] }>,
+): void {
   (pageEvalAll as jest.Mock).mockResolvedValueOnce(headers).mockResolvedValueOnce(rows);
 }
 

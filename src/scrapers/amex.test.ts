@@ -4,7 +4,6 @@ import { SCRAPERS } from '../definitions';
 import { LoginResults } from './base-scraper-with-browser';
 import type { ScraperOptions } from './interface';
 
-
 const COMPANY_ID = 'amex'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();
 

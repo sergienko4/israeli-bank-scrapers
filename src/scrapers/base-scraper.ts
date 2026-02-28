@@ -45,7 +45,11 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
-    try { return await this.login(credentials); } catch (e) { return categorizeError(e); }
+    try {
+      return await this.login(credentials);
+    } catch (e) {
+      return categorizeError(e);
+    }
   }
 
   private async executeFetchData(loginResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
@@ -56,13 +60,17 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
         scrapeResult.persistentOtpToken = loginResult.persistentOtpToken;
       }
       return scrapeResult;
-    } catch (e) { return categorizeError(e); }
+    } catch (e) {
+      return categorizeError(e);
+    }
   }
 
   private async handleTermination(scrapeResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
     try {
       await this.terminate(scrapeResult?.success === true);
-    } catch (e) { return createGenericError((e as Error).message); }
+    } catch (e) {
+      return createGenericError((e as Error).message);
+    }
     return scrapeResult;
   }
 
