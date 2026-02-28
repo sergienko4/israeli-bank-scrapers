@@ -1,10 +1,12 @@
 export enum ScraperErrorTypes {
   TwoFactorRetrieverMissing = 'TWO_FACTOR_RETRIEVER_MISSING',
+  InvalidOtp = 'INVALID_OTP',
   InvalidPassword = 'INVALID_PASSWORD',
   ChangePassword = 'CHANGE_PASSWORD',
   Timeout = 'TIMEOUT',
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
+  /** @deprecated Use `Generic` instead. Kept for backwards-compatibility. */
   General = 'GENERAL_ERROR',
   WafBlocked = 'WAF_BLOCKED',
 }
@@ -83,13 +85,17 @@ export class WafBlockError extends Error {
     });
   }
 
-  static apiBlock(httpStatus: number, pageUrl: string, pageTitle: string, responseSnippet?: string): WafBlockError {
+  static apiBlock(
+    httpStatus: number,
+    pageUrl: string,
+    opts: { pageTitle?: string; responseSnippet?: string } = {},
+  ): WafBlockError {
     return new WafBlockError({
       provider: 'unknown',
       httpStatus,
-      pageTitle,
+      pageTitle: opts.pageTitle ?? '',
       pageUrl,
-      responseSnippet: responseSnippet?.substring(0, 200),
+      responseSnippet: opts.responseSnippet?.substring(0, 200),
       suggestions: [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.avoidRapidRetries],
     });
   }

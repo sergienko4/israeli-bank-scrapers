@@ -30,7 +30,7 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
     return this.fetchResult;
   }
 
-  protected async terminate(success: boolean) {
+  protected async terminate(success: boolean): Promise<void> {
     this.terminated = true;
     if (this.terminateError) throw this.terminateError;
     await super.terminate(success);

@@ -32,33 +32,34 @@ describe('waitUntil', () => {
         return Promise.resolve(count >= 3 ? 'done' : null);
       },
       'test',
-      5000,
-      10,
+      { timeout: 5000, interval: 10 },
     );
     expect(result).toBe('done');
     expect(count).toBeGreaterThanOrEqual(3);
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(waitUntil(() => Promise.resolve(false), 'never true', 100, 10)).rejects.toThrow(TimeoutError);
+    await expect(waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 })).rejects.toThrow(
+      TimeoutError,
+    );
   });
 
   // waitUntil's catch handler calls reject() with no value (undefined)
   it('rejects when async test throws', async () => {
     await expect(
-      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', 5000, 10),
+      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', { timeout: 5000, interval: 10 }),
     ).rejects.toBeUndefined();
   });
 });
 
 describe('raceTimeout', () => {
   it('returns promise result when it resolves before timeout', async () => {
-    const result = await raceTimeout(5000, Promise.resolve('fast'));
+    const result: unknown = await raceTimeout(5000, Promise.resolve('fast'));
     expect(result).toBe('fast');
   });
 
   it('returns undefined when promise times out', async () => {
-    const result = await raceTimeout(
+    const result: unknown = await raceTimeout(
       50,
       sleep(200).then(() => 'slow'),
     );

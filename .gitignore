@@ -68,3 +68,6 @@ CLAUDE.md
 .idea
 .vscode
 .DS_Store
+.beinleumi-debug/
+.beinleumi-otp.tmp
+.onezero-otp.tmp

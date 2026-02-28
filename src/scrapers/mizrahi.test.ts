@@ -30,7 +30,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -45,7 +45,24 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function scrapedTxn(overrides: any = {}): any {
+interface MizrahiScrapedTxn {
+  RecTypeSpecified: boolean;
+  MC02PeulaTaaEZ: string;
+  MC02SchumEZ: number;
+  MC02AsmahtaMekoritEZ: string;
+  MC02TnuaTeurEZ: string;
+  IsTodayTransaction: boolean;
+  MC02ErehTaaEZ: string;
+  MC02ShowDetailsEZ?: string;
+  MC02KodGoremEZ?: string;
+  MC02SugTnuaKaspitEZ?: string;
+  MC02AgidEZ?: string;
+  MC02SeifMaralEZ?: string;
+  MC02NoseMaralEZ?: string;
+  TransactionNumber: string | number | null;
+}
+
+function scrapedTxn(overrides: Partial<MizrahiScrapedTxn> = {}): MizrahiScrapedTxn {
   return {
     RecTypeSpecified: true,
     MC02PeulaTaaEZ: '2025-06-15T10:00:00',
@@ -60,7 +77,7 @@ function scrapedTxn(overrides: any = {}): any {
   };
 }
 
-function mockApiResponse(rows: any[] = [], balance = '5000') {
+function mockApiResponse(rows: MizrahiScrapedTxn[] = [], balance = '5000'): object {
   return {
     header: { success: true, messages: [] },
     body: {
@@ -70,11 +87,11 @@ function mockApiResponse(rows: any[] = [], balance = '5000') {
   };
 }
 
-function mockDetailsResponse(fields: Array<{ Label: string; Value: string }>) {
+function mockDetailsResponse(fields: Array<{ Label: string; Value: string }>): object {
   return { body: { fields: [[{ Records: [{ Fields: fields }] }]] } };
 }
 
-function createMizrahiPage() {
+function createMizrahiPage(): ReturnType<typeof createMockPage> {
   const mockRequest = {
     postData: () => JSON.stringify({ table: {} }),
     headers: () => ({ mizrahixsrftoken: 'xsrf-token', 'content-type': 'application/json' }),

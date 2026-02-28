@@ -9,42 +9,44 @@ jest.mock('../helpers/fetch', () => ({
   fetchGraphql: jest.fn(),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
-function mockDeviceToken(deviceToken = 'device-123') {
+function mockDeviceToken(deviceToken = 'device-123'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });
 }
 
-function mockOtpPrepare(otpContext = 'otp-ctx-456') {
+function mockOtpPrepare(otpContext = 'otp-ctx-456'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpContext } });
 }
 
-function mockOtpVerify(otpToken = 'otp-long-term-token') {
+function mockOtpVerify(otpToken = 'otp-long-term-token'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpToken } });
 }
 
-function mockIdToken(idToken = 'id-token-789') {
+function mockIdToken(idToken = 'id-token-789'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
 }
 
-function mockSessionToken(accessToken = 'access-token-abc') {
+function mockSessionToken(accessToken = 'access-token-abc'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
 }
 
-function setupLongTermLogin() {
+function setupLongTermLogin(): void {
   mockIdToken();
   mockSessionToken();
 }
 
-function mockCustomer(portfolios: any[] = []) {
+function mockCustomer(
+  portfolios: Array<{ portfolioId: string; portfolioNum: string; accounts: Array<{ accountId: string }> }> = [],
+): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
   });
 }
 
-function mockMovements(movements: any[] = [], hasMore = false, cursor = 'next') {
+function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, cursor = 'next'): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
       movements,
@@ -53,13 +55,45 @@ function mockMovements(movements: any[] = [], hasMore = false, cursor = 'next') 
   });
 }
 
-function recentDate() {
+function mockAccountBalance(currentAccountBalance = 5000): void {
+  (fetchGraphql as jest.Mock).mockResolvedValueOnce({
+    balance: {
+      currentAccountBalance,
+      currentAccountBalanceStr: String(currentAccountBalance),
+      blockedAmountStr: '0',
+      limitAmountStr: '0',
+    },
+  });
+}
+
+function recentDate(): string {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   return d.toISOString();
 }
 
-function movement(overrides: any = {}): any {
+interface OneZeroMovement {
+  movementId: string;
+  valueDate: string;
+  movementTimestamp: string;
+  movementAmount: string;
+  movementCurrency: string;
+  creditDebit: string;
+  description: string;
+  runningBalance: string;
+  transaction: null | {
+    enrichment?: { recurrences?: Array<{ isRecurrent: boolean; dataSource?: string }> | null } | null;
+  };
+  bankCurrencyAmount?: string;
+  conversionRate?: string;
+  isReversed?: boolean;
+  movementReversedId?: string | null;
+  movementType?: string;
+  portfolioId?: string;
+  accountId?: string;
+}
+
+function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
   const ts = recentDate();
   return {
     movementId: 'mov-001',
@@ -246,12 +280,13 @@ describe('fetchData', () => {
     const olderTs = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
     mockMovements([movement({ movementTimestamp: recentTs, movementId: 'mov-2' })], true, 'cursor-2');
     mockMovements([movement({ movementTimestamp: olderTs, movementId: 'mov-1' })], false);
+    mockAccountBalance(5000);
 
     const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
     expect(result.accounts![0].txns).toHaveLength(2);
-    expect(fetchGraphql).toHaveBeenCalledTimes(3); // customer + 2 movements pages
+    expect(fetchGraphql).toHaveBeenCalledTimes(4); // customer + 2 movements pages + balance
   });
 
   it('handles empty portfolios', async () => {
@@ -274,12 +309,13 @@ describe('fetchData', () => {
         accounts: [{ accountId: 'acc-1' }],
       },
     ]);
-    mockMovements([movement({ runningBalance: '10000', movementTimestamp: '2024-06-15T10:00:00Z' })]);
+    mockMovements([movement({ runningBalance: '9000', movementTimestamp: '2024-06-15T10:00:00Z' })]);
+    mockAccountBalance(10000); // real-time balance query returns 10000 (may differ from runningBalance)
 
     const scraper = new OneZeroScraper(createMockScraperOptions({ startDate: new Date('2024-01-01') }));
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].balance).toBe(10000);
+    expect(result.accounts![0].balance).toBe(10000); // uses balance query, not runningBalance
   });
 
   it('includes rawTransaction when option set', async () => {

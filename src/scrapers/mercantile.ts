@@ -1,12 +1,11 @@
+import { CompanyTypes } from '../definitions';
+import { type ScraperOptions } from './interface';
+import { BANK_REGISTRY } from './bank-registry';
 import DiscountScraper from './discount';
 
-type ScraperSpecificCredentials = { id: string; password: string; num: string };
 class MercantileScraper extends DiscountScraper {
-  getLoginOptions(credentials: ScraperSpecificCredentials) {
-    return {
-      ...super.getLoginOptions(credentials),
-      loginUrl: 'https://start.telebank.co.il/login/?bank=m',
-    };
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.mercantile]);
   }
 }
 

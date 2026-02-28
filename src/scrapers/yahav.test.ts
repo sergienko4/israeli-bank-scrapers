@@ -25,7 +25,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -40,7 +40,7 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass', nationalID: '123456789' };
 
-function createYahavPage() {
+function createYahavPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
     $eval: jest.fn().mockImplementation((selector: string) => {
       if (selector.includes('portfolio-value')) return 'ACC-12345';
@@ -75,7 +75,7 @@ describe('login', () => {
 
   it('returns InvalidPassword when dialog appears', async () => {
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://login.yahav.co.il/login/');
-    (elementPresentOnPage as jest.Mock).mockImplementation((_p: any, selector: string) => {
+    (elementPresentOnPage as jest.Mock).mockImplementation((_p: unknown, selector: string) => {
       return selector === '.ui-dialog-buttons';
     });
 

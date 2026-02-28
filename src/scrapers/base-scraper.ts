@@ -21,10 +21,16 @@ import {
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
+function extractErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return String(e);
+}
+
 function categorizeError(e: unknown): ErrorResult {
   if (e instanceof TimeoutError) return createTimeoutError(e.message);
   if (e instanceof WafBlockError) return createWafBlockedError(e.message, e.details);
-  return createGenericError((e as Error).message);
+  return createGenericError(extractErrorMessage(e));
 }
 
 export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {
@@ -33,42 +39,49 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   constructor(public options: ScraperOptions) {}
 
   // eslint-disable-next-line  @typescript-eslint/require-await
-  async initialize() {
+  async initialize(): Promise<void> {
     this.emitProgress(ScraperProgressTypes.Initializing);
     moment.tz.setDefault('Asia/Jerusalem');
+  }
+
+  private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
+    try {
+      return await this.login(credentials);
+    } catch (e) {
+      return categorizeError(e);
+    }
+  }
+
+  private async executeFetchData(loginResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
+    if (!loginResult.success) return loginResult;
+    try {
+      const scrapeResult = await this.fetchData();
+      if (scrapeResult.success && 'persistentOtpToken' in loginResult && loginResult.persistentOtpToken) {
+        scrapeResult.persistentOtpToken = loginResult.persistentOtpToken;
+      }
+      return scrapeResult;
+    } catch (e) {
+      return categorizeError(e);
+    }
+  }
+
+  private async handleTermination(scrapeResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
+    try {
+      await this.terminate(scrapeResult?.success === true);
+    } catch (e) {
+      return createGenericError((e as Error).message);
+    }
+    return scrapeResult;
   }
 
   async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
     this.emitProgress(ScraperProgressTypes.StartScraping);
     await this.initialize();
-
-    let loginResult;
-    try {
-      loginResult = await this.login(credentials);
-    } catch (e) {
-      loginResult = categorizeError(e);
-    }
-
-    let scrapeResult;
-    if (loginResult.success) {
-      try {
-        scrapeResult = await this.fetchData();
-      } catch (e) {
-        scrapeResult = categorizeError(e);
-      }
-    } else {
-      scrapeResult = loginResult;
-    }
-
-    try {
-      const success = scrapeResult && scrapeResult.success === true;
-      await this.terminate(success);
-    } catch (e) {
-      scrapeResult = createGenericError((e as Error).message);
-    }
+    const loginResult = await this.executeLogin(credentials);
+    const scrapeResult = await this.executeFetchData(loginResult);
+    const finalResult = await this.handleTermination(scrapeResult);
     this.emitProgress(ScraperProgressTypes.EndScraping);
-
-    return scrapeResult;
+    return finalResult;
   }
 
   triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
@@ -90,19 +103,19 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  protected async terminate(_success: boolean) {
+  protected async terminate(_success: boolean): Promise<void> {
     this.emitProgress(ScraperProgressTypes.Terminating);
   }
 
-  protected emitProgress(type: ScraperProgressTypes) {
+  protected emitProgress(type: ScraperProgressTypes): void {
     this.emit(SCRAPE_PROGRESS, { type });
   }
 
-  protected emit(eventName: string, payload: Record<string, any>) {
+  protected emit(eventName: string, payload: Record<string, unknown>): void {
     this.eventEmitter.emit(eventName, this.options.companyId, payload);
   }
 
-  onProgress(func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void) {
+  onProgress(func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void): void {
     this.eventEmitter.on(SCRAPE_PROGRESS, func);
   }
 }

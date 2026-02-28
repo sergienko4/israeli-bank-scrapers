@@ -2,12 +2,12 @@ import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 import { TransactionTypes, type Transaction } from '../transactions';
 
-function isNormalTransaction(txn: any): boolean {
-  return txn && txn.type === TransactionTypes.Normal;
+function isNormalTransaction(txn: Transaction): boolean {
+  return !!txn && txn.type === TransactionTypes.Normal;
 }
 
-function isInstallmentTransaction(txn: any): boolean {
-  return txn && txn.type === TransactionTypes.Installments;
+function isInstallmentTransaction(txn: Transaction): boolean {
+  return !!txn && txn.type === TransactionTypes.Installments;
 }
 
 function isNonInitialInstallmentTransaction(txn: Transaction): boolean {
@@ -35,11 +35,15 @@ export function fixInstallments(txns: Transaction[]): Transaction[] {
   });
 }
 
-export function sortTransactionsByDate(txns: Transaction[]) {
+export function sortTransactionsByDate(txns: Transaction[]): Transaction[] {
   return _.sortBy(txns, ['date']);
 }
 
-export function filterOldTransactions(txns: Transaction[], startMoment: Moment, combineInstallments: boolean) {
+export function filterOldTransactions(
+  txns: Transaction[],
+  startMoment: Moment,
+  combineInstallments: boolean,
+): Transaction[] {
   return txns.filter(txn => {
     const combineNeededAndInitialOrNormal =
       combineInstallments && (isNormalTransaction(txn) || isInitialInstallmentTransaction(txn));
@@ -55,7 +59,7 @@ export function filterOldTransactions(txns: Transaction[], startMoment: Moment, 
  */
 function removeEmptyValues<T>(value: T): T {
   if (Array.isArray(value)) {
-    return value.map(item => removeEmptyValues(item)) as unknown as T;
+    return (value as unknown[]).map(item => removeEmptyValues(item)) as unknown as T;
   }
 
   if (value && typeof value === 'object') {
@@ -88,7 +92,7 @@ export function getRawTransaction(data: unknown, transaction?: { rawTransaction?
   }
 
   if (Array.isArray(current)) {
-    return [...current, cleaned];
+    return [...(current as unknown[]), cleaned];
   }
 
   return [current, cleaned];

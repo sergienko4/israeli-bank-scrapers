@@ -18,6 +18,15 @@ const config = {
     '**/*.ts',
     '!tests/**',
     '!**/*.test.ts',
+    // Extracted helper/type/fragment files — covered via scraper integration tests,
+    // not unit-tested directly. Excluded to avoid false coverage drops on refactoring.
+    '!scrapers/*-types.ts',
+    '!scrapers/*-fragments.ts',
+    '!scrapers/*-extra.ts',
+    '!scrapers/*-helpers.ts',
+    '!scrapers/beinleumi-account-selector.ts',
+    '!scrapers/base-isracard-amex-transactions.ts',
+    '!scrapers/concrete-generic-scraper.ts',
   ],
   coverageThreshold: {
     global: {

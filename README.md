@@ -94,8 +94,8 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
 | Bank Yahav | Bank | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel) |
 | Bank Massad | Bank | `username`, `password` | |
 | Pagi Bank | Bank | `username`, `password` | |
-| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi) |
-| Beinleumi | Bank | `username`, `password` | [@dudiventura](https://github.com/dudiventura) |
+| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
+| Beinleumi | Bank | `username`, `password`, OTP | [@sergienko4](https://github.com/sergienko4) |
 | Beyahad Bishvilha | Bank | `id`, `password` | [@esakal](https://github.com/esakal) |
 | Behatsdaa | Bank | `id`, `password` | [@daniel-hauser](https://github.com/daniel-hauser) |
 | Amex | Credit Card | `id`, `card6Digits`, `password` | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4) |
@@ -157,9 +157,10 @@ All scrapers support up to one year of transaction history. See credentials per 
 ```typescript
 {
   success: boolean;
+  persistentOtpToken?: string;  // save to reuse on next run (bank-dependent expiry)
   accounts?: [{
     accountNumber: string;
-    balance?: number;
+    balance?: number;           // real-time balance including pending transactions
     txns: [{
       type: 'normal' | 'installments';
       identifier?: number;
@@ -175,8 +176,11 @@ All scrapers support up to one year of transaction history. See credentials per 
     }];
   }];
   // On failure:
-  errorType?: 'INVALID_PASSWORD' | 'CHANGE_PASSWORD' | 'ACCOUNT_BLOCKED'
-            | 'TIMEOUT' | 'GENERIC' | 'GENERAL_ERROR' | 'WAF_BLOCKED';
+  errorType?: 'INVALID_OTP'        // wrong/expired OTP code — ask user to retry
+            | 'TWO_FACTOR_RETRIEVER_MISSING' // OTP required but otpCodeRetriever not set
+            | 'INVALID_PASSWORD' | 'CHANGE_PASSWORD' | 'ACCOUNT_BLOCKED'
+            | 'TIMEOUT' | 'GENERIC' | 'WAF_BLOCKED'
+            | 'GENERAL_ERROR';     // @deprecated — same as GENERIC, kept for backwards compatibility
   errorMessage?: string;
   errorDetails?: {          // Only on WAF_BLOCKED
     provider: 'cloudflare' | 'unknown';
@@ -248,22 +252,78 @@ const scraper = createScraper({
 
 ### Two-Factor Authentication
 
-Some companies require 2FA. Provide an OTP callback or a long-term token:
+Several banks require OTP (one-time password / SMS code). The OTP flow differs by bank type:
 
+**DOM banks** (browser-based: Beinleumi, Discount, …) — pass `otpCodeRetriever` in scraper options:
+```typescript
+const scraper = createScraper({
+  companyId: CompanyTypes.beinleumi,
+  startDate,
+  otpCodeRetriever: async (phoneHint) => {
+    console.log(`SMS sent to ${phoneHint}. Enter code:`);
+    return await readCodeFromSomewhere(); // e.g. stdin, file, push notification
+  },
+});
+const result = await scraper.scrape({ username, password });
+```
+
+**API banks** (no browser: OneZero) — pass `otpCodeRetriever` **in credentials**:
 ```typescript
 const result = await scraper.scrape({
   email: 'user@example.com',
   password: 'pass',
   phoneNumber: '+972...',
-  otpCodeRetriever: async () => {
-    return '123456'; // Return OTP from SMS/email
-  },
+  otpCodeRetriever: async () => '123456', // Return OTP from SMS
 });
+// result.persistentOtpToken — save to skip SMS on next run (valid ~1 hour for OneZero)
+```
+
+**Reuse a previous OTP token** (skips SMS entirely):
+```typescript
+const result = await scraper.scrape({
+  email: 'user@example.com',
+  password: 'pass',
+  otpLongTermToken: process.env.ONEZERO_OTP_TOKEN,
+});
+```
+
+**Error handling:**
+```typescript
+if (!result.success && result.errorType === 'INVALID_OTP') {
+  // Wrong or expired OTP code — ask user to try again
+}
+if (!result.success && result.errorType === 'TWO_FACTOR_RETRIEVER_MISSING') {
+  // Bank requires OTP but no otpCodeRetriever was provided
+}
 ```
 
 ### Opt-In Features
 
 Some scrapers support opt-in features for breaking changes. See the [OptInFeatures type](./src/scrapers/interface.ts).
+
+---
+
+## Migration Notes
+
+### v7.0.x → v7.1.x (this PR)
+
+**New additions (non-breaking):**
+- `ScraperOptions.otpCodeRetriever` — optional callback for DOM banks (Beinleumi, Discount). Not required — if omitted and OTP is detected, returns `TWO_FACTOR_RETRIEVER_MISSING`.
+- `ScraperScrapingResult.persistentOtpToken` — optional token returned by banks supporting session reuse (e.g. OneZero). Save and pass as `credentials.otpLongTermToken` to skip SMS on next run.
+- `ScraperErrorTypes.InvalidOtp = 'INVALID_OTP'` — new error type when OTP code is rejected.
+
+**Deprecated (still works, no action needed):**
+- `ScraperErrorTypes.General = 'GENERAL_ERROR'` — use `ScraperErrorTypes.Generic = 'GENERIC'` instead. Both values remain in the enum.
+
+**Potentially breaking — `WafBlockError.apiBlock()` signature:**
+```typescript
+// Old (v7.0.x):
+WafBlockError.apiBlock(httpStatus, pageUrl, pageTitle, responseSnippet)
+
+// New (v7.1.x):
+WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet })
+```
+This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers who only check `result.errorType === 'WAF_BLOCKED'` are unaffected.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -272,6 +332,11 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 - [x] Cloudflare WAF bypass (Playwright — no stealth or retry needed)
 - [x] Structured `WAF_BLOCKED` error type with actionable suggestions
 - [x] Playwright migration — bypasses WAF natively, no CDP fingerprint
+- [x] Automatic OTP handling for DOM banks (Beinleumi, Discount) — no manual steps
+- [x] `INVALID_OTP` error type — fast fail (5s) with clear message when code is wrong/expired
+- [x] OneZero real-time balance via `balance(portfolioId, accountId)` GraphQL query
+- [x] `persistentOtpToken` surfaced in scrape result for session reuse
+- [x] Zero-Compromise ESLint gate: `no-any`, `no-unsafe-*`, explicit return types, 20-line/300-line limits
 - [ ] Configurable proxy support for residential IP routing
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.

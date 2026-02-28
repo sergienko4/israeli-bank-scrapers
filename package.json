@@ -1,6 +1,6 @@
 {
   "name": "@sergienko4/israeli-bank-scrapers",
-  "version": "7.0.1",
+  "version": "7.0.3",
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
     "node": ">= 22.14.0"
@@ -14,7 +14,11 @@
   "scripts": {
     "clean": "rimraf lib",
     "test": "jest",
+    "test:unit": "jest --testPathIgnorePatterns=e2e-real --testPathIgnorePatterns=e2e-mocked",
+    "test:e2e:mock": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=e2e-real --testPathPatterns=e2e-mocked",
+    "test:e2e:real": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=e2e-mocked --testPathPatterns=e2e-real",
     "test:ci": "ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js && jest --ci --coverage",
+    "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "lint": "eslint src --max-warnings 0 && npm run format:check",
     "lint:fix": "eslint src --fix && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -61,11 +65,13 @@
     "eslint": "^9.39.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "fs-extra": "^11.3.3",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
     "jscodeshift": "^17.3.0",
+    "lint-staged": "^16.3.0",
     "minimist": "^1.2.8",
     "ncp": "^2.0.0",
     "prettier": "^3.8.1",
@@ -90,5 +96,14 @@
   ],
   "overrides": {
     "test-exclude": "^7.0.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "npx eslint --fix --max-warnings 0",
+      "npx prettier --write"
+    ],
+    "*.{json,md}": [
+      "npx prettier --write"
+    ]
   }
 }

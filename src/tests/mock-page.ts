@@ -1,19 +1,51 @@
+import { type Page } from 'playwright';
 import { CompanyTypes } from '../definitions';
 import { type ScraperOptions } from '../scrapers/interface';
 
-type MockOverrides = Record<string, jest.Mock | ((...args: any[]) => any)>;
+export type MockPage = {
+  waitForSelector: jest.Mock;
+  $eval: jest.Mock;
+  $$eval: jest.Mock;
+  $: jest.Mock;
+  $$: jest.Mock;
+  type: jest.Mock;
+  selectOption: jest.Mock;
+  waitForFunction: jest.Mock;
+  frames: jest.Mock;
+  waitForNavigation: jest.Mock;
+  waitForResponse: jest.Mock;
+  waitForRequest: jest.Mock;
+  url: jest.Mock;
+  title: jest.Mock;
+  evaluate: jest.Mock;
+  addInitScript: jest.Mock;
+  setExtraHTTPHeaders: jest.Mock;
+  context: jest.Mock;
+  setDefaultTimeout: jest.Mock;
+  goto: jest.Mock;
+  on: jest.Mock;
+  screenshot: jest.Mock;
+  close: jest.Mock;
+  focus: jest.Mock;
+  cookies?: jest.Mock;
+  [key: string]: jest.Mock | undefined;
+};
 
-export function createMockPage(overrides: MockOverrides = {}): any {
+type MockOverrides = Partial<MockPage>;
+
+export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
   return {
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     $eval: jest.fn().mockResolvedValue(undefined),
     $$eval: jest.fn().mockResolvedValue([]),
     $: jest.fn().mockResolvedValue({}),
+    $$: jest.fn().mockResolvedValue([]),
     type: jest.fn().mockResolvedValue(undefined),
     selectOption: jest.fn().mockResolvedValue(undefined),
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
+    waitForResponse: jest.fn().mockResolvedValue(undefined),
     url: jest.fn().mockReturnValue('https://example.com'),
     title: jest.fn().mockResolvedValue('Test Page'),
     evaluate: jest.fn().mockResolvedValue(undefined),
@@ -28,18 +60,29 @@ export function createMockPage(overrides: MockOverrides = {}): any {
     on: jest.fn(),
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
+    focus: jest.fn().mockResolvedValue(undefined),
     ...overrides,
-  };
+  } as unknown as MockPage & Page;
 }
 
-export function createMockContext(page?: any) {
+type MockContext = {
+  newPage: jest.Mock;
+  close: jest.Mock;
+};
+
+export function createMockContext(page?: MockPage & Page): MockContext {
   return {
     newPage: jest.fn().mockResolvedValue(page ?? createMockPage()),
     close: jest.fn().mockResolvedValue(undefined),
   };
 }
 
-export function createMockBrowser(context?: any) {
+type MockBrowser = {
+  newContext: jest.Mock;
+  close: jest.Mock;
+};
+
+export function createMockBrowser(context?: MockContext): MockBrowser {
   const mockCtx = context ?? createMockContext();
   return {
     newContext: jest.fn().mockResolvedValue(mockCtx),
