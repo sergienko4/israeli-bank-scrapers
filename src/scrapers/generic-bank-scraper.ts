@@ -109,21 +109,34 @@ export abstract class GenericBankScraper<
     await fillInput(ctx, selector, value);
   }
 
+  private async resolveAndFill(pageOrFrame: Page | Frame, fieldConfig: FieldConfig, value: string): Promise<void> {
+    const { selector, context } = await resolveFieldContext(
+      this.activeLoginContext ?? pageOrFrame,
+      fieldConfig,
+      this.page.url(),
+    );
+    this.activeLoginContext = context;
+    await fillInput(context, selector, value);
+  }
+
   private async fillFieldWithFallback(
     pageOrFrame: Page | Frame,
     fieldConfig: FieldConfig,
     field: { selector: string; value: string },
   ): Promise<void> {
+    let resolveError: unknown;
     try {
-      const { selector, context } = await resolveFieldContext(
-        this.activeLoginContext ?? pageOrFrame,
-        fieldConfig,
-        this.page.url(),
-      );
-      this.activeLoginContext = context;
-      await fillInput(context, selector, field.value);
-    } catch {
+      await this.resolveAndFill(pageOrFrame, fieldConfig, field.value);
+      return;
+    } catch (e: unknown) {
+      resolveError = e;
+    }
+    // Fall back to direct fillInput — if that also fails, rethrow the
+    // descriptive resolveFieldContext error so callers see "Could not find".
+    try {
       await this.fillWithFallback(this.activeLoginContext ?? pageOrFrame, field.selector, field.value);
+    } catch {
+      throw resolveError;
     }
   }
 
