@@ -170,6 +170,13 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
    */
   optInFeatures?: Array<OptInFeatures>;
+
+  /**
+   * Called when an OTP/2FA screen is detected after login form submission.
+   * Return the one-time code to continue scraping automatically.
+   * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
+   */
+  otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 };
 
 export interface OutputDataOptions {
@@ -186,6 +193,9 @@ export interface ScraperScrapingResult {
   errorType?: ScraperErrorTypes;
   errorMessage?: string; // only on success=false
   errorDetails?: WafErrorDetails; // only on errorType=WAF_BLOCKED
+  /** Long-term OTP token returned by banks that support it (e.g. OneZero).
+   *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
+  persistentOtpToken?: string;
 }
 
 export interface Scraper<TCredentials extends ScraperCredentials> {

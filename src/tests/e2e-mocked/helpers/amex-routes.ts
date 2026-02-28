@@ -7,7 +7,9 @@ interface AmexRouteOverrides {
   transactions?: string;
 }
 
-export function amexRoutes(overrides: AmexRouteOverrides = {}) {
+export function amexRoutes(
+  overrides: AmexRouteOverrides = {},
+): Array<{ match: string; method?: 'POST'; contentType: string; body: string }> {
   return [
     { match: '/personalarea/Login', contentType: 'text/html', body: loadFixture('amex/login-page.html') },
     {

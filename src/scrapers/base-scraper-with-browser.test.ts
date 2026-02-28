@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { chromium } from 'playwright';
+import { chromium, type BrowserContext, type Browser } from 'playwright';
 import { ScraperProgressTypes } from '../definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
 import { getCurrentUrl, waitForNavigation } from '../helpers/navigation';
 import { createMockPage, createMockContext, createMockBrowser, createMockScraperOptions } from '../tests/mock-page';
 import { BaseScraperWithBrowser, LoginResults, type LoginOptions } from './base-scraper-with-browser';
 import { ScraperErrorTypes } from './errors';
-import type { ScraperCredentials, ScraperScrapingResult } from './interface';
+import type { ScraperCredentials, ScraperOptions, ScraperScrapingResult } from './interface';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 
@@ -64,7 +64,7 @@ class TestBrowserScraper extends BaseScraperWithBrowser<ScraperCredentials> {
   }
 }
 
-function createScraper(overrides = {}) {
+function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScraper {
   return new TestBrowserScraper(createMockScraperOptions(overrides));
 }
 
@@ -119,8 +119,8 @@ describe('initialize', () => {
 describe('initializePage', () => {
   it('uses browserContext when provided', async () => {
     const page = createMockPage();
-    const browserContext = { newPage: jest.fn().mockResolvedValue(page) };
-    const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext } as any));
+    const browserContext = { newPage: jest.fn().mockResolvedValue(page) } as unknown as BrowserContext;
+    const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browserContext.newPage).toHaveBeenCalled();
     expect(chromium.launch).not.toHaveBeenCalled();
@@ -129,8 +129,8 @@ describe('initializePage', () => {
   it('uses external browser and creates context', async () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
-    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() };
-    const scraper = new TestBrowserScraper(createMockScraperOptions({ browser } as any));
+    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() } as unknown as Browser;
+    const scraper = new TestBrowserScraper(createMockScraperOptions({ browser }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.newContext).toHaveBeenCalled();
     expect(chromium.launch).not.toHaveBeenCalled();
@@ -139,8 +139,8 @@ describe('initializePage', () => {
   it('skips browser close cleanup when skipCloseBrowser is true', async () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
-    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() };
-    const scraper = new TestBrowserScraper(createMockScraperOptions({ browser, skipCloseBrowser: true } as any));
+    const browser = { newContext: jest.fn().mockResolvedValue(ctx), close: jest.fn() } as unknown as Browser;
+    const scraper = new TestBrowserScraper(createMockScraperOptions({ browser, skipCloseBrowser: true }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.close).not.toHaveBeenCalled();
   });
@@ -162,11 +162,13 @@ describe('initializePage', () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-    expect(chromium.launch).toHaveBeenCalledWith(expect.not.objectContaining({ executablePath: expect.any(String) }));
+    expect(chromium.launch).toHaveBeenCalledWith(
+      expect.not.objectContaining({ executablePath: expect.any(String) as string }),
+    );
   });
 
   it('rejects custom executablePath to prevent system Chromium usage', async () => {
-    const scraper = createScraper({ executablePath: '/usr/bin/chromium' } as any);
+    const scraper = createScraper({ executablePath: '/usr/bin/chromium' } as Partial<ScraperOptions>);
     await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
       'Custom executablePath "/usr/bin/chromium" is not supported',
     );
@@ -387,7 +389,7 @@ describe('getLoginOptions', () => {
   it('throws when not overridden', () => {
     class BareScraperWithBrowser extends BaseScraperWithBrowser<ScraperCredentials> {
       // eslint-disable-next-line @typescript-eslint/require-await
-      async fetchData() {
+      async fetchData(): Promise<ScraperScrapingResult> {
         return { success: true, accounts: [] };
       }
     }

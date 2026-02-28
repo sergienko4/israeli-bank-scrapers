@@ -22,21 +22,13 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
   ]);
 }
 
-/**
- * Wait until a promise resolves with a truthy value or reject after a timeout
- */
-export function waitUntil<T>(
-  asyncTest: () => Promise<T>,
-  description = '',
-  timeout = 10000,
-  interval = 100,
-): WaitUntilReturn<T> {
-  const promise = new Promise<NonNullable<T>>((resolve, reject) => {
-    function wait() {
+function buildWaitPromise<T>(asyncTest: () => Promise<T>, interval: number): Promise<NonNullable<T>> {
+  return new Promise<NonNullable<T>>((resolve, reject) => {
+    function wait(): void {
       asyncTest()
         .then(value => {
           if (value) {
-            resolve(value);
+            resolve(value as unknown as NonNullable<T>);
           } else {
             setTimeout(wait, interval);
           }
@@ -47,11 +39,28 @@ export function waitUntil<T>(
     }
     wait();
   });
+}
+
+export interface WaitUntilOpts {
+  timeout?: number;
+  interval?: number;
+}
+
+/**
+ * Wait until a promise resolves with a truthy value or reject after a timeout
+ */
+export function waitUntil<T>(
+  asyncTest: () => Promise<T>,
+  description = '',
+  opts: WaitUntilOpts = {},
+): WaitUntilReturn<T> {
+  const { timeout = 10000, interval = 100 } = opts;
+  const promise = buildWaitPromise(asyncTest, interval);
   return timeoutPromise(timeout, promise, description) as WaitUntilReturn<T>;
 }
 
-export function raceTimeout(ms: number, promise: Promise<any>) {
-  return timeoutPromise(ms, promise, 'timeout').catch(err => {
+export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {
+  return timeoutPromise(ms, promise, 'timeout').catch((err: unknown) => {
     if (!(err instanceof TimeoutError)) throw err;
   });
 }
@@ -60,7 +69,7 @@ export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
   return actions.reduce((m, a) => m.then(async x => [...x, await a()]), Promise.resolve<T[]>(new Array<T>()));
 }
 
-export function sleep(ms: number) {
+export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -68,7 +77,7 @@ export function sleep(ms: number) {
  * Random delay that mimics human interaction timing.
  * Default range: 300-1200ms (realistic for clicks and navigation).
  */
-export function humanDelay(minMs = 300, maxMs = 1200) {
+export function humanDelay(minMs = 300, maxMs = 1200): Promise<void> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return sleep(delay);
 }

@@ -2,6 +2,7 @@ import AMEXScraper from './amex';
 import { maybeTestCompanyAPI, extendAsyncTimeout, getTestsConfig, exportTransactions } from '../tests/tests-utils';
 import { SCRAPERS } from '../definitions';
 import { LoginResults } from './base-scraper-with-browser';
+import type { ScraperOptions } from './interface';
 
 const COMPANY_ID = 'amex'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();
@@ -26,7 +27,7 @@ describe('AMEX legacy scraper', () => {
         companyId: COMPANY_ID,
       };
 
-      const scraper = new AMEXScraper(options);
+      const scraper = new AMEXScraper(options as unknown as ScraperOptions);
 
       const result = await scraper.scrape({ id: 'e10s12', card6Digits: '123456', password: '3f3ss3d' });
 
@@ -42,8 +43,8 @@ describe('AMEX legacy scraper', () => {
       companyId: COMPANY_ID,
     };
 
-    const scraper = new AMEXScraper(options);
-    const result = await scraper.scrape(testsConfig.credentials.amex);
+    const scraper = new AMEXScraper(options as unknown as ScraperOptions);
+    const result = await scraper.scrape(testsConfig.credentials.amex as Parameters<typeof scraper.scrape>[0]);
     expect(result).toBeDefined();
     const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
     expect(error).toBe('');

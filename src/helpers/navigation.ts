@@ -8,15 +8,15 @@ interface WaitForOptions {
   timeout?: number;
 }
 
-export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions) {
+export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions): Promise<void> {
   await pageOrFrame.waitForNavigation(options);
 }
 
-export async function waitForNavigationAndDomLoad(page: Page) {
+export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
 }
 
-export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false) {
+export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false): Promise<string> | string {
   if (clientSide) {
     return pageOrFrame.evaluate(() => window.location.href);
   }
@@ -24,12 +24,14 @@ export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false) {
   return pageOrFrame.url();
 }
 
-export async function waitForRedirect(
-  pageOrFrame: Page | Frame,
-  timeout = 20000,
-  clientSide = false,
-  ignoreList: string[] = [],
-) {
+export interface WaitForRedirectOptions {
+  timeout?: number;
+  clientSide?: boolean;
+  ignoreList?: string[];
+}
+
+export async function waitForRedirect(pageOrFrame: Page | Frame, opts: WaitForRedirectOptions = {}): Promise<void> {
+  const { timeout = 20000, clientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, clientSide);
 
   await waitUntil(
@@ -38,19 +40,27 @@ export async function waitForRedirect(
       return current !== initial && !ignoreList.includes(current);
     },
     `waiting for redirect from ${initial}`,
-    timeout,
-    1000,
+    { timeout, interval: 1000 },
   );
 }
 
-export async function waitForUrl(pageOrFrame: Page | Frame, url: string | RegExp, timeout = 20000, clientSide = false) {
+export interface WaitForUrlOptions {
+  timeout?: number;
+  clientSide?: boolean;
+}
+
+export async function waitForUrl(
+  pageOrFrame: Page | Frame,
+  url: string | RegExp,
+  opts: WaitForUrlOptions = {},
+): Promise<void> {
+  const { timeout = 20000, clientSide = false } = opts;
   await waitUntil(
     async () => {
       const current = await getCurrentUrl(pageOrFrame, clientSide);
       return url instanceof RegExp ? url.test(current) : url === current;
     },
     `waiting for url to be ${url}`,
-    timeout,
-    1000,
+    { timeout, interval: 1000 },
   );
 }

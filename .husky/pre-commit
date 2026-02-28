@@ -1,6 +1,29 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
-npx eslint src --ext .ts --max-warnings 0
-npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
-npx tsc --noEmit
+echo ""
+echo "🛑  MANDATORY QUALITY GATE"
+echo "══════════════════════════════════════════════════════"
+echo "  Rules: no any · explicit return types · ≤20 lines/fn"
+echo "  · ≤300 lines/file · ≤3 params · complexity ≤10"
+echo "  See CLEAN_CODE.md for fix strategies"
+echo "══════════════════════════════════════════════════════"
+
+echo ""
+echo "🔍  [1/4] Type check — strict, no implicit any..."
+npx tsc --noEmit || exit 1
+
+echo ""
+echo "🧪  [2/4] Unit tests..."
+npm run test:unit -- --no-coverage || exit 1
+
+echo ""
+echo "🎭  [3/4] Mocked E2E tests..."
+npm run test:e2e:mock -- --no-coverage || exit 1
+
+echo ""
+echo "🧹  [4/4] Lint + format (changed files only)..."
+npx lint-staged || exit 1
+
+echo ""
+echo "══════════════════════════════════════════════════════"
+echo "✅  ALL GATES PASSED. COMMITTING..."
+echo ""

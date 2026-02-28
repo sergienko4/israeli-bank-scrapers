@@ -4,8 +4,11 @@ import { clickButton, elementPresentOnPage, pageEvalAll } from '../helpers/eleme
 import { buildContextOptions } from '../helpers/browser';
 import { sleep } from '../helpers/waiting';
 import { getCurrentUrl } from '../helpers/navigation';
+import { CompanyTypes } from '../definitions';
 import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
 import BeinleumiGroupBaseScraper from './base-beinleumi-group';
+import { BANK_REGISTRY } from './bank-registry';
+import { type ScraperOptions } from './interface';
 import { ScraperErrorTypes } from './errors';
 import { TransactionStatuses, TransactionTypes } from '../transactions';
 
@@ -26,7 +29,7 @@ jest.mock('../helpers/browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
@@ -34,13 +37,18 @@ jest.mock('../helpers/waiting', () => ({
   SECOND: 1000,
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+// OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
+// Return null here so login/fetchData tests are not affected by OTP detection.
+jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
 class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
   BASE_URL = 'https://test.fibi.co.il';
 
-  LOGIN_URL = 'https://test.fibi.co.il/login';
-
   TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
+
+  constructor(options: ScraperOptions) {
+    super(options, BANK_REGISTRY[CompanyTypes.beinleumi]!);
+  }
 }
 
 const mockContext = {
@@ -54,7 +62,7 @@ const mockBrowser = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-function createPageWithAccountFeatures(overrides: Record<string, any> = {}) {
+function createPageWithAccountFeatures(overrides: Record<string, jest.Mock> = {}): ReturnType<typeof createMockPage> {
   return createMockPage({
     $eval: jest.fn().mockImplementation((selector: string) => {
       if (selector === 'div.fibi_account span.acc_num') return '12/345678';
@@ -85,7 +93,7 @@ const PENDING_COLUMN_TYPES = [
   { colClass: 'credit', index: 4 },
 ];
 
-function mockTransactionTable(rows: Array<{ innerTds: string[] }>) {
+function mockTransactionTable(rows: Array<{ innerTds: string[] }>): void {
   (pageEvalAll as jest.Mock)
     .mockResolvedValueOnce([]) // pending column types
     .mockResolvedValueOnce([]) // pending rows
@@ -144,7 +152,7 @@ describe('fetchData', () => {
   });
 
   it('handles no transactions in date range', async () => {
-    (elementPresentOnPage as jest.Mock).mockImplementation((_page: any, selector: string) => {
+    (elementPresentOnPage as jest.Mock).mockImplementation((_page: unknown, selector: string) => {
       return selector === '.NO_DATA';
     });
 
@@ -236,10 +244,12 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
       .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Page1', '100', '₪100.00', ''] }]);
 
-    // After first page: next page link exists
+    // beinleumiConfig.preAction calls elementPresentOnPage(page, 'a.login-trigger') once.
+    // It must be accounted for so subsequent Once values land on the right calls.
     (elementPresentOnPage as jest.Mock)
+      .mockResolvedValueOnce(false) // preAction: no login-trigger in mock env
       .mockResolvedValueOnce(false) // NO_DATA check
-      .mockResolvedValueOnce(true); // hasNextPage = true
+      .mockResolvedValueOnce(true); // hasNextPage = true (after first page)
 
     // Second page of completed
     (pageEvalAll as jest.Mock)

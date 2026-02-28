@@ -17,8 +17,8 @@ describe('buildContextOptions', () => {
     const options = buildContextOptions();
     expect(options.extraHTTPHeaders).toEqual(
       expect.objectContaining({
-        'Accept-Language': expect.stringContaining('he-IL'),
-        'sec-ch-ua': expect.stringContaining('131'),
+        'Accept-Language': expect.stringContaining('he-IL') as string,
+        'sec-ch-ua': expect.stringContaining('131') as string,
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
       }),

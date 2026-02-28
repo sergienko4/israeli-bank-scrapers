@@ -26,7 +26,7 @@ jest.mock('../helpers/elements-interactions', () => ({
   fillInput: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 
@@ -41,7 +41,7 @@ const mockBrowser = {
 
 const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
-function mockAccountsData(accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }]) {
+function mockAccountsData(accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }]): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     UserAccountsData: {
       DefaultAccountNumber: accounts[0].AccountID,
@@ -50,7 +50,15 @@ function mockAccountsData(accounts: Array<{ AccountID: string }> = [{ AccountID:
   });
 }
 
-function mockTransactions(txns: any[] = [], futureTxns: any[] = [], balance = 5000) {
+interface DiscountTxn {
+  OperationNumber: number;
+  OperationDate: string;
+  ValueDate: string;
+  OperationAmount: number;
+  OperationDescriptionToDisplay: string;
+}
+
+function mockTransactions(txns: DiscountTxn[] = [], futureTxns: DiscountTxn[] = [], balance = 5000): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     CurrentAccountLastTransactions: {
       OperationEntry: txns,
@@ -60,7 +68,7 @@ function mockTransactions(txns: any[] = [], futureTxns: any[] = [], balance = 50
   });
 }
 
-function txn(overrides: any = {}): any {
+function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
   return {
     OperationNumber: 1001,
     OperationDate: '20240615',
@@ -251,6 +259,9 @@ describe('navigateOrErrorLabel', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', false, 100);
+    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', {
+      visible: false,
+      timeout: 100,
+    });
   });
 });

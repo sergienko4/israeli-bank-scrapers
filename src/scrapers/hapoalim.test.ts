@@ -28,14 +28,16 @@ jest.mock('../helpers/elements-interactions', () => ({
 }));
 jest.mock('../helpers/waiting', () => ({
   waitUntil: jest.fn().mockResolvedValue(undefined),
+  sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
 jest.mock('../helpers/transactions', () => ({
-  getRawTransaction: jest.fn((data: any) => data),
+  getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
+jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -48,7 +50,20 @@ const mockBrowser = {
 
 const CREDS = { userCode: 'user123', password: 'pass456' };
 
-function createHapoalimPage() {
+interface HapoalimScrapedTxn {
+  serialNumber: number;
+  activityDescription?: string;
+  eventAmount: number;
+  eventDate: string;
+  valueDate: string;
+  referenceNumber?: number;
+  eventActivityTypeCode: number;
+  currentBalance: number;
+  pfmDetails: string;
+  beneficiaryDetailsData?: Record<string, string | undefined>;
+}
+
+function createHapoalimPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest
       .fn()
@@ -58,19 +73,26 @@ function createHapoalimPage() {
   });
 }
 
-function mockAccounts(accounts: any[] = []) {
+function mockAccounts(
+  accounts: Array<{
+    bankNumber: string;
+    branchNumber: string;
+    accountNumber: string;
+    accountClosingReasonCode: number;
+  }> = [],
+): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
 }
 
-function mockBalance(balance = 10000) {
+function mockBalance(balance = 10000): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ currentBalance: balance });
 }
 
-function mockTransactions(txns: any[] = []) {
+function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ transactions: txns });
 }
 
-function scrapedTxn(overrides: any = {}): any {
+function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
   return {
     serialNumber: 1,
     activityDescription: 'העברה בנקאית',
@@ -86,8 +108,13 @@ function scrapedTxn(overrides: any = {}): any {
 }
 
 function setupLoginAndAccounts(
-  accounts: any[] = [{ bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 }],
-) {
+  accounts: Array<{
+    bankNumber: string;
+    branchNumber: string;
+    accountNumber: string;
+    accountClosingReasonCode: number;
+  }> = [{ bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 }],
+): ReturnType<typeof createMockPage> {
   const page = createHapoalimPage();
   mockContext.newPage.mockResolvedValue(page);
   (waitUntil as jest.Mock).mockImplementation(async (fn: () => Promise<boolean>) => {
