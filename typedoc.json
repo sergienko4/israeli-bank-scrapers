@@ -1,0 +1,19 @@
+{
+  "entryPoints": ["src/index.ts", "src/transactions.ts", "src/scrapers/interface.ts", "src/definitions.ts", "src/scrapers/errors.ts"],
+  "out": "docs",
+  "name": "@sergienko4/israeli-bank-scrapers",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "searchInComments": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/sergienko4/israeli-bank-scrapers",
+    "npm": "https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers"
+  },
+  "plugin": [],
+  "skipErrorChecking": false,
+  "tsconfig": "tsconfig.json"
+}
