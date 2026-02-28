@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
+import unusedImports from 'eslint-plugin-unused-imports';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
@@ -21,6 +22,7 @@ export default tseslint.config(
     files: ['src/**/*.ts'],
     plugins: {
       import: importPlugin,
+      'unused-imports': unusedImports,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -81,6 +83,27 @@ export default tseslint.config(
       // Import rules
       'import/no-unresolved': 'off', // TypeScript handles this
       'import/named': 'off', // TypeScript handles this
+
+      // ── Clean Code limits ────────────────────────────────────────────────
+      // 'error' so existing violations are visible without blocking commits.
+      // New code should stay within limits — see CLEAN_CODE.md for strategies.
+      // Aim: 10 lines ideal (CLAUDE.md), 20 lines = hard erroring.
+      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
+
+      // Max 3 params: beyond that use an options object / interface.
+      '@typescript-eslint/max-params': ['error', { max: 3 }],
+
+      // Cyclomatic complexity cap — prevents deeply nested conditionals.
+      'complexity': ['error', { max: 10 }],
+
+      // One class per file — keeps modules focused.
+      'max-classes-per-file': ['error', 1],
+
+      // Unused imports — auto-fixable via lint:fix.
+      'unused-imports/no-unused-imports': 'error',
+
+      // Dead code guards
+      'no-unreachable': 'error',
     },
   },
 
