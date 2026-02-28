@@ -54,16 +54,22 @@ export default tseslint.config(
       'no-await-in-loop': 'off',
       'no-restricted-syntax': ['error', 'ForInStatement', 'LabeledStatement', 'WithStatement'],
 
-      // TypeScript relaxed rules
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/ban-ts-comment': 'off',
+      // ── Strict type safety ───────────────────────────────────────────────
+      // Zero-Compromise: no 'any', no unsafe operations, explicit return types.
+      // Use typed interfaces or generics instead. Fix by adding proper types.
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/explicit-function-return-type': ['error', {
+        allowExpressions: true,      // allow arrow functions in JSX/callbacks
+        allowHigherOrderFunctions: true,
+        allowTypedFunctionExpressions: true,
+      }],
+      '@typescript-eslint/no-non-null-assertion': 'off', // ← allow ! for known-non-null
+      '@typescript-eslint/ban-ts-comment': 'off',         // ← allow @ts-ignore with justification
 
       // Allow underscore-prefixed unused vars (common destructuring pattern)
       '@typescript-eslint/no-unused-vars': [

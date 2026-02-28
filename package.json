@@ -14,7 +14,11 @@
   "scripts": {
     "clean": "rimraf lib",
     "test": "jest",
+    "test:unit": "jest --testPathIgnorePatterns=e2e-real --testPathIgnorePatterns=e2e-mocked",
+    "test:e2e:mock": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=e2e-real --testPathPatterns=e2e-mocked",
+    "test:e2e:real": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=e2e-mocked --testPathPatterns=e2e-real",
     "test:ci": "ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js && jest --ci --coverage",
+    "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "lint": "eslint src --max-warnings 0 && npm run format:check",
     "lint:fix": "eslint src --fix && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
