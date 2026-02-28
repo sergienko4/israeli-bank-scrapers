@@ -354,9 +354,10 @@ class BaseScraperWithBrowser<TCredentials extends ScraperCredentials> extends Ba
 
     if (!_success && !!this.options.storeFailureScreenShotPath) {
       debug(`create a snapshot before terminated in ${this.options.storeFailureScreenShotPath}`);
-      await this.page.screenshot({
-        path: this.options.storeFailureScreenShotPath,
-        fullPage: true,
+      // Screenshot is best-effort — page may already be closed after fetchData errors.
+      // Swallow the error so it doesn't mask the original scrape failure.
+      await this.page.screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true }).catch(e => {
+        debug('screenshot failed (page may be closed): %s', (e as Error).message?.slice(0, 80));
       });
     }
 

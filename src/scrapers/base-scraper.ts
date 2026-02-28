@@ -56,6 +56,10 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       } catch (e) {
         scrapeResult = categorizeError(e);
       }
+      // Propagate persistentOtpToken from login (e.g. OneZero long-term token)
+      if (scrapeResult.success && 'persistentOtpToken' in loginResult && loginResult.persistentOtpToken) {
+        scrapeResult.persistentOtpToken = loginResult.persistentOtpToken;
+      }
     } else {
       scrapeResult = loginResult;
     }
