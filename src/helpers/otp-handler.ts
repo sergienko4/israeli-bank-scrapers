@@ -6,6 +6,7 @@ import { type ScraperOptions, type ScraperScrapingResult } from '../scrapers/int
 import { ScraperErrorTypes } from '../scrapers/errors';
 import { resolveFieldContext, tryInContext } from './selector-resolver';
 import { detectOtpScreen, extractPhoneHint, clickOtpTriggerIfPresent, OTP_SUBMIT_CANDIDATES } from './otp-detector';
+import { sleep } from './waiting';
 
 const debug = getDebug('otp-handler');
 
@@ -113,7 +114,7 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
  *
  * Returns null  → no OTP screen detected, caller should continue the normal login flow.
  * Returns result → OTP screen was detected; either handled (continues via caller's postAction)
- *                  or an error (TwoFactorRetrieverMissing) is returned immediately.
+ *                  or an error (TwoFactorRetrieverMissing / InvalidOtp) is returned immediately.
  */
 export async function handleOtpStep(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult | null> {
   const otpDetected = await detectOtpScreen(page);
@@ -132,5 +133,20 @@ export async function handleOtpStep(page: Page, options: ScraperOptions): Promis
   await clickOtpTriggerIfPresent(page);
   const code = await otpCodeRetriever(phoneHint);
   await fillAndSubmitOtpCode(page, code);
+
+  // Wait for the bank to process the OTP, then verify the screen has gone away.
+  // If the OTP screen is still visible after 5 s, the code was rejected.
+  await sleep(5000);
+  const stillOnOtp = await detectOtpScreen(page);
+  if (stillOnOtp) {
+    debug('OTP screen still visible after submission — code was rejected');
+    return {
+      success: false,
+      errorType: ScraperErrorTypes.InvalidOtp,
+      errorMessage: 'OTP code was rejected by the bank. The code may have expired or been entered incorrectly.',
+    };
+  }
+
+  debug('OTP accepted — proceeding with login');
   return null;
 }
