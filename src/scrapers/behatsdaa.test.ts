@@ -160,8 +160,7 @@ describe('fetchData', () => {
     expect(fetchPostWithinPage).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(String),
-      expect.any(Object),
-      expect.objectContaining({ authorization: 'Bearer mock-token' }),
+      expect.objectContaining({ extraHeaders: expect.objectContaining({ authorization: 'Bearer mock-token' }) }),
     );
   });
 });

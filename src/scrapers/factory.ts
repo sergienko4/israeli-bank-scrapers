@@ -1,4 +1,3 @@
-import { assertNever } from '../assertNever';
 import { CompanyTypes } from '../definitions';
 import AmexScraper from './amex';
 import BehatsdaaScraper from './behatsdaa';
@@ -20,45 +19,31 @@ import UnionBankScraper from './union-bank';
 import VisaCalScraper from './visa-cal';
 import YahavScraper from './yahav';
 
+type ScraperFactory = (options: ScraperOptions) => Scraper<ScraperCredentials>;
+
+const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
+  [CompanyTypes.hapoalim]: o => new HapoalimScraper(o),
+  [CompanyTypes.leumi]: o => new LeumiScraper(o),
+  [CompanyTypes.beyahadBishvilha]: o => new BeyahadBishvilhaScraper(o),
+  [CompanyTypes.mizrahi]: o => new MizrahiScraper(o),
+  [CompanyTypes.discount]: o => new DiscountScraper(o),
+  [CompanyTypes.mercantile]: o => new MercantileScraper(o),
+  [CompanyTypes.otsarHahayal]: o => new OtsarHahayalScraper(o),
+  [CompanyTypes.visaCal]: o => new VisaCalScraper(o),
+  [CompanyTypes.max]: o => new MaxScraper(o),
+  [CompanyTypes.isracard]: o => new IsracardScraper(o),
+  [CompanyTypes.amex]: o => new AmexScraper(o),
+  [CompanyTypes.union]: o => new UnionBankScraper(o),
+  [CompanyTypes.beinleumi]: o => new BeinleumiScraper(o),
+  [CompanyTypes.massad]: o => new MassadScraper(o),
+  [CompanyTypes.yahav]: o => new YahavScraper(o),
+  [CompanyTypes.oneZero]: o => new OneZeroScraper(o),
+  [CompanyTypes.behatsdaa]: o => new BehatsdaaScraper(o),
+  [CompanyTypes.pagi]: o => new PagiScraper(o),
+};
+
 export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
-  switch (options.companyId) {
-    case CompanyTypes.hapoalim:
-      return new HapoalimScraper(options);
-    case CompanyTypes.leumi:
-      return new LeumiScraper(options);
-    case CompanyTypes.beyahadBishvilha:
-      return new BeyahadBishvilhaScraper(options);
-    case CompanyTypes.mizrahi:
-      return new MizrahiScraper(options);
-    case CompanyTypes.discount:
-      return new DiscountScraper(options);
-    case CompanyTypes.mercantile:
-      return new MercantileScraper(options);
-    case CompanyTypes.otsarHahayal:
-      return new OtsarHahayalScraper(options);
-    case CompanyTypes.visaCal:
-      return new VisaCalScraper(options);
-    case CompanyTypes.max:
-      return new MaxScraper(options);
-    case CompanyTypes.isracard:
-      return new IsracardScraper(options);
-    case CompanyTypes.amex:
-      return new AmexScraper(options);
-    case CompanyTypes.union:
-      return new UnionBankScraper(options);
-    case CompanyTypes.beinleumi:
-      return new BeinleumiScraper(options);
-    case CompanyTypes.massad:
-      return new MassadScraper(options);
-    case CompanyTypes.yahav:
-      return new YahavScraper(options);
-    case CompanyTypes.oneZero:
-      return new OneZeroScraper(options);
-    case CompanyTypes.behatsdaa:
-      return new BehatsdaaScraper(options);
-    case CompanyTypes.pagi:
-      return new PagiScraper(options);
-    default:
-      return assertNever(options.companyId, `unknown company id ${options.companyId}`);
-  }
+  const factory = SCRAPER_REGISTRY[options.companyId];
+  if (factory) return factory(options);
+  throw new Error(`unknown company id ${options.companyId}`);
 }

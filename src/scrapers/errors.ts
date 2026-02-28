@@ -85,13 +85,13 @@ export class WafBlockError extends Error {
     });
   }
 
-  static apiBlock(httpStatus: number, pageUrl: string, pageTitle: string, responseSnippet?: string): WafBlockError {
+  static apiBlock(httpStatus: number, pageUrl: string, opts: { pageTitle?: string; responseSnippet?: string } = {}): WafBlockError {
     return new WafBlockError({
       provider: 'unknown',
       httpStatus,
-      pageTitle,
+      pageTitle: opts.pageTitle ?? '',
       pageUrl,
-      responseSnippet: responseSnippet?.substring(0, 200),
+      responseSnippet: opts.responseSnippet?.substring(0, 200),
       suggestions: [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.avoidRapidRetries],
     });
   }

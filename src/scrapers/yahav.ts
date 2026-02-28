@@ -56,29 +56,27 @@ function getTxnAmount(txn: ScrapedTransaction) {
 
 type TransactionsTr = { id: string; innerDivs: string[] };
 
+function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
+  const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
+  const convertedAmount = getTxnAmount(txn);
+  const result: Transaction = {
+    type: TransactionTypes.Normal,
+    identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
+    date: convertedDate,
+    processedDate: convertedDate,
+    originalAmount: convertedAmount,
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: convertedAmount,
+    status: txn.status,
+    description: txn.description,
+    memo: txn.memo,
+  };
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
+  return result;
+}
+
 function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
-  return txns.map(txn => {
-    const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
-    const convertedAmount = getTxnAmount(txn);
-    const result: Transaction = {
-      type: TransactionTypes.Normal,
-      identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
-      date: convertedDate,
-      processedDate: convertedDate,
-      originalAmount: convertedAmount,
-      originalCurrency: SHEKEL_CURRENCY,
-      chargedAmount: convertedAmount,
-      status: txn.status,
-      description: txn.description,
-      memo: txn.memo,
-    };
-
-    if (options?.includeRawTransaction) {
-      result.rawTransaction = getRawTransaction(txn);
-    }
-
-    return result;
-  });
+  return txns.map(txn => convertOneTxn(txn, options));
 }
 
 function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr) {
@@ -102,20 +100,17 @@ function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr
 
 async function getAccountTransactions(page: Page, options?: ScraperOptions): Promise<Transaction[]> {
   // Wait for transactions.
-  await waitUntilElementFound(page, '.under-line-txn-table-header', true);
+  await waitUntilElementFound(page, '.under-line-txn-table-header', { visible: true });
 
   const txns: ScrapedTransaction[] = [];
-  const transactionsDivs = await pageEvalAll<TransactionsTr[]>(
-    page,
-    '.list-item-holder .entire-content-ctr',
-    [],
-    divs => {
-      return (divs as HTMLElement[]).map(div => ({
-        id: div.getAttribute('id') || '',
-        innerDivs: Array.from(div.getElementsByTagName('div')).map(el => (el as HTMLElement).innerText),
-      }));
-    },
-  );
+  const transactionsDivs = await pageEvalAll<TransactionsTr[]>(page, {
+    selector: '.list-item-holder .entire-content-ctr',
+    defaultResult: [],
+    callback: divs => (divs as HTMLElement[]).map(div => ({
+      id: div.getAttribute('id') || '',
+      innerDivs: Array.from(div.getElementsByTagName('div')).map(el => (el as HTMLElement).innerText),
+    })),
+  });
 
   for (const txnRow of transactionsDivs) {
     handleTransactionRow(txns, txnRow);
@@ -124,84 +119,61 @@ async function getAccountTransactions(page: Page, options?: ScraperOptions): Pro
   return convertTransactions(txns, options);
 }
 
-// Manipulate the calendar drop down to choose the txs start date.
-async function searchByDates(page: Page, startDate: Moment) {
-  // Get the day number from startDate. 1-31 (usually 1)
-  const startDateDay = startDate.format('D');
-  const startDateMonth = startDate.format('M');
-  const startDateYear = startDate.format('Y');
-
-  // Open the calendar date picker
-  const dateFromPick =
-    'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
-  await waitUntilElementFound(page, dateFromPick, true);
-  await clickButton(page, dateFromPick);
-
-  // Wait until first day appear.
-  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', true);
-
-  // Open Months options.
-  const monthFromPick = '.pmu-month';
-  await waitUntilElementFound(page, monthFromPick, true);
-  await clickButton(page, monthFromPick);
-  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', true);
-
-  // Open Year options.
-  // Use same selector... Yahav knows why...
-  await waitUntilElementFound(page, monthFromPick, true);
-  await clickButton(page, monthFromPick);
-  await waitUntilElementFound(page, '.pmu-years > div:nth-child(1)', true);
-
-  // Select year from a 12 year grid.
+async function selectYearFromGrid(page: Page, targetYear: string) {
   for (let i = 1; i < 13; i += 1) {
     const selector = `.pmu-years > div:nth-child(${i})`;
-    const year = await page.$eval(selector, y => {
-      return (y as HTMLElement).innerText;
-    });
-    if (startDateYear === year) {
-      await clickButton(page, selector);
-      break;
-    }
-  }
-
-  // Select Month.
-  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', true);
-  // The first element (1) is January.
-  const monthSelector = `.pmu-months > div:nth-child(${startDateMonth})`;
-  await clickButton(page, monthSelector);
-
-  // Select Day.
-  // The calendar grid shows 7 days and 6 weeks = 42 days.
-  // In theory, the first day of the month will be in the first row.
-  // Let's check everything just in case...
-  for (let i = 1; i < 42; i += 1) {
-    const selector = `.pmu-days > div:nth-child(${i})`;
-    const day = await page.$eval(selector, d => {
-      return (d as HTMLElement).innerText;
-    });
-
-    if (startDateDay === day) {
-      await clickButton(page, selector);
-      break;
-    }
+    const year = await page.$eval(selector, y => (y as HTMLElement).innerText);
+    if (targetYear === year) { await clickButton(page, selector); break; }
   }
 }
 
-async function fetchAccountData(
-  page: Page,
-  startDate: Moment,
-  accountID: string,
-  options?: ScraperOptions,
-): Promise<TransactionsAccount> {
+async function selectDayFromGrid(page: Page, targetDay: string) {
+  for (let i = 1; i < 42; i += 1) {
+    const selector = `.pmu-days > div:nth-child(${i})`;
+    const day = await page.$eval(selector, d => (d as HTMLElement).innerText);
+    if (targetDay === day) { await clickButton(page, selector); break; }
+  }
+}
+
+async function openDatePicker(page: Page) {
+  const dateFromPick = 'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
+  await waitUntilElementFound(page, dateFromPick, { visible: true });
+  await clickButton(page, dateFromPick);
+  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
+}
+
+async function searchByDates(page: Page, startDate: Moment) {
+  const startDateDay = startDate.format('D');
+  const startDateMonth = startDate.format('M');
+  const startDateYear = startDate.format('Y');
+  const monthFromPick = '.pmu-month';
+  await openDatePicker(page);
+  await waitUntilElementFound(page, monthFromPick, { visible: true });
+  await clickButton(page, monthFromPick);
+  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', { visible: true });
+  await waitUntilElementFound(page, monthFromPick, { visible: true });
+  await clickButton(page, monthFromPick);
+  await waitUntilElementFound(page, '.pmu-years > div:nth-child(1)', { visible: true });
+  await selectYearFromGrid(page, startDateYear);
+  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', { visible: true });
+  await clickButton(page, `.pmu-months > div:nth-child(${startDateMonth})`);
+  await selectDayFromGrid(page, startDateDay);
+}
+
+interface FetchAccDataOpts {
+  page: Page;
+  startDate: Moment;
+  accountID: string;
+  options?: ScraperOptions;
+}
+
+async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAccount> {
+  const { page, startDate, accountID, options } = opts;
   await waitUntilElementDisappear(page, '.loading-bar-spinner');
   await searchByDates(page, startDate);
   await waitUntilElementDisappear(page, '.loading-bar-spinner');
   const txns = await getAccountTransactions(page, options);
-
-  return {
-    accountNumber: accountID,
-    txns,
-  };
+  return { accountNumber: accountID, txns };
 }
 
 async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount[]> {
@@ -209,7 +181,7 @@ async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOpt
 
   // TODO: get more accounts. Not sure is supported.
   const accountID = await getAccountID(page);
-  const accountData = await fetchAccountData(page, startDate, accountID, options);
+  const accountData = await fetchAccountData({ page, startDate, accountID, options });
   accounts.push(accountData);
 
   return accounts;
@@ -224,9 +196,9 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   async fetchData() {
     // Goto statements page
-    await waitUntilElementFound(this.page, ACCOUNT_DETAILS_SELECTOR, true);
+    await waitUntilElementFound(this.page, ACCOUNT_DETAILS_SELECTOR, { visible: true });
     await clickButton(this.page, ACCOUNT_DETAILS_SELECTOR);
-    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', true);
+    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', { visible: true });
 
     const defaultStartMoment = moment().subtract(3, 'months').add(1, 'day');
     const startDate = this.options.startDate || defaultStartMoment.toDate();

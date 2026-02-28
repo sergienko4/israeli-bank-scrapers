@@ -2,7 +2,7 @@
 import * as dotenv from 'dotenv';
 import { type Page } from 'playwright';
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './helpers';
 import { waitForNavigation } from '../../helpers/navigation';

@@ -10,7 +10,6 @@ import { sleep } from './waiting';
 
 const debug = getDebug('otp-handler');
 
-/** Delay for OTP form CSS transitions to complete before typing (Beinleumi fadeInDown ~300ms). */
 const OTP_ANIMATION_DELAY_MS = 800;
 
 async function saveScreenshot(page: Page, screenshotDir: string): Promise<string> {
@@ -34,22 +33,18 @@ async function buildMissingRetrieverResult(page: Page, screenshotDir?: string): 
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
 }
 
-// OTP input selectors — ordered most-specific first.
-// Scanned across ALL frames so no frame ID needs to be hardcoded.
-// Mirrors the pattern of WELL_KNOWN_SELECTORS but for OTP code entry inputs.
 const OTP_FILL_INPUT_SELECTORS = [
-  '#codeinput',                                              // Beinleumi
-  'input[placeholder*="סיסמה"]:not([id="password"])',       // Beinleumi alt
+  '#codeinput',
+  'input[placeholder*="סיסמה"]:not([id="password"])',
   'input[placeholder*="קוד חד פעמי"]',
   'input[placeholder*="קוד SMS"]',
   'input[placeholder*="קוד אימות"]',
   'input[placeholder*="הזן קוד"]',
   'input[placeholder*="one-time"]',
-  'input[type="tel"]',                                       // generic tel input
+  'input[type="tel"]',
   '[name="otpCode"]',
 ];
 
-/** Returns the first frame (including main) that contains an OTP code input. */
 async function findOtpFillFrame(page: Page): Promise<Frame | null> {
   for (const frame of page.frames()) {
     for (const sel of OTP_FILL_INPUT_SELECTORS) {
@@ -67,7 +62,7 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
   for (const sel of OTP_FILL_INPUT_SELECTORS) {
     const el = await frame.$(sel).catch(() => null);
     if (!el) continue;
-    await sleep(OTP_ANIMATION_DELAY_MS); // wait for CSS transition before typing
+    await sleep(OTP_ANIMATION_DELAY_MS);
     try {
       await frame.locator(sel).first().type(code, { delay: 80 });
       debug('typed OTP code via locator.type() selector: %s', sel);
@@ -85,7 +80,7 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
 
 async function submitOtpInFrame(frame: Frame): Promise<void> {
   for (const candidate of OTP_SUBMIT_CANDIDATES) {
-    const sel = candidateToCss(candidate); // static import — no dynamic require
+    const sel = candidateToCss(candidate);
     const el = await frame.$(sel).catch(() => null);
     if (!el) continue;
     await el.evaluate((btn: HTMLElement) => {
@@ -101,8 +96,6 @@ async function submitOtpInFrame(frame: Frame): Promise<void> {
 }
 
 async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
-  // Scan all frames for the OTP input — works for any iframe structure or no iframe at all.
-  // No frame ID is hardcoded; the input content (selector list) drives discovery.
   const frame = await findOtpFillFrame(page);
   if (frame) {
     debug('filling OTP in frame: %s', frame.url().slice(-60));
@@ -110,8 +103,6 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
     await submitOtpInFrame(frame);
     return;
   }
-
-  // Last resort: resolveFieldContext Round 3 + Round 4 iframe search
   debug('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
   const { selector: inputSelector, context } = await resolveFieldContext(
     page,
@@ -123,33 +114,7 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
   if (submitSelector) await clickButton(context, submitSelector);
 }
 
-/**
- * Check for an OTP screen after login form submission.
- *
- * Returns null  → no OTP screen detected, caller should continue the normal login flow.
- * Returns result → OTP screen was detected; either handled (continues via caller's postAction)
- *                  or an error (TwoFactorRetrieverMissing / InvalidOtp) is returned immediately.
- */
-export async function handleOtpStep(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult | null> {
-  const otpDetected = await detectOtpScreen(page);
-  if (!otpDetected) {
-    debug('No OTP screen detected — proceeding normally');
-    return null;
-  }
-  debug('OTP screen detected');
-
-  const { otpCodeRetriever } = options;
-  if (!otpCodeRetriever) {
-    return buildMissingRetrieverResult(page, options.storeFailureScreenShotPath);
-  }
-
-  const phoneHint = await extractPhoneHint(page); // extract before trigger hides the hint
-  await clickOtpTriggerIfPresent(page);
-  const code = await otpCodeRetriever(phoneHint);
-  await fillAndSubmitOtpCode(page, code);
-
-  // Wait for the bank to process the OTP, then verify the screen has gone away.
-  // If the OTP screen is still visible after 5 s, the code was rejected.
+async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | null> {
   await sleep(5000);
   const stillOnOtp = await detectOtpScreen(page);
   if (stillOnOtp) {
@@ -160,7 +125,21 @@ export async function handleOtpStep(page: Page, options: ScraperOptions): Promis
       errorMessage: 'OTP code was rejected by the bank. The code may have expired or been entered incorrectly.',
     };
   }
-
   debug('OTP accepted — proceeding with login');
   return null;
+}
+
+export async function handleOtpStep(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult | null> {
+  const otpDetected = await detectOtpScreen(page);
+  if (!otpDetected) { debug('No OTP screen detected — proceeding normally'); return null; }
+  debug('OTP screen detected');
+
+  const { otpCodeRetriever } = options;
+  if (!otpCodeRetriever) return buildMissingRetrieverResult(page, options.storeFailureScreenShotPath);
+
+  const phoneHint = await extractPhoneHint(page);
+  await clickOtpTriggerIfPresent(page);
+  const code = await otpCodeRetriever(phoneHint);
+  await fillAndSubmitOtpCode(page, code);
+  return verifyOtpAccepted(page);
 }

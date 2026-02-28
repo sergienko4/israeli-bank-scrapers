@@ -5,7 +5,7 @@
  */
 import { type Page } from 'playwright';
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './helpers';
 import { clickButton, elementPresentOnPage, waitUntilElementFound } from '../../helpers/elements-interactions';
@@ -38,19 +38,19 @@ const baseCfg: LoginConfig = {
   ],
   waitUntil: 'domcontentloaded',
   checkReadiness: async (page: Page) => {
-    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', true);
+    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
   },
   preAction: async (page: Page) => {
     if (await elementPresentOnPage(page, '#closePopup')) await clickButton(page, '#closePopup');
     await clickButton(page, '.personal-area > a.go-to-personal-area');
     if (await elementPresentOnPage(page, '.login-link#private')) await clickButton(page, '.login-link#private');
-    await waitUntilElementFound(page, '#login-password-link', true);
+    await waitUntilElementFound(page, '#login-password-link', { visible: true });
     await clickButton(page, '#login-password-link');
-    await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', true);
+    await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', { visible: true });
   },
   postAction: async (page: Page) => {
     await Promise.race([
-      waitForRedirect(page, 20000, false, ['https://www.max.co.il', 'https://www.max.co.il/']),
+      waitForRedirect(page, { timeout: 20000, ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'] }),
       page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
       page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
     ]).catch(() => {});

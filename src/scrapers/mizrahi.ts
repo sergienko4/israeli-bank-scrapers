@@ -93,53 +93,45 @@ function getStartMoment(optionsStartDate: Date) {
   return moment.max(defaultStartMoment, moment(startDate));
 }
 
-async function getExtraTransactionDetails(
-  page: Page,
-  item: ScrapedTransaction,
-  apiHeaders: Record<string, string>,
-): Promise<MoreDetails> {
+function buildExtraDetailsParams(item: ScrapedTransaction) {
+  const tarPeula = moment(item.MC02PeulaTaaEZ);
+  const tarErech = moment(item.MC02ErehTaaEZ);
+  return {
+    inKodGorem: item.MC02KodGoremEZ, inAsmachta: item.MC02AsmahtaMekoritEZ, inSchum: item.MC02SchumEZ,
+    inNakvanit: item.MC02KodGoremEZ, inSugTnua: item.MC02SugTnuaKaspitEZ, inAgid: item.MC02AgidEZ,
+    inTarPeulaFormatted: tarPeula.format(DATE_FORMAT),
+    inTarErechFormatted: (tarErech.year() > 2000 ? tarErech : tarPeula).format(DATE_FORMAT),
+    inKodNose: item.MC02SeifMaralEZ, inKodTatNose: item.MC02NoseMaralEZ, inTransactionNumber: item.TransactionNumber,
+  };
+}
+
+function parseDetailsFields(fields: Array<{ Label: string; Value: string }>): MoreDetails {
+  const entries = fields.map(record => [record.Label.trim(), record.Value.trim()]);
+  return {
+    entries: Object.fromEntries(entries),
+    memo: entries.filter(([label]) => ['שם', 'מהות', 'חשבון'].some(key => label.startsWith(key))).map(([label, value]) => `${label} ${value}`).join(', '),
+  };
+}
+
+async function fetchMoreDetails(page: Page, item: ScrapedTransaction, apiHeaders: Record<string, string>): Promise<MoreDetails | null> {
+  if (item.MC02ShowDetailsEZ !== '1') return null;
+  const params = buildExtraDetailsParams(item);
+  const response = await fetchPostWithinPage<MoreDetailsResponse>(page, MORE_DETAILS_URL, { data: params, extraHeaders: apiHeaders });
+  const details = response?.body.fields?.[0]?.[0]?.Records?.[0].Fields;
+  debug('fetch details for', params, 'details:', details);
+  if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
+  return null;
+}
+
+async function getExtraTransactionDetails(page: Page, item: ScrapedTransaction, apiHeaders: Record<string, string>): Promise<MoreDetails> {
   try {
     debug('getExtraTransactionDetails for item:', item);
-    if (item.MC02ShowDetailsEZ === '1') {
-      const tarPeula = moment(item.MC02PeulaTaaEZ);
-      const tarErech = moment(item.MC02ErehTaaEZ);
-
-      const params = {
-        inKodGorem: item.MC02KodGoremEZ,
-        inAsmachta: item.MC02AsmahtaMekoritEZ,
-        inSchum: item.MC02SchumEZ,
-        inNakvanit: item.MC02KodGoremEZ,
-        inSugTnua: item.MC02SugTnuaKaspitEZ,
-        inAgid: item.MC02AgidEZ,
-        inTarPeulaFormatted: tarPeula.format(DATE_FORMAT),
-        inTarErechFormatted: (tarErech.year() > 2000 ? tarErech : tarPeula).format(DATE_FORMAT),
-        inKodNose: item.MC02SeifMaralEZ,
-        inKodTatNose: item.MC02NoseMaralEZ,
-        inTransactionNumber: item.TransactionNumber,
-      };
-
-      const response = await fetchPostWithinPage<MoreDetailsResponse>(page, MORE_DETAILS_URL, params, apiHeaders);
-      const details = response?.body.fields?.[0]?.[0]?.Records?.[0].Fields;
-      debug('fetch details for', params, 'details:', details);
-      if (Array.isArray(details) && details.length > 0) {
-        const entries = details.map(record => [record.Label.trim(), record.Value.trim()]);
-        return {
-          entries: Object.fromEntries(entries),
-          memo: entries
-            .filter(([label]) => ['שם', 'מהות', 'חשבון'].some(key => label.startsWith(key)))
-            .map(([label, value]) => `${label} ${value}`)
-            .join(', '),
-        };
-      }
-    }
+    const result = await fetchMoreDetails(page, item, apiHeaders);
+    if (result) return result;
   } catch (error) {
     debug('Error fetching extra transaction details:', error);
   }
-
-  return {
-    entries: {},
-    memo: undefined,
-  };
+  return { entries: {}, memo: undefined };
 }
 
 function createDataFromRequest(request: Request, optionsStartDate: Date) {
@@ -169,69 +161,58 @@ function getTransactionIdentifier(row: ScrapedTransaction): string | number | un
   return parseInt(row.MC02AsmahtaMekoritEZ, 10);
 }
 
-async function convertTransactions(
-  txns: ScrapedTransaction[],
-  getMoreDetails: (row: ScrapedTransaction) => Promise<MoreDetails>,
-  pendingIfTodayTransaction: boolean = false,
-  options?: ScraperOptions,
-): Promise<Transaction[]> {
-  return Promise.all(
-    txns.map(async row => {
-      const moreDetails = await getMoreDetails(row);
+interface ConvertTxnsOpts {
+  txns: ScrapedTransaction[];
+  getMoreDetails: (row: ScrapedTransaction) => Promise<MoreDetails>;
+  pendingIfTodayTransaction?: boolean;
+  options?: ScraperOptions;
+}
 
-      const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
+interface ConvertOneRowOpts {
+  row: ScrapedTransaction;
+  getMoreDetails: (r: ScrapedTransaction) => Promise<MoreDetails>;
+  pendingIfTodayTransaction: boolean;
+  options?: ScraperOptions;
+}
 
-      const result: Transaction = {
-        type: TransactionTypes.Normal,
-        identifier: getTransactionIdentifier(row),
-        date: txnDate,
-        processedDate: txnDate,
-        originalAmount: row.MC02SchumEZ,
-        originalCurrency: SHEKEL_CURRENCY,
-        chargedAmount: row.MC02SchumEZ,
-        description: row.MC02TnuaTeurEZ,
-        memo: moreDetails?.memo,
-        status:
-          pendingIfTodayTransaction && row.IsTodayTransaction
-            ? TransactionStatuses.Pending
-            : TransactionStatuses.Completed,
-      };
+async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
+  const { row, getMoreDetails, pendingIfTodayTransaction, options } = opts;
+  const moreDetails = await getMoreDetails(row);
+  const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
+  const result: Transaction = {
+    type: TransactionTypes.Normal,
+    identifier: getTransactionIdentifier(row),
+    date: txnDate,
+    processedDate: txnDate,
+    originalAmount: row.MC02SchumEZ,
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: row.MC02SchumEZ,
+    description: row.MC02TnuaTeurEZ,
+    memo: moreDetails?.memo,
+    status: pendingIfTodayTransaction && row.IsTodayTransaction ? TransactionStatuses.Pending : TransactionStatuses.Completed,
+  };
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction({ ...row, additionalInformation: moreDetails.entries });
+  return result;
+}
 
-      if (options?.includeRawTransaction) {
-        result.rawTransaction = getRawTransaction({
-          ...row,
-          additionalInformation: moreDetails.entries,
-        });
-      }
+async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]> {
+  const { txns, getMoreDetails, pendingIfTodayTransaction = false, options } = opts;
+  return Promise.all(txns.map(row => convertOneRow({ row, getMoreDetails, pendingIfTodayTransaction, options })));
+}
 
-      return result;
-    }),
-  );
+function mapPendingRow([dateStr, description, _incomeAmountStr, amountStr]: string[]): Transaction | null {
+  const date = moment(dateStr, 'DD/MM/YY').toISOString();
+  if (!date) return null;
+  return { type: TransactionTypes.Normal, date, processedDate: date, originalAmount: parseFloat(amountStr.replaceAll(',', '')), originalCurrency: SHEKEL_CURRENCY, chargedAmount: parseFloat(amountStr.replaceAll(',', '')), description, status: TransactionStatuses.Pending };
 }
 
 async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
-  const pendingTxn = await pageEvalAll(page, 'tr.rgRow, tr.rgAltRow', [], trs => {
-    return trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || ''));
+  const pendingTxn = await pageEvalAll(page, {
+    selector: 'tr.rgRow, tr.rgAltRow',
+    defaultResult: [],
+    callback: trs => trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
   });
-
-  return pendingTxn
-    .map(([dateStr, description, incomeAmountStr, amountStr]) => ({
-      date: moment(dateStr, 'DD/MM/YY').toISOString(),
-      amount: parseFloat(amountStr.replaceAll(',', '')),
-      description,
-      incomeAmountStr, // TODO: handle incomeAmountStr once we know the sign of it
-    }))
-    .filter(txn => txn.date)
-    .map(({ date, description, amount }) => ({
-      type: TransactionTypes.Normal,
-      date,
-      processedDate: date,
-      originalAmount: amount,
-      originalCurrency: SHEKEL_CURRENCY,
-      chargedAmount: amount,
-      description,
-      status: TransactionStatuses.Pending,
-    }));
+  return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
 }
 
 type ScraperSpecificCredentials = { username: string; password: string };
@@ -241,33 +222,23 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.mizrahi]!);
   }
 
+  private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
+    if (index > 0) await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
+    await this.page.$eval(`${accountDropDownItemSelector}:nth-child(${index + 1})`, el => (el as HTMLElement).click());
+    return this.fetchAccount();
+  }
+
   async fetchData() {
     await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
-
     const numOfAccounts = (await this.page.$$(accountDropDownItemSelector)).length;
-
     try {
       const results: TransactionsAccount[] = [];
-
       for (let i = 0; i < numOfAccounts; i += 1) {
-        if (i > 0) {
-          await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
-        }
-
-        await this.page.$eval(`${accountDropDownItemSelector}:nth-child(${i + 1})`, el => (el as HTMLElement).click());
-        results.push(await this.fetchAccount());
+        results.push(await this.selectAndFetchAccount(i));
       }
-
-      return {
-        success: true,
-        accounts: results,
-      };
+      return { success: true, accounts: results };
     } catch (e) {
-      return {
-        success: false,
-        errorType: ScraperErrorTypes.Generic,
-        errorMessage: (e as Error).message,
-      };
+      return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: (e as Error).message };
     }
   }
 
@@ -285,63 +256,50 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return pendingTxn;
   }
 
-  private async fetchAccount() {
+  private async navigateToTransactions() {
     await this.page.waitForSelector(`a[href*="${OSH_PAGE}"]`);
     await this.page.$eval(`a[href*="${OSH_PAGE}"]`, el => (el as HTMLElement).click());
     await waitUntilElementFound(this.page, `a[href*="${TRANSACTIONS_PAGE}"]`);
     await this.page.$eval(`a[href*="${TRANSACTIONS_PAGE}"]`, el => (el as HTMLElement).click());
+  }
 
+  private async getAccountNumber(): Promise<string> {
     const accountNumberElement = await this.page.$('#dropdownBasic b span');
     const accountNumberHandle = await accountNumberElement?.getProperty('title');
     const accountNumber = (await accountNumberHandle?.jsonValue()) as string;
-    if (!accountNumber) {
-      throw new Error('Account number not found');
-    }
+    if (!accountNumber) throw new Error('Account number not found');
+    return accountNumber;
+  }
 
-    const [response, apiHeaders] = await Promise.any(
+  private async fetchTransactionData() {
+    return Promise.any(
       TRANSACTIONS_REQUEST_URLS.map(async url => {
         const request = await this.page.waitForRequest(url);
         const data = createDataFromRequest(request, this.options.startDate);
         const headers = createHeadersFromRequest(request);
-
-        return [await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, data, headers), headers] as const;
+        return [await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, { data, extraHeaders: headers }), headers] as const;
       }),
     );
+  }
 
+  private async fetchAccount() {
+    await this.navigateToTransactions();
+    const accountNumber = await this.getAccountNumber();
+    const [response, apiHeaders] = await this.fetchTransactionData();
     if (!response || response.header.success === false) {
-      throw new Error(
-        `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
-      );
+      throw new Error(`Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`);
     }
-
     const relevantRows = response.body.table.rows.filter(row => row.RecTypeSpecified);
-    const oshTxn = await convertTransactions(
-      relevantRows,
-      this.options.additionalTransactionInformation
-        ? row => getExtraTransactionDetails(this.page, row, apiHeaders)
-        : () => Promise.resolve({ entries: {}, memo: undefined }),
-      this.options.optInFeatures?.includes('mizrahi:pendingIfTodayTransaction'),
-      this.options,
-    );
-
-    oshTxn
-      .filter(txn => this.shouldMarkAsPending(txn))
-      .forEach(txn => {
-        txn.status = TransactionStatuses.Pending;
-      });
-
-    // workaround for a bug which the bank's API returns transactions before the requested start date
+    const oshTxn = await convertTransactions({
+      txns: relevantRows,
+      getMoreDetails: this.options.additionalTransactionInformation ? row => getExtraTransactionDetails(this.page, row, apiHeaders) : () => Promise.resolve({ entries: {}, memo: undefined }),
+      pendingIfTodayTransaction: this.options.optInFeatures?.includes('mizrahi:pendingIfTodayTransaction'),
+      options: this.options,
+    });
+    oshTxn.filter(txn => this.shouldMarkAsPending(txn)).forEach(txn => { txn.status = TransactionStatuses.Pending; });
     const startMoment = getStartMoment(this.options.startDate);
-    const oshTxnAfterStartDate = oshTxn.filter(txn => moment(txn.date).isSameOrAfter(startMoment));
-
-    const pendingTxn = await this.getPendingTransactions();
-    const allTxn = oshTxnAfterStartDate.concat(pendingTxn);
-
-    return {
-      accountNumber,
-      txns: allTxn,
-      balance: +response.body.fields?.Yitra,
-    };
+    const allTxn = oshTxn.filter(txn => moment(txn.date).isSameOrAfter(startMoment)).concat(await this.getPendingTransactions());
+    return { accountNumber, txns: allTxn, balance: +response.body.fields?.Yitra };
   }
 
   private shouldMarkAsPending(txn: Transaction): boolean {

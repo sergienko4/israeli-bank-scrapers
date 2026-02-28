@@ -8,7 +8,7 @@
  */
 import { type Page } from 'playwright';
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './helpers';
 import { waitUntilElementFound } from '../../helpers/elements-interactions';
@@ -29,7 +29,7 @@ const leumiWellKnownCfg: LoginConfig = {
     await waitUntilElementFound(page, '.enter_account');
     const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
     await page.goto(href, { waitUntil: 'networkidle' });
-    await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', true);
+    await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
   },
   postAction: async (page: Page) => {
     await page.waitForTimeout(3000);

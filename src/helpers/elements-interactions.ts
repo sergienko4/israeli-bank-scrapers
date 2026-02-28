@@ -1,38 +1,51 @@
 import { type Frame, type Page } from 'playwright';
 import { humanDelay, waitUntil } from './waiting';
 
-async function waitUntilElementFound(
-  page: Page | Frame,
-  elementSelector: string,
-  onlyVisible = false,
-  timeout?: number,
-) {
-  await page.waitForSelector(elementSelector, { state: onlyVisible ? 'visible' : 'attached', timeout });
+export interface WaitOptions {
+  visible?: boolean;
+  timeout?: number;
+}
+
+export interface PageEvalOpts<R> {
+  selector: string;
+  defaultResult: any;
+  callback: (element: Element, ...args: any) => R;
+}
+
+export interface PageEvalAllOpts<R> {
+  selector: string;
+  defaultResult: any;
+  callback: (elements: Element[], ...args: any) => R;
+}
+
+async function waitUntilElementFound(page: Page | Frame, elementSelector: string, opts: WaitOptions = {}) {
+  const state = opts.visible ? 'visible' : 'attached';
+  await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
 }
 
 async function waitUntilElementDisappear(page: Page, elementSelector: string, timeout?: number) {
   await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
 }
 
-async function waitUntilIframeFound(
-  page: Page,
-  framePredicate: (frame: Frame) => boolean,
-  description = '',
-  timeout = 30000,
-) {
+async function waitForIframe(page: Page, framePredicate: (frame: Frame) => boolean, timeout: number) {
   let frame: Frame | undefined;
   await waitUntil(
     () => {
       frame = page.frames().find(framePredicate);
       return Promise.resolve(!!frame);
     },
-    description,
-    timeout,
-    1000,
+    'waiting for iframe',
+    { timeout, interval: 1000 },
   );
+  return frame;
+}
+
+async function waitUntilIframeFound(page: Page, framePredicate: (frame: Frame) => boolean, opts: WaitOptions & { description?: string } = {}) {
+  const { timeout = 30000, description = '' } = opts;
+  const frame = await waitForIframe(page, framePredicate, timeout);
 
   if (!frame) {
-    throw new Error('failed to find iframe');
+    throw new Error(`failed to find iframe: ${description}`);
   }
 
   return frame;
@@ -75,17 +88,12 @@ async function clickLink(page: Page, aSelector: string) {
   });
 }
 
-async function pageEvalAll<R>(
-  page: Page | Frame,
-  selector: string,
-  defaultResult: any,
-  callback: (elements: Element[], ...args: any) => R,
-  ...args: any[]
-): Promise<R> {
+async function pageEvalAll<R>(page: Page | Frame, opts: PageEvalAllOpts<R>): Promise<R> {
+  const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.$$eval(selector, callback, ...args);
+    result = await page.$$eval(selector, callback);
   } catch (e) {
     // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find elements matching selector')) {
@@ -96,17 +104,12 @@ async function pageEvalAll<R>(
   return result;
 }
 
-async function pageEval<R>(
-  pageOrFrame: Page | Frame,
-  selector: string,
-  defaultResult: any,
-  callback: (elements: Element, ...args: any) => R,
-  ...args: any[]
-): Promise<R> {
+async function pageEval<R>(page: Page | Frame, opts: PageEvalOpts<R>): Promise<R> {
+  const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {
-    await pageOrFrame.waitForFunction(() => document.readyState === 'complete');
-    result = await pageOrFrame.$eval(selector, callback, ...args);
+    await page.waitForFunction(() => document.readyState === 'complete');
+    result = await page.$eval(selector, callback);
   } catch (e) {
     // Swallow "no elements found" errors and return the default result instead.
     if (!(e as Error).message.startsWith('Error: failed to find element matching selector')) {

@@ -34,177 +34,7 @@ const InvalidPasswordMessage = 'שם המשתמש או הסיסמה שהוזנו
 
 const debug = getDebug('visa-cal');
 
-enum TrnTypeCode {
-  regular = '5',
-  credit = '6',
-  installments = '8',
-  standingOrder = '9',
-}
-
-interface ScrapedTransaction {
-  amtBeforeConvAndIndex: number;
-  branchCodeDesc: string;
-  cashAccManagerName: null;
-  cashAccountManager: null;
-  cashAccountTrnAmt: number;
-  chargeExternalToCardComment: string;
-  comments: [];
-  curPaymentNum: number;
-  debCrdCurrencySymbol: CurrencySymbol;
-  debCrdDate: string;
-  debitSpreadInd: boolean;
-  discountAmount: unknown;
-  discountReason: unknown;
-  immediateComments: [];
-  isImmediateCommentInd: boolean;
-  isImmediateHHKInd: boolean;
-  isMargarita: boolean;
-  isSpreadPaymenstAbroad: boolean;
-  linkedComments: [];
-  merchantAddress: string;
-  merchantName: string;
-  merchantPhoneNo: string;
-  numOfPayments: number;
-  onGoingTransactionsComment: string;
-  refundInd: boolean;
-  roundingAmount: unknown;
-  roundingReason: unknown;
-  tokenInd: 0;
-  tokenNumberPart4: '';
-  transCardPresentInd: boolean;
-  transTypeCommentDetails: [];
-  trnAmt: number;
-  trnCurrencySymbol: CurrencySymbol;
-  trnExacWay: number;
-  trnIntId: string;
-  trnNumaretor: number;
-  trnPurchaseDate: string;
-  trnType: string;
-  trnTypeCode: TrnTypeCode;
-  walletProviderCode: 0;
-  walletProviderDesc: '';
-  earlyPaymentInd: boolean;
-}
-interface ScrapedPendingTransaction {
-  merchantID: string;
-  merchantName: string;
-  trnPurchaseDate: string;
-  walletTranInd: number;
-  transactionsOrigin: number;
-  trnAmt: number;
-  tpaApprovalAmount: unknown;
-  trnCurrencySymbol: CurrencySymbol;
-  trnTypeCode: TrnTypeCode;
-  trnType: string;
-  branchCodeDesc: string;
-  transCardPresentInd: boolean;
-  j5Indicator: string;
-  numberOfPayments: number;
-  firstPaymentAmount: number;
-  transTypeCommentDetails: [];
-}
-interface InitResponse {
-  result: {
-    cards: {
-      cardUniqueId: string;
-      last4Digits: string;
-      [key: string]: unknown;
-    }[];
-  };
-}
-type CurrencySymbol = string;
-interface CardTransactionDetailsError {
-  title: string;
-  statusCode: number;
-}
-interface CardTransactionDetails extends CardTransactionDetailsError {
-  result: {
-    bankAccounts: {
-      bankAccountNum: string;
-      bankName: string;
-      choiceExternalTransactions: any;
-      currentBankAccountInd: boolean;
-      debitDates: {
-        basketAmountComment: unknown;
-        choiceHHKDebit: number;
-        date: string;
-        debitReason: unknown;
-        fixDebitAmount: number;
-        fromPurchaseDate: string;
-        isChoiceRepaiment: boolean;
-        toPurchaseDate: string;
-        totalBasketAmount: number;
-        totalDebits: {
-          currencySymbol: CurrencySymbol;
-          amount: number;
-        }[];
-        transactions: ScrapedTransaction[];
-      }[];
-      immidiateDebits: { totalDebits: []; debitDays: [] };
-    }[];
-    blockedCardInd: boolean;
-  };
-  statusCode: 1;
-  statusDescription: string;
-  statusTitle: string;
-}
-interface CardPendingTransactionDetails extends CardTransactionDetailsError {
-  result: {
-    cardsList: {
-      cardUniqueID: string;
-      authDetalisList: ScrapedPendingTransaction[];
-    }[];
-  };
-  statusCode: 1;
-  statusDescription: string;
-  statusTitle: string;
-}
-
-interface CardLevelFrame {
-  cardUniqueId: string;
-  nextTotalDebit?: number;
-}
-
-interface FramesResponse {
-  result?: {
-    bankIssuedCards?: {
-      cardLevelFrames?: CardLevelFrame[];
-    };
-  };
-}
-
-interface AuthModule {
-  auth: {
-    calConnectToken: string | null;
-  };
-}
-
-function isAuthModule(result: any): result is AuthModule {
-  return Boolean(result?.auth?.calConnectToken && String(result.auth.calConnectToken).trim());
-}
-
-function authModuleOrUndefined(result: any): AuthModule | undefined {
-  return isAuthModule(result) ? result : undefined;
-}
-
-function isPending(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
-): transaction is ScrapedPendingTransaction {
-  return (transaction as ScrapedTransaction).debCrdDate === undefined; // an arbitrary field that only appears in a completed transaction
-}
-
-function isCardTransactionDetails(
-  result: CardTransactionDetails | CardTransactionDetailsError,
-): result is CardTransactionDetails {
-  return (result as CardTransactionDetails).result !== undefined;
-}
-
-function isCardPendingTransactionDetails(
-  result: CardPendingTransactionDetails | CardTransactionDetailsError,
-): result is CardPendingTransactionDetails {
-  return (result as CardPendingTransactionDetails).result !== undefined;
-}
-
+import { TrnTypeCode, type AuthModule, type CardPendingTransactionDetails, type CardTransactionDetails, type FramesResponse, type InitResponse, type ScrapedPendingTransaction, type ScrapedTransaction, authModuleOrUndefined, isPending, isCardTransactionDetails, isCardPendingTransactionDetails } from './visa-cal-types';
 async function getLoginFrame(page: Page) {
   let frame: Frame | null = null;
   debug('wait until login frame found');
@@ -214,8 +44,7 @@ async function getLoginFrame(page: Page) {
       return Promise.resolve(!!frame);
     },
     'wait for iframe with login form',
-    10000,
-    1000,
+    { timeout: 10000, interval: 1000 },
   );
 
   if (!frame) {
@@ -230,9 +59,7 @@ async function hasInvalidPasswordError(page: Page) {
   const frame = await getLoginFrame(page);
   const errorFound = await elementPresentOnPage(frame, 'div.general-error > div');
   const errorMessage = errorFound
-    ? await pageEval(frame, 'div.general-error > div', '', item => {
-        return (item as HTMLDivElement).innerText;
-      })
+    ? await pageEval(frame, { selector: 'div.general-error > div', defaultResult: '', callback: item => (item as HTMLDivElement).innerText })
     : '';
   return errorMessage === InvalidPasswordMessage;
 }
@@ -243,31 +70,18 @@ async function hasChangePasswordForm(page: Page) {
   return errorFound;
 }
 
+const loginResultCheckers = {
+  invalidPassword: async (options?: { page?: Page }) => options?.page ? hasInvalidPasswordError(options.page) : false,
+  changePassword: async (options?: { page?: Page }) => options?.page ? hasChangePasswordForm(options.page) : false,
+};
+
 function getPossibleLoginResults() {
   debug('return possible login results');
-  const urls: LoginOptions['possibleResults'] = {
+  return {
     [LoginResults.Success]: [/dashboard/i],
-    [LoginResults.InvalidPassword]: [
-      async (options?: { page?: Page }) => {
-        const page = options?.page;
-        if (!page) {
-          return false;
-        }
-        return hasInvalidPasswordError(page);
-      },
-    ],
-    // [LoginResults.AccountBlocked]: [], // TODO add when reaching this scenario
-    [LoginResults.ChangePassword]: [
-      async (options?: { page?: Page }) => {
-        const page = options?.page;
-        if (!page) {
-          return false;
-        }
-        return hasChangePasswordForm(page);
-      },
-    ],
+    [LoginResults.InvalidPassword]: [loginResultCheckers.invalidPassword],
+    [LoginResults.ChangePassword]: [loginResultCheckers.changePassword],
   };
-  return urls;
 }
 
 function createLoginFields(credentials: ScraperSpecificCredentials) {
@@ -278,65 +92,47 @@ function createLoginFields(credentials: ScraperSpecificCredentials) {
   ];
 }
 
-function convertParsedDataToTransactions(
-  data: CardTransactionDetails[],
-  pendingData?: CardPendingTransactionDetails | null,
-  options?: ScraperOptions,
-): Transaction[] {
-  const pendingTransactions = pendingData?.result
-    ? pendingData.result.cardsList.flatMap(card => card.authDetalisList)
-    : [];
+function getInstallments(transaction: ScrapedTransaction | ScrapedPendingTransaction) {
+  const numOfPayments = isPending(transaction) ? transaction.numberOfPayments : transaction.numOfPayments;
+  return numOfPayments ? { number: isPending(transaction) ? 1 : transaction.curPaymentNum, total: numOfPayments } : undefined;
+}
 
+function getTransactionAmounts(transaction: ScrapedTransaction | ScrapedPendingTransaction) {
+  return {
+    chargedAmount: (isPending(transaction) ? transaction.trnAmt : transaction.amtBeforeConvAndIndex) * -1,
+    originalAmount: transaction.trnAmt * (transaction.trnTypeCode === TrnTypeCode.credit ? 1 : -1),
+  };
+}
+
+function mapOneTransaction(transaction: ScrapedTransaction | ScrapedPendingTransaction, options?: ScraperOptions): Transaction {
+  const installments = getInstallments(transaction);
+  const date = moment(transaction.trnPurchaseDate);
+  const { chargedAmount, originalAmount } = getTransactionAmounts(transaction);
+  const isNormalType = [TrnTypeCode.regular, TrnTypeCode.standingOrder].includes(transaction.trnTypeCode);
+  const result: Transaction = {
+    identifier: !isPending(transaction) ? transaction.trnIntId : undefined,
+    type: isNormalType ? TransactionTypes.Normal : TransactionTypes.Installments,
+    status: isPending(transaction) ? TransactionStatuses.Pending : TransactionStatuses.Completed,
+    date: installments ? date.add(installments.number - 1, 'month').toISOString() : date.toISOString(),
+    processedDate: isPending(transaction) ? date.toISOString() : new Date(transaction.debCrdDate).toISOString(),
+    originalAmount, originalCurrency: transaction.trnCurrencySymbol,
+    chargedAmount, chargedCurrency: !isPending(transaction) ? transaction.debCrdCurrencySymbol : undefined,
+    description: transaction.merchantName, memo: transaction.transTypeCommentDetails.toString(), category: transaction.branchCodeDesc,
+  };
+  if (installments) result.installments = installments;
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(transaction);
+  return result;
+}
+
+function collectAllTransactions(data: CardTransactionDetails[], pendingData?: CardPendingTransactionDetails | null) {
+  const pendingTransactions = pendingData?.result ? pendingData.result.cardsList.flatMap(card => card.authDetalisList) : [];
   const bankAccounts = data.flatMap(monthData => monthData.result.bankAccounts);
-  const regularDebitDays = bankAccounts.flatMap(accounts => accounts.debitDates);
-  const immediateDebitDays = bankAccounts.flatMap(accounts => accounts.immidiateDebits.debitDays);
-  const completedTransactions = [...regularDebitDays, ...immediateDebitDays].flatMap(
-    debitDate => debitDate.transactions,
-  );
+  const completedTransactions = [...bankAccounts.flatMap(a => a.debitDates), ...bankAccounts.flatMap(a => a.immidiateDebits.debitDays)].flatMap(d => d.transactions);
+  return [...pendingTransactions, ...completedTransactions] as (ScrapedTransaction | ScrapedPendingTransaction)[];
+}
 
-  const all: (ScrapedTransaction | ScrapedPendingTransaction)[] = [...pendingTransactions, ...completedTransactions];
-
-  return all.map(transaction => {
-    const numOfPayments = isPending(transaction) ? transaction.numberOfPayments : transaction.numOfPayments;
-    const installments = numOfPayments
-      ? {
-          number: isPending(transaction) ? 1 : transaction.curPaymentNum,
-          total: numOfPayments,
-        }
-      : undefined;
-
-    const date = moment(transaction.trnPurchaseDate);
-
-    const chargedAmount = (isPending(transaction) ? transaction.trnAmt : transaction.amtBeforeConvAndIndex) * -1;
-    const originalAmount = transaction.trnAmt * (transaction.trnTypeCode === TrnTypeCode.credit ? 1 : -1);
-
-    const result: Transaction = {
-      identifier: !isPending(transaction) ? transaction.trnIntId : undefined,
-      type: [TrnTypeCode.regular, TrnTypeCode.standingOrder].includes(transaction.trnTypeCode)
-        ? TransactionTypes.Normal
-        : TransactionTypes.Installments,
-      status: isPending(transaction) ? TransactionStatuses.Pending : TransactionStatuses.Completed,
-      date: installments ? date.add(installments.number - 1, 'month').toISOString() : date.toISOString(),
-      processedDate: isPending(transaction) ? date.toISOString() : new Date(transaction.debCrdDate).toISOString(),
-      originalAmount,
-      originalCurrency: transaction.trnCurrencySymbol,
-      chargedAmount,
-      chargedCurrency: !isPending(transaction) ? transaction.debCrdCurrencySymbol : undefined,
-      description: transaction.merchantName,
-      memo: transaction.transTypeCommentDetails.toString(),
-      category: transaction.branchCodeDesc,
-    };
-
-    if (installments) {
-      result.installments = installments;
-    }
-
-    if (options?.includeRawTransaction) {
-      result.rawTransaction = getRawTransaction(transaction);
-    }
-
-    return result;
-  });
+function convertParsedDataToTransactions(data: CardTransactionDetails[], pendingData?: CardPendingTransactionDetails | null, options?: ScraperOptions): Transaction[] {
+  return collectAllTransactions(data, pendingData).map(transaction => mapOneTransaction(transaction, options));
 }
 
 type ScraperSpecificCredentials = { username: string; password: string };
@@ -348,7 +144,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   openLoginPopup = async () => {
     debug('open login popup, wait until login button available');
-    await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', true);
+    await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', { visible: true });
     debug('click on the login button');
     await clickButton(this.page, '#ccLoginDesktopBtn');
     debug('get the frame that holds the login');
@@ -367,8 +163,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const initData = await waitUntil(
       () => getFromSessionStorage<InitResponse>(this.page, 'init'),
       'get init data in session storage',
-      10000,
-      1000,
+      { timeout: 10000, interval: 1000 },
     );
     if (!initData) {
       throw new Error('could not find "init" data in session storage');
@@ -382,8 +177,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       const authModule = await waitUntil(
         async () => authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
         'get authorization header with valid token in session storage',
-        10_000,
-        50,
+        { timeout: 10_000, interval: 50 },
       );
       return `CALAuthScheme ${authModule.auth.calConnectToken}`;
     }
@@ -408,13 +202,25 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return Promise.resolve('09031987-273E-2311-906C-8AF85B17C8D9');
   }
 
+  private async handlePostLogin(): Promise<void> {
+    try {
+      await waitForNavigation(this.page);
+      const currentUrl = await getCurrentUrl(this.page);
+      if (currentUrl.endsWith('site-tutorial')) await clickButton(this.page, 'button.btn-close');
+      const request = await this.authRequestPromise;
+      this.authorization = String(request?.headers().authorization || '').trim();
+    } catch (e) {
+      const currentUrl = await getCurrentUrl(this.page);
+      if (currentUrl.endsWith('dashboard')) return;
+      if (await hasChangePasswordForm(this.page)) return;
+      throw e;
+    }
+  }
+
   getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
     this.authRequestPromise = this.page
       .waitForRequest(SSO_AUTHORIZATION_REQUEST_ENDPOINT, { timeout: 10_000 })
-      .catch(e => {
-        debug('error while waiting for the token request', e);
-        return undefined;
-      });
+      .catch(e => { debug('error while waiting for the token request', e); return undefined; });
     return {
       loginUrl: `${LOGIN_URL}`,
       fields: createLoginFields(credentials),
@@ -422,24 +228,60 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       possibleResults: getPossibleLoginResults(),
       checkReadiness: async () => waitUntilElementFound(this.page, '#ccLoginDesktopBtn'),
       preAction: this.openLoginPopup,
-      postAction: async () => {
-        try {
-          await waitForNavigation(this.page);
-          const currentUrl = await getCurrentUrl(this.page);
-          if (currentUrl.endsWith('site-tutorial')) {
-            await clickButton(this.page, 'button.btn-close');
-          }
-          const request = await this.authRequestPromise;
-          this.authorization = String(request?.headers().authorization || '').trim();
-        } catch (e) {
-          const currentUrl = await getCurrentUrl(this.page);
-          if (currentUrl.endsWith('dashboard')) return;
-          const requiresChangePassword = await hasChangePasswordForm(this.page);
-          if (requiresChangePassword) return;
-          throw e;
-        }
-      },
+      postAction: () => this.handlePostLogin(),
     };
+  }
+
+  private buildApiHeaders(Authorization: string, xSiteId: string) {
+    return { Authorization, 'X-Site-Id': xSiteId, 'Content-Type': 'application/json', ...apiHeaders };
+  }
+
+  private async fetchMonthData(card: { cardUniqueId: string; last4Digits: string }, month: moment.Moment, hdrs: Record<string, string>): Promise<CardTransactionDetails> {
+    const monthData = await fetchPost(TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') }, hdrs);
+    if (monthData?.statusCode !== 1) throw new Error(`failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`);
+    if (!isCardTransactionDetails(monthData)) throw new Error('monthData is not of type CardTransactionDetails');
+    return monthData;
+  }
+
+  private async fetchPendingData(card: { cardUniqueId: string; last4Digits: string }, hdrs: Record<string, string>) {
+    debug(`fetch pending transactions for card ${card.cardUniqueId}`);
+    let pendingData = await fetchPost(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
+    if (pendingData?.statusCode !== 1 && pendingData?.statusCode !== 96) {
+      debug(`failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData?.title || ''}`);
+      pendingData = null;
+    } else if (!isCardPendingTransactionDetails(pendingData)) {
+      debug('pendingData is not of type CardTransactionDetails');
+      pendingData = null;
+    }
+    return pendingData;
+  }
+
+  private async fetchCardDataMonths(card: { cardUniqueId: string; last4Digits: string }, allMonths: moment.Moment[], hdrs: Record<string, string>): Promise<CardTransactionDetails[]> {
+    const allMonthsData: CardTransactionDetails[] = [];
+    for (const month of allMonths) allMonthsData.push(await this.fetchMonthData(card, month, hdrs));
+    return allMonthsData;
+  }
+
+  private async fetchCardData(card: { cardUniqueId: string; last4Digits: string }, opts: { startMoment: moment.Moment; futureMonthsToScrape: number; hdrs: Record<string, string> }) {
+    const { startMoment, futureMonthsToScrape, hdrs } = opts;
+    const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
+    const months = finalMonthToFetchMoment.diff(startMoment, 'months');
+    const allMonths = Array.from({ length: months + 1 }, (_, i) => finalMonthToFetchMoment.clone().subtract(i, 'months'));
+    debug(`fetch completed transactions for card ${card.cardUniqueId}`);
+    return this.fetchCardDataMonths(card, allMonths, hdrs);
+  }
+
+  private async fetchAllCardAccounts(cards: Array<{ cardUniqueId: string; last4Digits: string }>, ctx: { startDate: Date; startMoment: moment.Moment; hdrs: Record<string, string>; frames: FramesResponse }) {
+    const { startDate, startMoment, hdrs, frames } = ctx;
+    const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
+    return Promise.all(cards.map(async card => {
+      const frame = _.find(frames.result?.bankIssuedCards?.cardLevelFrames, { cardUniqueId: card.cardUniqueId });
+      const pendingData = await this.fetchPendingData(card, hdrs);
+      const allMonthsData = await this.fetchCardData(card, { startMoment, futureMonthsToScrape, hdrs });
+      const transactions = convertParsedDataToTransactions(allMonthsData, pendingData, this.options);
+      const txns = (this.options.outputData?.enableTransactionsFilterByDate ?? true) ? filterOldTransactions(transactions, moment(startDate), this.options.combineInstallments || false) : transactions;
+      return { txns, balance: frame?.nextTotalDebit != null ? -frame.nextTotalDebit : undefined, accountNumber: card.last4Digits } as TransactionsAccount;
+    }));
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {
@@ -447,105 +289,13 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const startDate = this.options.startDate || defaultStartMoment.toDate();
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     debug(`fetch transactions starting ${startMoment.format()}`);
-
-    const [cards, xSiteId, Authorization] = await Promise.all([
-      this.getCards(),
-      this.getXSiteId(),
-      this.getAuthorizationHeader(),
-    ]);
-
-    const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
-
+    const [cards, xSiteId, Authorization] = await Promise.all([this.getCards(), this.getXSiteId(), this.getAuthorizationHeader()]);
+    const hdrs = this.buildApiHeaders(Authorization, xSiteId);
     debug('fetch frames (misgarot) of cards');
-    const frames = await fetchPost<FramesResponse>(
-      FRAMES_REQUEST_ENDPOINT,
-      { cardsForFrameData: cards.map(({ cardUniqueId }) => ({ cardUniqueId })) },
-      {
-        Authorization,
-        'X-Site-Id': xSiteId,
-        'Content-Type': 'application/json',
-        ...apiHeaders,
-      },
-    );
-
-    const accounts = await Promise.all(
-      cards.map(async card => {
-        const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
-        const months = finalMonthToFetchMoment.diff(startMoment, 'months');
-        const allMonthsData: CardTransactionDetails[] = [];
-        const frame = _.find(frames.result?.bankIssuedCards?.cardLevelFrames, { cardUniqueId: card.cardUniqueId });
-
-        debug(`fetch pending transactions for card ${card.cardUniqueId}`);
-        let pendingData = await fetchPost(
-          PENDING_TRANSACTIONS_REQUEST_ENDPOINT,
-          { cardUniqueIDArray: [card.cardUniqueId] },
-          {
-            Authorization,
-            'X-Site-Id': xSiteId,
-            'Content-Type': 'application/json',
-            ...apiHeaders,
-          },
-        );
-
-        debug(`fetch completed transactions for card ${card.cardUniqueId}`);
-        for (let i = 0; i <= months; i++) {
-          const month = finalMonthToFetchMoment.clone().subtract(i, 'months');
-          const monthData = await fetchPost(
-            TRANSACTIONS_REQUEST_ENDPOINT,
-            { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
-            {
-              Authorization,
-              'X-Site-Id': xSiteId,
-              'Content-Type': 'application/json',
-              ...apiHeaders,
-            },
-          );
-
-          if (monthData?.statusCode !== 1)
-            throw new Error(
-              `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`,
-            );
-
-          if (!isCardTransactionDetails(monthData)) {
-            throw new Error('monthData is not of type CardTransactionDetails');
-          }
-
-          allMonthsData.push(monthData);
-        }
-
-        if (pendingData?.statusCode !== 1 && pendingData?.statusCode !== 96) {
-          debug(
-            `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData?.title || ''}`,
-          );
-          pendingData = null;
-        } else if (!isCardPendingTransactionDetails(pendingData)) {
-          debug('pendingData is not of type CardTransactionDetails');
-          pendingData = null;
-        }
-
-        const transactions = convertParsedDataToTransactions(allMonthsData, pendingData, this.options);
-
-        debug('filter out old transactions');
-        const txns =
-          (this.options.outputData?.enableTransactionsFilterByDate ?? true)
-            ? filterOldTransactions(transactions, moment(startDate), this.options.combineInstallments || false)
-            : transactions;
-
-        return {
-          txns,
-          balance: frame?.nextTotalDebit != null ? -frame.nextTotalDebit : undefined,
-          accountNumber: card.last4Digits,
-        } as TransactionsAccount;
-      }),
-    );
-
-    debug('return the scraped accounts');
-
-    debug(JSON.stringify(accounts, null, 2));
-    return {
-      success: true,
-      accounts,
-    };
+    const frames = await fetchPost<FramesResponse>(FRAMES_REQUEST_ENDPOINT, { cardsForFrameData: cards.map(({ cardUniqueId }) => ({ cardUniqueId })) }, hdrs);
+    const accounts = await this.fetchAllCardAccounts(cards, { startDate, startMoment, hdrs, frames });
+    debug(`return ${accounts.length} scraped accounts`);
+    return { success: true, accounts };
   }
 }
 

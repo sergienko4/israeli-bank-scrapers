@@ -100,40 +100,25 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
 
   private accessToken?: string;
 
+  private async fetchDeviceToken(): Promise<string> {
+    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/devices/token`, { extClientId: 'mobile', os: 'Android' });
+    return resp.resultData.deviceToken;
+  }
+
+  private async prepareOtp(phoneNumber: string, deviceToken: string): Promise<string> {
+    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/otp/prepare`, { factorValue: phoneNumber, deviceToken, otpChannel: 'SMS_OTP' });
+    return resp.resultData.otpContext;
+  }
+
   async triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
     if (!phoneNumber.startsWith('+')) {
-      return createGenericError(
-        'A full international phone number starting with + and a three digit country code is required',
-      );
+      return createGenericError('A full international phone number starting with + and a three digit country code is required');
     }
-
     debug('Fetching device token');
-    const deviceTokenResponse = await fetchPost(`${IDENTITY_SERVER_URL}/devices/token`, {
-      extClientId: 'mobile',
-      os: 'Android',
-    });
-
-    const {
-      resultData: { deviceToken },
-    } = deviceTokenResponse;
-
+    const deviceToken = await this.fetchDeviceToken();
     debug(`Sending OTP to phone number ${phoneNumber}`);
-
-    const otpPrepareResponse = await fetchPost(`${IDENTITY_SERVER_URL}/otp/prepare`, {
-      factorValue: phoneNumber,
-      deviceToken,
-      otpChannel: 'SMS_OTP',
-    });
-
-    const {
-      resultData: { otpContext },
-    } = otpPrepareResponse;
-
-    this.otpContext = otpContext;
-
-    return {
-      success: true,
-    };
+    this.otpContext = await this.prepareOtp(phoneNumber, deviceToken);
+    return { success: true };
   }
 
   public async getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult> {
@@ -153,159 +138,96 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     return { success: true, longTermTwoFactorAuthToken: otpToken };
   }
 
-  private async resolveOtpToken(
-    credentials: ScraperSpecificCredentials,
-  ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    if ('otpLongTermToken' in credentials) {
-      if (!credentials.otpLongTermToken) {
-        return createGenericError('Invalid otpLongTermToken');
-      }
-      return { success: true, longTermTwoFactorAuthToken: credentials.otpLongTermToken };
-    }
-
-    if (!credentials.otpCodeRetriever) {
-      return {
-        success: false,
-        errorType: ScraperErrorTypes.TwoFactorRetrieverMissing,
-        errorMessage: 'otpCodeRetriever is required when otpPermanentToken is not provided',
-      };
-    }
-
-    if (!credentials.phoneNumber) {
-      return createGenericError('phoneNumber is required when providing a otpCodeRetriever callback');
-    }
-
+  private async resolveOtpTokenViaRetriever(credentials: ScraperSpecificCredentials & { otpCodeRetriever: () => Promise<string>; phoneNumber: string }): Promise<ScraperGetLongTermTwoFactorTokenResult> {
     debug('Triggering user supplied otpCodeRetriever callback');
     const triggerResult = await this.triggerTwoFactorAuth(credentials.phoneNumber);
-
-    if (!triggerResult.success) {
-      return triggerResult;
-    }
-
+    if (!triggerResult.success) return triggerResult;
     const otpCode = await credentials.otpCodeRetriever();
-
     const otpTokenResult = await this.getLongTermTwoFactorToken(otpCode);
-    if (!otpTokenResult.success) {
-      return otpTokenResult;
-    }
-
+    if (!otpTokenResult.success) return otpTokenResult;
     return { success: true, longTermTwoFactorAuthToken: otpTokenResult.longTermTwoFactorAuthToken };
+  }
+
+  private async resolveOtpToken(credentials: ScraperSpecificCredentials): Promise<ScraperGetLongTermTwoFactorTokenResult> {
+    if ('otpLongTermToken' in credentials) {
+      if (!credentials.otpLongTermToken) return createGenericError('Invalid otpLongTermToken');
+      return { success: true, longTermTwoFactorAuthToken: credentials.otpLongTermToken };
+    }
+    if (!credentials.otpCodeRetriever) return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage: 'otpCodeRetriever is required when otpPermanentToken is not provided' };
+    if (!credentials.phoneNumber) return createGenericError('phoneNumber is required when providing a otpCodeRetriever callback');
+    return this.resolveOtpTokenViaRetriever(credentials);
+  }
+
+  private async getIdToken(otpSmsToken: string, email: string, pass: string): Promise<string> {
+    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/getIdToken`, { otpSmsToken, email, pass, pinCode: '' });
+    return resp.resultData.idToken;
+  }
+
+  private async getSessionToken(idToken: string, pass: string): Promise<string> {
+    const resp = await fetchPost(`${IDENTITY_SERVER_URL}/sessions/token`, { idToken, pass });
+    return resp.resultData.accessToken;
   }
 
   async login(credentials: ScraperSpecificCredentials): Promise<ScraperLoginResult> {
     const otpTokenResult = await this.resolveOtpToken(credentials);
-    if (!otpTokenResult.success) {
-      return otpTokenResult;
-    }
-
+    if (!otpTokenResult.success) return otpTokenResult;
     debug('Requesting id token');
-    const getIdTokenResponse = await fetchPost(`${IDENTITY_SERVER_URL}/getIdToken`, {
-      otpSmsToken: otpTokenResult.longTermTwoFactorAuthToken,
-      email: credentials.email,
-      pass: credentials.password,
-      pinCode: '',
-    });
-
-    const {
-      resultData: { idToken },
-    } = getIdTokenResponse;
-
+    const idToken = await this.getIdToken(otpTokenResult.longTermTwoFactorAuthToken, credentials.email, credentials.password);
     debug('Requesting session token');
+    this.accessToken = await this.getSessionToken(idToken, credentials.password);
+    return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
+  }
 
-    const getSessionTokenResponse = await fetchPost(`${IDENTITY_SERVER_URL}/sessions/token`, {
-      idToken,
-      pass: credentials.password,
-    });
+  private async fetchAllMovements(portfolio: Portfolio, accountId: string, startDate: Date): Promise<Movement[]> {
+    const movements: Movement[] = [];
+    let cursor = null;
+    while (!movements.length || new Date(movements[0].movementTimestamp) >= startDate) {
+      debug(`Fetching transactions for account ${portfolio.portfolioNum}...`);
+      const { movements: { movements: newMovements, pagination } }: { movements: { movements: Movement[]; pagination: QueryPagination } } = await fetchGraphql(GRAPHQL_API_URL, GET_MOVEMENTS, { variables: { portfolioId: portfolio.portfolioId, accountId, language: 'HEBREW', pagination: { cursor, limit: 50 } }, extraHeaders: { authorization: `Bearer ${this.accessToken}` } });
+      movements.unshift(...newMovements);
+      cursor = pagination.cursor;
+      if (!pagination.hasMore) break;
+    }
+    movements.sort((x, y) => new Date(x.movementTimestamp).valueOf() - new Date(y.movementTimestamp).valueOf());
+    return movements;
+  }
 
-    const {
-      resultData: { accessToken },
-    } = getSessionTokenResponse;
+  private async fetchBalance(portfolio: Portfolio, accountId: string, fallback: number): Promise<number> {
+    try {
+      const { balance: accountBalance }: { balance: { currentAccountBalance: number } } = await fetchGraphql(GRAPHQL_API_URL, GET_ACCOUNT_BALANCE, { variables: { portfolioId: portfolio.portfolioId, accountId }, extraHeaders: { authorization: `Bearer ${this.accessToken}` } });
+      return accountBalance.currentAccountBalance;
+    } catch {
+      debug('balance query failed — falling back to runningBalance of last movement');
+      return fallback;
+    }
+  }
 
-    this.accessToken = accessToken;
-
-    return {
-      success: true,
-      persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken,
+  private mapMovement(movement: Movement): ScrapingTransaction {
+    const hasInstallments = movement.transaction?.enrichment?.recurrences?.some(x => x.isRecurrent);
+    const modifier = movement.creditDebit === 'DEBIT' ? -1 : 1;
+    const result: ScrapingTransaction = {
+      identifier: movement.movementId,
+      date: movement.valueDate,
+      chargedAmount: +movement.movementAmount * modifier,
+      chargedCurrency: movement.movementCurrency,
+      originalAmount: +movement.movementAmount * modifier,
+      originalCurrency: movement.movementCurrency,
+      description: this.sanitizeHebrew(movement.description),
+      processedDate: movement.movementTimestamp,
+      status: TransactionStatuses.Completed,
+      type: hasInstallments ? TransactionTypes.Installments : TransactionTypes.Normal,
     };
+    if (this.options?.includeRawTransaction) result.rawTransaction = getRawTransaction(movement);
+    return result;
   }
 
   private async fetchPortfolioMovements(portfolio: Portfolio, startDate: Date): Promise<TransactionsAccount> {
-    // TODO: Find out if we need the other accounts, there seems to always be one
     const account = portfolio.accounts[0];
-    let cursor = null;
-    const movements = [];
-
-    while (!movements.length || new Date(movements[0].movementTimestamp) >= startDate) {
-      debug(`Fetching transactions for account ${portfolio.portfolioNum}...`);
-      const {
-        movements: { movements: newMovements, pagination },
-      }: { movements: { movements: Movement[]; pagination: QueryPagination } } = await fetchGraphql(
-        GRAPHQL_API_URL,
-        GET_MOVEMENTS,
-        {
-          portfolioId: portfolio.portfolioId,
-          accountId: account.accountId,
-          language: 'HEBREW',
-          pagination: {
-            cursor,
-            limit: 50,
-          },
-        },
-        { authorization: `Bearer ${this.accessToken}` },
-      );
-
-      movements.unshift(...newMovements);
-      cursor = pagination.cursor;
-      if (!pagination.hasMore) {
-        break;
-      }
-    }
-
-    movements.sort((x, y) => new Date(x.movementTimestamp).valueOf() - new Date(y.movementTimestamp).valueOf());
-
-    // Fetch the real-time account balance via the dedicated balance query.
-    // This includes pending/blocked transactions and matches what the app shows,
-    // unlike runningBalance which only reflects the last settled movement.
-    let balance = !movements.length ? 0 : parseFloat(movements[movements.length - 1].runningBalance);
-    try {
-      const { balance: accountBalance }: { balance: { currentAccountBalance: number } } = await fetchGraphql(
-        GRAPHQL_API_URL,
-        GET_ACCOUNT_BALANCE,
-        { portfolioId: portfolio.portfolioId, accountId: account.accountId },
-        { authorization: `Bearer ${this.accessToken}` },
-      );
-      balance = accountBalance.currentAccountBalance;
-    } catch {
-      debug('balance query failed — falling back to runningBalance of last movement');
-    }
-
+    const movements = await this.fetchAllMovements(portfolio, account.accountId, startDate);
+    const fallbackBalance = !movements.length ? 0 : parseFloat(movements[movements.length - 1].runningBalance);
+    const balance = await this.fetchBalance(portfolio, account.accountId, fallbackBalance);
     const matchingMovements = movements.filter(movement => new Date(movement.movementTimestamp) >= startDate);
-    return {
-      accountNumber: portfolio.portfolioNum,
-      balance,
-      txns: matchingMovements.map((movement): ScrapingTransaction => {
-        const hasInstallments = movement.transaction?.enrichment?.recurrences?.some(x => x.isRecurrent);
-        const modifier = movement.creditDebit === 'DEBIT' ? -1 : 1;
-        const result: ScrapingTransaction = {
-          identifier: movement.movementId,
-          date: movement.valueDate,
-          chargedAmount: +movement.movementAmount * modifier,
-          chargedCurrency: movement.movementCurrency,
-          originalAmount: +movement.movementAmount * modifier,
-          originalCurrency: movement.movementCurrency,
-          description: this.sanitizeHebrew(movement.description),
-          processedDate: movement.movementTimestamp,
-          status: TransactionStatuses.Completed,
-          type: hasInstallments ? TransactionTypes.Installments : TransactionTypes.Normal,
-        };
-
-        if (this.options?.includeRawTransaction) {
-          result.rawTransaction = getRawTransaction(movement);
-        }
-
-        return result;
-      }),
-    };
+    return { accountNumber: portfolio.portfolioNum, balance, txns: matchingMovements.map(m => this.mapMovement(m)) };
   }
 
   /**
@@ -336,29 +258,17 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     return out.join('');
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
-    if (!this.accessToken) {
-      return createGenericError('login() was not called');
-    }
-
-    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
-    const startMoment = moment.max(defaultStartMoment, moment(startDate));
-
+  private async fetchPortfolios(): Promise<Portfolio[]> {
     debug('Fetching account list');
-    const result = await fetchGraphql<{ customer: Customer[] }>(
-      GRAPHQL_API_URL,
-      GET_CUSTOMER,
-      {},
-      { authorization: `Bearer ${this.accessToken}` },
-    );
-    const portfolios = result.customer.flatMap(customer => customer.portfolios || []);
+    const result = await fetchGraphql<{ customer: Customer[] }>(GRAPHQL_API_URL, GET_CUSTOMER, { extraHeaders: { authorization: `Bearer ${this.accessToken}` } });
+    return result.customer.flatMap(customer => customer.portfolios || []);
+  }
 
-    return {
-      success: true,
-      accounts: await Promise.all(
-        portfolios.map(portfolio => this.fetchPortfolioMovements(portfolio, startMoment.toDate())),
-      ),
-    };
+  async fetchData(): Promise<ScraperScrapingResult> {
+    if (!this.accessToken) return createGenericError('login() was not called');
+    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
+    const startMoment = moment.max(defaultStartMoment, moment(this.options.startDate || defaultStartMoment.toDate()));
+    const portfolios = await this.fetchPortfolios();
+    return { success: true, accounts: await Promise.all(portfolios.map(portfolio => this.fetchPortfolioMovements(portfolio, startMoment.toDate()))) };
   }
 }

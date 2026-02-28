@@ -48,93 +48,63 @@ interface ScrapedTransactionData {
   };
 }
 
-function convertTransactions(
-  txns: ScrapedTransaction[],
-  txnStatus: TransactionStatuses,
-  options?: ScraperOptions,
-): Transaction[] {
-  if (!txns) {
-    return [];
+function convertOneTxn(txn: ScrapedTransaction, txnStatus: TransactionStatuses, options?: ScraperOptions): Transaction {
+  const result: Transaction = {
+    type: TransactionTypes.Normal,
+    identifier: txn.OperationNumber,
+    date: moment(txn.OperationDate, DATE_FORMAT).toISOString(),
+    processedDate: moment(txn.ValueDate, DATE_FORMAT).toISOString(),
+    originalAmount: txn.OperationAmount,
+    originalCurrency: 'ILS',
+    chargedAmount: txn.OperationAmount,
+    description: txn.OperationDescriptionToDisplay,
+    status: txnStatus,
+  };
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
+  return result;
+}
+
+function convertTransactions(txns: ScrapedTransaction[], txnStatus: TransactionStatuses, options?: ScraperOptions): Transaction[] {
+  if (!txns) return [];
+  return txns.map(txn => convertOneTxn(txn, txnStatus, options));
+}
+
+interface FetchOneAccOpts {
+  page: Page;
+  apiSiteUrl: string;
+  accountNumber: string;
+  startDateStr: string;
+  options: ScraperOptions;
+}
+
+async function fetchOneAccount(opts: FetchOneAccOpts) {
+  const { page, apiSiteUrl, accountNumber, startDateStr, options } = opts;
+  const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
+  const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
+  if (!txnsResult || txnsResult.Error || !txnsResult.CurrentAccountLastTransactions) {
+    return { error: txnsResult?.Error?.MsgText ?? 'unknown error' };
   }
-  return txns.map(txn => {
-    const result: Transaction = {
-      type: TransactionTypes.Normal,
-      identifier: txn.OperationNumber,
-      date: moment(txn.OperationDate, DATE_FORMAT).toISOString(),
-      processedDate: moment(txn.ValueDate, DATE_FORMAT).toISOString(),
-      originalAmount: txn.OperationAmount,
-      originalCurrency: 'ILS',
-      chargedAmount: txn.OperationAmount,
-      description: txn.OperationDescriptionToDisplay,
-      status: txnStatus,
-    };
-
-    if (options?.includeRawTransaction) {
-      result.rawTransaction = getRawTransaction(txn);
-    }
-
-    return result;
-  });
+  const completedTxns = convertTransactions(txnsResult.CurrentAccountLastTransactions.OperationEntry, TransactionStatuses.Completed, options);
+  const rawFutureTxns = _.get(txnsResult, 'CurrentAccountLastTransactions.FutureTransactionsBlock.FutureTransactionEntry') as ScrapedTransaction[];
+  return { accountNumber, balance: txnsResult.CurrentAccountLastTransactions.CurrentAccountInfo.AccountBalance, txns: [...completedTxns, ...convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options)] };
 }
 
 async function fetchAccountData(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult> {
   const apiSiteUrl = `${BASE_URL}/Titan/gatewayAPI`;
-
-  const accountDataUrl = `${apiSiteUrl}/userAccountsData`;
-  const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(page, accountDataUrl);
-
-  if (!accountInfo) {
-    return {
-      success: false,
-      errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'failed to get account data',
-    };
-  }
+  const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(page, `${apiSiteUrl}/userAccountsData`);
+  if (!accountInfo) return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: 'failed to get account data' };
 
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
-  const startDate = options.startDate || defaultStartMoment.toDate();
-  const startMoment = moment.max(defaultStartMoment, moment(startDate));
-
+  const startMoment = moment.max(defaultStartMoment, moment(options.startDate || defaultStartMoment.toDate()));
   const startDateStr = startMoment.format(DATE_FORMAT);
-
-  const accounts: string[] = accountInfo.UserAccountsData.UserAccounts.map(acc => acc.NewAccountInfo.AccountID);
-  const accountsData: Array<{ accountNumber: string; balance: number; txns: Transaction[] }> = [];
-
+  const accounts = accountInfo.UserAccountsData.UserAccounts.map(acc => acc.NewAccountInfo.AccountID);
+  const accountsData = [];
   for (const accountNumber of accounts) {
-    const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
-    const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
-    if (!txnsResult || txnsResult.Error || !txnsResult.CurrentAccountLastTransactions) {
-      return {
-        success: false,
-        errorType: ScraperErrorTypes.Generic,
-        errorMessage: txnsResult && txnsResult.Error ? txnsResult.Error.MsgText : 'unknown error',
-      };
-    }
-
-    const accountCompletedTxns = convertTransactions(
-      txnsResult.CurrentAccountLastTransactions.OperationEntry,
-      TransactionStatuses.Completed,
-      options,
-    );
-    const rawFutureTxns = _.get(
-      txnsResult,
-      'CurrentAccountLastTransactions.FutureTransactionsBlock.FutureTransactionEntry',
-    ) as ScrapedTransaction[];
-    const accountPendingTxns = convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options);
-
-    accountsData.push({
-      accountNumber,
-      balance: txnsResult.CurrentAccountLastTransactions.CurrentAccountInfo.AccountBalance,
-      txns: [...accountCompletedTxns, ...accountPendingTxns],
-    });
+    const result = await fetchOneAccount({ page, apiSiteUrl, accountNumber, startDateStr, options });
+    if ('error' in result) return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: result.error };
+    accountsData.push(result);
   }
-
-  const accountData = {
-    success: true,
-    accounts: accountsData,
-  };
-
-  return accountData;
+  return { success: true, accounts: accountsData };
 }
 
 type ScraperSpecificCredentials = { id: string; password: string; num: string };

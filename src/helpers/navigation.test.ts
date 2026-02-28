@@ -63,7 +63,7 @@ describe('waitForRedirect', () => {
       callCount += 1;
       return callCount > 2 ? 'https://bank.co.il/dashboard' : 'https://bank.co.il/login';
     });
-    await waitForRedirect(page, 5000, false, []);
+    await waitForRedirect(page, { timeout: 5000, ignoreList: [] });
     expect(callCount).toBeGreaterThan(2);
     expect(page.url).toHaveBeenCalled();
   });
@@ -77,7 +77,7 @@ describe('waitForRedirect', () => {
       if (callCount <= 4) return 'https://bank.co.il/ignore';
       return 'https://bank.co.il/dashboard';
     });
-    await waitForRedirect(page, 5000, false, ['https://bank.co.il/ignore']);
+    await waitForRedirect(page, { timeout: 5000, ignoreList: ['https://bank.co.il/ignore'] });
     expect(callCount).toBeGreaterThan(4);
   });
 });
@@ -90,7 +90,7 @@ describe('waitForUrl', () => {
       callCount += 1;
       return callCount > 1 ? 'https://bank.co.il/target' : 'https://bank.co.il/login';
     });
-    await waitForUrl(page, 'https://bank.co.il/target', 5000, false);
+    await waitForUrl(page, 'https://bank.co.il/target', { timeout: 5000 });
     expect(callCount).toBeGreaterThan(1);
   });
 
@@ -101,7 +101,7 @@ describe('waitForUrl', () => {
       callCount += 1;
       return callCount > 1 ? 'https://bank.co.il/dashboard/123' : 'https://bank.co.il/login';
     });
-    await waitForUrl(page, /dashboard\/\d+/, 5000, false);
+    await waitForUrl(page, /dashboard\/\d+/, { timeout: 5000 });
     expect(callCount).toBeGreaterThan(1);
   });
 });

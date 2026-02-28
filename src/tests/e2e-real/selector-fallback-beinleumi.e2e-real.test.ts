@@ -1,6 +1,6 @@
 /** Selector-fallback: Beinleumi — Round 2 (wrong CSS id → fallback CSS id). */
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './helpers';
 import { VALID_REACHED_BANK, selectorErrorFor } from './selector-fallback-helpers';

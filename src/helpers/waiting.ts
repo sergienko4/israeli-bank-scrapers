@@ -22,21 +22,13 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
   ]);
 }
 
-/**
- * Wait until a promise resolves with a truthy value or reject after a timeout
- */
-export function waitUntil<T>(
-  asyncTest: () => Promise<T>,
-  description = '',
-  timeout = 10000,
-  interval = 100,
-): WaitUntilReturn<T> {
-  const promise = new Promise<NonNullable<T>>((resolve, reject) => {
+function buildWaitPromise<T>(asyncTest: () => Promise<T>, interval: number): Promise<NonNullable<T>> {
+  return new Promise<NonNullable<T>>((resolve, reject) => {
     function wait() {
       asyncTest()
         .then(value => {
           if (value) {
-            resolve(value);
+            resolve(value as unknown as NonNullable<T>);
           } else {
             setTimeout(wait, interval);
           }
@@ -47,6 +39,23 @@ export function waitUntil<T>(
     }
     wait();
   });
+}
+
+export interface WaitUntilOpts {
+  timeout?: number;
+  interval?: number;
+}
+
+/**
+ * Wait until a promise resolves with a truthy value or reject after a timeout
+ */
+export function waitUntil<T>(
+  asyncTest: () => Promise<T>,
+  description = '',
+  opts: WaitUntilOpts = {},
+): WaitUntilReturn<T> {
+  const { timeout = 10000, interval = 100 } = opts;
+  const promise = buildWaitPromise(asyncTest, interval);
   return timeoutPromise(timeout, promise, description) as WaitUntilReturn<T>;
 }
 

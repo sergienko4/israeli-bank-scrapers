@@ -38,11 +38,7 @@ export async function fetchGet<TResult>(url: string, extraHeaders: Record<string
   if (extraHeaders) {
     headers = Object.assign(headers, extraHeaders);
   }
-  const request = {
-    method: 'GET',
-    headers,
-  };
-  const fetchResult = await fetch(url, request);
+  const fetchResult = await fetch(url, { method: 'GET', headers });
 
   if (fetchResult.status !== 200) {
     throw new Error(`sending a request to the institute server returned with status code ${fetchResult.status}`);
@@ -65,12 +61,13 @@ export async function fetchPost<TResult = any>(
   return (await result.json()) as TResult;
 }
 
-export async function fetchGraphql<TResult>(
-  url: string,
-  query: string,
-  variables: Record<string, unknown> = {},
-  extraHeaders: Record<string, any> = {},
-): Promise<TResult> {
+export interface FetchGraphqlOptions {
+  variables?: Record<string, unknown>;
+  extraHeaders?: Record<string, any>;
+}
+
+export async function fetchGraphql<TResult>(url: string, query: string, opts: FetchGraphqlOptions = {}): Promise<TResult> {
+  const { variables = {}, extraHeaders = {} } = opts;
   const result = await fetchPost(url, { operationName: null, query, variables }, extraHeaders);
   if (result.errors?.length) {
     throw new Error(result.errors[0].message);
@@ -78,18 +75,12 @@ export async function fetchGraphql<TResult>(
   return result.data as Promise<TResult>;
 }
 
-export async function fetchGetWithinPage<TResult>(
-  page: Page,
-  url: string,
-  ignoreErrors = false,
-): Promise<TResult | null> {
-  const [result, status] = await page.evaluate(async innerUrl => {
+async function evaluateGet(page: Page, url: string) {
+  return page.evaluate(async innerUrl => {
     let response: Response | undefined;
     try {
       response = await fetch(innerUrl, { credentials: 'include' });
-      if (response.status === 204) {
-        return [null, response.status] as const;
-      }
+      if (response.status === 204) return [null, response.status] as const;
       return [await response.text(), response.status] as const;
     } catch (e) {
       throw new Error(
@@ -97,67 +88,81 @@ export async function fetchGetWithinPage<TResult>(
       );
     }
   }, url);
-  if (result !== null) {
-    try {
-      return JSON.parse(result);
-    } catch (e) {
-      if (!ignoreErrors) {
-        throw new Error(
-          `fetchGetWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, result: ${result}, status: ${status}`,
-        );
-      }
+}
+
+export interface ParseGetOpts {
+  result: string | null;
+  status: number;
+  url: string;
+  ignoreErrors: boolean;
+}
+
+function parseGetResult<TResult>(opts: ParseGetOpts): TResult | null {
+  const { result, status, url, ignoreErrors } = opts;
+  if (result === null) return null;
+  try {
+    return JSON.parse(result);
+  } catch (e) {
+    if (!ignoreErrors) {
+      throw new Error(
+        `fetchGetWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, result: ${result}, status: ${status}`,
+      );
     }
   }
   return null;
 }
 
-export async function fetchPostWithinPage<TResult>(
+export async function fetchGetWithinPage<TResult>(
   page: Page,
   url: string,
-  data: Record<string, any>,
-  extraHeaders: Record<string, any> = {},
   ignoreErrors = false,
 ): Promise<TResult | null> {
-  const [text, status] = await page.evaluate(
-    async ({
-      innerUrl,
-      innerData,
-      innerExtraHeaders,
-    }: {
-      innerUrl: string;
-      innerData: Record<string, any>;
-      innerExtraHeaders: Record<string, any>;
-    }) => {
-      let response: Response | undefined;
-      try {
-        response = await fetch(innerUrl, {
-          method: 'POST',
-          body: JSON.stringify(innerData),
-          credentials: 'include',
-          headers: Object.assign(
-            { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            innerExtraHeaders,
-          ),
-        });
-      } catch (e) {
-        throw new Error(
-          `fetchPostWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
-        );
-      }
-      if (response.status === 204) {
-        return [null, 204] as const;
-      }
-      return [await response.text(), response.status] as const;
-    },
-    { innerUrl: url, innerData: data, innerExtraHeaders: extraHeaders },
-  );
+  const [result, status] = await evaluateGet(page, url);
+  return parseGetResult<TResult>({ result, status, url, ignoreErrors });
+}
 
-  logResponseIssues(status, text, url);
+export interface FetchPostOptions {
+  data: Record<string, any>;
+  extraHeaders?: Record<string, any>;
+  ignoreErrors?: boolean;
+}
 
+type PostEvalArgs = { innerUrl: string; innerData: Record<string, any>; innerExtraHeaders: Record<string, any> };
+
+async function doPostFetch({ innerUrl, innerData, innerExtraHeaders }: PostEvalArgs) {
+  let response: Response | undefined;
   try {
-    if (text !== null) {
-      return JSON.parse(text);
-    }
+    response = await fetch(innerUrl, {
+      method: 'POST',
+      body: JSON.stringify(innerData),
+      credentials: 'include',
+      headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, innerExtraHeaders),
+    });
+  } catch (e) {
+    throw new Error(
+      `fetchPostWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
+    );
+  }
+  if (response.status === 204) return [null, 204] as const;
+  return [await response.text(), response.status] as const;
+}
+
+async function runPostEvaluate(page: Page, args: PostEvalArgs) {
+  return page.evaluate(doPostFetch, args);
+}
+
+export interface ParsePostOpts {
+  text: string | null;
+  status: number;
+  url: string;
+  opts: FetchPostOptions;
+}
+
+function parsePostResult<TResult>(pOpts: ParsePostOpts): TResult | null {
+  const { text, status, url, opts } = pOpts;
+  const { data, extraHeaders = {}, ignoreErrors = false } = opts;
+  try {
+    if (text !== null) return JSON.parse(text);
   } catch (e) {
     if (!ignoreErrors) {
       throw new Error(
@@ -166,4 +171,15 @@ export async function fetchPostWithinPage<TResult>(
     }
   }
   return null;
+}
+
+export async function fetchPostWithinPage<TResult>(
+  page: Page,
+  url: string,
+  opts: FetchPostOptions,
+): Promise<TResult | null> {
+  const { data, extraHeaders = {} } = opts;
+  const [text, status] = await runPostEvaluate(page, { innerUrl: url, innerData: data, innerExtraHeaders: extraHeaders });
+  logResponseIssues(status, text, url);
+  return parsePostResult<TResult>({ text, status, url, opts });
 }

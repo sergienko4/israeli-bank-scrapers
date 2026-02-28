@@ -53,29 +53,27 @@ function getTxnAmount(txn: ScrapedTransaction) {
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
 }
 
+function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
+  const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
+  const convertedAmount = getTxnAmount(txn);
+  const result: Transaction = {
+    type: TransactionTypes.Normal,
+    identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
+    date: convertedDate,
+    processedDate: convertedDate,
+    originalAmount: convertedAmount,
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: convertedAmount,
+    status: txn.status,
+    description: txn.description,
+    memo: txn.memo,
+  };
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
+  return result;
+}
+
 function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
-  return txns.map(txn => {
-    const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
-    const convertedAmount = getTxnAmount(txn);
-    const result: Transaction = {
-      type: TransactionTypes.Normal,
-      identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
-      date: convertedDate,
-      processedDate: convertedDate,
-      originalAmount: convertedAmount,
-      originalCurrency: SHEKEL_CURRENCY,
-      chargedAmount: convertedAmount,
-      status: txn.status,
-      description: txn.description,
-      memo: txn.memo,
-    };
-
-    if (options?.includeRawTransaction) {
-      result.rawTransaction = getRawTransaction(txn);
-    }
-
-    return result;
-  });
+  return txns.map(txn => convertOneTxn(txn, options));
 }
 
 type TransactionsTr = { id: string; innerTds: TransactionsTrTds };
@@ -128,19 +126,19 @@ function editLastTransactionDesc(txnRow: TransactionsTr, lastTxn: ScrapedTransac
   return lastTxn;
 }
 
-function handleTransactionRow(
-  txns: ScrapedTransaction[],
-  txnsTableHeaders: TransactionTableHeaders,
-  txnRow: TransactionsTr,
-  txnType: TransactionStatuses,
-) {
+interface HandleTxnRowOpts {
+  txns: ScrapedTransaction[];
+  txnsTableHeaders: TransactionTableHeaders;
+  txnRow: TransactionsTr;
+  txnType: TransactionStatuses;
+}
+
+function handleTransactionRow(opts: HandleTxnRowOpts) {
+  const { txns, txnsTableHeaders, txnRow, txnType } = opts;
   if (isExpandedDescRow(txnRow)) {
     const lastTransaction = txns.pop();
-    if (lastTransaction) {
-      txns.push(editLastTransactionDesc(txnRow, lastTransaction));
-    } else {
-      throw new Error('internal union-bank error');
-    }
+    if (lastTransaction) txns.push(editLastTransactionDesc(txnRow, lastTransaction));
+    else throw new Error('internal union-bank error');
   } else {
     txns.push(extractTransactionDetails(txnRow, txnsTableHeaders, txnType));
   }
@@ -148,11 +146,10 @@ function handleTransactionRow(
 
 async function getTransactionsTableHeaders(page: Page, tableTypeId: string) {
   const headersMap: Record<string, any> = [];
-  const headersObjs = await pageEvalAll(page, `#WorkSpaceBox #${tableTypeId} tr[class='header'] th`, null, ths => {
-    return ths.map((th, index) => ({
-      text: (th as HTMLElement).innerText.trim(),
-      index,
-    }));
+  const headersObjs = await pageEvalAll(page, {
+    selector: `#WorkSpaceBox #${tableTypeId} tr[class='header'] th`,
+    defaultResult: null,
+    callback: ths => ths.map((th, index) => ({ text: (th as HTMLElement).innerText.trim(), index })),
   });
 
   for (const headerObj of headersObjs) {
@@ -169,20 +166,17 @@ async function extractTransactionsFromTable(
   const txns: ScrapedTransaction[] = [];
   const transactionsTableHeaders = await getTransactionsTableHeaders(page, tableTypeId);
 
-  const transactionsRows = await pageEvalAll<TransactionsTr[]>(
-    page,
-    `#WorkSpaceBox #${tableTypeId} tr[class]:not([class='header'])`,
-    [],
-    trs => {
-      return (trs as HTMLElement[]).map(tr => ({
-        id: tr.getAttribute('id') || '',
-        innerTds: Array.from(tr.getElementsByTagName('td')).map(td => (td as HTMLElement).innerText),
-      }));
-    },
-  );
+  const transactionsRows = await pageEvalAll<TransactionsTr[]>(page, {
+    selector: `#WorkSpaceBox #${tableTypeId} tr[class]:not([class='header'])`,
+    defaultResult: [],
+    callback: trs => (trs as HTMLElement[]).map(tr => ({
+      id: tr.getAttribute('id') || '',
+      innerTds: Array.from(tr.getElementsByTagName('td')).map(td => (td as HTMLElement).innerText),
+    })),
+  });
 
   for (const txnRow of transactionsRows) {
-    handleTransactionRow(txns, transactionsTableHeaders, txnRow, txnType);
+    handleTransactionRow({ txns, txnsTableHeaders: transactionsTableHeaders, txnRow, txnType });
   }
   return txns;
 }
@@ -245,8 +239,8 @@ async function scrapeTransactionsFromTable(page: Page, options?: ScraperOptions)
 
 async function getAccountTransactions(page: Page, options?: ScraperOptions): Promise<Transaction[]> {
   await Promise.race([
-    waitUntilElementFound(page, `#${COMPLETED_TRANSACTIONS_TABLE_ID}`, false),
-    waitUntilElementFound(page, `.${ERROR_MESSAGE_CLASS}`, false),
+    waitUntilElementFound(page, `#${COMPLETED_TRANSACTIONS_TABLE_ID}`, { visible: false }),
+    waitUntilElementFound(page, `.${ERROR_MESSAGE_CLASS}`, { visible: false }),
   ]);
 
   const noTransactionInRangeError = await isNoTransactionInDateRangeError(page);
@@ -258,20 +252,20 @@ async function getAccountTransactions(page: Page, options?: ScraperOptions): Pro
   return scrapeTransactionsFromTable(page, options);
 }
 
-async function fetchAccountData(
-  page: Page,
-  startDate: Moment,
-  accountId: string,
-  options?: ScraperOptions,
-): Promise<TransactionsAccount> {
+interface FetchAccOpts {
+  page: Page;
+  startDate: Moment;
+  accountId: string;
+  options?: ScraperOptions;
+}
+
+async function fetchAccountData(opts: FetchAccOpts): Promise<TransactionsAccount> {
+  const { page, startDate, accountId, options } = opts;
   await chooseAccount(page, accountId);
   await searchByDates(page, startDate);
   const accountNumber = await getAccountNumber(page);
   const txns = await getAccountTransactions(page, options);
-  return {
-    accountNumber,
-    txns,
-  };
+  return { accountNumber, txns };
 }
 
 async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOptions) {
@@ -280,7 +274,7 @@ async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOpt
   for (const account of accountsList) {
     if (account.value !== '-1') {
       // Skip "All accounts" option
-      const accountData = await fetchAccountData(page, startDate, account.value, options);
+      const accountData = await fetchAccountData({ page, startDate, accountId: account.value, options });
       accounts.push(accountData);
     }
   }

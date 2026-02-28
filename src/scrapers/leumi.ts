@@ -15,38 +15,16 @@ const FILTERED_TRANSACTIONS_URL = `${BASE_URL}/ChannelWCF/Broker.svc/ProcessRequ
 
 const DATE_FORMAT = 'DD.MM.YY';
 
-function extractTransactionsFromPage(
-  transactions: any[],
-  status: TransactionStatuses,
-  options?: ScraperOptions,
-): Transaction[] {
-  if (transactions === null || transactions.length === 0) {
-    return [];
-  }
+function mapOneTxn(rawTransaction: any, status: TransactionStatuses, options?: ScraperOptions): Transaction {
+  const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
+  const tx: Transaction = { status, type: TransactionTypes.Normal, date, processedDate: date, description: rawTransaction.Description || '', identifier: rawTransaction.ReferenceNumberLong, memo: rawTransaction.AdditionalData || '', originalCurrency: SHEKEL_CURRENCY, chargedAmount: rawTransaction.Amount, originalAmount: rawTransaction.Amount };
+  if (options?.includeRawTransaction) tx.rawTransaction = getRawTransaction(rawTransaction);
+  return tx;
+}
 
-  const result: Transaction[] = transactions.map(rawTransaction => {
-    const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
-    const newTransaction: Transaction = {
-      status,
-      type: TransactionTypes.Normal,
-      date,
-      processedDate: date,
-      description: rawTransaction.Description || '',
-      identifier: rawTransaction.ReferenceNumberLong,
-      memo: rawTransaction.AdditionalData || '',
-      originalCurrency: SHEKEL_CURRENCY,
-      chargedAmount: rawTransaction.Amount,
-      originalAmount: rawTransaction.Amount,
-    };
-
-    if (options?.includeRawTransaction) {
-      newTransaction.rawTransaction = getRawTransaction(rawTransaction);
-    }
-
-    return newTransaction;
-  });
-
-  return result;
+function extractTransactionsFromPage(transactions: any[], status: TransactionStatuses, options?: ScraperOptions): Transaction[] {
+  if (!transactions || transactions.length === 0) return [];
+  return transactions.map(rawTransaction => mapOneTxn(rawTransaction, status, options));
 }
 
 function hangProcess(timeout: number) {
@@ -67,87 +45,52 @@ function removeSpecialCharacters(str: string): string {
   return str.replace(/[^0-9/-]/g, '');
 }
 
-async function fetchTransactionsForAccount(
-  page: Page,
-  startDate: Moment,
-  accountId: string,
-  options: ScraperOptions,
-): Promise<TransactionsAccount> {
-  // DEVELOPER NOTICE the account number received from the server is being altered at
-  // runtime for some accounts after 1-2 seconds so we need to hang the process for a short while.
-  await hangProcess(4000);
-
-  await waitUntilElementFound(page, 'button[title="חיפוש מתקדם"]', true);
-  await clickButton(page, 'button[title="חיפוש מתקדם"]');
-  await waitUntilElementFound(page, 'bll-radio-button', true);
-  await clickButton(page, 'bll-radio-button:not([checked])');
-
-  await waitUntilElementFound(page, 'input[formcontrolname="txtInputFrom"]', true);
-
-  await fillInput(page, 'input[formcontrolname="txtInputFrom"]', startDate.format(DATE_FORMAT));
-
-  // we must blur the from control otherwise the search will use the previous value
-  await page.focus("button[aria-label='סנן']");
-
-  await clickButton(page, "button[aria-label='סנן']");
-  const finalResponse = await page.waitForResponse(response => {
-    return response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST';
-  });
-
-  const responseJson: any = await finalResponse.json();
-
-  const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
-
-  const response = JSON.parse(responseJson.jsonResp);
-
-  const pendingTransactions = response.TodayTransactionsItems;
-  const transactions = response.HistoryTransactionsItems;
-  const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
-
-  const pendingTxns = extractTransactionsFromPage(pendingTransactions, TransactionStatuses.Pending, options);
-  const completedTxns = extractTransactionsFromPage(transactions, TransactionStatuses.Completed, options);
-  const txns = [...pendingTxns, ...completedTxns];
-
-  return {
-    accountNumber,
-    balance,
-    txns,
-  };
+interface FetchForAccountOpts {
+  page: Page;
+  startDate: Moment;
+  accountId: string;
+  options: ScraperOptions;
 }
 
-async function fetchTransactions(
-  page: Page,
-  startDate: Moment,
-  options: ScraperOptions,
-): Promise<TransactionsAccount[]> {
-  const accounts: TransactionsAccount[] = [];
+async function applyDateFilter(page: Page, startDate: Moment) {
+  await waitUntilElementFound(page, 'button[title="חיפוש מתקדם"]', { visible: true });
+  await clickButton(page, 'button[title="חיפוש מתקדם"]');
+  await waitUntilElementFound(page, 'bll-radio-button', { visible: true });
+  await clickButton(page, 'bll-radio-button:not([checked])');
+  await waitUntilElementFound(page, 'input[formcontrolname="txtInputFrom"]', { visible: true });
+  await fillInput(page, 'input[formcontrolname="txtInputFrom"]', startDate.format(DATE_FORMAT));
+  await page.focus("button[aria-label='סנן']");
+  await clickButton(page, "button[aria-label='סנן']");
+}
 
-  // DEVELOPER NOTICE the account number received from the server is being altered at
-  // runtime for some accounts after 1-2 seconds so we need to hang the process for a short while.
+async function fetchTransactionsForAccount(opts: FetchForAccountOpts): Promise<TransactionsAccount> {
+  const { page, startDate, accountId, options } = opts;
   await hangProcess(4000);
+  await applyDateFilter(page, startDate);
+  const finalResponse = await page.waitForResponse(response => response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST');
+  const responseJson: any = await finalResponse.json();
+  const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
+  const response = JSON.parse(responseJson.jsonResp);
+  const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
+  const pendingTxns = extractTransactionsFromPage(response.TodayTransactionsItems, TransactionStatuses.Pending, options);
+  const completedTxns = extractTransactionsFromPage(response.HistoryTransactionsItems, TransactionStatuses.Completed, options);
+  return { accountNumber, balance, txns: [...pendingTxns, ...completedTxns] };
+}
 
-  const accountsIds = (
-    await page.evaluate(() =>
-      Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
-    )
-  ).filter((id): id is string => id !== null);
-
-  // due to a bug, the altered value might include undesired signs like & that should be removed
-
-  if (!accountsIds.length) {
-    throw new Error('Failed to extract or parse the account number');
-  }
-
+async function fetchTransactions(page: Page, startDate: Moment, options: ScraperOptions): Promise<TransactionsAccount[]> {
+  await hangProcess(4000);
+  const accountsIds = (await page.evaluate(() =>
+    Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
+  )).filter((id): id is string => id !== null);
+  if (!accountsIds.length) throw new Error('Failed to extract or parse the account number');
+  const accounts: TransactionsAccount[] = [];
   for (const accountId of accountsIds) {
     if (accountsIds.length > 1) {
-      // get list of accounts and check accountId
       await clickByXPath(page, 'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]');
       await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
     }
-
-    accounts.push(await fetchTransactionsForAccount(page, startDate, removeSpecialCharacters(accountId), options));
+    accounts.push(await fetchTransactionsForAccount({ page, startDate, accountId: removeSpecialCharacters(accountId), options }));
   }
-
   return accounts;
 }
 

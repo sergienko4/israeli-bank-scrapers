@@ -8,7 +8,7 @@
  */
 import { type Browser } from 'playwright';
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { ScraperErrorTypes } from '../../scrapers/errors';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { getSharedBrowser, closeSharedBrowser } from './helpers/browser-fixture';

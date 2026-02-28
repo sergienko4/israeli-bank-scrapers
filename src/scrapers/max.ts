@@ -104,45 +104,41 @@ async function loadCategories(page: Page) {
   }
 }
 
+const PLAN_TYPE_MAP: Partial<Record<MaxPlanName, TransactionTypes>> = {
+  [MaxPlanName.ImmediateCharge]: TransactionTypes.Normal,
+  [MaxPlanName.Normal]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyCharge]: TransactionTypes.Normal,
+  [MaxPlanName.OneMonthPostponed]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyPostponed]: TransactionTypes.Normal,
+  [MaxPlanName.FuturePurchaseFinancing]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyPayment]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyPostponedInstallments]: TransactionTypes.Normal,
+  [MaxPlanName.ThirtyDaysPlus]: TransactionTypes.Normal,
+  [MaxPlanName.TwoMonthsPostponed]: TransactionTypes.Normal,
+  [MaxPlanName.TwoMonthsPostponed2]: TransactionTypes.Normal,
+  [MaxPlanName.AccumulatingBasket]: TransactionTypes.Normal,
+  [MaxPlanName.InternetShopping]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyChargePlusInterest]: TransactionTypes.Normal,
+  [MaxPlanName.PostponedTransactionInstallments]: TransactionTypes.Normal,
+  [MaxPlanName.ReplacementCard]: TransactionTypes.Normal,
+  [MaxPlanName.EarlyRepayment]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyCardFee]: TransactionTypes.Normal,
+  [MaxPlanName.CurrencyPocket]: TransactionTypes.Normal,
+  [MaxPlanName.MonthlyChargeDistribution]: TransactionTypes.Normal,
+  [MaxPlanName.Installments]: TransactionTypes.Installments,
+  [MaxPlanName.Credit]: TransactionTypes.Installments,
+  [MaxPlanName.CreditOutsideTheLimit]: TransactionTypes.Installments,
+};
+
+const PLAN_ID_MAP: Record<number, TransactionTypes> = { 2: TransactionTypes.Installments, 3: TransactionTypes.Installments, 5: TransactionTypes.Normal };
+
 function getTransactionType(planName: string, planTypeId: number) {
   const cleanedUpTxnTypeStr = planName.replaceAll('\t', ' ').trim() as MaxPlanName;
-  switch (cleanedUpTxnTypeStr) {
-    case MaxPlanName.ImmediateCharge:
-    case MaxPlanName.Normal:
-    case MaxPlanName.MonthlyCharge:
-    case MaxPlanName.OneMonthPostponed:
-    case MaxPlanName.MonthlyPostponed:
-    case MaxPlanName.FuturePurchaseFinancing:
-    case MaxPlanName.MonthlyPayment:
-    case MaxPlanName.MonthlyPostponedInstallments:
-    case MaxPlanName.ThirtyDaysPlus:
-    case MaxPlanName.TwoMonthsPostponed:
-    case MaxPlanName.TwoMonthsPostponed2:
-    case MaxPlanName.AccumulatingBasket:
-    case MaxPlanName.InternetShopping:
-    case MaxPlanName.MonthlyChargePlusInterest:
-    case MaxPlanName.PostponedTransactionInstallments:
-    case MaxPlanName.ReplacementCard:
-    case MaxPlanName.EarlyRepayment:
-    case MaxPlanName.MonthlyCardFee:
-    case MaxPlanName.CurrencyPocket:
-    case MaxPlanName.MonthlyChargeDistribution:
-      return TransactionTypes.Normal;
-    case MaxPlanName.Installments:
-    case MaxPlanName.Credit:
-    case MaxPlanName.CreditOutsideTheLimit:
-      return TransactionTypes.Installments;
-    default:
-      switch (planTypeId) {
-        case 2:
-        case 3:
-          return TransactionTypes.Installments;
-        case 5:
-          return TransactionTypes.Normal;
-        default:
-          throw new Error(`Unknown transaction type ${cleanedUpTxnTypeStr as string}`);
-      }
-  }
+  const byName = PLAN_TYPE_MAP[cleanedUpTxnTypeStr];
+  if (byName !== undefined) return byName;
+  const byId = PLAN_ID_MAP[planTypeId];
+  if (byId !== undefined) return byId;
+  throw new Error(`Unknown transaction type ${cleanedUpTxnTypeStr as string}`);
 }
 
 function getInstallmentsInfo(comments: string) {
@@ -186,20 +182,13 @@ export function getMemo({
   return comments;
 }
 
-function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOptions): Transaction {
+function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'rawTransaction'> {
   const isPending = rawTransaction.paymentDate === null;
-  const processedDate = moment(isPending ? rawTransaction.purchaseDate : rawTransaction.paymentDate).toISOString();
-  const status = isPending ? TransactionStatuses.Pending : TransactionStatuses.Completed;
-
   const installments = getInstallmentsInfo(rawTransaction.comments);
-  const identifier = installments
-    ? `${rawTransaction.dealData?.arn}_${installments.number}`
-    : rawTransaction.dealData?.arn;
-
-  const result: Transaction = {
+  return {
     type: getTransactionType(rawTransaction.planName, rawTransaction.planTypeId),
     date: moment(rawTransaction.purchaseDate).toISOString(),
-    processedDate,
+    processedDate: moment(isPending ? rawTransaction.purchaseDate : rawTransaction.paymentDate).toISOString(),
     originalAmount: -rawTransaction.originalAmount,
     originalCurrency: rawTransaction.originalCurrency,
     chargedAmount: -rawTransaction.actualPaymentAmount,
@@ -208,14 +197,14 @@ function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOpt
     memo: getMemo(rawTransaction),
     category: categories.get(rawTransaction?.categoryId),
     installments,
-    identifier,
-    status,
+    identifier: installments ? `${rawTransaction.dealData?.arn}_${installments.number}` : rawTransaction.dealData?.arn,
+    status: isPending ? TransactionStatuses.Pending : TransactionStatuses.Completed,
   };
+}
 
-  if (options?.includeRawTransaction) {
-    result.rawTransaction = getRawTransaction(rawTransaction);
-  }
-
+function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOptions): Transaction {
+  const result: Transaction = buildTxnBase(rawTransaction);
+  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(rawTransaction);
   return result;
 }
 interface ScrapedTransactionsResult {
@@ -258,50 +247,41 @@ function addResult(allResults: Record<string, Transaction[]>, result: Record<str
   return clonedResults;
 }
 
-function prepareTransactions(
-  txns: Transaction[],
-  startMoment: moment.Moment,
-  combineInstallments: boolean,
-  enableTransactionsFilterByDate: boolean,
-) {
+interface PrepareOpts {
+  txns: Transaction[];
+  startMoment: moment.Moment;
+  combineInstallments: boolean;
+  enableTransactionsFilterByDate: boolean;
+}
+
+function prepareTransactions(opts: PrepareOpts): Transaction[] {
+  const { txns, startMoment, combineInstallments, enableTransactionsFilterByDate } = opts;
   let clonedTxns = Array.from(txns);
-  if (!combineInstallments) {
-    clonedTxns = fixInstallments(clonedTxns);
-  }
+  if (!combineInstallments) clonedTxns = fixInstallments(clonedTxns);
   clonedTxns = sortTransactionsByDate(clonedTxns);
-  clonedTxns = enableTransactionsFilterByDate
-    ? filterOldTransactions(clonedTxns, startMoment, combineInstallments || false)
-    : clonedTxns;
-  return clonedTxns;
+  return enableTransactionsFilterByDate ? filterOldTransactions(clonedTxns, startMoment, combineInstallments || false) : clonedTxns;
+}
+
+async function collectAllMonthResults(page: Page, allMonths: Moment[], options: ScraperOptions) {
+  let allResults: Record<string, Transaction[]> = {};
+  for (const month of allMonths) {
+    allResults = addResult(allResults, await fetchTransactionsForMonth(page, month, options));
+  }
+  return allResults;
 }
 
 async function fetchTransactions(page: Page, options: ScraperOptions) {
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
   const defaultStartMoment = moment().subtract(1, 'years');
-  const startMomentLimit = moment().subtract(4, 'years');
-  const startDate = options.startDate || defaultStartMoment.toDate();
-  const startMoment = moment.max(startMomentLimit, moment(startDate));
+  const startMoment = moment.max(moment().subtract(4, 'years'), moment(options.startDate || defaultStartMoment.toDate()));
   const allMonths = getAllMonthMoments(startMoment, futureMonthsToScrape);
-
   await loadCategories(page);
-
-  let allResults: Record<string, Transaction[]> = {};
-  for (let i = 0; i < allMonths.length; i += 1) {
-    const result = await fetchTransactionsForMonth(page, allMonths[i], options);
-    allResults = addResult(allResults, result);
-  }
-
+  const allResults = await collectAllMonthResults(page, allMonths, options);
+  const combineInstallments = options.combineInstallments || false;
+  const enableTransactionsFilterByDate = options.outputData?.enableTransactionsFilterByDate ?? true;
   Object.keys(allResults).forEach(accountNumber => {
-    let txns = allResults[accountNumber];
-    txns = prepareTransactions(
-      txns,
-      startMoment,
-      options.combineInstallments || false,
-      options.outputData?.enableTransactionsFilterByDate ?? true,
-    );
-    allResults[accountNumber] = txns;
+    allResults[accountNumber] = prepareTransactions({ txns: allResults[accountNumber], startMoment, combineInstallments, enableTransactionsFilterByDate });
   });
-
   return allResults;
 }
 

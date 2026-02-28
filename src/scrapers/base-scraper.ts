@@ -44,41 +44,36 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     moment.tz.setDefault('Asia/Jerusalem');
   }
 
-  async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
-    this.emitProgress(ScraperProgressTypes.StartScraping);
-    await this.initialize();
+  private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
+    try { return await this.login(credentials); } catch (e) { return categorizeError(e); }
+  }
 
-    let loginResult;
+  private async executeFetchData(loginResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
+    if (!loginResult.success) return loginResult;
     try {
-      loginResult = await this.login(credentials);
-    } catch (e) {
-      loginResult = categorizeError(e);
-    }
-
-    let scrapeResult;
-    if (loginResult.success) {
-      try {
-        scrapeResult = await this.fetchData();
-      } catch (e) {
-        scrapeResult = categorizeError(e);
-      }
-      // Propagate persistentOtpToken from login (e.g. OneZero long-term token)
+      const scrapeResult = await this.fetchData();
       if (scrapeResult.success && 'persistentOtpToken' in loginResult && loginResult.persistentOtpToken) {
         scrapeResult.persistentOtpToken = loginResult.persistentOtpToken;
       }
-    } else {
-      scrapeResult = loginResult;
-    }
+      return scrapeResult;
+    } catch (e) { return categorizeError(e); }
+  }
 
+  private async handleTermination(scrapeResult: ScraperScrapingResult): Promise<ScraperScrapingResult> {
     try {
-      const success = scrapeResult && scrapeResult.success === true;
-      await this.terminate(success);
-    } catch (e) {
-      scrapeResult = createGenericError((e as Error).message);
-    }
-    this.emitProgress(ScraperProgressTypes.EndScraping);
-
+      await this.terminate(scrapeResult?.success === true);
+    } catch (e) { return createGenericError((e as Error).message); }
     return scrapeResult;
+  }
+
+  async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
+    this.emitProgress(ScraperProgressTypes.StartScraping);
+    await this.initialize();
+    const loginResult = await this.executeLogin(credentials);
+    const scrapeResult = await this.executeFetchData(loginResult);
+    const finalResult = await this.handleTermination(scrapeResult);
+    this.emitProgress(ScraperProgressTypes.EndScraping);
+    return finalResult;
   }
 
   triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {

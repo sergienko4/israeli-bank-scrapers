@@ -1,7 +1,7 @@
 /** Selector-fallback: Hapoalim — Round 2 (fallback CSS id) + Round 4 (iframe injection). */
 import { type Page } from 'playwright';
 import { CompanyTypes } from '../../definitions';
-import { ConcreteGenericScraper } from '../../scrapers/generic-bank-scraper';
+import { ConcreteGenericScraper } from '../../scrapers/concrete-generic-scraper';
 import { type LoginConfig } from '../../scrapers/login-config';
 import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './helpers';
 import { waitForRedirect } from '../../helpers/navigation';
@@ -37,7 +37,7 @@ const baseCfg: LoginConfig = {
     await waitUntilElementFound(page, '#userCode');
   },
   postAction: async page => {
-    await waitForRedirect(page, 20000).catch(() => {});
+    await waitForRedirect(page, { timeout: 20000 }).catch(() => {});
   },
   possibleResults: {
     // Narrow patterns — /ng-portals/ alone is too broad and matches the auth redirect URL
@@ -78,7 +78,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
         await injectFormByInput(page, '#userCode');
       },
       postAction: async (page: Page) => {
-        await waitForRedirect(page, 10000).catch(() => {});
+        await waitForRedirect(page, { timeout: 10000 }).catch(() => {});
       },
     };
     const result = await new ConcreteGenericScraper(

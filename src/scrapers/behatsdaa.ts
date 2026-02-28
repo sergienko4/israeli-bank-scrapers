@@ -60,52 +60,35 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.behatsdaa]!);
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
-    const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
-    if (!token) {
-      debug('Token not found in local storage');
-      return {
-        success: false,
-        errorMessage: 'TokenNotFound',
-      };
-    }
-
+  private async fetchWithToken(token: string): Promise<PurchaseHistoryResponse | null> {
     const body = {
       FromDate: moment(this.options.startDate).format('YYYY-MM-DDTHH:mm:ss'),
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
-
     debug('Fetching data');
-
-    const res = await fetchPostWithinPage<PurchaseHistoryResponse>(this.page, PURCHASE_HISTORY_URL, body, {
-      authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      organizationid: '20',
+    return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, PURCHASE_HISTORY_URL, {
+      data: body,
+      extraHeaders: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json', organizationid: '20' },
     });
+  }
 
-    debug('Data fetched');
-
+  private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
     if (res?.errorDescription || res?.data?.errorDescription) {
       debug('Error fetching data', res.errorDescription || res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
-
-    if (!res?.data) {
-      debug('No data found');
-      return { success: false, errorMessage: 'NoData' };
-    }
-
+    if (!res?.data) { debug('No data found'); return { success: false, errorMessage: 'NoData' }; }
     debug('Data fetched successfully');
-    return {
-      success: true,
-      accounts: [
-        {
-          accountNumber: res.data.memberId,
-          txns: res.data.variants.map(variant => variantToTransaction(variant, this.options)),
-        },
-      ],
-    };
+    return { success: true, accounts: [{ accountNumber: res.data.memberId, txns: res.data.variants.map(variant => variantToTransaction(variant, this.options)) }] };
+  }
+
+  async fetchData(): Promise<ScraperScrapingResult> {
+    const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
+    if (!token) { debug('Token not found in local storage'); return { success: false, errorMessage: 'TokenNotFound' }; }
+    const res = await this.fetchWithToken(token);
+    debug('Data fetched');
+    return this.buildAccountResult(res ?? {});
   }
 }
 
