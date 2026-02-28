@@ -336,6 +336,7 @@ This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers
 - [x] `INVALID_OTP` error type — fast fail (5s) with clear message when code is wrong/expired
 - [x] OneZero real-time balance via `balance(portfolioId, accountId)` GraphQL query
 - [x] `persistentOtpToken` surfaced in scrape result for session reuse
+- [x] Zero-Compromise ESLint gate: `no-any`, `no-unsafe-*`, explicit return types, 20-line/300-line limits
 - [ ] Configurable proxy support for residential IP routing
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
