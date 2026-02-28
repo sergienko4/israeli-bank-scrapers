@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.3.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.3.0...v7.3.1) (2026-02-28)
+
+
+### Bug Fixes
+
+* **discount:** return success with 0 txns when API has no records in range ([#72](https://github.com/sergienko4/israeli-bank-scrapers/issues/72)) ([20579fd](https://github.com/sergienko4/israeli-bank-scrapers/commit/20579fd9c564d7a003fd42adb9a9b92df45d8b1d))
+
 ## [7.3.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.2.0...v7.3.0) (2026-02-28)
 
 
