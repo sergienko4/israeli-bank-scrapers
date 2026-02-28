@@ -85,9 +85,10 @@ export default tseslint.config(
       'import/named': 'off', // TypeScript handles this
 
       // ── Clean Code limits ────────────────────────────────────────────────
-      // 'error' so existing violations are visible without blocking commits.
-      // New code should stay within limits — see CLEAN_CODE.md for strategies.
-      // Aim: 10 lines ideal (CLAUDE.md), 20 lines = hard erroring.
+      // All 'error' — lint-staged only lints changed files, so violations in
+      // untouched legacy code don't block commits. Any file you touch must comply.
+      // Aim: 10 lines ideal (CLAUDE.md). 20 lines = ESLint hard limit.
+      // Fix strategies → see CLEAN_CODE.md
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
 
       // Max 3 params: beyond that use an options object / interface.

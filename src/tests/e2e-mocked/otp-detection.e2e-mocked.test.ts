@@ -88,8 +88,8 @@ const LOGIN_ERROR_HTML = `<!DOCTYPE html><html><body dir="rtl">
 <p id="error-msg" style="display:none">שם משתמש שגוי. ניסיון 2 מתוך 3</p>
 </body></html>`;
 
-const DASHBOARD_HTML = `<!DOCTYPE html><html><body><h1>Dashboard</h1></body></html>`;
-const ERROR_PAGE_HTML = `<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>`;
+const DASHBOARD_HTML = '<!DOCTYPE html><html><body><h1>Dashboard</h1></body></html>';
+const ERROR_PAGE_HTML = '<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>';
 
 // ── Shared LoginConfig helpers ────────────────────────────────────────────────
 
