@@ -146,18 +146,8 @@ type PostEvalArgs = {
   innerExtraHeaders: Record<string, string>;
 };
 
-function buildPostRequest(args: PostEvalArgs): RequestInit {
-  return {
-    method: 'POST',
-    body: JSON.stringify(args.innerData as unknown),
-    credentials: 'include',
-    headers: Object.assign(
-      { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-      args.innerExtraHeaders,
-    ),
-  };
-}
-
+// NOTE: doPostFetch runs inside page.evaluate() (browser context).
+// All logic must be self-contained — no external function references.
 async function doPostFetch({
   innerUrl,
   innerData,
@@ -165,11 +155,15 @@ async function doPostFetch({
 }: PostEvalArgs): Promise<readonly [string | null, number]> {
   let response: Response | undefined;
   try {
-    response = await fetch(innerUrl, buildPostRequest({ innerUrl, innerData, innerExtraHeaders }));
+    response = await fetch(innerUrl, {
+      method: 'POST',
+      body: JSON.stringify(innerData as unknown),
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', ...innerExtraHeaders },
+    });
   } catch (e) {
-    throw new Error(
-      `fetchPostWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
-    );
+    const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}, status: ${response?.status}`);
   }
   if (response.status === 204) return [null, 204] as const;
   return [await response.text(), response.status] as const;
