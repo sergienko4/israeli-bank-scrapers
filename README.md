@@ -1,6 +1,7 @@
 <a id="readme-top"></a>
 
 <!-- PROJECT SHIELDS -->
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -8,6 +9,7 @@
 [![npm version][npm-shield]][npm-url]
 [![CI][ci-shield]][ci-url]
 [![MIT License][license-shield]][license-url]
+[![Docs][docs-shield]][docs-url]
 
 <!-- PROJECT LOGO -->
 <br />
@@ -25,6 +27,8 @@
     <br />
     <br />
     <a href="https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers">npm</a>
+    &middot;
+    <a href="https://sergienko4.github.io/israeli-bank-scrapers/">API Docs</a>
     &middot;
     <a href="https://github.com/sergienko4/israeli-bank-scrapers/issues/new?labels=bug">Report Bug</a>
     &middot;
@@ -58,13 +62,15 @@
 
 ### What's different from upstream?
 
-| Feature | Upstream (Puppeteer) | This Fork (Playwright) |
-|---------|---------------------|----------------------|
-| Browser engine | Puppeteer (CDP fingerprint detected) | Playwright (bypasses WAF natively) |
-| Cloudflare WAF bypass | No | First-attempt pass — no stealth or retry needed |
-| WAF error reporting | "Unknown error" | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions |
-| Human-like timing | Partial | Full (1.5-3s delay before API calls, randomized form input) |
-| E2E test coverage | 3 banks | All 18 institutions |
+| Feature               | Upstream (Puppeteer)                 | This Fork (Playwright)                                                   |
+| --------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| Browser engine        | Puppeteer (CDP fingerprint detected) | Playwright (bypasses WAF natively)                                       |
+| Cloudflare WAF bypass | No                                   | First-attempt pass — no stealth or retry needed                          |
+| WAF error reporting   | "Unknown error"                      | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions         |
+| Human-like timing     | Partial                              | Full (1.5-3s delay before API calls, randomized form input)              |
+| OTP auto-detection    | Manual                               | Automatic — detects OTP screen, fills code, no browser changes needed    |
+| Architecture          | Per-bank scrapers                    | `GenericBankScraper` + `BANK_REGISTRY` — add a bank in one config object |
+| E2E test coverage     | 3 banks                              | All 18 institutions                                                      |
 
 Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
 
@@ -79,29 +85,29 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
 <details>
   <summary>All 18 Israeli banks and credit card companies:</summary>
   <ol>
-  
- 
 
-| Institution | Type | Credentials | Contributors |
-|-------------|------|-------------|-------------|
-| Bank Hapoalim | Bank | `userCode`, `password` | [@sebikaplun](https://github.com/sebikaplun) |
-| Bank Leumi | Bank | `username`, `password` | [@esakal](https://github.com/esakal) |
-| Discount Bank | Bank | `id`, `password`, `num` | |
-| Mercantile Bank | Bank | `id`, `password`, `num` | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad) |
-| Mizrahi Tefahot | Bank | `username`, `password` | [@baruchiro](https://github.com/baruchiro) |
-| Bank Otsar Hahayal | Bank | `username`, `password` | [@matanelgabsi](https://github.com/matanelgabsi) |
-| Union Bank | Bank | `username`, `password` | [@dratler](https://github.com/dratler), [@dudiventura](https://github.com/dudiventura) |
-| Bank Yahav | Bank | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel) |
-| Bank Massad | Bank | `username`, `password` | |
-| Pagi Bank | Bank | `username`, `password` | |
-| One Zero | Bank | `email`, `password`, OTP | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
-| Beinleumi | Bank | `username`, `password`, OTP | [@sergienko4](https://github.com/sergienko4) |
-| Beyahad Bishvilha | Bank | `id`, `password` | [@esakal](https://github.com/esakal) |
-| Behatsdaa | Bank | `id`, `password` | [@daniel-hauser](https://github.com/daniel-hauser) |
-| Amex | Credit Card | `id`, `card6Digits`, `password` | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4) |
-| Isracard | Credit Card | `id`, `card6Digits`, `password` | [@sergienko4](https://github.com/sergienko4) |
-| Visa Cal | Credit Card | `username`, `password` | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal) |
-| Max | Credit Card | `username`, `password` | |
+
+| Institution        | Type        | Credentials                          | Contributors                                                                           |
+| ------------------ | ----------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Bank Hapoalim      | Bank        | `userCode`, `password`               | [@sebikaplun](https://github.com/sebikaplun)                                           |
+| Bank Leumi         | Bank        | `username`, `password`               | [@esakal](https://github.com/esakal)                                                   |
+| Discount Bank      | Bank        | `id`, `password`, `num`              |                                                                                        |
+| Mercantile Bank    | Bank        | `id`, `password`, `num`              | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad)         |
+| Mizrahi Tefahot    | Bank        | `username`, `password`               | [@baruchiro](https://github.com/baruchiro)                                             |
+| Bank Otsar Hahayal | Bank        | `username`, `password`               | [@matanelgabsi](https://github.com/matanelgabsi)                                       |
+| Union Bank         | Bank        | `username`, `password`               | [@dratler](https://github.com/dratler), [@dudiventura](https://github.com/dudiventura) |
+| Bank Yahav         | Bank        | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel)                                                 |
+| Bank Massad        | Bank        | `username`, `password`               |                                                                                        |
+| Pagi Bank          | Bank        | `username`, `password`               |                                                                                        |
+| One Zero           | Bank        | `email`, `password`, OTP             | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
+| Beinleumi          | Bank        | `username`, `password`, OTP          | [@sergienko4](https://github.com/sergienko4)                                           |
+| Beyahad Bishvilha  | Bank        | `id`, `password`                     | [@esakal](https://github.com/esakal)                                                   |
+| Behatsdaa          | Bank        | `id`, `password`                     | [@daniel-hauser](https://github.com/daniel-hauser)                                     |
+| Amex               | Credit Card | `id`, `card6Digits`, `password`      | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4)       |
+| Isracard           | Credit Card | `id`, `card6Digits`, `password`      | [@sergienko4](https://github.com/sergienko4)                                           |
+| Visa Cal           | Credit Card | `username`, `password`               | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal)           |
+| Max                | Credit Card | `username`, `password`               |                                                                                        |
+
  </ol>
 </details>
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -110,7 +116,7 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
 
 ### Prerequisites
 
-* [Node.js](https://nodejs.org) >= 22.14.0
+- [Node.js](https://nodejs.org) >= 22.14.0
 
 ### Installation
 
@@ -206,11 +212,11 @@ import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
 
 Playwright bypasses most Cloudflare challenges automatically. If you still get `errorType: 'WAF_BLOCKED'`:
 
-| Scenario | What happens | Fix |
-|----------|-------------|-----|
-| API-level 403 | Login succeeds but API calls blocked | Wait 1-2 hours, reduce scrape frequency |
-| Datacenter IP block | Cloud provider IPs rate-limited | Use residential proxy or Azure |
-| Turnstile CAPTCHA | Interactive challenge on login page | Use a trusted IP provider |
+| Scenario            | What happens                         | Fix                                     |
+| ------------------- | ------------------------------------ | --------------------------------------- |
+| API-level 403       | Login succeeds but API calls blocked | Wait 1-2 hours, reduce scrape frequency |
+| Datacenter IP block | Cloud provider IPs rate-limited      | Use residential proxy or Azure          |
+| Turnstile CAPTCHA   | Interactive challenge on login page  | Use a trusted IP provider               |
 
 > **Tip:** Playwright passes WAF on first attempt from most IPs. No stealth or retry needed.
 
@@ -254,12 +260,21 @@ const scraper = createScraper({
 
 Several banks require OTP (one-time password / SMS code). The OTP flow differs by bank type:
 
+**Banks that require OTP:**
+
+| Bank                                             | Type     | How                                   |
+| ------------------------------------------------ | -------- | ------------------------------------- |
+| Beinleumi (+ group: Massad, Otsar Hahayal, Pagi) | SMS code | `otpCodeRetriever` in scraper options |
+| Discount                                         | SMS code | `otpCodeRetriever` in scraper options |
+| One Zero                                         | SMS code | `otpCodeRetriever` in credentials     |
+
 **DOM banks** (browser-based: Beinleumi, Discount, …) — pass `otpCodeRetriever` in scraper options:
+
 ```typescript
 const scraper = createScraper({
   companyId: CompanyTypes.beinleumi,
   startDate,
-  otpCodeRetriever: async (phoneHint) => {
+  otpCodeRetriever: async phoneHint => {
     console.log(`SMS sent to ${phoneHint}. Enter code:`);
     return await readCodeFromSomewhere(); // e.g. stdin, file, push notification
   },
@@ -268,6 +283,7 @@ const result = await scraper.scrape({ username, password });
 ```
 
 **API banks** (no browser: OneZero) — pass `otpCodeRetriever` **in credentials**:
+
 ```typescript
 const result = await scraper.scrape({
   email: 'user@example.com',
@@ -279,6 +295,7 @@ const result = await scraper.scrape({
 ```
 
 **Reuse a previous OTP token** (skips SMS entirely):
+
 ```typescript
 const result = await scraper.scrape({
   email: 'user@example.com',
@@ -288,6 +305,7 @@ const result = await scraper.scrape({
 ```
 
 **Error handling:**
+
 ```typescript
 if (!result.success && result.errorType === 'INVALID_OTP') {
   // Wrong or expired OTP code — ask user to try again
@@ -305,24 +323,28 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 
 ## Migration Notes
 
-### v7.0.x → v7.1.x (this PR)
+### v7.0.x → v7.1.x
 
 **New additions (non-breaking):**
+
 - `ScraperOptions.otpCodeRetriever` — optional callback for DOM banks (Beinleumi, Discount). Not required — if omitted and OTP is detected, returns `TWO_FACTOR_RETRIEVER_MISSING`.
 - `ScraperScrapingResult.persistentOtpToken` — optional token returned by banks supporting session reuse (e.g. OneZero). Save and pass as `credentials.otpLongTermToken` to skip SMS on next run.
 - `ScraperErrorTypes.InvalidOtp = 'INVALID_OTP'` — new error type when OTP code is rejected.
 
 **Deprecated (still works, no action needed):**
+
 - `ScraperErrorTypes.General = 'GENERAL_ERROR'` — use `ScraperErrorTypes.Generic = 'GENERIC'` instead. Both values remain in the enum.
 
 **Potentially breaking — `WafBlockError.apiBlock()` signature:**
+
 ```typescript
 // Old (v7.0.x):
-WafBlockError.apiBlock(httpStatus, pageUrl, pageTitle, responseSnippet)
+WafBlockError.apiBlock(httpStatus, pageUrl, pageTitle, responseSnippet);
 
 // New (v7.1.x):
-WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet })
+WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet });
 ```
+
 This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers who only check `result.errorType === 'WAF_BLOCKED'` are unaffected.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -337,6 +359,9 @@ This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers
 - [x] OneZero real-time balance via `balance(portfolioId, accountId)` GraphQL query
 - [x] `persistentOtpToken` surfaced in scrape result for session reuse
 - [x] Zero-Compromise ESLint gate: `no-any`, `no-unsafe-*`, explicit return types, 20-line/300-line limits
+- [x] `GenericBankScraper` + `BANK_REGISTRY` — add a new DOM bank in one config object (no boilerplate)
+- [x] 4-round selector fallback — scraper auto-discovers login fields even if IDs change
+- [x] TypeDoc API reference auto-published at [sergienko4.github.io/israeli-bank-scrapers](https://sergienko4.github.io/israeli-bank-scrapers/)
 - [ ] Configurable proxy support for residential IP routing
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
@@ -384,6 +409,7 @@ Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/s
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
+
 [contributors-shield]: https://img.shields.io/github/contributors/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
 [contributors-url]: https://github.com/sergienko4/israeli-bank-scrapers/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/sergienko4/israeli-bank-scrapers.svg?style=for-the-badge
@@ -408,3 +434,5 @@ Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/s
 [jest-url]: https://jestjs.io
 [eslint-shield]: https://img.shields.io/badge/ESLint-9-4B32C3?style=for-the-badge&logo=eslint&logoColor=white
 [eslint-url]: https://eslint.org
+[docs-shield]: https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white
+[docs-url]: https://sergienko4.github.io/israeli-bank-scrapers/
