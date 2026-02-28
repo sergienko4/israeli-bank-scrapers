@@ -176,8 +176,11 @@ All scrapers support up to one year of transaction history. See credentials per 
     }];
   }];
   // On failure:
-  errorType?: 'INVALID_PASSWORD' | 'CHANGE_PASSWORD' | 'ACCOUNT_BLOCKED'
-            | 'TIMEOUT' | 'GENERIC' | 'GENERAL_ERROR' | 'WAF_BLOCKED';
+  errorType?: 'INVALID_OTP'        // wrong/expired OTP code — ask user to retry
+            | 'TWO_FACTOR_RETRIEVER_MISSING' // OTP required but otpCodeRetriever not set
+            | 'INVALID_PASSWORD' | 'CHANGE_PASSWORD' | 'ACCOUNT_BLOCKED'
+            | 'TIMEOUT' | 'GENERIC' | 'WAF_BLOCKED'
+            | 'GENERAL_ERROR';     // @deprecated — same as GENERIC, kept for backwards compatibility
   errorMessage?: string;
   errorDetails?: {          // Only on WAF_BLOCKED
     provider: 'cloudflare' | 'unknown';
@@ -297,6 +300,30 @@ if (!result.success && result.errorType === 'TWO_FACTOR_RETRIEVER_MISSING') {
 ### Opt-In Features
 
 Some scrapers support opt-in features for breaking changes. See the [OptInFeatures type](./src/scrapers/interface.ts).
+
+---
+
+## Migration Notes
+
+### v7.0.x → v7.1.x (this PR)
+
+**New additions (non-breaking):**
+- `ScraperOptions.otpCodeRetriever` — optional callback for DOM banks (Beinleumi, Discount). Not required — if omitted and OTP is detected, returns `TWO_FACTOR_RETRIEVER_MISSING`.
+- `ScraperScrapingResult.persistentOtpToken` — optional token returned by banks supporting session reuse (e.g. OneZero). Save and pass as `credentials.otpLongTermToken` to skip SMS on next run.
+- `ScraperErrorTypes.InvalidOtp = 'INVALID_OTP'` — new error type when OTP code is rejected.
+
+**Deprecated (still works, no action needed):**
+- `ScraperErrorTypes.General = 'GENERAL_ERROR'` — use `ScraperErrorTypes.Generic = 'GENERIC'` instead. Both values remain in the enum.
+
+**Potentially breaking — `WafBlockError.apiBlock()` signature:**
+```typescript
+// Old (v7.0.x):
+WafBlockError.apiBlock(httpStatus, pageUrl, pageTitle, responseSnippet)
+
+// New (v7.1.x):
+WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet })
+```
+This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers who only check `result.errorType === 'WAF_BLOCKED'` are unaffected.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
