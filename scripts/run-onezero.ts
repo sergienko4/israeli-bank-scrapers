@@ -61,40 +61,52 @@ async function main() {
   const email = process.env.ONEZERO_EMAIL;
   const password = process.env.ONEZERO_PASSWORD;
   const phoneNumber = process.env.ONEZERO_PHONE_NUMBER;
+  const otpLongTermToken = process.env.ONEZERO_OTP_LONG_TERM_TOKEN;
 
-  if (!email || !password || !phoneNumber) {
-    console.error('❌  Missing ONEZERO_EMAIL, ONEZERO_PASSWORD or ONEZERO_PHONE_NUMBER in .env');
+  if (!email || !password) {
+    console.error('❌  Missing ONEZERO_EMAIL or ONEZERO_PASSWORD in .env');
     process.exit(1);
   }
 
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - 4);
 
+  // Build credentials — use long-term token if available (skips SMS)
+  const credentials = otpLongTermToken
+    ? { email, password, otpLongTermToken }
+    : (() => {
+        if (!phoneNumber) {
+          console.error('❌  Missing ONEZERO_PHONE_NUMBER (required when no ONEZERO_OTP_LONG_TERM_TOKEN)');
+          process.exit(1);
+        }
+        return { email, password, phoneNumber, otpCodeRetriever: waitForOtpFromFile };
+      })();
+
   console.log('🚀  Starting OneZero scraper (API only, no browser)…');
-  console.log(`    Sending SMS to: ${phoneNumber}`);
+  if (otpLongTermToken) {
+    console.log('    Using saved OTP token — no SMS needed');
+  } else {
+    console.log(`    Sending SMS to: ${phoneNumber}`);
+  }
 
-  const scraper = createScraper({
-    companyId: CompanyTypes.oneZero,
-    startDate,
-  });
-
-  // OneZero passes otpCodeRetriever as part of credentials (not scraper options)
-  const result = await scraper.scrape({
-    email,
-    password,
-    phoneNumber,
-    otpCodeRetriever: waitForOtpFromFile,
-  });
+  const scraper = createScraper({ companyId: CompanyTypes.oneZero, startDate });
+  const result = await scraper.scrape(credentials);
 
   if (result.success) {
     console.log('\n✅  Scrape succeeded!');
     const accounts = result.accounts ?? [];
     console.log(`    Accounts: ${accounts.length}`);
     for (const acc of accounts) {
-      console.log(`    - ${acc.accountNumber}: ${acc.txns.length} transactions  balance: ${acc.balance}`);
+      console.log(`\n  Account: ${acc.accountNumber}  balance: ${acc.balance} ILS`);
+      console.log(`  Transactions (${acc.txns.length}):`);
+      for (const t of acc.txns) {
+        const sign = t.chargedAmount >= 0 ? '+' : '';
+        const date = t.date.slice(0, 10);
+        console.log(`    ${date}  ${sign}${t.chargedAmount} ${t.chargedCurrency}  ${t.description}`);
+      }
     }
-    if ('persistentOtpToken' in result && result.persistentOtpToken) {
-      console.log('\n💾  Save this token to skip OTP next time:');
+    if (result.persistentOtpToken) {
+      console.log('\n💾  Save this token to skip OTP next time (add to .env):');
       console.log(`    ONEZERO_OTP_LONG_TERM_TOKEN=${result.persistentOtpToken}`);
     }
   } else {
