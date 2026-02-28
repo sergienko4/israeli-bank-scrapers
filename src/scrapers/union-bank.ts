@@ -158,6 +158,18 @@ async function getTransactionsTableHeaders(page: Page, tableTypeId: string): Pro
   return headersMap;
 }
 
+async function scrapeTableRows(page: Page, tableTypeId: string): Promise<TransactionsTr[]> {
+  return pageEvalAll<TransactionsTr[]>(page, {
+    selector: `#WorkSpaceBox #${tableTypeId} tr[class]:not([class='header'])`,
+    defaultResult: [],
+    callback: trs =>
+      (trs as HTMLElement[]).map(tr => ({
+        id: tr.getAttribute('id') || '',
+        innerTds: Array.from(tr.getElementsByTagName('td')).map(td => (td as HTMLElement).innerText),
+      })),
+  });
+}
+
 async function extractTransactionsFromTable(
   page: Page,
   tableTypeId: string,
@@ -165,16 +177,7 @@ async function extractTransactionsFromTable(
 ): Promise<ScrapedTransaction[]> {
   const txns: ScrapedTransaction[] = [];
   const transactionsTableHeaders = await getTransactionsTableHeaders(page, tableTypeId);
-
-  const transactionsRows = await pageEvalAll<TransactionsTr[]>(page, {
-    selector: `#WorkSpaceBox #${tableTypeId} tr[class]:not([class='header'])`,
-    defaultResult: [],
-    callback: trs => (trs as HTMLElement[]).map(tr => ({
-      id: tr.getAttribute('id') || '',
-      innerTds: Array.from(tr.getElementsByTagName('td')).map(td => (td as HTMLElement).innerText),
-    })),
-  });
-
+  const transactionsRows = await scrapeTableRows(page, tableTypeId);
   for (const txnRow of transactionsRows) {
     handleTransactionRow({ txns, txnsTableHeaders: transactionsTableHeaders, txnRow, txnType });
   }

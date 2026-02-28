@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Frame, type Page, type Request } from 'playwright';
+import { type Frame } from 'playwright';
 import { SHEKEL_CURRENCY } from '../constants';
 import { pageEvalAll, waitUntilElementFound, waitUntilIframeFound } from '../helpers/elements-interactions';
 import { fetchPostWithinPage } from '../helpers/fetch';
@@ -11,182 +11,39 @@ import { type ScraperOptions, type ScraperScrapingResult } from './interface';
 import { CompanyTypes } from '../definitions';
 import { BANK_REGISTRY } from './bank-registry';
 import { GenericBankScraper } from './generic-bank-scraper';
+import {
+  type ConvertOneRowOpts,
+  type ConvertTxnsOpts,
+  type MoreDetails,
+  type ScrapedTransaction,
+  type ScrapedTransactionsResult,
+  accountDropDownItemSelector,
+  createDataFromRequest,
+  createHeadersFromRequest,
+  genericDescriptions,
+  getExtraTransactionDetails,
+  getStartMoment,
+  getTransactionIdentifier,
+  OSH_PAGE,
+  PENDING_TRANSACTIONS_IFRAME,
+  PENDING_TRANSACTIONS_PAGE,
+  TRANSACTIONS_PAGE,
+  TRANSACTIONS_REQUEST_URLS,
+} from './mizrahi-helpers';
 
 const debug = getDebug('mizrahi');
-
-interface ScrapedTransaction {
-  RecTypeSpecified: boolean;
-  MC02PeulaTaaEZ: string;
-  MC02SchumEZ: number;
-  MC02AsmahtaMekoritEZ: string;
-  MC02TnuaTeurEZ: string;
-  IsTodayTransaction: boolean;
-  MC02ErehTaaEZ: string;
-  MC02ShowDetailsEZ?: string;
-  MC02KodGoremEZ: string;
-  MC02SugTnuaKaspitEZ: string;
-  MC02AgidEZ: string;
-  MC02SeifMaralEZ: string;
-  MC02NoseMaralEZ: string;
-  TransactionNumber: string | number;
-}
-
-interface ScrapedTransactionsResult {
-  header: {
-    success: boolean;
-    messages: { text: string }[];
-  };
-  body: {
-    fields: {
-      Yitra: string;
-    };
-    table: {
-      rows: ScrapedTransaction[];
-    };
-  };
-}
-
-type MoreDetailsResponse = {
-  body: {
-    fields: [
-      [
-        {
-          Records: [
-            {
-              Fields: Array<{
-                Label: string;
-                Value: string;
-              }>;
-            },
-          ];
-        },
-      ],
-    ];
-  };
-};
-
-type MoreDetails = {
-  entries: Record<string, string>;
-  memo: string | undefined;
-};
-
-const BASE_APP_URL = 'https://mto.mizrahi-tefahot.co.il';
-const OSH_PAGE = '/osh/legacy/legacy-Osh-Main';
-const TRANSACTIONS_PAGE = '/osh/legacy/root-main-osh-p428New';
-const TRANSACTIONS_REQUEST_URLS = [
-  `${BASE_APP_URL}/OnlinePilot/api/SkyOSH/get428Index`,
-  `${BASE_APP_URL}/Online/api/SkyOSH/get428Index`,
-];
-const PENDING_TRANSACTIONS_PAGE = '/osh/legacy/legacy-Osh-p420';
-const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
-const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
-const DATE_FORMAT = 'DD/MM/YYYY';
-const MAX_ROWS_PER_REQUEST = 10000000000;
-
-const accountDropDownItemSelector = '#AccountPicker .item';
 const pendingTrxIdentifierId = '#ctl00_ContentPlaceHolder2_panel1';
-const genericDescriptions = ['העברת יומן לבנק זר מסניף זר'];
 
-function getStartMoment(optionsStartDate: Date): moment.Moment {
-  const defaultStartMoment = moment().subtract(1, 'years');
-  const startDate = optionsStartDate || defaultStartMoment.toDate();
-  return moment.max(defaultStartMoment, moment(startDate));
-}
-
-function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
-  const tarPeula = moment(item.MC02PeulaTaaEZ);
-  const tarErech = moment(item.MC02ErehTaaEZ);
-  return {
-    inKodGorem: item.MC02KodGoremEZ, inAsmachta: item.MC02AsmahtaMekoritEZ, inSchum: item.MC02SchumEZ,
-    inNakvanit: item.MC02KodGoremEZ, inSugTnua: item.MC02SugTnuaKaspitEZ, inAgid: item.MC02AgidEZ,
-    inTarPeulaFormatted: tarPeula.format(DATE_FORMAT),
-    inTarErechFormatted: (tarErech.year() > 2000 ? tarErech : tarPeula).format(DATE_FORMAT),
-    inKodNose: item.MC02SeifMaralEZ, inKodTatNose: item.MC02NoseMaralEZ, inTransactionNumber: item.TransactionNumber,
-  };
-}
-
-function parseDetailsFields(fields: Array<{ Label: string; Value: string }>): MoreDetails {
-  const entries: [string, string][] = fields.map(record => [record.Label.trim(), record.Value.trim()]);
-  return {
-    entries: Object.fromEntries(entries) as Record<string, string>,
-    memo: entries.filter(([label]) => ['שם', 'מהות', 'חשבון'].some(key => label.startsWith(key))).map(([label, value]) => `${label} ${value}`).join(', '),
-  };
-}
-
-async function fetchMoreDetails(page: Page, item: ScrapedTransaction, apiHeaders: Record<string, string>): Promise<MoreDetails | null> {
-  if (item.MC02ShowDetailsEZ !== '1') return null;
-  const params = buildExtraDetailsParams(item);
-  const response = await fetchPostWithinPage<MoreDetailsResponse>(page, MORE_DETAILS_URL, { data: params, extraHeaders: apiHeaders });
-  const details = response?.body.fields?.[0]?.[0]?.Records?.[0].Fields;
-  debug('fetch details for', params, 'details:', details);
-  if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
-  return null;
-}
-
-async function getExtraTransactionDetails(page: Page, item: ScrapedTransaction, apiHeaders: Record<string, string>): Promise<MoreDetails> {
-  try {
-    debug('getExtraTransactionDetails for item:', item);
-    const result = await fetchMoreDetails(page, item, apiHeaders);
-    if (result) return result;
-  } catch (error) {
-    debug('Error fetching extra transaction details:', error);
-  }
-  return { entries: {}, memo: undefined };
-}
-
-interface MizrahiRequestData {
-  inFromDate: string;
-  inToDate: string;
-  table: { maxRow: number };
-  [key: string]: unknown;
-}
-
-function createDataFromRequest(request: Request, optionsStartDate: Date): MizrahiRequestData {
-  const data = JSON.parse(request.postData() || '{}') as MizrahiRequestData;
-
-  data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
-  data.inToDate = moment().format(DATE_FORMAT);
-  data.table.maxRow = MAX_ROWS_PER_REQUEST;
-
-  return data;
-}
-
-function createHeadersFromRequest(request: Request): Record<string, string> {
-  return {
-    mizrahixsrftoken: request.headers().mizrahixsrftoken,
-    'Content-Type': request.headers()['content-type'],
-  };
-}
-
-function getTransactionIdentifier(row: ScrapedTransaction): string | number | undefined {
-  if (!row.MC02AsmahtaMekoritEZ) {
-    return undefined;
-  }
-  if (row.TransactionNumber && String(row.TransactionNumber) !== '1') {
-    return `${row.MC02AsmahtaMekoritEZ}-${row.TransactionNumber}`;
-  }
-  return parseInt(row.MC02AsmahtaMekoritEZ, 10);
-}
-
-interface ConvertTxnsOpts {
-  txns: ScrapedTransaction[];
-  getMoreDetails: (row: ScrapedTransaction) => Promise<MoreDetails>;
-  pendingIfTodayTransaction?: boolean;
-  options?: ScraperOptions;
-}
-
-interface ConvertOneRowOpts {
+interface BuildRowBaseOpts {
   row: ScrapedTransaction;
-  getMoreDetails: (r: ScrapedTransaction) => Promise<MoreDetails>;
+  txnDate: string;
+  moreDetails: MoreDetails;
   pendingIfTodayTransaction: boolean;
-  options?: ScraperOptions;
 }
 
-async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
-  const { row, getMoreDetails, pendingIfTodayTransaction, options } = opts;
-  const moreDetails = await getMoreDetails(row);
-  const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
-  const result: Transaction = {
+function buildRowBase(opts: BuildRowBaseOpts): Transaction {
+  const { row, txnDate, moreDetails, pendingIfTodayTransaction } = opts;
+  return {
     type: TransactionTypes.Normal,
     identifier: getTransactionIdentifier(row),
     date: txnDate,
@@ -196,9 +53,18 @@ async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
     chargedAmount: row.MC02SchumEZ,
     description: row.MC02TnuaTeurEZ,
     memo: moreDetails?.memo,
-    status: pendingIfTodayTransaction && row.IsTodayTransaction ? TransactionStatuses.Pending : TransactionStatuses.Completed,
+    status:
+      pendingIfTodayTransaction && row.IsTodayTransaction ? TransactionStatuses.Pending : TransactionStatuses.Completed,
   };
-  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction({ ...row, additionalInformation: moreDetails.entries });
+}
+
+async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
+  const { row, getMoreDetails, pendingIfTodayTransaction, options } = opts;
+  const moreDetails = await getMoreDetails(row);
+  const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
+  const result = buildRowBase({ row, txnDate, moreDetails, pendingIfTodayTransaction });
+  if (options?.includeRawTransaction)
+    result.rawTransaction = getRawTransaction({ ...row, additionalInformation: moreDetails.entries });
   return result;
 }
 
@@ -210,7 +76,16 @@ async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]
 function mapPendingRow([dateStr, description, _incomeAmountStr, amountStr]: string[]): Transaction | null {
   const date = moment(dateStr, 'DD/MM/YY').toISOString();
   if (!date) return null;
-  return { type: TransactionTypes.Normal, date, processedDate: date, originalAmount: parseFloat(amountStr.replaceAll(',', '')), originalCurrency: SHEKEL_CURRENCY, chargedAmount: parseFloat(amountStr.replaceAll(',', '')), description, status: TransactionStatuses.Pending };
+  return {
+    type: TransactionTypes.Normal,
+    date,
+    processedDate: date,
+    originalAmount: parseFloat(amountStr.replaceAll(',', '')),
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: parseFloat(amountStr.replaceAll(',', '')),
+    description,
+    status: TransactionStatuses.Pending,
+  };
 }
 
 async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
@@ -284,9 +159,33 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
         const request = await this.page.waitForRequest(url);
         const data = createDataFromRequest(request, this.options.startDate);
         const headers = createHeadersFromRequest(request);
-        return [await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, { data, extraHeaders: headers }), headers] as const;
+        return [
+          await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, { data, extraHeaders: headers }),
+          headers,
+        ] as const;
       }),
     );
+  }
+
+  private async convertAndMarkTxns(
+    response: ScrapedTransactionsResult,
+    apiHeaders: Record<string, string>,
+  ): Promise<Transaction[]> {
+    const relevantRows = response.body.table.rows.filter(row => row.RecTypeSpecified);
+    const oshTxn = await convertTransactions({
+      txns: relevantRows,
+      getMoreDetails: this.options.additionalTransactionInformation
+        ? row => getExtraTransactionDetails(this.page, row, apiHeaders)
+        : () => Promise.resolve({ entries: {}, memo: undefined }),
+      pendingIfTodayTransaction: this.options.optInFeatures?.includes('mizrahi:pendingIfTodayTransaction'),
+      options: this.options,
+    });
+    oshTxn
+      .filter(txn => this.shouldMarkAsPending(txn))
+      .forEach(txn => {
+        txn.status = TransactionStatuses.Pending;
+      });
+    return oshTxn;
   }
 
   private async fetchAccount(): Promise<TransactionsAccount & { balance: number }> {
@@ -294,18 +193,15 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
     if (!response || response.header.success === false) {
-      throw new Error(`Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`);
+      throw new Error(
+        `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
+      );
     }
-    const relevantRows = response.body.table.rows.filter(row => row.RecTypeSpecified);
-    const oshTxn = await convertTransactions({
-      txns: relevantRows,
-      getMoreDetails: this.options.additionalTransactionInformation ? row => getExtraTransactionDetails(this.page, row, apiHeaders) : () => Promise.resolve({ entries: {}, memo: undefined }),
-      pendingIfTodayTransaction: this.options.optInFeatures?.includes('mizrahi:pendingIfTodayTransaction'),
-      options: this.options,
-    });
-    oshTxn.filter(txn => this.shouldMarkAsPending(txn)).forEach(txn => { txn.status = TransactionStatuses.Pending; });
+    const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
     const startMoment = getStartMoment(this.options.startDate);
-    const allTxn = oshTxn.filter(txn => moment(txn.date).isSameOrAfter(startMoment)).concat(await this.getPendingTransactions());
+    const allTxn = oshTxn
+      .filter(txn => moment(txn.date).isSameOrAfter(startMoment))
+      .concat(await this.getPendingTransactions());
     return { accountNumber, txns: allTxn, balance: +response.body.fields?.Yitra };
   }
 

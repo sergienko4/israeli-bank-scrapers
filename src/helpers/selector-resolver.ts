@@ -153,12 +153,19 @@ export type FieldContext = {
   context: Page | Frame;
 };
 
-async function searchInChildFrames(page: Page, allCandidates: SelectorCandidate[], tried: string[]): Promise<FieldContext | null> {
+async function searchInChildFrames(
+  page: Page,
+  allCandidates: SelectorCandidate[],
+  tried: string[],
+): Promise<FieldContext | null> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) debug('Round 4: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
-    if (found) { debug('Round 4: resolved in iframe %s → %s', frame.url(), found); return { selector: found, context: frame }; }
+    if (found) {
+      debug('Round 4: resolved in iframe %s → %s', frame.url(), found);
+      return { selector: found, context: frame };
+    }
   }
   if (childFrames.length > 0) tried.push(`  [Round 4: searched ${childFrames.length} iframe(s)] → NOT FOUND`);
   return null;
@@ -194,6 +201,40 @@ function buildNotFoundMessage(ctx: NotFoundContext): string {
   );
 }
 
+async function resolveInMainContext(
+  pageOrFrame: Page | Frame,
+  allCandidates: SelectorCandidate[],
+  credentialKey: string,
+): Promise<FieldContext | null> {
+  const main = await tryInContext(pageOrFrame, allCandidates);
+  if (!main) return null;
+  debug('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
+  return { selector: main, context: pageOrFrame };
+}
+
+interface ResolveIframesOpts {
+  pageOrFrame: Page | Frame;
+  field: FieldConfig;
+  pageUrl: string;
+  allCandidates: SelectorCandidate[];
+}
+
+async function resolveInIframesOrThrow(opts: ResolveIframesOpts): Promise<FieldContext> {
+  const { pageOrFrame, field, pageUrl, allCandidates } = opts;
+  const tried = allCandidates.map(c => `  ${c.kind} "${c.value}" → NOT FOUND`);
+  if (isPage(pageOrFrame)) {
+    const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates, tried);
+    if (iframeResult) return iframeResult;
+  }
+  const msg = buildNotFoundMessage({
+    credentialKey: field.credentialKey,
+    pageUrl,
+    tried,
+    pageTitle: await getPageTitle(pageOrFrame),
+  });
+  throw new Error(msg);
+}
+
 export async function resolveFieldContext(
   pageOrFrame: Page | Frame,
   field: FieldConfig,
@@ -201,17 +242,9 @@ export async function resolveFieldContext(
 ): Promise<FieldContext> {
   const allCandidates: SelectorCandidate[] = [...field.selectors, ...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])];
   debug('resolving "%s" on %s (Rounds 1-3)', field.credentialKey, pageUrl);
-  const main = await tryInContext(pageOrFrame, allCandidates);
-  if (main) { debug('resolved "%s" via Rounds 1-3: %s', field.credentialKey, main); return { selector: main, context: pageOrFrame }; }
-
-  const tried = allCandidates.map(c => `  ${c.kind} "${c.value}" → NOT FOUND`);
-  if (isPage(pageOrFrame)) {
-    const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates, tried);
-    if (iframeResult) return iframeResult;
-  }
-
-  const msg = buildNotFoundMessage({ credentialKey: field.credentialKey, pageUrl, tried, pageTitle: await getPageTitle(pageOrFrame) });
-  throw new Error(msg);
+  const main = await resolveInMainContext(pageOrFrame, allCandidates, field.credentialKey);
+  if (main) return main;
+  return resolveInIframesOrThrow({ pageOrFrame, field, pageUrl, allCandidates });
 }
 
 /**

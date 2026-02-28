@@ -71,9 +71,17 @@ interface GraphqlResponse<TResult> {
   errors?: Array<{ message: string }>;
 }
 
-export async function fetchGraphql<TResult>(url: string, query: string, opts: FetchGraphqlOptions = {}): Promise<TResult> {
+export async function fetchGraphql<TResult>(
+  url: string,
+  query: string,
+  opts: FetchGraphqlOptions = {},
+): Promise<TResult> {
   const { variables = {}, extraHeaders = {} } = opts;
-  const result = await fetchPost<GraphqlResponse<TResult>>(url, { operationName: null, query, variables }, extraHeaders);
+  const result = await fetchPost<GraphqlResponse<TResult>>(
+    url,
+    { operationName: null, query, variables },
+    extraHeaders,
+  );
   if (result.errors?.length) {
     throw new Error(result.errors[0].message);
   }
@@ -132,17 +140,32 @@ export interface FetchPostOptions {
   ignoreErrors?: boolean;
 }
 
-type PostEvalArgs = { innerUrl: string; innerData: Record<string, unknown> | unknown[]; innerExtraHeaders: Record<string, string> };
+type PostEvalArgs = {
+  innerUrl: string;
+  innerData: Record<string, unknown> | unknown[];
+  innerExtraHeaders: Record<string, string>;
+};
 
-async function doPostFetch({ innerUrl, innerData, innerExtraHeaders }: PostEvalArgs): Promise<readonly [string | null, number]> {
+function buildPostRequest(args: PostEvalArgs): RequestInit {
+  return {
+    method: 'POST',
+    body: JSON.stringify(args.innerData as unknown),
+    credentials: 'include',
+    headers: Object.assign(
+      { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      args.innerExtraHeaders,
+    ),
+  };
+}
+
+async function doPostFetch({
+  innerUrl,
+  innerData,
+  innerExtraHeaders,
+}: PostEvalArgs): Promise<readonly [string | null, number]> {
   let response: Response | undefined;
   try {
-    response = await fetch(innerUrl, {
-      method: 'POST',
-      body: JSON.stringify(innerData as unknown),
-      credentials: 'include',
-      headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, innerExtraHeaders),
-    });
+    response = await fetch(innerUrl, buildPostRequest({ innerUrl, innerData, innerExtraHeaders }));
   } catch (e) {
     throw new Error(
       `fetchPostWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
@@ -184,7 +207,11 @@ export async function fetchPostWithinPage<TResult>(
   opts: FetchPostOptions,
 ): Promise<TResult | null> {
   const { data, extraHeaders = {} } = opts;
-  const [text, status] = await runPostEvaluate(page, { innerUrl: url, innerData: data, innerExtraHeaders: extraHeaders });
+  const [text, status] = await runPostEvaluate(page, {
+    innerUrl: url,
+    innerData: data,
+    innerExtraHeaders: extraHeaders,
+  });
   logResponseIssues(status, text, url);
   return parsePostResult<TResult>({ text, status, url, opts });
 }

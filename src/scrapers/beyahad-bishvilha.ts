@@ -79,32 +79,69 @@ async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | 
   return pageEvalAll<(ScrapedTransaction | null)[]>(page, {
     selector: '.transaction-container, .transaction-component-container',
     defaultResult: [],
-    callback: items => items.map(el => {
-      const columns: NodeListOf<HTMLSpanElement> = el.querySelectorAll('.transaction-item > span');
-      if (columns.length !== 7) return null;
-      return { date: columns[0].innerText, identifier: columns[1].innerText, description: columns[3].innerText, type: columns[5].innerText, chargedAmount: columns[6].innerText };
-    }),
+    callback: items =>
+      items.map(el => {
+        const columns: NodeListOf<HTMLSpanElement> = el.querySelectorAll('.transaction-item > span');
+        if (columns.length !== 7) return null;
+        return {
+          date: columns[0].innerText,
+          identifier: columns[1].innerText,
+          description: columns[3].innerText,
+          type: columns[5].innerText,
+          chargedAmount: columns[6].innerText,
+        };
+      }),
   });
 }
 
 async function scrapeAccountInfo(page: Page): Promise<{ accountNumber: string; balance: string }> {
-  const accountNumber = await pageEval(page, { selector: '.wallet-details div:nth-of-type(2)', defaultResult: '', callback: element => (element as HTMLElement).innerText.replace('מספר כרטיס ', '') });
-  const balance = await pageEval(page, { selector: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)', defaultResult: '', callback: element => (element as HTMLElement).innerText });
+  const accountNumber = await pageEval(page, {
+    selector: '.wallet-details div:nth-of-type(2)',
+    defaultResult: '',
+    callback: element => (element as HTMLElement).innerText.replace('מספר כרטיס ', ''),
+  });
+  const balance = await pageEval(page, {
+    selector: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)',
+    defaultResult: '',
+    callback: element => (element as HTMLElement).innerText,
+  });
   return { accountNumber, balance };
 }
 
-async function fetchTransactions(page: Page, options: ScraperOptions): Promise<{ accountNumber: string; balance: number; txns: Transaction[] }> {
+function applyDateFilter(txns: Transaction[], options: ScraperOptions, startMoment: moment.Moment): Transaction[] {
+  return (options.outputData?.enableTransactionsFilterByDate ?? true)
+    ? filterOldTransactions(txns, startMoment, false)
+    : txns;
+}
+
+async function getFilteredTxns(
+  page: Page,
+  options: ScraperOptions,
+  startMoment: moment.Moment,
+): Promise<{ accountTransactions: Transaction[]; txns: Transaction[] }> {
+  debug('fetch raw transactions from page');
+  const rawTransactions = await scrapeRawTransactions(page);
+  debug(`fetched ${rawTransactions.length} raw transactions from page`);
+  const accountTransactions = convertTransactions(
+    rawTransactions.filter(item => !!item),
+    options,
+  );
+  return { accountTransactions, txns: applyDateFilter(accountTransactions, options, startMoment) };
+}
+
+async function fetchTransactions(
+  page: Page,
+  options: ScraperOptions,
+): Promise<{ accountNumber: string; balance: number; txns: Transaction[] }> {
   await page.goto(CARD_URL);
   await waitUntilElementFound(page, '.react-loading.hide', { visible: false });
   const defaultStartMoment = moment().subtract(1, 'years');
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate || defaultStartMoment.toDate()));
   const { accountNumber, balance } = await scrapeAccountInfo(page);
-  debug('fetch raw transactions from page');
-  const rawTransactions = await scrapeRawTransactions(page);
-  debug(`fetched ${rawTransactions.length} raw transactions from page`);
-  const accountTransactions = convertTransactions(rawTransactions.filter(item => !!item), options);
-  const txns = (options.outputData?.enableTransactionsFilterByDate ?? true) ? filterOldTransactions(accountTransactions, startMoment, false) : accountTransactions;
-  debug(`found ${txns.length} valid transactions out of ${accountTransactions.length} transactions for account ending with ${accountNumber.substring(accountNumber.length - 2)}`);
+  const { accountTransactions, txns } = await getFilteredTxns(page, options, startMoment);
+  debug(
+    `found ${txns.length} valid transactions out of ${accountTransactions.length} transactions for account ending with ${accountNumber.substring(accountNumber.length - 2)}`,
+  );
   return { accountNumber, balance: getAmountData(balance).amount, txns };
 }
 
@@ -122,7 +159,10 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     super(options, BANK_REGISTRY[CompanyTypes.beyahadBishvilha]!);
   }
 
-  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number; txns: Transaction[] }[] }> {
+  async fetchData(): Promise<{
+    success: boolean;
+    accounts: { accountNumber: string; balance: number; txns: Transaction[] }[];
+  }> {
     const account = await fetchTransactions(this.page, this.options);
     return {
       success: true,

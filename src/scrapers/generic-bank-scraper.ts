@@ -49,7 +49,10 @@ function buildSubmitButtonFunction(opts: SubmitButtonOpts): () => Promise<void> 
   };
 }
 
-function buildFieldList(config: LoginConfig, credentials: ScraperCredentials): { selector: string; value: string; credentialKey: string }[] {
+function buildFieldList(
+  config: LoginConfig,
+  credentials: ScraperCredentials,
+): { selector: string; value: string; credentialKey: string }[] {
   return config.fields.map(f => ({
     selector: candidateToCss(f.selectors[0]),
     value: (credentials as Record<string, string>)[f.credentialKey] ?? '',
@@ -74,6 +77,16 @@ export abstract class GenericBankScraper<
     super(options);
   }
 
+  private buildSubmitSelector(submitCands: SelectorCandidate[], submitField: FieldConfig): () => Promise<void> {
+    const page = this.page;
+    return buildSubmitButtonFunction({
+      submitCands,
+      submitField,
+      ctx: () => this.activeLoginContext,
+      page: () => page,
+    });
+  }
+
   getLoginOptions(credentials: TCredentials): LoginOptions {
     this.fieldConfigs = this.loginConfig.fields;
     const submitCands = submitCandidates(this.loginConfig.submit);
@@ -83,7 +96,7 @@ export abstract class GenericBankScraper<
     return {
       loginUrl: config.loginUrl,
       fields: buildFieldList(config, credentials),
-      submitButtonSelector: buildSubmitButtonFunction({ submitCands, submitField, ctx: () => this.activeLoginContext, page: () => page }),
+      submitButtonSelector: this.buildSubmitSelector(submitCands, submitField),
       checkReadiness: config.checkReadiness ? () => config.checkReadiness!(page) : undefined,
       preAction: config.preAction ? () => config.preAction!(page) : undefined,
       postAction: config.postAction ? () => config.postAction!(page) : undefined,
@@ -96,9 +109,17 @@ export abstract class GenericBankScraper<
     await fillInput(ctx, selector, value);
   }
 
-  private async fillFieldWithFallback(pageOrFrame: Page | Frame, fieldConfig: FieldConfig, field: { selector: string; value: string }): Promise<void> {
+  private async fillFieldWithFallback(
+    pageOrFrame: Page | Frame,
+    fieldConfig: FieldConfig,
+    field: { selector: string; value: string },
+  ): Promise<void> {
     try {
-      const { selector, context } = await resolveFieldContext(this.activeLoginContext ?? pageOrFrame, fieldConfig, this.page.url());
+      const { selector, context } = await resolveFieldContext(
+        this.activeLoginContext ?? pageOrFrame,
+        fieldConfig,
+        this.page.url(),
+      );
       this.activeLoginContext = context;
       await fillInput(context, selector, field.value);
     } catch {

@@ -23,14 +23,37 @@ interface LeumiRawTransaction {
   Amount: number;
 }
 
-function mapOneTxn(rawTransaction: LeumiRawTransaction, status: TransactionStatuses, options?: ScraperOptions): Transaction {
+function buildTxnBase(rawTransaction: LeumiRawTransaction, status: TransactionStatuses, date: string): Transaction {
+  return {
+    status,
+    type: TransactionTypes.Normal,
+    date,
+    processedDate: date,
+    description: rawTransaction.Description || '',
+    identifier: rawTransaction.ReferenceNumberLong,
+    memo: rawTransaction.AdditionalData || '',
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: rawTransaction.Amount,
+    originalAmount: rawTransaction.Amount,
+  };
+}
+
+function mapOneTxn(
+  rawTransaction: LeumiRawTransaction,
+  status: TransactionStatuses,
+  options?: ScraperOptions,
+): Transaction {
   const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
-  const tx: Transaction = { status, type: TransactionTypes.Normal, date, processedDate: date, description: rawTransaction.Description || '', identifier: rawTransaction.ReferenceNumberLong, memo: rawTransaction.AdditionalData || '', originalCurrency: SHEKEL_CURRENCY, chargedAmount: rawTransaction.Amount, originalAmount: rawTransaction.Amount };
+  const tx = buildTxnBase(rawTransaction, status, date);
   if (options?.includeRawTransaction) tx.rawTransaction = getRawTransaction(rawTransaction);
   return tx;
 }
 
-function extractTransactionsFromPage(transactions: LeumiRawTransaction[], status: TransactionStatuses, options?: ScraperOptions): Transaction[] {
+function extractTransactionsFromPage(
+  transactions: LeumiRawTransaction[],
+  status: TransactionStatuses,
+  options?: ScraperOptions,
+): Transaction[] {
   if (!transactions || transactions.length === 0) return [];
   return transactions.map(rawTransaction => mapOneTxn(rawTransaction, status, options));
 }
@@ -71,33 +94,65 @@ async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
   await clickButton(page, "button[aria-label='סנן']");
 }
 
+type LeumiAccountResponse = {
+  BalanceDisplay?: string;
+  TodayTransactionsItems: LeumiRawTransaction[];
+  HistoryTransactionsItems: LeumiRawTransaction[];
+};
+
+function parseAccountResponse(responseJson: { jsonResp: string }): LeumiAccountResponse {
+  return JSON.parse(responseJson.jsonResp) as LeumiAccountResponse;
+}
+
+function buildTxnsFromResponse(response: LeumiAccountResponse, options: ScraperOptions): Transaction[] {
+  const pending = extractTransactionsFromPage(response.TodayTransactionsItems, TransactionStatuses.Pending, options);
+  const completed = extractTransactionsFromPage(
+    response.HistoryTransactionsItems,
+    TransactionStatuses.Completed,
+    options,
+  );
+  return [...pending, ...completed];
+}
+
 async function fetchTransactionsForAccount(opts: FetchForAccountOpts): Promise<TransactionsAccount> {
   const { page, startDate, accountId, options } = opts;
   await hangProcess(4000);
   await applyDateFilter(page, startDate);
-  const finalResponse = await page.waitForResponse(response => response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST');
-  const responseJson = await finalResponse.json() as { jsonResp: string };
+  const finalResponse = await page.waitForResponse(
+    response => response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
+  );
+  const response = parseAccountResponse((await finalResponse.json()) as { jsonResp: string });
   const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
-  const response = JSON.parse(responseJson.jsonResp) as { BalanceDisplay?: string; TodayTransactionsItems: LeumiRawTransaction[]; HistoryTransactionsItems: LeumiRawTransaction[] };
   const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
-  const pendingTxns = extractTransactionsFromPage(response.TodayTransactionsItems, TransactionStatuses.Pending, options);
-  const completedTxns = extractTransactionsFromPage(response.HistoryTransactionsItems, TransactionStatuses.Completed, options);
-  return { accountNumber, balance, txns: [...pendingTxns, ...completedTxns] };
+  return { accountNumber, balance, txns: buildTxnsFromResponse(response, options) };
 }
 
-async function fetchTransactions(page: Page, startDate: Moment, options: ScraperOptions): Promise<TransactionsAccount[]> {
+async function extractAccountIds(page: Page): Promise<string[]> {
+  const ids = (
+    await page.evaluate(() =>
+      Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
+    )
+  ).filter((id): id is string => id !== null);
+  if (!ids.length) throw new Error('Failed to extract or parse the account number');
+  return ids;
+}
+
+async function fetchTransactions(
+  page: Page,
+  startDate: Moment,
+  options: ScraperOptions,
+): Promise<TransactionsAccount[]> {
   await hangProcess(4000);
-  const accountsIds = (await page.evaluate(() =>
-    Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
-  )).filter((id): id is string => id !== null);
-  if (!accountsIds.length) throw new Error('Failed to extract or parse the account number');
+  const accountsIds = await extractAccountIds(page);
   const accounts: TransactionsAccount[] = [];
   for (const accountId of accountsIds) {
     if (accountsIds.length > 1) {
       await clickByXPath(page, 'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]');
       await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
     }
-    accounts.push(await fetchTransactionsForAccount({ page, startDate, accountId: removeSpecialCharacters(accountId), options }));
+    accounts.push(
+      await fetchTransactionsForAccount({ page, startDate, accountId: removeSpecialCharacters(accountId), options }),
+    );
   }
   return accounts;
 }

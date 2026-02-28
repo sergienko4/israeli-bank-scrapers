@@ -158,7 +158,9 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
 
 async function getExtraScrap(opts: ExtraScrapOpts): Promise<FetchedAccountTransactionsData> {
   const { txnsResult, baseUrl, page, accountNumber } = opts;
-  const res = await Promise.all(txnsResult.transactions.map(t => enrichOneTxn({ transaction: t, baseUrl, page, accountNumber })));
+  const res = await Promise.all(
+    txnsResult.transactions.map(t => enrichOneTxn({ transaction: t, baseUrl, page, accountNumber })),
+  );
   return { transactions: res };
 }
 
@@ -174,12 +176,22 @@ interface GetAccountTxnsOpts {
 }
 
 async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
-  const { apiSiteUrl, accountNumber, startDate, endDate, baseUrl, page, additionalTransactionInformation = false, options } = opts;
+  const {
+    apiSiteUrl,
+    accountNumber,
+    startDate,
+    endDate,
+    baseUrl,
+    page,
+    additionalTransactionInformation = false,
+    options,
+  } = opts;
   const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=1000&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=1`;
   const txnsResult = await fetchPoalimXSRFWithinPage(page, txnsUrl, '/current-account/transactions');
-  const finalResult = additionalTransactionInformation && txnsResult?.transactions.length
-    ? await getExtraScrap({ txnsResult, baseUrl, page, accountNumber })
-    : txnsResult;
+  const finalResult =
+    additionalTransactionInformation && txnsResult?.transactions.length
+      ? await getExtraScrap({ txnsResult, baseUrl, page, accountNumber })
+      : txnsResult;
   return convertTransactions(finalResult?.transactions ?? [], options);
 }
 
@@ -199,25 +211,55 @@ interface FetchOneAccountOpts {
   options: ScraperOptions;
 }
 
-async function fetchOneAccount(opts: FetchOneAccountOpts): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
+async function fetchOneAccount(
+  opts: FetchOneAccountOpts,
+): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
   const { page, baseUrl, apiSiteUrl, account, dateOpts, options } = opts;
   const accountNumber = `${account.bankNumber}-${account.branchNumber}-${account.accountNumber}`;
   debug('getting information for account %s', accountNumber);
   const balance = await getAccountBalance(apiSiteUrl, page, accountNumber);
-  const txns = await getAccountTransactions({ baseUrl, apiSiteUrl, page, accountNumber, startDate: dateOpts.startDateStr, endDate: dateOpts.endDateStr, additionalTransactionInformation: options.additionalTransactionInformation, options });
+  const txns = await getAccountTransactions({
+    baseUrl,
+    apiSiteUrl,
+    page,
+    accountNumber,
+    startDate: dateOpts.startDateStr,
+    endDate: dateOpts.endDateStr,
+    additionalTransactionInformation: options.additionalTransactionInformation,
+    options,
+  });
   return { accountNumber, balance, txns };
 }
 
-async function fetchAccountData(page: Page, baseUrl: string, options: ScraperOptions): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[] }> {
+async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAccountData> {
+  const accountsInfo =
+    (await fetchGetWithinPage<FetchedAccountData>(page, `${baseUrl}/ServerServices/general/accounts`)) || [];
+  const openAccountsInfo = accountsInfo.filter(account => account.accountClosingReasonCode === 0);
+  debug(
+    'got %d open accounts from %d total accounts, fetching txns and balance',
+    openAccountsInfo.length,
+    accountsInfo.length,
+  );
+  return openAccountsInfo;
+}
+
+async function fetchAccountData(
+  page: Page,
+  baseUrl: string,
+  options: ScraperOptions,
+): Promise<{
+  success: boolean;
+  accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[];
+}> {
   const restContext = await getRestContext(page);
   const apiSiteUrl = `${baseUrl}/${restContext}`;
-  const accountsInfo = (await fetchGetWithinPage<FetchedAccountData>(page, `${baseUrl}/ServerServices/general/accounts`)) || [];
-  const openAccountsInfo = accountsInfo.filter(account => account.accountClosingReasonCode === 0);
-  debug('got %d open accounts from %d total accounts, fetching txns and balance', openAccountsInfo.length, accountsInfo.length);
+  const openAccountsInfo = await fetchOpenAccounts(page, baseUrl);
   const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate || defaultStartMoment.toDate()));
   const dateOpts = { startDateStr: startMoment.format(DATE_FORMAT), endDateStr: moment().format(DATE_FORMAT) };
-  const accounts = await Promise.all(openAccountsInfo.map(acc => fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options })));
+  const accounts = await Promise.all(
+    openAccountsInfo.map(acc => fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options })),
+  );
   debug('fetching ended');
   return { success: true, accounts };
 }
@@ -233,7 +275,10 @@ class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.hapoalim]!);
   }
 
-  async fetchData(): Promise<{ success: boolean; accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[] }> {
+  async fetchData(): Promise<{
+    success: boolean;
+    accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[];
+  }> {
     return fetchAccountData(this.page, this.baseUrl, this.options);
   }
 }
