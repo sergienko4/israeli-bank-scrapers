@@ -4,11 +4,11 @@ import moment, { type Moment } from 'moment';
 import { type Transaction, TransactionTypes } from '../Transactions';
 
 function isNormalTransaction(txn: Transaction): boolean {
-  return !!txn && txn.type === TransactionTypes.Normal;
+  return txn.type === TransactionTypes.Normal;
 }
 
 function isInstallmentTransaction(txn: Transaction): boolean {
-  return !!txn && txn.type === TransactionTypes.Installments;
+  return txn.type === TransactionTypes.Installments;
 }
 
 function isNonInitialInstallmentTransaction(txn: Transaction): boolean {

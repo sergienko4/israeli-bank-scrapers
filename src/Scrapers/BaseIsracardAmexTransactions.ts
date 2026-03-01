@@ -43,7 +43,7 @@ export function convertCurrency(currencyStr: string): string {
 }
 
 export function getInstallmentsInfo(txn: ScrapedTransaction): TransactionInstallments | undefined {
-  if (!txn.moreInfo || !txn.moreInfo.includes(INSTALLMENTS_KEYWORD)) return undefined;
+  if (!txn.moreInfo?.includes(INSTALLMENTS_KEYWORD)) return undefined;
   const matches = txn.moreInfo.match(/\d+/g);
   if (!matches || matches.length < 2) return undefined;
   return { number: parseInt(matches[0], 10), total: parseInt(matches[1], 10) };
@@ -59,7 +59,7 @@ function buildTxnAmounts(
   const isOutbound = txn.dealSumOutbound;
   return {
     originalAmount: isOutbound ? -txn.dealSumOutbound : -txn.dealSum,
-    originalCurrency: convertCurrency(txn.currentPaymentCurrency ?? txn.currencyId),
+    originalCurrency: convertCurrency(txn.currentPaymentCurrency),
     chargedAmount: isOutbound ? -txn.paymentSumOutbound : -txn.paymentSum,
     chargedCurrency: convertCurrency(txn.currencyId),
   };
@@ -80,8 +80,8 @@ export function buildTransactionBase(
       : processedDate,
     ...buildTxnAmounts(txn),
     description: isOutbound ? txn.fullSupplierNameOutbound : txn.fullSupplierNameHeb,
-    memo: txn.moreInfo || '',
-    installments: getInstallmentsInfo(txn) || undefined,
+    memo: txn.moreInfo ?? '',
+    installments: getInstallmentsInfo(txn) ?? undefined,
     status: TransactionStatuses.Completed,
   };
 }
@@ -127,7 +127,7 @@ export function collectAccountTxns(opts: CollectTxnsOpts): Transaction[] {
     allTxns = filterOldTransactions(
       allTxns,
       startMoment,
-      options.shouldCombineInstallments || false,
+      options.shouldCombineInstallments ?? false,
     );
   return allTxns;
 }
@@ -136,14 +136,14 @@ export function buildAccountTxns(bOpts: BuildTxnsOpts): ScrapedAccountsWithIndex
   const { accounts, dataResult, options, startMoment } = bOpts;
   const accountTxns: ScrapedAccountsWithIndex = {};
   accounts.forEach(account => {
-    const txnGroups = (dataResult.CardsTransactionsListBean ?? {})[`Index${account.index}`]
-      ?.CurrentCardTransactions;
-    if (txnGroups)
-      accountTxns[account.accountNumber] = {
-        accountNumber: account.accountNumber,
-        index: account.index,
-        txns: collectAccountTxns({ txnGroups, account, options, startMoment }),
-      };
+    const txnGroups =
+      dataResult.CardsTransactionsListBean?.[`Index${account.index}`]?.CurrentCardTransactions;
+    if (!txnGroups) return;
+    accountTxns[account.accountNumber] = {
+      accountNumber: account.accountNumber,
+      index: account.index,
+      txns: collectAccountTxns({ txnGroups, account, options, startMoment }),
+    };
   });
   return accountTxns;
 }
@@ -266,6 +266,7 @@ export function combineTxnsFromResults(
   const combinedTxns: Record<string, Transaction[]> = {};
   finalResult.forEach(result => {
     Object.keys(result).forEach(accountNumber => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive guard for API responses
       if (!combinedTxns[accountNumber]) combinedTxns[accountNumber] = [];
       combinedTxns[accountNumber].push(...result[accountNumber].txns);
     });

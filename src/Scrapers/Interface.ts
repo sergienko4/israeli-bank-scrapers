@@ -173,7 +173,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
   /**
    * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
    */
-  optInFeatures?: Array<OptInFeatures>;
+  optInFeatures?: OptInFeatures[];
 
   /**
    * Called when an OTP/2FA screen is detected after login form submission.

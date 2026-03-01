@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
 
 import {
   elementPresentOnPage,
@@ -59,23 +59,32 @@ async function mizrahiPostAction(page: Page): Promise<void> {
 
 async function maxPreActionStep1(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '#closePopup'))
-    await page.$eval('#closePopup', el => (el as HTMLElement).click());
-  await page.$eval('.personal-area > a.go-to-personal-area', el => (el as HTMLElement).click());
+    await page.$eval('#closePopup', el => {
+      (el as HTMLElement).click();
+    });
+  await page.$eval('.personal-area > a.go-to-personal-area', el => {
+    (el as HTMLElement).click();
+  });
 }
 
 async function maxPreActionStep2(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '.login-link#private'))
-    await page.$eval('.login-link#private', el => (el as HTMLElement).click());
+    await page.$eval('.login-link#private', el => {
+      (el as HTMLElement).click();
+    });
   await waitUntilElementFound(page, '#login-password-link', { visible: true });
-  await page.$eval('#login-password-link', el => (el as HTMLElement).click());
+  await page.$eval('#login-password-link', el => {
+    (el as HTMLElement).click();
+  });
   await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
     visible: true,
   });
 }
 
-async function maxPreAction(page: Page): Promise<void> {
+async function maxPreAction(page: Page): Promise<Frame | undefined> {
   await maxPreActionStep1(page);
   await maxPreActionStep2(page);
+  return undefined;
 }
 
 async function maxPostAction(page: Page): Promise<void> {
@@ -93,7 +102,9 @@ async function yahavPostAction(page: Page): Promise<void> {
   await waitForNavigation(page);
   await waitUntilElementDisappear(page, '.loader');
   if (await elementPresentOnPage(page, '.messaging-links-container')) {
-    await page.$eval('.link-1', el => (el as HTMLElement).click());
+    await page.$eval('.link-1', el => {
+      (el as HTMLElement).click();
+    });
   }
   await Promise.race([
     waitUntilElementFound(page, '#AccountDetails'),
@@ -147,9 +158,9 @@ export const LEUMI_CONFIG: LoginConfig = {
         const msg = await pageEvalAll(opts.page, {
           selector: 'svg#Capa_1',
           defaultResult: '',
-          callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement)?.innerText,
+          callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement).innerText,
         });
-        return msg?.startsWith(LEUMI_INVALID_PASSWORD_MSG) ?? false;
+        return msg.startsWith(LEUMI_INVALID_PASSWORD_MSG);
       },
     ],
     accountBlocked: [
@@ -158,9 +169,9 @@ export const LEUMI_CONFIG: LoginConfig = {
         const msg = await pageEvalAll(opts.page, {
           selector: '.errHeader',
           defaultResult: '',
-          callback: el => (el[0] as HTMLElement)?.innerText,
+          callback: el => (el[0] as HTMLElement).innerText,
         });
-        return msg?.startsWith(LEUMI_ACCOUNT_BLOCKED_MSG) ?? false;
+        return msg.startsWith(LEUMI_ACCOUNT_BLOCKED_MSG);
       },
     ],
     changePassword: ['https://hb2.bankleumi.co.il/authenticate'],

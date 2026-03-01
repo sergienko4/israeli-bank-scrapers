@@ -123,7 +123,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     scrapeResult: ScraperScrapingResult,
   ): Promise<ScraperScrapingResult> {
     try {
-      await this.terminate(scrapeResult?.success === true);
+      await this.terminate(scrapeResult.success);
     } catch (e) {
       return createGenericError((e as Error).message);
     }

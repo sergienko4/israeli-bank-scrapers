@@ -90,7 +90,7 @@ function mockApiResponse(rows: MizrahiScrapedTxn[] = [], balance = '5000'): obje
   };
 }
 
-function mockDetailsResponse(fields: Array<{ Label: string; Value: string }>): object {
+function mockDetailsResponse(fields: { Label: string; Value: string }[]): object {
   return { body: { fields: [[{ Records: [{ Fields: fields }] }]] } };
 }
 

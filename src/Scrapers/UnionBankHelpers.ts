@@ -29,7 +29,10 @@ export interface ScrapedTransaction {
 
 export type TransactionTableHeaders = Record<string, number>;
 export type TransactionsTrTds = string[];
-export type TransactionsTr = { id: string; innerTds: TransactionsTrTds };
+export interface TransactionsTr {
+  id: string;
+  innerTds: TransactionsTrTds;
+}
 
 function getAmountData(amountStr: string): number {
   return parseFloat(amountStr.replace(',', ''));

@@ -10,7 +10,6 @@ import { extractCredentialKey, resolveFieldContext } from '../Helpers/SelectorRe
 import { sleep } from '../Helpers/Waiting';
 import { BaseScraper } from './BaseScraper';
 import {
-  createGeneralError,
   detectGenericInvalidPassword,
   getKeyByValue,
   LOGIN_RESULTS,
@@ -40,7 +39,7 @@ class BaseScraperWithBrowser<
 
   protected page!: Page;
 
-  private cleanups: Array<() => Promise<void>> = [];
+  private cleanups: (() => Promise<void>)[] = [];
 
   async initialize(): Promise<void> {
     await super.initialize();
@@ -59,10 +58,8 @@ class BaseScraperWithBrowser<
     waitUntil: WaitUntilState | undefined = 'load',
     retries = this.options.navigationRetryCount ?? 0,
   ): Promise<void> {
-    const response = await this.page?.goto(url, { waitUntil });
+    const response = await this.page.goto(url, { waitUntil });
     if (response === null) return;
-    if (!response)
-      throw new Error(`Error while trying to navigate to url ${url}, response is undefined`);
     if (response.ok()) return;
 
     const status = response.status();
@@ -90,12 +87,11 @@ class BaseScraperWithBrowser<
   }
 
   async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
-    if (!credentials || !this.page) return createGeneralError();
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
     await this.prepareLoginPage(loginOptions);
     let loginFrameOrPage: Page | Frame | null = this.page;
-    if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) || this.page;
+    if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
     await this.submitLoginForm(loginOptions, loginFrameOrPage);
     const earlyResult = await this.checkOtpAndNavigate(loginOptions);
     if (earlyResult !== null) return earlyResult;
@@ -117,15 +113,15 @@ class BaseScraperWithBrowser<
       DEBUG(`create a snapshot before terminated in ${this.options.storeFailureScreenShotPath}`);
       await this.page
         .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-        .catch(e => {
-          DEBUG('screenshot failed (page may be closed): %s', (e as Error).message?.slice(0, 80));
+        .catch((e: unknown) => {
+          DEBUG('screenshot failed (page may be closed): %s', (e as Error).message.slice(0, 80));
         });
     }
     await Promise.all(this.cleanups.reverse().map(safeCleanup));
     this.cleanups = [];
   }
 
-  protected getViewPort(): { width: number; height: number } | undefined {
+  getViewPort(): { width: number; height: number } | undefined {
     return this.options.viewportSize;
   }
 
@@ -310,7 +306,7 @@ class BaseScraperWithBrowser<
     const errorType =
       loginResult === LOGIN_RESULTS.InvalidPassword
         ? ScraperErrorTypes.InvalidPassword
-        : ScraperErrorTypes.General;
+        : ScraperErrorTypes.Generic;
     return { success: false, errorType, errorMessage: `Login failed with ${loginResult} error` };
   }
 

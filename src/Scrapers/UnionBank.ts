@@ -39,7 +39,7 @@ async function getTransactionsTableHeaders(
   const headersMap: Record<string, number> = {};
   const headersObjs = await pageEvalAll(page, {
     selector: `#WorkSpaceBox #${tableTypeId} tr[class='header'] th`,
-    defaultResult: [] as Array<{ text: string; index: number }>,
+    defaultResult: [] as { text: string; index: number }[],
     callback: ths =>
       ths.map((th, index) => ({ text: (th as HTMLElement).innerText.trim(), index })),
   });
@@ -55,7 +55,7 @@ async function scrapeTableRows(page: Page, tableTypeId: string): Promise<Transac
     defaultResult: [],
     callback: trs =>
       (trs as HTMLElement[]).map(tr => ({
-        id: tr.getAttribute('id') || '',
+        id: tr.getAttribute('id') ?? '',
         innerTds: Array.from(tr.getElementsByTagName('td')).map(
           td => (td as HTMLElement).innerText,
         ),
@@ -173,7 +173,10 @@ async function fetchAccounts(
   return accounts;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -182,7 +185,7 @@ class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     await this.navigateTo(TRANSACTIONS_URL);
     const accounts = await fetchAccounts(this.page, startMoment, this.options);

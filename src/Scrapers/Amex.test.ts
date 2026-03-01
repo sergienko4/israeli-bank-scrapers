@@ -22,7 +22,7 @@ jest.mock('../Helpers/Browser', () => ({ buildContextOptions: jest.fn().mockRetu
 jest.mock('../Helpers/Waiting', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(async (fns: Array<() => Promise<unknown>>) => {
+  runSerial: jest.fn(async (fns: (() => Promise<unknown>)[]) => {
     const results = [];
     for (const fn of fns) results.push(await fn());
     return results;

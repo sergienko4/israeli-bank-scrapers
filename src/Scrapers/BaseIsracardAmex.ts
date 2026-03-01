@@ -16,7 +16,11 @@ const ID_TYPE = '1';
 
 const DEBUG = getDebug('base-isracard-amex');
 
-type ScraperSpecificCredentials = { id: string; password: string; card6Digits: string };
+interface ScraperSpecificCredentials {
+  id: string;
+  password: string;
+  card6Digits: string;
+}
 
 class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
   private baseUrl: string;
@@ -54,7 +58,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     accounts: { accountNumber: string; txns: Transaction[] }[];
   }> {
     const defaultStartMoment = moment().subtract(1, 'years');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     return fetchAllTransactions({
       page: this.page,
@@ -83,8 +87,8 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
     });
-    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      DEBUG('validation failed: result=%s', JSON.stringify(result)?.substring(0, 300) ?? 'null');
+    if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
+      DEBUG('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
       return null;
     }
     return result.ValidateIdDataBean;

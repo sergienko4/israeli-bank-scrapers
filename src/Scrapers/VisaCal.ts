@@ -52,7 +52,10 @@ const SSO_AUTHORIZATION_REQUEST_ENDPOINT =
 
 const DEBUG = getDebug('visa-cal');
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
   private authorization: string | undefined = undefined;
@@ -76,16 +79,13 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return frame;
   };
 
-  async getCards(): Promise<Array<{ cardUniqueId: string; last4Digits: string }>> {
+  async getCards(): Promise<{ cardUniqueId: string; last4Digits: string }[]> {
     const initData = await waitUntil(
       () => getFromSessionStorage<InitResponse>(this.page, 'init'),
       'get init data in session storage',
       { timeout: 30000, interval: 1000 },
     );
-    if (!initData) {
-      throw new Error('could not find "init" data in session storage');
-    }
-    return initData?.result.cards.map(({ cardUniqueId, last4Digits }) => ({
+    return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
       cardUniqueId,
       last4Digits,
     }));
@@ -112,12 +112,12 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
     this.authRequestPromise = this.page
       .waitForRequest(SSO_AUTHORIZATION_REQUEST_ENDPOINT, { timeout: 10_000 })
-      .catch(e => {
+      .catch((e: unknown) => {
         DEBUG('error while waiting for the token request', e);
         return undefined;
       });
     return {
-      loginUrl: `${LOGIN_URL}`,
+      loginUrl: LOGIN_URL,
       fields: createLoginFields(credentials),
       submitButtonSelector: 'button[type="submit"]',
       possibleResults: getPossibleLoginResults(),
@@ -129,7 +129,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   async fetchData(): Promise<ScraperScrapingResult> {
     const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     DEBUG(`fetch transactions starting ${startMoment.format()}`);
     const cards = await this.getCards();
@@ -145,7 +145,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       const currentUrl = await getCurrentUrl(this.page);
       if (currentUrl.endsWith('site-tutorial')) await clickButton(this.page, 'button.btn-close');
       const request = await this.authRequestPromise;
-      this.authorization = String(request?.headers().authorization || '').trim();
+      this.authorization = (request?.headers().authorization ?? '').trim();
     } catch (e) {
       const currentUrl = await getCurrentUrl(this.page);
       if (currentUrl.endsWith('dashboard')) return;
@@ -173,9 +173,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
       hdrs,
     );
-    if (monthData?.statusCode !== 1)
+    if (monthData.statusCode !== 1)
       throw new Error(
-        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`,
+        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
       );
     if (!isCardTransactionDetails(monthData))
       throw new Error('monthData is not of type CardTransactionDetails');
@@ -190,9 +190,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
       CardPendingTransactionDetails | CardApiStatus
     >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
-    if (pendingData?.statusCode !== 1 && pendingData?.statusCode !== 96) {
+    if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
       DEBUG(
-        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData?.title || ''}`,
+        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
       );
       pendingData = null;
     } else if (!isCardPendingTransactionDetails(pendingData)) {
@@ -238,7 +238,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return filterOldTransactions(
       transactions,
       moment(startDate),
-      this.options.shouldCombineInstallments || false,
+      this.options.shouldCombineInstallments ?? false,
     );
   }
 
@@ -282,7 +282,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   private async fetchAllCardAccounts(
-    cards: Array<{ cardUniqueId: string; last4Digits: string }>,
+    cards: { cardUniqueId: string; last4Digits: string }[],
     ctx: {
       startDate: Date;
       startMoment: moment.Moment;

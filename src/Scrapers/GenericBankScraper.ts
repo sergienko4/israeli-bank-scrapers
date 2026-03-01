@@ -105,14 +105,10 @@ export abstract class GenericBankScraper<
     for (let i = 0; i < fields.length; i++) {
       const fieldConfig = this.fieldConfigs[i];
       const value = fields[i].value;
-      if (fieldConfig) {
-        await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
-          selector: fields[i].selector,
-          value,
-        });
-      } else {
-        await fillInput(this.activeLoginContext ?? pageOrFrame, fields[i].selector, value);
-      }
+      await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
+        selector: fields[i].selector,
+        value,
+      });
     }
   }
 

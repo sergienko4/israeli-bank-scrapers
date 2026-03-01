@@ -13,7 +13,7 @@ export async function waitForNavigation(
   pageOrFrame: Page | Frame,
   options?: WaitForOptions,
 ): Promise<void> {
-  await pageOrFrame.waitForNavigation(options);
+  await pageOrFrame.waitForURL('**', options);
 }
 
 export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {

@@ -96,7 +96,7 @@ const PENDING_COLUMN_TYPES = [
   { colClass: 'credit', index: 4 },
 ];
 
-function mockTransactionTable(rows: Array<{ innerTds: string[] }>): void {
+function mockTransactionTable(rows: { innerTds: string[] }[]): void {
   (pageEvalAll as jest.Mock)
     .mockResolvedValueOnce([]) // pending column types
     .mockResolvedValueOnce([]) // pending rows

@@ -15,14 +15,14 @@ jest.mock('./SelectorResolver', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
 
-type OtpMockPage = {
+interface OtpMockPage {
   evaluate: jest.Mock;
   frames: jest.Mock;
   mainFrame: jest.Mock;
   url: jest.Mock;
   click: jest.Mock;
   frameLocator: jest.Mock;
-};
+}
 
 function makePage(bodyText: string | undefined): OtpMockPage & Page {
   const mainFrame = {

@@ -185,7 +185,7 @@ async function fetchAccountDataBothUIs(
   options?: ScraperOptions,
 ): Promise<TransactionsAccount> {
   const frame = await getTransactionsFrame(page);
-  return fetchAccountData(frame || page, startDate, options);
+  return fetchAccountData(frame ?? page, startDate, options);
 }
 
 async function fetchAccounts(
@@ -203,7 +203,10 @@ async function fetchAccounts(
   return accounts;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   abstract BASE_URL: string;
@@ -211,10 +214,8 @@ abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpeci
   abstract TRANSACTIONS_URL: string;
 
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
-    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
     const startMomentLimit = moment({ year: 1600 });
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
-    const startMoment = moment.max(startMomentLimit, moment(startDate));
+    const startMoment = moment.max(startMomentLimit, moment(this.options.startDate));
     await this.navigateTo(this.TRANSACTIONS_URL);
     const accounts = await fetchAccounts(this.page, startMoment, this.options);
     return { success: true, accounts };

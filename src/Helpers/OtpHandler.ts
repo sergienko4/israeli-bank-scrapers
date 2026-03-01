@@ -73,7 +73,7 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
     if (!el) continue;
     await sleep(OTP_ANIMATION_DELAY_MS);
     try {
-      await frame.locator(sel).first().type(code, { delay: 80 });
+      await frame.locator(sel).first().pressSequentially(code, { delay: 80 });
       DEBUG('typed OTP code via locator.type() selector: %s', sel);
     } catch (e: unknown) {
       DEBUG('locator.type() failed (%O), falling back to evaluate injection', e);

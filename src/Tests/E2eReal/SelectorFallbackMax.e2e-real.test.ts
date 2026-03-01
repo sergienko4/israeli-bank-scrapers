@@ -55,6 +55,7 @@ const baseCfg: LoginConfig = {
     await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
       visible: true,
     });
+    return undefined;
   },
   postAction: async (page: Page) => {
     await Promise.race([

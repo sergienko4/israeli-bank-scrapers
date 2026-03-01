@@ -79,7 +79,9 @@ async function fillInput(
     // @ts-ignore
     inputElement.value = '';
   });
-  await pageOrFrame.type(inputSelector, inputValue, { delay: 50 + Math.random() * 100 });
+  await pageOrFrame
+    .locator(inputSelector)
+    .pressSequentially(inputValue, { delay: 50 + Math.random() * 100 });
 }
 
 async function setValue(
@@ -100,17 +102,14 @@ async function setValue(
 
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
   await humanDelay(200, 800);
-  await page.$eval(buttonSelector, el => (el as HTMLElement).click());
+  await page.$eval(buttonSelector, el => {
+    (el as HTMLElement).click();
+  });
 }
 
 async function clickLink(page: Page, aSelector: string): Promise<void> {
   await page.$eval(aSelector, (el: Element) => {
-    const htmlEl = el as HTMLElement & { click?: () => void };
-    if (!htmlEl || typeof htmlEl.click === 'undefined') {
-      return;
-    }
-
-    htmlEl.click();
+    (el as HTMLElement).click();
   });
 }
 

@@ -44,7 +44,7 @@ const mockBrowser = {
 const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
 function mockAccountsData(
-  accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }],
+  accounts: { AccountID: string }[] = [{ AccountID: '12-345-67890' }],
 ): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     UserAccountsData: {

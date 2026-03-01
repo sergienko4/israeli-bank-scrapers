@@ -3,7 +3,7 @@ import { type Page } from 'playwright';
 import { CompanyTypes } from '../Definitions';
 import { type ScraperOptions } from '../Scrapers/Interface';
 
-export type MockPage = {
+export interface MockPage {
   waitForSelector: jest.Mock;
   $eval: jest.Mock;
   $$eval: jest.Mock;
@@ -14,6 +14,7 @@ export type MockPage = {
   waitForFunction: jest.Mock;
   frames: jest.Mock;
   waitForNavigation: jest.Mock;
+  waitForURL: jest.Mock;
   waitForResponse: jest.Mock;
   waitForRequest: jest.Mock;
   url: jest.Mock;
@@ -28,9 +29,10 @@ export type MockPage = {
   screenshot: jest.Mock;
   close: jest.Mock;
   focus: jest.Mock;
+  locator?: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
-};
+}
 
 type MockOverrides = Partial<MockPage>;
 
@@ -46,6 +48,7 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
     waitForResponse: jest.fn().mockResolvedValue(undefined),
     url: jest.fn().mockReturnValue('https://example.com'),
     title: jest.fn().mockResolvedValue('Test Page'),
@@ -66,10 +69,10 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
   } as unknown as MockPage & Page;
 }
 
-type MockContext = {
+interface MockContext {
   newPage: jest.Mock;
   close: jest.Mock;
-};
+}
 
 export function createMockContext(page?: MockPage & Page): MockContext {
   return {
@@ -78,10 +81,10 @@ export function createMockContext(page?: MockPage & Page): MockContext {
   };
 }
 
-type MockBrowser = {
+interface MockBrowser {
   newContext: jest.Mock;
   close: jest.Mock;
-};
+}
 
 export function createMockBrowser(context?: MockContext): MockBrowser {
   const mockCtx = context ?? createMockContext();

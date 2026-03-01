@@ -114,7 +114,7 @@ export interface CardTransactionDetails extends CardApiStatus {
   statusDescription: string;
   statusTitle: string;
 }
-export interface CardPendingTransactionDetails extends CardTransactionDetailsError {
+export interface CardPendingTransactionDetails extends CardApiStatus {
   result: {
     cardsList: {
       cardUniqueID: string;
@@ -147,7 +147,7 @@ export interface AuthModule {
 
 export function isAuthModule(result: unknown): result is AuthModule {
   return Boolean(
-    (result as AuthModule)?.auth?.calConnectToken &&
+    (result as AuthModule).auth.calConnectToken &&
     String((result as AuthModule).auth.calConnectToken).trim(),
   );
 }
@@ -159,17 +159,17 @@ export function authModuleOrUndefined(result: unknown): AuthModule | undefined {
 export function isPending(
   transaction: ScrapedTransaction | ScrapedPendingTransaction,
 ): transaction is ScrapedPendingTransaction {
-  return (transaction as ScrapedTransaction).debCrdDate === undefined; // an arbitrary field that only appears in a completed transaction
+  return !('debCrdDate' in transaction); // debCrdDate only appears in completed transactions
 }
 
 export function isCardTransactionDetails(
-  result: CardTransactionDetails | CardTransactionDetailsError,
+  result: CardTransactionDetails | CardApiStatus,
 ): result is CardTransactionDetails {
-  return (result as CardTransactionDetails).result !== undefined;
+  return 'result' in result;
 }
 
 export function isCardPendingTransactionDetails(
-  result: CardPendingTransactionDetails | CardTransactionDetailsError,
+  result: CardPendingTransactionDetails | CardApiStatus,
 ): result is CardPendingTransactionDetails {
-  return (result as CardPendingTransactionDetails).result !== undefined;
+  return 'result' in result;
 }

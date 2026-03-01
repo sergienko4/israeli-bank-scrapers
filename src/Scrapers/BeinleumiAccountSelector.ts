@@ -19,9 +19,7 @@ async function isDropdownOpen(page: Page): Promise<boolean> {
   return page
     .$eval(DROPDOWN_PANEL_SELECTOR, el => {
       return (
-        el &&
-        window.getComputedStyle(el).display !== 'none' &&
-        (el as HTMLElement).offsetParent !== null
+        window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null
       );
     })
     .catch(() => false);
@@ -44,7 +42,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
   try {
     await ensureDropdownOpen(page);
     const accountLabels = await page.$$eval(OPTION_SELECTOR, options =>
-      options.map(option => option.textContent?.trim() || '').filter(label => label !== ''),
+      options.map(option => option.textContent.trim()).filter(label => label !== ''),
     );
     return accountLabels;
   } catch {
@@ -56,7 +54,6 @@ async function getAccountIdsOldUI(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const selectElement = document.getElementById('account_num_select');
     const options = selectElement ? selectElement.querySelectorAll('option') : [];
-    if (!options) return [];
     return Array.from(options, option => option.value);
   });
 }
@@ -70,10 +67,12 @@ export async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
 async function clickMatchingOption(page: Page, accountLabel: string): Promise<boolean> {
   const accountOptions = await page.$$(OPTION_SELECTOR);
   for (const option of accountOptions) {
-    const text = await page.evaluate(el => el.textContent?.trim(), option);
+    const text = await page.evaluate(el => el.textContent.trim(), option);
     if (text === accountLabel) {
       const optionHandle = await option.evaluateHandle(el => el as HTMLElement);
-      await page.evaluate((el: HTMLElement) => el.click(), optionHandle);
+      await page.evaluate((el: HTMLElement) => {
+        el.click();
+      }, optionHandle);
       return true;
     }
   }

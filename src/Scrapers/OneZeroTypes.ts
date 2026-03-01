@@ -1,24 +1,24 @@
-export type Category = {
+export interface Category {
   categoryId: number;
   dataSource: string;
   subCategoryId?: number | null;
-};
+}
 
-export type Recurrence = {
+export interface Recurrence {
   dataSource: string;
   isRecurrent: boolean;
-};
+}
 
-type TransactionEnrichment = {
+interface TransactionEnrichment {
   categories?: Category[] | null;
   recurrences?: Recurrence[] | null;
-};
+}
 
-export type OneZeroTransaction = {
+export interface OneZeroTransaction {
   enrichment?: TransactionEnrichment | null;
-};
+}
 
-export type Movement = {
+export interface Movement {
   accountId: string;
   bankCurrencyAmount: string;
   bookingDate: string;
@@ -36,24 +36,27 @@ export type Movement = {
   runningBalance: string;
   transaction?: OneZeroTransaction | null;
   valueDate: string;
-};
+}
 
-export type QueryPagination = { hasMore: boolean; cursor: string };
+export interface QueryPagination {
+  hasMore: boolean;
+  cursor: string;
+}
 
-export type Account = {
+export interface Account {
   accountId: string;
-};
+}
 
-export type Portfolio = {
-  accounts: Array<Account>;
+export interface Portfolio {
+  accounts: Account[];
   portfolioId: string;
   portfolioNum: string;
-};
+}
 
-export type Customer = {
+export interface Customer {
   customerId: string;
-  portfolios?: Array<Portfolio> | null;
-};
+  portfolios?: Portfolio[] | null;
+}
 
 export type ScraperSpecificCredentials = { email: string; password: string } & (
   | { otpCodeRetriever: () => Promise<string>; phoneNumber: string }

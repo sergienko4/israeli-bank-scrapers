@@ -126,8 +126,9 @@ describe('ConcreteGenericScraper', () => {
     it('uses preAction when provided', async () => {
       const preAction = jest.fn().mockResolvedValue(undefined);
       const config = makeLoginConfig({
-        preAction: async () => {
+        preAction: async _page => {
           await preAction();
+          return undefined;
         },
       });
       const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);

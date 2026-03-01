@@ -25,19 +25,14 @@ export async function getLoginFrame(page: Page): Promise<Frame> {
   DEBUG('wait until login frame found');
   await waitUntil(
     () => {
-      frame = page.frames().find(f => f.url().includes('connect')) || null;
+      frame = page.frames().find(f => f.url().includes('connect')) ?? null;
       return Promise.resolve(!!frame);
     },
     'wait for iframe with login form',
     { timeout: 45000, interval: 1000 },
   );
 
-  if (!frame) {
-    DEBUG('failed to find login frame for 45 seconds');
-    throw new Error('failed to extract login iframe');
-  }
-
-  return frame;
+  return frame!;
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
@@ -61,7 +56,7 @@ export async function hasChangePasswordForm(page: Page): Promise<boolean> {
 
 export function getPossibleLoginResults(): Record<
   string,
-  Array<string | RegExp | ((options?: { page?: Page }) => Promise<boolean>)>
+  (string | RegExp | ((options?: { page?: Page }) => Promise<boolean>))[]
 > {
   DEBUG('return possible login results');
   return {
@@ -78,7 +73,7 @@ export function getPossibleLoginResults(): Record<
 export function createLoginFields(credentials: {
   username: string;
   password: string;
-}): Array<{ selector: string; value: string }> {
+}): { selector: string; value: string }[] {
   DEBUG('create login fields for username and password');
   return [
     { selector: '[formcontrolname="userName"]', value: credentials.username },

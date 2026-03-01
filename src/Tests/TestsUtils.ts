@@ -98,9 +98,7 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
 
   let data: TransactionRow[] = [];
 
-  for (let i = 0; i < accounts.length; i += 1) {
-    const account = accounts[i];
-
+  for (const account of accounts) {
     data = [
       ...data,
       ...account.txns.map(txn => {

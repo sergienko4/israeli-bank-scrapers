@@ -77,12 +77,12 @@ function createHapoalimPage(): ReturnType<typeof createMockPage> {
 }
 
 function mockAccounts(
-  accounts: Array<{
+  accounts: {
     bankNumber: string;
     branchNumber: string;
     accountNumber: string;
     accountClosingReasonCode: number;
-  }> = [],
+  }[] = [],
 ): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
 }
@@ -111,12 +111,12 @@ function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrape
 }
 
 function setupLoginAndAccounts(
-  accounts: Array<{
+  accounts: {
     bankNumber: string;
     branchNumber: string;
     accountNumber: string;
     accountClosingReasonCode: number;
-  }> = [
+  }[] = [
     { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
   ],
 ): ReturnType<typeof createMockPage> {

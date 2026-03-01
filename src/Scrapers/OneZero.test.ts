@@ -39,11 +39,11 @@ function setupLongTermLogin(): void {
 }
 
 function mockCustomer(
-  portfolios: Array<{
+  portfolios: {
     portfolioId: string;
     portfolioNum: string;
-    accounts: Array<{ accountId: string }>;
-  }> = [],
+    accounts: { accountId: string }[];
+  }[] = [],
 ): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
@@ -87,7 +87,7 @@ interface OneZeroMovement {
   runningBalance: string;
   transaction: null | {
     enrichment?: {
-      recurrences?: Array<{ isRecurrent: boolean; dataSource?: string }> | null;
+      recurrences?: { isRecurrent: boolean; dataSource?: string }[] | null;
     } | null;
   };
   bankCurrencyAmount?: string;

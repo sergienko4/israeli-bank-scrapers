@@ -38,7 +38,7 @@ interface ScrapedTransaction {
 async function getAccountID(page: Page): Promise<string> {
   try {
     const selectedSnifAccount = await page.$eval(ACCOUNT_ID_SELECTOR, (element: Element) => {
-      return element.textContent ?? '';
+      return element.textContent;
     });
 
     return selectedSnifAccount;
@@ -61,7 +61,10 @@ function getTxnAmount(txn: ScrapedTransaction): number {
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
 }
 
-type TransactionsTr = { id: string; innerDivs: string[] };
+interface TransactionsTr {
+  id: string;
+  innerDivs: string[];
+}
 
 function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
   const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
@@ -111,7 +114,7 @@ async function scrapeTransactionDivs(page: Page): Promise<TransactionsTr[]> {
     defaultResult: [],
     callback: divs =>
       (divs as HTMLElement[]).map(div => ({
-        id: div.getAttribute('id') || '',
+        id: div.getAttribute('id') ?? '',
         innerDivs: Array.from(div.getElementsByTagName('div')).map(
           el => (el as HTMLElement).innerText,
         ),
@@ -211,7 +214,11 @@ async function fetchAccounts(
   return accounts;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string; nationalID: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+  nationalID: string;
+}
 
 class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -227,7 +234,7 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     });
 
     const defaultStartMoment = moment().subtract(3, 'months').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
 
     const accounts = await fetchAccounts(this.page, startMoment, this.options);

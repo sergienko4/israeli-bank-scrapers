@@ -20,7 +20,9 @@ export const ERROR_MESSAGE_CLASS = 'NO_DATA';
 
 export type TransactionsColsTypes = Record<string, number>;
 export type TransactionsTrTds = string[];
-export type TransactionsTr = { innerTds: TransactionsTrTds };
+export interface TransactionsTr {
+  innerTds: TransactionsTrTds;
+}
 
 export interface ScrapedTransaction {
   reference: string;
@@ -114,7 +116,7 @@ export async function getTransactionsColsTypeClasses(
   const result: TransactionsColsTypes = {};
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
-    defaultResult: [] as Array<{ colClass: string | null; index: number }>,
+    defaultResult: [] as { colClass: string | null; index: number }[],
     callback: tds => tds.map((td, index) => ({ colClass: td.getAttribute('class'), index })),
   });
   for (const typeClassObj of typeClassesObjs) {

@@ -53,11 +53,11 @@ type FetchedAccountData = {
   accountClosingReasonCode: number;
 }[];
 
-type FetchedAccountTransactionsData = {
+interface FetchedAccountTransactionsData {
   transactions: ScrapedTransaction[];
-};
+}
 
-type BalanceAndCreditLimit = {
+interface BalanceAndCreditLimit {
   creditLimitAmount: number;
   creditLimitDescription: string;
   creditLimitUtilizationAmount: number;
@@ -66,7 +66,7 @@ type BalanceAndCreditLimit = {
   currentAccountLimitsAmount: number;
   currentBalance: number;
   withdrawalBalance: number;
-};
+}
 
 function buildMemo(txn: ScrapedTransaction): string {
   if (!txn.beneficiaryDetailsData) return '';
@@ -90,7 +90,7 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
     originalAmount: amount,
     originalCurrency: 'ILS',
     chargedAmount: amount,
-    description: txn.activityDescription || '',
+    description: txn.activityDescription ?? '',
     status: txn.serialNumber === 0 ? TransactionStatuses.Pending : TransactionStatuses.Completed,
     memo: buildMemo(txn),
   };
@@ -153,7 +153,7 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
   const { pfmDetails, serialNumber } = transaction;
   if (serialNumber === 0) return transaction;
   const url = `${baseUrl}${pfmDetails}&accountId=${accountNumber}&lang=he`;
-  const extraDetails = (await fetchGetWithinPage<ScrapedPfmTransaction[]>(page, url)) || [];
+  const extraDetails = (await fetchGetWithinPage<ScrapedPfmTransaction[]>(page, url)) ?? [];
   if (extraDetails.length && extraDetails[0].transactionNumber) {
     return {
       ...transaction,
@@ -255,7 +255,7 @@ async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAc
     (await fetchGetWithinPage<FetchedAccountData>(
       page,
       `${baseUrl}/ServerServices/general/accounts`,
-    )) || [];
+    )) ?? [];
   const openAccountsInfo = accountsInfo.filter(account => account.accountClosingReasonCode === 0);
   DEBUG(
     'got %d open accounts from %d total accounts, fetching txns and balance',
@@ -267,10 +267,7 @@ async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAc
 
 function buildDateOpts(options: ScraperOptions): { startDateStr: string; endDateStr: string } {
   const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-  const startMoment = moment.max(
-    defaultStartMoment,
-    moment(options.startDate || defaultStartMoment.toDate()),
-  );
+  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   return {
     startDateStr: startMoment.format(DATE_FORMAT),
     endDateStr: moment().format(DATE_FORMAT),
@@ -298,12 +295,13 @@ async function fetchAccountData(
   return { success: true, accounts };
 }
 
-type ScraperSpecificCredentials = { userCode: string; password: string };
+interface ScraperSpecificCredentials {
+  userCode: string;
+  password: string;
+}
 
 class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  get baseUrl(): string {
-    return 'https://login.bankhapoalim.co.il';
-  }
+  readonly baseUrl = 'https://login.bankhapoalim.co.il';
 
   constructor(options: ScraperOptions) {
     super(options, BANK_REGISTRY[CompanyTypes.Hapoalim]!);

@@ -32,7 +32,7 @@ const baseCfg: LoginConfig = {
   ],
   preAction: async page => {
     await page.waitForTimeout(1000);
-    return;
+    return undefined;
   },
   postAction: async page => {
     await Promise.race([
