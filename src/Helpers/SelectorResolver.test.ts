@@ -7,7 +7,7 @@ import {
 } from './SelectorResolver';
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
 
-jest.mock('./debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));
 
 // ── Minimal Page/Frame mocks ─────────────────────────────────────────────────
 
