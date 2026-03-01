@@ -10,12 +10,12 @@ import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs'] },
+  { ignores: ['lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts'] },
 
   // Base configs
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
 
   // Prettier (disables formatting rules)
   prettier,
@@ -223,6 +223,10 @@ export default tseslint.config(
     ],
     rules: {
       'import/no-extraneous-dependencies': 'off',
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-deprecated': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
       'no-console': 'off',
       'no-warning-comments': 'off',
       'max-lines': 'off',

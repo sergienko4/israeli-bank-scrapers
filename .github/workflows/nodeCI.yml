@@ -17,8 +17,7 @@ on:
       - 'package-lock.json'
       - 'tsconfig.json'
       - 'tsconfig.build.json'
-      - '.babelrc.js'
-      - 'babel.config.js'
+      - 'tsup.config.ts'
       - 'jest.config.js'
       - 'eslint.config.mjs'
       - '.prettierrc.js'
@@ -100,14 +99,14 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
-      - run: npx rimraf lib
-      - run: npx tsc --emitDeclarationOnly
-      - run: npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
-      - run: npx rimraf lib/tests
+      - run: npx tsup
+      - run: npx rimraf lib/Helpers lib/Scrapers lib/Tests
       - name: Verify build output
         run: |
-          test -f lib/index.js || (echo "ERROR: lib/index.js not found" && exit 1)
+          test -f lib/index.cjs || (echo "ERROR: lib/index.cjs not found" && exit 1)
+          test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
           test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
+          test -f lib/index.d.mts || (echo "ERROR: lib/index.d.mts not found" && exit 1)
 
   security:
     name: CodeQL Security Scan
