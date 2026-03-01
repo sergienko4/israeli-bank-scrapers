@@ -24,9 +24,6 @@ const config = {
     '!Scrapers/*Fragments.ts',
     '!Scrapers/*Extra.ts',
     '!Scrapers/*Helpers.ts',
-    '!Scrapers/BeinleumiAccountSelector.ts',
-    '!Scrapers/BaseIsracardAmexTransactions.ts',
-    '!Scrapers/ConcreteGenericScraper.ts',
   ],
   coverageThreshold: {
     global: {
