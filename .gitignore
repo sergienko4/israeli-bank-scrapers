@@ -68,7 +68,10 @@ CLAUDE.md
 .idea
 .vscode
 .DS_Store
-.beinleumi-debug/
 .beinleumi-otp.tmp
 .onezero-otp.tmp
 /docs/
+
+# Local debug sessions, trace output, inspection scripts — never commit
+# All local work lives in local-debug/ (debug captures + scripts)
+local-debug/

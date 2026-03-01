@@ -1,5 +1,5 @@
 module.exports = {
-  printWidth: 120, // Matches existing max-len rule
+  printWidth: 100, // Matches max-len ESLint rule
   semi: true,
   singleQuote: true, // Common in airbnb style
   trailingComma: 'all',
