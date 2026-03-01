@@ -1,8 +1,0 @@
-{
-  "Header": { "Status": "1" },
-  "DashboardMonthBean": {
-    "cardsCharges": [
-      { "cardIndex": "0", "cardNumber": "4580-1234", "billingDate": "15/01/2026" }
-    ]
-  }
-}
