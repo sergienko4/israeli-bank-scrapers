@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.4.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.3.1...v7.4.0) (2026-03-01)
+
+
+### Features
+
+* **eslint+naming:** PascalCase file/folder convention, strict naming rules, generic login fix + Max domain fix ([#74](https://github.com/sergienko4/israeli-bank-scrapers/issues/74)) ([aecce66](https://github.com/sergienko4/israeli-bank-scrapers/commit/aecce667f5257212f0d37943b025f13a969bb5e3))
+
 ## [7.3.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.3.0...v7.3.1) (2026-02-28)
 
 
