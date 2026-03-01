@@ -12,8 +12,10 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../Tran
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import { type ScraperOptions } from './Interface';
 import {
+  type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
+  type FramesResponse,
   isPending,
   type ScrapedPendingTransaction,
   type ScrapedTransaction,
@@ -22,17 +24,17 @@ import {
 
 const DEBUG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';
+export const CONNECT_IFRAME_OPTS = {
+  timeout: 45000,
+  description: 'login iframe (connect.cal-online.co.il)',
+} as const;
 
-export async function getLoginFrame(page: Page): Promise<Frame> {
-  DEBUG('wait until login frame found');
-  return waitUntilIframeFound(page, f => f.url().includes('connect'), {
-    timeout: 45000,
-    description: 'login iframe (connect.cal-online.co.il)',
-  });
+export function isConnectFrame(f: Frame): boolean {
+  return f.url().includes('connect');
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
-  const frame = await getLoginFrame(page);
+  const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
   const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
   const errorMessage = isErrorFound
     ? await pageEval(frame, {
@@ -45,7 +47,7 @@ export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
 }
 
 export async function hasChangePasswordForm(page: Page): Promise<boolean> {
-  const frame = await getLoginFrame(page);
+  const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
   const isErrorFound = await elementPresentOnPage(frame, '.change-password-subtitle');
   return isErrorFound;
 }
@@ -206,5 +208,14 @@ export function convertParsedDataToTransactions(
 ): Transaction[] {
   return collectAllTransactions(data, pendingData).map(transaction =>
     mapOneTransaction(transaction, options),
+  );
+}
+
+export function findCardFrame(
+  frames: FramesResponse,
+  cardUniqueId: string,
+): CardLevelFrame | undefined {
+  return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
+    f => f.cardUniqueId === cardUniqueId,
   );
 }

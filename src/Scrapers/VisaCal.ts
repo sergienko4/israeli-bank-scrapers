@@ -2,7 +2,11 @@ import moment from 'moment';
 import { type Frame, type Request } from 'playwright';
 
 import { getDebug } from '../Helpers/Debug';
-import { clickButton, waitUntilElementFound } from '../Helpers/ElementsInteractions';
+import {
+  clickButton,
+  waitUntilElementFound,
+  waitUntilIframeFound,
+} from '../Helpers/ElementsInteractions';
 import { fetchPost } from '../Helpers/Fetch';
 import { getCurrentUrl, waitForNavigation } from '../Helpers/Navigation';
 import { getFromSessionStorage } from '../Helpers/Storage';
@@ -12,17 +16,18 @@ import { type TransactionsAccount } from '../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from './BaseScraperWithBrowser';
 import { type ScraperScrapingResult } from './Interface';
 import {
+  CONNECT_IFRAME_OPTS,
   convertParsedDataToTransactions,
   createLoginFields,
-  getLoginFrame,
+  findCardFrame,
   getPossibleLoginResults,
   hasChangePasswordForm,
+  isConnectFrame,
 } from './VisaCalHelpers';
 import {
   type AuthModule,
   authModuleOrUndefined,
   type CardApiStatus,
-  type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
   type FramesResponse,
@@ -68,7 +73,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     DEBUG('click on the login button');
     await clickButton(this.page, '#ccLoginDesktopBtn');
     DEBUG('get the frame that holds the login');
-    const frame = await getLoginFrame(this.page);
+    const frame = await waitUntilIframeFound(this.page, isConnectFrame, CONNECT_IFRAME_OPTS);
     DEBUG('wait until the password login tab header is available');
     await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
     DEBUG('navigate to the password login tab');
@@ -242,12 +247,6 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     );
   }
 
-  private findCardFrame(frames: FramesResponse, cardUniqueId: string): CardLevelFrame | undefined {
-    return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
-      f => f.cardUniqueId === cardUniqueId,
-    );
-  }
-
   private async buildCardTransactions(
     card: { cardUniqueId: string; last4Digits: string },
     ctx: { startDate: Date; startMoment: moment.Moment; hdrs: Record<string, string> },
@@ -271,7 +270,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       frames: FramesResponse;
     },
   ): Promise<TransactionsAccount> {
-    const frame = this.findCardFrame(ctx.frames, card.cardUniqueId);
+    const frame = findCardFrame(ctx.frames, card.cardUniqueId);
     const transactions = await this.buildCardTransactions(card, ctx);
     const txns = this.filterCardTxns(transactions, ctx.startDate);
     return {
