@@ -1,0 +1,24 @@
+{
+  "Header": { "Status": "1" },
+  "CardsTransactionsListBean": {
+    "Index0": {
+      "CurrentCardTransactions": [{
+        "txnIsrael": [{
+          "dealSumType": "0",
+          "voucherNumberRatz": "123456789",
+          "voucherNumberRatzOutbound": "000000001",
+          "dealSumOutbound": false,
+          "currencyId": "\u05e9\"\u05d7",
+          "currentPaymentCurrency": "\u05e9\"\u05d7",
+          "dealSum": 150.00,
+          "paymentSum": 150.00,
+          "paymentSumOutbound": 0,
+          "fullPurchaseDate": "10/01/2026",
+          "fullSupplierNameHeb": "\u05e1\u05d5\u05e4\u05e8 \u05e9\u05d5\u05e4",
+          "fullSupplierNameOutbound": "",
+          "moreInfo": ""
+        }]
+      }]
+    }
+  }
+}
