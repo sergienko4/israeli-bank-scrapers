@@ -86,7 +86,8 @@ export async function getKeyByValue(
 ): Promise<LoginResults> {
   const keys = Object.keys(object) as LoginResults[];
   for (const key of keys) {
-    const conditions = object[key]!;
+    const conditions = object[key];
+    if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
   return LOGIN_RESULTS.UnknownError;

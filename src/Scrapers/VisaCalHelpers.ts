@@ -21,18 +21,20 @@ const DEBUG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';
 
 export async function getLoginFrame(page: Page): Promise<Frame> {
-  let frame: Frame | null = null;
   DEBUG('wait until login frame found');
   await waitUntil(
-    () => {
-      frame = page.frames().find(f => f.url().includes('connect')) ?? null;
-      return Promise.resolve(!!frame);
-    },
+    () => Promise.resolve(page.frames().some(f => f.url().includes('connect'))),
     'wait for iframe with login form',
     { timeout: 45000, interval: 1000 },
   );
 
-  return frame!;
+  const frame = page.frames().find(f => f.url().includes('connect'));
+  if (!frame) {
+    DEBUG('login frame disappeared after detection');
+    throw new Error('failed to extract login iframe');
+  }
+
+  return frame;
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
