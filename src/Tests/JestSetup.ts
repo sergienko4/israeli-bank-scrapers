@@ -1,4 +1,5 @@
 import * as SourceMap from 'source-map-support';
+
 import { extendAsyncTimeout, getTestsConfig } from './TestsUtils';
 
 SourceMap.install();

@@ -1,14 +1,15 @@
 import moment from 'moment';
+
 import { ScraperProgressTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { humanDelay } from '../Helpers/Waiting';
 import { type Transaction } from '../Transactions';
+import { fetchAllTransactions } from './BaseIsracardAmexTransactions';
+import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
 import { BaseScraperWithBrowser } from './BaseScraperWithBrowser';
 import { ScraperErrorTypes, WafBlockError } from './Errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
-import { fetchAllTransactions } from './BaseIsracardAmexTransactions';
 
 const COUNTRY_CODE = '212';
 const ID_TYPE = '1';

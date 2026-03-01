@@ -1,16 +1,17 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
 import { v4 as uuid4 } from 'uuid';
+
+import { CompanyTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
 import {} from '../Helpers/Navigation';
+import { getRawTransaction } from '../Helpers/Transactions';
 import { waitUntil } from '../Helpers/Waiting';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions } from './Interface';
-import { getRawTransaction } from '../Helpers/Transactions';
 
 const DEBUG = getDebug('hapoalim');
 

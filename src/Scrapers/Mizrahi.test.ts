@@ -1,12 +1,13 @@
 import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
-import { fetchPostWithinPage } from '../Helpers/Fetch';
-import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
 import { buildContextOptions } from '../Helpers/Browser';
+import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import MizrahiScraper from './Mizrahi';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import MizrahiScraper from './Mizrahi';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));

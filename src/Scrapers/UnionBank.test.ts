@@ -1,16 +1,17 @@
 import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { buildContextOptions } from '../Helpers/Browser';
 import {
+  dropdownElements,
   elementPresentOnPage,
   pageEvalAll,
-  dropdownElements,
 } from '../Helpers/ElementsInteractions';
-import { buildContextOptions } from '../Helpers/Browser';
 import { getCurrentUrl } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import UnionBankScraper from './UnionBank';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import UnionBankScraper from './UnionBank';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/ElementsInteractions', () => ({

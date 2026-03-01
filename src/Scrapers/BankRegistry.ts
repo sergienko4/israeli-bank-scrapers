@@ -1,19 +1,20 @@
 import { type Page } from 'playwright';
+
 import { CompanyTypes } from '../Definitions';
 import { elementPresentOnPage, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { waitForNavigation } from '../Helpers/Navigation';
 import { sleep } from '../Helpers/Waiting';
-import { type LoginConfig } from './LoginConfig';
 import {
-  HAPOALIM_CONFIG,
-  LEUMI_CONFIG,
-  MIZRAHI_CONFIG,
-  UNION_CONFIG,
-  MAX_CONFIG,
   BEHATSDAA_CONFIG,
   BEYAHAD_CONFIG,
+  HAPOALIM_CONFIG,
+  LEUMI_CONFIG,
+  MAX_CONFIG,
+  MIZRAHI_CONFIG,
+  UNION_CONFIG,
   YAHAV_CONFIG,
 } from './BankRegistryExtra';
+import { type LoginConfig } from './LoginConfig';
 
 async function beinleumiPostAction(page: Page): Promise<void> {
   await Promise.race([

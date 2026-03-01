@@ -1,15 +1,16 @@
 import moment from 'moment/moment';
+
 import { getDebug } from '../Helpers/Debug';
 import { fetchGraphql, fetchPost } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import {
   type Transaction as ScrapingTransaction,
+  type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-  type TransactionsAccount,
 } from '../Transactions';
 import { BaseScraper } from './BaseScraper';
-import { ScraperErrorTypes, createGenericError } from './Errors';
+import { createGenericError, ScraperErrorTypes } from './Errors';
 import {
   type ScraperGetLongTermTwoFactorTokenResult,
   type ScraperLoginResult,

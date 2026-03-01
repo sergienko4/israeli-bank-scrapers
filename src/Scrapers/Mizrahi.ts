@@ -1,41 +1,42 @@
 import moment from 'moment';
 import { type Frame } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
+import { getDebug } from '../Helpers/Debug';
 import {
   pageEvalAll,
   waitUntilElementFound,
   waitUntilIframeFound,
 } from '../Helpers/ElementsInteractions';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
+import { getRawTransaction } from '../Helpers/Transactions';
 import {
   type Transaction,
+  type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-  type TransactionsAccount,
 } from '../Transactions';
-import { ScraperErrorTypes } from './Errors';
-import { getDebug } from '../Helpers/Debug';
-import { getRawTransaction } from '../Helpers/Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
+import { ScraperErrorTypes } from './Errors';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 import {
+  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   type ConvertOneRowOpts,
   type ConvertTxnsOpts,
-  type MoreDetails,
-  type ScrapedTransaction,
-  type ScrapedTransactionsResult,
-  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   createDataFromRequest,
   createHeadersFromRequest,
   GENERIC_DESCRIPTIONS,
   getExtraTransactionDetails,
   getStartMoment,
   getTransactionIdentifier,
+  type MoreDetails,
   OSH_PAGE,
   PENDING_TRANSACTIONS_IFRAME,
   PENDING_TRANSACTIONS_PAGE,
+  type ScrapedTransaction,
+  type ScrapedTransactionsResult,
   TRANSACTIONS_PAGE,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers';

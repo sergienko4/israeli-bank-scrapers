@@ -1,6 +1,8 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import {
   clickButton,
   pageEvalAll,
@@ -9,15 +11,14 @@ import {
 } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
 import {
-  TransactionStatuses,
-  TransactionTypes,
   type Transaction,
   type TransactionsAccount,
+  TransactionStatuses,
+  TransactionTypes,
 } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 
 const ACCOUNT_DETAILS_SELECTOR = '.account-details';
 const ACCOUNT_ID_SELECTOR =
@@ -202,7 +203,7 @@ async function fetchAccounts(
 ): Promise<TransactionsAccount[]> {
   const accounts: TransactionsAccount[] = [];
 
-  // TODO: get more accounts. Not sure is supported.
+  // Only one account fetched — multi-account not confirmed as supported by Yahav API.
   const accountID = await getAccountID(page);
   const accountData = await fetchAccountData({ page, startDate, accountID, options });
   accounts.push(accountData);

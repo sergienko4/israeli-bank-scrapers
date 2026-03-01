@@ -1,18 +1,19 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
 import {
-  TransactionStatuses,
-  TransactionTypes,
   type Transaction,
   type TransactionsAccount,
+  TransactionStatuses,
+  TransactionTypes,
 } from '../Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const BASE_URL = 'https://hb2.bankleumi.co.il';
 const TRANSACTIONS_URL = `${BASE_URL}/eBanking/SO/SPA.aspx#/ts/BusinessAccountTrx?WidgetPar=1`;

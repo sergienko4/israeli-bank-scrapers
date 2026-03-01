@@ -1,19 +1,20 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
 import { elementPresentOnPage, pageEval } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
 import { waitUntil } from '../Helpers/Waiting';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import { type ScraperOptions } from './Interface';
 import {
-  TrnTypeCode,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
+  isPending,
   type ScrapedPendingTransaction,
   type ScrapedTransaction,
-  isPending,
+  TrnTypeCode,
 } from './VisaCalTypes';
 
 const DEBUG = getDebug('visa-cal');

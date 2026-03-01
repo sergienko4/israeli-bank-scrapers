@@ -1,11 +1,11 @@
+import { createMockPage } from '../Tests/MockPage';
 import {
+  getCurrentUrl,
   waitForNavigation,
   waitForNavigationAndDomLoad,
-  getCurrentUrl,
   waitForRedirect,
   waitForUrl,
 } from './Navigation';
-import { createMockPage } from '../Tests/MockPage';
 
 function createNavMockPage(
   currentUrl = 'https://bank.co.il/login',

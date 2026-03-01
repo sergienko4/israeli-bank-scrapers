@@ -1,4 +1,5 @@
 import { type Page } from 'playwright';
+
 import { CompanyTypes } from '../Definitions';
 import { type ScraperOptions } from '../Scrapers/Interface';
 

@@ -7,11 +7,12 @@
  * All pages are served via Playwright route interception; no real network calls.
  */
 import { type Browser } from 'playwright';
+
 import { CompanyTypes } from '../../Definitions';
 import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
 import { ScraperErrorTypes } from '../../Scrapers/Errors';
 import { type LoginConfig } from '../../Scrapers/LoginConfig';
-import { getSharedBrowser, closeSharedBrowser } from './Helpers/BrowserFixture';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
 // ── Shared HTML fixtures ──────────────────────────────────────────────────────

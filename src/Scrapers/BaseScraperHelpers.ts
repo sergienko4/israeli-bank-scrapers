@@ -1,4 +1,5 @@
 import { type Frame, type Page } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
 import { type WaitUntilState } from '../Helpers/Navigation';
 import { ScraperErrorTypes } from './Errors';

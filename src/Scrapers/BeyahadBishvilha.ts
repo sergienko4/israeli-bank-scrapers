@@ -1,5 +1,6 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
+
 import {
   DOLLAR_CURRENCY,
   DOLLAR_CURRENCY_SYMBOL,
@@ -8,14 +9,14 @@ import {
   SHEKEL_CURRENCY,
   SHEKEL_CURRENCY_SYMBOL,
 } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../Helpers/ElementsInteractions';
-import { getRawTransaction, filterOldTransactions } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { filterOldTransactions, getRawTransaction } from '../Helpers/Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('beyahadBishvilha');
 

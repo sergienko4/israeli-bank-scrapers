@@ -1,5 +1,6 @@
 import moment from 'moment';
 import { type Frame, type Request } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
 import { clickButton, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { fetchPost } from '../Helpers/Fetch';
@@ -11,24 +12,24 @@ import { type TransactionsAccount } from '../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from './BaseScraperWithBrowser';
 import { type ScraperScrapingResult } from './Interface';
 import {
+  convertParsedDataToTransactions,
+  createLoginFields,
+  getLoginFrame,
+  getPossibleLoginResults,
+  hasChangePasswordForm,
+} from './VisaCalHelpers';
+import {
   type AuthModule,
+  authModuleOrUndefined,
   type CardApiStatus,
   type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
   type FramesResponse,
   type InitResponse,
-  authModuleOrUndefined,
   isCardPendingTransactionDetails,
   isCardTransactionDetails,
 } from './VisaCalTypes';
-import {
-  convertParsedDataToTransactions,
-  createLoginFields,
-  getPossibleLoginResults,
-  getLoginFrame,
-  hasChangePasswordForm,
-} from './VisaCalHelpers';
 
 const API_HEADERS = {
   'User-Agent':

@@ -1,15 +1,16 @@
 import _ from 'lodash';
 import moment from 'moment';
 import { type Page } from 'playwright';
+
+import { CompanyTypes } from '../Definitions';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
-import { GenericBankScraper } from './GenericBankScraper';
 import { ScraperErrorTypes } from './Errors';
-import { type LoginConfig } from './LoginConfig';
+import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
+import { type LoginConfig } from './LoginConfig';
 
 const BASE_URL = 'https://start.telebank.co.il';
 const DATE_FORMAT = 'YYYYMMDD';

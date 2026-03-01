@@ -1,6 +1,7 @@
 import { type Moment } from 'moment';
 import { type Page } from 'playwright';
-import { type TransactionsAccount, type Transaction } from '../Transactions';
+
+import { type Transaction, type TransactionsAccount } from '../Transactions';
 import { type ScraperOptions } from './Interface';
 
 export type CompanyServiceOptions = {

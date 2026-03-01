@@ -1,10 +1,10 @@
 import {
-  ScraperErrorTypes,
-  createTimeoutError,
   createGenericError,
+  createTimeoutError,
   createWafBlockedError,
-  WafBlockError,
   type ErrorResult,
+  ScraperErrorTypes,
+  WafBlockError,
 } from './Errors';
 
 describe('ScraperErrorTypes', () => {

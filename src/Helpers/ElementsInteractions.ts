@@ -1,4 +1,5 @@
 import { type Frame, type Page } from 'playwright';
+
 import { humanDelay, waitUntil } from './Waiting';
 
 export interface WaitOptions {

@@ -1,5 +1,6 @@
 import moment, { type Moment } from 'moment';
 import { type Frame, type Page } from 'playwright';
+
 import {
   clickButton,
   elementPresentOnPage,
@@ -8,27 +9,27 @@ import {
   waitUntilElementFound,
 } from '../Helpers/ElementsInteractions';
 import { waitForNavigation } from '../Helpers/Navigation';
-import { TransactionStatuses, type Transaction, type TransactionsAccount } from '../Transactions';
-import { GenericBankScraper } from './GenericBankScraper';
-import { type ScraperOptions } from './Interface';
+import { type Transaction, type TransactionsAccount, TransactionStatuses } from '../Transactions';
 import {
   getAccountIdsBothUIs,
   getTransactionsFrame,
   selectAccountFromDropdown,
 } from './BeinleumiAccountSelector';
+import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 export {
   clickAccountSelectorGetAccountIds,
   selectAccountFromDropdown,
 } from './BeinleumiAccountSelector';
 import {
-  type ScrapedTransaction,
-  type TransactionsTr,
+  convertTransactions,
   DATE_FORMAT,
   ERROR_MESSAGE_CLASS,
-  convertTransactions,
   extractTransaction,
   getTransactionsColsTypeClasses,
   isNoTransactionInDateRangeError,
+  type ScrapedTransaction,
+  type TransactionsTr,
 } from './BaseBeinleumiGroupHelpers';
 
 const ACCOUNTS_NUMBER = 'div.fibi_account span.acc_num';

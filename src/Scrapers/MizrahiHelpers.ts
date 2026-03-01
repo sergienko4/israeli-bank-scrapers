@@ -1,7 +1,8 @@
 import moment from 'moment';
 import { type Page, type Request } from 'playwright';
-import { fetchPostWithinPage } from '../Helpers/Fetch';
+
 import { getDebug } from '../Helpers/Debug';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('mizrahi');

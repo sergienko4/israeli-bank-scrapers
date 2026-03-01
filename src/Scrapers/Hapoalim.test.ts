@@ -1,12 +1,13 @@
 import { chromium } from 'playwright';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
+
 import { buildContextOptions } from '../Helpers/Browser';
-import { waitUntil } from '../Helpers/Waiting';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
+import { waitUntil } from '../Helpers/Waiting';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import HapoalimScraper from './Hapoalim';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import HapoalimScraper from './Hapoalim';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({

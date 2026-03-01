@@ -1,9 +1,10 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
+
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../Constants';
 import { elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { type ScraperOptions } from './Interface';
 
 export const DATE_FORMAT = 'DD/MM/YYYY';

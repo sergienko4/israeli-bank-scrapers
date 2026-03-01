@@ -1,20 +1,21 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import getAllMonthMoments from '../Helpers/Dates';
 import { getDebug } from '../Helpers/Debug';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import {
   filterOldTransactions,
   fixInstallments,
-  sortTransactionsByDate,
   getRawTransaction,
+  sortTransactionsByDate,
 } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('max');
 

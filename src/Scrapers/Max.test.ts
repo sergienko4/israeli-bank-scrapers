@@ -1,15 +1,16 @@
-import { chromium } from 'playwright';
 import moment from 'moment';
-import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../Constants';
-import { fetchGetWithinPage } from '../Helpers/Fetch';
+import { chromium } from 'playwright';
+
+import { DOLLAR_CURRENCY, SHEKEL_CURRENCY } from '../Constants';
 import { buildContextOptions } from '../Helpers/Browser';
-import { filterOldTransactions, fixInstallments } from '../Helpers/Transactions';
 import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
+import { filterOldTransactions, fixInstallments } from '../Helpers/Transactions';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import MaxScraper, { getMemo, type ScrapedTransaction } from './Max';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import MaxScraper, { getMemo, type ScrapedTransaction } from './Max';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({

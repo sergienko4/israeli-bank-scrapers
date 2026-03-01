@@ -1,18 +1,20 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { ALT_SHEKEL_CURRENCY, SHEKEL_CURRENCY, SHEKEL_CURRENCY_KEYWORD } from '../Constants';
+import getAllMonthMoments from '../Helpers/Dates';
 import { getDebug } from '../Helpers/Debug';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { filterOldTransactions, fixInstallments, getRawTransaction } from '../Helpers/Transactions';
 import { runSerial, sleep } from '../Helpers/Waiting';
 import {
-  TransactionStatuses,
-  TransactionTypes,
   type Transaction,
   type TransactionInstallments,
+  TransactionStatuses,
+  TransactionTypes,
 } from '../Transactions';
-import { type ScraperOptions } from './Interface';
+import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';
 import {
   type AdditionalInfoOpts,
   type BuildTxnsOpts,
@@ -25,8 +27,7 @@ import {
   type ScrapedTransaction,
   type ScrapedTransactionData,
 } from './BaseIsracardAmexTypes';
-import getAllMonthMoments from '../Helpers/Dates';
-import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';
+import { type ScraperOptions } from './Interface';
 
 const INSTALLMENTS_KEYWORD = 'תשלום';
 const DATE_FORMAT = 'DD/MM/YYYY';

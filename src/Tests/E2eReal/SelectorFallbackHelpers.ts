@@ -3,6 +3,7 @@
  * Imported by each per-bank test file (run in parallel by Jest).
  */
 import { type Page } from 'playwright';
+
 import { LOGIN_RESULTS } from '../../Scrapers/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Errors';
 

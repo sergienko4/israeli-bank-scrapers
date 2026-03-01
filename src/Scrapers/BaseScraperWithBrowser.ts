@@ -1,32 +1,33 @@
-import { chromium, type Browser, type Frame, type Page } from 'playwright';
+import { type Browser, chromium, type Frame, type Page } from 'playwright';
+
 import { ScraperProgressTypes } from '../Definitions';
-import { getDebug } from '../Helpers/Debug';
 import { buildContextOptions } from '../Helpers/Browser';
+import { getDebug } from '../Helpers/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../Helpers/Navigation';
+import { handleOtpStep } from '../Helpers/OtpHandler';
 import { extractCredentialKey, resolveFieldContext } from '../Helpers/SelectorResolver';
-import { type FieldConfig } from './LoginConfig';
 import { sleep } from '../Helpers/Waiting';
 import { BaseScraper } from './BaseScraper';
-import { ScraperErrorTypes } from './Errors';
 import {
-  type ScraperCredentials,
-  type ScraperScrapingResult,
-  type DefaultBrowserOptions,
-} from './Interface';
-import { handleOtpStep } from '../Helpers/OtpHandler';
-import {
+  createGeneralError,
+  detectGenericInvalidPassword,
+  getKeyByValue,
+  LOGIN_RESULTS,
   type LoginOptions,
   type LoginResults,
   type PossibleLoginResults,
-  LOGIN_RESULTS,
-  createGeneralError,
   safeCleanup,
-  detectGenericInvalidPassword,
-  getKeyByValue,
 } from './BaseScraperHelpers';
+import { ScraperErrorTypes } from './Errors';
+import {
+  type DefaultBrowserOptions,
+  type ScraperCredentials,
+  type ScraperScrapingResult,
+} from './Interface';
+import { type FieldConfig } from './LoginConfig';
 
-export { LOGIN_RESULTS, type LoginResults, type LoginOptions, type PossibleLoginResults };
+export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
 const DEBUG = getDebug('base-scraper-with-browser');
 

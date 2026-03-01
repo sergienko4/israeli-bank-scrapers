@@ -1,4 +1,5 @@
 import moment from 'moment';
+
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { createMockPage } from '../Tests/MockPage';
 import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';

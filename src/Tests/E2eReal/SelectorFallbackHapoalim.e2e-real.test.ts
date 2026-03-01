@@ -1,12 +1,13 @@
 /** Selector-fallback: Hapoalim — Round 2 (fallback CSS id) + Round 4 (iframe injection). */
 import { type Page } from 'playwright';
+
 import { CompanyTypes } from '../../Definitions';
+import { waitUntilElementFound } from '../../Helpers/ElementsInteractions';
+import { waitForRedirect } from '../../Helpers/Navigation';
 import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
 import { type LoginConfig } from '../../Scrapers/LoginConfig';
-import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './Helpers';
-import { waitForRedirect } from '../../Helpers/Navigation';
-import { waitUntilElementFound } from '../../Helpers/ElementsInteractions';
-import { VALID_REACHED_BANK, selectorErrorFor, injectFormByInput } from './SelectorFallbackHelpers';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
+import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('userCode', 'password');
 const BASE = 'https://login.bankhapoalim.co.il';

@@ -1,19 +1,20 @@
 import { chromium } from 'playwright';
-import { fetchPost } from '../Helpers/Fetch';
-import { getFromSessionStorage } from '../Helpers/Storage';
-import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+
 import { buildContextOptions } from '../Helpers/Browser';
-import { filterOldTransactions } from '../Helpers/Transactions';
+import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { fetchPost } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
+import { getFromSessionStorage } from '../Helpers/Storage';
+import { filterOldTransactions } from '../Helpers/Transactions';
 import { waitUntil } from '../Helpers/Waiting';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 import VisaCalScraper from './VisaCal';
 import {
-  TrnTypeCode,
-  type ScrapedTransaction,
   type ScrapedPendingTransaction,
+  type ScrapedTransaction,
+  TrnTypeCode,
 } from './VisaCalTypes';
-import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({ fetchPost: jest.fn() }));

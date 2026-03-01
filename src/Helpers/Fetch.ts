@@ -1,4 +1,5 @@
 import { type Page } from 'playwright';
+
 import { getDebug } from './Debug';
 
 const DEBUG = getDebug('fetch');

@@ -1,4 +1,5 @@
 import { type Frame, type Page } from 'playwright';
+
 import { waitUntil } from './Waiting';
 
 export type WaitUntilState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';

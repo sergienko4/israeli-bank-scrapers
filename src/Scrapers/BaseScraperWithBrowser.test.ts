@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { chromium, type BrowserContext, type Browser } from 'playwright';
+import { type Browser, type BrowserContext, chromium } from 'playwright';
+
 import { ScraperProgressTypes } from '../Definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation } from '../Helpers/Navigation';
 import {
-  createMockPage,
-  createMockContext,
   createMockBrowser,
+  createMockContext,
+  createMockPage,
   createMockScraperOptions,
 } from '../Tests/MockPage';
 import { BaseScraperWithBrowser, LOGIN_RESULTS, type LoginOptions } from './BaseScraperWithBrowser';

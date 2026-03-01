@@ -1,12 +1,13 @@
 import moment from 'moment';
+
+import { CompanyTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
 

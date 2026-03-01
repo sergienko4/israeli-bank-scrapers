@@ -1,8 +1,8 @@
-import { fetchPost, fetchGraphql } from '../Helpers/Fetch';
+import { fetchGraphql, fetchPost } from '../Helpers/Fetch';
 import { createMockScraperOptions } from '../Tests/MockPage';
-import OneZeroScraper from './OneZero';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import OneZeroScraper from './OneZero';
 
 jest.mock('../Helpers/Fetch', () => ({
   fetchPost: jest.fn(),

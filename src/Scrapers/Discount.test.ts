@@ -1,13 +1,13 @@
 import { chromium } from 'playwright';
-import { fetchGetWithinPage } from '../Helpers/Fetch';
-import { waitForNavigation } from '../Helpers/Navigation';
-import { waitUntilElementFound } from '../Helpers/ElementsInteractions';
+
 import { buildContextOptions } from '../Helpers/Browser';
+import { waitUntilElementFound } from '../Helpers/ElementsInteractions';
+import { fetchGetWithinPage } from '../Helpers/Fetch';
+import { getCurrentUrl, waitForNavigation } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import { getCurrentUrl } from '../Helpers/Navigation';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 import DiscountScraper from './Discount';
 import { ScraperErrorTypes } from './Errors';
-import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({

@@ -1,10 +1,10 @@
 /** Selector-fallback: Mizrahi — Round 2 (wrong CSS id → fallback CSS id). */
 import { CompanyTypes } from '../../Definitions';
+import { waitUntilElementDisappear } from '../../Helpers/ElementsInteractions';
 import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
 import { type LoginConfig } from '../../Scrapers/LoginConfig';
-import { SCRAPE_TIMEOUT, BROWSER_ARGS } from './Helpers';
-import { waitUntilElementDisappear } from '../../Helpers/ElementsInteractions';
-import { VALID_REACHED_BANK, selectorErrorFor } from './SelectorFallbackHelpers';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
+import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('username', 'password');
 

@@ -1,27 +1,28 @@
 import moment from 'moment';
+
 import { SHEKEL_CURRENCY } from '../Constants';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { filterOldTransactions, fixInstallments } from '../Helpers/Transactions';
 import { createMockPage } from '../Tests/MockPage';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
-import type { ScrapedTransaction } from './BaseIsracardAmexTypes';
-import {
-  convertCurrency,
-  getInstallmentsInfo,
-  buildTransactionBase,
-  buildTransaction,
-  filterValidTransactions,
-  convertTransactions,
-  collectAccountTxns,
-  buildAccountTxns,
-  fetchTransactionsForMonth,
-  combineTxnsFromResults,
-  fetchAllTransactions,
-  getAdditionalTransactionInformation,
-  getExtraScrapTransaction,
-  getExtraScrapAccount,
-} from './BaseIsracardAmexTransactions';
 import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';
+import {
+  buildAccountTxns,
+  buildTransaction,
+  buildTransactionBase,
+  collectAccountTxns,
+  combineTxnsFromResults,
+  convertCurrency,
+  convertTransactions,
+  fetchAllTransactions,
+  fetchTransactionsForMonth,
+  filterValidTransactions,
+  getAdditionalTransactionInformation,
+  getExtraScrapAccount,
+  getExtraScrapTransaction,
+  getInstallmentsInfo,
+} from './BaseIsracardAmexTransactions';
+import type { ScrapedTransaction } from './BaseIsracardAmexTypes';
 import type { ScraperOptions } from './Interface';
 
 jest.mock('../Helpers/Fetch', () => ({

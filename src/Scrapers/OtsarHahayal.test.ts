@@ -1,13 +1,13 @@
-import OtsarHahayalScraper from './OtsarHahayal';
+import { SCRAPERS } from '../Definitions';
 import {
-  maybeTestCompanyAPI,
+  exportTransactions,
   extendAsyncTimeout,
   getTestsConfig,
-  exportTransactions,
+  maybeTestCompanyAPI,
 } from '../Tests/TestsUtils';
-import { SCRAPERS } from '../Definitions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import type { ScraperOptions } from './Interface';
+import OtsarHahayalScraper from './OtsarHahayal';
 
 const COMPANY_ID = 'otsarHahayal'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();

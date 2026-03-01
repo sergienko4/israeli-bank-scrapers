@@ -1,7 +1,10 @@
-import { type ScraperCredentials, type ScraperScrapingResult } from './Interface';
 import { GenericBankScraper } from './GenericBankScraper';
+import {
+  type ScraperCredentials,
+  type ScraperOptions,
+  type ScraperScrapingResult,
+} from './Interface';
 import { type LoginConfig } from './LoginConfig';
-import { type ScraperOptions } from './Interface';
 
 /**
  * Concrete subclass of GenericBankScraper for testing or one-off use.

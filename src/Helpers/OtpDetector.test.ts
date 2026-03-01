@@ -1,9 +1,10 @@
 import { type Frame, type Page } from 'playwright';
+
 import {
+  clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
   findOtpSubmitSelector,
-  clickOtpTriggerIfPresent,
 } from './OtpDetector';
 
 jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));

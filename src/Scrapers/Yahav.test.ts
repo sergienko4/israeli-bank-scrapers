@@ -1,12 +1,13 @@
 import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
-import { elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
 import { buildContextOptions } from '../Helpers/Browser';
+import { elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
 import { getCurrentUrl } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import YahavScraper from './Yahav';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import YahavScraper from './Yahav';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/ElementsInteractions', () => ({

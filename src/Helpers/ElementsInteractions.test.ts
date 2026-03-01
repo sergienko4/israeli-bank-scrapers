@@ -1,19 +1,20 @@
+import { type Frame } from 'playwright';
+
+import { createMockPage } from '../Tests/MockPage';
 import {
-  waitUntilElementFound,
-  waitUntilElementDisappear,
-  fillInput,
-  setValue,
   clickButton,
   clickLink,
-  elementPresentOnPage,
-  dropdownSelect,
   dropdownElements,
+  dropdownSelect,
+  elementPresentOnPage,
+  fillInput,
   pageEval,
   pageEvalAll,
+  setValue,
+  waitUntilElementDisappear,
+  waitUntilElementFound,
   waitUntilIframeFound,
 } from './ElementsInteractions';
-import { createMockPage } from '../Tests/MockPage';
-import { type Frame } from 'playwright';
 
 describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {

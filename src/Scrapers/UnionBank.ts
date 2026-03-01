@@ -1,5 +1,7 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
+import { CompanyTypes } from '../Definitions';
 import {
   clickButton,
   dropdownElements,
@@ -10,22 +12,21 @@ import {
   waitUntilElementFound,
 } from '../Helpers/ElementsInteractions';
 import { waitForNavigation } from '../Helpers/Navigation';
-import { TransactionStatuses, type Transaction, type TransactionsAccount } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { type Transaction, type TransactionsAccount, TransactionStatuses } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 import {
-  type ScrapedTransaction,
-  type TransactionsTr,
   ACCOUNTS_DROPDOWN_SELECTOR,
   COMPLETED_TRANSACTIONS_TABLE_ID,
+  convertTransactions,
   DATE_FORMAT,
   ERROR_MESSAGE_CLASS,
+  handleTransactionRow,
   NO_TRANSACTION_IN_DATE_RANGE_TEXT,
   PENDING_TRANSACTIONS_TABLE_ID,
-  convertTransactions,
-  handleTransactionRow,
+  type ScrapedTransaction,
+  type TransactionsTr,
 } from './UnionBankHelpers';
 
 const BASE_URL = 'https://hb.unionbank.co.il';

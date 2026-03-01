@@ -10,10 +10,11 @@
  * Round 3 (WELL_KNOWN_SELECTORS) is what actually resolves each field.
  */
 import { type Browser } from 'playwright';
+
 import { CompanyTypes } from '../../Definitions';
 import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
 import { type LoginConfig } from '../../Scrapers/LoginConfig';
-import { getSharedBrowser, closeSharedBrowser } from './Helpers/BrowserFixture';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
 // ── Login page: inputs have Hebrew placeholders but NO matching CSS ids ────────

@@ -1,6 +1,7 @@
 import { type Frame, type Page } from 'playwright';
-import { getDebug } from './Debug';
+
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
+import { getDebug } from './Debug';
 
 const DEBUG = getDebug('selector-resolver');
 

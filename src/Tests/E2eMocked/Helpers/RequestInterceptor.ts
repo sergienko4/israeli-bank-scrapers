@@ -1,6 +1,6 @@
-import { type Page, type Request, type Route } from 'playwright';
 import fs from 'fs';
 import path from 'path';
+import { type Page, type Request, type Route } from 'playwright';
 
 interface MockRoute {
   match: string | RegExp;

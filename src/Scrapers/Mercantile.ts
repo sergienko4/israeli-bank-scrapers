@@ -1,7 +1,7 @@
 import { CompanyTypes } from '../Definitions';
-import { type ScraperOptions } from './Interface';
 import { BANK_REGISTRY } from './BankRegistry';
 import DiscountScraper from './Discount';
+import { type ScraperOptions } from './Interface';
 
 class MercantileScraper extends DiscountScraper {
   constructor(options: ScraperOptions) {

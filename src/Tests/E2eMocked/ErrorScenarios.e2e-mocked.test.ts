@@ -1,8 +1,9 @@
 import { type Browser } from 'playwright';
+
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../index';
 import { ScraperErrorTypes } from '../../Scrapers/Errors';
-import { getSharedBrowser, closeSharedBrowser } from './Helpers/BrowserFixture';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };

@@ -1,10 +1,11 @@
-import { type BrowserContext, type Browser, type Page } from 'playwright';
+import { type Browser, type BrowserContext, type Page } from 'playwright';
+
 import { type CompanyTypes, type ScraperProgressTypes } from '../Definitions';
 import { type TransactionsAccount } from '../Transactions';
 import { type ErrorResult, type ScraperErrorTypes, type WafErrorDetails } from './Errors';
 
-// TODO: Remove this type when the scraper 'factory' will return concrete scraper types
-// Instead of a generic interface (which in turn uses this type)
+// This union type exists because the scraper 'factory' returns a generic interface.
+// Refactor when the factory returns concrete scraper types instead.
 export type ScraperCredentials =
   | { userCode: string; password: string }
   | { username: string; password: string }

@@ -1,10 +1,11 @@
 import { chromium } from 'playwright';
-import { fetchPostWithinPage } from '../Helpers/Fetch';
+
 import { buildContextOptions } from '../Helpers/Browser';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import BehatsdaaScraper from './Behatsdaa';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import BehatsdaaScraper from './Behatsdaa';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));

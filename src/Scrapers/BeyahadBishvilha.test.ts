@@ -1,10 +1,11 @@
 import { chromium } from 'playwright';
+
+import { buildContextOptions } from '../Helpers/Browser';
 import { pageEval, pageEvalAll } from '../Helpers/ElementsInteractions';
 import { filterOldTransactions } from '../Helpers/Transactions';
-import { buildContextOptions } from '../Helpers/Browser';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import BeyahadBishvilhaScraper from './BeyahadBishvilha';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import BeyahadBishvilhaScraper from './BeyahadBishvilha';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/ElementsInteractions', () => ({

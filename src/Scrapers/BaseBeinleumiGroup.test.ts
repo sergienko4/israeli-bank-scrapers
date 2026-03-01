@@ -1,16 +1,17 @@
 import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
-import { clickButton, elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
-import { buildContextOptions } from '../Helpers/Browser';
-import { sleep } from '../Helpers/Waiting';
-import { getCurrentUrl } from '../Helpers/Navigation';
 import { CompanyTypes } from '../Definitions';
+import { buildContextOptions } from '../Helpers/Browser';
+import { clickButton, elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { sleep } from '../Helpers/Waiting';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import BeinleumiGroupBaseScraper from './BaseBeinleumiGroup';
-import { BANK_REGISTRY } from './BankRegistry';
-import { type ScraperOptions } from './Interface';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { BANK_REGISTRY } from './BankRegistry';
+import BeinleumiGroupBaseScraper from './BaseBeinleumiGroup';
+import { ScraperErrorTypes } from './Errors';
+import { type ScraperOptions } from './Interface';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/ElementsInteractions', () => ({
