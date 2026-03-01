@@ -44,7 +44,12 @@ export function createGenericError(errorMessage: string): ErrorResult {
 }
 
 export function createWafBlockedError(message: string, details?: WafErrorDetails): ErrorResult {
-  return { success: false, errorType: ScraperErrorTypes.WafBlocked, errorMessage: message, errorDetails: details };
+  return {
+    success: false,
+    errorType: ScraperErrorTypes.WafBlocked,
+    errorMessage: message,
+    errorDetails: details,
+  };
 }
 
 const WAF_SUGGESTIONS = {
@@ -71,7 +76,11 @@ export class WafBlockError extends Error {
       httpStatus,
       pageTitle,
       pageUrl,
-      suggestions: [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.residentialProxy, WAF_SUGGESTIONS.avoidRapidRetries],
+      suggestions: [
+        WAF_SUGGESTIONS.ipCooldown,
+        WAF_SUGGESTIONS.residentialProxy,
+        WAF_SUGGESTIONS.avoidRapidRetries,
+      ],
     });
   }
 

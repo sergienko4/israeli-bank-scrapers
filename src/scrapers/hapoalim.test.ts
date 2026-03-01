@@ -1,43 +1,45 @@
 import { chromium } from 'playwright';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
-import { buildContextOptions } from '../helpers/browser';
-import { waitUntil } from '../helpers/waiting';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import HapoalimScraper from './hapoalim';
-import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
+import { buildContextOptions } from '../Helpers/Browser';
+import { waitUntil } from '../Helpers/Waiting';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import HapoalimScraper from './Hapoalim';
+import { ScraperErrorTypes } from './Errors';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/fetch', () => ({
+jest.mock('../Helpers/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/navigation', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
+jest.mock('../Helpers/Navigation', () => ({
+  getCurrentUrl: jest
+    .fn()
+    .mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/waiting', () => ({
+jest.mock('../Helpers/Waiting', () => ({
   waitUntil: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
-jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+jest.mock('../Helpers/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -113,7 +115,9 @@ function setupLoginAndAccounts(
     branchNumber: string;
     accountNumber: string;
     accountClosingReasonCode: number;
-  }> = [{ bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 }],
+  }> = [
+    { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
+  ],
 ): ReturnType<typeof createMockPage> {
   const page = createHapoalimPage();
   mockContext.newPage.mockResolvedValue(page);
@@ -128,7 +132,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createHapoalimPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage');
+  (getCurrentUrl as jest.Mock).mockResolvedValue(
+    'https://login.bankhapoalim.co.il/portalserver/HomePage',
+  );
 });
 
 describe('login', () => {

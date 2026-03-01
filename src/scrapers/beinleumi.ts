@@ -1,7 +1,7 @@
-import { CompanyTypes } from '../definitions';
-import { type ScraperOptions } from './interface';
-import BeinleumiGroupBaseScraper from './base-beinleumi-group';
-import { BANK_REGISTRY } from './bank-registry';
+import { CompanyTypes } from '../Definitions';
+import { type ScraperOptions } from './Interface';
+import BeinleumiGroupBaseScraper from './BaseBeinleumiGroup';
+import { BANK_REGISTRY } from './BankRegistry';
 
 class BeinleumiScraper extends BeinleumiGroupBaseScraper {
   BASE_URL = 'https://online.fibi.co.il';
@@ -9,7 +9,7 @@ class BeinleumiScraper extends BeinleumiGroupBaseScraper {
   TRANSACTIONS_URL = `${this.BASE_URL}/wps/myportal/FibiMenu/Online/OnAccountMngment/OnBalanceTrans/PrivateAccountFlow`;
 
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.beinleumi]!);
+    super(options, BANK_REGISTRY[CompanyTypes.Beinleumi]!);
   }
 }
 

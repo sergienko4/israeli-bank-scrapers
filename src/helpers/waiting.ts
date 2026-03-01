@@ -22,22 +22,33 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
   ]);
 }
 
-function buildWaitPromise<T>(asyncTest: () => Promise<T>, interval: number): Promise<NonNullable<T>> {
+interface WaitCallbacks<T> {
+  resolve: (v: NonNullable<T>) => void;
+  reject: () => void;
+}
+
+function makeWaitTick<T>(
+  asyncTest: () => Promise<T>,
+  interval: number,
+  cbs: WaitCallbacks<T>,
+): () => void {
+  function wait(): void {
+    asyncTest()
+      .then(value => {
+        if (value) cbs.resolve(value as unknown as NonNullable<T>);
+        else setTimeout(wait, interval);
+      })
+      .catch(() => cbs.reject());
+  }
+  return wait;
+}
+
+function buildWaitPromise<T>(
+  asyncTest: () => Promise<T>,
+  interval: number,
+): Promise<NonNullable<T>> {
   return new Promise<NonNullable<T>>((resolve, reject) => {
-    function wait(): void {
-      asyncTest()
-        .then(value => {
-          if (value) {
-            resolve(value as unknown as NonNullable<T>);
-          } else {
-            setTimeout(wait, interval);
-          }
-        })
-        .catch(() => {
-          reject();
-        });
-    }
-    wait();
+    makeWaitTick(asyncTest, interval, { resolve, reject })();
   });
 }
 
@@ -66,7 +77,10 @@ export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unkn
 }
 
 export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
-  return actions.reduce((m, a) => m.then(async x => [...x, await a()]), Promise.resolve<T[]>(new Array<T>()));
+  return actions.reduce(
+    (m, a) => m.then(async x => [...x, await a()]),
+    Promise.resolve<T[]>(new Array<T>()),
+  );
 }
 
 export function sleep(ms: number): Promise<void> {

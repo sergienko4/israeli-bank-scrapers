@@ -1,5 +1,5 @@
-import IsracardAmexBaseScraper from './base-isracard-amex';
-import { type ScraperOptions } from './interface';
+import IsracardAmexBaseScraper from './BaseIsracardAmex';
+import { type ScraperOptions } from './Interface';
 
 const BASE_URL = 'https://digital.isracard.co.il';
 const COMPANY_CODE = '11';

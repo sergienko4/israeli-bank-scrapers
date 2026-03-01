@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { CompanyTypes } from '../definitions';
-import createScraper from './factory';
+import { CompanyTypes } from '../Definitions';
+import createScraper from './Factory';
 
 describe('Factory', () => {
   test('should return a scraper instance', () => {
     const scraper = createScraper({
-      companyId: CompanyTypes.hapoalim,
+      companyId: CompanyTypes.Hapoalim,
       startDate: new Date(),
     });
     expect(scraper).toBeDefined();

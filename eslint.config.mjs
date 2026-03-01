@@ -2,6 +2,7 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
 import unusedImports from 'eslint-plugin-unused-imports';
+import checkFile from 'eslint-plugin-check-file';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
@@ -23,6 +24,7 @@ export default tseslint.config(
     plugins: {
       import: importPlugin,
       'unused-imports': unusedImports,
+      'check-file': checkFile,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -90,6 +92,57 @@ export default tseslint.config(
       'import/no-unresolved': 'off', // TypeScript handles this
       'import/named': 'off', // TypeScript handles this
 
+      // ── Structural & naming ──────────────────────────────────────────────
+      'check-file/filename-naming-convention': [
+        'error',
+        { 'src/**/*.{ts,tsx}': 'PASCAL_CASE' },
+        { ignoreMiddleExtensions: true },
+      ],
+      'check-file/folder-naming-convention': ['error', { 'src/**/': 'PASCAL_CASE' }],
+
+      '@typescript-eslint/member-ordering': ['error', {
+        default: [
+          'public-static-field',
+          'protected-static-field',
+          'private-static-field',
+          'public-instance-field',
+          'protected-instance-field',
+          'private-instance-field',
+          'constructor',
+          'public-instance-method',
+          'protected-instance-method',
+          'private-instance-method',
+        ],
+      }],
+
+      '@typescript-eslint/naming-convention': [
+        'error',
+        { selector: 'typeLike', format: ['PascalCase'] },
+        {
+          selector: 'interface',
+          format: ['PascalCase'],
+          custom: { regex: '^I[A-Z]', match: false },
+        },
+        { selector: ['variable', 'function', 'method'], format: ['camelCase'] },
+        // Allow leading underscore on unused parameters (e.g. _credentials, _)
+        { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
+        {
+          selector: 'variable',
+          modifiers: ['const', 'global'],
+          format: ['UPPER_CASE'],
+          // Allow _PREFIXED_UPPER_CASE for throw-away destructured vars
+          leadingUnderscore: 'allow',
+        },
+        {
+          selector: 'variable',
+          types: ['boolean'],
+          // After prefix strip the remainder must be PascalCase: isOutbound → Outbound ✓
+          format: ['PascalCase'],
+          prefix: ['is', 'has', 'should', 'can', 'did', 'will'],
+        },
+        { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
+      ],
+
       // ── Clean Code limits ────────────────────────────────────────────────
       // All 'error' — lint-staged only lints changed files, so violations in
       // untouched legacy code don't block commits. Any file you touch must comply.
@@ -116,19 +169,66 @@ export default tseslint.config(
 
       // File length — 300 lines max (source files only; tests/mocks exempt below).
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+
+      // Explicit no-unused-vars off (handled by @typescript-eslint/no-unused-vars above).
+      'no-unused-vars': 'off',
+
+      // Max line length — matches Prettier printWidth.
+      // Strings/templates/regex/comments are excluded: they can't always be wrapped
+      // without degrading readability (URLs, error messages, regex patterns).
+      'max-len': [
+        'error',
+        {
+          code: 100,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreRegExpLiterals: true,
+          ignoreComments: true,
+        },
+      ],
     },
   },
 
-  // Test / spec / mock files — exempt from length limits.
-  // Tests have long 'it()' blocks by design; mocks contain fixture data.
+  // Test / spec / mock / config files — exempt from length, naming, and type-safety rules.
   {
-    files: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/tests/**/*.ts', '**/mocks/**/*.ts'],
+    files: [
+      'src/**/*.test.ts',
+      'src/**/*.spec.ts',
+      'src/Tests/**/*.ts',
+      '**/mocks/**/*.ts',
+      'eslint.config.mjs',
+    ],
     rules: {
       'import/no-extraneous-dependencies': 'off',
       'no-console': 'off',
       'max-lines': 'off',
       'max-lines-per-function': 'off',
+      'max-len': 'off',
       'max-classes-per-file': 'off',
+      'check-file/filename-naming-convention': 'off',
+      'check-file/folder-naming-convention': 'off',
+      '@typescript-eslint/naming-convention': 'off',
+      '@typescript-eslint/member-ordering': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
+  },
+
+  // Lowercase entry-point & reserved filenames — exempt from PascalCase filename rule.
+  {
+    files: [
+      'src/index.ts',
+      'src/scheduler.ts',
+      'src/**/index.ts',
+      'src/Utils/currency.ts',
+      'src/Utils/date.ts',
+    ],
+    rules: { 'check-file/filename-naming-convention': 'off' },
   },
 );

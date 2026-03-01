@@ -1,18 +1,18 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
 import { v4 as uuid4 } from 'uuid';
-import { getDebug } from '../helpers/debug';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
-import {} from '../helpers/navigation';
-import { waitUntil } from '../helpers/waiting';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../transactions';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
-import { type ScraperOptions } from './interface';
-import { getRawTransaction } from '../helpers/transactions';
+import { getDebug } from '../Helpers/Debug';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
+import {} from '../Helpers/Navigation';
+import { waitUntil } from '../Helpers/Waiting';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
+import { getRawTransaction } from '../Helpers/Transactions';
 
-const debug = getDebug('hapoalim');
+const DEBUG = getDebug('hapoalim');
 
 const DATE_FORMAT = 'YYYYMMDD';
 
@@ -119,15 +119,18 @@ async function fetchPoalimXSRFWithinPage(
   pageUuid: string,
 ): Promise<FetchedAccountTransactionsData | null> {
   const cookies = await page.context().cookies();
-  const XSRFCookie = cookies.find(cookie => cookie.name === 'XSRF-TOKEN');
+  const xsrfCookie = cookies.find(cookie => cookie.name === 'XSRF-TOKEN');
   const headers: Record<string, string> = {};
-  if (XSRFCookie != null) {
-    headers['X-XSRF-TOKEN'] = XSRFCookie.value;
+  if (xsrfCookie != null) {
+    headers['X-XSRF-TOKEN'] = xsrfCookie.value;
   }
   headers.pageUuid = pageUuid;
   headers.uuid = uuid4();
   headers['Content-Type'] = 'application/json;charset=UTF-8';
-  return fetchPostWithinPage<FetchedAccountTransactionsData>(page, url, { data: [], extraHeaders: headers });
+  return fetchPostWithinPage<FetchedAccountTransactionsData>(page, url, {
+    data: [],
+    extraHeaders: headers,
+  });
 }
 
 interface ExtraScrapOpts {
@@ -151,7 +154,11 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
   const url = `${baseUrl}${pfmDetails}&accountId=${accountNumber}&lang=he`;
   const extraDetails = (await fetchGetWithinPage<ScrapedPfmTransaction[]>(page, url)) || [];
   if (extraDetails.length && extraDetails[0].transactionNumber) {
-    return { ...transaction, referenceNumber: extraDetails[0].transactionNumber, additionalInformation: extraDetails };
+    return {
+      ...transaction,
+      referenceNumber: extraDetails[0].transactionNumber,
+      additionalInformation: extraDetails,
+    };
   }
   return transaction;
 }
@@ -159,7 +166,9 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
 async function getExtraScrap(opts: ExtraScrapOpts): Promise<FetchedAccountTransactionsData> {
   const { txnsResult, baseUrl, page, accountNumber } = opts;
   const res = await Promise.all(
-    txnsResult.transactions.map(t => enrichOneTxn({ transaction: t, baseUrl, page, accountNumber })),
+    txnsResult.transactions.map(t =>
+      enrichOneTxn({ transaction: t, baseUrl, page, accountNumber }),
+    ),
   );
   return { transactions: res };
 }
@@ -171,33 +180,42 @@ interface GetAccountTxnsOpts {
   accountNumber: string;
   startDate: string;
   endDate: string;
-  additionalTransactionInformation?: boolean;
+  shouldAddTransactionInformation?: boolean;
   options?: ScraperOptions;
 }
 
+async function enrichTxnsIfNeeded(
+  txnsResult: FetchedAccountTransactionsData | null,
+  opts: GetAccountTxnsOpts,
+): Promise<FetchedAccountTransactionsData | null> {
+  const { shouldAddTransactionInformation = false, baseUrl, page, accountNumber } = opts;
+  if (shouldAddTransactionInformation && txnsResult?.transactions.length)
+    return getExtraScrap({ txnsResult, baseUrl, page, accountNumber });
+  return txnsResult;
+}
+
 async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
-  const {
-    apiSiteUrl,
-    accountNumber,
-    startDate,
-    endDate,
-    baseUrl,
-    page,
-    additionalTransactionInformation = false,
-    options,
-  } = opts;
+  const { apiSiteUrl, accountNumber, startDate, endDate, page, options } = opts;
   const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=1000&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=1`;
-  const txnsResult = await fetchPoalimXSRFWithinPage(page, txnsUrl, '/current-account/transactions');
-  const finalResult =
-    additionalTransactionInformation && txnsResult?.transactions.length
-      ? await getExtraScrap({ txnsResult, baseUrl, page, accountNumber })
-      : txnsResult;
+  const txnsResult = await fetchPoalimXSRFWithinPage(
+    page,
+    txnsUrl,
+    '/current-account/transactions',
+  );
+  const finalResult = await enrichTxnsIfNeeded(txnsResult, opts);
   return convertTransactions(finalResult?.transactions ?? [], options);
 }
 
-async function getAccountBalance(apiSiteUrl: string, page: Page, accountNumber: string): Promise<number | undefined> {
+async function getAccountBalance(
+  apiSiteUrl: string,
+  page: Page,
+  accountNumber: string,
+): Promise<number | undefined> {
   const balanceAndCreditLimitUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details&lang=he`;
-  const balanceAndCreditLimit = await fetchGetWithinPage<BalanceAndCreditLimit>(page, balanceAndCreditLimitUrl);
+  const balanceAndCreditLimit = await fetchGetWithinPage<BalanceAndCreditLimit>(
+    page,
+    balanceAndCreditLimitUrl,
+  );
 
   return balanceAndCreditLimit?.currentBalance;
 }
@@ -216,7 +234,7 @@ async function fetchOneAccount(
 ): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
   const { page, baseUrl, apiSiteUrl, account, dateOpts, options } = opts;
   const accountNumber = `${account.bankNumber}-${account.branchNumber}-${account.accountNumber}`;
-  debug('getting information for account %s', accountNumber);
+  DEBUG('getting information for account %s', accountNumber);
   const balance = await getAccountBalance(apiSiteUrl, page, accountNumber);
   const txns = await getAccountTransactions({
     baseUrl,
@@ -225,7 +243,7 @@ async function fetchOneAccount(
     accountNumber,
     startDate: dateOpts.startDateStr,
     endDate: dateOpts.endDateStr,
-    additionalTransactionInformation: options.additionalTransactionInformation,
+    shouldAddTransactionInformation: options.shouldAddTransactionInformation,
     options,
   });
   return { accountNumber, balance, txns };
@@ -233,14 +251,29 @@ async function fetchOneAccount(
 
 async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAccountData> {
   const accountsInfo =
-    (await fetchGetWithinPage<FetchedAccountData>(page, `${baseUrl}/ServerServices/general/accounts`)) || [];
+    (await fetchGetWithinPage<FetchedAccountData>(
+      page,
+      `${baseUrl}/ServerServices/general/accounts`,
+    )) || [];
   const openAccountsInfo = accountsInfo.filter(account => account.accountClosingReasonCode === 0);
-  debug(
+  DEBUG(
     'got %d open accounts from %d total accounts, fetching txns and balance',
     openAccountsInfo.length,
     accountsInfo.length,
   );
   return openAccountsInfo;
+}
+
+function buildDateOpts(options: ScraperOptions): { startDateStr: string; endDateStr: string } {
+  const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
+  const startMoment = moment.max(
+    defaultStartMoment,
+    moment(options.startDate || defaultStartMoment.toDate()),
+  );
+  return {
+    startDateStr: startMoment.format(DATE_FORMAT),
+    endDateStr: moment().format(DATE_FORMAT),
+  };
 }
 
 async function fetchAccountData(
@@ -254,13 +287,13 @@ async function fetchAccountData(
   const restContext = await getRestContext(page);
   const apiSiteUrl = `${baseUrl}/${restContext}`;
   const openAccountsInfo = await fetchOpenAccounts(page, baseUrl);
-  const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-  const startMoment = moment.max(defaultStartMoment, moment(options.startDate || defaultStartMoment.toDate()));
-  const dateOpts = { startDateStr: startMoment.format(DATE_FORMAT), endDateStr: moment().format(DATE_FORMAT) };
+  const dateOpts = buildDateOpts(options);
   const accounts = await Promise.all(
-    openAccountsInfo.map(acc => fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options })),
+    openAccountsInfo.map(acc =>
+      fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options }),
+    ),
   );
-  debug('fetching ended');
+  DEBUG('fetching ended');
   return { success: true, accounts };
 }
 
@@ -272,7 +305,7 @@ class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   }
 
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.hapoalim]!);
+    super(options, BANK_REGISTRY[CompanyTypes.Hapoalim]!);
   }
 
   async fetchData(): Promise<{

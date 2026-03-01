@@ -1,16 +1,16 @@
 import { chromium } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
-import { fetchPostWithinPage } from '../helpers/fetch';
-import { elementPresentOnPage } from '../helpers/elements-interactions';
-import { buildContextOptions } from '../helpers/browser';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import MizrahiScraper from './mizrahi';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { SHEKEL_CURRENCY } from '../Constants';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
+import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { buildContextOptions } from '../Helpers/Browser';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import MizrahiScraper from './Mizrahi';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
@@ -21,18 +21,20 @@ jest.mock('../helpers/elements-interactions', () => ({
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
 }));
-jest.mock('../helpers/navigation', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard'),
+jest.mock('../Helpers/Navigation', () => ({
+  getCurrentUrl: jest
+    .fn()
+    .mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -114,7 +116,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMizrahiPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
+  (getCurrentUrl as jest.Mock).mockResolvedValue(
+    'https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard',
+  );
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
 
@@ -197,7 +201,7 @@ describe('fetchData', () => {
     );
 
     const scraper = new MizrahiScraper(
-      createMockScraperOptions({ optInFeatures: ['mizrahi:pendingIfTodayTransaction'] }),
+      createMockScraperOptions({ optInFeatures: ['mizrahi:isPendingIfTodayTransaction'] }),
     );
     const result = await scraper.scrape(CREDS);
 
@@ -209,7 +213,9 @@ describe('fetchData', () => {
       mockApiResponse([scrapedTxn({ MC02AsmahtaMekoritEZ: '' })]),
     );
 
-    const scraper = new MizrahiScraper(createMockScraperOptions({ optInFeatures: ['mizrahi:pendingIfNoIdentifier'] }));
+    const scraper = new MizrahiScraper(
+      createMockScraperOptions({ optInFeatures: ['mizrahi:pendingIfNoIdentifier'] }),
+    );
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
@@ -238,7 +244,9 @@ describe('fetchData', () => {
   });
 
   it('extracts balance from response', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(mockApiResponse([scrapedTxn()], '15000'));
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(
+      mockApiResponse([scrapedTxn()], '15000'),
+    );
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -262,6 +270,19 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
+  });
+
+  it('returns empty accounts when no accounts found in dropdown', async () => {
+    const page = createMizrahiPage();
+    page.$$.mockResolvedValue([]);
+    page.url.mockReturnValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
+    mockContext.newPage.mockResolvedValue(page);
+
+    const scraper = new MizrahiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+
+    expect(result.success).toBe(true);
+    expect(result.accounts).toHaveLength(0);
   });
 
   it('handles multiple accounts', async () => {
@@ -309,7 +330,7 @@ describe('fetchData', () => {
     expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Completed);
   });
 
-  it('fetches extra transaction details when additionalTransactionInformation enabled', async () => {
+  it('fetches extra transaction details when shouldAddTransactionInformation enabled', async () => {
     (fetchPostWithinPage as jest.Mock)
       .mockResolvedValueOnce(mockApiResponse([scrapedTxn({ MC02ShowDetailsEZ: '1' })])) // url 1
       .mockResolvedValueOnce(null) // url 2 (consumed by Promise.any)
@@ -320,7 +341,9 @@ describe('fetchData', () => {
         ]),
       ); // extra details fetch
 
-    const scraper = new MizrahiScraper(createMockScraperOptions({ additionalTransactionInformation: true }));
+    const scraper = new MizrahiScraper(
+      createMockScraperOptions({ shouldAddTransactionInformation: true }),
+    );
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].memo).toContain('John Doe');
@@ -328,9 +351,13 @@ describe('fetchData', () => {
   });
 
   it('skips extra details when MC02ShowDetailsEZ is not 1', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(mockApiResponse([scrapedTxn({ MC02ShowDetailsEZ: '0' })]));
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(
+      mockApiResponse([scrapedTxn({ MC02ShowDetailsEZ: '0' })]),
+    );
 
-    const scraper = new MizrahiScraper(createMockScraperOptions({ additionalTransactionInformation: true }));
+    const scraper = new MizrahiScraper(
+      createMockScraperOptions({ shouldAddTransactionInformation: true }),
+    );
     const result = await scraper.scrape(CREDS);
 
     expect(result.accounts![0].txns[0].memo).toBeUndefined();
@@ -342,7 +369,9 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(null) // consumed by Promise.any url 2
       .mockRejectedValueOnce(new Error('Network error'));
 
-    const scraper = new MizrahiScraper(createMockScraperOptions({ additionalTransactionInformation: true }));
+    const scraper = new MizrahiScraper(
+      createMockScraperOptions({ shouldAddTransactionInformation: true }),
+    );
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
@@ -390,7 +419,10 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(mockDetailsResponse([{ Label: 'חשבון', Value: '12345' }]));
 
     const scraper = new MizrahiScraper(
-      createMockScraperOptions({ additionalTransactionInformation: true, includeRawTransaction: true }),
+      createMockScraperOptions({
+        shouldAddTransactionInformation: true,
+        includeRawTransaction: true,
+      }),
     );
     const result = await scraper.scrape(CREDS);
 

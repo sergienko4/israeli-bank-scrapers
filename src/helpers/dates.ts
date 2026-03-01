@@ -1,6 +1,9 @@
 import moment, { type Moment } from 'moment';
 
-export default function getAllMonthMoments(startMoment: Moment | string, futureMonths?: number): Moment[] {
+export default function getAllMonthMoments(
+  startMoment: Moment | string,
+  futureMonths?: number,
+): Moment[] {
   let monthMoment = moment(startMoment).startOf('month');
 
   const allMonths: Moment[] = [];

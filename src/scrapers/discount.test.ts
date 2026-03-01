@@ -1,34 +1,36 @@
 import { chromium } from 'playwright';
-import { fetchGetWithinPage } from '../helpers/fetch';
-import { waitForNavigation } from '../helpers/navigation';
-import { waitUntilElementFound } from '../helpers/elements-interactions';
-import { buildContextOptions } from '../helpers/browser';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import { getCurrentUrl } from '../helpers/navigation';
-import DiscountScraper from './discount';
-import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { fetchGetWithinPage } from '../Helpers/Fetch';
+import { waitForNavigation } from '../Helpers/Navigation';
+import { waitUntilElementFound } from '../Helpers/ElementsInteractions';
+import { buildContextOptions } from '../Helpers/Browser';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import DiscountScraper from './Discount';
+import { ScraperErrorTypes } from './Errors';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/fetch', () => ({
+jest.mock('../Helpers/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/navigation', () => ({
+jest.mock('../Helpers/Navigation', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  getCurrentUrl: jest.fn().mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE'),
+  getCurrentUrl: jest
+    .fn()
+    .mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE'),
 }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -41,7 +43,9 @@ const mockBrowser = {
 
 const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
-function mockAccountsData(accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }]): void {
+function mockAccountsData(
+  accounts: Array<{ AccountID: string }> = [{ AccountID: '12-345-67890' }],
+): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     UserAccountsData: {
       DefaultAccountNumber: accounts[0].AccountID,
@@ -58,7 +62,11 @@ interface DiscountTxn {
   OperationDescriptionToDisplay: string;
 }
 
-function mockTransactions(txns: DiscountTxn[] = [], futureTxns: DiscountTxn[] = [], balance = 5000): void {
+function mockTransactions(
+  txns: DiscountTxn[] = [],
+  futureTxns: DiscountTxn[] = [],
+  balance = 5000,
+): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     CurrentAccountLastTransactions: {
       OperationEntry: txns,
@@ -83,7 +91,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE');
+  (getCurrentUrl as jest.Mock).mockResolvedValue(
+    'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
+  );
 });
 
 describe('login', () => {

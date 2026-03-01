@@ -1,5 +1,5 @@
 import moment from 'moment';
-import getAllMonthMoments from './dates';
+import getAllMonthMoments from './Dates';
 
 // Pin time to mid-month to avoid flakiness at month boundaries
 const NOW = new Date('2024-06-15T12:00:00.000Z');

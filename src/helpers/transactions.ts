@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
-import { TransactionTypes, type Transaction } from '../transactions';
+import { TransactionTypes, type Transaction } from '../Transactions';
 
 function isNormalTransaction(txn: Transaction): boolean {
   return !!txn && txn.type === TransactionTypes.Normal;
@@ -42,14 +42,15 @@ export function sortTransactionsByDate(txns: Transaction[]): Transaction[] {
 export function filterOldTransactions(
   txns: Transaction[],
   startMoment: Moment,
-  combineInstallments: boolean,
+  shouldCombineInstallments: boolean,
 ): Transaction[] {
   return txns.filter(txn => {
-    const combineNeededAndInitialOrNormal =
-      combineInstallments && (isNormalTransaction(txn) || isInitialInstallmentTransaction(txn));
+    const shouldCombineNeededAndInitialOrNormal =
+      shouldCombineInstallments &&
+      (isNormalTransaction(txn) || isInitialInstallmentTransaction(txn));
     return (
-      (!combineInstallments && startMoment.isSameOrBefore(txn.date)) ||
-      (combineNeededAndInitialOrNormal && startMoment.isSameOrBefore(txn.date))
+      (!shouldCombineInstallments && startMoment.isSameOrBefore(txn.date)) ||
+      (shouldCombineNeededAndInitialOrNormal && startMoment.isSameOrBefore(txn.date))
     );
   });
 }
@@ -83,7 +84,10 @@ function removeEmptyValues<T>(value: T): T {
  * - When called with one argument: returns cleaned data (common case for setting new raw transaction).
  * - When called with two arguments and transaction has rawTransaction: extends existing raw transaction.
  */
-export function getRawTransaction(data: unknown, transaction?: { rawTransaction?: unknown }): unknown {
+export function getRawTransaction(
+  data: unknown,
+  transaction?: { rawTransaction?: unknown },
+): unknown {
   const current = transaction?.rawTransaction;
   const cleaned = removeEmptyValues(data);
 

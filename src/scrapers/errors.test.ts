@@ -5,7 +5,7 @@ import {
   createWafBlockedError,
   WafBlockError,
   type ErrorResult,
-} from './errors';
+} from './Errors';
 
 describe('ScraperErrorTypes', () => {
   it('has all expected error types', () => {
@@ -74,7 +74,9 @@ describe('WafBlockError', () => {
     const error = WafBlockError.cloudflareTurnstile('Just a moment...', 'https://amex.co.il/login');
     expect(error.details.provider).toBe('cloudflare');
     expect(error.details.httpStatus).toBe(403);
-    expect(error.details.suggestions).toEqual(expect.arrayContaining([expect.stringContaining('Turnstile')]));
+    expect(error.details.suggestions).toEqual(
+      expect.arrayContaining([expect.stringContaining('Turnstile')]),
+    );
   });
 
   it('apiBlock includes pageTitle and responseSnippet separately', () => {

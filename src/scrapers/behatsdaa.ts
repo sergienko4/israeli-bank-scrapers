@@ -1,16 +1,16 @@
 import moment from 'moment';
-import { getDebug } from '../helpers/debug';
-import { fetchPostWithinPage } from '../helpers/fetch';
-import { getRawTransaction } from '../helpers/transactions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
+import { getDebug } from '../Helpers/Debug';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
+import { getRawTransaction } from '../Helpers/Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
 
 const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
 
-const debug = getDebug('behatsdaa');
+const DEBUG = getDebug('behatsdaa');
 
 type ScraperSpecificCredentials = { id: string; password: string };
 
@@ -57,7 +57,18 @@ function variantToTransaction(variant: Variant, options?: ScraperOptions): Trans
 
 class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.behatsdaa]!);
+    super(options, BANK_REGISTRY[CompanyTypes.Behatsdaa]!);
+  }
+
+  async fetchData(): Promise<ScraperScrapingResult> {
+    const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
+    if (!token) {
+      DEBUG('Token not found in local storage');
+      return { success: false, errorMessage: 'TokenNotFound' };
+    }
+    const res = await this.fetchWithToken(token);
+    DEBUG('Data fetched');
+    return this.buildAccountResult(res ?? {});
   }
 
   private async fetchWithToken(token: string): Promise<PurchaseHistoryResponse | null> {
@@ -66,23 +77,27 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
-    debug('Fetching data');
+    DEBUG('Fetching data');
     return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, PURCHASE_HISTORY_URL, {
       data: body,
-      extraHeaders: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json', organizationid: '20' },
+      extraHeaders: {
+        authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        organizationid: '20',
+      },
     });
   }
 
   private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
     if (res?.errorDescription || res?.data?.errorDescription) {
-      debug('Error fetching data', res.errorDescription || res.data?.errorDescription);
+      DEBUG('Error fetching data', res.errorDescription || res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
     if (!res?.data) {
-      debug('No data found');
+      DEBUG('No data found');
       return { success: false, errorMessage: 'NoData' };
     }
-    debug('Data fetched successfully');
+    DEBUG('Data fetched successfully');
     return {
       success: true,
       accounts: [
@@ -92,17 +107,6 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
         },
       ],
     };
-  }
-
-  async fetchData(): Promise<ScraperScrapingResult> {
-    const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
-    if (!token) {
-      debug('Token not found in local storage');
-      return { success: false, errorMessage: 'TokenNotFound' };
-    }
-    const res = await this.fetchWithToken(token);
-    debug('Data fetched');
-    return this.buildAccountResult(res ?? {});
   }
 }
 

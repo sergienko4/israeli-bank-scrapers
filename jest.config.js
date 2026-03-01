@@ -10,23 +10,23 @@ const config = {
     '^.+\\.ts$': ['ts-jest'],
   },
   setupFilesAfterEnv: [
-    './tests/jest-setup.ts',
+    './Tests/JestSetup.ts',
   ],
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', 'e2e-real/', 'e2e-mocked/'],
+  testPathIgnorePatterns: ['/node_modules/', 'E2eReal/', 'E2eMocked/'],
   collectCoverageFrom: [
     '**/*.ts',
-    '!tests/**',
+    '!Tests/**',
     '!**/*.test.ts',
     // Extracted helper/type/fragment files — covered via scraper integration tests,
     // not unit-tested directly. Excluded to avoid false coverage drops on refactoring.
-    '!scrapers/*-types.ts',
-    '!scrapers/*-fragments.ts',
-    '!scrapers/*-extra.ts',
-    '!scrapers/*-helpers.ts',
-    '!scrapers/beinleumi-account-selector.ts',
-    '!scrapers/base-isracard-amex-transactions.ts',
-    '!scrapers/concrete-generic-scraper.ts',
+    '!Scrapers/*Types.ts',
+    '!Scrapers/*Fragments.ts',
+    '!Scrapers/*Extra.ts',
+    '!Scrapers/*Helpers.ts',
+    '!Scrapers/BeinleumiAccountSelector.ts',
+    '!Scrapers/BaseIsracardAmexTransactions.ts',
+    '!Scrapers/ConcreteGenericScraper.ts',
   ],
   coverageThreshold: {
     global: {

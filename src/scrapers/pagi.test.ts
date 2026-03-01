@@ -1,9 +1,14 @@
-import { SCRAPERS } from '../definitions';
-import { exportTransactions, extendAsyncTimeout, getTestsConfig, maybeTestCompanyAPI } from '../tests/tests-utils';
-import { LoginResults } from './base-scraper-with-browser';
-import type { ScraperOptions } from './interface';
+import { SCRAPERS } from '../Definitions';
+import {
+  exportTransactions,
+  extendAsyncTimeout,
+  getTestsConfig,
+  maybeTestCompanyAPI,
+} from '../Tests/TestsUtils';
+import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
+import type { ScraperOptions } from './Interface';
 
-import PagiScraper from './pagi';
+import PagiScraper from './Pagi';
 
 const COMPANY_ID = 'pagi'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();
@@ -32,7 +37,7 @@ describe('Pagi legacy scraper', () => {
 
       expect(result).toBeDefined();
       expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LoginResults.InvalidPassword);
+      expect(result.errorType).toBe(LOGIN_RESULTS.InvalidPassword);
     },
   );
 
@@ -43,7 +48,9 @@ describe('Pagi legacy scraper', () => {
     };
 
     const scraper = new PagiScraper(options as unknown as ScraperOptions);
-    const result = await scraper.scrape(testsConfig.credentials.pagi as Parameters<typeof scraper.scrape>[0]);
+    const result = await scraper.scrape(
+      testsConfig.credentials.pagi as Parameters<typeof scraper.scrape>[0],
+    );
     expect(result).toBeDefined();
     const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
     expect(error).toBe('');

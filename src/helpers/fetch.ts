@@ -1,10 +1,15 @@
 import { type Page } from 'playwright';
-import { getDebug } from './debug';
+import { getDebug } from './Debug';
 
-const debug = getDebug('fetch');
+const DEBUG = getDebug('fetch');
 
 const JSON_CONTENT_TYPE = 'application/json';
-const WAF_BLOCK_PATTERNS = ['block automation', 'attention required', 'just a moment', 'access denied'] as const;
+const WAF_BLOCK_PATTERNS = [
+  'block automation',
+  'attention required',
+  'just a moment',
+  'access denied',
+] as const;
 
 function getJsonHeaders(): Record<string, string> {
   return {
@@ -25,15 +30,23 @@ export function detectWafBlock(status: number, body: string | null): string | nu
 
 function logResponseIssues(status: number, text: string | null, url: string): void {
   if (status !== 200 && status !== 204) {
-    debug('non-200 response: status=%d url=%s body=%s', status, url, text?.substring(0, 200) ?? 'empty');
+    DEBUG(
+      'non-200 response: status=%d url=%s body=%s',
+      status,
+      url,
+      text?.substring(0, 200) ?? 'empty',
+    );
   }
   const wafReason = detectWafBlock(status, text);
   if (wafReason) {
-    debug('WAF block detected: %s, url=%s', wafReason, url);
+    DEBUG('WAF block detected: %s, url=%s', wafReason, url);
   }
 }
 
-export async function fetchGet<TResult>(url: string, extraHeaders: Record<string, string>): Promise<TResult> {
+export async function fetchGet<TResult>(
+  url: string,
+  extraHeaders: Record<string, string>,
+): Promise<TResult> {
   let headers = getJsonHeaders();
   if (extraHeaders) {
     headers = Object.assign(headers, extraHeaders);
@@ -41,7 +54,9 @@ export async function fetchGet<TResult>(url: string, extraHeaders: Record<string
   const fetchResult = await fetch(url, { method: 'GET', headers });
 
   if (fetchResult.status !== 200) {
-    throw new Error(`sending a request to the institute server returned with status code ${fetchResult.status}`);
+    throw new Error(
+      `sending a request to the institute server returned with status code ${fetchResult.status}`,
+    );
   }
 
   return (await fetchResult.json()) as TResult;
@@ -107,16 +122,16 @@ export interface ParseGetOpts {
   result: string | null;
   status: number;
   url: string;
-  ignoreErrors: boolean;
+  shouldIgnoreErrors: boolean;
 }
 
 function parseGetResult<TResult>(opts: ParseGetOpts): TResult | null {
-  const { result, status, url, ignoreErrors } = opts;
+  const { result, status, url, shouldIgnoreErrors } = opts;
   if (result === null) return null;
   try {
     return JSON.parse(result) as TResult;
   } catch (e) {
-    if (!ignoreErrors) {
+    if (!shouldIgnoreErrors) {
       throw new Error(
         `fetchGetWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, result: ${result}, status: ${status}`,
       );
@@ -128,16 +143,16 @@ function parseGetResult<TResult>(opts: ParseGetOpts): TResult | null {
 export async function fetchGetWithinPage<TResult>(
   page: Page,
   url: string,
-  ignoreErrors = false,
+  shouldIgnoreErrors = false,
 ): Promise<TResult | null> {
   const [result, status] = await evaluateGet(page, url);
-  return parseGetResult<TResult>({ result, status, url, ignoreErrors });
+  return parseGetResult<TResult>({ result, status, url, shouldIgnoreErrors });
 }
 
 export interface FetchPostOptions {
   data: Record<string, unknown> | unknown[];
   extraHeaders?: Record<string, string>;
-  ignoreErrors?: boolean;
+  shouldIgnoreErrors?: boolean;
 }
 
 type PostEvalArgs = {
@@ -147,29 +162,34 @@ type PostEvalArgs = {
 };
 
 // NOTE: doPostFetch runs inside page.evaluate() (browser context).
-// All logic must be self-contained — no external function references.
-async function doPostFetch({
-  innerUrl,
-  innerData,
-  innerExtraHeaders,
-}: PostEvalArgs): Promise<readonly [string | null, number]> {
-  let response: Response | undefined;
+// Must be entirely self-contained — no external function references allowed.
+async function doPostFetch(args: PostEvalArgs): Promise<readonly [string | null, number]> {
+  const { innerUrl, innerData, innerExtraHeaders } = args;
+  let response: Response;
+
   try {
     response = await fetch(innerUrl, {
       method: 'POST',
       body: JSON.stringify(innerData as unknown),
       credentials: 'include',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', ...innerExtraHeaders },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        ...innerExtraHeaders,
+      },
     });
   } catch (e) {
     const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
-    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}, status: ${response?.status}`);
+    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}`);
   }
+
   if (response.status === 204) return [null, 204] as const;
   return [await response.text(), response.status] as const;
 }
 
-async function runPostEvaluate(page: Page, args: PostEvalArgs): Promise<readonly [string | null, number]> {
+async function runPostEvaluate(
+  page: Page,
+  args: PostEvalArgs,
+): Promise<readonly [string | null, number]> {
   return page.evaluate(doPostFetch, args);
 }
 
@@ -182,11 +202,11 @@ export interface ParsePostOpts {
 
 function parsePostResult<TResult>(pOpts: ParsePostOpts): TResult | null {
   const { text, status, url, opts } = pOpts;
-  const { data, extraHeaders = {}, ignoreErrors = false } = opts;
+  const { data, extraHeaders = {}, shouldIgnoreErrors = false } = opts;
   try {
     if (text !== null) return JSON.parse(text) as TResult;
   } catch (e) {
-    if (!ignoreErrors) {
+    if (!shouldIgnoreErrors) {
       throw new Error(
         `fetchPostWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, data: ${JSON.stringify(data)}, extraHeaders: ${JSON.stringify(extraHeaders)}, result: ${text}, status: ${status}`,
       );

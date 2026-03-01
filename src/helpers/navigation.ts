@@ -1,5 +1,5 @@
 import { type Frame, type Page } from 'playwright';
-import { waitUntil } from './waiting';
+import { waitUntil } from './Waiting';
 
 export type WaitUntilState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
 
@@ -8,7 +8,10 @@ interface WaitForOptions {
   timeout?: number;
 }
 
-export async function waitForNavigation(pageOrFrame: Page | Frame, options?: WaitForOptions): Promise<void> {
+export async function waitForNavigation(
+  pageOrFrame: Page | Frame,
+  options?: WaitForOptions,
+): Promise<void> {
   await pageOrFrame.waitForNavigation(options);
 }
 
@@ -16,8 +19,11 @@ export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
 }
 
-export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false): Promise<string> | string {
-  if (clientSide) {
+export function getCurrentUrl(
+  pageOrFrame: Page | Frame,
+  isClientSide = false,
+): Promise<string> | string {
+  if (isClientSide) {
     return pageOrFrame.evaluate(() => window.location.href);
   }
 
@@ -26,17 +32,20 @@ export function getCurrentUrl(pageOrFrame: Page | Frame, clientSide = false): Pr
 
 export interface WaitForRedirectOptions {
   timeout?: number;
-  clientSide?: boolean;
+  isClientSide?: boolean;
   ignoreList?: string[];
 }
 
-export async function waitForRedirect(pageOrFrame: Page | Frame, opts: WaitForRedirectOptions = {}): Promise<void> {
-  const { timeout = 20000, clientSide = false, ignoreList = [] } = opts;
-  const initial = await getCurrentUrl(pageOrFrame, clientSide);
+export async function waitForRedirect(
+  pageOrFrame: Page | Frame,
+  opts: WaitForRedirectOptions = {},
+): Promise<void> {
+  const { timeout = 20000, isClientSide = false, ignoreList = [] } = opts;
+  const initial = await getCurrentUrl(pageOrFrame, isClientSide);
 
   await waitUntil(
     async () => {
-      const current = await getCurrentUrl(pageOrFrame, clientSide);
+      const current = await getCurrentUrl(pageOrFrame, isClientSide);
       return current !== initial && !ignoreList.includes(current);
     },
     `waiting for redirect from ${initial}`,
@@ -46,7 +55,7 @@ export async function waitForRedirect(pageOrFrame: Page | Frame, opts: WaitForRe
 
 export interface WaitForUrlOptions {
   timeout?: number;
-  clientSide?: boolean;
+  isClientSide?: boolean;
 }
 
 export async function waitForUrl(
@@ -54,10 +63,10 @@ export async function waitForUrl(
   url: string | RegExp,
   opts: WaitForUrlOptions = {},
 ): Promise<void> {
-  const { timeout = 20000, clientSide = false } = opts;
+  const { timeout = 20000, isClientSide = false } = opts;
   await waitUntil(
     async () => {
-      const current = await getCurrentUrl(pageOrFrame, clientSide);
+      const current = await getCurrentUrl(pageOrFrame, isClientSide);
       return url instanceof RegExp ? url.test(current) : url === current;
     },
     `waiting for url to be ${url}`,

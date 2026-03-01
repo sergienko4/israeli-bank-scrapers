@@ -1,6 +1,11 @@
 import moment from 'moment';
-import { TransactionTypes, TransactionStatuses, type Transaction } from '../transactions';
-import { fixInstallments, sortTransactionsByDate, filterOldTransactions, getRawTransaction } from './transactions';
+import { TransactionTypes, TransactionStatuses, type Transaction } from '../Transactions';
+import {
+  fixInstallments,
+  sortTransactionsByDate,
+  filterOldTransactions,
+  getRawTransaction,
+} from './Transactions';
 
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -90,7 +95,7 @@ describe('sortTransactionsByDate', () => {
 describe('filterOldTransactions', () => {
   const startMoment = moment('2024-02-01');
 
-  it('filters out transactions before start date when combineInstallments is false', () => {
+  it('filters out transactions before start date when shouldCombineInstallments is false', () => {
     const txns = [
       createTransaction({ date: '2024-01-01T00:00:00.000Z' }),
       createTransaction({ date: '2024-02-15T00:00:00.000Z' }),
@@ -106,9 +111,13 @@ describe('filterOldTransactions', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('with combineInstallments keeps normal and initial installments only', () => {
+  it('with shouldCombineInstallments keeps normal and initial installments only', () => {
     const txns = [
-      createTransaction({ date: '2024-02-15T00:00:00.000Z', type: TransactionTypes.Normal, description: 'Normal' }),
+      createTransaction({
+        date: '2024-02-15T00:00:00.000Z',
+        type: TransactionTypes.Normal,
+        description: 'Normal',
+      }),
       createTransaction({
         date: '2024-02-15T00:00:00.000Z',
         type: TransactionTypes.Installments,
@@ -128,8 +137,10 @@ describe('filterOldTransactions', () => {
     expect(result[1].installments?.number).toBe(1);
   });
 
-  it('with combineInstallments still filters old normal transactions', () => {
-    const txns = [createTransaction({ date: '2024-01-01T00:00:00.000Z', type: TransactionTypes.Normal })];
+  it('with shouldCombineInstallments still filters old normal transactions', () => {
+    const txns = [
+      createTransaction({ date: '2024-01-01T00:00:00.000Z', type: TransactionTypes.Normal }),
+    ];
     const result = filterOldTransactions(txns, startMoment, true);
     expect(result).toHaveLength(0);
   });

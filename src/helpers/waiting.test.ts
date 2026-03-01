@@ -1,4 +1,12 @@
-import { TimeoutError, waitUntil, raceTimeout, runSerial, sleep, humanDelay, SECOND } from './waiting';
+import {
+  TimeoutError,
+  waitUntil,
+  raceTimeout,
+  runSerial,
+  sleep,
+  humanDelay,
+  SECOND,
+} from './Waiting';
 
 describe('SECOND', () => {
   it('equals 1000', () => {
@@ -39,15 +47,18 @@ describe('waitUntil', () => {
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 })).rejects.toThrow(
-      TimeoutError,
-    );
+    await expect(
+      waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 }),
+    ).rejects.toThrow(TimeoutError);
   });
 
   // waitUntil's catch handler calls reject() with no value (undefined)
   it('rejects when async test throws', async () => {
     await expect(
-      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', { timeout: 5000, interval: 10 }),
+      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', {
+        timeout: 5000,
+        interval: 10,
+      }),
     ).rejects.toBeUndefined();
   });
 });
@@ -67,7 +78,9 @@ describe('raceTimeout', () => {
   });
 
   it('throws non-timeout errors from the promise', async () => {
-    await expect(raceTimeout(5000, Promise.reject(new Error('real error')))).rejects.toThrow('real error');
+    await expect(raceTimeout(5000, Promise.reject(new Error('real error')))).rejects.toThrow(
+      'real error',
+    );
   });
 });
 

@@ -1,15 +1,15 @@
 import { chromium } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
-import { elementPresentOnPage, pageEvalAll } from '../helpers/elements-interactions';
-import { buildContextOptions } from '../helpers/browser';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import YahavScraper from './yahav';
-import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { SHEKEL_CURRENCY } from '../Constants';
+import { elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
+import { buildContextOptions } from '../Helpers/Browser';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import YahavScraper from './Yahav';
+import { ScraperErrorTypes } from './Errors';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
@@ -17,17 +17,19 @@ jest.mock('../helpers/elements-interactions', () => ({
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
 }));
-jest.mock('../helpers/navigation', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue('https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'),
+jest.mock('../Helpers/Navigation', () => ({
+  getCurrentUrl: jest
+    .fn()
+    .mockResolvedValue('https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -131,7 +133,9 @@ describe('fetchData', () => {
   });
 
   it('handles NaN amounts', async () => {
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([{ id: '', innerDivs: ['0', '15/06/2025', '', 'Test', '', ''] }]);
+    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+      { id: '', innerDivs: ['0', '15/06/2025', '', 'Test', '', ''] },
+    ]);
 
     const scraper = new YahavScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

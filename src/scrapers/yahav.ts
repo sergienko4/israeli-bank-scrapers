@@ -1,21 +1,27 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
+import { SHEKEL_CURRENCY } from '../Constants';
 import {
   clickButton,
   pageEvalAll,
   waitUntilElementDisappear,
   waitUntilElementFound,
-} from '../helpers/elements-interactions';
-import { getRawTransaction } from '../helpers/transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
-import { type ScraperOptions } from './interface';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
+} from '../Helpers/ElementsInteractions';
+import { getRawTransaction } from '../Helpers/Transactions';
+import {
+  TransactionStatuses,
+  TransactionTypes,
+  type Transaction,
+  type TransactionsAccount,
+} from '../Transactions';
+import { type ScraperOptions } from './Interface';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
 
 const ACCOUNT_DETAILS_SELECTOR = '.account-details';
-const ACCOUNT_ID_SELECTOR = 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]';
+const ACCOUNT_ID_SELECTOR =
+  'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]';
 const DATE_FORMAT = 'DD/MM/YYYY';
 
 interface ScrapedTransaction {
@@ -98,25 +104,30 @@ function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr
   txns.push(tx);
 }
 
-async function getAccountTransactions(page: Page, options?: ScraperOptions): Promise<Transaction[]> {
-  // Wait for transactions.
-  await waitUntilElementFound(page, '.under-line-txn-table-header', { visible: true });
-
-  const txns: ScrapedTransaction[] = [];
-  const transactionsDivs = await pageEvalAll<TransactionsTr[]>(page, {
+async function scrapeTransactionDivs(page: Page): Promise<TransactionsTr[]> {
+  return pageEvalAll<TransactionsTr[]>(page, {
     selector: '.list-item-holder .entire-content-ctr',
     defaultResult: [],
     callback: divs =>
       (divs as HTMLElement[]).map(div => ({
         id: div.getAttribute('id') || '',
-        innerDivs: Array.from(div.getElementsByTagName('div')).map(el => (el as HTMLElement).innerText),
+        innerDivs: Array.from(div.getElementsByTagName('div')).map(
+          el => (el as HTMLElement).innerText,
+        ),
       })),
   });
+}
 
+async function getAccountTransactions(
+  page: Page,
+  options?: ScraperOptions,
+): Promise<Transaction[]> {
+  await waitUntilElementFound(page, '.under-line-txn-table-header', { visible: true });
+  const txns: ScrapedTransaction[] = [];
+  const transactionsDivs = await scrapeTransactionDivs(page);
   for (const txnRow of transactionsDivs) {
     handleTransactionRow(txns, txnRow);
   }
-
   return convertTransactions(txns, options);
 }
 
@@ -184,7 +195,11 @@ async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAcc
   return { accountNumber: accountID, txns };
 }
 
-async function fetchAccounts(page: Page, startDate: Moment, options?: ScraperOptions): Promise<TransactionsAccount[]> {
+async function fetchAccounts(
+  page: Page,
+  startDate: Moment,
+  options?: ScraperOptions,
+): Promise<TransactionsAccount[]> {
   const accounts: TransactionsAccount[] = [];
 
   // TODO: get more accounts. Not sure is supported.
@@ -199,14 +214,16 @@ type ScraperSpecificCredentials = { username: string; password: string; national
 
 class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.yahav]!);
+    super(options, BANK_REGISTRY[CompanyTypes.Yahav]!);
   }
 
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     // Goto statements page
     await waitUntilElementFound(this.page, ACCOUNT_DETAILS_SELECTOR, { visible: true });
     await clickButton(this.page, ACCOUNT_DETAILS_SELECTOR);
-    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', { visible: true });
+    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', {
+      visible: true,
+    });
 
     const defaultStartMoment = moment().subtract(3, 'months').add(1, 'day');
     const startDate = this.options.startDate || defaultStartMoment.toDate();

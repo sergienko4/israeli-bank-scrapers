@@ -1,32 +1,32 @@
 import { chromium } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
-import { pageEval } from '../helpers/elements-interactions';
-import { buildContextOptions } from '../helpers/browser';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import LeumiScraper from './leumi';
-import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { SHEKEL_CURRENCY } from '../Constants';
+import { pageEval } from '../Helpers/ElementsInteractions';
+import { buildContextOptions } from '../Helpers/Browser';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import LeumiScraper from './Leumi';
+import { ScraperErrorTypes } from './Errors';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   pageEval: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/login'),
   pageEvalAll: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../helpers/navigation', () => ({
+jest.mock('../Helpers/Navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -80,7 +80,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createLeumiPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx');
+  (getCurrentUrl as jest.Mock).mockResolvedValue(
+    'https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx',
+  );
   (pageEval as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/login');
 });
 
@@ -91,7 +93,10 @@ describe('login', () => {
     if (!result.success)
       console.log(
         'LEUMI FAILURE:',
-        JSON.stringify({ errorType: result.errorType, errorMessage: result.errorMessage?.substring(0, 200) }),
+        JSON.stringify({
+          errorType: result.errorType,
+          errorMessage: result.errorMessage?.substring(0, 200),
+        }),
       );
 
     expect(result.success).toBe(true);
@@ -133,10 +138,20 @@ describe('fetchData', () => {
       json: jest.fn().mockResolvedValue({
         jsonResp: JSON.stringify({
           TodayTransactionsItems: [
-            { DateUTC: '2025-06-15T00:00:00', Amount: -50, Description: 'Pending', ReferenceNumberLong: 1 },
+            {
+              DateUTC: '2025-06-15T00:00:00',
+              Amount: -50,
+              Description: 'Pending',
+              ReferenceNumberLong: 1,
+            },
           ],
           HistoryTransactionsItems: [
-            { DateUTC: '2025-06-14T00:00:00', Amount: -100, Description: 'Completed', ReferenceNumberLong: 2 },
+            {
+              DateUTC: '2025-06-14T00:00:00',
+              Amount: -100,
+              Description: 'Completed',
+              ReferenceNumberLong: 2,
+            },
           ],
         }),
       }),
@@ -150,7 +165,9 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
-    const completed = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Completed);
+    const completed = result.accounts![0].txns.find(
+      t => t.status === TransactionStatuses.Completed,
+    );
     expect(pending).toBeDefined();
     expect(completed).toBeDefined();
     expect(pending!.description).toBe('Pending');
@@ -218,7 +235,12 @@ describe('fetchData', () => {
     page.waitForResponse.mockResolvedValue(
       createLeumiResponse({
         HistoryTransactionsItems: [
-          { DateUTC: '2025-06-15T00:00:00', Amount: -100, Description: 'Txn', ReferenceNumberLong: 1 },
+          {
+            DateUTC: '2025-06-15T00:00:00',
+            Amount: -100,
+            Description: 'Txn',
+            ReferenceNumberLong: 1,
+          },
         ],
         BalanceDisplay: '3000.00',
       }),

@@ -1,7 +1,7 @@
 import { type BrowserContext, type Browser, type Page } from 'playwright';
-import { type CompanyTypes, type ScraperProgressTypes } from '../definitions';
-import { type TransactionsAccount } from '../transactions';
-import { type ErrorResult, type ScraperErrorTypes, type WafErrorDetails } from './errors';
+import { type CompanyTypes, type ScraperProgressTypes } from '../Definitions';
+import { type TransactionsAccount } from '../Transactions';
+import { type ErrorResult, type ScraperErrorTypes, type WafErrorDetails } from './Errors';
 
 // TODO: Remove this type when the scraper 'factory' will return concrete scraper types
 // Instead of a generic interface (which in turn uses this type)
@@ -26,7 +26,7 @@ export type OptInFeatures =
   | 'isracard-amex:skipAdditionalTransactionInformation'
   | 'mizrahi:pendingIfNoIdentifier'
   | 'mizrahi:pendingIfHasGenericDescription'
-  | 'mizrahi:pendingIfTodayTransaction';
+  | 'mizrahi:isPendingIfTodayTransaction';
 
 export interface FutureDebit {
   amount: number;
@@ -57,11 +57,11 @@ interface ExternalBrowserContextOptions {
   browserContext: BrowserContext;
 }
 
-interface DefaultBrowserOptions {
+export interface DefaultBrowserOptions {
   /**
    * shows the browser while scraping, good for debugging (default false)
    */
-  showBrowser?: boolean;
+  shouldShowBrowser?: boolean;
 
   /**
    * provide a path to local chromium to be used by playwright
@@ -90,7 +90,10 @@ interface DefaultBrowserOptions {
   prepareBrowser?: (browser: Browser) => Promise<void>;
 }
 
-type ScraperBrowserOptions = ExternalBrowserOptions | ExternalBrowserContextOptions | DefaultBrowserOptions;
+type ScraperBrowserOptions =
+  | ExternalBrowserOptions
+  | ExternalBrowserContextOptions
+  | DefaultBrowserOptions;
 
 export type ScraperOptions = ScraperBrowserOptions & {
   /**
@@ -116,7 +119,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
   /**
    * if set to true, all installment transactions will be combine into the first one
    */
-  combineInstallments?: boolean;
+  shouldCombineInstallments?: boolean;
 
   /**
    * adjust the page instance before it is being used.
@@ -144,7 +147,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * Perform additional operation for each transaction to get more information (Like category) about it.
    * Please note: It will take more time to finish the process.
    */
-  additionalTransactionInformation?: boolean;
+  shouldAddTransactionInformation?: boolean;
 
   /**
    * Include the raw transaction object as received from the scraper source for debugging purposes.
@@ -183,7 +186,7 @@ export interface OutputDataOptions {
   /**
    * if true, the result wouldn't be filtered out by date, and you will return unfiltered scrapped data.
    */
-  enableTransactionsFilterByDate?: boolean;
+  isFilterByDateEnabled?: boolean;
 }
 
 export interface ScraperScrapingResult {
@@ -200,7 +203,9 @@ export interface ScraperScrapingResult {
 
 export interface Scraper<TCredentials extends ScraperCredentials> {
   scrape(credentials: TCredentials): Promise<ScraperScrapingResult>;
-  onProgress(func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void): void;
+  onProgress(
+    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
+  ): void;
   triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult>;
   getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult>;
 }

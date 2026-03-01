@@ -1,13 +1,18 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
-import { clickButton, fillInput, waitUntilElementFound } from '../helpers/elements-interactions';
-import { getRawTransaction } from '../helpers/transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction, type TransactionsAccount } from '../transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
+import { SHEKEL_CURRENCY } from '../Constants';
+import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
+import { getRawTransaction } from '../Helpers/Transactions';
+import {
+  TransactionStatuses,
+  TransactionTypes,
+  type Transaction,
+  type TransactionsAccount,
+} from '../Transactions';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
 
 const BASE_URL = 'https://hb2.bankleumi.co.il';
 const TRANSACTIONS_URL = `${BASE_URL}/eBanking/SO/SPA.aspx#/ts/BusinessAccountTrx?WidgetPar=1`;
@@ -23,7 +28,11 @@ interface LeumiRawTransaction {
   Amount: number;
 }
 
-function buildTxnBase(rawTransaction: LeumiRawTransaction, status: TransactionStatuses, date: string): Transaction {
+function buildTxnBase(
+  rawTransaction: LeumiRawTransaction,
+  status: TransactionStatuses,
+  date: string,
+): Transaction {
   return {
     status,
     type: TransactionTypes.Normal,
@@ -104,8 +113,15 @@ function parseAccountResponse(responseJson: { jsonResp: string }): LeumiAccountR
   return JSON.parse(responseJson.jsonResp) as LeumiAccountResponse;
 }
 
-function buildTxnsFromResponse(response: LeumiAccountResponse, options: ScraperOptions): Transaction[] {
-  const pending = extractTransactionsFromPage(response.TodayTransactionsItems, TransactionStatuses.Pending, options);
+function buildTxnsFromResponse(
+  response: LeumiAccountResponse,
+  options: ScraperOptions,
+): Transaction[] {
+  const pending = extractTransactionsFromPage(
+    response.TodayTransactionsItems,
+    TransactionStatuses.Pending,
+    options,
+  );
   const completed = extractTransactionsFromPage(
     response.HistoryTransactionsItems,
     TransactionStatuses.Completed,
@@ -114,12 +130,15 @@ function buildTxnsFromResponse(response: LeumiAccountResponse, options: ScraperO
   return [...pending, ...completed];
 }
 
-async function fetchTransactionsForAccount(opts: FetchForAccountOpts): Promise<TransactionsAccount> {
+async function fetchTransactionsForAccount(
+  opts: FetchForAccountOpts,
+): Promise<TransactionsAccount> {
   const { page, startDate, accountId, options } = opts;
   await hangProcess(4000);
   await applyDateFilter(page, startDate);
   const finalResponse = await page.waitForResponse(
-    response => response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
+    response =>
+      response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
   );
   const response = parseAccountResponse((await finalResponse.json()) as { jsonResp: string });
   const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
@@ -130,11 +149,42 @@ async function fetchTransactionsForAccount(opts: FetchForAccountOpts): Promise<T
 async function extractAccountIds(page: Page): Promise<string[]> {
   const ids = (
     await page.evaluate(() =>
-      Array.from(document.querySelectorAll('app-masked-number-combo span.display-number-li'), e => e.textContent),
+      Array.from(
+        document.querySelectorAll('app-masked-number-combo span.display-number-li'),
+        e => e.textContent,
+      ),
     )
   ).filter((id): id is string => id !== null);
   if (!ids.length) throw new Error('Failed to extract or parse the account number');
   return ids;
+}
+
+async function switchToAccount(
+  page: Page,
+  accountId: string,
+  totalAccounts: number,
+): Promise<void> {
+  if (totalAccounts <= 1) return;
+  await clickByXPath(
+    page,
+    'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]',
+  );
+  await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
+}
+
+interface FetchByIdOpts {
+  page: Page;
+  rawAccountId: string;
+  totalAccounts: number;
+  startDate: Moment;
+  options: ScraperOptions;
+}
+
+async function fetchAccountById(opts: FetchByIdOpts): Promise<TransactionsAccount> {
+  const { rawAccountId, totalAccounts, page, startDate, options } = opts;
+  await switchToAccount(page, rawAccountId, totalAccounts);
+  const accountId = removeSpecialCharacters(rawAccountId);
+  return fetchTransactionsForAccount({ page, startDate, accountId, options });
 }
 
 async function fetchTransactions(
@@ -145,13 +195,10 @@ async function fetchTransactions(
   await hangProcess(4000);
   const accountsIds = await extractAccountIds(page);
   const accounts: TransactionsAccount[] = [];
-  for (const accountId of accountsIds) {
-    if (accountsIds.length > 1) {
-      await clickByXPath(page, 'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]');
-      await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
-    }
+  const totalAccounts = accountsIds.length;
+  for (const rawAccountId of accountsIds) {
     accounts.push(
-      await fetchTransactionsForAccount({ page, startDate, accountId: removeSpecialCharacters(accountId), options }),
+      await fetchAccountById({ page, rawAccountId, totalAccounts, startDate, options }),
     );
   }
   return accounts;
@@ -161,7 +208,7 @@ type ScraperSpecificCredentials = { username: string; password: string };
 
 class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.leumi]!);
+    super(options, BANK_REGISTRY[CompanyTypes.Leumi]!);
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {

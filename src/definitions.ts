@@ -3,96 +3,96 @@
 export const PASSWORD_FIELD = 'password';
 
 export enum CompanyTypes {
-  hapoalim = 'hapoalim',
-  beinleumi = 'beinleumi',
-  union = 'union',
-  amex = 'amex',
-  isracard = 'isracard',
-  visaCal = 'visaCal',
-  max = 'max',
-  otsarHahayal = 'otsarHahayal',
-  discount = 'discount',
-  mercantile = 'mercantile',
-  mizrahi = 'mizrahi',
-  leumi = 'leumi',
-  massad = 'massad',
-  yahav = 'yahav',
-  behatsdaa = 'behatsdaa',
-  beyahadBishvilha = 'beyahadBishvilha',
-  oneZero = 'oneZero',
-  pagi = 'pagi',
+  Hapoalim = 'hapoalim',
+  Beinleumi = 'beinleumi',
+  Union = 'union',
+  Amex = 'amex',
+  Isracard = 'isracard',
+  VisaCal = 'visaCal',
+  Max = 'max',
+  OtsarHahayal = 'otsarHahayal',
+  Discount = 'discount',
+  Mercantile = 'mercantile',
+  Mizrahi = 'mizrahi',
+  Leumi = 'leumi',
+  Massad = 'massad',
+  Yahav = 'yahav',
+  Behatsdaa = 'behatsdaa',
+  BeyahadBishvilha = 'beyahadBishvilha',
+  OneZero = 'oneZero',
+  Pagi = 'pagi',
 }
 
 export const SCRAPERS = {
-  [CompanyTypes.hapoalim]: {
+  [CompanyTypes.Hapoalim]: {
     name: 'Bank Hapoalim',
     loginFields: ['userCode', PASSWORD_FIELD],
   },
-  [CompanyTypes.leumi]: {
+  [CompanyTypes.Leumi]: {
     name: 'Bank Leumi',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.mizrahi]: {
+  [CompanyTypes.Mizrahi]: {
     name: 'Mizrahi Bank',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.discount]: {
+  [CompanyTypes.Discount]: {
     name: 'Discount Bank',
     loginFields: ['id', PASSWORD_FIELD, 'num'],
   },
-  [CompanyTypes.mercantile]: {
+  [CompanyTypes.Mercantile]: {
     name: 'Mercantile Bank',
     loginFields: ['id', PASSWORD_FIELD, 'num'],
   },
-  [CompanyTypes.otsarHahayal]: {
+  [CompanyTypes.OtsarHahayal]: {
     name: 'Bank Otsar Hahayal',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.max]: {
+  [CompanyTypes.Max]: {
     name: 'Max',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.visaCal]: {
+  [CompanyTypes.VisaCal]: {
     name: 'Visa Cal',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.isracard]: {
+  [CompanyTypes.Isracard]: {
     name: 'Isracard',
     loginFields: ['id', 'card6Digits', PASSWORD_FIELD],
   },
-  [CompanyTypes.amex]: {
+  [CompanyTypes.Amex]: {
     name: 'Amex',
     loginFields: ['id', 'card6Digits', PASSWORD_FIELD],
   },
-  [CompanyTypes.union]: {
+  [CompanyTypes.Union]: {
     name: 'Union',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.beinleumi]: {
+  [CompanyTypes.Beinleumi]: {
     name: 'Beinleumi',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.massad]: {
+  [CompanyTypes.Massad]: {
     name: 'Massad',
     loginFields: ['username', PASSWORD_FIELD],
   },
-  [CompanyTypes.yahav]: {
+  [CompanyTypes.Yahav]: {
     name: 'Bank Yahav',
     loginFields: ['username', 'nationalID', PASSWORD_FIELD],
   },
-  [CompanyTypes.beyahadBishvilha]: {
+  [CompanyTypes.BeyahadBishvilha]: {
     name: 'Beyahad Bishvilha',
     loginFields: ['id', PASSWORD_FIELD],
   },
-  [CompanyTypes.oneZero]: {
+  [CompanyTypes.OneZero]: {
     name: 'One Zero',
     loginFields: ['email', PASSWORD_FIELD, 'otpCodeRetriever', 'phoneNumber', 'otpLongTermToken'],
   },
-  [CompanyTypes.behatsdaa]: {
+  [CompanyTypes.Behatsdaa]: {
     name: 'Behatsdaa',
     loginFields: ['id', PASSWORD_FIELD],
   },
-  [CompanyTypes.pagi]: {
+  [CompanyTypes.Pagi]: {
     name: 'Pagi',
     loginFields: ['username', PASSWORD_FIELD],
   },

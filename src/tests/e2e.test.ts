@@ -26,10 +26,10 @@ describe('E2E: Scraper Factory', () => {
 describe('E2E: Scraper error handling', () => {
   test('scraper throws on invalid executable path', async () => {
     const scraper = createScraper({
-      companyId: CompanyTypes.hapoalim,
+      companyId: CompanyTypes.Hapoalim,
       startDate: new Date(),
       executablePath: '/nonexistent/chrome',
-      showBrowser: false,
+      shouldShowBrowser: false,
     });
 
     await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow();

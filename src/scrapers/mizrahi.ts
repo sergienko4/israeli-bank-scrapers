@@ -1,26 +1,35 @@
 import moment from 'moment';
 import { type Frame } from 'playwright';
-import { SHEKEL_CURRENCY } from '../constants';
-import { pageEvalAll, waitUntilElementFound, waitUntilIframeFound } from '../helpers/elements-interactions';
-import { fetchPostWithinPage } from '../helpers/fetch';
-import { type Transaction, TransactionStatuses, TransactionTypes, type TransactionsAccount } from '../transactions';
-import { ScraperErrorTypes } from './errors';
-import { getDebug } from '../helpers/debug';
-import { getRawTransaction } from '../helpers/transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './interface';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
+import { SHEKEL_CURRENCY } from '../Constants';
+import {
+  pageEvalAll,
+  waitUntilElementFound,
+  waitUntilIframeFound,
+} from '../Helpers/ElementsInteractions';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
+import {
+  type Transaction,
+  TransactionStatuses,
+  TransactionTypes,
+  type TransactionsAccount,
+} from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import { getDebug } from '../Helpers/Debug';
+import { getRawTransaction } from '../Helpers/Transactions';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
 import {
   type ConvertOneRowOpts,
   type ConvertTxnsOpts,
   type MoreDetails,
   type ScrapedTransaction,
   type ScrapedTransactionsResult,
-  accountDropDownItemSelector,
+  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   createDataFromRequest,
   createHeadersFromRequest,
-  genericDescriptions,
+  GENERIC_DESCRIPTIONS,
   getExtraTransactionDetails,
   getStartMoment,
   getTransactionIdentifier,
@@ -29,20 +38,20 @@ import {
   PENDING_TRANSACTIONS_PAGE,
   TRANSACTIONS_PAGE,
   TRANSACTIONS_REQUEST_URLS,
-} from './mizrahi-helpers';
+} from './MizrahiHelpers';
 
-const debug = getDebug('mizrahi');
-const pendingTrxIdentifierId = '#ctl00_ContentPlaceHolder2_panel1';
+const DEBUG = getDebug('mizrahi');
+const PENDING_TRX_IDENTIFIER_ID = '#ctl00_ContentPlaceHolder2_panel1';
 
 interface BuildRowBaseOpts {
   row: ScrapedTransaction;
   txnDate: string;
   moreDetails: MoreDetails;
-  pendingIfTodayTransaction: boolean;
+  isPendingIfTodayTransaction: boolean;
 }
 
 function buildRowBase(opts: BuildRowBaseOpts): Transaction {
-  const { row, txnDate, moreDetails, pendingIfTodayTransaction } = opts;
+  const { row, txnDate, moreDetails, isPendingIfTodayTransaction } = opts;
   return {
     type: TransactionTypes.Normal,
     identifier: getTransactionIdentifier(row),
@@ -54,26 +63,38 @@ function buildRowBase(opts: BuildRowBaseOpts): Transaction {
     description: row.MC02TnuaTeurEZ,
     memo: moreDetails?.memo,
     status:
-      pendingIfTodayTransaction && row.IsTodayTransaction ? TransactionStatuses.Pending : TransactionStatuses.Completed,
+      isPendingIfTodayTransaction && row.IsTodayTransaction
+        ? TransactionStatuses.Pending
+        : TransactionStatuses.Completed,
   };
 }
 
 async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
-  const { row, getMoreDetails, pendingIfTodayTransaction, options } = opts;
+  const { row, getMoreDetails, isPendingIfTodayTransaction, options } = opts;
   const moreDetails = await getMoreDetails(row);
   const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
-  const result = buildRowBase({ row, txnDate, moreDetails, pendingIfTodayTransaction });
+  const result = buildRowBase({ row, txnDate, moreDetails, isPendingIfTodayTransaction });
   if (options?.includeRawTransaction)
-    result.rawTransaction = getRawTransaction({ ...row, additionalInformation: moreDetails.entries });
+    result.rawTransaction = getRawTransaction({
+      ...row,
+      additionalInformation: moreDetails.entries,
+    });
   return result;
 }
 
 async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]> {
-  const { txns, getMoreDetails, pendingIfTodayTransaction = false, options } = opts;
-  return Promise.all(txns.map(row => convertOneRow({ row, getMoreDetails, pendingIfTodayTransaction, options })));
+  const { txns, getMoreDetails, isPendingIfTodayTransaction = false, options } = opts;
+  return Promise.all(
+    txns.map(row => convertOneRow({ row, getMoreDetails, isPendingIfTodayTransaction, options })),
+  );
 }
 
-function mapPendingRow([dateStr, description, _incomeAmountStr, amountStr]: string[]): Transaction | null {
+function mapPendingRow([
+  dateStr,
+  description,
+  _incomeAmountStr,
+  amountStr,
+]: string[]): Transaction | null {
   const date = moment(dateStr, 'DD/MM/YY').toISOString();
   if (!date) return null;
   return {
@@ -92,7 +113,8 @@ async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
   const pendingTxn = await pageEvalAll(page, {
     selector: 'tr.rgRow, tr.rgAltRow',
     defaultResult: [],
-    callback: trs => trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
+    callback: trs =>
+      trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
   });
   return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
 }
@@ -101,18 +123,12 @@ type ScraperSpecificCredentials = { username: string; password: string };
 
 class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.mizrahi]!);
-  }
-
-  private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
-    if (index > 0) await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
-    await this.page.$eval(`${accountDropDownItemSelector}:nth-child(${index + 1})`, el => (el as HTMLElement).click());
-    return this.fetchAccount();
+    super(options, BANK_REGISTRY[CompanyTypes.Mizrahi]!);
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {
     await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
-    const numOfAccounts = (await this.page.$$(accountDropDownItemSelector)).length;
+    const numOfAccounts = (await this.page.$$(ACCOUNT_DROP_DOWN_ITEM_SELECTOR)).length;
     try {
       const results: TransactionsAccount[] = [];
       for (let i = 0; i < numOfAccounts; i += 1) {
@@ -120,14 +136,31 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       }
       return { success: true, accounts: results };
     } catch (e) {
-      return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: (e as Error).message };
+      return {
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: (e as Error).message,
+      };
     }
   }
 
+  private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
+    if (index > 0)
+      await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
+    await this.page.$eval(`${ACCOUNT_DROP_DOWN_ITEM_SELECTOR}:nth-child(${index + 1})`, el =>
+      (el as HTMLElement).click(),
+    );
+    return this.fetchAccount();
+  }
+
   private async getPendingTransactions(): Promise<Transaction[]> {
-    await this.page.$eval(`a[href*="${PENDING_TRANSACTIONS_PAGE}"]`, el => (el as HTMLElement).click());
-    const frame = await waitUntilIframeFound(this.page, f => f.url().includes(PENDING_TRANSACTIONS_IFRAME));
-    const isPending = await waitUntilElementFound(frame, pendingTrxIdentifierId)
+    await this.page.$eval(`a[href*="${PENDING_TRANSACTIONS_PAGE}"]`, el =>
+      (el as HTMLElement).click(),
+    );
+    const frame = await waitUntilIframeFound(this.page, f =>
+      f.url().includes(PENDING_TRANSACTIONS_IFRAME),
+    );
+    const isPending = await waitUntilElementFound(frame, PENDING_TRX_IDENTIFIER_ID)
       .then(() => true)
       .catch(() => false);
     if (!isPending) {
@@ -153,18 +186,31 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return accountNumber;
   }
 
-  private async fetchTransactionData(): Promise<readonly [ScrapedTransactionsResult | null, Record<string, string>]> {
+  private async fetchTransactionData(): Promise<
+    readonly [ScrapedTransactionsResult | null, Record<string, string>]
+  > {
     return Promise.any(
       TRANSACTIONS_REQUEST_URLS.map(async url => {
         const request = await this.page.waitForRequest(url);
         const data = createDataFromRequest(request, this.options.startDate);
         const headers = createHeadersFromRequest(request);
         return [
-          await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, { data, extraHeaders: headers }),
+          await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, {
+            data,
+            extraHeaders: headers,
+          }),
           headers,
         ] as const;
       }),
     );
+  }
+
+  private buildMoreDetailsGetter(
+    apiHeaders: Record<string, string>,
+  ): (row: ScrapedTransaction) => Promise<MoreDetails> {
+    return this.options.shouldAddTransactionInformation
+      ? row => getExtraTransactionDetails(this.page, row, apiHeaders)
+      : () => Promise.resolve({ entries: {}, memo: undefined });
   }
 
   private async convertAndMarkTxns(
@@ -174,10 +220,10 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     const relevantRows = response.body.table.rows.filter(row => row.RecTypeSpecified);
     const oshTxn = await convertTransactions({
       txns: relevantRows,
-      getMoreDetails: this.options.additionalTransactionInformation
-        ? row => getExtraTransactionDetails(this.page, row, apiHeaders)
-        : () => Promise.resolve({ entries: {}, memo: undefined }),
-      pendingIfTodayTransaction: this.options.optInFeatures?.includes('mizrahi:pendingIfTodayTransaction'),
+      getMoreDetails: this.buildMoreDetailsGetter(apiHeaders),
+      isPendingIfTodayTransaction: this.options.optInFeatures?.includes(
+        'mizrahi:isPendingIfTodayTransaction',
+      ),
       options: this.options,
     });
     oshTxn
@@ -207,15 +253,15 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private shouldMarkAsPending(txn: Transaction): boolean {
     if (this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier') && !txn.identifier) {
-      debug(`Marking transaction '${txn.description}' as pending due to no identifier.`);
+      DEBUG(`Marking transaction '${txn.description}' as pending due to no identifier.`);
       return true;
     }
 
     if (
       this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription') &&
-      genericDescriptions.includes(txn.description)
+      GENERIC_DESCRIPTIONS.includes(txn.description)
     ) {
-      debug(`Marking transaction '${txn.description}' as pending due to generic description.`);
+      DEBUG(`Marking transaction '${txn.description}' as pending due to generic description.`);
       return true;
     }
 

@@ -1,35 +1,35 @@
 import { chromium } from 'playwright';
-import { fetchPostWithinPage } from '../helpers/fetch';
-import { buildContextOptions } from '../helpers/browser';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import BehatsdaaScraper from './behatsdaa';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
+import { buildContextOptions } from '../Helpers/Browser';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import BehatsdaaScraper from './Behatsdaa';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/fetch', () => ({ fetchPostWithinPage: jest.fn() }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/navigation', () => ({
+jest.mock('../Helpers/Navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.behatsdaa.org.il/'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/waiting', () => ({
+jest.mock('../Helpers/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../helpers/otp-handler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
 
 const mockContext = {
   newPage: jest.fn(),
@@ -61,7 +61,9 @@ function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
   };
 }
 
-function createBehatsdaaPage(token: string | null = 'mock-token'): ReturnType<typeof createMockPage> {
+function createBehatsdaaPage(
+  token: string | null = 'mock-token',
+): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest.fn().mockResolvedValue(token),
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
@@ -169,7 +171,9 @@ describe('fetchData', () => {
     expect(fetchPostWithinPage).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(String) as string,
-      expect.objectContaining({ extraHeaders: expect.objectContaining(extraHeadersMatcher) as Record<string, string> }),
+      expect.objectContaining({
+        extraHeaders: expect.objectContaining(extraHeadersMatcher) as Record<string, string>,
+      }),
     );
   });
 });

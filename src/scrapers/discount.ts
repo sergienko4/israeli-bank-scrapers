@@ -1,15 +1,15 @@
 import _ from 'lodash';
 import moment from 'moment';
 import { type Page } from 'playwright';
-import { fetchGetWithinPage } from '../helpers/fetch';
-import { getRawTransaction } from '../helpers/transactions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../transactions';
-import { CompanyTypes } from '../definitions';
-import { BANK_REGISTRY } from './bank-registry';
-import { GenericBankScraper } from './generic-bank-scraper';
-import { ScraperErrorTypes } from './errors';
-import { type LoginConfig } from './login-config';
-import { type ScraperOptions, type ScraperScrapingResult } from './interface';
+import { fetchGetWithinPage } from '../Helpers/Fetch';
+import { getRawTransaction } from '../Helpers/Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
+import { CompanyTypes } from '../Definitions';
+import { BANK_REGISTRY } from './BankRegistry';
+import { GenericBankScraper } from './GenericBankScraper';
+import { ScraperErrorTypes } from './Errors';
+import { type LoginConfig } from './LoginConfig';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const BASE_URL = 'https://start.telebank.co.il';
 const DATE_FORMAT = 'YYYYMMDD';
@@ -48,7 +48,11 @@ interface ScrapedTransactionData {
   };
 }
 
-function convertOneTxn(txn: ScrapedTransaction, txnStatus: TransactionStatuses, options?: ScraperOptions): Transaction {
+function convertOneTxn(
+  txn: ScrapedTransaction,
+  txnStatus: TransactionStatuses,
+  options?: ScraperOptions,
+): Transaction {
   const result: Transaction = {
     type: TransactionTypes.Normal,
     identifier: txn.OperationNumber,
@@ -81,21 +85,32 @@ interface FetchOneAccOpts {
   options: ScraperOptions;
 }
 
+function getPendingTxns(
+  txnsResult: ScrapedTransactionData,
+  options: ScraperOptions,
+): Transaction[] {
+  const rawFutureTxns = _.get(
+    txnsResult,
+    'CurrentAccountLastTransactions.FutureTransactionsBlock.FutureTransactionEntry',
+  ) as ScrapedTransaction[];
+  return convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options);
+}
+
 function buildOneAccountResult(
   txnsResult: ScrapedTransactionData,
   accountNumber: string,
   options: ScraperOptions,
 ): { accountNumber: string; balance: number; txns: Transaction[] } {
   const data = txnsResult.CurrentAccountLastTransactions!;
-  const completedTxns = convertTransactions(data.OperationEntry, TransactionStatuses.Completed, options);
-  const rawFutureTxns = _.get(
-    txnsResult,
-    'CurrentAccountLastTransactions.FutureTransactionsBlock.FutureTransactionEntry',
-  ) as ScrapedTransaction[];
+  const completedTxns = convertTransactions(
+    data.OperationEntry,
+    TransactionStatuses.Completed,
+    options,
+  );
   return {
     accountNumber,
     balance: data.CurrentAccountInfo.AccountBalance,
-    txns: [...completedTxns, ...convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options)],
+    txns: [...completedTxns, ...getPendingTxns(txnsResult, options)],
   };
 }
 
@@ -114,29 +129,82 @@ async function fetchOneAccount(
   return buildOneAccountResult(txnsResult, accountNumber, options);
 }
 
-async function fetchAccountData(page: Page, options: ScraperOptions): Promise<ScraperScrapingResult> {
-  const apiSiteUrl = `${BASE_URL}/Titan/gatewayAPI`;
-  const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(page, `${apiSiteUrl}/userAccountsData`);
-  if (!accountInfo)
-    return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: 'failed to get account data' };
-
+function buildStartDateStr(options: ScraperOptions): string {
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
-  const startMoment = moment.max(defaultStartMoment, moment(options.startDate || defaultStartMoment.toDate()));
-  const startDateStr = startMoment.format(DATE_FORMAT);
-  const accounts = accountInfo.UserAccountsData.UserAccounts.map(acc => acc.NewAccountInfo.AccountID);
+  const startMoment = moment.max(
+    defaultStartMoment,
+    moment(options.startDate || defaultStartMoment.toDate()),
+  );
+  return startMoment.format(DATE_FORMAT);
+}
+
+interface FetchAllAccountsOpts {
+  page: Page;
+  apiSiteUrl: string;
+  accountNumbers: string[];
+  startDateStr: string;
+  options: ScraperOptions;
+}
+
+async function fetchAllAccounts(opts: FetchAllAccountsOpts): Promise<ScraperScrapingResult> {
+  const { page, apiSiteUrl, accountNumbers, startDateStr, options } = opts;
   const accountsData = [];
-  for (const accountNumber of accounts) {
-    const result = await fetchOneAccount({ page, apiSiteUrl, accountNumber, startDateStr, options });
-    if ('error' in result) return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: result.error };
+  for (const accountNumber of accountNumbers) {
+    const result = await fetchOneAccount({
+      page,
+      apiSiteUrl,
+      accountNumber,
+      startDateStr,
+      options,
+    });
+    if ('error' in result)
+      return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: result.error };
     accountsData.push(result);
   }
   return { success: true, accounts: accountsData };
 }
 
+interface FetchAccountDataOpts {
+  page: Page;
+  apiSiteUrl: string;
+  accountInfo: ScrapedAccountData;
+  options: ScraperOptions;
+}
+
+function buildAccountsOpts(opts: FetchAccountDataOpts): FetchAllAccountsOpts {
+  const { page, apiSiteUrl, accountInfo, options } = opts;
+  const startDateStr = buildStartDateStr(options);
+  const accountNumbers = accountInfo.UserAccountsData.UserAccounts.map(
+    acc => acc.NewAccountInfo.AccountID,
+  );
+  return { page, apiSiteUrl, accountNumbers, startDateStr, options };
+}
+
+async function fetchAccountData(
+  page: Page,
+  options: ScraperOptions,
+): Promise<ScraperScrapingResult> {
+  const apiSiteUrl = `${BASE_URL}/Titan/gatewayAPI`;
+  const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(
+    page,
+    `${apiSiteUrl}/userAccountsData`,
+  );
+  if (!accountInfo)
+    return {
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'failed to get account data',
+    };
+  return fetchAllAccounts(buildAccountsOpts({ page, apiSiteUrl, accountInfo, options }));
+}
+
 type ScraperSpecificCredentials = { id: string; password: string; num: string };
 
 class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  constructor(options: ScraperOptions, config: LoginConfig = BANK_REGISTRY[CompanyTypes.discount]!) {
+  constructor(
+    options: ScraperOptions,
+    config: LoginConfig = BANK_REGISTRY[CompanyTypes.Discount]!,
+  ) {
     super(options, config);
   }
 

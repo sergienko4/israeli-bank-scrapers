@@ -4,10 +4,12 @@ import {
   getCurrentUrl,
   waitForRedirect,
   waitForUrl,
-} from './navigation';
-import { createMockPage } from '../tests/mock-page';
+} from './Navigation';
+import { createMockPage } from '../Tests/MockPage';
 
-function createNavMockPage(currentUrl = 'https://bank.co.il/login'): ReturnType<typeof createMockPage> {
+function createNavMockPage(
+  currentUrl = 'https://bank.co.il/login',
+): ReturnType<typeof createMockPage> {
   const urlMock = jest.fn(() => currentUrl);
   const evaluateMock = jest.fn(() => Promise.resolve(currentUrl));
   return createMockPage({ url: urlMock, evaluate: evaluateMock });

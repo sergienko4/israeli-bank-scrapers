@@ -1,42 +1,42 @@
 import { chromium } from 'playwright';
 import moment from 'moment';
-import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../constants';
-import { fetchGetWithinPage } from '../helpers/fetch';
-import { buildContextOptions } from '../helpers/browser';
-import { filterOldTransactions, fixInstallments } from '../helpers/transactions';
-import { elementPresentOnPage } from '../helpers/elements-interactions';
-import { getCurrentUrl } from '../helpers/navigation';
-import { createMockPage, createMockScraperOptions } from '../tests/mock-page';
-import MaxScraper, { getMemo, type ScrapedTransaction } from './max';
-import { ScraperErrorTypes } from './errors';
-import { TransactionStatuses, TransactionTypes } from '../transactions';
+import { SHEKEL_CURRENCY, DOLLAR_CURRENCY } from '../Constants';
+import { fetchGetWithinPage } from '../Helpers/Fetch';
+import { buildContextOptions } from '../Helpers/Browser';
+import { filterOldTransactions, fixInstallments } from '../Helpers/Transactions';
+import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { getCurrentUrl } from '../Helpers/Navigation';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import MaxScraper, { getMemo, type ScrapedTransaction } from './Max';
+import { ScraperErrorTypes } from './Errors';
+import { TransactionStatuses, TransactionTypes } from '../Transactions';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
-jest.mock('../helpers/fetch', () => ({
+jest.mock('../Helpers/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
-jest.mock('../helpers/browser', () => ({
+jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../helpers/elements-interactions', () => ({
+jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
 }));
-jest.mock('../helpers/navigation', () => ({
+jest.mock('../Helpers/Navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il/homepage/personal'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../helpers/transactions', () => ({
+jest.mock('../Helpers/Transactions', () => ({
   fixInstallments: jest.fn(<T>(txns: T[]) => txns),
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../helpers/debug', () => ({ getDebug: () => jest.fn() }));
-jest.mock('../helpers/dates', () => {
+jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });
 
@@ -95,9 +95,16 @@ describe('getMemo', () => {
     [{ comments: '' }, ''],
     [{ comments: 'comment without funds' }, 'comment without funds'],
     [{ comments: '', fundsTransferReceiverOrTransfer: 'Daniel H' }, 'Daniel H'],
-    [{ comments: '', fundsTransferReceiverOrTransfer: 'Daniel', fundsTransferComment: 'Foo bar' }, 'Daniel: Foo bar'],
     [
-      { comments: 'tip', fundsTransferReceiverOrTransfer: 'Daniel', fundsTransferComment: 'Foo bar' },
+      { comments: '', fundsTransferReceiverOrTransfer: 'Daniel', fundsTransferComment: 'Foo bar' },
+      'Daniel: Foo bar',
+    ],
+    [
+      {
+        comments: 'tip',
+        fundsTransferReceiverOrTransfer: 'Daniel',
+        fundsTransferComment: 'Foo bar',
+      },
       'tip Daniel: Foo bar',
     ],
   ])('%o should create memo: %s', (transaction, expected) => {
@@ -142,7 +149,9 @@ describe('login', () => {
 describe('fetchData', () => {
   it('fetches and converts normal transactions', async () => {
     mockCategories();
-    mockTxnMonth([rawTxn({ originalAmount: 250, actualPaymentAmount: '250', merchantName: 'רמי לוי' })]);
+    mockTxnMonth([
+      rawTxn({ originalAmount: 250, actualPaymentAmount: '250', merchantName: 'רמי לוי' }),
+    ]);
 
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -224,19 +233,23 @@ describe('fetchData', () => {
     expect(result.accounts![0].txns).toHaveLength(1);
   });
 
-  it('calls fixInstallments when combineInstallments=false', async () => {
+  it('calls fixInstallments when shouldCombineInstallments=false', async () => {
     mockCategories();
     mockTxnMonth([rawTxn()]);
 
-    await new MaxScraper(createMockScraperOptions({ combineInstallments: false })).scrape(CREDS);
+    await new MaxScraper(createMockScraperOptions({ shouldCombineInstallments: false })).scrape(
+      CREDS,
+    );
     expect(fixInstallments).toHaveBeenCalled();
   });
 
-  it('skips fixInstallments when combineInstallments=true', async () => {
+  it('skips fixInstallments when shouldCombineInstallments=true', async () => {
     mockCategories();
     mockTxnMonth([rawTxn()]);
 
-    await new MaxScraper(createMockScraperOptions({ combineInstallments: true })).scrape(CREDS);
+    await new MaxScraper(createMockScraperOptions({ shouldCombineInstallments: true })).scrape(
+      CREDS,
+    );
     expect(fixInstallments).not.toHaveBeenCalled();
   });
 
@@ -252,7 +265,9 @@ describe('fetchData', () => {
     mockCategories();
     mockTxnMonth([rawTxn()]);
 
-    const result = await new MaxScraper(createMockScraperOptions({ includeRawTransaction: true })).scrape(CREDS);
+    const result = await new MaxScraper(
+      createMockScraperOptions({ includeRawTransaction: true }),
+    ).scrape(CREDS);
     expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
   });
 
