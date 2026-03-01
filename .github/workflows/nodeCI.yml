@@ -107,6 +107,8 @@ jobs:
           test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
           test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
           test -f lib/index.d.mts || (echo "ERROR: lib/index.d.mts not found" && exit 1)
+      - name: Validate package exports
+        run: npm run check-exports
 
   security:
     name: CodeQL Security Scan

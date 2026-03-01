@@ -15,8 +15,14 @@
   "types": "lib/index.d.ts",
   "exports": {
     ".": {
-      "import": { "types": "./lib/index.d.mts", "default": "./lib/index.mjs" },
-      "require": { "types": "./lib/index.d.ts", "default": "./lib/index.cjs" }
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -72,7 +78,6 @@
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
-    "jscodeshift": "^17.3.0",
     "lint-staged": "^16.3.0",
     "minimist": "^1.2.8",
     "ncp": "^2.0.0",
@@ -87,7 +92,6 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
-    "core-js": "^3.48.0",
     "debug": "^4.4.3",
     "lodash": "^4.17.23",
     "moment": "^2.30.1",
