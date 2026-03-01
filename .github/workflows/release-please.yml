@@ -46,7 +46,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests with coverage
         run: |
-          npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+          npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
           npx jest --ci --coverage
       - name: Audit production dependencies
         run: npm audit --audit-level=high --omit=dev

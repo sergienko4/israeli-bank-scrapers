@@ -76,7 +76,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
       - name: Run tests with coverage
         run: npx jest --ci --coverage --coverageReporters=text --coverageReporters=lcov
       - name: Upload coverage artifact

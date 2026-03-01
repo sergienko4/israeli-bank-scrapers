@@ -29,7 +29,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
       - name: Run E2E smoke tests
@@ -46,11 +46,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
       - name: Run mocked E2E tests
-        run: npx jest --ci --testPathPatterns='e2e-mocked' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: npx jest --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
   e2e-real:
     name: E2E Real Bank Tests
@@ -64,11 +64,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/tests/.tests-config.tpl.js src/tests/.tests-config.js
+      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
       - name: Run real E2E tests
-        run: npx jest --ci --testPathPatterns='tests/e2e-real' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: npx jest --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
