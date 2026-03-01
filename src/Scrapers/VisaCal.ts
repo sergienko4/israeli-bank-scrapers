@@ -70,11 +70,11 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     DEBUG('get the frame that holds the login');
     const frame = await getLoginFrame(this.page);
     DEBUG('wait until the password login tab header is available');
-    await waitUntilElementFound(frame, '#regular-login');
+    await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
     DEBUG('navigate to the password login tab');
     await clickButton(frame, '#regular-login');
     DEBUG('wait until the regular-login form is ready');
-    await waitUntilElementFound(frame, '[formcontrolname="userName"]');
+    await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 15000 });
 
     return frame;
   };

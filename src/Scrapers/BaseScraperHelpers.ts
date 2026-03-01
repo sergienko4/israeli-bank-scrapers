@@ -90,6 +90,7 @@ export async function getKeyByValue(
     if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
+  DEBUG('no login result matched — url: %s, value: %s', page.url(), value);
   return LOGIN_RESULTS.UnknownError;
 }
 

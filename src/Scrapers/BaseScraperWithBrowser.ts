@@ -307,7 +307,11 @@ class BaseScraperWithBrowser<
       loginResult === LOGIN_RESULTS.InvalidPassword
         ? ScraperErrorTypes.InvalidPassword
         : ScraperErrorTypes.Generic;
-    return { success: false, errorType, errorMessage: `Login failed with ${loginResult} error` };
+    return {
+      success: false,
+      errorType,
+      errorMessage: `Login failed with ${loginResult} error — url: ${this.page.url()}`,
+    };
   }
 
   private handleLoginResult(loginResult: LoginResults): ScraperScrapingResult {

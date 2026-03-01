@@ -25,9 +25,9 @@ describe('buildContextOptions', () => {
     );
   });
 
-  it('uses default viewport 1024x768 when none provided', () => {
+  it('uses default viewport 1920x1080 when none provided', () => {
     const options = buildContextOptions();
-    expect(options.viewport).toEqual({ width: 1024, height: 768 });
+    expect(options.viewport).toEqual({ width: 1920, height: 1080 });
   });
 
   it('uses custom viewport when provided', () => {

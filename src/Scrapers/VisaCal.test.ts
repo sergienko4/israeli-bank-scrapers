@@ -23,6 +23,9 @@ jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  waitUntilIframeFound: jest
+    .fn()
+    .mockResolvedValue({ url: () => 'https://connect.cal-online.co.il/login' }),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEval: jest.fn().mockResolvedValue(''),
 }));

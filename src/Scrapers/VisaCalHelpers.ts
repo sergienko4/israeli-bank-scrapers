@@ -2,9 +2,12 @@ import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
 
 import { getDebug } from '../Helpers/Debug';
-import { elementPresentOnPage, pageEval } from '../Helpers/ElementsInteractions';
+import {
+  elementPresentOnPage,
+  pageEval,
+  waitUntilIframeFound,
+} from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
-import { waitUntil } from '../Helpers/Waiting';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import { type ScraperOptions } from './Interface';
@@ -22,19 +25,10 @@ const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנ
 
 export async function getLoginFrame(page: Page): Promise<Frame> {
   DEBUG('wait until login frame found');
-  await waitUntil(
-    () => Promise.resolve(page.frames().some(f => f.url().includes('connect'))),
-    'wait for iframe with login form',
-    { timeout: 45000, interval: 1000 },
-  );
-
-  const frame = page.frames().find(f => f.url().includes('connect'));
-  if (!frame) {
-    DEBUG('login frame disappeared after detection');
-    throw new Error('failed to extract login iframe');
-  }
-
-  return frame;
+  return waitUntilIframeFound(page, f => f.url().includes('connect'), {
+    timeout: 45000,
+    description: 'login iframe (connect.cal-online.co.il)',
+  });
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
