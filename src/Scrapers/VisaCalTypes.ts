@@ -1,3 +1,5 @@
+import type moment from 'moment';
+
 export enum TrnTypeCode {
   Regular = '5',
   Credit = '6',
@@ -172,4 +174,20 @@ export function isCardPendingTransactionDetails(
   result: CardPendingTransactionDetails | CardApiStatus,
 ): result is CardPendingTransactionDetails {
   return 'result' in result;
+}
+
+export interface LoginResponse {
+  token: string;
+}
+
+export interface CardInfo {
+  cardUniqueId: string;
+  last4Digits: string;
+}
+
+export interface ApiContext {
+  startDate: Date;
+  startMoment: moment.Moment;
+  hdrs: Record<string, string>;
+  frames: FramesResponse;
 }

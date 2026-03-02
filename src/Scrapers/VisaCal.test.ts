@@ -199,8 +199,10 @@ function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
         waitForSelector: jest.fn().mockResolvedValue(undefined),
       },
     ]),
-    waitForRequest: jest.fn().mockResolvedValue({
-      headers: () => ({ authorization: 'Bearer auth-token' }),
+    waitForResponse: jest.fn().mockResolvedValue({
+      json: jest.fn().mockResolvedValue({ token: 'cal-auth-token' }),
+      url: () => 'https://connect.cal-online.co.il/col-rest/calconnect/authentication/login',
+      request: () => ({ method: () => 'POST' }),
     }),
   });
   mockContext.newPage.mockResolvedValue(page);
