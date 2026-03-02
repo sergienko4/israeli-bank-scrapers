@@ -1,0 +1,10 @@
+# Shell scripts must use LF — CRLF breaks bash execution on Windows/MSYS
+.husky/* text eol=lf
+
+# Source files: normalize to LF in repo, respect OS on checkout
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
