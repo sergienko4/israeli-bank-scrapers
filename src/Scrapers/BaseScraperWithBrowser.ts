@@ -1,5 +1,7 @@
-import { type Browser, chromium, type Frame, type Page } from 'playwright';
-
+import { type Browser, type Frame, type Page } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+chromium.use(StealthPlugin());
 import { ScraperProgressTypes } from '../Definitions';
 import { buildContextOptions } from '../Helpers/Browser';
 import { getDebug } from '../Helpers/Debug';
@@ -119,10 +121,6 @@ class BaseScraperWithBrowser<
     }
     await Promise.all(this.cleanups.reverse().map(safeCleanup));
     this.cleanups = [];
-  }
-
-  getViewPort(): { width: number; height: number } | undefined {
-    return this.options.viewportSize;
   }
 
   private buildFieldConfig(field: { selector: string; credentialKey?: string }): FieldConfig {
