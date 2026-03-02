@@ -8,22 +8,48 @@ echo "  See CLEAN_CODE.md for fix strategies"
 echo "══════════════════════════════════════════════════════"
 
 echo ""
-echo "🔍  [1/4] Type check — strict, no implicit any..."
+echo "🔍  [1/8] Type check — strict, no implicit any..."
 npx tsc --noEmit || exit 1
 
 echo ""
-echo "🧪  [2/4] Unit tests..."
+echo "🧪  [2/8] Unit tests..."
 npm run test:unit -- --no-coverage || exit 1
 
 echo ""
-echo "🎭  [3/4] Mocked E2E tests..."
+echo "🎭  [3/8] Mocked E2E tests..."
 npm run test:e2e:mock -- --no-coverage || exit 1
 
 echo ""
-echo "🧹  [4/4] Lint + format (changed files only)..."
+echo "🧹  [4/8] Lint + format (changed files only)..."
 npx lint-staged || exit 1
 
 echo ""
+echo "📦  [5/8] Build verification (tsup + publint)..."
+npx tsup || exit 1
+npx rimraf lib/Helpers lib/Scrapers lib/Tests
+test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.mts || { echo "❌ Build output missing"; exit 1; }
+npm run check-exports || exit 1
+
+echo ""
+echo "🔒  [6/8] npm audit (production deps)..."
+npm audit --audit-level=high --omit=dev || exit 1
+
+echo ""
+echo "🏦  [7/8] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount, VisaCal)..."
+if [ -f .env ]; then
+  npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js 2>/dev/null
+  npx jest --no-coverage --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
+    --testPathPatterns='E2eReal/Amex|E2eReal/Isracard|E2eReal/Max|E2eReal/Discount|E2eReal/Visacal' \
+    --verbose || exit 1
+else
+  echo "  ⚠️  No .env file — skipping real E2E (CI will run them)"
+fi
+
+echo ""
+echo "🔎  [8/8] Dependency review (informational)..."
+npm audit --audit-level=high 2>/dev/null || true
+
+echo ""
 echo "══════════════════════════════════════════════════════"
-echo "✅  ALL GATES PASSED. COMMITTING..."
+echo "✅  ALL 8 GATES PASSED. COMMITTING..."
 echo ""
