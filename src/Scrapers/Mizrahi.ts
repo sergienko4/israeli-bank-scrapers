@@ -1,41 +1,42 @@
 import moment from 'moment';
 import { type Frame } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
+import { getDebug } from '../Helpers/Debug';
 import {
   pageEvalAll,
   waitUntilElementFound,
   waitUntilIframeFound,
 } from '../Helpers/ElementsInteractions';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
+import { getRawTransaction } from '../Helpers/Transactions';
 import {
   type Transaction,
+  type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-  type TransactionsAccount,
 } from '../Transactions';
-import { ScraperErrorTypes } from './Errors';
-import { getDebug } from '../Helpers/Debug';
-import { getRawTransaction } from '../Helpers/Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
+import { ScraperErrorTypes } from './Errors';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 import {
+  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   type ConvertOneRowOpts,
   type ConvertTxnsOpts,
-  type MoreDetails,
-  type ScrapedTransaction,
-  type ScrapedTransactionsResult,
-  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   createDataFromRequest,
   createHeadersFromRequest,
   GENERIC_DESCRIPTIONS,
   getExtraTransactionDetails,
   getStartMoment,
   getTransactionIdentifier,
+  type MoreDetails,
   OSH_PAGE,
   PENDING_TRANSACTIONS_IFRAME,
   PENDING_TRANSACTIONS_PAGE,
+  type ScrapedTransaction,
+  type ScrapedTransactionsResult,
   TRANSACTIONS_PAGE,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers';
@@ -61,7 +62,7 @@ function buildRowBase(opts: BuildRowBaseOpts): Transaction {
     originalCurrency: SHEKEL_CURRENCY,
     chargedAmount: row.MC02SchumEZ,
     description: row.MC02TnuaTeurEZ,
-    memo: moreDetails?.memo,
+    memo: moreDetails.memo,
     status:
       isPendingIfTodayTransaction && row.IsTodayTransaction
         ? TransactionStatuses.Pending
@@ -119,7 +120,10 @@ async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
   return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -127,7 +131,9 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   }
 
   async fetchData(): Promise<ScraperScrapingResult> {
-    await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
+    await this.page.$eval('#dropdownBasic, .item', el => {
+      (el as HTMLElement).click();
+    });
     const numOfAccounts = (await this.page.$$(ACCOUNT_DROP_DOWN_ITEM_SELECTOR)).length;
     try {
       const results: TransactionsAccount[] = [];
@@ -146,17 +152,19 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
     if (index > 0)
-      await this.page.$eval('#dropdownBasic, .item', el => (el as HTMLElement).click());
-    await this.page.$eval(`${ACCOUNT_DROP_DOWN_ITEM_SELECTOR}:nth-child(${index + 1})`, el =>
-      (el as HTMLElement).click(),
-    );
+      await this.page.$eval('#dropdownBasic, .item', el => {
+        (el as HTMLElement).click();
+      });
+    await this.page.$eval(`${ACCOUNT_DROP_DOWN_ITEM_SELECTOR}:nth-child(${index + 1})`, el => {
+      (el as HTMLElement).click();
+    });
     return this.fetchAccount();
   }
 
   private async getPendingTransactions(): Promise<Transaction[]> {
-    await this.page.$eval(`a[href*="${PENDING_TRANSACTIONS_PAGE}"]`, el =>
-      (el as HTMLElement).click(),
-    );
+    await this.page.$eval(`a[href*="${PENDING_TRANSACTIONS_PAGE}"]`, el => {
+      (el as HTMLElement).click();
+    });
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
@@ -173,9 +181,13 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private async navigateToTransactions(): Promise<void> {
     await this.page.waitForSelector(`a[href*="${OSH_PAGE}"]`);
-    await this.page.$eval(`a[href*="${OSH_PAGE}"]`, el => (el as HTMLElement).click());
+    await this.page.$eval(`a[href*="${OSH_PAGE}"]`, el => {
+      (el as HTMLElement).click();
+    });
     await waitUntilElementFound(this.page, `a[href*="${TRANSACTIONS_PAGE}"]`);
-    await this.page.$eval(`a[href*="${TRANSACTIONS_PAGE}"]`, el => (el as HTMLElement).click());
+    await this.page.$eval(`a[href*="${TRANSACTIONS_PAGE}"]`, el => {
+      (el as HTMLElement).click();
+    });
   }
 
   private async getAccountNumber(): Promise<string> {
@@ -238,7 +250,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
-    if (!response || response.header.success === false) {
+    if (!response?.header.success) {
       throw new Error(
         `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
       );
@@ -248,7 +260,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     const allTxn = oshTxn
       .filter(txn => moment(txn.date).isSameOrAfter(startMoment))
       .concat(await this.getPendingTransactions());
-    return { accountNumber, txns: allTxn, balance: +response.body.fields?.Yitra };
+    return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
   }
 
   private shouldMarkAsPending(txn: Transaction): boolean {

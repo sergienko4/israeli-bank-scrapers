@@ -1,12 +1,13 @@
 import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
-import { fetchPostWithinPage } from '../Helpers/Fetch';
-import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
 import { buildContextOptions } from '../Helpers/Browser';
+import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import MizrahiScraper from './Mizrahi';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import MizrahiScraper from './Mizrahi';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
@@ -89,7 +90,7 @@ function mockApiResponse(rows: MizrahiScrapedTxn[] = [], balance = '5000'): obje
   };
 }
 
-function mockDetailsResponse(fields: Array<{ Label: string; Value: string }>): object {
+function mockDetailsResponse(fields: { Label: string; Value: string }[]): object {
   return { body: { fields: [[{ Records: [{ Fields: fields }] }]] } };
 }
 

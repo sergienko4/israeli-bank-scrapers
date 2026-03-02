@@ -1,6 +1,7 @@
 import { type Browser } from 'playwright';
+
 import { buildContextOptions } from '../../Helpers/Browser';
-import { getSharedBrowser, closeSharedBrowser } from './Helpers/BrowserFixture';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 
 let browser: Browser;
 

@@ -1,12 +1,13 @@
 import { type Moment } from 'moment';
 import { type Page } from 'playwright';
-import { type TransactionsAccount, type Transaction } from '../Transactions';
+
+import { type Transaction, type TransactionsAccount } from '../Transactions';
 import { type ScraperOptions } from './Interface';
 
-export type CompanyServiceOptions = {
+export interface CompanyServiceOptions {
   servicesUrl: string;
   companyCode: string;
-};
+}
 
 export type ScrapedAccountsWithIndex = Record<string, TransactionsAccount & { index: number }>;
 
@@ -42,7 +43,7 @@ export interface ScrapedLoginValidation {
 export interface ScrapedAccountsWithinPageResponse {
   Header: { Status: string };
   DashboardMonthBean?: {
-    cardsCharges: { cardIndex: string; cardNumber: string; billingDate: string }[];
+    cardsCharges?: { cardIndex: string; cardNumber: string; billingDate: string }[];
   };
 }
 

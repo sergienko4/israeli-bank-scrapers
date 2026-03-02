@@ -1,16 +1,17 @@
-import { chromium } from 'playwright';
 import moment from 'moment';
+import { chromium } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
 import { ScraperProgressTypes } from '../Definitions';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
 import { buildContextOptions } from '../Helpers/Browser';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
 import { filterOldTransactions, fixInstallments } from '../Helpers/Transactions';
 import { sleep } from '../Helpers/Waiting';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import IsracardAmexBaseScraper from './BaseIsracardAmex';
-import { ScraperErrorTypes } from './Errors';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
 import type { ScrapedTransaction } from './BaseIsracardAmexTypes';
+import { ScraperErrorTypes } from './Errors';
 import type { ScraperOptions } from './Interface';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));

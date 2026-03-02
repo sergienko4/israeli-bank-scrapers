@@ -1,11 +1,12 @@
 import { type Page } from 'playwright';
+
+import { createMockPage } from '../Tests/MockPage';
 import {
   clickAccountSelectorGetAccountIds,
   getAccountIdsBothUIs,
-  selectAccountFromDropdown,
   getTransactionsFrame,
+  selectAccountFromDropdown,
 } from './BeinleumiAccountSelector';
-import { createMockPage } from '../Tests/MockPage';
 
 jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),

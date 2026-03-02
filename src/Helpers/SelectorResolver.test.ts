@@ -1,11 +1,12 @@
 import { type Frame, type Page } from 'playwright';
+
+import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
 import {
   candidateToCss,
   extractCredentialKey,
   resolveFieldContext,
   tryInContext,
 } from './SelectorResolver';
-import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
 
 jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));
 

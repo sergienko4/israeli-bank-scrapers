@@ -1,3 +1,4 @@
+// @ts-check
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import importPlugin from 'eslint-plugin-import';
@@ -5,15 +6,16 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import checkFile from 'eslint-plugin-check-file';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs'] },
+  { ignores: ['lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts'] },
 
   // Base configs
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
 
   // Prettier (disables formatting rules)
   prettier,
@@ -25,6 +27,7 @@ export default tseslint.config(
       import: importPlugin,
       'unused-imports': unusedImports,
       'check-file': checkFile,
+      'simple-import-sort': simpleImportSort,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -44,6 +47,15 @@ export default tseslint.config(
       },
     },
     rules: {
+      // ── Logging & Security ───────────────────────────────────────────────
+      'no-console': 'error',
+      'no-warning-comments': ['error', { terms: ['todo', 'fixme'], location: 'anywhere' }],
+
+      // ── Import organization ──────────────────────────────────────────────
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+      'import/no-duplicates': 'error',
+
       // Quotes
       quotes: ['error', 'single', { avoidEscape: true }],
 
@@ -54,7 +66,17 @@ export default tseslint.config(
       'arrow-body-style': 'off',
       'no-shadow': 'off',
       'no-await-in-loop': 'off',
-      'no-restricted-syntax': ['error', 'ForInStatement', 'LabeledStatement', 'WithStatement'],
+      'no-restricted-syntax': [
+        'error',
+        // Security: block logging sensitive fields via logger calls
+        {
+          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
+          message: 'SECURITY: Do not log sensitive data keys.',
+        },
+        'ForInStatement',
+        'LabeledStatement',
+        'WithStatement',
+      ],
 
       // ── Strict type safety ───────────────────────────────────────────────
       // Zero-Compromise: no 'any', no unsafe operations, explicit return types.
@@ -201,7 +223,12 @@ export default tseslint.config(
     ],
     rules: {
       'import/no-extraneous-dependencies': 'off',
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-deprecated': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
       'no-console': 'off',
+      'no-warning-comments': 'off',
       'max-lines': 'off',
       'max-lines-per-function': 'off',
       'max-len': 'off',

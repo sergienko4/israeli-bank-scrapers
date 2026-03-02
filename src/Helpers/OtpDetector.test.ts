@@ -1,9 +1,10 @@
 import { type Frame, type Page } from 'playwright';
+
 import {
+  clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
   findOtpSubmitSelector,
-  clickOtpTriggerIfPresent,
 } from './OtpDetector';
 
 jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));
@@ -14,14 +15,14 @@ jest.mock('./SelectorResolver', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
 
-type OtpMockPage = {
+interface OtpMockPage {
   evaluate: jest.Mock;
   frames: jest.Mock;
   mainFrame: jest.Mock;
   url: jest.Mock;
   click: jest.Mock;
   frameLocator: jest.Mock;
-};
+}
 
 function makePage(bodyText: string | undefined): OtpMockPage & Page {
   const mainFrame = {

@@ -1,9 +1,10 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
+
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../Constants';
 import { elementPresentOnPage, pageEvalAll } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { type ScraperOptions } from './Interface';
 
 export const DATE_FORMAT = 'DD/MM/YYYY';
@@ -19,7 +20,9 @@ export const ERROR_MESSAGE_CLASS = 'NO_DATA';
 
 export type TransactionsColsTypes = Record<string, number>;
 export type TransactionsTrTds = string[];
-export type TransactionsTr = { innerTds: TransactionsTrTds };
+export interface TransactionsTr {
+  innerTds: TransactionsTrTds;
+}
 
 export interface ScrapedTransaction {
   reference: string;
@@ -113,7 +116,7 @@ export async function getTransactionsColsTypeClasses(
   const result: TransactionsColsTypes = {};
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
-    defaultResult: [] as Array<{ colClass: string | null; index: number }>,
+    defaultResult: [] as { colClass: string | null; index: number }[],
     callback: tds => tds.map((td, index) => ({ colClass: td.getAttribute('class'), index })),
   });
   for (const typeClassObj of typeClassesObjs) {

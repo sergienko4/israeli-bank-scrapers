@@ -1,16 +1,17 @@
 import { chromium } from 'playwright';
-import AMEXScraper from './Amex';
+
+import { SCRAPERS } from '../Definitions';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
+import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
 import {
-  maybeTestCompanyAPI,
+  exportTransactions,
   extendAsyncTimeout,
   getTestsConfig,
-  exportTransactions,
+  maybeTestCompanyAPI,
 } from '../Tests/TestsUtils';
-import { SCRAPERS } from '../Definitions';
+import AMEXScraper from './Amex';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import type { ScraperOptions } from './Interface';
-import { fetchPostWithinPage, fetchGetWithinPage } from '../Helpers/Fetch';
-import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({
@@ -21,7 +22,7 @@ jest.mock('../Helpers/Browser', () => ({ buildContextOptions: jest.fn().mockRetu
 jest.mock('../Helpers/Waiting', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(async (fns: Array<() => Promise<unknown>>) => {
+  runSerial: jest.fn(async (fns: (() => Promise<unknown>)[]) => {
     const results = [];
     for (const fn of fns) results.push(await fn());
     return results;

@@ -1,15 +1,15 @@
-import _ from 'lodash';
 import moment from 'moment';
 import { type Page } from 'playwright';
+
+import { CompanyTypes } from '../Definitions';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
-import { GenericBankScraper } from './GenericBankScraper';
 import { ScraperErrorTypes } from './Errors';
-import { type LoginConfig } from './LoginConfig';
+import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
+import { type LoginConfig } from './LoginConfig';
 
 const BASE_URL = 'https://start.telebank.co.il';
 const DATE_FORMAT = 'YYYYMMDD';
@@ -29,21 +29,21 @@ interface CurrentAccountInfo {
 interface ScrapedAccountData {
   UserAccountsData: {
     DefaultAccountNumber: string;
-    UserAccounts: Array<{
+    UserAccounts: {
       NewAccountInfo: {
         AccountID: string;
       };
-    }>;
+    }[];
   };
 }
 
 interface ScrapedTransactionData {
   Error?: { MsgText: string };
   CurrentAccountLastTransactions?: {
-    OperationEntry: ScrapedTransaction[];
+    OperationEntry: ScrapedTransaction[] | null;
     CurrentAccountInfo: CurrentAccountInfo;
     FutureTransactionsBlock: {
-      FutureTransactionEntry: ScrapedTransaction[];
+      FutureTransactionEntry: ScrapedTransaction[] | null;
     };
   };
 }
@@ -73,7 +73,6 @@ function convertTransactions(
   txnStatus: TransactionStatuses,
   options?: ScraperOptions,
 ): Transaction[] {
-  if (!txns) return [];
   return txns.map(txn => convertOneTxn(txn, txnStatus, options));
 }
 
@@ -89,10 +88,9 @@ function getPendingTxns(
   txnsResult: ScrapedTransactionData,
   options: ScraperOptions,
 ): Transaction[] {
-  const rawFutureTxns = _.get(
-    txnsResult,
-    'CurrentAccountLastTransactions.FutureTransactionsBlock.FutureTransactionEntry',
-  ) as ScrapedTransaction[];
+  const rawFutureTxns: ScrapedTransaction[] | null | undefined =
+    txnsResult.CurrentAccountLastTransactions?.FutureTransactionsBlock.FutureTransactionEntry;
+  if (!rawFutureTxns) return [];
   return convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options);
 }
 
@@ -102,11 +100,9 @@ function buildOneAccountResult(
   options: ScraperOptions,
 ): { accountNumber: string; balance: number; txns: Transaction[] } {
   const data = txnsResult.CurrentAccountLastTransactions!;
-  const completedTxns = convertTransactions(
-    data.OperationEntry,
-    TransactionStatuses.Completed,
-    options,
-  );
+  const completedTxns = data.OperationEntry
+    ? convertTransactions(data.OperationEntry, TransactionStatuses.Completed, options)
+    : [];
   return {
     accountNumber,
     balance: data.CurrentAccountInfo.AccountBalance,
@@ -131,10 +127,7 @@ async function fetchOneAccount(
 
 function buildStartDateStr(options: ScraperOptions): string {
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
-  const startMoment = moment.max(
-    defaultStartMoment,
-    moment(options.startDate || defaultStartMoment.toDate()),
-  );
+  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   return startMoment.format(DATE_FORMAT);
 }
 
@@ -198,7 +191,11 @@ async function fetchAccountData(
   return fetchAllAccounts(buildAccountsOpts({ page, apiSiteUrl, accountInfo, options }));
 }
 
-type ScraperSpecificCredentials = { id: string; password: string; num: string };
+interface ScraperSpecificCredentials {
+  id: string;
+  password: string;
+  num: string;
+}
 
 class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(

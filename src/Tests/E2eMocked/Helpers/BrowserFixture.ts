@@ -1,4 +1,4 @@
-import { chromium, type Browser } from 'playwright';
+import { type Browser, chromium } from 'playwright';
 
 let sharedBrowser: Browser | null = null;
 

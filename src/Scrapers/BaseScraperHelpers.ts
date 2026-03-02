@@ -1,4 +1,5 @@
 import { type Frame, type Page } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
 import { type WaitUntilState } from '../Helpers/Navigation';
 import { ScraperErrorTypes } from './Errors';
@@ -16,7 +17,6 @@ enum LoginBaseResults {
 const {
   Timeout: _TIMEOUT,
   Generic: _GENERIC,
-  General: _GENERAL,
   WafBlocked: _WAF_BLOCKED,
   ...LOGIN_BASE_ENTRIES
 } = ScraperErrorTypes;
@@ -29,23 +29,18 @@ export const LOGIN_RESULTS = {
 export type LoginResults =
   | Exclude<
       ScraperErrorTypes,
-      | ScraperErrorTypes.Timeout
-      | ScraperErrorTypes.Generic
-      | ScraperErrorTypes.General
-      | ScraperErrorTypes.WafBlocked
+      ScraperErrorTypes.Timeout | ScraperErrorTypes.Generic | ScraperErrorTypes.WafBlocked
     >
   | LoginBaseResults;
 
-export type PossibleLoginResults = {
-  [key in LoginResults]?: LoginCondition[];
-};
+export type PossibleLoginResults = Partial<Record<LoginResults, LoginCondition[]>>;
 
 export interface LoginOptions {
   loginUrl: string;
   checkReadiness?: () => Promise<void>;
   fields: { selector: string; value: string; credentialKey?: string }[];
   submitButtonSelector: string | (() => Promise<void>);
-  preAction?: () => Promise<Frame | void>;
+  preAction?: () => Promise<Frame | undefined>;
   postAction?: () => Promise<void>;
   possibleResults: PossibleLoginResults;
   waitUntil?: WaitUntilState;
@@ -73,7 +68,7 @@ export async function matchesAnyCondition(
 }
 
 export function createGeneralError(): ScraperScrapingResult {
-  return { success: false, errorType: ScraperErrorTypes.General };
+  return { success: false, errorType: ScraperErrorTypes.Generic };
 }
 
 export async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
@@ -91,9 +86,11 @@ export async function getKeyByValue(
 ): Promise<LoginResults> {
   const keys = Object.keys(object) as LoginResults[];
   for (const key of keys) {
-    const conditions = object[key] as LoginCondition[];
+    const conditions = object[key];
+    if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
+  DEBUG('no login result matched — url: %s, value: %s', page.url(), value);
   return LOGIN_RESULTS.UnknownError;
 }
 

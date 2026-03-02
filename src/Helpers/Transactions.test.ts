@@ -1,10 +1,11 @@
 import moment from 'moment';
-import { TransactionTypes, TransactionStatuses, type Transaction } from '../Transactions';
+
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import {
-  fixInstallments,
-  sortTransactionsByDate,
   filterOldTransactions,
+  fixInstallments,
   getRawTransaction,
+  sortTransactionsByDate,
 } from './Transactions';
 
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {

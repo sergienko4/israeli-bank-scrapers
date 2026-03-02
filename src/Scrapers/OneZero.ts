@@ -1,15 +1,16 @@
 import moment from 'moment/moment';
+
 import { getDebug } from '../Helpers/Debug';
 import { fetchGraphql, fetchPost } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import {
   type Transaction as ScrapingTransaction,
+  type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-  type TransactionsAccount,
 } from '../Transactions';
 import { BaseScraper } from './BaseScraper';
-import { ScraperErrorTypes, createGenericError } from './Errors';
+import { createGenericError, ScraperErrorTypes } from './Errors';
 import {
   type ScraperGetLongTermTwoFactorTokenResult,
   type ScraperLoginResult,
@@ -41,12 +42,12 @@ function reverseHebrewRanges(plain: string, ranges: { start: number; end: number
   const out: string[] = [];
   let index = 0;
   for (const { start, end } of ranges) {
-    out.push(...plain.substring(index, start));
+    out.push(...Array.from(plain.substring(index, start)));
     index += start - index;
-    out.push(...[...plain.substring(start, end)].reverse());
+    out.push(...Array.from(plain.substring(start, end)).reverse());
     index += end - start;
   }
-  out.push(...plain.substring(index));
+  out.push(...Array.from(plain.substring(index)));
   return out.join('');
 }
 
@@ -121,10 +122,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   async fetchData(): Promise<ScraperScrapingResult> {
     if (!this.accessToken) return createGenericError('login() was not called');
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startMoment = moment.max(
-      defaultStartMoment,
-      moment(this.options.startDate || defaultStartMoment.toDate()),
-    );
+    const startMoment = moment.max(defaultStartMoment, moment(this.options.startDate));
     const portfolios = await this.fetchPortfolios();
     return {
       success: true,
@@ -179,12 +177,13 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       if (!credentials.otpLongTermToken) return createGenericError('Invalid otpLongTermToken');
       return { success: true, longTermTwoFactorAuthToken: credentials.otpLongTermToken };
     }
-    if (!credentials.otpCodeRetriever)
+    if (!('otpCodeRetriever' in credentials)) {
       return {
         success: false,
         errorType: ScraperErrorTypes.TwoFactorRetrieverMissing,
-        errorMessage: 'otpCodeRetriever is required when otpPermanentToken is not provided',
+        errorMessage: 'otpLongTermToken or otpCodeRetriever is required',
       };
+    }
     if (!credentials.phoneNumber)
       return createGenericError(
         'phoneNumber is required when providing a otpCodeRetriever callback',
@@ -296,7 +295,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       status: TransactionStatuses.Completed,
       type: hasInstallments ? TransactionTypes.Installments : TransactionTypes.Normal,
     };
-    if (this.options?.includeRawTransaction) result.rawTransaction = getRawTransaction(movement);
+    if (this.options.includeRawTransaction) result.rawTransaction = getRawTransaction(movement);
     return result;
   }
 
@@ -325,6 +324,6 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     const result = await fetchGraphql<{ customer: Customer[] }>(GRAPHQL_API_URL, GET_CUSTOMER, {
       extraHeaders: { authorization: `Bearer ${this.accessToken}` },
     });
-    return result.customer.flatMap(customer => customer.portfolios || []);
+    return result.customer.flatMap(customer => customer.portfolios ?? []);
   }
 }

@@ -1,20 +1,21 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import getAllMonthMoments from '../Helpers/Dates';
 import { getDebug } from '../Helpers/Debug';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import {
   filterOldTransactions,
   fixInstallments,
-  sortTransactionsByDate,
   getRawTransaction,
+  sortTransactionsByDate,
 } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('max');
 
@@ -48,10 +49,10 @@ function getTransactionsUrl(monthMoment: Moment): string {
 }
 
 interface FetchCategoryResult {
-  result?: Array<{
+  result?: {
     id: number;
     name: string;
-  }>;
+  }[];
 }
 
 async function loadCategories(page: Page): Promise<void> {
@@ -62,7 +63,7 @@ async function loadCategories(page: Page): Promise<void> {
   );
   if (res && Array.isArray(res.result)) {
     DEBUG(`${res.result.length} categories loaded`);
-    res.result?.forEach(({ id, name }) => CATEGORIES.set(id, name));
+    res.result.forEach(({ id, name }) => CATEGORIES.set(id, name));
   }
 }
 
@@ -103,8 +104,7 @@ function getTransactionType(planName: string, planTypeId: number): TransactionTy
   const byName = PLAN_TYPE_MAP[cleanedUpTxnTypeStr];
   if (byName !== undefined) return byName;
   const byId = PLAN_ID_MAP[planTypeId];
-  if (byId !== undefined) return byId;
-  throw new Error(`Unknown transaction type ${cleanedUpTxnTypeStr as string}`);
+  return byId;
 }
 
 function getInstallmentsInfo(comments: string): { number: number; total: number } | undefined {
@@ -182,7 +182,7 @@ function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'ra
     chargedCurrency: getChargedCurrency(rawTransaction.paymentCurrency),
     description: rawTransaction.merchantName.trim(),
     memo: getMemo(rawTransaction),
-    category: CATEGORIES.get(rawTransaction?.categoryId),
+    category: CATEGORIES.get(rawTransaction.categoryId),
     installments,
     identifier: getTxnIdentifier(rawTransaction, installments),
     status: isPending ? TransactionStatuses.Pending : TransactionStatuses.Completed,
@@ -210,18 +210,14 @@ async function fetchTransactionsForMonth(
   const data = await fetchGetWithinPage<ScrapedTransactionsResult>(page, url);
   const transactionsByAccount: Record<string, Transaction[]> = {};
 
-  if (!data || !data.result) return transactionsByAccount;
+  if (!data?.result) return transactionsByAccount;
 
   data.result.transactions
     // Filter out non-transactions without a plan type, e.g. summary rows
     .filter(transaction => !!transaction.planName)
     .forEach((transaction: ScrapedTransaction) => {
-      if (!transactionsByAccount[transaction.shortCardNumber]) {
-        transactionsByAccount[transaction.shortCardNumber] = [];
-      }
-
       const mappedTransaction = mapTransaction(transaction, options);
-      transactionsByAccount[transaction.shortCardNumber].push(mappedTransaction);
+      (transactionsByAccount[transaction.shortCardNumber] ??= []).push(mappedTransaction);
     });
 
   return transactionsByAccount;
@@ -233,10 +229,7 @@ function addResult(
 ): Record<string, Transaction[]> {
   const clonedResults: Record<string, Transaction[]> = { ...allResults };
   Object.keys(result).forEach(accountNumber => {
-    if (!clonedResults[accountNumber]) {
-      clonedResults[accountNumber] = [];
-    }
-    clonedResults[accountNumber].push(...result[accountNumber]);
+    (clonedResults[accountNumber] ??= []).push(...result[accountNumber]);
   });
   return clonedResults;
 }
@@ -275,7 +268,7 @@ function applyPrepareToAllAccounts(
   startMoment: moment.Moment,
   options: ScraperOptions,
 ): void {
-  const shouldCombineInstallments = options.shouldCombineInstallments || false;
+  const shouldCombineInstallments = options.shouldCombineInstallments ?? false;
   const isFilterByDateEnabled = options.outputData?.isFilterByDateEnabled ?? true;
   Object.keys(allResults).forEach(accountNumber => {
     allResults[accountNumber] = prepareTransactions({
@@ -292,11 +285,7 @@ async function fetchTransactions(
   options: ScraperOptions,
 ): Promise<Record<string, Transaction[]>> {
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
-  const defaultStartMoment = moment().subtract(1, 'years');
-  const startMoment = moment.max(
-    moment().subtract(4, 'years'),
-    moment(options.startDate || defaultStartMoment.toDate()),
-  );
+  const startMoment = moment.max(moment().subtract(4, 'years'), moment(options.startDate));
   const allMonths = getAllMonthMoments(startMoment, futureMonthsToScrape);
   await loadCategories(page);
   const allResults = await collectAllMonthResults(page, allMonths, options);
@@ -304,7 +293,10 @@ async function fetchTransactions(
   return allResults;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {

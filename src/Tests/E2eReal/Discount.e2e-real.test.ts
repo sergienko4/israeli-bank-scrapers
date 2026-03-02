@@ -1,12 +1,13 @@
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
-import { createScraper, CompanyTypes } from '../../index';
+
+import { CompanyTypes, createScraper } from '../../index';
 import {
-  SCRAPE_TIMEOUT,
-  BROWSER_ARGS,
-  assertSuccessfulScrape,
   assertFailedLogin,
+  assertSuccessfulScrape,
+  BROWSER_ARGS,
   lastMonthStartDate,
+  SCRAPE_TIMEOUT,
 } from './Helpers';
 
 dotenv.config();

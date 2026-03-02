@@ -3,6 +3,7 @@
  * Imported by each per-bank test file (run in parallel by Jest).
  */
 import { type Page } from 'playwright';
+
 import { LOGIN_RESULTS } from '../../Scrapers/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Errors';
 
@@ -12,7 +13,7 @@ export const VALID_REACHED_BANK: string[] = [
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.Timeout,
-  ScraperErrorTypes.General,
+  ScraperErrorTypes.Generic,
   // Banks that now require OTP still prove the bank was reached
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];

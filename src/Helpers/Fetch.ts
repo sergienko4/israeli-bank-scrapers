@@ -1,4 +1,5 @@
 import { type Page } from 'playwright';
+
 import { getDebug } from './Debug';
 
 const DEBUG = getDebug('fetch');
@@ -47,10 +48,7 @@ export async function fetchGet<TResult>(
   url: string,
   extraHeaders: Record<string, string>,
 ): Promise<TResult> {
-  let headers = getJsonHeaders();
-  if (extraHeaders) {
-    headers = Object.assign(headers, extraHeaders);
-  }
+  const headers = Object.assign(getJsonHeaders(), extraHeaders);
   const fetchResult = await fetch(url, { method: 'GET', headers });
 
   if (fetchResult.status !== 200) {
@@ -83,7 +81,7 @@ export interface FetchGraphqlOptions {
 
 interface GraphqlResponse<TResult> {
   data: TResult;
-  errors?: Array<{ message: string }>;
+  errors?: { message: string }[];
 }
 
 export async function fetchGraphql<TResult>(
@@ -125,11 +123,11 @@ export interface ParseGetOpts {
   shouldIgnoreErrors: boolean;
 }
 
-function parseGetResult<TResult>(opts: ParseGetOpts): TResult | null {
+function parseGetResult(opts: ParseGetOpts): unknown {
   const { result, status, url, shouldIgnoreErrors } = opts;
   if (result === null) return null;
   try {
-    return JSON.parse(result) as TResult;
+    return JSON.parse(result) as unknown;
   } catch (e) {
     if (!shouldIgnoreErrors) {
       throw new Error(
@@ -146,7 +144,7 @@ export async function fetchGetWithinPage<TResult>(
   shouldIgnoreErrors = false,
 ): Promise<TResult | null> {
   const [result, status] = await evaluateGet(page, url);
-  return parseGetResult<TResult>({ result, status, url, shouldIgnoreErrors });
+  return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult | null;
 }
 
 export interface FetchPostOptions {
@@ -155,11 +153,11 @@ export interface FetchPostOptions {
   shouldIgnoreErrors?: boolean;
 }
 
-type PostEvalArgs = {
+interface PostEvalArgs {
   innerUrl: string;
   innerData: Record<string, unknown> | unknown[];
   innerExtraHeaders: Record<string, string>;
-};
+}
 
 // NOTE: doPostFetch runs inside page.evaluate() (browser context).
 // Must be entirely self-contained — no external function references allowed.
@@ -200,11 +198,11 @@ export interface ParsePostOpts {
   opts: FetchPostOptions;
 }
 
-function parsePostResult<TResult>(pOpts: ParsePostOpts): TResult | null {
+function parsePostResult(pOpts: ParsePostOpts): unknown {
   const { text, status, url, opts } = pOpts;
   const { data, extraHeaders = {}, shouldIgnoreErrors = false } = opts;
   try {
-    if (text !== null) return JSON.parse(text) as TResult;
+    if (text !== null) return JSON.parse(text) as unknown;
   } catch (e) {
     if (!shouldIgnoreErrors) {
       throw new Error(
@@ -227,5 +225,5 @@ export async function fetchPostWithinPage<TResult>(
     innerExtraHeaders: extraHeaders,
   });
   logResponseIssues(status, text, url);
-  return parsePostResult<TResult>({ text, status, url, opts });
+  return parsePostResult({ text, status, url, opts }) as TResult | null;
 }

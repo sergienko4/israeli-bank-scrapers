@@ -1,19 +1,20 @@
+import { type Frame } from 'playwright';
+
+import { createMockPage } from '../Tests/MockPage';
 import {
-  waitUntilElementFound,
-  waitUntilElementDisappear,
-  fillInput,
-  setValue,
   clickButton,
   clickLink,
-  elementPresentOnPage,
-  dropdownSelect,
   dropdownElements,
+  dropdownSelect,
+  elementPresentOnPage,
+  fillInput,
   pageEval,
   pageEvalAll,
+  setValue,
+  waitUntilElementDisappear,
+  waitUntilElementFound,
   waitUntilIframeFound,
 } from './ElementsInteractions';
-import { createMockPage } from '../Tests/MockPage';
-import { type Frame } from 'playwright';
 
 describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {
@@ -45,11 +46,14 @@ describe('waitUntilElementDisappear', () => {
 
 describe('fillInput', () => {
   it('clears input value then types new value', async () => {
-    const page = createMockPage();
+    const pressSequentially = jest.fn().mockResolvedValue(undefined);
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ pressSequentially }),
+    });
     await fillInput(page, '#username', 'testuser');
     expect(page.$eval).toHaveBeenCalledWith('#username', expect.any(Function));
-    expect(page.type).toHaveBeenCalledWith(
-      '#username',
+    expect(page.locator).toHaveBeenCalledWith('#username');
+    expect(pressSequentially).toHaveBeenCalledWith(
       'testuser',
       expect.objectContaining({ delay: expect.any(Number) as number }),
     );

@@ -1,11 +1,11 @@
 import {
-  TimeoutError,
-  waitUntil,
+  humanDelay,
   raceTimeout,
   runSerial,
-  sleep,
-  humanDelay,
   SECOND,
+  sleep,
+  TimeoutError,
+  waitUntil,
 } from './Waiting';
 
 describe('SECOND', () => {

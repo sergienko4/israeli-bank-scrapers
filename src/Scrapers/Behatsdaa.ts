@@ -1,35 +1,39 @@
 import moment from 'moment';
+
+import { CompanyTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { getRawTransaction } from '../Helpers/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
 
 const DEBUG = getDebug('behatsdaa');
 
-type ScraperSpecificCredentials = { id: string; password: string };
+interface ScraperSpecificCredentials {
+  id: string;
+  password: string;
+}
 
-type Variant = {
+interface Variant {
   name: string;
   variantName: string;
   customerPrice: number;
   orderDate: string; // ISO timestamp with no timezone
   tTransactionID: string;
-};
+}
 
-type PurchaseHistoryResponse = {
+interface PurchaseHistoryResponse {
   data?: {
     errorDescription?: string;
     memberId: string;
     variants: Variant[];
   };
   errorDescription?: string;
-};
+}
 
 function variantToTransaction(variant: Variant, options?: ScraperOptions): Transaction {
   // The price is positive, make it negative as it's an expense
@@ -89,11 +93,11 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   }
 
   private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
-    if (res?.errorDescription || res?.data?.errorDescription) {
-      DEBUG('Error fetching data', res.errorDescription || res.data?.errorDescription);
+    if (res.errorDescription || res.data?.errorDescription) {
+      DEBUG('Error fetching data', res.errorDescription ?? res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
-    if (!res?.data) {
+    if (!res.data) {
       DEBUG('No data found');
       return { success: false, errorMessage: 'NoData' };
     }

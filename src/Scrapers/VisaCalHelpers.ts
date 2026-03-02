@@ -1,66 +1,73 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
-import { elementPresentOnPage, pageEval } from '../Helpers/ElementsInteractions';
+import {
+  elementPresentOnPage,
+  pageEval,
+  waitUntilIframeFound,
+} from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
-import { waitUntil } from '../Helpers/Waiting';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import { type ScraperOptions } from './Interface';
 import {
-  TrnTypeCode,
+  type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
+  type FramesResponse,
+  isPending,
   type ScrapedPendingTransaction,
   type ScrapedTransaction,
-  isPending,
+  TrnTypeCode,
 } from './VisaCalTypes';
 
 const DEBUG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';
+export const CONNECT_IFRAME_OPTS = {
+  timeout: 45000,
+  description: 'login iframe (connect.cal-online.co.il)',
+} as const;
 
-export async function getLoginFrame(page: Page): Promise<Frame> {
-  let frame: Frame | null = null;
-  DEBUG('wait until login frame found');
-  await waitUntil(
-    () => {
-      frame = page.frames().find(f => f.url().includes('connect')) || null;
-      return Promise.resolve(!!frame);
-    },
-    'wait for iframe with login form',
-    { timeout: 45000, interval: 1000 },
-  );
+// Short timeout for login-state checks: if iframe is gone (post-redirect), fail fast
+const CONNECT_IFRAME_CHECK_OPTS = {
+  timeout: 3000,
+  description: 'login iframe check',
+} as const;
 
-  if (!frame) {
-    DEBUG('failed to find login frame for 45 seconds');
-    throw new Error('failed to extract login iframe');
-  }
-
-  return frame;
+export function isConnectFrame(f: Frame): boolean {
+  return f.url().includes('connect');
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
-  const frame = await getLoginFrame(page);
-  const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
-  const errorMessage = isErrorFound
-    ? await pageEval(frame, {
-        selector: 'div.general-error > div',
-        defaultResult: '',
-        callback: item => (item as HTMLDivElement).innerText,
-      })
-    : '';
-  return errorMessage === INVALID_PASSWORD_MESSAGE;
+  try {
+    const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
+    const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
+    const errorMessage = isErrorFound
+      ? await pageEval(frame, {
+          selector: 'div.general-error > div',
+          defaultResult: '',
+          callback: item => (item as HTMLDivElement).innerText,
+        })
+      : '';
+    return errorMessage === INVALID_PASSWORD_MESSAGE;
+  } catch {
+    return false; // iframe gone = page navigated away = no invalid-password error
+  }
 }
 
 export async function hasChangePasswordForm(page: Page): Promise<boolean> {
-  const frame = await getLoginFrame(page);
-  const isErrorFound = await elementPresentOnPage(frame, '.change-password-subtitle');
-  return isErrorFound;
+  try {
+    const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
+    return await elementPresentOnPage(frame, '.change-password-subtitle');
+  } catch {
+    return false; // iframe gone = page navigated away = no change-password form
+  }
 }
 
 export function getPossibleLoginResults(): Record<
   string,
-  Array<string | RegExp | ((options?: { page?: Page }) => Promise<boolean>)>
+  (string | RegExp | ((options?: { page?: Page }) => Promise<boolean>))[]
 > {
   DEBUG('return possible login results');
   return {
@@ -77,7 +84,7 @@ export function getPossibleLoginResults(): Record<
 export function createLoginFields(credentials: {
   username: string;
   password: string;
-}): Array<{ selector: string; value: string }> {
+}): { selector: string; value: string }[] {
   DEBUG('create login fields for username and password');
   return [
     { selector: '[formcontrolname="userName"]', value: credentials.username },
@@ -214,5 +221,14 @@ export function convertParsedDataToTransactions(
 ): Transaction[] {
   return collectAllTransactions(data, pendingData).map(transaction =>
     mapOneTransaction(transaction, options),
+  );
+}
+
+export function findCardFrame(
+  frames: FramesResponse,
+  cardUniqueId: string,
+): CardLevelFrame | undefined {
+  return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
+    f => f.cardUniqueId === cardUniqueId,
   );
 }

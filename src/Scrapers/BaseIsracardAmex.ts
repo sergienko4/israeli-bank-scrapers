@@ -1,21 +1,26 @@
 import moment from 'moment';
+
 import { ScraperProgressTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { humanDelay } from '../Helpers/Waiting';
 import { type Transaction } from '../Transactions';
+import { fetchAllTransactions } from './BaseIsracardAmexTransactions';
+import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
 import { BaseScraperWithBrowser } from './BaseScraperWithBrowser';
 import { ScraperErrorTypes, WafBlockError } from './Errors';
 import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
-import { fetchAllTransactions } from './BaseIsracardAmexTransactions';
 
 const COUNTRY_CODE = '212';
 const ID_TYPE = '1';
 
 const DEBUG = getDebug('base-isracard-amex');
 
-type ScraperSpecificCredentials = { id: string; password: string; card6Digits: string };
+interface ScraperSpecificCredentials {
+  id: string;
+  password: string;
+  card6Digits: string;
+}
 
 class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
   private baseUrl: string;
@@ -53,7 +58,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     accounts: { accountNumber: string; txns: Transaction[] }[];
   }> {
     const defaultStartMoment = moment().subtract(1, 'years');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     return fetchAllTransactions({
       page: this.page,
@@ -82,8 +87,8 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
     });
-    if (!result?.Header || result.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      DEBUG('validation failed: result=%s', JSON.stringify(result)?.substring(0, 300) ?? 'null');
+    if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
+      DEBUG('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
       return null;
     }
     return result.ValidateIdDataBean;

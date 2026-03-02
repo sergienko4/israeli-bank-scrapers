@@ -1,7 +1,8 @@
-import fs from 'fs';
 import { Parser } from '@json2csv/plainjs';
+import fs from 'fs';
 import moment from 'moment';
 import path from 'path';
+
 import { type TransactionsAccount } from '../Transactions';
 
 interface TestsCompanyAPI {
@@ -97,9 +98,7 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
 
   let data: TransactionRow[] = [];
 
-  for (let i = 0; i < accounts.length; i += 1) {
-    const account = accounts[i];
-
+  for (const account of accounts) {
     data = [
       ...data,
       ...account.txns.map(txn => {

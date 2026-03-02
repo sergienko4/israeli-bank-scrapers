@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
 import { fetchGetWithinPage } from '../Helpers/Fetch';
 import { sleep } from '../Helpers/Waiting';
@@ -34,13 +35,12 @@ export async function fetchAccounts(
   const dataResult = await fetchGetWithinPage<ScrapedAccountsWithinPageResponse>(page, dataUrl);
   if (dataResult && _.get(dataResult, 'Header.Status') === '1' && dataResult.DashboardMonthBean) {
     const { cardsCharges } = dataResult.DashboardMonthBean;
-    if (cardsCharges) {
-      return cardsCharges.map(cardCharge => ({
-        index: parseInt(cardCharge.cardIndex, 10),
-        accountNumber: cardCharge.cardNumber,
-        processedDate: moment(cardCharge.billingDate, DATE_FORMAT).toISOString(),
-      }));
-    }
+    if (!cardsCharges) return [];
+    return cardsCharges.map(cardCharge => ({
+      index: parseInt(cardCharge.cardIndex, 10),
+      accountNumber: cardCharge.cardNumber,
+      processedDate: moment(cardCharge.billingDate, DATE_FORMAT).toISOString(),
+    }));
   }
   return [];
 }

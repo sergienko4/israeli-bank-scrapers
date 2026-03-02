@@ -11,5 +11,4 @@ export {
   ScraperOptions,
   ScraperScrapingResult,
 } from './Scrapers/Interface';
-
 export { default as OneZeroScraper } from './Scrapers/OneZero';

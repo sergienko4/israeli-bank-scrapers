@@ -20,12 +20,12 @@ export interface WafErrorDetails {
   suggestions: string[];
 }
 
-export type ErrorResult = {
+export interface ErrorResult {
   success: false;
   errorType: ScraperErrorTypes;
   errorMessage: string;
   errorDetails?: WafErrorDetails;
-};
+}
 
 function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): ErrorResult {
   return {

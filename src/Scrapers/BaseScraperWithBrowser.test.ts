@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { chromium, type BrowserContext, type Browser } from 'playwright';
+import { type Browser, type BrowserContext, chromium } from 'playwright';
+
 import { ScraperProgressTypes } from '../Definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation } from '../Helpers/Navigation';
 import {
-  createMockPage,
-  createMockContext,
   createMockBrowser,
+  createMockContext,
+  createMockPage,
   createMockScraperOptions,
 } from '../Tests/MockPage';
 import { BaseScraperWithBrowser, LOGIN_RESULTS, type LoginOptions } from './BaseScraperWithBrowser';
@@ -85,13 +86,13 @@ beforeEach(() => {
 describe('getViewPort', () => {
   it('returns undefined when no custom viewport (uses buildContextOptions default)', () => {
     const scraper = createScraper();
-    const viewport = scraper['getViewPort']();
+    const viewport = scraper.getViewPort();
     expect(viewport).toBeUndefined();
   });
 
   it('returns custom viewport from options', () => {
     const scraper = createScraper({ viewportSize: { width: 1920, height: 1080 } });
-    const viewport = scraper['getViewPort']();
+    const viewport = scraper.getViewPort();
     expect(viewport).toEqual({ width: 1920, height: 1080 });
   });
 });
@@ -254,12 +255,17 @@ describe('fillInputs', () => {
 });
 
 describe('login', () => {
-  it('returns general error when no credentials', async () => {
+  it('returns general error when login throws', async () => {
     const scraper = createScraper();
-    // @ts-ignore — testing null credentials path
-    const result = await scraper.scrape(null);
+    scraper.loginOpts = {
+      ...defaultLoginOptions(),
+      checkReadiness: () => {
+        throw new Error('login failed unexpectedly');
+      },
+    };
+    const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.General);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 
   it('completes successful login flow', async () => {
@@ -334,7 +340,7 @@ describe('login', () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.General);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 
   it('detects login result via async function condition', async () => {

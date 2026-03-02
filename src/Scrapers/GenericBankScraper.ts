@@ -1,15 +1,15 @@
 import { type Frame, type Page } from 'playwright';
+
 import { clickButton, fillInput } from '../Helpers/ElementsInteractions';
 import { candidateToCss, resolveFieldContext } from '../Helpers/SelectorResolver';
-import { type ScraperCredentials } from './Interface';
-import { type FieldConfig, type LoginConfig, type SelectorCandidate } from './LoginConfig';
 import {
   BaseScraperWithBrowser,
   LOGIN_RESULTS,
   type LoginOptions,
   type PossibleLoginResults,
 } from './BaseScraperWithBrowser';
-import { type ScraperOptions } from './Interface';
+import { type ScraperCredentials, type ScraperOptions } from './Interface';
+import { type FieldConfig, type LoginConfig, type SelectorCandidate } from './LoginConfig';
 
 function submitCandidates(submit: SelectorCandidate | SelectorCandidate[]): SelectorCandidate[] {
   return Array.isArray(submit) ? submit : [submit];
@@ -105,14 +105,10 @@ export abstract class GenericBankScraper<
     for (let i = 0; i < fields.length; i++) {
       const fieldConfig = this.fieldConfigs[i];
       const value = fields[i].value;
-      if (fieldConfig) {
-        await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
-          selector: fields[i].selector,
-          value,
-        });
-      } else {
-        await fillInput(this.activeLoginContext ?? pageOrFrame, fields[i].selector, value);
-      }
+      await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
+        selector: fields[i].selector,
+        value,
+      });
     }
   }
 

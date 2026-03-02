@@ -1,12 +1,12 @@
-import BeinleumiScraper from './Beinleumi';
+import { SCRAPERS } from '../Definitions';
 import {
-  maybeTestCompanyAPI,
+  exportTransactions,
   extendAsyncTimeout,
   getTestsConfig,
-  exportTransactions,
+  maybeTestCompanyAPI,
 } from '../Tests/TestsUtils';
-import { SCRAPERS } from '../Definitions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
+import BeinleumiScraper from './Beinleumi';
 import type { ScraperOptions } from './Interface';
 
 const COMPANY_ID = 'beinleumi'; // TODO this property should be hard-coded in the provider

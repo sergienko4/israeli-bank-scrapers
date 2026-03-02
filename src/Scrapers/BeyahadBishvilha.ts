@@ -1,5 +1,6 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
+
 import {
   DOLLAR_CURRENCY,
   DOLLAR_CURRENCY_SYMBOL,
@@ -8,14 +9,14 @@ import {
   SHEKEL_CURRENCY,
   SHEKEL_CURRENCY_SYMBOL,
 } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import { getDebug } from '../Helpers/Debug';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../Helpers/ElementsInteractions';
-import { getRawTransaction, filterOldTransactions } from '../Helpers/Transactions';
-import { TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { filterOldTransactions, getRawTransaction } from '../Helpers/Transactions';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('beyahadBishvilha');
 
@@ -142,10 +143,7 @@ async function fetchTransactions(
   await page.goto(CARD_URL);
   await waitUntilElementFound(page, '.react-loading.hide', { visible: false });
   const defaultStartMoment = moment().subtract(1, 'years');
-  const startMoment = moment.max(
-    defaultStartMoment,
-    moment(options.startDate || defaultStartMoment.toDate()),
-  );
+  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   const { accountNumber, balance } = await scrapeAccountInfo(page);
   const { accountTransactions, txns } = await getFilteredTxns(page, options, startMoment);
   DEBUG(
@@ -154,7 +152,10 @@ async function fetchTransactions(
   return { accountNumber, balance: getAmountData(balance).amount, txns };
 }
 
-type ScraperSpecificCredentials = { id: string; password: string };
+interface ScraperSpecificCredentials {
+  id: string;
+  password: string;
+}
 
 class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -172,7 +173,7 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     };
   }
 
-  protected getViewPort(): { width: number; height: number } {
+  getViewPort(): { width: number; height: number } {
     return {
       width: 1500,
       height: 800,

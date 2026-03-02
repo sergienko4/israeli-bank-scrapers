@@ -15,7 +15,7 @@ export function buildContextOptions(viewport?: {
     userAgent: HEBREW_UA,
     locale: 'he-IL',
     timezoneId: 'Asia/Jerusalem',
-    viewport: viewport ?? { width: 1024, height: 768 },
+    viewport: viewport ?? { width: 1920, height: 1080 },
     extraHTTPHeaders: {
       'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
       'sec-ch-ua': `"Google Chrome";v="${CHROME_VERSION}", "Chromium";v="${CHROME_VERSION}", "Not_A Brand";v="24"`,

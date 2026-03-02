@@ -1,18 +1,19 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
 import { SHEKEL_CURRENCY } from '../Constants';
+import { CompanyTypes } from '../Definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { getRawTransaction } from '../Helpers/Transactions';
 import {
-  TransactionStatuses,
-  TransactionTypes,
   type Transaction,
   type TransactionsAccount,
+  TransactionStatuses,
+  TransactionTypes,
 } from '../Transactions';
-import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
-import { CompanyTypes } from '../Definitions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const BASE_URL = 'https://hb2.bankleumi.co.il';
 const TRANSACTIONS_URL = `${BASE_URL}/eBanking/SO/SPA.aspx#/ts/BusinessAccountTrx?WidgetPar=1`;
@@ -38,9 +39,9 @@ function buildTxnBase(
     type: TransactionTypes.Normal,
     date,
     processedDate: date,
-    description: rawTransaction.Description || '',
+    description: rawTransaction.Description ?? '',
     identifier: rawTransaction.ReferenceNumberLong,
-    memo: rawTransaction.AdditionalData || '',
+    memo: rawTransaction.AdditionalData ?? '',
     originalCurrency: SHEKEL_CURRENCY,
     chargedAmount: rawTransaction.Amount,
     originalAmount: rawTransaction.Amount,
@@ -59,7 +60,7 @@ function mapOneTxn(
 }
 
 function extractTransactionsFromPage(
-  transactions: LeumiRawTransaction[],
+  transactions: LeumiRawTransaction[] | null,
   status: TransactionStatuses,
   options?: ScraperOptions,
 ): Transaction[] {
@@ -103,11 +104,11 @@ async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
   await clickButton(page, "button[aria-label='סנן']");
 }
 
-type LeumiAccountResponse = {
+interface LeumiAccountResponse {
   BalanceDisplay?: string;
-  TodayTransactionsItems: LeumiRawTransaction[];
-  HistoryTransactionsItems: LeumiRawTransaction[];
-};
+  TodayTransactionsItems: LeumiRawTransaction[] | null;
+  HistoryTransactionsItems: LeumiRawTransaction[] | null;
+}
 
 function parseAccountResponse(responseJson: { jsonResp: string }): LeumiAccountResponse {
   return JSON.parse(responseJson.jsonResp) as LeumiAccountResponse;
@@ -147,14 +148,12 @@ async function fetchTransactionsForAccount(
 }
 
 async function extractAccountIds(page: Page): Promise<string[]> {
-  const ids = (
-    await page.evaluate(() =>
-      Array.from(
-        document.querySelectorAll('app-masked-number-combo span.display-number-li'),
-        e => e.textContent,
-      ),
-    )
-  ).filter((id): id is string => id !== null);
+  const ids = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll('app-masked-number-combo span.display-number-li'),
+      e => e.textContent,
+    ),
+  );
   if (!ids.length) throw new Error('Failed to extract or parse the account number');
   return ids;
 }
@@ -204,7 +203,10 @@ async function fetchTransactions(
   return accounts;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -213,9 +215,7 @@ class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   async fetchData(): Promise<ScraperScrapingResult> {
     const minimumStartMoment = moment().subtract(3, 'years').add(1, 'day');
-    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
-    const startMoment = moment.max(minimumStartMoment, moment(startDate));
+    const startMoment = moment.max(minimumStartMoment, moment(this.options.startDate));
 
     await this.navigateTo(TRANSACTIONS_URL);
 

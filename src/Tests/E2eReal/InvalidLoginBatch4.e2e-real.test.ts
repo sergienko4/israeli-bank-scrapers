@@ -1,5 +1,5 @@
-import { createScraper, CompanyTypes } from '../../index';
-import { SCRAPE_TIMEOUT, BROWSER_ARGS, assertFailedLogin } from './Helpers';
+import { CompanyTypes, createScraper } from '../../index';
+import { assertFailedLogin, BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 
 beforeAll(() => {
   jest.setTimeout(SCRAPE_TIMEOUT);

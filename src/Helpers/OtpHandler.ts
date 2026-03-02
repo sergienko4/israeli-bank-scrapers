@@ -1,16 +1,17 @@
-import { type Frame, type Page } from 'playwright';
 import path from 'path';
-import { getDebug } from './Debug';
-import { fillInput, clickButton } from './ElementsInteractions';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Interface';
+import { type Frame, type Page } from 'playwright';
+
 import { ScraperErrorTypes } from '../Scrapers/Errors';
-import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Interface';
+import { getDebug } from './Debug';
+import { clickButton, fillInput } from './ElementsInteractions';
 import {
+  clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
-  clickOtpTriggerIfPresent,
   OTP_SUBMIT_CANDIDATES,
 } from './OtpDetector';
+import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
 import { sleep } from './Waiting';
 
 const DEBUG = getDebug('otp-handler');
@@ -72,7 +73,7 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
     if (!el) continue;
     await sleep(OTP_ANIMATION_DELAY_MS);
     try {
-      await frame.locator(sel).first().type(code, { delay: 80 });
+      await frame.locator(sel).first().pressSequentially(code, { delay: 80 });
       DEBUG('typed OTP code via locator.type() selector: %s', sel);
     } catch (e: unknown) {
       DEBUG('locator.type() failed (%O), falling back to evaluate injection', e);

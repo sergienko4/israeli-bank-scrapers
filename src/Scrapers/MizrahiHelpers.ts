@@ -1,7 +1,8 @@
 import moment from 'moment';
 import { type Page, type Request } from 'playwright';
-import { fetchPostWithinPage } from '../Helpers/Fetch';
+
 import { getDebug } from '../Helpers/Debug';
+import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { type ScraperOptions } from './Interface';
 
 const DEBUG = getDebug('mizrahi');
@@ -38,29 +39,29 @@ export interface ScrapedTransactionsResult {
   };
 }
 
-type MoreDetailsResponse = {
+interface MoreDetailsResponse {
   body: {
     fields: [
       [
         {
           Records: [
             {
-              Fields: Array<{
+              Fields: {
                 Label: string;
                 Value: string;
-              }>;
+              }[];
             },
           ];
         },
       ],
     ];
   };
-};
+}
 
-export type MoreDetails = {
+export interface MoreDetails {
   entries: Record<string, string>;
   memo: string | undefined;
-};
+}
 
 export interface ConvertTxnsOpts {
   txns: ScrapedTransaction[];
@@ -95,7 +96,7 @@ export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסני
 
 export function getStartMoment(optionsStartDate: Date): moment.Moment {
   const defaultStartMoment = moment().subtract(1, 'years');
-  const startDate = optionsStartDate || defaultStartMoment.toDate();
+  const startDate = optionsStartDate;
   return moment.max(defaultStartMoment, moment(startDate));
 }
 
@@ -117,7 +118,7 @@ function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, strin
   };
 }
 
-function parseDetailsFields(fields: Array<{ Label: string; Value: string }>): MoreDetails {
+function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDetails {
   const entries: [string, string][] = fields.map(record => [
     record.Label.trim(),
     record.Value.trim(),
@@ -142,7 +143,7 @@ async function fetchMoreDetails(
     data: params,
     extraHeaders: apiHeaders,
   });
-  const details = response?.body.fields?.[0]?.[0]?.Records?.[0].Fields;
+  const details = response?.body.fields[0][0].Records[0].Fields;
   DEBUG('fetch details for', params, 'details:', details);
   if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
   return null;
@@ -174,7 +175,7 @@ export function createDataFromRequest(
   request: Request,
   optionsStartDate: Date,
 ): MizrahiRequestData {
-  const data = JSON.parse(request.postData() || '{}') as MizrahiRequestData;
+  const data = JSON.parse(request.postData() ?? '{}') as MizrahiRequestData;
   data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
   data.inToDate = moment().format(DATE_FORMAT);
   data.table.maxRow = MAX_ROWS_PER_REQUEST;

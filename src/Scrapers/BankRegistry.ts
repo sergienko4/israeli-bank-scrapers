@@ -1,19 +1,20 @@
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
+
 import { CompanyTypes } from '../Definitions';
 import { elementPresentOnPage, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { waitForNavigation } from '../Helpers/Navigation';
 import { sleep } from '../Helpers/Waiting';
-import { type LoginConfig } from './LoginConfig';
 import {
-  HAPOALIM_CONFIG,
-  LEUMI_CONFIG,
-  MIZRAHI_CONFIG,
-  UNION_CONFIG,
-  MAX_CONFIG,
   BEHATSDAA_CONFIG,
   BEYAHAD_CONFIG,
+  HAPOALIM_CONFIG,
+  LEUMI_CONFIG,
+  MAX_CONFIG,
+  MIZRAHI_CONFIG,
+  UNION_CONFIG,
   YAHAV_CONFIG,
 } from './BankRegistryExtra';
+import { type LoginConfig } from './LoginConfig';
 
 async function beinleumiPostAction(page: Page): Promise<void> {
   await Promise.race([
@@ -22,7 +23,9 @@ async function beinleumiPostAction(page: Page): Promise<void> {
     page.waitForSelector('#matafLogoutLink'),
     page.waitForSelector('#validationMsg'),
     page.waitForSelector('[class*="account-summary"]', { timeout: 30000 }),
-  ]).catch(() => {});
+  ]).catch(() => {
+    // intentionally ignore timeout — any matched selector is sufficient
+  });
 }
 
 const BEINLEUMI_FIELDS: LoginConfig['fields'] = [
@@ -40,7 +43,7 @@ const BEINLEUMI_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {
   invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],
 };
 
-async function beinleumiPreAction(page: Page): Promise<void> {
+async function beinleumiPreAction(page: Page): Promise<Frame | undefined> {
   const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
   if (hasTrigger) {
     await page.evaluate(() => {
@@ -51,6 +54,7 @@ async function beinleumiPreAction(page: Page): Promise<void> {
   } else {
     await sleep(1000);
   }
+  return undefined;
 }
 
 function beinleumiConfig(loginUrl: string): LoginConfig {

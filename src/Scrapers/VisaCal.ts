@@ -1,9 +1,14 @@
 import moment from 'moment';
 import { type Frame, type Request } from 'playwright';
+
 import { getDebug } from '../Helpers/Debug';
-import { clickButton, waitUntilElementFound } from '../Helpers/ElementsInteractions';
+import {
+  clickButton,
+  waitUntilElementFound,
+  waitUntilIframeFound,
+} from '../Helpers/ElementsInteractions';
 import { fetchPost } from '../Helpers/Fetch';
-import { getCurrentUrl, waitForNavigation } from '../Helpers/Navigation';
+import { getCurrentUrl, waitForUrl } from '../Helpers/Navigation';
 import { getFromSessionStorage } from '../Helpers/Storage';
 import { filterOldTransactions } from '../Helpers/Transactions';
 import { waitUntil } from '../Helpers/Waiting';
@@ -11,24 +16,24 @@ import { type TransactionsAccount } from '../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from './BaseScraperWithBrowser';
 import { type ScraperScrapingResult } from './Interface';
 import {
+  CONNECT_IFRAME_OPTS,
+  convertParsedDataToTransactions,
+  createLoginFields,
+  findCardFrame,
+  getPossibleLoginResults,
+  isConnectFrame,
+} from './VisaCalHelpers';
+import {
   type AuthModule,
+  authModuleOrUndefined,
   type CardApiStatus,
-  type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
   type FramesResponse,
   type InitResponse,
-  authModuleOrUndefined,
   isCardPendingTransactionDetails,
   isCardTransactionDetails,
 } from './VisaCalTypes';
-import {
-  convertParsedDataToTransactions,
-  createLoginFields,
-  getPossibleLoginResults,
-  getLoginFrame,
-  hasChangePasswordForm,
-} from './VisaCalHelpers';
 
 const API_HEADERS = {
   'User-Agent':
@@ -48,10 +53,14 @@ const PENDING_TRANSACTIONS_REQUEST_ENDPOINT =
   'https://api.cal-online.co.il/Transactions/api/approvals/getClearanceRequests';
 const SSO_AUTHORIZATION_REQUEST_ENDPOINT =
   'https://connect.cal-online.co.il/col-rest/calconnect/authentication/SSO';
+const INIT_ENDPOINT = 'https://api.cal-online.co.il/Authentication/api/account/init';
 
 const DEBUG = getDebug('visa-cal');
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
   private authorization: string | undefined = undefined;
@@ -64,27 +73,23 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     DEBUG('click on the login button');
     await clickButton(this.page, '#ccLoginDesktopBtn');
     DEBUG('get the frame that holds the login');
-    const frame = await getLoginFrame(this.page);
+    const frame = await waitUntilIframeFound(this.page, isConnectFrame, CONNECT_IFRAME_OPTS);
     DEBUG('wait until the password login tab header is available');
-    await waitUntilElementFound(frame, '#regular-login');
+    await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
     DEBUG('navigate to the password login tab');
     await clickButton(frame, '#regular-login');
     DEBUG('wait until the regular-login form is ready');
-    await waitUntilElementFound(frame, '[formcontrolname="userName"]');
+    await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 15000 });
 
     return frame;
   };
 
-  async getCards(): Promise<Array<{ cardUniqueId: string; last4Digits: string }>> {
-    const initData = await waitUntil(
-      () => getFromSessionStorage<InitResponse>(this.page, 'init'),
-      'get init data in session storage',
-      { timeout: 30000, interval: 1000 },
-    );
-    if (!initData) {
-      throw new Error('could not find "init" data in session storage');
-    }
-    return initData?.result.cards.map(({ cardUniqueId, last4Digits }) => ({
+  async getCards(): Promise<{ cardUniqueId: string; last4Digits: string }[]> {
+    DEBUG('fetch cards via init API (bypasses sessionStorage race)');
+    const authorization = await this.getAuthorizationHeader();
+    const hdrs = this.buildApiHeaders(authorization, await this.getXSiteId());
+    const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
+    return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
       cardUniqueId,
       last4Digits,
     }));
@@ -92,14 +97,14 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   async getAuthorizationHeader(): Promise<string> {
     if (!this.authorization) {
-      DEBUG('fetching authorization header');
+      DEBUG('fetching authorization header from session storage');
       const authModule = await waitUntil(
         async () =>
           authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
         'get authorization header with valid token in session storage',
-        { timeout: 10_000, interval: 50 },
+        { timeout: 60_000, interval: 500 },
       );
-      return `CALAuthScheme ${authModule.auth.calConnectToken}`;
+      this.authorization = `CALAuthScheme ${authModule.auth.calConnectToken}`;
     }
     return this.authorization;
   }
@@ -111,12 +116,12 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
     this.authRequestPromise = this.page
       .waitForRequest(SSO_AUTHORIZATION_REQUEST_ENDPOINT, { timeout: 10_000 })
-      .catch(e => {
+      .catch((e: unknown) => {
         DEBUG('error while waiting for the token request', e);
         return undefined;
       });
     return {
-      loginUrl: `${LOGIN_URL}`,
+      loginUrl: LOGIN_URL,
       fields: createLoginFields(credentials),
       submitButtonSelector: 'button[type="submit"]',
       possibleResults: getPossibleLoginResults(),
@@ -128,7 +133,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   async fetchData(): Promise<ScraperScrapingResult> {
     const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     DEBUG(`fetch transactions starting ${startMoment.format()}`);
     const cards = await this.getCards();
@@ -140,15 +145,16 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   private async handlePostLogin(): Promise<void> {
     try {
-      await waitForNavigation(this.page);
+      // Wait for redirect to digital-web.cal-online.co.il after popup login completes.
+      // waitForNavigation (waitForURL '**') returns immediately — must wait for the specific domain.
+      await waitForUrl(this.page, /digital-web\.cal-online\.co\.il/, { timeout: 30000 });
       const currentUrl = await getCurrentUrl(this.page);
-      if (currentUrl.endsWith('site-tutorial')) await clickButton(this.page, 'button.btn-close');
+      if (currentUrl.includes('site-tutorial')) await clickButton(this.page, 'button.btn-close');
       const request = await this.authRequestPromise;
-      this.authorization = String(request?.headers().authorization || '').trim();
+      this.authorization = request ? request.headers().authorization.trim() : '';
     } catch (e) {
       const currentUrl = await getCurrentUrl(this.page);
-      if (currentUrl.endsWith('dashboard')) return;
-      if (await hasChangePasswordForm(this.page)) return;
+      if (currentUrl.includes('dashboard')) return;
       throw e;
     }
   }
@@ -172,9 +178,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
       hdrs,
     );
-    if (monthData?.statusCode !== 1)
+    if (monthData.statusCode !== 1)
       throw new Error(
-        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData?.title || ''}`,
+        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
       );
     if (!isCardTransactionDetails(monthData))
       throw new Error('monthData is not of type CardTransactionDetails');
@@ -189,9 +195,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
       CardPendingTransactionDetails | CardApiStatus
     >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
-    if (pendingData?.statusCode !== 1 && pendingData?.statusCode !== 96) {
+    if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
       DEBUG(
-        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData?.title || ''}`,
+        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
       );
       pendingData = null;
     } else if (!isCardPendingTransactionDetails(pendingData)) {
@@ -237,13 +243,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return filterOldTransactions(
       transactions,
       moment(startDate),
-      this.options.shouldCombineInstallments || false,
-    );
-  }
-
-  private findCardFrame(frames: FramesResponse, cardUniqueId: string): CardLevelFrame | undefined {
-    return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
-      f => f.cardUniqueId === cardUniqueId,
+      this.options.shouldCombineInstallments ?? false,
     );
   }
 
@@ -270,7 +270,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       frames: FramesResponse;
     },
   ): Promise<TransactionsAccount> {
-    const frame = this.findCardFrame(ctx.frames, card.cardUniqueId);
+    const frame = findCardFrame(ctx.frames, card.cardUniqueId);
     const transactions = await this.buildCardTransactions(card, ctx);
     const txns = this.filterCardTxns(transactions, ctx.startDate);
     return {
@@ -281,7 +281,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   private async fetchAllCardAccounts(
-    cards: Array<{ cardUniqueId: string; last4Digits: string }>,
+    cards: { cardUniqueId: string; last4Digits: string }[],
     ctx: {
       startDate: Date;
       startMoment: moment.Moment;

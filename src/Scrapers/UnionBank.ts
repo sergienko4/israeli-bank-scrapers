@@ -1,5 +1,7 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
+
+import { CompanyTypes } from '../Definitions';
 import {
   clickButton,
   dropdownElements,
@@ -10,22 +12,21 @@ import {
   waitUntilElementFound,
 } from '../Helpers/ElementsInteractions';
 import { waitForNavigation } from '../Helpers/Navigation';
-import { TransactionStatuses, type Transaction, type TransactionsAccount } from '../Transactions';
-import { type ScraperOptions } from './Interface';
-import { CompanyTypes } from '../Definitions';
+import { type Transaction, type TransactionsAccount, TransactionStatuses } from '../Transactions';
 import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
+import { type ScraperOptions } from './Interface';
 import {
-  type ScrapedTransaction,
-  type TransactionsTr,
   ACCOUNTS_DROPDOWN_SELECTOR,
   COMPLETED_TRANSACTIONS_TABLE_ID,
+  convertTransactions,
   DATE_FORMAT,
   ERROR_MESSAGE_CLASS,
+  handleTransactionRow,
   NO_TRANSACTION_IN_DATE_RANGE_TEXT,
   PENDING_TRANSACTIONS_TABLE_ID,
-  convertTransactions,
-  handleTransactionRow,
+  type ScrapedTransaction,
+  type TransactionsTr,
 } from './UnionBankHelpers';
 
 const BASE_URL = 'https://hb.unionbank.co.il';
@@ -38,7 +39,7 @@ async function getTransactionsTableHeaders(
   const headersMap: Record<string, number> = {};
   const headersObjs = await pageEvalAll(page, {
     selector: `#WorkSpaceBox #${tableTypeId} tr[class='header'] th`,
-    defaultResult: [] as Array<{ text: string; index: number }>,
+    defaultResult: [] as { text: string; index: number }[],
     callback: ths =>
       ths.map((th, index) => ({ text: (th as HTMLElement).innerText.trim(), index })),
   });
@@ -54,7 +55,7 @@ async function scrapeTableRows(page: Page, tableTypeId: string): Promise<Transac
     defaultResult: [],
     callback: trs =>
       (trs as HTMLElement[]).map(tr => ({
-        id: tr.getAttribute('id') || '',
+        id: tr.getAttribute('id') ?? '',
         innerTds: Array.from(tr.getElementsByTagName('td')).map(
           td => (td as HTMLElement).innerText,
         ),
@@ -172,7 +173,10 @@ async function fetchAccounts(
   return accounts;
 }
 
-type ScraperSpecificCredentials = { username: string; password: string };
+interface ScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
 
 class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
@@ -181,7 +185,7 @@ class UnionBankScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
     await this.navigateTo(TRANSACTIONS_URL);
     const accounts = await fetchAccounts(this.page, startMoment, this.options);

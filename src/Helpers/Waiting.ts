@@ -38,7 +38,9 @@ function makeWaitTick<T>(
         if (value) cbs.resolve(value as unknown as NonNullable<T>);
         else setTimeout(wait, interval);
       })
-      .catch(() => cbs.reject());
+      .catch(() => {
+        cbs.reject();
+      });
   }
   return wait;
 }

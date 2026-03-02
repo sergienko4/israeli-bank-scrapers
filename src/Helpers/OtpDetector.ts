@@ -1,7 +1,8 @@
 import { type Page } from 'playwright';
+
+import { type SelectorCandidate } from '../Scrapers/LoginConfig';
 import { getDebug } from './Debug';
 import { tryInContext } from './SelectorResolver';
-import { type SelectorCandidate } from '../Scrapers/LoginConfig';
 
 const DEBUG = getDebug('otp-detector');
 

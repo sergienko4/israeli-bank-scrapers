@@ -1,7 +1,8 @@
 import moment from 'moment';
+
 import { SHEKEL_CURRENCY } from '../Constants';
 import { getRawTransaction } from '../Helpers/Transactions';
-import { type TransactionStatuses, TransactionTypes, type Transaction } from '../Transactions';
+import { type Transaction, type TransactionStatuses, TransactionTypes } from '../Transactions';
 import { type ScraperOptions } from './Interface';
 
 export const DATE_FORMAT = 'DD/MM/YY';
@@ -28,7 +29,10 @@ export interface ScrapedTransaction {
 
 export type TransactionTableHeaders = Record<string, number>;
 export type TransactionsTrTds = string[];
-export type TransactionsTr = { id: string; innerTds: TransactionsTrTds };
+export interface TransactionsTr {
+  id: string;
+  innerTds: TransactionsTrTds;
+}
 
 function getAmountData(amountStr: string): number {
   return parseFloat(amountStr.replace(',', ''));

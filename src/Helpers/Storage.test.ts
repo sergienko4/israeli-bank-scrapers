@@ -1,5 +1,5 @@
-import { getFromSessionStorage } from './Storage';
 import { createMockPage } from '../Tests/MockPage';
+import { getFromSessionStorage } from './Storage';
 
 function createSessionMockPage(
   sessionData: Record<string, string | null>,

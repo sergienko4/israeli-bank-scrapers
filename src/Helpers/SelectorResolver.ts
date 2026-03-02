@@ -1,6 +1,7 @@
 import { type Frame, type Page } from 'playwright';
-import { getDebug } from './Debug';
+
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
+import { getDebug } from './Debug';
 
 const DEBUG = getDebug('selector-resolver');
 
@@ -110,7 +111,7 @@ const CREDENTIAL_KEY_MAP: Record<string, string> = {
  * Extract the most likely WELL_KNOWN_SELECTORS key from a CSS selector string.
  */
 export function extractCredentialKey(selector: string): string {
-  const id = selector.match(/^#([a-zA-Z0-9_-]+)/)?.[1] ?? selector;
+  const id = /^#([a-zA-Z0-9_-]+)/.exec(selector)?.[1] ?? selector;
   const lower = id.toLowerCase();
   const directMatch = CREDENTIAL_KEY_MAP[lower];
   if (directMatch) return directMatch;
@@ -124,9 +125,13 @@ export function extractCredentialKey(selector: string): string {
 async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean> {
   const el = await Promise.race([
     ctx.$(css),
-    new Promise<null>(resolve => setTimeout(() => resolve(null), CANDIDATE_TIMEOUT_MS)),
+    new Promise<null>(resolve =>
+      setTimeout(() => {
+        resolve(null);
+      }, CANDIDATE_TIMEOUT_MS),
+    ),
   ]);
-  return el !== null && el !== undefined;
+  return el !== null;
 }
 
 function debugCandidateSkipped(candidate: SelectorCandidate): void {
@@ -173,10 +178,10 @@ export async function tryInContext(
 /**
  * The resolved location of a login field.
  */
-export type FieldContext = {
+export interface FieldContext {
   selector: string;
   context: Page | Frame;
-};
+}
 
 async function searchInChildFrames(
   page: Page,

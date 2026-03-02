@@ -1,4 +1,5 @@
 import { type Frame, type Page } from 'playwright';
+
 import { type WaitUntilState } from '../Helpers/Navigation';
 
 /**
@@ -13,10 +14,10 @@ export type SelectorCandidate =
   | { kind: 'xpath'; value: string }; // //button[contains(., "כניסה")]
 
 /** One form field: which credential key to use + ordered selector candidates */
-export type FieldConfig = {
+export interface FieldConfig {
   credentialKey: string;
   selectors: [SelectorCandidate, ...SelectorCandidate[]];
-};
+}
 
 /** OTP step config — DOM (selector-driven) or API (class override) */
 export type OtpConfig =
@@ -38,27 +39,27 @@ type ResultCondition = string | RegExp | ((opts?: { page?: Page }) => Promise<bo
  * Map of login outcomes → conditions (same semantics as LoginOptions.possibleResults
  * but without importing the LoginResults enum, avoiding circular dependencies).
  */
-export type LoginPossibleResults = {
+export interface LoginPossibleResults {
   success: ResultCondition[];
   invalidPassword?: ResultCondition[];
   changePassword?: ResultCondition[];
   accountBlocked?: ResultCondition[];
   unknownError?: ResultCondition[];
-};
+}
 
 /**
  * Declarative login configuration — the "input" format.
  * Converted to LoginOptions at runtime after selectors are resolved.
  * Does NOT replace LoginOptions; both coexist.
  */
-export type LoginConfig = {
+export interface LoginConfig {
   loginUrl: string;
   fields: FieldConfig[];
   submit: SelectorCandidate | SelectorCandidate[];
   possibleResults: LoginPossibleResults;
   otp?: OtpConfig;
   checkReadiness?: (page: Page) => Promise<void>;
-  preAction?: (page: Page) => Promise<Frame | void>;
+  preAction?: (page: Page) => Promise<Frame | undefined>;
   postAction?: (page: Page) => Promise<void>;
   waitUntil?: WaitUntilState;
-};
+}

@@ -9,7 +9,7 @@ interface AmexRouteOverrides {
 
 export function amexRoutes(
   overrides: AmexRouteOverrides = {},
-): Array<{ match: string; method?: 'POST'; contentType: string; body: string }> {
+): { match: string; method?: 'POST'; contentType: string; body: string }[] {
   return [
     {
       match: '/personalarea/Login',

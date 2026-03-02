@@ -1,9 +1,9 @@
-import { BaseScraper } from './BaseScraper';
 import { ScraperProgressTypes } from '../Definitions';
-import { ScraperErrorTypes } from './Errors';
 import { TimeoutError } from '../Helpers/Waiting';
-import type { ScraperCredentials, ScraperLoginResult, ScraperScrapingResult } from './Interface';
 import { createMockScraperOptions } from '../Tests/MockPage';
+import { BaseScraper } from './BaseScraper';
+import { ScraperErrorTypes } from './Errors';
+import type { ScraperCredentials, ScraperLoginResult, ScraperScrapingResult } from './Interface';
 
 class TestScraper extends BaseScraper<ScraperCredentials> {
   loginResult: ScraperLoginResult = { success: true };

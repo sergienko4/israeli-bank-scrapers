@@ -1,31 +1,32 @@
+import { createMockPage } from '../Tests/MockPage';
 import {
+  getCurrentUrl,
   waitForNavigation,
   waitForNavigationAndDomLoad,
-  getCurrentUrl,
   waitForRedirect,
   waitForUrl,
 } from './Navigation';
-import { createMockPage } from '../Tests/MockPage';
 
 function createNavMockPage(
   currentUrl = 'https://bank.co.il/login',
 ): ReturnType<typeof createMockPage> {
   const urlMock = jest.fn(() => currentUrl);
   const evaluateMock = jest.fn(() => Promise.resolve(currentUrl));
-  return createMockPage({ url: urlMock, evaluate: evaluateMock });
+  const waitForUrlMock = jest.fn().mockResolvedValue(undefined);
+  return createMockPage({ url: urlMock, evaluate: evaluateMock, waitForURL: waitForUrlMock });
 }
 
 describe('waitForNavigation', () => {
   it('calls page.waitForNavigation with options', async () => {
     const page = createNavMockPage();
     await waitForNavigation(page, { waitUntil: 'load' });
-    expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'load' });
+    expect(page.waitForURL).toHaveBeenCalledWith('**', { waitUntil: 'load' });
   });
 
   it('calls page.waitForNavigation without options', async () => {
     const page = createNavMockPage();
     await waitForNavigation(page);
-    expect(page.waitForNavigation).toHaveBeenCalledWith(undefined);
+    expect(page.waitForURL).toHaveBeenCalledWith('**', undefined);
   });
 });
 
@@ -33,7 +34,7 @@ describe('waitForNavigationAndDomLoad', () => {
   it('waits for domcontentloaded', async () => {
     const page = createNavMockPage();
     await waitForNavigationAndDomLoad(page);
-    expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'domcontentloaded' });
+    expect(page.waitForURL).toHaveBeenCalledWith('**', { waitUntil: 'domcontentloaded' });
   });
 });
 

@@ -7,7 +7,6 @@ import {
 } from '../Tests/TestsUtils';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import type { ScraperOptions } from './Interface';
-
 import PagiScraper from './Pagi';
 
 const COMPANY_ID = 'pagi'; // TODO this property should be hard-coded in the provider

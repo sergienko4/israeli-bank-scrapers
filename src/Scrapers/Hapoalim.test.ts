@@ -1,12 +1,13 @@
 import { chromium } from 'playwright';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
+
 import { buildContextOptions } from '../Helpers/Browser';
-import { waitUntil } from '../Helpers/Waiting';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
 import { getCurrentUrl } from '../Helpers/Navigation';
+import { waitUntil } from '../Helpers/Waiting';
 import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
-import HapoalimScraper from './Hapoalim';
-import { ScraperErrorTypes } from './Errors';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
+import { ScraperErrorTypes } from './Errors';
+import HapoalimScraper from './Hapoalim';
 
 jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
 jest.mock('../Helpers/Fetch', () => ({
@@ -76,12 +77,12 @@ function createHapoalimPage(): ReturnType<typeof createMockPage> {
 }
 
 function mockAccounts(
-  accounts: Array<{
+  accounts: {
     bankNumber: string;
     branchNumber: string;
     accountNumber: string;
     accountClosingReasonCode: number;
-  }> = [],
+  }[] = [],
 ): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
 }
@@ -110,12 +111,12 @@ function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrape
 }
 
 function setupLoginAndAccounts(
-  accounts: Array<{
+  accounts: {
     bankNumber: string;
     branchNumber: string;
     accountNumber: string;
     accountClosingReasonCode: number;
-  }> = [
+  }[] = [
     { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
   ],
 ): ReturnType<typeof createMockPage> {

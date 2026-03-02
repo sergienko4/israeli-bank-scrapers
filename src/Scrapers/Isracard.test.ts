@@ -1,13 +1,13 @@
-import IsracardScraper from './Isracard';
+import { SCRAPERS } from '../Definitions';
 import {
-  maybeTestCompanyAPI,
+  exportTransactions,
   extendAsyncTimeout,
   getTestsConfig,
-  exportTransactions,
+  maybeTestCompanyAPI,
 } from '../Tests/TestsUtils';
-import { SCRAPERS } from '../Definitions';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import type { ScraperOptions } from './Interface';
+import IsracardScraper from './Isracard';
 
 const COMPANY_ID = 'isracard'; // TODO this property should be hard-coded in the provider
 const testsConfig = getTestsConfig();

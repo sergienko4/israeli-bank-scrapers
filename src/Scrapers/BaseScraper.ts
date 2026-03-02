@@ -1,13 +1,14 @@
 import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
+
 import { type CompanyTypes, ScraperProgressTypes } from '../Definitions';
 import { TimeoutError } from '../Helpers/Waiting';
 import {
-  type ErrorResult,
-  WafBlockError,
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
+  type ErrorResult,
+  WafBlockError,
 } from './Errors';
 import {
   type Scraper,
@@ -122,7 +123,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     scrapeResult: ScraperScrapingResult,
   ): Promise<ScraperScrapingResult> {
     try {
-      await this.terminate(scrapeResult?.success === true);
+      await this.terminate(scrapeResult.success);
     } catch (e) {
       return createGenericError((e as Error).message);
     }
