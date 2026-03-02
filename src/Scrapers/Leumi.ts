@@ -131,18 +131,26 @@ function buildTxnsFromResponse(
   return [...pending, ...completed];
 }
 
+async function interceptFilteredResponse(page: Page): Promise<LeumiAccountResponse> {
+  const finalResponse = await page.waitForResponse(
+    response =>
+      response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
+  );
+  return parseAccountResponse((await finalResponse.json()) as { jsonResp: string });
+}
+
+function sanitizeAccountId(accountId: string): string {
+  return accountId.replace('/', '_').replace(/[^\d-_]/g, '');
+}
+
 async function fetchTransactionsForAccount(
   opts: FetchForAccountOpts,
 ): Promise<TransactionsAccount> {
   const { page, startDate, accountId, options } = opts;
   await hangProcess(4000);
   await applyDateFilter(page, startDate);
-  const finalResponse = await page.waitForResponse(
-    response =>
-      response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
-  );
-  const response = parseAccountResponse((await finalResponse.json()) as { jsonResp: string });
-  const accountNumber = accountId.replace('/', '_').replace(/[^\d-_]/g, '');
+  const response = await interceptFilteredResponse(page);
+  const accountNumber = sanitizeAccountId(accountId);
   const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
   return { accountNumber, balance, txns: buildTxnsFromResponse(response, options) };
 }
