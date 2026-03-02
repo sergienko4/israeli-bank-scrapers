@@ -17,7 +17,7 @@ import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions } from './Interface';
 
-const DEBUG = getDebug('max');
+const LOG = getDebug('max');
 
 export type { ScrapedTransaction } from './MaxTypes';
 import { MaxPlanName, type ScrapedTransaction } from './MaxTypes';
@@ -56,13 +56,13 @@ interface FetchCategoryResult {
 }
 
 async function loadCategories(page: Page): Promise<void> {
-  DEBUG('Loading categories');
+  LOG.debug('Loading categories');
   const res = await fetchGetWithinPage<FetchCategoryResult>(
     page,
     `${BASE_API_ACTIONS_URL}/api/contents/getCategories`,
   );
   if (res && Array.isArray(res.result)) {
-    DEBUG(`${res.result.length} categories loaded`);
+    LOG.debug(`${res.result.length} categories loaded`);
     res.result.forEach(({ id, name }) => CATEGORIES.set(id, name));
   }
 }

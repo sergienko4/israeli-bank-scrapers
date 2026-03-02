@@ -37,7 +37,9 @@ jest.mock('../Helpers/Waiting', () => ({
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 // OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
 // Return null here so login/fetchData tests are not affected by OTP detection.
 jest.mock('../Helpers/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));

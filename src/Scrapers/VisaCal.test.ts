@@ -46,7 +46,9 @@ jest.mock('../Helpers/Waiting', () => ({
   SECOND: 1000,
   sleep: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 function visaCalOptions(
   overrides: Record<string, unknown> = {},

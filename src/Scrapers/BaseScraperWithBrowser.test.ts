@@ -28,7 +28,7 @@ jest.mock('../Helpers/Navigation', () => ({
 }));
 
 jest.mock('../Helpers/Debug', () => ({
-  getDebug: () => jest.fn(),
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
 jest.mock('../Helpers/Browser', () => ({

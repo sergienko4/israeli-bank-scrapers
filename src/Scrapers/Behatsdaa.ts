@@ -11,7 +11,7 @@ import { type ScraperOptions, type ScraperScrapingResult } from './Interface';
 
 const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
 
-const DEBUG = getDebug('behatsdaa');
+const LOG = getDebug('behatsdaa');
 
 interface ScraperSpecificCredentials {
   id: string;
@@ -67,11 +67,11 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   async fetchData(): Promise<ScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
-      DEBUG('Token not found in local storage');
+      LOG.debug('Token not found in local storage');
       return { success: false, errorMessage: 'TokenNotFound' };
     }
     const res = await this.fetchWithToken(token);
-    DEBUG('Data fetched');
+    LOG.debug('Data fetched');
     return this.buildAccountResult(res ?? {});
   }
 
@@ -81,7 +81,7 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
-    DEBUG('Fetching data');
+    LOG.debug('Fetching data');
     return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, PURCHASE_HISTORY_URL, {
       data: body,
       extraHeaders: {
@@ -94,14 +94,14 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
     if (res.errorDescription || res.data?.errorDescription) {
-      DEBUG('Error fetching data', res.errorDescription ?? res.data?.errorDescription);
+      LOG.debug('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
     if (!res.data) {
-      DEBUG('No data found');
+      LOG.debug('No data found');
       return { success: false, errorMessage: 'NoData' };
     }
-    DEBUG('Data fetched successfully');
+    LOG.debug('Data fetched successfully');
     return {
       success: true,
       accounts: [

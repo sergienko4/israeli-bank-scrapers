@@ -22,7 +22,7 @@ import {
   TrnTypeCode,
 } from './VisaCalTypes';
 
-const DEBUG = getDebug('visa-cal');
+const LOG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';
 export const CONNECT_IFRAME_OPTS = {
   timeout: 45000,
@@ -69,7 +69,7 @@ export function getPossibleLoginResults(): Record<
   string,
   (string | RegExp | ((options?: { page?: Page }) => Promise<boolean>))[]
 > {
-  DEBUG('return possible login results');
+  LOG.debug('return possible login results');
   return {
     [LOGIN_RESULTS.Success]: [/dashboard/i],
     [LOGIN_RESULTS.InvalidPassword]: [
@@ -85,7 +85,7 @@ export function createLoginFields(credentials: {
   username: string;
   password: string;
 }): { selector: string; value: string }[] {
-  DEBUG('create login fields for username and password');
+  LOG.debug('create login fields for username and password');
   return [
     { selector: '[formcontrolname="userName"]', value: credentials.username },
     { selector: '[formcontrolname="password"]', value: credentials.password },

@@ -7,6 +7,7 @@ import {
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -45,6 +46,7 @@ describeIf('E2E: VisaCal (real credentials)', () => {
       return;
     }
     assertSuccessfulScrape(result);
+    logScrapedTransactions(result);
   });
 
   it('fails with invalid credentials', async () => {

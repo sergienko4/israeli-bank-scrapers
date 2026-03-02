@@ -7,7 +7,9 @@ import {
   findOtpSubmitSelector,
 } from './OtpDetector';
 
-jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('./Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 const mockTryInContext = jest.fn();
 jest.mock('./SelectorResolver', () => ({

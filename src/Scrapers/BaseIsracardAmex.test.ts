@@ -39,7 +39,9 @@ jest.mock('../Helpers/Transactions', () => ({
   filterOldTransactions: jest.fn((txns: Transaction[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 jest.mock('../Helpers/Dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });

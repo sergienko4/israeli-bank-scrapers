@@ -38,7 +38,9 @@ jest.mock('../Helpers/Waiting', () => ({
 jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
 jest.mock('../Helpers/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 

@@ -8,7 +8,9 @@ import {
   tryInContext,
 } from './SelectorResolver';
 
-jest.mock('./Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('./Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 // ── Minimal Page/Frame mocks ─────────────────────────────────────────────────
 
