@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.6.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.5.1...v7.6.0) (2026-03-02)
+
+
+### Features
+
+* **ci:** expand pre-commit to 8-gate validation matching CI pipeline ([#82](https://github.com/sergienko4/israeli-bank-scrapers/issues/82)) ([c715912](https://github.com/sergienko4/israeli-bank-scrapers/commit/c7159120f31fe731717013e26d637d064e7df13a))
+
+
+### Bug Fixes
+
+* **esm:** change OneZero moment import to bare specifier ([#81](https://github.com/sergienko4/israeli-bank-scrapers/issues/81)) ([a44b219](https://github.com/sergienko4/israeli-bank-scrapers/commit/a44b219c001862fb50467691ba62f81c67894cf7))
+
 ## [7.5.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.5.0...v7.5.1) (2026-03-02)
 
 
