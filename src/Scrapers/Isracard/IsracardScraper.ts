@@ -1,7 +1,7 @@
 import { type ScraperOptions } from '../Base/Interface';
 import IsracardAmexBaseScraper from '../BaseIsracardAmex/BaseIsracardAmex';
 
-const BASE_URL = 'https://www.isracard.co.il';
+const BASE_URL = 'https://digital.isracard.co.il';
 const COMPANY_CODE = '11';
 
 class IsracardScraper extends IsracardAmexBaseScraper {

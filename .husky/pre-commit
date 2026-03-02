@@ -1,3 +1,4 @@
+#!/bin/sh
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
@@ -33,7 +34,7 @@ run_gate npx lint-staged || exit 1
 echo "" | tee -a "$LOG_FILE"
 echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
 run_gate npx tsup || exit 1
-npx rimraf lib/Helpers lib/Scrapers lib/Tests
+npx rimraf lib/Common lib/Scrapers lib/Tests
 test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.mts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
