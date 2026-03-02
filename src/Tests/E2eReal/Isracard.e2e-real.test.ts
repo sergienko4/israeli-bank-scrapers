@@ -8,6 +8,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
+  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -36,6 +37,7 @@ describeIf('E2E: Isracard (real credentials)', () => {
       card6Digits: process.env.ISRACARD_CARD6DIGITS!,
       password: process.env.ISRACARD_PASSWORD!,
     });
+    if (skipIfWafBlocked(result, 'Isracard')) return;
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

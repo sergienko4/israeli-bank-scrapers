@@ -1,7 +1,6 @@
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -9,6 +8,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
+  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -32,19 +32,7 @@ describeIf('E2E: VisaCal (real credentials)', () => {
       username: process.env.VISACAL_USERNAME!,
       password: process.env.VISACAL_PASSWORD!,
     });
-    // VisaCal's SSO token exchange from digital-web.cal-online.co.il sometimes fails
-    // on CI IPs or when the PUT /SSO request is not intercepted in time
-    const isIntermittent =
-      result.errorType === ScraperErrorTypes.Generic ||
-      result.errorType === ScraperErrorTypes.Timeout;
-    if (isIntermittent) {
-      console.log(
-        '[skip] VisaCal intermittent SSO failure:',
-        result.errorType,
-        result.errorMessage,
-      );
-      return;
-    }
+    if (skipIfWafBlocked(result, 'VisaCal')) return;
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

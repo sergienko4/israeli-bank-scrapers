@@ -250,17 +250,27 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
+    this.validateTransactionResponse(response);
+    const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
+    const allTxn = await this.filterAndMergeTxns(oshTxn);
+    return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
+  }
+
+  private validateTransactionResponse(
+    response: ScrapedTransactionsResult | null,
+  ): asserts response is ScrapedTransactionsResult {
     if (!response?.header.success) {
       throw new Error(
         `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
       );
     }
-    const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
+  }
+
+  private async filterAndMergeTxns(oshTxn: Transaction[]): Promise<Transaction[]> {
     const startMoment = getStartMoment(this.options.startDate);
-    const allTxn = oshTxn
+    return oshTxn
       .filter(txn => moment(txn.date).isSameOrAfter(startMoment))
       .concat(await this.getPendingTransactions());
-    return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
   }
 
   private shouldMarkAsPending(txn: Transaction): boolean {

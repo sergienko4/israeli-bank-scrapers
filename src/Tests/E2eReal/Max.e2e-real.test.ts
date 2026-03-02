@@ -8,6 +8,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
+  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -31,6 +32,7 @@ describeIf('E2E: Max (real credentials)', () => {
       username: process.env.MAX_USERNAME!,
       password: process.env.MAX_PASSWORD!,
     });
+    if (skipIfWafBlocked(result, 'Max')) return;
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

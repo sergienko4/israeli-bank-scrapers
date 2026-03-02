@@ -1,6 +1,6 @@
 import { type BrowserContextOptions } from 'playwright';
 
-const CHROME_VERSION = '131';
+const CHROME_VERSION = '145';
 const HEBREW_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
 
 /**

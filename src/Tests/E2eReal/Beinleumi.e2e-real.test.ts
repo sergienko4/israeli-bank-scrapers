@@ -10,6 +10,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
+  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -52,11 +53,7 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
       username: process.env.BEINLEUMI_USERNAME!,
       password: process.env.BEINLEUMI_PASSWORD!,
     });
-    // Oracle CI IPs are blocked by fibi.co.il (403) — skip full-scrape assertion
-    if (result.errorType === ScraperErrorTypes.Generic) {
-      console.log('[skip] Beinleumi portal blocked from CI IP:', result.errorMessage);
-      return;
-    }
+    if (skipIfWafBlocked(result, 'Beinleumi')) return;
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

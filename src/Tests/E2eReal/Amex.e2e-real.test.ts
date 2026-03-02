@@ -8,6 +8,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
+  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -36,6 +37,7 @@ describeIf('E2E: Amex (real credentials)', () => {
       card6Digits: process.env.AMEX_CARD6DIGITS!,
       password: process.env.AMEX_PASSWORD!,
     });
+    if (skipIfWafBlocked(result, 'Amex')) return;
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });
