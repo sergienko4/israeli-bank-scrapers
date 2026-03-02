@@ -13,7 +13,7 @@ export const VALID_REACHED_BANK: string[] = [
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.Timeout,
-  ScraperErrorTypes.General,
+  ScraperErrorTypes.Generic,
   // Banks that now require OTP still prove the bank was reached
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
