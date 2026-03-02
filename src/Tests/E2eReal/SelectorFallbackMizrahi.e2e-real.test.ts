@@ -1,8 +1,8 @@
 /** Selector-fallback: Mizrahi — Round 2 (wrong CSS id → fallback CSS id). */
+import { waitUntilElementDisappear } from '../../Common/ElementsInteractions';
 import { CompanyTypes } from '../../Definitions';
-import { waitUntilElementDisappear } from '../../Helpers/ElementsInteractions';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 

@@ -1,7 +1,7 @@
 import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../Definitions';
-import { type ScraperOptions } from '../Scrapers/Interface';
+import { type ScraperOptions } from '../Scrapers/Base/Interface';
 
 export interface MockPage {
   waitForSelector: jest.Mock;

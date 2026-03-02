@@ -76,6 +76,6 @@ jobs:
       - name: Build
         run: |
           npx tsup
-          npx rimraf lib/Helpers lib/Scrapers lib/Tests
+          npx rimraf lib/Common lib/Scrapers lib/Tests
       - name: Publish with provenance (Trusted Publishing OIDC)
         run: npm publish --access public --provenance

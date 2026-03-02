@@ -41,9 +41,9 @@
     "type-check": "tsc --noEmit",
     "dev": "npm run type-check -- --watch",
     "build": "npm run lint && tsup",
-    "postbuild": "rimraf lib/Helpers lib/Scrapers lib/Tests",
+    "postbuild": "rimraf lib/Common lib/Scrapers lib/Tests",
     "prepare:default": "git reset --hard && npm ci && npm run build",
-    "prepare": "tsup && rimraf lib/Helpers lib/Scrapers lib/Tests",
+    "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
     "reset": "git reset --hard && npm ci",
     "docs": "typedoc"
   },

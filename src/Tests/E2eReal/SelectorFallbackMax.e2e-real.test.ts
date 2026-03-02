@@ -5,15 +5,15 @@
  */
 import { type Page } from 'playwright';
 
-import { CompanyTypes } from '../../Definitions';
 import {
   clickButton,
   elementPresentOnPage,
   waitUntilElementFound,
-} from '../../Helpers/ElementsInteractions';
-import { waitForRedirect } from '../../Helpers/Navigation';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+} from '../../Common/ElementsInteractions';
+import { waitForRedirect } from '../../Common/Navigation';
+import { CompanyTypes } from '../../Definitions';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 

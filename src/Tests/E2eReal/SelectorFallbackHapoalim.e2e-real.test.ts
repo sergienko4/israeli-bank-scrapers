@@ -1,11 +1,11 @@
 /** Selector-fallback: Hapoalim — Round 2 (fallback CSS id) + Round 4 (iframe injection). */
 import { type Page } from 'playwright';
 
+import { waitUntilElementFound } from '../../Common/ElementsInteractions';
+import { waitForRedirect } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
-import { waitUntilElementFound } from '../../Helpers/ElementsInteractions';
-import { waitForRedirect } from '../../Helpers/Navigation';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 

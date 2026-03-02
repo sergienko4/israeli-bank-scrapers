@@ -4,8 +4,8 @@
  */
 import { type Page } from 'playwright';
 
-import { LOGIN_RESULTS } from '../../Scrapers/BaseScraperWithBrowser';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
+import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 
 /** Valid errorType values that prove the bank was reached (not a selector error). */
 export const VALID_REACHED_BANK: string[] = [

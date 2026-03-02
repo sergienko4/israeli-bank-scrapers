@@ -12,8 +12,8 @@
 import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 

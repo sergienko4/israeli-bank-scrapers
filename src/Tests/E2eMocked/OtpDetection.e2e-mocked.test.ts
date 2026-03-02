@@ -9,9 +9,9 @@
 import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 

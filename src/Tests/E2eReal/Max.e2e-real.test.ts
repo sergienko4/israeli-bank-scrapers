@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
