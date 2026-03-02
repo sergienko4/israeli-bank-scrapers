@@ -46,6 +46,7 @@ async function getAccountID(page: Page): Promise<string> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(
       `Failed to retrieve account ID. Possible outdated selector '${ACCOUNT_ID_SELECTOR}: ${errorMessage}`,
+      { cause: error },
     );
   }
 }

@@ -111,6 +111,7 @@ async function evaluateGet(page: Page, url: string): Promise<readonly [string | 
     } catch (e) {
       throw new Error(
         `fetchGetWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
+        { cause: e },
       );
     }
   }, url);
@@ -132,6 +133,7 @@ function parseGetResult(opts: ParseGetOpts): unknown {
     if (!shouldIgnoreErrors) {
       throw new Error(
         `fetchGetWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, result: ${result}, status: ${status}`,
+        { cause: e },
       );
     }
   }
@@ -177,7 +179,7 @@ async function doPostFetch(args: PostEvalArgs): Promise<readonly [string | null,
     });
   } catch (e) {
     const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
-    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}`);
+    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}`, { cause: e });
   }
 
   if (response.status === 204) return [null, 204] as const;
@@ -207,6 +209,7 @@ function parsePostResult(pOpts: ParsePostOpts): unknown {
     if (!shouldIgnoreErrors) {
       throw new Error(
         `fetchPostWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, data: ${JSON.stringify(data)}, extraHeaders: ${JSON.stringify(extraHeaders)}, result: ${text}, status: ${status}`,
+        { cause: e },
       );
     }
   }
