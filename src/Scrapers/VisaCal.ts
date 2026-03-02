@@ -70,19 +70,19 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   private authTokenPromise: Promise<string | undefined> | undefined;
 
   openLoginPopup = async (): Promise<Frame> => {
-    LOG.debug('open login popup');
+    LOG.info('open login popup');
     await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', { visible: true });
     await clickButton(this.page, '#ccLoginDesktopBtn');
     const frame = await waitUntilIframeFound(this.page, isConnectFrame, CONNECT_IFRAME_OPTS);
     await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
-    LOG.debug('navigating to password login tab');
+    LOG.info('navigating to password login tab');
     await clickButton(frame, '#regular-login');
     await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 15000 });
     return frame;
   };
 
   async getCards(): Promise<CardInfo[]> {
-    LOG.debug('fetch cards via init API (bypasses sessionStorage race)');
+    LOG.info('fetch cards via init API (bypasses sessionStorage race)');
     const authorization = await this.getAuthorizationHeader();
     const hdrs = this.buildApiHeaders(authorization, await this.getXSiteId());
     const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
@@ -94,13 +94,15 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   async getAuthorizationHeader(): Promise<string> {
     if (!this.authorization) {
-      LOG.debug('login response token not captured, falling back to session storage');
+      LOG.info('token not captured from POST response — falling back to sessionStorage (60s)');
+      const startMs = Date.now();
       const authModule = await waitUntil(
         async () =>
           authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
         'get authorization header with valid token in session storage',
         { timeout: 60_000, interval: 500 },
       );
+      LOG.info('sessionStorage auth-module populated after %dms', Date.now() - startMs);
       this.authorization = `CALAuthScheme ${authModule.auth.calConnectToken}`;
     }
     return this.authorization;
@@ -127,11 +129,11 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
     const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
-    LOG.debug(`fetch transactions starting ${startMoment.format()}`);
+    LOG.info(`fetch transactions starting ${startMoment.format()}`);
     const cards = await this.getCards();
     const ctx = await this.buildApiContext(startDate, startMoment);
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
-    LOG.debug(`return ${accounts.length} scraped accounts`);
+    LOG.info(`return ${accounts.length} scraped accounts`);
     return { success: true, accounts };
   }
 
@@ -141,9 +143,15 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     if (!isAlreadyLoggedIn) {
       await this.waitForPostLoginRedirect();
     }
-    LOG.debug(`post-login URL: ${await getCurrentUrl(this.page)}`);
     const token = await this.authTokenPromise;
-    this.authorization = token ? `CALAuthScheme ${token}` : '';
+    if (token) {
+      LOG.info('login token intercepted from POST response');
+      this.authorization = `CALAuthScheme ${token}`;
+    } else {
+      LOG.info('login token NOT intercepted — will fall back to sessionStorage on first API call');
+      this.authorization = '';
+    }
+    LOG.info('post-login URL: %s', await getCurrentUrl(this.page));
   }
 
   private async waitForPostLoginRedirect(): Promise<void> {
@@ -154,7 +162,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       const url = await getCurrentUrl(this.page);
       if (url.includes('site-tutorial')) await clickButton(this.page, 'button.btn-close');
     } catch {
-      LOG.debug('post-login redirect timeout — checking if already on dashboard');
+      LOG.info('post-login redirect timeout — checking if already on dashboard');
     }
   }
 
@@ -165,7 +173,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       .waitForResponse(isLogin, { timeout: 15_000 })
       .then(async response => ((await response.json()) as LoginResponse).token)
       .catch((e: unknown) => {
-        LOG.debug({ err: e }, 'error while waiting for the login response');
+        LOG.info({ err: e }, 'interceptLoginToken: no POST response within 15s');
         return undefined;
       });
   }
@@ -202,17 +210,17 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     card: CardInfo,
     hdrs: Record<string, string>,
   ): Promise<CardPendingTransactionDetails | null> {
-    LOG.debug(`fetch pending transactions for card ${card.cardUniqueId}`);
+    LOG.info(`fetch pending transactions for card ${card.cardUniqueId}`);
     let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
       CardPendingTransactionDetails | CardApiStatus
     >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
     if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
-      LOG.debug(
+      LOG.info(
         `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
       );
       pendingData = null;
     } else if (!isCardPendingTransactionDetails(pendingData)) {
-      LOG.debug('pendingData is not of type CardTransactionDetails');
+      LOG.info('pendingData is not of type CardTransactionDetails');
       pendingData = null;
     }
     return pendingData;
@@ -242,7 +250,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const allMonths = Array.from({ length: months + 1 }, (_, i) =>
       finalMonthToFetchMoment.clone().subtract(i, 'months'),
     );
-    LOG.debug(`fetch completed transactions for card ${card.cardUniqueId}`);
+    LOG.info(`fetch completed transactions for card ${card.cardUniqueId}`);
     return this.fetchCardDataMonths(card, allMonths, hdrs);
   }
 
@@ -291,7 +299,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   private async fetchFrames(hdrs: Record<string, string>): Promise<FramesResponse> {
-    LOG.debug('fetch frames (misgarot) of cards');
+    LOG.info('fetch frames (misgarot) of cards');
     const cards = await this.getCards();
     return fetchPost<FramesResponse>(
       FRAMES_REQUEST_ENDPOINT,

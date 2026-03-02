@@ -29,18 +29,18 @@ export function detectWafBlock(status: number, body: string | null): string | nu
   return match ? `response contains "${match}"` : null;
 }
 
+function logApiCall(tag: string, status: number, durationMs: number): void {
+  LOG.info('%s → %d (%dms)', tag, status, durationMs);
+}
+
 function logResponseIssues(status: number, text: string | null, url: string): void {
+  if (text !== null) LOG.info('response body: %s', text.substring(0, 300));
   if (status !== 200 && status !== 204) {
-    LOG.debug(
-      'non-200 response: status=%d url=%s body=%s',
-      status,
-      url,
-      text?.substring(0, 200) ?? 'empty',
-    );
+    LOG.info('non-200: status=%d url=%s', status, url);
   }
   const wafReason = detectWafBlock(status, text);
   if (wafReason) {
-    LOG.debug('WAF block detected: %s, url=%s', wafReason, url);
+    LOG.info('WAF block: %s url=%s', wafReason, url);
   }
 }
 
@@ -49,15 +49,17 @@ export async function fetchGet<TResult>(
   extraHeaders: Record<string, string>,
 ): Promise<TResult> {
   const headers = Object.assign(getJsonHeaders(), extraHeaders);
+  const startMs = Date.now();
   const fetchResult = await fetch(url, { method: 'GET', headers });
-
+  logApiCall(`GET ${url.slice(-100)}`, fetchResult.status, Date.now() - startMs);
+  const text = await fetchResult.text();
+  LOG.info('response body: %s', text.substring(0, 300));
   if (fetchResult.status !== 200) {
     throw new Error(
       `sending a request to the institute server returned with status code ${fetchResult.status}`,
     );
   }
-
-  return (await fetchResult.json()) as TResult;
+  return JSON.parse(text) as TResult;
 }
 
 export async function fetchPost<TResult = unknown>(
@@ -70,8 +72,12 @@ export async function fetchPost<TResult = unknown>(
     headers: { ...getJsonHeaders(), ...extraHeaders },
     body: JSON.stringify(data),
   };
+  const startMs = Date.now();
   const result = await fetch(url, request);
-  return (await result.json()) as TResult;
+  logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
+  const text = await result.text();
+  LOG.info('response body: %s', text.substring(0, 300));
+  return JSON.parse(text) as TResult;
 }
 
 export interface FetchGraphqlOptions {
@@ -145,7 +151,10 @@ export async function fetchGetWithinPage<TResult>(
   url: string,
   shouldIgnoreErrors = false,
 ): Promise<TResult | null> {
+  const startMs = Date.now();
   const [result, status] = await evaluateGet(page, url);
+  logApiCall(`GET(page) ${url.slice(-100)}`, status, Date.now() - startMs);
+  logResponseIssues(status, result, url);
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult | null;
 }
 
@@ -222,11 +231,13 @@ export async function fetchPostWithinPage<TResult>(
   opts: FetchPostOptions,
 ): Promise<TResult | null> {
   const { data, extraHeaders = {} } = opts;
+  const startMs = Date.now();
   const [text, status] = await runPostEvaluate(page, {
     innerUrl: url,
     innerData: data,
     innerExtraHeaders: extraHeaders,
   });
+  logApiCall(`POST(page) ${url.slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, text, url);
   return parsePostResult({ text, status, url, opts }) as TResult | null;
 }

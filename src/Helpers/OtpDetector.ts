@@ -59,7 +59,7 @@ async function getBodyText(page: Page): Promise<string | null> {
     const text = await page.evaluate(() => document.body.innerText);
     return typeof text === 'string' ? text : null;
   } catch (e: unknown) {
-    LOG.debug(e, 'getBodyText failed (page context inaccessible)');
+    LOG.info(e, 'getBodyText failed (page context inaccessible)');
     return null;
   }
 }
@@ -83,15 +83,15 @@ async function detectByInputField(page: Page): Promise<boolean> {
 export async function detectOtpScreen(page: Page): Promise<boolean> {
   const textResult = await detectByText(page);
   if (textResult === 'otp') {
-    LOG.debug('OTP detected by text pattern');
+    LOG.info('OTP detected by text pattern');
     return true;
   }
   if (textResult === 'unknown') {
-    LOG.debug('Page context inaccessible — skipping OTP input check');
+    LOG.info('Page context inaccessible — skipping OTP input check');
     return false;
   }
   const isByInput = await detectByInputField(page);
-  if (isByInput) LOG.debug('OTP detected by input field');
+  if (isByInput) LOG.info('OTP detected by input field');
   return isByInput;
 }
 
@@ -117,10 +117,10 @@ async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<bo
       await locator.waitFor({ state: 'attached', timeout: 5000 });
       await locator.hover();
       await locator.click();
-      LOG.debug('isClicked SMS trigger in #loginFrame: %s', sel);
+      LOG.info('isClicked SMS trigger in #loginFrame: %s', sel);
       return true;
     } catch (e: unknown) {
-      LOG.debug(
+      LOG.info(
         'SMS trigger failed for %s: %s',
         sel,
         e instanceof Error ? e.message.slice(0, 80) : e,
@@ -133,21 +133,19 @@ async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<bo
 async function tryGenericFrameTriggers(page: Page): Promise<void> {
   const mainSelector = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
   if (mainSelector) {
-    LOG.debug('clicking SMS trigger on main page: %s', mainSelector);
+    LOG.info('clicking SMS trigger on main page: %s', mainSelector);
     await page.click(mainSelector);
     return;
   }
   for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
     const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
     if (sel) {
-      LOG.debug('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
+      LOG.info('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
       await frame.click(sel);
       return;
     }
   }
-  LOG.debug(
-    'No SMS trigger button found — SMS may be auto-sent or page is already on entry screen',
-  );
+  LOG.info('No SMS trigger button found — SMS may be auto-sent or page is already on entry screen');
 }
 
 export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {

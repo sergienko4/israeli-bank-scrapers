@@ -13,12 +13,23 @@ import {
 import {
   type Scraper,
   type ScraperCredentials,
+  type ScraperDiagnostics,
   type ScraperGetLongTermTwoFactorTokenResult,
   type ScraperLoginResult,
   type ScraperOptions,
   type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from './Interface';
+
+interface DiagnosticsState {
+  loginUrl: string;
+  finalUrl?: string;
+  loginStartMs: number;
+  fetchStartMs?: number;
+  lastAction: string;
+  pageTitle?: string;
+  warnings: string[];
+}
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
@@ -35,6 +46,13 @@ function categorizeError(e: unknown): ErrorResult {
 }
 
 export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {
+  protected readonly diagState: DiagnosticsState = {
+    loginUrl: '',
+    loginStartMs: 0,
+    lastAction: 'start',
+    warnings: [],
+  };
+
   private eventEmitter = new EventEmitter();
 
   constructor(public options: ScraperOptions) {}
@@ -92,11 +110,27 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     this.eventEmitter.emit(eventName, this.options.companyId, payload);
   }
 
+  protected buildDiagnostics(): ScraperDiagnostics {
+    const { loginUrl, finalUrl, loginStartMs, fetchStartMs, lastAction, pageTitle, warnings } =
+      this.diagState;
+    return {
+      loginUrl,
+      finalUrl,
+      loginDurationMs: loginStartMs ? Date.now() - loginStartMs : undefined,
+      fetchDurationMs: fetchStartMs ? Date.now() - fetchStartMs : undefined,
+      lastAction,
+      pageTitle,
+      warnings: [...warnings],
+    };
+  }
+
   private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
+    this.diagState.loginStartMs = Date.now();
+    this.diagState.lastAction = 'logging in';
     try {
       return await this.login(credentials);
     } catch (e) {
-      return categorizeError(e);
+      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
     }
   }
 
@@ -104,6 +138,8 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     loginResult: ScraperScrapingResult,
   ): Promise<ScraperScrapingResult> {
     if (!loginResult.success) return loginResult;
+    this.diagState.fetchStartMs = Date.now();
+    this.diagState.lastAction = 'fetching data';
     try {
       const scrapeResult = await this.fetchData();
       if (
@@ -115,7 +151,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       }
       return scrapeResult;
     } catch (e) {
-      return categorizeError(e);
+      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
     }
   }
 

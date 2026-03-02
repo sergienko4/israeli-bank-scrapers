@@ -75,7 +75,7 @@ export async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
   try {
     await cleanup();
   } catch (e) {
-    LOG.debug(`Cleanup function failed: ${(e as Error).message}`);
+    LOG.info(`Cleanup function failed: ${(e as Error).message}`);
   }
 }
 
@@ -90,7 +90,7 @@ export async function getKeyByValue(
     if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
-  LOG.debug('no login result matched — url: %s, value: %s', page.url(), value);
+  LOG.info('no login result matched — url: %s, value: %s', page.url(), value);
   return LOGIN_RESULTS.UnknownError;
 }
 

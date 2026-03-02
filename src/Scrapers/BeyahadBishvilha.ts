@@ -72,7 +72,7 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
 }
 
 function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
-  LOG.debug(`convert ${txns.length} raw transactions to official Transaction structure`);
+  LOG.info(`convert ${txns.length} raw transactions to official Transaction structure`);
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
@@ -126,9 +126,9 @@ async function getFilteredTxns(
   options: ScraperOptions,
   startMoment: moment.Moment,
 ): Promise<{ accountTransactions: Transaction[]; txns: Transaction[] }> {
-  LOG.debug('fetch raw transactions from page');
+  LOG.info('fetch raw transactions from page');
   const rawTransactions = await scrapeRawTransactions(page);
-  LOG.debug(`fetched ${rawTransactions.length} raw transactions from page`);
+  LOG.info(`fetched ${rawTransactions.length} raw transactions from page`);
   const accountTransactions = convertTransactions(
     rawTransactions.filter(item => !!item),
     options,
@@ -146,7 +146,7 @@ async function fetchTransactions(
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   const { accountNumber, balance } = await scrapeAccountInfo(page);
   const { accountTransactions, txns } = await getFilteredTxns(page, options, startMoment);
-  LOG.debug(
+  LOG.info(
     `found ${txns.length} valid transactions out of ${accountTransactions.length} transactions for account ending with ${accountNumber.substring(accountNumber.length - 2)}`,
   );
   return { accountNumber, balance: getAmountData(balance).amount, txns };

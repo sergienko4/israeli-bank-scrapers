@@ -56,13 +56,13 @@ interface FetchCategoryResult {
 }
 
 async function loadCategories(page: Page): Promise<void> {
-  LOG.debug('Loading categories');
+  LOG.info('Loading categories');
   const res = await fetchGetWithinPage<FetchCategoryResult>(
     page,
     `${BASE_API_ACTIONS_URL}/api/contents/getCategories`,
   );
   if (res && Array.isArray(res.result)) {
-    LOG.debug(`${res.result.length} categories loaded`);
+    LOG.info(`${res.result.length} categories loaded`);
     res.result.forEach(({ id, name }) => CATEGORIES.set(id, name));
   }
 }

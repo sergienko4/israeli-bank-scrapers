@@ -88,6 +88,7 @@ async function maxPreAction(page: Page): Promise<Frame | undefined> {
 }
 
 async function maxPostAction(page: Page): Promise<void> {
+  if (page.url().includes('/homepage/personal')) return;
   await Promise.race([
     waitForRedirect(page, {
       timeout: 20000,

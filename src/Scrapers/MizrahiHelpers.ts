@@ -144,7 +144,7 @@ async function fetchMoreDetails(
     extraHeaders: apiHeaders,
   });
   const details = response?.body.fields[0][0].Records[0].Fields;
-  LOG.debug({ params, details }, 'fetch details');
+  LOG.info({ params, details }, 'fetch details');
   if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
   return null;
 }
@@ -155,11 +155,11 @@ export async function getExtraTransactionDetails(
   apiHeaders: Record<string, string>,
 ): Promise<MoreDetails> {
   try {
-    LOG.debug(item, 'getExtraTransactionDetails for item');
+    LOG.info(item, 'getExtraTransactionDetails for item');
     const result = await fetchMoreDetails(page, item, apiHeaders);
     if (result) return result;
   } catch (error) {
-    LOG.debug(error, 'Error fetching extra transaction details');
+    LOG.info(error, 'Error fetching extra transaction details');
   }
   return { entries: {}, memo: undefined };
 }

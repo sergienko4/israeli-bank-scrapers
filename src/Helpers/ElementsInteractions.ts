@@ -1,6 +1,24 @@
 import { type Frame, type Page } from 'playwright';
 
+import { getDebug } from './Debug';
 import { humanDelay, waitUntil } from './Waiting';
+
+const LOG = getDebug('elements');
+
+export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
+  return pageOrFrame
+    .evaluate((): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400))
+    .catch(() => '(context unavailable)');
+}
+
+async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): Promise<string> {
+  return pageOrFrame
+    .evaluate(
+      (sel: string): string => document.querySelector(sel)?.outerHTML.slice(0, 300) ?? '—',
+      selector,
+    )
+    .catch(() => '(context unavailable)');
+}
 
 export interface WaitOptions {
   visible?: boolean;
@@ -25,7 +43,16 @@ async function waitUntilElementFound(
   opts: WaitOptions = {},
 ): Promise<void> {
   const state = opts.visible ? 'visible' : 'attached';
-  await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
+  const startMs = Date.now();
+  try {
+    await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
+    LOG.info('waitForSelector %s → found (%dms)', elementSelector, Date.now() - startMs);
+    LOG.info('element html: %s', await captureElementHtml(page, elementSelector));
+  } catch (e) {
+    LOG.info('waitForSelector %s → TIMEOUT (%dms)', elementSelector, Date.now() - startMs);
+    LOG.info('page text: %s', await capturePageText(page));
+    throw e;
+  }
 }
 
 async function waitUntilElementDisappear(
@@ -73,6 +100,7 @@ async function fillInput(
   inputSelector: string,
   inputValue: string,
 ): Promise<void> {
+  LOG.info('fill %s', inputSelector);
   await humanDelay(200, 600);
   await pageOrFrame.$eval(inputSelector, (input: Element) => {
     const inputElement = input;
@@ -101,6 +129,7 @@ async function setValue(
 }
 
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
+  LOG.info('click %s', buttonSelector);
   await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => {
     (el as HTMLElement).click();

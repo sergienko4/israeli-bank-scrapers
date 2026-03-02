@@ -175,7 +175,7 @@ export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise
   url.searchParams.set('CardIndex', accountIndex.toString());
   url.searchParams.set('shovarRatz', transaction.identifier!.toString());
   url.searchParams.set('moedChiuv', month.format('MMYYYY'));
-  LOG.debug(
+  LOG.info(
     `fetching extra scrap for transaction ${transaction.identifier} for month ${month.format('YYYY-MM')}`,
   );
   const data = await fetchGetWithinPage<ScrapedTransactionData>(page, url.toString());
@@ -201,7 +201,7 @@ async function enrichTxnsChunk({
   account,
   opts,
 }: EnrichChunkOpts): Promise<Transaction[]> {
-  LOG.debug('processing chunk of %d txns for account %s', chunk.length, account.accountNumber);
+  LOG.info('processing chunk of %d txns for account %s', chunk.length, account.accountNumber);
   const requests = chunk.map(t =>
     getExtraScrapTransaction({
       page,
@@ -234,7 +234,7 @@ export async function getExtraScrapAccount(
   const { page, options, accountMap, month } = opts;
   const accounts: ScrapedAccountsWithIndex[string][] = [];
   for (const account of Object.values(accountMap)) {
-    LOG.debug(
+    LOG.info(
       `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions, month ${month.format('YYYY-MM')}`,
     );
     accounts.push(await enrichAccountTxns(page, account, { options, month }));

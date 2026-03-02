@@ -135,7 +135,7 @@ async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean
 }
 
 function debugCandidateSkipped(candidate: SelectorCandidate): void {
-  LOG.debug(
+  LOG.info(
     'candidate %s "%s" → skipped (cross-origin / detached frame)',
     candidate.kind,
     candidate.value,
@@ -150,10 +150,10 @@ async function probeCandidate(
   try {
     const isFound = await queryWithTimeout(ctx, css);
     if (isFound) {
-      LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+      LOG.info('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
       return css;
     }
-    LOG.debug('candidate %s "%s" → not found (timeout or absent)', candidate.kind, candidate.value);
+    LOG.info('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
   } catch {
     debugCandidateSkipped(candidate);
   }
@@ -189,11 +189,11 @@ async function searchInChildFrames(
   tried: string[],
 ): Promise<FieldContext | null> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
-  if (childFrames.length > 0) LOG.debug('Round 4: searching %d iframe(s)', childFrames.length);
+  if (childFrames.length > 0) LOG.info('Round 4: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
     if (found) {
-      LOG.debug('Round 4: resolved in iframe %s → %s', frame.url(), found);
+      LOG.info('Round 4: resolved in iframe %s → %s', frame.url(), found);
       return { selector: found, context: frame };
     }
   }
@@ -239,7 +239,7 @@ async function resolveInMainContext(
 ): Promise<FieldContext | null> {
   const main = await tryInContext(pageOrFrame, allCandidates);
   if (!main) return null;
-  LOG.debug('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
+  LOG.info('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
 }
 
@@ -257,6 +257,8 @@ async function resolveInIframesOrThrow(opts: ResolveIframesOpts): Promise<FieldC
     const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates, tried);
     if (iframeResult) return iframeResult;
   }
+  LOG.info('FAILED "%s" on %s (%d candidates tried)', field.credentialKey, pageUrl, tried.length);
+  for (const line of tried) LOG.info(line);
   const msg = buildNotFoundMessage({
     credentialKey: field.credentialKey,
     pageUrl,
@@ -275,7 +277,7 @@ export async function resolveFieldContext(
     ...field.selectors,
     ...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? []),
   ];
-  LOG.debug('resolving "%s" on %s (Rounds 1-3)', field.credentialKey, pageUrl);
+  LOG.info('resolving "%s" on %s', field.credentialKey, pageUrl);
   const main = await resolveInMainContext(pageOrFrame, allCandidates, field.credentialKey);
   if (main) return main;
   return resolveInIframesOrThrow({ pageOrFrame, field, pageUrl, allCandidates });

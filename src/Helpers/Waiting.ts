@@ -59,8 +59,18 @@ export interface WaitUntilOpts {
   interval?: number;
 }
 
+function safeStringify(v: unknown): string {
+  try {
+    const s = JSON.stringify(v);
+    return typeof s === 'string' ? s.slice(0, 100) : 'undefined';
+  } catch {
+    return String(v).slice(0, 100);
+  }
+}
+
 /**
- * Wait until a promise resolves with a truthy value or reject after a timeout
+ * Wait until a promise resolves with a truthy value or reject after a timeout.
+ * On timeout the error message includes the last polled value for diagnostics.
  */
 export function waitUntil<T>(
   asyncTest: () => Promise<T>,
@@ -68,8 +78,18 @@ export function waitUntil<T>(
   opts: WaitUntilOpts = {},
 ): WaitUntilReturn<T> {
   const { timeout = 10000, interval = 100 } = opts;
-  const promise = buildWaitPromise(asyncTest, interval);
-  return timeoutPromise(timeout, promise, description) as WaitUntilReturn<T>;
+  let lastSeenValue: unknown;
+  const trackingTest = async (): Promise<T> => {
+    const v = await asyncTest();
+    lastSeenValue = v;
+    return v;
+  };
+  const promise = buildWaitPromise(trackingTest, interval);
+  const withContext = timeoutPromise(timeout, promise, description).catch((e: unknown) => {
+    if (!(e instanceof TimeoutError)) throw e;
+    throw new TimeoutError(`${e.message} — last: ${safeStringify(lastSeenValue)}`);
+  });
+  return withContext as WaitUntilReturn<T>;
 }
 
 export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {

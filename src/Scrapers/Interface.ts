@@ -190,6 +190,16 @@ export interface OutputDataOptions {
   isFilterByDateEnabled?: boolean;
 }
 
+export interface ScraperDiagnostics {
+  loginUrl: string;
+  finalUrl?: string;
+  loginDurationMs?: number;
+  fetchDurationMs?: number;
+  lastAction: string;
+  pageTitle?: string;
+  warnings: string[];
+}
+
 export interface ScraperScrapingResult {
   success: boolean;
   accounts?: TransactionsAccount[];
@@ -200,6 +210,7 @@ export interface ScraperScrapingResult {
   /** Long-term OTP token returned by banks that support it (e.g. OneZero).
    *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
   persistentOtpToken?: string;
+  diagnostics?: ScraperDiagnostics;
 }
 
 export interface Scraper<TCredentials extends ScraperCredentials> {
