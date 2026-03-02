@@ -165,7 +165,7 @@ class BaseScraperWithBrowser<
     browser: Browser,
     registerContextCleanup = true,
   ): Promise<Page> {
-    const context = await browser.newContext(buildContextOptions(this.getViewPort()));
+    const context = await browser.newContext(buildContextOptions());
     if (registerContextCleanup) this.cleanups.push(async () => context.close());
     return context.newPage();
   }
