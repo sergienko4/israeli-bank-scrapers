@@ -73,10 +73,13 @@ jobs:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
+          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
+          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
+          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
           DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
           DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}

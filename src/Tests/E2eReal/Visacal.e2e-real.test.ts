@@ -8,7 +8,6 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
-  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -32,7 +31,7 @@ describeIf('E2E: VisaCal (real credentials)', () => {
       username: process.env.VISACAL_USERNAME!,
       password: process.env.VISACAL_PASSWORD!,
     });
-    if (skipIfWafBlocked(result, 'VisaCal')) return;
+
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

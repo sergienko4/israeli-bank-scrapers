@@ -57,17 +57,6 @@ function maskDesc(desc: string): string {
   return desc.slice(0, 3) + '***';
 }
 
-export function skipIfWafBlocked(result: ScraperScrapingResult, bankName: string): boolean {
-  const isBlocked =
-    result.errorType === ScraperErrorTypes.Generic ||
-    result.errorType === ScraperErrorTypes.WafBlocked ||
-    result.errorType === ScraperErrorTypes.Timeout;
-  if (isBlocked) {
-    console.log(`[skip] ${bankName}: ${result.errorType} ${result.errorMessage?.slice(0, 100)}`);
-  }
-  return isBlocked;
-}
-
 export function logScrapedTransactions(result: ScraperScrapingResult): void {
   if (!result.accounts) return;
   for (const account of result.accounts) {

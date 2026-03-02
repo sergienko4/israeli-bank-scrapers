@@ -8,7 +8,6 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
-  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -37,7 +36,7 @@ describeIf('E2E: Discount Bank (real credentials)', () => {
       password: process.env.DISCOUNT_PASSWORD!,
       num: process.env.DISCOUNT_NUM!,
     });
-    if (skipIfWafBlocked(result, 'Discount')) return;
+
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

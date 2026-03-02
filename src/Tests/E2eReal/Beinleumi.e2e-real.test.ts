@@ -10,7 +10,6 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
-  skipIfWafBlocked,
 } from './Helpers';
 
 dotenv.config();
@@ -53,7 +52,7 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
       username: process.env.BEINLEUMI_USERNAME!,
       password: process.env.BEINLEUMI_PASSWORD!,
     });
-    if (skipIfWafBlocked(result, 'Beinleumi')) return;
+
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });
