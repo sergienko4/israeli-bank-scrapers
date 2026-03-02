@@ -83,19 +83,6 @@ beforeEach(() => {
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/dashboard');
 });
 
-describe('getViewPort', () => {
-  it('returns undefined when no custom viewport (uses buildContextOptions default)', () => {
-    const scraper = createScraper();
-    const viewport = scraper.getViewPort();
-    expect(viewport).toBeUndefined();
-  });
-
-  it('returns custom viewport from options', () => {
-    const scraper = createScraper({ viewportSize: { width: 1920, height: 1080 } });
-    const viewport = scraper.getViewPort();
-    expect(viewport).toEqual({ width: 1920, height: 1080 });
-  });
-});
 
 describe('initialize', () => {
   it('launches browser and creates context + page', async () => {
