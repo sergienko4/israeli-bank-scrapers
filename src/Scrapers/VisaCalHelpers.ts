@@ -29,27 +29,40 @@ export const CONNECT_IFRAME_OPTS = {
   description: 'login iframe (connect.cal-online.co.il)',
 } as const;
 
+// Short timeout for login-state checks: if iframe is gone (post-redirect), fail fast
+const CONNECT_IFRAME_CHECK_OPTS = {
+  timeout: 3000,
+  description: 'login iframe check',
+} as const;
+
 export function isConnectFrame(f: Frame): boolean {
   return f.url().includes('connect');
 }
 
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
-  const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
-  const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
-  const errorMessage = isErrorFound
-    ? await pageEval(frame, {
-        selector: 'div.general-error > div',
-        defaultResult: '',
-        callback: item => (item as HTMLDivElement).innerText,
-      })
-    : '';
-  return errorMessage === INVALID_PASSWORD_MESSAGE;
+  try {
+    const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
+    const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
+    const errorMessage = isErrorFound
+      ? await pageEval(frame, {
+          selector: 'div.general-error > div',
+          defaultResult: '',
+          callback: item => (item as HTMLDivElement).innerText,
+        })
+      : '';
+    return errorMessage === INVALID_PASSWORD_MESSAGE;
+  } catch {
+    return false; // iframe gone = page navigated away = no invalid-password error
+  }
 }
 
 export async function hasChangePasswordForm(page: Page): Promise<boolean> {
-  const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
-  const isErrorFound = await elementPresentOnPage(frame, '.change-password-subtitle');
-  return isErrorFound;
+  try {
+    const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
+    return await elementPresentOnPage(frame, '.change-password-subtitle');
+  } catch {
+    return false; // iframe gone = page navigated away = no change-password form
+  }
 }
 
 export function getPossibleLoginResults(): Record<
