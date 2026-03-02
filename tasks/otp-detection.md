@@ -1,5 +1,11 @@
 # Task: Dynamic OTP Detection — Default Layer for All Scrapers
 
+## Status: COMPLETED (2026-03)
+
+All files implemented and tested. See src/Helpers/OtpDetector.ts, src/Helpers/OtpHandler.ts,
+src/Helpers/OtpDetector.test.ts, src/Tests/E2eMocked/OtpDetection.e2e-mocked.test.ts.
+Integrated into BaseScraperWithBrowser.checkOtpAndNavigate().
+
 ## Priority: High | Effort: Medium (half day)
 
 ## Current State
@@ -11,6 +17,7 @@ while the browser is sitting on the OTP selection/entry screen.
 Screenshot confirms: credentials are **correct**, OTP screen appears after password login.
 
 The `BeinleumiGroupBaseScraper` (and any other bank that adds OTP) has no way to:
+
 1. Detect that an OTP screen appeared
 2. Trigger/request the OTP code
 3. Enter the code and continue
@@ -48,49 +55,62 @@ After submit button click:
 ## New Files to Create
 
 ### `src/helpers/otp-detector.ts`
+
 ```typescript
 // OTP text patterns — Hebrew + English, sorted most-specific first
 const OTP_TEXT_PATTERNS = [
-  'סיסמה חד פעמית', 'קוד חד פעמי', 'אימות זהות',
-  'בחר טלפון', 'לצורך אימות', 'שלח קוד',
-  'קוד SMS', 'קוד אימות',
-  'one-time password', 'OTP', 'SMS code',
+  'סיסמה חד פעמית',
+  'קוד חד פעמי',
+  'אימות זהות',
+  'בחר טלפון',
+  'לצורך אימות',
+  'שלח קוד',
+  'קוד SMS',
+  'קוד אימות',
+  'one-time password',
+  'OTP',
+  'SMS code',
 ];
 
-export async function detectOtpScreen(page: Page): Promise<boolean>
+export async function detectOtpScreen(page: Page): Promise<boolean>;
 // Returns true if body text contains any OTP pattern OR resolveFieldContext(otpCode) succeeds
 
-export async function extractPhoneHint(page: Page): Promise<string>
+export async function extractPhoneHint(page: Page): Promise<string>;
 // Extracts masked phone like "******5100" from page text
 
-export async function findOtpSubmitSelector(page: Page): Promise<string | null>
+export async function findOtpSubmitSelector(page: Page): Promise<string | null>;
 // Tries: //button[contains(.,"אשר"/"שלח"/"המשך"/"כניסה")], button[type="submit"]
 // Uses tryInContext() — needs to be exported from selector-resolver.ts
 
-async function clickOtpTriggerIfPresent(page: Page): Promise<void>
+async function clickOtpTriggerIfPresent(page: Page): Promise<void>;
 // Clicks SMS button on selection screens (before the OTP entry screen appears)
 // Tries: //button[contains(.,"SMS")], input[type="radio"], ariaLabel="שלח SMS"
 ```
 
 ### `src/helpers/otp-handler.ts`
+
 ```typescript
 export async function handleOtpStep(
   page: Page,
   options: ScraperOptions,
-): Promise<ScraperScrapingResult | null>
+): Promise<ScraperScrapingResult | null>;
 // null = no OTP screen detected (continue normal flow)
 // ScraperScrapingResult = OTP screen detected (either handled or error)
 ```
 
 ### `src/tests/e2e-mocked/otp-detection.e2e-mocked.test.ts`
+
 4 tests:
+
 1. OTP screen detected, no retriever → `TwoFactorRetrieverMissing` + screenshot path
 2. OTP screen detected, retriever provided → fills code → login succeeds
 3. Normal login (no OTP) → zero change to behavior (regression guard)
 4. `detectByText` false-positive guard (login error page with no OTP patterns → false)
 
 ### `src/helpers/otp-detector.test.ts`
+
 Fast unit tests (mock page, no browser):
+
 - `detectOtpScreen` with Hebrew text match
 - `detectOtpScreen` with OTP input field match
 - `detectOtpScreen` returns false on normal login error
@@ -100,25 +120,31 @@ Fast unit tests (mock page, no browser):
 ## Files to Modify
 
 ### `src/scrapers/interface.ts`
+
 Add optional `otpCodeRetriever` to `ScraperOptions`:
+
 ```typescript
 otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 ```
 
 ### `src/scrapers/base-scraper-with-browser.ts`
+
 Insert 3 lines in `login()` between `emitProgress(LoggingIn)` and `postAction`:
+
 ```typescript
 const otpResult = await handleOtpStep(this.page, this.options);
 if (otpResult !== null) return otpResult;
 ```
 
 ### `src/helpers/selector-resolver.ts`
+
 1. Export `tryInContext` (needed by `findOtpSubmitSelector`)
 2. Add `'סיסמה חד פעמית'` to `WELL_KNOWN_SELECTORS.otpCode`
 
 ## Beinleumi-Specific Note
 
 Beinleumi has TWO OTP sub-screens:
+
 1. **Phone selection** — "בחר טלפון" + [הודעה קולית] [SMS] buttons + "שלח"
 2. **Code entry** — OTP input + "אשר" button
 
@@ -128,12 +154,12 @@ Beinleumi has TWO OTP sub-screens:
 
 ## Backward Compatibility
 
-| Scenario | Impact |
-|---|---|
-| Banks without OTP | `detectByText` runs once (~50ms), returns false, zero behavior change |
-| Bank adds OTP, no `otpCodeRetriever` | Was: 30s timeout. Now: immediate `TwoFactorRetrieverMissing` error + screenshot |
-| Bank adds OTP, `otpCodeRetriever` provided | New: code filled automatically, scrape continues |
-| OneZero (API OTP, uses `BaseScraper`) | Not affected — never calls `login()` in `BaseScraperWithBrowser` |
+| Scenario                                   | Impact                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| Banks without OTP                          | `detectByText` runs once (~50ms), returns false, zero behavior change           |
+| Bank adds OTP, no `otpCodeRetriever`       | Was: 30s timeout. Now: immediate `TwoFactorRetrieverMissing` error + screenshot |
+| Bank adds OTP, `otpCodeRetriever` provided | New: code filled automatically, scrape continues                                |
+| OneZero (API OTP, uses `BaseScraper`)      | Not affected — never calls `login()` in `BaseScraperWithBrowser`                |
 
 ## Test-First Acceptance Criteria
 
@@ -158,6 +184,7 @@ Tests must be written and passing **before** any implementation is merged.
 Realistic HTML fixtures required for each test (not minimal stubs):
 
 #### Test 1: Phone-selection screen → no retriever → `TwoFactorRetrieverMissing`
+
 - HTML mirrors Beinleumi's actual OTP selection screen:
   `"לצורך אימות זהותך, יש לבחור טלפון לקבלת סיסמה חד פעמית"` + SMS/voice buttons + phone hint `*****5100` + "שלח"
 - No `otpCodeRetriever` in options
@@ -165,6 +192,7 @@ Realistic HTML fixtures required for each test (not minimal stubs):
 - Assert: `result.errorMessage` contains `'otpCodeRetriever'` and `'Screenshot saved to'`
 
 #### Test 2: OTP code entry screen → retriever provided → code filled → dashboard reached
+
 - HTML: OTP input `<input placeholder="קוד חד פעמי">` + `<button>אשר</button>` with onclick to dashboard URL
 - `otpCodeRetriever` spy returns `'123456'`
 - Assert: `result.success === true`
@@ -172,6 +200,7 @@ Realistic HTML fixtures required for each test (not minimal stubs):
 - Assert: `fillInput` called with `'123456'`
 
 #### Test 3: Phone selection + code entry (two-screen flow — Beinleumi realistic)
+
 - Screen 1: phone selection page (SMS button + שלח)
 - Screen 2 (after clicking שלח): OTP input page
 - `otpCodeRetriever` returns `'654321'`
@@ -180,28 +209,33 @@ Realistic HTML fixtures required for each test (not minimal stubs):
 - Assert: `result.success === true`
 
 #### Test 4: Normal login (no OTP) — zero regression
+
 - Standard login page (no OTP keywords, no OTP inputs)
 - Success URL in `possibleResults`
 - Assert: `result.success === true`
 - Assert: no timeout or extra latency (OTP check fast-paths out via text check)
 
 #### Test 5: Login error page — false-positive guard
+
 - Page shows `'שם משתמש שגוי. ניסיון 2 מתוך 3'` (wrong username, attempt 2 of 3)
 - No OTP patterns on page
 - Assert: `detectOtpScreen` never triggered (or returns false)
 - Assert: `result.errorType === InvalidPassword` (normal login failure)
 
 #### Test 6: OTP inside iframe
+
 - Main page has no OTP text; iframe contains `<input placeholder="קוד אימות">`
 - Assert: Round 4 iframe search in `detectByInputField` finds it
 - Assert: OTP filled correctly inside iframe
 
 ### Regression tests (existing tests must still pass)
+
 - [ ] All 394 unit tests pass
 - [ ] All 19 existing mocked e2e tests pass (no behavior change for non-OTP banks)
 - [ ] All 8 selector-fallback real e2e tests pass in parallel
 
 ### Performance guard
+
 - [ ] Non-OTP bank scrape adds ≤ 200ms overhead (text check only, no selector search if text passes)
   - `detectByText` runs first; if false only then runs `detectByInputField`
   - `detectByInputField` uses `CANDIDATE_TIMEOUT_MS = 2000` per candidate but only 6 candidates total

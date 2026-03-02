@@ -40,3 +40,24 @@ export function lastMonthStartDate(): Date {
   startDate.setMonth(startDate.getMonth() - 1);
   return startDate;
 }
+
+const MAX_TXN_LOG = 10;
+
+export function logScrapedTransactions(result: ScraperScrapingResult): void {
+  if (!result.accounts) return;
+  for (const account of result.accounts) {
+    const preview = account.txns.slice(0, MAX_TXN_LOG);
+    const rows = preview.map(t => {
+      const date = t.date ? new Date(t.date).toLocaleDateString('he-IL') : '';
+      const amt = t.originalAmount?.toFixed(2) ?? '';
+      const cur = t.originalCurrency ?? '';
+      const desc = (t.description ?? '').slice(0, 30);
+      return `  ${date.padEnd(12)}${amt.padStart(10)} ${cur.padEnd(4)} ${desc}`;
+    });
+    const more =
+      account.txns.length > MAX_TXN_LOG ? `  ... +${account.txns.length - MAX_TXN_LOG} more` : '';
+    console.log(
+      `\n--- Account ${account.accountNumber} | balance: ${account.balance ?? 'N/A'} | ${account.txns.length} txns ---\n${rows.join('\n')}${more ? `\n${more}` : ''}`,
+    );
+  }
+}
