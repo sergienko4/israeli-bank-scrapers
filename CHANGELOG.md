@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.5.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.5.0...v7.5.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* **ci:** replace Babel with tsup in release-please publish workflow ([#79](https://github.com/sergienko4/israeli-bank-scrapers/issues/79)) ([41b82d8](https://github.com/sergienko4/israeli-bank-scrapers/commit/41b82d8dee93d574fb3adc74ea3441e984016943))
+
 ## [7.5.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.4.0...v7.5.0) (2026-03-02)
 
 
