@@ -1,4 +1,3 @@
-
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
