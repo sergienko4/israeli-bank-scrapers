@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.5.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.4.0...v7.5.0) (2026-03-02)
+
+
+### Features
+
+* **toolchain:** zero-compromise ESLint + strict types + tsup ESM build ([#76](https://github.com/sergienko4/israeli-bank-scrapers/issues/76)) ([aaa6751](https://github.com/sergienko4/israeli-bank-scrapers/commit/aaa6751dae2dc8b4d1fc56895d01a84ee8b05783))
+
 ## [7.4.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.3.1...v7.4.0) (2026-03-01)
 
 
