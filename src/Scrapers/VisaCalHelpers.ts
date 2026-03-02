@@ -71,7 +71,7 @@ export function getPossibleLoginResults(): Record<
 > {
   LOG.debug('return possible login results');
   return {
-    [LOGIN_RESULTS.Success]: [/dashboard/i],
+    [LOGIN_RESULTS.Success]: [/dashboard/i, /cal-online\.co\.il\/#/],
     [LOGIN_RESULTS.InvalidPassword]: [
       async (opts?: { page?: Page }) => (opts?.page ? hasInvalidPasswordError(opts.page) : false),
     ],

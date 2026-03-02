@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../Helpers/Browser';
 import { pageEval, pageEvalAll } from '../Helpers/ElementsInteractions';
@@ -7,7 +7,8 @@ import { createMockPage, createMockScraperOptions } from '../Tests/MockPage';
 import { TransactionStatuses, TransactionTypes } from '../Transactions';
 import BeyahadBishvilhaScraper from './BeyahadBishvilha';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),

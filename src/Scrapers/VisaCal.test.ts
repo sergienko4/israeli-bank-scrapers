@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../Helpers/Browser';
 import { elementPresentOnPage } from '../Helpers/ElementsInteractions';
@@ -16,7 +16,8 @@ import {
   TrnTypeCode,
 } from './VisaCalTypes';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/Fetch', () => ({ fetchPost: jest.fn() }));
 jest.mock('../Helpers/Storage', () => ({ getFromSessionStorage: jest.fn() }));
 jest.mock('../Helpers/ElementsInteractions', () => ({

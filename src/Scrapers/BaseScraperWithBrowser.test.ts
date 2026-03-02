@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { type Browser, type BrowserContext, chromium } from 'playwright';
+import { type Browser, type BrowserContext } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { ScraperProgressTypes } from '../Definitions';
 import { clickButton, fillInput, waitUntilElementFound } from '../Helpers/ElementsInteractions';
@@ -14,7 +15,8 @@ import { BaseScraperWithBrowser, LOGIN_RESULTS, type LoginOptions } from './Base
 import { ScraperErrorTypes } from './Errors';
 import type { ScraperCredentials, ScraperOptions, ScraperScrapingResult } from './Interface';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 
 jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),

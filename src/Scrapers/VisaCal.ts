@@ -136,18 +136,25 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   private async handlePostLogin(): Promise<void> {
+    const currentUrl = await getCurrentUrl(this.page);
+    const isAlreadyLoggedIn = currentUrl.includes('cal-online.co.il/#');
+    if (!isAlreadyLoggedIn) {
+      await this.waitForPostLoginRedirect();
+    }
+    LOG.debug(`post-login URL: ${await getCurrentUrl(this.page)}`);
+    const token = await this.authTokenPromise;
+    this.authorization = token ? `CALAuthScheme ${token}` : '';
+  }
+
+  private async waitForPostLoginRedirect(): Promise<void> {
     try {
-      // Wait for redirect to digital-web.cal-online.co.il after popup login completes.
-      // waitForNavigation (waitForURL '**') returns immediately — must wait for the specific domain.
-      await waitForUrl(this.page, /digital-web\.cal-online\.co\.il/, { timeout: 30000 });
-      const currentUrl = await getCurrentUrl(this.page);
-      if (currentUrl.includes('site-tutorial')) await clickButton(this.page, 'button.btn-close');
-      const token = await this.authTokenPromise;
-      this.authorization = token ? `CALAuthScheme ${token}` : '';
-    } catch (e) {
-      const currentUrl = await getCurrentUrl(this.page);
-      if (currentUrl.includes('dashboard')) return;
-      throw e;
+      // Old flow: redirect to digital-web; new flow: stay on cal-online.co.il/#
+      const isPostLogin = /digital-web\.cal-online\.co\.il|cal-online\.co\.il\/#|dashboard/;
+      await waitForUrl(this.page, isPostLogin, { timeout: 30000 });
+      const url = await getCurrentUrl(this.page);
+      if (url.includes('site-tutorial')) await clickButton(this.page, 'button.btn-close');
+    } catch {
+      LOG.debug('post-login redirect timeout — checking if already on dashboard');
     }
   }
 

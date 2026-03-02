@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { SHEKEL_CURRENCY } from '../Constants';
 import { buildContextOptions } from '../Helpers/Browser';
@@ -9,7 +9,8 @@ import { TransactionStatuses, TransactionTypes } from '../Transactions';
 import { ScraperErrorTypes } from './Errors';
 import YahavScraper from './Yahav';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),

@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { SHEKEL_CURRENCY } from '../Constants';
 import { ScraperProgressTypes } from '../Definitions';
@@ -14,7 +14,8 @@ import type { ScrapedTransaction } from './BaseIsracardAmexTypes';
 import { ScraperErrorTypes } from './Errors';
 import type { ScraperOptions } from './Interface';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),

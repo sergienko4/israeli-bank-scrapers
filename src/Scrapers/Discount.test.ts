@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../Helpers/Browser';
 import { waitUntilElementFound } from '../Helpers/ElementsInteractions';
@@ -9,7 +9,8 @@ import { TransactionStatuses, TransactionTypes } from '../Transactions';
 import DiscountScraper from './Discount';
 import { ScraperErrorTypes } from './Errors';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));

@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { SCRAPERS } from '../Definitions';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../Helpers/Fetch';
@@ -13,7 +13,8 @@ import AMEXScraper from './Amex';
 import { LOGIN_RESULTS } from './BaseScraperWithBrowser';
 import type { ScraperOptions } from './Interface';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 jest.mock('../Helpers/Fetch', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),

@@ -148,10 +148,9 @@ export interface AuthModule {
 }
 
 export function isAuthModule(result: unknown): result is AuthModule {
-  return Boolean(
-    (result as AuthModule).auth.calConnectToken &&
-    String((result as AuthModule).auth.calConnectToken).trim(),
-  );
+  if (!result || typeof result !== 'object') return false;
+  const candidate = result as Partial<AuthModule>;
+  return Boolean(candidate.auth?.calConnectToken?.trim());
 }
 
 export function authModuleOrUndefined(result: unknown): AuthModule | undefined {

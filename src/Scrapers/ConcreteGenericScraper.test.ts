@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
 
 import { getCurrentUrl } from '../Helpers/Navigation';
 import {
@@ -11,7 +11,8 @@ import { ConcreteGenericScraper } from './ConcreteGenericScraper';
 import type { ScraperCredentials } from './Interface';
 import type { LoginConfig } from './LoginConfig';
 
-jest.mock('playwright', () => ({ chromium: { launch: jest.fn() } }));
+jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
 
 jest.mock('../Helpers/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
