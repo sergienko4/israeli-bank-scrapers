@@ -75,9 +75,7 @@ jobs:
       - run: npm ci
       - name: Build
         run: |
-          npx rimraf lib
-          npx tsc --emitDeclarationOnly
-          npx babel src --out-dir lib --extensions ".ts" --source-maps inline --verbose
-          npx rimraf lib/tests
+          npx tsup
+          npx rimraf lib/Helpers lib/Scrapers lib/Tests
       - name: Publish with provenance (Trusted Publishing OIDC)
         run: npm publish --access public --provenance
