@@ -199,22 +199,6 @@ export const MIZRAHI_CONFIG: LoginConfig = {
   },
 };
 
-export const UNION_CONFIG: LoginConfig = {
-  loginUrl: 'https://hb.unionbank.co.il',
-  fields: [
-    { credentialKey: 'username', selectors: [{ kind: 'css', value: '#uid' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
-  ],
-  submit: [{ kind: 'css', value: '#enter' }],
-  postAction: async (page: Page) => {
-    await Promise.race([page.waitForSelector('#signoff'), page.waitForSelector('#restore')]);
-  },
-  possibleResults: {
-    success: [/eBanking\/Accounts/],
-    invalidPassword: [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/],
-  },
-};
-
 export const MAX_CONFIG: LoginConfig = {
   loginUrl: 'https://www.max.co.il',
   fields: [

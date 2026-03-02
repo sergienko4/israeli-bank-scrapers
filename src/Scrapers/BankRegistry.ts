@@ -11,7 +11,6 @@ import {
   LEUMI_CONFIG,
   MAX_CONFIG,
   MIZRAHI_CONFIG,
-  UNION_CONFIG,
   YAHAV_CONFIG,
 } from './BankRegistryExtra';
 import { type LoginConfig } from './LoginConfig';
@@ -125,7 +124,6 @@ export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.Hapoalim]: HAPOALIM_CONFIG,
   [CompanyTypes.Leumi]: LEUMI_CONFIG,
   [CompanyTypes.Mizrahi]: MIZRAHI_CONFIG,
-  [CompanyTypes.Union]: UNION_CONFIG,
   [CompanyTypes.Max]: MAX_CONFIG,
   [CompanyTypes.Behatsdaa]: BEHATSDAA_CONFIG,
   [CompanyTypes.BeyahadBishvilha]: BEYAHAD_CONFIG,

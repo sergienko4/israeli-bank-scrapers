@@ -15,7 +15,6 @@ import MizrahiScraper from './Mizrahi';
 import OneZeroScraper from './OneZero';
 import OtsarHahayalScraper from './OtsarHahayal';
 import PagiScraper from './Pagi';
-import UnionBankScraper from './UnionBank';
 import VisaCalScraper from './VisaCal';
 import YahavScraper from './Yahav';
 
@@ -33,7 +32,6 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
   [CompanyTypes.Max]: o => new MaxScraper(o),
   [CompanyTypes.Isracard]: o => new IsracardScraper(o),
   [CompanyTypes.Amex]: o => new AmexScraper(o),
-  [CompanyTypes.Union]: o => new UnionBankScraper(o),
   [CompanyTypes.Beinleumi]: o => new BeinleumiScraper(o),
   [CompanyTypes.Massad]: o => new MassadScraper(o),
   [CompanyTypes.Yahav]: o => new YahavScraper(o),
