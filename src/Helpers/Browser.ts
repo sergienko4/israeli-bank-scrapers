@@ -1,6 +1,25 @@
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
 import { type BrowserContextOptions } from 'playwright';
 
-const CHROME_VERSION = '145';
+interface PlaywrightBrowsersJson {
+  browsers: { name: string; browserVersion: string }[];
+}
+
+function detectChromeVersion(): string {
+  try {
+    const pkgPath = require.resolve('playwright-core/package.json');
+    const browsersPath = join(dirname(pkgPath), 'browsers.json');
+    const data = JSON.parse(readFileSync(browsersPath, 'utf8')) as PlaywrightBrowsersJson;
+    const chromium = data.browsers.find(b => b.name === 'chromium');
+    if (chromium) return chromium.browserVersion.split('.')[0];
+  } catch {
+    /* fall through to default */
+  }
+  return '145';
+}
+
+const CHROME_VERSION = detectChromeVersion();
 const HEBREW_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
 
 /**

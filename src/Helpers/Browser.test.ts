@@ -1,4 +1,13 @@
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+
 import { buildContextOptions } from './Browser';
+
+const pkgPath = require.resolve('playwright-core/package.json');
+const browsersJson = JSON.parse(readFileSync(join(dirname(pkgPath), 'browsers.json'), 'utf8'));
+const EXPECTED_VERSION: string = browsersJson.browsers
+  .find((b: { name: string }) => b.name === 'chromium')
+  .browserVersion.split('.')[0];
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {
@@ -7,9 +16,9 @@ describe('buildContextOptions', () => {
     expect(options.timezoneId).toBe('Asia/Jerusalem');
   });
 
-  it('returns Chrome UA with version 131', () => {
+  it('returns Chrome UA matching installed Playwright Chromium version', () => {
     const options = buildContextOptions();
-    expect(options.userAgent).toContain('Chrome/145');
+    expect(options.userAgent).toContain(`Chrome/${EXPECTED_VERSION}`);
     expect(options.userAgent).not.toContain('HeadlessChrome');
   });
 
@@ -18,7 +27,7 @@ describe('buildContextOptions', () => {
     expect(options.extraHTTPHeaders).toEqual(
       expect.objectContaining({
         'Accept-Language': expect.stringContaining('he-IL') as string,
-        'sec-ch-ua': expect.stringContaining('145') as string,
+        'sec-ch-ua': expect.stringContaining(EXPECTED_VERSION) as string,
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
       }),
