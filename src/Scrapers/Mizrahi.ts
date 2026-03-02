@@ -250,17 +250,25 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
-    if (!response?.header.success) {
-      throw new Error(
-        `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
-      );
-    }
+    this.validateTransactionResponse(response);
     const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
-    const startMoment = getStartMoment(this.options.startDate);
-    const allTxn = oshTxn
-      .filter(txn => moment(txn.date).isSameOrAfter(startMoment))
-      .concat(await this.getPendingTransactions());
+    const allTxn = await this.filterAndMergeTxns(oshTxn);
     return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
+  }
+
+  private validateTransactionResponse(
+    response: ScrapedTransactionsResult | null,
+  ): asserts response is ScrapedTransactionsResult {
+    if (!response?.header.success) {
+      const message = response ? response.header.messages[0].text : '';
+      throw new Error(`Error fetching transaction. Response message: ${message}`);
+    }
+  }
+
+  private async filterAndMergeTxns(oshTxn: Transaction[]): Promise<Transaction[]> {
+    const startMoment = getStartMoment(this.options.startDate);
+    const filtered = oshTxn.filter(txn => moment(txn.date).isSameOrAfter(startMoment));
+    return filtered.concat(await this.getPendingTransactions());
   }
 
   private shouldMarkAsPending(txn: Transaction): boolean {
