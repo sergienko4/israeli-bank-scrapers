@@ -1,5 +1,4 @@
 import * as dotenv from 'dotenv';
-import * as readline from 'readline';
 
 import { CompanyTypes, createScraper } from '../../index';
 import {
@@ -20,32 +19,17 @@ const hasCredentials = !!(
 );
 const describeIf = hasCredentials ? describe : describe.skip;
 
-async function promptOtpCode(phoneHint: string): Promise<string> {
-  if (process.env.DISCOUNT_OTP) {
-    console.log(`[OTP] Using DISCOUNT_OTP env var (hint: ${phoneHint || 'none'})`);
-    return process.env.DISCOUNT_OTP;
-  }
-  return new Promise(resolve => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`\n[OTP] Enter the code sent to ${phoneHint || 'your phone'}: `, code => {
-      rl.close();
-      resolve(code.trim());
-    });
-  });
-}
-
 describeIf('E2E: Discount Bank (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully (OTP supported via stdin or DISCOUNT_OTP env)', async () => {
+  it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
       startDate: lastMonthStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
-      otpCodeRetriever: promptOtpCode,
     });
     const result = await scraper.scrape({
       id: process.env.DISCOUNT_ID!,
