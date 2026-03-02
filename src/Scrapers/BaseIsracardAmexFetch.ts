@@ -13,7 +13,7 @@ import {
 
 const DATE_FORMAT = 'DD/MM/YYYY';
 const RATE_LIMIT_SLEEP_BETWEEN = 1000;
-const DEBUG = getDebug('base-isracard-amex');
+const LOG = getDebug('base-isracard-amex');
 
 function getAccountsUrl(servicesUrl: string, monthMoment: Moment): string {
   const billingDate = monthMoment.format('YYYY-MM-DD');
@@ -31,7 +31,7 @@ export async function fetchAccounts(
   monthMoment: Moment,
 ): Promise<ScrapedAccount[]> {
   const dataUrl = getAccountsUrl(servicesUrl, monthMoment);
-  DEBUG(`fetching accounts from ${dataUrl}`);
+  LOG.debug(`fetching accounts from ${dataUrl}`);
   const dataResult = await fetchGetWithinPage<ScrapedAccountsWithinPageResponse>(page, dataUrl);
   if (dataResult && _.get(dataResult, 'Header.Status') === '1' && dataResult.DashboardMonthBean) {
     const { cardsCharges } = dataResult.DashboardMonthBean;
@@ -64,6 +64,6 @@ export async function fetchTxnData(
 ): Promise<ScrapedTransactionData | null> {
   const dataUrl = getTransactionsUrl(servicesUrl, monthMoment);
   await sleep(RATE_LIMIT_SLEEP_BETWEEN);
-  DEBUG(`fetching transactions from ${dataUrl} for month ${monthMoment.format('YYYY-MM')}`);
+  LOG.debug(`fetching transactions from ${dataUrl} for month ${monthMoment.format('YYYY-MM')}`);
   return fetchGetWithinPage<ScrapedTransactionData>(page, dataUrl);
 }

@@ -7,6 +7,7 @@ import {
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -52,6 +53,7 @@ describeIf('E2E: Discount Bank (real credentials)', () => {
       num: process.env.DISCOUNT_NUM!,
     });
     assertSuccessfulScrape(result);
+    logScrapedTransactions(result);
   });
 
   it('fails with invalid credentials', async () => {

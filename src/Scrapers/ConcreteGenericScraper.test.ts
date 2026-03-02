@@ -28,7 +28,9 @@ jest.mock('../Helpers/ElementsInteractions', () => ({
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 jest.mock('../Helpers/SelectorResolver', () => ({
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),

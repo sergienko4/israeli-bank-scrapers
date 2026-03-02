@@ -21,7 +21,9 @@ jest.mock('../Helpers/Waiting', () => ({
   SECOND: 1000,
 }));
 
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 let mockPage: ReturnType<typeof createMockPage>;
 

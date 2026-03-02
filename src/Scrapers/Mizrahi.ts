@@ -41,7 +41,7 @@ import {
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers';
 
-const DEBUG = getDebug('mizrahi');
+const LOG = getDebug('mizrahi');
 const PENDING_TRX_IDENTIFIER_ID = '#ctl00_ContentPlaceHolder2_panel1';
 
 interface BuildRowBaseOpts {
@@ -265,7 +265,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private shouldMarkAsPending(txn: Transaction): boolean {
     if (this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier') && !txn.identifier) {
-      DEBUG(`Marking transaction '${txn.description}' as pending due to no identifier.`);
+      LOG.debug(`Marking transaction '${txn.description}' as pending due to no identifier.`);
       return true;
     }
 
@@ -273,7 +273,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription') &&
       GENERIC_DESCRIPTIONS.includes(txn.description)
     ) {
-      DEBUG(`Marking transaction '${txn.description}' as pending due to generic description.`);
+      LOG.debug(`Marking transaction '${txn.description}' as pending due to generic description.`);
       return true;
     }
 

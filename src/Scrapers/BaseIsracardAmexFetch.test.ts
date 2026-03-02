@@ -16,7 +16,9 @@ jest.mock('../Helpers/Waiting', () => ({
   SECOND: 1000,
 }));
 
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 const SERVICES_URL = 'https://digital.example.co.il/ServerServices/services/ProxyService';
 

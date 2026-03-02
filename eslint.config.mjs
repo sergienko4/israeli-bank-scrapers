@@ -73,6 +73,12 @@ export default tseslint.config(
           selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
           message: 'SECURITY: Do not log sensitive data keys.',
         },
+        // Security: block passing credential variables to logger.debug()
+        {
+          selector:
+            "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
+          message: 'SECURITY: Do not pass credential variables to logger. Pino redaction handles sensitive paths.',
+        },
         'ForInStatement',
         'LabeledStatement',
         'WithStatement',

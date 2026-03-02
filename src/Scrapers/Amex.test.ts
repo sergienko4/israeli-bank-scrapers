@@ -28,7 +28,9 @@ jest.mock('../Helpers/Waiting', () => ({
     return results;
   }),
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 jest.mock('../Helpers/Dates', () => jest.fn(() => []));
 jest.mock('../Helpers/Transactions', () => ({
   fixInstallments: jest.fn((txns: unknown[]) => txns),

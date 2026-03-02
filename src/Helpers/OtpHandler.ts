@@ -14,7 +14,7 @@ import {
 import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
 import { sleep } from './Waiting';
 
-const DEBUG = getDebug('otp-handler');
+const LOG = getDebug('otp-handler');
 
 const OTP_ANIMATION_DELAY_MS = 800;
 
@@ -36,7 +36,7 @@ async function buildMissingRetrieverResult(
       const screenshotPath = await saveScreenshot(page, screenshotDir);
       errorMessage += ` Screenshot saved to ${screenshotPath}`;
     } catch (e: unknown) {
-      DEBUG('screenshot failed: %O', e);
+      LOG.debug(e, 'screenshot failed');
     }
   }
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
@@ -59,7 +59,7 @@ async function findOtpFillFrame(page: Page): Promise<Frame | null> {
     for (const sel of OTP_FILL_INPUT_SELECTORS) {
       const el = await frame.$(sel).catch(() => null);
       if (el) {
-        DEBUG('OTP input found in frame %s via selector %s', frame.url().slice(-60), sel);
+        LOG.debug('OTP input found in frame %s via selector %s', frame.url().slice(-60), sel);
         return frame;
       }
     }
@@ -74,9 +74,9 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
     await sleep(OTP_ANIMATION_DELAY_MS);
     try {
       await frame.locator(sel).first().pressSequentially(code, { delay: 80 });
-      DEBUG('typed OTP code via locator.type() selector: %s', sel);
+      LOG.debug('typed OTP code via locator.type() selector: %s', sel);
     } catch (e: unknown) {
-      DEBUG('locator.type() failed (%O), falling back to evaluate injection', e);
+      LOG.debug(e, 'locator.type() failed, falling back to evaluate injection');
       await el.evaluate((input: HTMLInputElement, val: string) => {
         input.focus();
         input.value = val;
@@ -99,21 +99,21 @@ async function submitOtpInFrame(frame: Frame): Promise<void> {
       if (win.$ && btn.id) win.$(`#${btn.id}`).trigger('click');
       else btn.click();
     });
-    DEBUG('clicked OTP submit button via evaluate: %s', sel);
+    LOG.debug('clicked OTP submit button via evaluate: %s', sel);
     return;
   }
-  DEBUG('no OTP submit button found in frame %s', frame.url().slice(-60));
+  LOG.debug('no OTP submit button found in frame %s', frame.url().slice(-60));
 }
 
 async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
   const frame = await findOtpFillFrame(page);
   if (frame) {
-    DEBUG('filling OTP in frame: %s', frame.url().slice(-60));
+    LOG.debug('filling OTP in frame: %s', frame.url().slice(-60));
     await typeOtpCode(frame, code);
     await submitOtpInFrame(frame);
     return;
   }
-  DEBUG('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
+  LOG.debug('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
   const { selector: inputSelector, context } = await resolveFieldContext(
     page,
     { credentialKey: 'otpCode', selectors: [{ kind: 'name', value: 'otpCode' }] },
@@ -128,7 +128,7 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
   await sleep(5000);
   const isStillOnOtp = await detectOtpScreen(page);
   if (isStillOnOtp) {
-    DEBUG('OTP screen still visible after submission — code was rejected');
+    LOG.debug('OTP screen still visible after submission — code was rejected');
     return {
       success: false,
       errorType: ScraperErrorTypes.InvalidOtp,
@@ -136,7 +136,7 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
         'OTP code was rejected by the bank. The code may have expired or been entered incorrectly.',
     };
   }
-  DEBUG('OTP accepted — proceeding with login');
+  LOG.debug('OTP accepted — proceeding with login');
   return null;
 }
 
@@ -146,10 +146,10 @@ export async function handleOtpStep(
 ): Promise<ScraperScrapingResult | null> {
   const isOtpDetected = await detectOtpScreen(page);
   if (!isOtpDetected) {
-    DEBUG('No OTP screen detected — proceeding normally');
+    LOG.debug('No OTP screen detected — proceeding normally');
     return null;
   }
-  DEBUG('OTP screen detected');
+  LOG.debug('OTP screen detected');
 
   const { otpCodeRetriever } = options;
   if (!otpCodeRetriever)

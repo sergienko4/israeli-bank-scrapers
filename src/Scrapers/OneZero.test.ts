@@ -11,7 +11,9 @@ jest.mock('../Helpers/Fetch', () => ({
 jest.mock('../Helpers/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../Helpers/Debug', () => ({ getDebug: () => jest.fn() }));
+jest.mock('../Helpers/Debug', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
 
 function mockDeviceToken(deviceToken = 'device-123'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });

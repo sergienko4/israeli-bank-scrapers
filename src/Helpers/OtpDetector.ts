@@ -4,7 +4,7 @@ import { type SelectorCandidate } from '../Scrapers/LoginConfig';
 import { getDebug } from './Debug';
 import { tryInContext } from './SelectorResolver';
 
-const DEBUG = getDebug('otp-detector');
+const LOG = getDebug('otp-detector');
 
 // OTP text patterns — Hebrew + English, most-specific first
 const OTP_TEXT_PATTERNS = [
@@ -59,7 +59,7 @@ async function getBodyText(page: Page): Promise<string | null> {
     const text = await page.evaluate(() => document.body.innerText);
     return typeof text === 'string' ? text : null;
   } catch (e: unknown) {
-    DEBUG('getBodyText failed (page context inaccessible): %O', e);
+    LOG.debug(e, 'getBodyText failed (page context inaccessible)');
     return null;
   }
 }
@@ -83,15 +83,15 @@ async function detectByInputField(page: Page): Promise<boolean> {
 export async function detectOtpScreen(page: Page): Promise<boolean> {
   const textResult = await detectByText(page);
   if (textResult === 'otp') {
-    DEBUG('OTP detected by text pattern');
+    LOG.debug('OTP detected by text pattern');
     return true;
   }
   if (textResult === 'unknown') {
-    DEBUG('Page context inaccessible — skipping OTP input check');
+    LOG.debug('Page context inaccessible — skipping OTP input check');
     return false;
   }
   const isByInput = await detectByInputField(page);
-  if (isByInput) DEBUG('OTP detected by input field');
+  if (isByInput) LOG.debug('OTP detected by input field');
   return isByInput;
 }
 
@@ -117,10 +117,14 @@ async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<bo
       await locator.waitFor({ state: 'attached', timeout: 5000 });
       await locator.hover();
       await locator.click();
-      DEBUG('isClicked SMS trigger in #loginFrame: %s', sel);
+      LOG.debug('isClicked SMS trigger in #loginFrame: %s', sel);
       return true;
     } catch (e: unknown) {
-      DEBUG('SMS trigger failed for %s: %s', sel, e instanceof Error ? e.message.slice(0, 80) : e);
+      LOG.debug(
+        'SMS trigger failed for %s: %s',
+        sel,
+        e instanceof Error ? e.message.slice(0, 80) : e,
+      );
     }
   }
   return false;
@@ -129,19 +133,21 @@ async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<bo
 async function tryGenericFrameTriggers(page: Page): Promise<void> {
   const mainSelector = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
   if (mainSelector) {
-    DEBUG('clicking SMS trigger on main page: %s', mainSelector);
+    LOG.debug('clicking SMS trigger on main page: %s', mainSelector);
     await page.click(mainSelector);
     return;
   }
   for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
     const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
     if (sel) {
-      DEBUG('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
+      LOG.debug('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
       await frame.click(sel);
       return;
     }
   }
-  DEBUG('No SMS trigger button found — SMS may be auto-sent or page is already on entry screen');
+  LOG.debug(
+    'No SMS trigger button found — SMS may be auto-sent or page is already on entry screen',
+  );
 }
 
 export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {

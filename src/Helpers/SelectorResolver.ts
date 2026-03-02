@@ -3,7 +3,7 @@ import { type Frame, type Page } from 'playwright';
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/LoginConfig';
 import { getDebug } from './Debug';
 
-const DEBUG = getDebug('selector-resolver');
+const LOG = getDebug('selector-resolver');
 
 /**
  * Global dictionary of well-known Hebrew display-name selectors for each credential key.
@@ -135,7 +135,7 @@ async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean
 }
 
 function debugCandidateSkipped(candidate: SelectorCandidate): void {
-  DEBUG(
+  LOG.debug(
     'candidate %s "%s" → skipped (cross-origin / detached frame)',
     candidate.kind,
     candidate.value,
@@ -150,10 +150,10 @@ async function probeCandidate(
   try {
     const isFound = await queryWithTimeout(ctx, css);
     if (isFound) {
-      DEBUG('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+      LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
       return css;
     }
-    DEBUG('candidate %s "%s" → not found (timeout or absent)', candidate.kind, candidate.value);
+    LOG.debug('candidate %s "%s" → not found (timeout or absent)', candidate.kind, candidate.value);
   } catch {
     debugCandidateSkipped(candidate);
   }
@@ -189,11 +189,11 @@ async function searchInChildFrames(
   tried: string[],
 ): Promise<FieldContext | null> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
-  if (childFrames.length > 0) DEBUG('Round 4: searching %d iframe(s)', childFrames.length);
+  if (childFrames.length > 0) LOG.debug('Round 4: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
     if (found) {
-      DEBUG('Round 4: resolved in iframe %s → %s', frame.url(), found);
+      LOG.debug('Round 4: resolved in iframe %s → %s', frame.url(), found);
       return { selector: found, context: frame };
     }
   }
@@ -239,7 +239,7 @@ async function resolveInMainContext(
 ): Promise<FieldContext | null> {
   const main = await tryInContext(pageOrFrame, allCandidates);
   if (!main) return null;
-  DEBUG('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
+  LOG.debug('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
 }
 
@@ -275,7 +275,7 @@ export async function resolveFieldContext(
     ...field.selectors,
     ...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? []),
   ];
-  DEBUG('resolving "%s" on %s (Rounds 1-3)', field.credentialKey, pageUrl);
+  LOG.debug('resolving "%s" on %s (Rounds 1-3)', field.credentialKey, pageUrl);
   const main = await resolveInMainContext(pageOrFrame, allCandidates, field.credentialKey);
   if (main) return main;
   return resolveInIframesOrThrow({ pageOrFrame, field, pageUrl, allCandidates });

@@ -13,7 +13,7 @@ import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions } from './Interface';
 
-const DEBUG = getDebug('hapoalim');
+const LOG = getDebug('hapoalim');
 
 const DATE_FORMAT = 'YYYYMMDD';
 
@@ -235,7 +235,7 @@ async function fetchOneAccount(
 ): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
   const { page, baseUrl, apiSiteUrl, account, dateOpts, options } = opts;
   const accountNumber = `${account.bankNumber}-${account.branchNumber}-${account.accountNumber}`;
-  DEBUG('getting information for account %s', accountNumber);
+  LOG.debug('getting information for account %s', accountNumber);
   const balance = await getAccountBalance(apiSiteUrl, page, accountNumber);
   const txns = await getAccountTransactions({
     baseUrl,
@@ -257,7 +257,7 @@ async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAc
       `${baseUrl}/ServerServices/general/accounts`,
     )) ?? [];
   const openAccountsInfo = accountsInfo.filter(account => account.accountClosingReasonCode === 0);
-  DEBUG(
+  LOG.debug(
     'got %d open accounts from %d total accounts, fetching txns and balance',
     openAccountsInfo.length,
     accountsInfo.length,
@@ -291,7 +291,7 @@ async function fetchAccountData(
       fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options }),
     ),
   );
-  DEBUG('fetching ended');
+  LOG.debug('fetching ended');
   return { success: true, accounts };
 }
 

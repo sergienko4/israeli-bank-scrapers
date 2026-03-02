@@ -28,7 +28,7 @@ import { type FieldConfig } from './LoginConfig';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
-const DEBUG = getDebug('base-scraper-with-browser');
+const LOG = getDebug('base-scraper-with-browser');
 
 class BaseScraperWithBrowser<
   TCredentials extends ScraperCredentials,
@@ -43,11 +43,11 @@ class BaseScraperWithBrowser<
 
   async initialize(): Promise<void> {
     await super.initialize();
-    DEBUG('initialize scraper');
+    LOG.debug('initialize scraper');
     this.emitProgress(ScraperProgressTypes.Initializing);
     const page = await this.initializePage();
     if (!page) {
-      DEBUG('failed to initiate a browser page, exit');
+      LOG.debug('failed to initiate a browser page, exit');
       return;
     }
     await this.setupPage(page);
@@ -65,7 +65,7 @@ class BaseScraperWithBrowser<
     const status = response.status();
     if (status === 403) return this.retryOn403(url, waitUntil);
     if (retries > 0) {
-      DEBUG(
+      LOG.debug(
         `Failed to navigate to url ${url}, status code: ${status}, retrying ${retries} more times`,
       );
       return this.navigateTo(url, waitUntil, retries - 1);
@@ -102,19 +102,19 @@ class BaseScraperWithBrowser<
       (await detectGenericInvalidPassword(this.page))
     )
       loginResult = LOGIN_RESULTS.InvalidPassword;
-    DEBUG(`handle login results ${loginResult}`);
+    LOG.debug(`handle login results ${loginResult}`);
     return this.handleLoginResult(loginResult);
   }
 
   async terminate(_success: boolean): Promise<void> {
-    DEBUG(`terminating browser with success = ${_success}`);
+    LOG.debug(`terminating browser with success = ${_success}`);
     this.emitProgress(ScraperProgressTypes.Terminating);
     if (!_success && !!this.options.storeFailureScreenShotPath) {
-      DEBUG(`create a snapshot before terminated in ${this.options.storeFailureScreenShotPath}`);
+      LOG.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
       await this.page
         .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
         .catch((e: unknown) => {
-          DEBUG('screenshot failed (page may be closed): %s', (e as Error).message.slice(0, 80));
+          LOG.debug('screenshot failed: %s', (e as Error).message.slice(0, 80));
         });
     }
     await Promise.all(this.cleanups.reverse().map(safeCleanup));
@@ -153,11 +153,11 @@ class BaseScraperWithBrowser<
     this.cleanups.push(() => page.close());
     if (this.options.defaultTimeout) this.page.setDefaultTimeout(this.options.defaultTimeout);
     if (this.options.preparePage) {
-      DEBUG("execute 'preparePage' interceptor provided in options");
+      LOG.debug("execute 'preparePage' interceptor provided in options");
       await this.options.preparePage(this.page);
     }
     this.page.on('requestfailed', request => {
-      DEBUG('Request failed: %s %s', request.failure()?.errorText, request.url());
+      LOG.debug('Request failed: %s %s', request.failure()?.errorText, request.url());
     });
   }
 
@@ -182,7 +182,7 @@ class BaseScraperWithBrowser<
 
   private registerBrowserCleanup(browser: Browser): void {
     this.cleanups.push(async () => {
-      DEBUG('closing the browser');
+      LOG.debug('closing the browser');
       await browser.close();
     });
   }
@@ -190,7 +190,7 @@ class BaseScraperWithBrowser<
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
     const { timeout, args = [], executablePath, shouldShowBrowser } = opts;
-    DEBUG(`launch a browser with headless mode = ${!shouldShowBrowser}`);
+    LOG.debug(`launch a browser with headless mode = ${!shouldShowBrowser}`);
     this.rejectCustomExecutablePath();
     const browser = await chromium.launch({
       headless: !shouldShowBrowser,
@@ -204,13 +204,13 @@ class BaseScraperWithBrowser<
   }
 
   private async initializePage(): Promise<Page | undefined> {
-    DEBUG('initialize browser page');
+    LOG.debug('initialize browser page');
     if ('browserContext' in this.options) {
-      DEBUG('Using the browser context provided in options');
+      LOG.debug('Using the browser context provided in options');
       return this.options.browserContext.newPage();
     }
     if ('browser' in this.options) {
-      DEBUG('Using the browser instance provided in options');
+      LOG.debug('Using the browser instance provided in options');
       const { browser } = this.options;
       if (!this.options.skipCloseBrowser) this.registerBrowserCleanup(browser);
       return this.createContextAndPage(browser);
@@ -229,7 +229,7 @@ class BaseScraperWithBrowser<
   ): Promise<number> {
     const delayMs = 15_000;
     const max = BaseScraperWithBrowser.MAX_403_RETRIES;
-    DEBUG('WAF 403 on %s, waiting %ds before retry %d/%d', url, delayMs / 1000, attempt + 1, max);
+    LOG.debug('WAF 403 on %s, retry %d/%d after %ds', url, attempt + 1, max, delayMs / 1000);
     await sleep(delayMs);
     return (await this.page.goto(url, { waitUntil }))?.status() ?? 0;
   }
@@ -246,7 +246,7 @@ class BaseScraperWithBrowser<
       );
     const currentStatus = await this.navigateAfterDelay(url, waitUntil, attempt);
     if (this.isSuccessStatus(currentStatus)) {
-      DEBUG('WAF 403 resolved after retry %d', attempt + 1);
+      LOG.debug('WAF 403 resolved after retry %d', attempt + 1);
       return;
     }
     return this.retryOn403(url, waitUntil, attempt + 1);
@@ -255,10 +255,10 @@ class BaseScraperWithBrowser<
   private async prepareLoginPage(loginOptions: LoginOptions): Promise<void> {
     await this.navigateTo(loginOptions.loginUrl, loginOptions.waitUntil);
     if (loginOptions.checkReadiness) {
-      DEBUG("execute 'checkReadiness' interceptor provided in login options");
+      LOG.debug("execute 'checkReadiness' interceptor provided in login options");
       await loginOptions.checkReadiness();
     } else if (typeof loginOptions.submitButtonSelector === 'string') {
-      DEBUG('wait until submit button is available');
+      LOG.debug('wait until submit button is available');
       await waitUntilElementFound(this.page, loginOptions.submitButtonSelector);
     }
   }
@@ -267,9 +267,9 @@ class BaseScraperWithBrowser<
     loginOptions: LoginOptions,
     loginFrameOrPage: Page | Frame,
   ): Promise<void> {
-    DEBUG('fill login components input with relevant values');
+    LOG.debug('fill login components input with relevant values');
     await this.fillInputs(loginFrameOrPage, loginOptions.fields);
-    DEBUG('click on login submit button');
+    LOG.debug('click on login submit button');
     const submitCtx = this.activeLoginContext ?? loginFrameOrPage;
     if (typeof loginOptions.submitButtonSelector === 'string') {
       await clickButton(submitCtx, loginOptions.submitButtonSelector);
@@ -293,7 +293,7 @@ class BaseScraperWithBrowser<
       // page.url() may throw when page is closed — fall through to postAction
     }
     if (loginOptions.postAction) {
-      DEBUG("execute 'postAction' interceptor provided in login options");
+      LOG.debug("execute 'postAction' interceptor provided in login options");
       await loginOptions.postAction();
     } else {
       await waitForNavigation(this.page);

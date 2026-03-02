@@ -4,7 +4,7 @@ import { getDebug } from '../Helpers/Debug';
 import { clickButton, waitUntilElementFound } from '../Helpers/ElementsInteractions';
 import { sleep } from '../Helpers/Waiting';
 
-const DEBUG = getDebug('beinleumi-account-selector');
+const LOG = getDebug('beinleumi-account-selector');
 
 const ACCOUNT_SELECTOR = 'div.current-account';
 const DROPDOWN_PANEL_SELECTOR = 'div.mat-mdc-autocomplete-panel.account-select-dd';
@@ -100,12 +100,12 @@ async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | 
       const frame = await iframeEl.contentFrame();
       if (frame) return frame;
     } catch (e: unknown) {
-      DEBUG('attempt %d: iframe element stale or not an iframe: %O', attempt + 1, e);
+      LOG.debug(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
     }
   }
   const byName = page.frames().find(f => f.name() === IFRAME_NAME);
   if (byName) return byName;
-  DEBUG(
+  LOG.debug(
     'attempt %d/%d: transactions frame not found, retrying...',
     attempt + 1,
     TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
@@ -118,7 +118,7 @@ export async function getTransactionsFrame(page: Page): Promise<Frame | null> {
     const frame = await tryGetFrameAttempt(page, attempt);
     if (frame) return frame;
   }
-  DEBUG(
+  LOG.debug(
     'getTransactionsFrame: failed to find frame after %d attempts',
     TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
   );

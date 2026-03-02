@@ -5,7 +5,7 @@ import { type WaitUntilState } from '../Helpers/Navigation';
 import { ScraperErrorTypes } from './Errors';
 import { type ScraperScrapingResult } from './Interface';
 
-const DEBUG = getDebug('base-scraper-with-browser');
+const LOG = getDebug('base-scraper-with-browser');
 
 export type LoginCondition = string | RegExp | ((options?: { page?: Page }) => Promise<boolean>);
 
@@ -75,7 +75,7 @@ export async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
   try {
     await cleanup();
   } catch (e) {
-    DEBUG(`Cleanup function failed: ${(e as Error).message}`);
+    LOG.debug(`Cleanup function failed: ${(e as Error).message}`);
   }
 }
 
@@ -90,7 +90,7 @@ export async function getKeyByValue(
     if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
-  DEBUG('no login result matched — url: %s, value: %s', page.url(), value);
+  LOG.debug('no login result matched — url: %s, value: %s', page.url(), value);
   return LOGIN_RESULTS.UnknownError;
 }
 

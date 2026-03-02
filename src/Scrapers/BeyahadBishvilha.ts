@@ -18,7 +18,7 @@ import { BANK_REGISTRY } from './BankRegistry';
 import { GenericBankScraper } from './GenericBankScraper';
 import { type ScraperOptions } from './Interface';
 
-const DEBUG = getDebug('beyahadBishvilha');
+const LOG = getDebug('beyahadBishvilha');
 
 const DATE_FORMAT = 'DD/MM/YY';
 const CARD_URL = 'https://www.hist.org.il/card/balanceAndUses';
@@ -72,7 +72,7 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
 }
 
 function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
-  DEBUG(`convert ${txns.length} raw transactions to official Transaction structure`);
+  LOG.debug(`convert ${txns.length} raw transactions to official Transaction structure`);
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
@@ -126,9 +126,9 @@ async function getFilteredTxns(
   options: ScraperOptions,
   startMoment: moment.Moment,
 ): Promise<{ accountTransactions: Transaction[]; txns: Transaction[] }> {
-  DEBUG('fetch raw transactions from page');
+  LOG.debug('fetch raw transactions from page');
   const rawTransactions = await scrapeRawTransactions(page);
-  DEBUG(`fetched ${rawTransactions.length} raw transactions from page`);
+  LOG.debug(`fetched ${rawTransactions.length} raw transactions from page`);
   const accountTransactions = convertTransactions(
     rawTransactions.filter(item => !!item),
     options,
@@ -146,7 +146,7 @@ async function fetchTransactions(
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   const { accountNumber, balance } = await scrapeAccountInfo(page);
   const { accountTransactions, txns } = await getFilteredTxns(page, options, startMoment);
-  DEBUG(
+  LOG.debug(
     `found ${txns.length} valid transactions out of ${accountTransactions.length} transactions for account ending with ${accountNumber.substring(accountNumber.length - 2)}`,
   );
   return { accountNumber, balance: getAmountData(balance).amount, txns };

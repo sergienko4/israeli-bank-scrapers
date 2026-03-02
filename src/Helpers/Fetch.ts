@@ -2,7 +2,7 @@ import { type Page } from 'playwright';
 
 import { getDebug } from './Debug';
 
-const DEBUG = getDebug('fetch');
+const LOG = getDebug('fetch');
 
 const JSON_CONTENT_TYPE = 'application/json';
 const WAF_BLOCK_PATTERNS = [
@@ -31,7 +31,7 @@ export function detectWafBlock(status: number, body: string | null): string | nu
 
 function logResponseIssues(status: number, text: string | null, url: string): void {
   if (status !== 200 && status !== 204) {
-    DEBUG(
+    LOG.debug(
       'non-200 response: status=%d url=%s body=%s',
       status,
       url,
@@ -40,7 +40,7 @@ function logResponseIssues(status: number, text: string | null, url: string): vo
   }
   const wafReason = detectWafBlock(status, text);
   if (wafReason) {
-    DEBUG('WAF block detected: %s, url=%s', wafReason, url);
+    LOG.debug('WAF block detected: %s, url=%s', wafReason, url);
   }
 }
 

@@ -32,7 +32,7 @@ import { type ScraperOptions } from './Interface';
 const INSTALLMENTS_KEYWORD = 'תשלום';
 const DATE_FORMAT = 'DD/MM/YYYY';
 const RATE_LIMIT = { SLEEP_BETWEEN: 1000, TRANSACTIONS_BATCH_SIZE: 10 } as const;
-const DEBUG = getDebug('base-isracard-amex');
+const LOG = getDebug('base-isracard-amex');
 
 export { fetchAccounts } from './BaseIsracardAmexFetch';
 
@@ -175,7 +175,7 @@ export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise
   url.searchParams.set('CardIndex', accountIndex.toString());
   url.searchParams.set('shovarRatz', transaction.identifier!.toString());
   url.searchParams.set('moedChiuv', month.format('MMYYYY'));
-  DEBUG(
+  LOG.debug(
     `fetching extra scrap for transaction ${transaction.identifier} for month ${month.format('YYYY-MM')}`,
   );
   const data = await fetchGetWithinPage<ScrapedTransactionData>(page, url.toString());
@@ -201,7 +201,7 @@ async function enrichTxnsChunk({
   account,
   opts,
 }: EnrichChunkOpts): Promise<Transaction[]> {
-  DEBUG(`processing chunk of ${chunk.length} transactions for account ${account.accountNumber}`);
+  LOG.debug('processing chunk of %d txns for account %s', chunk.length, account.accountNumber);
   const requests = chunk.map(t =>
     getExtraScrapTransaction({
       page,
@@ -234,9 +234,8 @@ export async function getExtraScrapAccount(
   const { page, options, accountMap, month } = opts;
   const accounts: ScrapedAccountsWithIndex[string][] = [];
   for (const account of Object.values(accountMap)) {
-    DEBUG(
-      `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions`,
-      month.format('YYYY-MM'),
+    LOG.debug(
+      `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions, month ${month.format('YYYY-MM')}`,
     );
     accounts.push(await enrichAccountTxns(page, account, { options, month }));
   }

@@ -8,6 +8,7 @@ import {
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -57,6 +58,7 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
       return;
     }
     assertSuccessfulScrape(result);
+    logScrapedTransactions(result);
   });
 
   it('reaches OTP screen with valid credentials (no OTP retriever)', async () => {

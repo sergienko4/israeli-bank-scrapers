@@ -5,7 +5,7 @@ import { getDebug } from '../Helpers/Debug';
 import { fetchPostWithinPage } from '../Helpers/Fetch';
 import { type ScraperOptions } from './Interface';
 
-const DEBUG = getDebug('mizrahi');
+const LOG = getDebug('mizrahi');
 
 export interface ScrapedTransaction {
   RecTypeSpecified: boolean;
@@ -144,7 +144,7 @@ async function fetchMoreDetails(
     extraHeaders: apiHeaders,
   });
   const details = response?.body.fields[0][0].Records[0].Fields;
-  DEBUG('fetch details for', params, 'details:', details);
+  LOG.debug({ params, details }, 'fetch details');
   if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
   return null;
 }
@@ -155,11 +155,11 @@ export async function getExtraTransactionDetails(
   apiHeaders: Record<string, string>,
 ): Promise<MoreDetails> {
   try {
-    DEBUG('getExtraTransactionDetails for item:', item);
+    LOG.debug(item, 'getExtraTransactionDetails for item');
     const result = await fetchMoreDetails(page, item, apiHeaders);
     if (result) return result;
   } catch (error) {
-    DEBUG('Error fetching extra transaction details:', error);
+    LOG.debug(error, 'Error fetching extra transaction details');
   }
   return { entries: {}, memo: undefined };
 }

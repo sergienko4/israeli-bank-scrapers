@@ -6,6 +6,7 @@ import {
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -31,6 +32,7 @@ describeIf('E2E: Max (real credentials)', () => {
       password: process.env.MAX_PASSWORD!,
     });
     assertSuccessfulScrape(result);
+    logScrapedTransactions(result);
   });
 
   it('fails with invalid credentials', async () => {

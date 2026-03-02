@@ -32,7 +32,7 @@ export type { Category, Recurrence };
 
 const HEBREW_WORDS_REGEX = /[\u0590-\u05FF][\u0590-\u05FF"'\-_ /\\]*[\u0590-\u05FF]/g;
 
-const DEBUG = getDebug('one-zero');
+const LOG = getDebug('one-zero');
 
 const IDENTITY_SERVER_URL = 'https://identity.tfd-bank.com/v1/';
 
@@ -76,9 +76,9 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
         'A full international phone number starting with + and a three digit country code is required',
       );
     }
-    DEBUG('Fetching device token');
+    LOG.debug('Fetching device token');
     const deviceToken = await this.fetchDeviceToken();
-    DEBUG(`Sending OTP to phone number ${phoneNumber}`);
+    LOG.debug(`Sending OTP to phone number ${phoneNumber}`);
     this.otpContext = await this.prepareOtp(phoneNumber, deviceToken);
     return { success: true };
   }
@@ -90,7 +90,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       return createGenericError('triggerOtp was not called before calling getPermenantOtpToken()');
     }
 
-    DEBUG('Requesting OTP token');
+    LOG.debug('Requesting OTP token');
     const otpVerifyResponse = await fetchPost<{ resultData: { otpToken: string } }>(
       `${IDENTITY_SERVER_URL}/otp/verify`,
       {
@@ -108,13 +108,13 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   async login(credentials: ScraperSpecificCredentials): Promise<ScraperLoginResult> {
     const otpTokenResult = await this.resolveOtpToken(credentials);
     if (!otpTokenResult.success) return otpTokenResult;
-    DEBUG('Requesting id token');
+    LOG.debug('Requesting id token');
     const idToken = await this.getIdToken(
       otpTokenResult.longTermTwoFactorAuthToken,
       credentials.email,
       credentials.password,
     );
-    DEBUG('Requesting session token');
+    LOG.debug('Requesting session token');
     this.accessToken = await this.getSessionToken(idToken, credentials.password);
     return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
   }
@@ -161,7 +161,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       phoneNumber: string;
     },
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    DEBUG('Triggering user supplied otpCodeRetriever callback');
+    LOG.debug('Triggering user supplied otpCodeRetriever callback');
     const triggerResult = await this.triggerTwoFactorAuth(credentials.phoneNumber);
     if (!triggerResult.success) return triggerResult;
     const otpCode = await credentials.otpCodeRetriever();
@@ -237,7 +237,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     const result: Movement[] = [];
     let cursor: string | null = null;
     while (!result.length || new Date(result[0].movementTimestamp) >= startDate) {
-      DEBUG(`Fetching transactions for account ${portfolio.portfolioNum}...`);
+      LOG.debug(`Fetching transactions for account ${portfolio.portfolioNum}...`);
       const { movements: newMovements, pagination } = await this.fetchMovementsPage(
         portfolio.portfolioId,
         accountId,
@@ -275,7 +275,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
         });
       return accountBalance.currentAccountBalance;
     } catch {
-      DEBUG('balance query failed — falling back to runningBalance of last movement');
+      LOG.debug('balance query failed — falling back to runningBalance of last movement');
       return fallback;
     }
   }
@@ -320,7 +320,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   }
 
   private async fetchPortfolios(): Promise<Portfolio[]> {
-    DEBUG('Fetching account list');
+    LOG.debug('Fetching account list');
     const result = await fetchGraphql<{ customer: Customer[] }>(GRAPHQL_API_URL, GET_CUSTOMER, {
       extraHeaders: { authorization: `Bearer ${this.accessToken}` },
     });
