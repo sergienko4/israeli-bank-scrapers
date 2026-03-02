@@ -9,7 +9,7 @@ describe('buildContextOptions', () => {
 
   it('returns Chrome UA with version 131', () => {
     const options = buildContextOptions();
-    expect(options.userAgent).toContain('Chrome/131');
+    expect(options.userAgent).toContain('Chrome/145');
     expect(options.userAgent).not.toContain('HeadlessChrome');
   });
 
@@ -18,7 +18,7 @@ describe('buildContextOptions', () => {
     expect(options.extraHTTPHeaders).toEqual(
       expect.objectContaining({
         'Accept-Language': expect.stringContaining('he-IL') as string,
-        'sec-ch-ua': expect.stringContaining('131') as string,
+        'sec-ch-ua': expect.stringContaining('145') as string,
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
       }),
