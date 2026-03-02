@@ -43,8 +43,18 @@ export function lastMonthStartDate(): Date {
 
 const MAX_TXN_LOG = 10;
 
-function maskAccountNumber(accountNumber: string): string {
-  return accountNumber.length <= 4 ? '****' : '****' + accountNumber.slice(-4);
+function maskAccount(acct: string): string {
+  return acct.length <= 4 ? '****' : '****' + acct.slice(-4);
+}
+
+function maskAmount(amount: number | undefined): string {
+  if (amount == null) return '  ***';
+  return amount >= 0 ? ' +***' : ' -***';
+}
+
+function maskDesc(desc: string): string {
+  if (!desc) return '***';
+  return desc.slice(0, 3) + '***';
 }
 
 export function logScrapedTransactions(result: ScraperScrapingResult): void {
@@ -53,14 +63,11 @@ export function logScrapedTransactions(result: ScraperScrapingResult): void {
     const preview = account.txns.slice(0, MAX_TXN_LOG);
     const rows = preview.map(t => {
       const date = t.date ? new Date(t.date).toLocaleDateString('he-IL') : '';
-      const amt = t.originalAmount?.toFixed(2) ?? '';
-      const cur = t.originalCurrency ?? '';
-      const desc = (t.description ?? '').slice(0, 30);
-      return `  ${date.padEnd(12)}${amt.padStart(10)} ${cur.padEnd(4)} ${desc}`;
+      return `  ${date.padEnd(12)}${maskAmount(t.originalAmount).padStart(6)} ${(t.originalCurrency ?? '').padEnd(4)} ${maskDesc(t.description ?? '')}`;
     });
     const more =
       account.txns.length > MAX_TXN_LOG ? `  ... +${account.txns.length - MAX_TXN_LOG} more` : '';
-    const acct = maskAccountNumber(account.accountNumber);
+    const acct = maskAccount(account.accountNumber);
     console.log(
       `\n--- Account ${acct} | ${account.txns.length} txns ---\n${rows.join('\n')}${more ? `\n${more}` : ''}`,
     );
