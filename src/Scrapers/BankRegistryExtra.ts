@@ -216,7 +216,7 @@ export const UNION_CONFIG: LoginConfig = {
 };
 
 export const MAX_CONFIG: LoginConfig = {
-  loginUrl: 'https://www.max.co.il/login',
+  loginUrl: 'https://www.max.co.il',
   fields: [
     { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user-name' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
