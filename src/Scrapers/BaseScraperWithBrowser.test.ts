@@ -83,7 +83,6 @@ beforeEach(() => {
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/dashboard');
 });
 
-
 describe('initialize', () => {
   it('launches browser and creates context + page', async () => {
     const scraper = createScraper();
