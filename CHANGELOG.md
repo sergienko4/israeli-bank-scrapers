@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.7.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.6.0...v7.7.0) (2026-03-03)
+
+
+### Features
+
+* ESLint 10 + stealth plugin + VisaCal login fix + pino logger ([#92](https://github.com/sergienko4/israeli-bank-scrapers/issues/92)) ([5c7afc6](https://github.com/sergienko4/israeli-bank-scrapers/commit/5c7afc633c4d9ee7cc4dd647f115c258bbcb4d74))
+
 ## [7.6.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.5.1...v7.6.0) (2026-03-02)
 
 
