@@ -385,5 +385,15 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'placeholder', value: 'הזן קוד' },
       { kind: 'name', value: 'otpCode' },
     ],
+    /** Universal submit-button fallback — tried after every bank's explicit submit candidate */
+    __submit__: [
+      { kind: 'css', value: 'button[type="submit"]' },
+      { kind: 'ariaLabel', value: 'כניסה' },
+      { kind: 'ariaLabel', value: 'התחברות' },
+      { kind: 'ariaLabel', value: 'התחבר' },
+      { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
+      { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
+      { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
+    ],
   } satisfies Record<string, SelectorCandidate[]>,
 } as const;

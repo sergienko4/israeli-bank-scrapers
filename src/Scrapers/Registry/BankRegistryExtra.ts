@@ -123,7 +123,7 @@ export const HAPOALIM_CONFIG: LoginConfig = {
   ],
   submit: [
     { kind: 'css', value: '.login-btn' },
-    { kind: 'ariaLabel', value: 'כניסה' },
+    // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
   ],
   postAction: async (page: Page) => {
     await waitForRedirect(page, {});
@@ -230,15 +230,18 @@ export const MAX_CONFIG: LoginConfig = {
   },
 };
 
+// Behatsdaa and BeyahadBishvilha share the same login form selectors
+const HISTBASED_FIELDS: LoginConfig['fields'] = [
+  { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
+  { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
+];
+
 export const BEHATSDAA_CONFIG: LoginConfig = {
   loginUrl: 'https://www.behatsdaa.org.il',
-  fields: [
-    { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
-  ],
+  fields: HISTBASED_FIELDS,
   submit: [
     { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
-    { kind: 'ariaLabel', value: 'התחברות' },
+    // ariaLabel 'התחברות' fallback is now in wellKnownSelectors.__submit__
   ],
   checkReadiness: async (page: Page) => {
     await page.goto('https://www.behatsdaa.org.il/login');
@@ -254,13 +257,10 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
 
 export const BEYAHAD_CONFIG: LoginConfig = {
   loginUrl: 'https://www.hist.org.il',
-  fields: [
-    { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
-  ],
+  fields: HISTBASED_FIELDS,
   submit: [
     { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
-    { kind: 'ariaLabel', value: 'התחבר' },
+    // ariaLabel 'התחבר' fallback is now in wellKnownSelectors.__submit__
   ],
   checkReadiness: async (page: Page) => {
     await page.goto('https://www.hist.org.il/login');

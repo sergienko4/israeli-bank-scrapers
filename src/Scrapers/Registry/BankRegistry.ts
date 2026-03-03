@@ -34,7 +34,7 @@ const BEINLEUMI_FIELDS: LoginConfig['fields'] = [
 
 const BEINLEUMI_SUBMIT: LoginConfig['submit'] = [
   { kind: 'css', value: '#continueBtn' },
-  { kind: 'ariaLabel', value: 'כניסה' },
+  // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {
