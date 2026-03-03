@@ -1,3 +1,4 @@
+import * as fc from 'fast-check';
 import moment from 'moment';
 
 import {
@@ -199,5 +200,39 @@ describe('getRawTransaction', () => {
   it('returns primitive values as-is', () => {
     expect(getRawTransaction('hello')).toBe('hello');
     expect(getRawTransaction(42)).toBe(42);
+  });
+});
+
+describe('property-based invariants', () => {
+  const MIN_MS = new Date('2020-01-01').getTime();
+  const MAX_MS = new Date('2026-12-31').getTime();
+  const txnArb = fc
+    .integer({ min: MIN_MS, max: MAX_MS })
+    .map(ms => createTransaction({ date: new Date(ms).toISOString() }));
+
+  it('sortTransactionsByDate always produces ascending order', () => {
+    fc.assert(
+      fc.property(fc.array(txnArb, { minLength: 2, maxLength: 20 }), txns => {
+        const sorted = sortTransactionsByDate(txns);
+        for (let i = 1; i < sorted.length; i++) {
+          expect(new Date(sorted[i].date).getTime()).toBeGreaterThanOrEqual(
+            new Date(sorted[i - 1].date).getTime(),
+          );
+        }
+      }),
+    );
+  });
+
+  it('filterOldTransactions never returns transactions before start date', () => {
+    const startDate = new Date('2023-06-01');
+    const startMoment = moment(startDate);
+    fc.assert(
+      fc.property(fc.array(txnArb, { minLength: 1, maxLength: 20 }), txns => {
+        const result = filterOldTransactions(txns, startMoment, false);
+        result.forEach(t => {
+          expect(moment(t.date).isSameOrAfter(startMoment, 'day')).toBe(true);
+        });
+      }),
+    );
   });
 });

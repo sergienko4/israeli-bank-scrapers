@@ -51,11 +51,7 @@
     "type": "git",
     "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
-  "keywords": [
-    "israel",
-    "israeli bank",
-    "israeli bank scraper"
-  ],
+  "keywords": ["israel", "israeli bank", "israeli bank scraper"],
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
@@ -64,6 +60,7 @@
   "homepage": "https://github.com/sergienko4/israeli-bank-scrapers#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@faker-js/faker": "^10.3.0",
     "@json2csv/plainjs": "^7.0.6",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.24",
@@ -77,6 +74,7 @@
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
+    "fast-check": "^4.5.3",
     "fs-extra": "^11.3.3",
     "globals": "^17.4.0",
     "husky": "^9.1.7",
@@ -106,22 +104,13 @@
     "utility-types": "^3.11.0",
     "uuid": "^11.1.0"
   },
-  "files": [
-    "lib/**/*"
-  ],
+  "files": ["lib/**/*"],
   "overrides": {
     "test-exclude": "^7.0.2"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ],
-    "*.json": [
-      "prettier --parser json --write"
-    ],
-    "*.md": [
-      "prettier --parser markdown --write"
-    ]
+    "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0", "prettier --write"],
+    "*.json": ["prettier --parser json --write"],
+    "*.md": ["prettier --parser markdown --write"]
   }
 }

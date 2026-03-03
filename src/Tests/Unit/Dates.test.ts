@@ -1,3 +1,4 @@
+import * as fc from 'fast-check';
 import moment from 'moment';
 
 import getAllMonthMoments from '../../Common/Dates';
@@ -60,5 +61,30 @@ describe('getAllMonthMoments', () => {
     const start = moment().startOf('month');
     const result = getAllMonthMoments(start, -1);
     expect(result).toHaveLength(1);
+  });
+
+  it('always returns months in ascending order for any past start', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: -24, max: 0 }), monthsBack => {
+        const start = moment(NOW).add(monthsBack, 'months').startOf('month');
+        const result = getAllMonthMoments(start);
+        for (let i = 1; i < result.length; i++) {
+          expect(result[i].isAfter(result[i - 1])).toBe(true);
+        }
+      }),
+    );
+  });
+
+  it('never returns months after current month for any past start', () => {
+    const nowMoment = moment(NOW);
+    fc.assert(
+      fc.property(fc.integer({ min: -24, max: -1 }), monthsBack => {
+        const start = moment(NOW).add(monthsBack, 'months').startOf('month');
+        const result = getAllMonthMoments(start);
+        result.forEach(m => {
+          expect(m.isSameOrBefore(nowMoment, 'month')).toBe(true);
+        });
+      }),
+    );
   });
 });

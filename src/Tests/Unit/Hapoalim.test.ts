@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../../Common/Browser';
@@ -7,6 +8,7 @@ import { waitUntil } from '../../Common/Waiting';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import HapoalimScraper from '../../Scrapers/Hapoalim/HapoalimScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { HEBREW_TRANSACTION_TYPES } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
@@ -100,14 +102,14 @@ function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
 
 function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
   return {
-    serialNumber: 1,
-    activityDescription: 'העברה בנקאית',
-    eventAmount: 500,
+    serialNumber: faker.number.int({ min: 1, max: 9999 }),
+    activityDescription: faker.helpers.arrayElement([...HEBREW_TRANSACTION_TYPES]),
+    eventAmount: faker.number.float({ min: 10, max: 5000, fractionDigits: 2 }),
     eventDate: '20240615',
     valueDate: '20240616',
-    referenceNumber: 12345,
+    referenceNumber: faker.number.int({ min: 10000, max: 999999 }),
     eventActivityTypeCode: 2,
-    currentBalance: 10000,
+    currentBalance: faker.number.float({ min: 1000, max: 100000, fractionDigits: 2 }),
     pfmDetails: '/pfm/details?id=1',
     ...overrides,
   };
@@ -133,6 +135,7 @@ function setupLoginAndAccounts(
 }
 
 beforeEach(() => {
+  faker.seed(42);
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createHapoalimPage());
