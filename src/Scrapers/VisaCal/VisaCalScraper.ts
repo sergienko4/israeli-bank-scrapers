@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Frame } from 'playwright';
+import type { Frame } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
 import {
@@ -13,9 +13,9 @@ import { getFromSessionStorage } from '../../Common/Storage';
 import { filterOldTransactions } from '../../Common/Transactions';
 import { waitUntil } from '../../Common/Waiting';
 import { CompanyTypes } from '../../Definitions';
-import { type TransactionsAccount } from '../../Transactions';
+import type { TransactionsAccount } from '../../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
-import { type ScraperScrapingResult } from '../Base/Interface';
+import type { ScraperScrapingResult } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   CONNECT_IFRAME_OPTS,
@@ -70,7 +70,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   private authTokenPromise: Promise<string | undefined> | undefined;
 
-  openLoginPopup = async (): Promise<Frame> => {
+  public openLoginPopup = async (): Promise<Frame> => {
     LOG.info('open login popup');
     await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', { visible: true });
     await clickButton(this.page, '#ccLoginDesktopBtn');
@@ -78,11 +78,11 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
     LOG.info('navigating to password login tab');
     await clickButton(frame, '#regular-login');
-    await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 15000 });
+    await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 45000 });
     return frame;
   };
 
-  async getCards(): Promise<CardInfo[]> {
+  public async getCards(): Promise<CardInfo[]> {
     LOG.info('fetch cards via init API (bypasses sessionStorage race)');
     const authorization = await this.getAuthorizationHeader();
     const hdrs = this.buildApiHeaders(authorization, await this.getXSiteId());
@@ -93,7 +93,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     }));
   }
 
-  async getAuthorizationHeader(): Promise<string> {
+  public async getAuthorizationHeader(): Promise<string> {
     if (!this.authorization) {
       LOG.info('token not captured from POST response — falling back to sessionStorage (60s)');
       const startMs = Date.now();
@@ -109,11 +109,11 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     return this.authorization;
   }
 
-  async getXSiteId(): Promise<string> {
+  public async getXSiteId(): Promise<string> {
     return Promise.resolve(VISCAL_CFG.api.calXSiteId!);
   }
 
-  getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
+  public getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
     this.authTokenPromise = this.interceptLoginToken();
     return {
       loginUrl: LOGIN_URL,
@@ -126,7 +126,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     };
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
     const startDate = this.options.startDate;
     const startMoment = moment.max(defaultStartMoment, moment(startDate));

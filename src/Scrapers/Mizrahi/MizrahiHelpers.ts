@@ -81,20 +81,15 @@ export interface ConvertOneRowOpts {
 
 const MIZRAHI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
 const BASE_APP_URL = MIZRAHI_CFG.api.base;
-export const OSH_PAGE = '/osh/legacy/legacy-Osh-Main';
-export const TRANSACTIONS_PAGE = '/osh/legacy/root-main-osh-p428New';
 export const TRANSACTIONS_REQUEST_URLS = [
   `${BASE_APP_URL}/OnlinePilot/api/SkyOSH/get428Index`,
   `${BASE_APP_URL}/Online/api/SkyOSH/get428Index`,
 ];
-export const PENDING_TRANSACTIONS_PAGE = '/osh/legacy/legacy-Osh-p420';
+// URL fragment used to identify the pending-transactions iframe by its src URL
 export const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
 const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
 export const DATE_FORMAT = MIZRAHI_CFG.format.date;
 export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
-
-export const ACCOUNT_DROP_DOWN_ITEM_SELECTOR = '#AccountPicker .item';
-export const PENDING_TRX_IDENTIFIER_ID = '#ctl00_ContentPlaceHolder2_panel1';
 export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
 
 export function getStartMoment(optionsStartDate: Date): moment.Moment {

@@ -205,7 +205,7 @@ class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, config);
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     return fetchAccountData(this.page, this.options);
   }
 }

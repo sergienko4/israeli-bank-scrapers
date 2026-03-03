@@ -12,6 +12,12 @@ const WELL_KNOWN_SELECTORS = SCRAPER_CONFIGURATION.wellKnownSelectors as Record<
   SelectorCandidate[]
 >;
 
+/** Global dashboard-field fallback dictionary — sourced from central ScraperConfig. */
+const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardSelectors as Record<
+  string,
+  SelectorCandidate[]
+>;
+
 /** Convert a SelectorCandidate to a Playwright-compatible selector string */
 export function candidateToCss(c: SelectorCandidate): string {
   switch (c.kind) {
@@ -311,4 +317,38 @@ export async function resolveSelector(
 ): Promise<string> {
   const { selector } = await resolveFieldContext(pageOrFrame, field, pageUrl);
   return selector;
+}
+
+/**
+ * Extract the first CSS string from a SelectorCandidate array.
+ * Use this as a backward-compatibility adapter for scrapers not yet migrated
+ * to full resolveDashboardField() resolution.
+ */
+export function toFirstCss(candidates: SelectorCandidate[]): string {
+  return candidates.length > 0 ? candidateToCss(candidates[0]) : '';
+}
+
+/** Options for resolving a post-login dashboard selector. */
+export interface DashboardFieldOpts {
+  pageOrFrame: Page | Frame;
+  fieldKey: string;
+  bankCandidates: SelectorCandidate[];
+  pageUrl: string;
+}
+
+/**
+ * Resolve a dashboard data field using the same round-trip as login resolution:
+ * iframes first (if Page), then main context; bank candidates first, wellKnown fallback second.
+ * Returns a FieldContext — check `isResolved` before using `selector` / `context`.
+ */
+export async function resolveDashboardField(opts: DashboardFieldOpts): Promise<FieldContext> {
+  const { pageOrFrame, fieldKey, bankCandidates, pageUrl } = opts;
+  const wellKnownCandidates = WELL_KNOWN_DASHBOARD_SELECTORS[fieldKey] ?? [];
+  return resolveAll({
+    pageOrFrame,
+    field: { credentialKey: fieldKey, selectors: [...bankCandidates] },
+    pageUrl,
+    bankCandidates: [...bankCandidates],
+    wellKnownCandidates: [...wellKnownCandidates],
+  });
 }

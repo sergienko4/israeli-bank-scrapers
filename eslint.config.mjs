@@ -10,7 +10,7 @@ import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts'] },
+  { ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts'] },
 
   // Base configs
   eslint.configs.recommended,
@@ -51,13 +51,30 @@ export default tseslint.config(
       'no-console': 'error',
       'no-warning-comments': ['error', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
-      // ── Import organization ──────────────────────────────────────────────
+      // ── Import organization & Limits ─────────────────────────────────────
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
       'import-x/no-duplicates': 'error',
+      // LIMIT: Max 15 unique module imports per file to prevent "God Files"
+      'import-x/max-dependencies': ['error', { max: 15, ignoreTypeImports: true }],
 
       // Quotes
       quotes: ['error', 'single', { avoidEscape: true }],
+
+      // ── Visibility & Return Types ────────────────────────────────────────
+      // Force explicit 'public', 'private', or 'protected'
+      '@typescript-eslint/explicit-member-accessibility': ['error', {
+        accessibility: 'explicit',
+        overrides: { constructors: 'no-public' },
+      }],
+
+      // Force explicit return types (including : void)
+      '@typescript-eslint/explicit-function-return-type': ['error', {
+        allowExpressions: false,
+        allowTypedFunctionExpressions: true,
+        allowHigherOrderFunctions: true,
+        allowDirectConstAssertionInArrowFunctions: true,
+      }],
 
       // Relaxed rules (matching previous .eslintrc.js)
       'import-x/prefer-default-export': 'off',
@@ -68,15 +85,12 @@ export default tseslint.config(
       'no-await-in-loop': 'off',
       'no-restricted-syntax': [
         'error',
-        // Security: block logging sensitive fields via logger calls
         {
           selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
           message: 'SECURITY: Do not log sensitive data keys.',
         },
-        // Security: block passing credential variables to logger.debug()
         {
-          selector:
-            "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
+          selector: "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
           message: 'SECURITY: Do not pass credential variables to logger. Pino redaction handles sensitive paths.',
         },
         'ForInStatement',
@@ -85,40 +99,26 @@ export default tseslint.config(
       ],
 
       // ── Strict type safety ───────────────────────────────────────────────
-      // Zero-Compromise: no 'any', no unsafe operations, explicit return types.
-      // Use typed interfaces or generics instead. Fix by adding proper types.
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
-      '@typescript-eslint/explicit-function-return-type': ['error', {
-        allowExpressions: true,      // allow arrow functions in JSX/callbacks
-        allowHigherOrderFunctions: true,
-        allowTypedFunctionExpressions: true,
-      }],
-      '@typescript-eslint/no-non-null-assertion': 'off', // ← allow ! for known-non-null
-      '@typescript-eslint/ban-ts-comment': 'off',         // ← allow @ts-ignore with justification
+      '@typescript-eslint/no-non-null-assertion': 'off', 
+      '@typescript-eslint/ban-ts-comment': 'off', 
 
-      // Allow underscore-prefixed unused vars (common destructuring pattern)
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' },
       ],
 
-      // New in typescript-eslint v8 — disable to match previous behavior
       '@typescript-eslint/no-require-imports': 'off',
       '@typescript-eslint/no-unsafe-unary-minus': 'off',
       '@typescript-eslint/prefer-promise-reject-errors': 'off',
 
-      // TypeScript enforced rules
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNever: true }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
-
-      // Import rules
-      'import-x/no-unresolved': 'off', // TypeScript handles this
-      'import-x/named': 'off', // TypeScript handles this
 
       // ── Structural & naming ──────────────────────────────────────────────
       'check-file/filename-naming-convention': [
@@ -152,19 +152,16 @@ export default tseslint.config(
           custom: { regex: '^I[A-Z]', match: false },
         },
         { selector: ['variable', 'function', 'method'], format: ['camelCase'] },
-        // Allow leading underscore on unused parameters (e.g. _credentials, _)
         { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
         {
           selector: 'variable',
           modifiers: ['const', 'global'],
           format: ['UPPER_CASE'],
-          // Allow _PREFIXED_UPPER_CASE for throw-away destructured vars
           leadingUnderscore: 'allow',
         },
         {
           selector: 'variable',
           types: ['boolean'],
-          // After prefix strip the remainder must be PascalCase: isOutbound → Outbound ✓
           format: ['PascalCase'],
           prefix: ['is', 'has', 'should', 'can', 'did', 'will'],
         },
@@ -172,38 +169,16 @@ export default tseslint.config(
       ],
 
       // ── Clean Code limits ────────────────────────────────────────────────
-      // All 'error' — lint-staged only lints changed files, so violations in
-      // untouched legacy code don't block commits. Any file you touch must comply.
-      // Aim: 10 lines ideal (CLAUDE.md). 20 lines = ESLint hard limit.
-      // Fix strategies → see CLEAN_CODE.md
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
-
-      // Max 3 params: beyond that use an options object / interface.
       '@typescript-eslint/max-params': ['error', { max: 3 }],
-
-      // Cyclomatic complexity cap — prevents deeply nested conditionals.
       'complexity': ['error', { max: 10 }],
-
-      // One class per file — keeps modules focused.
       'max-classes-per-file': ['error', 1],
-
-      // Unused imports — auto-fixable via lint:fix.
       'unused-imports/no-unused-imports': 'error',
-
-      // Dead code guards
       'no-unreachable': 'error',
       'no-unused-expressions': 'error',
       '@typescript-eslint/no-unused-private-class-members': 'error',
-
-      // File length — 300 lines max (source files only; tests/mocks exempt below).
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
-
-      // Explicit no-unused-vars off (handled by @typescript-eslint/no-unused-vars above).
       'no-unused-vars': 'off',
-
-      // Max line length — matches Prettier printWidth.
-      // Strings/templates/regex/comments are excluded: they can't always be wrapped
-      // without degrading readability (URLs, error messages, regex patterns).
       'max-len': [
         'error',
         {
@@ -218,7 +193,7 @@ export default tseslint.config(
     },
   },
 
-  // Test / spec / mock / config files — exempt from length, naming, and type-safety rules.
+  // Test / spec / mock / config files — Exemptions
   {
     files: [
       'src/**/*.test.ts',
@@ -229,6 +204,7 @@ export default tseslint.config(
     ],
     rules: {
       'import-x/no-extraneous-dependencies': 'off',
+      'import-x/max-dependencies': 'off', // Tests often need many imports
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-deprecated': 'off',
@@ -250,10 +226,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/explicit-member-accessibility': 'off', // Relaxed for tests
     },
   },
 
-  // Lowercase entry-point & reserved filenames — exempt from PascalCase filename rule.
+  // Lowercase entry-point & reserved filenames
   {
     files: [
       'src/index.ts',

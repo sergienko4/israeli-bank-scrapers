@@ -306,7 +306,7 @@ class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Hapoalim]!);
   }
 
-  async fetchData(): Promise<{
+  public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[];
   }> {

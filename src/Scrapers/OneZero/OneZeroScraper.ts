@@ -70,7 +70,9 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
 
   private accessToken?: string;
 
-  async triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
+  public async triggerTwoFactorAuth(
+    phoneNumber: string,
+  ): Promise<ScraperTwoFactorAuthTriggerResult> {
     if (!phoneNumber.startsWith('+')) {
       return createGenericError(
         'A full international phone number starting with + and a three digit country code is required',
@@ -105,7 +107,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     return { success: true, longTermTwoFactorAuthToken: otpToken };
   }
 
-  async login(credentials: ScraperSpecificCredentials): Promise<ScraperLoginResult> {
+  public async login(credentials: ScraperSpecificCredentials): Promise<ScraperLoginResult> {
     const otpTokenResult = await this.resolveOtpToken(credentials);
     if (!otpTokenResult.success) return otpTokenResult;
     LOG.info('Requesting id token');
@@ -119,7 +121,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     if (!this.accessToken) return createGenericError('login() was not called');
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
     const startMoment = moment.max(defaultStartMoment, moment(this.options.startDate));

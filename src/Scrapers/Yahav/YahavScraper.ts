@@ -7,6 +7,7 @@ import {
   waitUntilElementDisappear,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
+import { toFirstCss } from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -22,7 +23,10 @@ import { BANK_REGISTRY } from '../Registry/BankRegistry';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
-const SEL = CFG.selectors;
+// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+const SEL = Object.fromEntries(
+  Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
+) as Record<string, string>;
 
 interface ScrapedTransaction {
   credit: string;
@@ -222,7 +226,7 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Yahav]!);
   }
 
-  async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
+  public async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     // Goto statements page
     await waitUntilElementFound(this.page, SEL.accountDetails, { visible: true });
     await clickButton(this.page, SEL.accountDetails);

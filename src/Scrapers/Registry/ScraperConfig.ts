@@ -46,8 +46,8 @@ export interface BankScraperConfig {
     loginDelayMinMs: number | null;
     loginDelayMaxMs: number | null;
   };
-  /** CSS selectors for DOM data scraping */
-  selectors: Record<string, string>;
+  /** CSS selectors for DOM data scraping (post-login dashboard). */
+  selectors: Record<string, SelectorCandidate[]>;
 }
 
 // ─── Null-fill helpers (shared across banks) ─────────────────────────────────
@@ -86,26 +86,20 @@ const NULL_TIMING: BankScraperConfig['timing'] = {
 
 // ─── Shared selector sets ─────────────────────────────────────────────────────
 
-const BEINLEUMI_SELECTORS: Record<string, string> = {
-  accountsNumber: 'div.fibi_account span.acc_num',
-  completedTransactionsTable: 'table#dataTable077',
-  pendingTransactionsTable: 'table#dataTable023',
-  nextPageLink: 'a#Npage.paging',
-  currentBalance: '.main_balance',
-  transactionsTab: 'a#tabHeader4',
-  datesContainer: 'div#fibi_dates',
-  fromDateInput: 'input#fromDate',
-  showButton: 'input[value=הצג]',
-  tableContainer: "div[id*='divTable']",
-  closeDatePickerClass: 'ui-datepicker-close',
-  dateColumnCompleted: 'date first',
-  dateColumnPending: 'first date',
-  descriptionColumnCompleted: 'reference wrap_normal',
-  descriptionColumnPending: 'details wrap_normal',
-  referenceColumn: 'details',
-  debitColumn: 'debit',
-  creditColumn: 'credit',
-  errorMessageClass: 'NO_DATA',
+// Column class strings (used for td class matching in BaseBeinleumiGroupHelpers) are
+// intentionally NOT here — they are hardcoded in BaseBeinleumiGroupHelpers.ts.
+const BEINLEUMI_DOM_SELECTORS: Record<string, SelectorCandidate[]> = {
+  accountsNumber: [{ kind: 'css', value: 'div.fibi_account span.acc_num' }],
+  completedTransactionsTable: [{ kind: 'css', value: 'table#dataTable077' }],
+  pendingTransactionsTable: [{ kind: 'css', value: 'table#dataTable023' }],
+  nextPageLink: [{ kind: 'css', value: 'a#Npage.paging' }],
+  currentBalance: [{ kind: 'css', value: '.main_balance' }],
+  transactionsTab: [{ kind: 'css', value: 'a#tabHeader4' }],
+  datesContainer: [{ kind: 'css', value: 'div#fibi_dates' }],
+  fromDateInput: [{ kind: 'css', value: 'input#fromDate' }],
+  showButton: [{ kind: 'css', value: 'input[value=הצג]' }],
+  tableContainer: [{ kind: 'css', value: "div[id*='divTable']" }],
+  closeDatePickerBtn: [{ kind: 'css', value: 'button.ui-datepicker-close' }],
 };
 
 const VISACAL_API: BankScraperConfig['api'] = {
@@ -152,12 +146,19 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD.MM.YY' },
       timing: NULL_TIMING,
       selectors: {
-        advancedSearchBtn: 'button[title="חיפוש מתקדם"]',
-        dateRangeRadio: 'bll-radio-button:not([checked])',
-        dateFromInput: 'input[formcontrolname="txtInputFrom"]',
-        filterBtn: "button[aria-label='סנן']",
-        accountListItems: 'app-masked-number-combo span.display-number-li',
-        accountCombo: 'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]',
+        advancedSearchBtn: [{ kind: 'css', value: 'button[title="חיפוש מתקדם"]' }],
+        dateRangeRadio: [{ kind: 'css', value: 'bll-radio-button:not([checked])' }],
+        dateFromInput: [{ kind: 'css', value: 'input[formcontrolname="txtInputFrom"]' }],
+        filterBtn: [{ kind: 'ariaLabel', value: 'סנן' }],
+        accountListItems: [
+          { kind: 'css', value: 'app-masked-number-combo span.display-number-li' },
+        ],
+        accountCombo: [
+          {
+            kind: 'xpath',
+            value: '//*[contains(@class, "number") and contains(@class, "combo-inner")]',
+          },
+        ],
       },
     },
     [CompanyTypes.Discount]: {
@@ -186,7 +187,16 @@ export const SCRAPER_CONFIGURATION = {
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY', maxRowsPerRequest: 10000000000 },
       timing: NULL_TIMING,
-      selectors: {},
+      selectors: {
+        accountDropdown: [{ kind: 'css', value: '#dropdownBasic, .item' }],
+        accountDropdownItem: [{ kind: 'css', value: '#AccountPicker .item' }],
+        accountNumberSpan: [{ kind: 'css', value: '#dropdownBasic b span' }],
+        pendingTransactionRows: [{ kind: 'css', value: 'tr.rgRow, tr.rgAltRow' }],
+        pendingFrameIdentifier: [{ kind: 'css', value: '#ctl00_ContentPlaceHolder2_panel1' }],
+        oshLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-Main"]' }],
+        transactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/root-main-osh-p428New"]' }],
+        pendingTransactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-p420"]' }],
+      },
     },
     [CompanyTypes.Max]: {
       urls: { base: 'https://www.max.co.il', loginRoute: null, transactions: null },
@@ -231,7 +241,7 @@ export const SCRAPER_CONFIGURATION = {
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_SELECTORS,
+      selectors: BEINLEUMI_DOM_SELECTORS,
     },
     [CompanyTypes.OtsarHahayal]: {
       urls: {
@@ -244,7 +254,7 @@ export const SCRAPER_CONFIGURATION = {
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_SELECTORS,
+      selectors: BEINLEUMI_DOM_SELECTORS,
     },
     [CompanyTypes.Massad]: {
       urls: {
@@ -257,7 +267,7 @@ export const SCRAPER_CONFIGURATION = {
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_SELECTORS,
+      selectors: BEINLEUMI_DOM_SELECTORS,
     },
     [CompanyTypes.Pagi]: {
       urls: {
@@ -270,7 +280,7 @@ export const SCRAPER_CONFIGURATION = {
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_SELECTORS,
+      selectors: BEINLEUMI_DOM_SELECTORS,
     },
     [CompanyTypes.Behatsdaa]: {
       urls: { base: 'https://www.behatsdaa.org.il', loginRoute: null, transactions: null },
@@ -290,11 +300,15 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD/MM/YY' },
       timing: NULL_TIMING,
       selectors: {
-        transactionContainer: '.transaction-container, .transaction-component-container',
-        transactionColumns: '.transaction-item > span',
-        cardNumber: '.wallet-details div:nth-of-type(2)',
-        balance: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)',
-        loadingIndicator: '.react-loading.hide',
+        transactionContainer: [
+          { kind: 'css', value: '.transaction-container, .transaction-component-container' },
+        ],
+        transactionColumns: [{ kind: 'css', value: '.transaction-item > span' }],
+        cardNumber: [{ kind: 'css', value: '.wallet-details div:nth-of-type(2)' }],
+        balance: [
+          { kind: 'css', value: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)' },
+        ],
+        loadingIndicator: [{ kind: 'css', value: '.react-loading.hide' }],
       },
     },
     [CompanyTypes.Yahav]: {
@@ -304,16 +318,26 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: NULL_TIMING,
       selectors: {
-        accountDetails: '.account-details',
-        accountId: 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]',
-        transactionRows: '.list-item-holder .entire-content-ctr',
-        transactionTableHeader: '.under-line-txn-table-header',
-        datePickerOpener:
-          'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)',
-        monthPickerBtn: '.pmu-month',
-        loadingSpinner: '.loading-bar-spinner',
-        monthsGridCheck: '.pmu-months > div:nth-child(1)',
-        yearsGridCheck: '.pmu-years > div:nth-child(1)',
+        accountDetails: [{ kind: 'css', value: '.account-details' }],
+        accountId: [
+          {
+            kind: 'css',
+            value: 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]',
+          },
+        ],
+        transactionRows: [{ kind: 'css', value: '.list-item-holder .entire-content-ctr' }],
+        transactionTableHeader: [{ kind: 'css', value: '.under-line-txn-table-header' }],
+        datePickerOpener: [
+          {
+            kind: 'css',
+            value:
+              'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)',
+          },
+        ],
+        monthPickerBtn: [{ kind: 'css', value: '.pmu-month' }],
+        loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
+        monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],
+        yearsGridCheck: [{ kind: 'css', value: '.pmu-years > div:nth-child(1)' }],
       },
     },
     [CompanyTypes.OneZero]: {
@@ -339,6 +363,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'name', value: 'userCode' },
       { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
       { kind: 'css', value: '#user-name' }, // Max
+      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal (Angular Material)
     ],
     userCode: [
       { kind: 'placeholder', value: 'קוד משתמש' },
@@ -359,6 +384,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
       { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzPassword' }, // Discount
+      { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal (Angular Material)
     ],
     id: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -404,6 +430,34 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
       { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
       { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
+    ],
+  } satisfies Record<string, SelectorCandidate[]>,
+
+  /** Global dashboard-field fallback dictionary used by resolveDashboardField() */
+  wellKnownDashboardSelectors: {
+    balance: [
+      { kind: 'css', value: '.balance' },
+      { kind: 'css', value: '[data-testid="balance"]' },
+      { kind: 'ariaLabel', value: 'יתרה' },
+      { kind: 'ariaLabel', value: 'balance' },
+    ],
+    loadingIndicator: [
+      { kind: 'css', value: '.react-loading.hide' },
+      { kind: 'css', value: '[data-loading]' },
+      { kind: 'css', value: '.spinner' },
+    ],
+    /** Generic date-from filter input — Hebrew placeholder variants + HTML5 date input */
+    fromDateInput: [
+      { kind: 'placeholder', value: 'מתאריך' },
+      { kind: 'placeholder', value: 'מהתאריך' },
+      { kind: 'placeholder', value: 'תאריך התחלה' },
+      { kind: 'css', value: 'input[type="date"]' },
+    ],
+    /** Generic loading spinner — Yahav, generic patterns */
+    loadingSpinner: [
+      { kind: 'css', value: '.loading-bar-spinner' },
+      { kind: 'css', value: '.loading' },
+      { kind: 'css', value: '[role="progressbar"]' },
     ],
   } satisfies Record<string, SelectorCandidate[]>,
 } as const;

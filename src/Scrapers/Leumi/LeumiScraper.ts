@@ -2,6 +2,7 @@ import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
 
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
+import { toFirstCss } from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -17,7 +18,10 @@ import { BANK_REGISTRY } from '../Registry/BankRegistry';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
-const SEL = CFG.selectors;
+// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+const SEL = Object.fromEntries(
+  Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
+) as Record<string, string>;
 const TRANSACTIONS_URL = CFG.urls.transactions;
 const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
 
@@ -216,7 +220,7 @@ class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Leumi]!);
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     const minimumStartMoment = moment().subtract(3, 'years').add(1, 'day');
     const startMoment = moment.max(minimumStartMoment, moment(this.options.startDate));
 

@@ -58,12 +58,12 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   constructor(public options: ScraperOptions) {}
 
   // eslint-disable-next-line  @typescript-eslint/require-await
-  async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     this.emitProgress(ScraperProgressTypes.Initializing);
     moment.tz.setDefault('Asia/Jerusalem');
   }
 
-  async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
+  public async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
     this.emitProgress(ScraperProgressTypes.StartScraping);
     await this.initialize();
     const loginResult = await this.executeLogin(credentials);
@@ -73,15 +73,17 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     return finalResult;
   }
 
-  triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
+  public triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
     throw new Error(`triggerOtp() is not created in ${this.options.companyId}`);
   }
 
-  getLongTermTwoFactorToken(_otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult> {
+  public getLongTermTwoFactorToken(
+    _otpCode: string,
+  ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
     throw new Error(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
   }
 
-  onProgress(
+  public onProgress(
     func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
   ): void {
     this.eventEmitter.on(SCRAPE_PROGRESS, func);
