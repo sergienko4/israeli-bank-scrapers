@@ -1,8 +1,19 @@
 import { type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions';
-import { type TransactionsAccount } from '../../Transactions';
-import { type ErrorResult, type ScraperErrorTypes, type WafErrorDetails } from './Errors';
+import { type ErrorResult } from './Errors';
+import type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
+import type { OutputDataOptions } from './Interfaces/OutputDataOptions';
+import type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
+
+export type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
+export type { ErrorResult } from './Interfaces/ErrorResult';
+export type { FutureDebit } from './Interfaces/FutureDebit';
+export type { OutputDataOptions } from './Interfaces/OutputDataOptions';
+export type { ScraperDiagnostics } from './Interfaces/ScraperDiagnostics';
+export type { ScraperLoginResult } from './Interfaces/ScraperLoginResult';
+export type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
+export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
@@ -29,13 +40,6 @@ export type OptInFeatures =
   | 'mizrahi:pendingIfHasGenericDescription'
   | 'mizrahi:isPendingIfTodayTransaction';
 
-export interface FutureDebit {
-  amount: number;
-  amountCurrency: string;
-  chargeDate?: string;
-  bankAccountNumber?: string;
-}
-
 interface ExternalBrowserOptions {
   /**
    * An externally created browser instance.
@@ -56,39 +60,6 @@ interface ExternalBrowserContextOptions {
    * An externally managed browser context. This is useful when you want to manage the browser
    */
   browserContext: BrowserContext;
-}
-
-export interface DefaultBrowserOptions {
-  /**
-   * shows the browser while scraping, good for debugging (default false)
-   */
-  shouldShowBrowser?: boolean;
-
-  /**
-   * provide a path to local chromium to be used by playwright
-   */
-  executablePath?: string;
-
-  /**
-   * additional arguments to pass to the browser instance. The list of flags can be found in
-   *
-   * https://developer.mozilla.org/en-US/docs/Mozilla/Command_Line_Options
-   * https://peter.sh/experiments/chromium-command-line-switches/
-   */
-  args?: string[];
-
-  /**
-   * Maximum navigation time in milliseconds, pass 0 to disable timeout.
-   * @default 30000
-   */
-  timeout?: number;
-
-  /**
-   * adjust the browser instance before it is being used
-   *
-   * @param browser
-   */
-  prepareBrowser?: (browser: Browser) => Promise<void>;
 }
 
 type ScraperBrowserOptions =
@@ -183,36 +154,6 @@ export type ScraperOptions = ScraperBrowserOptions & {
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 };
 
-export interface OutputDataOptions {
-  /**
-   * if true, the result wouldn't be filtered out by date, and you will return unfiltered scrapped data.
-   */
-  isFilterByDateEnabled?: boolean;
-}
-
-export interface ScraperDiagnostics {
-  loginUrl: string;
-  finalUrl?: string;
-  loginDurationMs?: number;
-  fetchDurationMs?: number;
-  lastAction: string;
-  pageTitle?: string;
-  warnings: string[];
-}
-
-export interface ScraperScrapingResult {
-  success: boolean;
-  accounts?: TransactionsAccount[];
-  futureDebits?: FutureDebit[];
-  errorType?: ScraperErrorTypes;
-  errorMessage?: string; // only on success=false
-  errorDetails?: WafErrorDetails; // only on errorType=WAF_BLOCKED
-  /** Long-term OTP token returned by banks that support it (e.g. OneZero).
-   *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
-  persistentOtpToken?: string;
-  diagnostics?: ScraperDiagnostics;
-}
-
 export interface Scraper<TCredentials extends ScraperCredentials> {
   scrape(credentials: TCredentials): Promise<ScraperScrapingResult>;
   onProgress(
@@ -234,11 +175,3 @@ export type ScraperGetLongTermTwoFactorTokenResult =
       success: true;
       longTermTwoFactorAuthToken: string;
     };
-
-export interface ScraperLoginResult {
-  success: boolean;
-  errorType?: ScraperErrorTypes;
-  errorMessage?: string; // only on success=false
-  errorDetails?: WafErrorDetails; // only on errorType=WAF_BLOCKED
-  persistentOtpToken?: string;
-}

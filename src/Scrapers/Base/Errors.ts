@@ -1,31 +1,11 @@
-export enum ScraperErrorTypes {
-  TwoFactorRetrieverMissing = 'TWO_FACTOR_RETRIEVER_MISSING',
-  InvalidOtp = 'INVALID_OTP',
-  InvalidPassword = 'INVALID_PASSWORD',
-  ChangePassword = 'CHANGE_PASSWORD',
-  Timeout = 'TIMEOUT',
-  AccountBlocked = 'ACCOUNT_BLOCKED',
-  Generic = 'GENERIC',
-  /** @deprecated Use `Generic` instead. Kept for backwards-compatibility. */
-  General = 'GENERAL_ERROR',
-  WafBlocked = 'WAF_BLOCKED',
-}
+import type { ErrorResult } from './Interfaces/ErrorResult';
+import type { WafErrorDetails } from './Interfaces/WafErrorDetails';
 
-export interface WafErrorDetails {
-  provider: 'cloudflare' | 'unknown';
-  httpStatus: number;
-  pageTitle: string;
-  pageUrl: string;
-  responseSnippet?: string;
-  suggestions: string[];
-}
+export { ScraperErrorTypes } from './ErrorTypes';
+export type { ErrorResult } from './Interfaces/ErrorResult';
+export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
 
-export interface ErrorResult {
-  success: false;
-  errorType: ScraperErrorTypes;
-  errorMessage: string;
-  errorDetails?: WafErrorDetails;
-}
+import { ScraperErrorTypes } from './ErrorTypes';
 
 function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): ErrorResult {
   return {
