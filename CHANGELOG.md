@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.7.0...v7.8.0) (2026-03-03)
+
+
+### Features
+
+* ESLint strict + SelectorResolver dashboard + VisaCal & Beinleumi fixes ([#96](https://github.com/sergienko4/israeli-bank-scrapers/issues/96)) ([e367712](https://github.com/sergienko4/israeli-bank-scrapers/commit/e3677124f6fbd678f709671fdf9feac64bbe1fda))
+
 ## [7.7.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.6.0...v7.7.0) (2026-03-03)
 
 
