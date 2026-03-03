@@ -137,14 +137,22 @@ interface ScrapeOpts {
   options?: ScraperOptions;
 }
 
+/** Resolve the "next page" link CSS — returns '' when all results fit on one page. */
+async function resolveNextLinkCss(page: Page | Frame, shouldPaginate: boolean): Promise<string> {
+  if (!shouldPaginate) return '';
+  const r = await resolveDashboardField(dashOpts(page, 'nextPageLink'));
+  return r.isResolved ? r.selector : '';
+}
+
 async function scrapeTransactions(opts: ScrapeOpts): Promise<Transaction[]> {
   const { page, tableLocator, transactionStatus, shouldPaginate, options } = opts;
-  const nextLinkCss = shouldPaginate ? await resolveSelectorCss(page, 'nextPageLink') : '';
+  const nextLinkCss = await resolveNextLinkCss(page, shouldPaginate);
+  const canPaginate = nextLinkCss !== '';
   const txns: ScrapedTransaction[] = [];
   let hasNextPage = false;
   do {
     txns.push(...(await extractTransactions(page, tableLocator, transactionStatus)));
-    if (shouldPaginate) {
+    if (canPaginate) {
       hasNextPage = await elementPresentOnPage(page, nextLinkCss);
       if (hasNextPage) {
         await clickButton(page, nextLinkCss);
@@ -166,10 +174,11 @@ async function scrapeTableByKey(
   key: string,
   opts: ScrapeTableByKeyOpts,
 ): Promise<Transaction[]> {
-  const tableLocator = await resolveSelectorCss(page, key);
+  const r = await resolveDashboardField(dashOpts(page, key));
+  if (!r.isResolved) return []; // table absent from DOM (e.g. no pending txns for period)
   return scrapeTransactions({
     page,
-    tableLocator,
+    tableLocator: r.selector,
     transactionStatus: opts.status,
     shouldPaginate: opts.shouldPaginate,
     options: opts.options,
