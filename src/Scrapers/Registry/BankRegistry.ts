@@ -76,9 +76,9 @@ async function discountPostAction(page: Page): Promise<void> {
 }
 
 const DISCOUNT_FIELDS: LoginConfig['fields'] = [
-  { credentialKey: 'id', selectors: [{ kind: 'css', value: '#tzId' }] },
-  { credentialKey: 'password', selectors: [{ kind: 'css', value: '#tzPassword' }] },
-  { credentialKey: 'num', selectors: [{ kind: 'css', value: '#aidnum' }] },
+  { credentialKey: 'id', selectors: [] }, // wellKnown → #tzId
+  { credentialKey: 'password', selectors: [] }, // wellKnown → #tzPassword
+  { credentialKey: 'num', selectors: [] }, // wellKnown → #aidnum
 ];
 
 const DISCOUNT_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {

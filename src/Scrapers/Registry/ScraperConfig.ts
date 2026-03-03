@@ -338,6 +338,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'name', value: 'username' },
       { kind: 'name', value: 'userCode' },
       { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
+      { kind: 'css', value: '#user-name' }, // Max
     ],
     userCode: [
       { kind: 'placeholder', value: 'קוד משתמש' },
@@ -346,6 +347,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'ariaLabel', value: 'קוד משתמש' },
       { kind: 'name', value: 'userCode' },
       { kind: 'name', value: 'username' },
+      { kind: 'css', value: '#userCode' }, // Hapoalim
     ],
     password: [
       { kind: 'placeholder', value: 'סיסמה' },
@@ -356,6 +358,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'css', value: 'input[type="password"]' },
       { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
       { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
+      { kind: 'css', value: '#tzPassword' }, // Discount
     ],
     id: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -364,6 +367,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'ariaLabel', value: 'תעודת זהות' },
       { kind: 'name', value: 'id' },
       { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
+      { kind: 'css', value: '#tzId' }, // Discount
     ],
     nationalID: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -382,6 +386,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'placeholder', value: 'מספר חשבון' },
       { kind: 'ariaLabel', value: 'מספר חשבון' },
       { kind: 'name', value: 'num' },
+      { kind: 'css', value: '#aidnum' }, // Discount
     ],
     otpCode: [
       { kind: 'placeholder', value: 'קוד חד פעמי' },

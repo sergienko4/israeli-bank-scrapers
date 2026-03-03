@@ -118,8 +118,8 @@ async function yahavPostAction(page: Page): Promise<void> {
 export const HAPOALIM_CONFIG: LoginConfig = {
   loginUrl: HAPOALIM_BASE,
   fields: [
-    { credentialKey: 'userCode', selectors: [{ kind: 'css', value: '#userCode' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
+    { credentialKey: 'userCode', selectors: [] }, // wellKnown → #userCode
+    { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
   submit: [
     { kind: 'css', value: '.login-btn' },
@@ -147,8 +147,8 @@ export const HAPOALIM_CONFIG: LoginConfig = {
 export const LEUMI_CONFIG: LoginConfig = {
   loginUrl: 'https://www.leumi.co.il',
   fields: [
-    { credentialKey: 'username', selectors: [{ kind: 'placeholder', value: 'שם משתמש' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'placeholder', value: 'סיסמה' }] },
+    { credentialKey: 'username', selectors: [] }, // wellKnown → placeholder שם משתמש
+    { credentialKey: 'password', selectors: [] }, // wellKnown → placeholder סיסמה
   ],
   submit: [{ kind: 'css', value: "button[type='submit']" }],
   checkReadiness: leumiCheckReadiness,
@@ -207,8 +207,8 @@ export const MIZRAHI_CONFIG: LoginConfig = {
 export const MAX_CONFIG: LoginConfig = {
   loginUrl: 'https://www.max.co.il',
   fields: [
-    { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user-name' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
+    { credentialKey: 'username', selectors: [] }, // wellKnown → #user-name
+    { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
   submit: [{ kind: 'css', value: 'app-user-login-form .general-button.send-me-code' }],
   checkReadiness: async (page: Page) => {
@@ -274,16 +274,11 @@ export const YAHAV_CONFIG: LoginConfig = {
   fields: [
     { credentialKey: 'username', selectors: [] }, // wellKnown → #username
     { credentialKey: 'password', selectors: [] }, // wellKnown → #password
-    { credentialKey: 'nationalID', selectors: [{ kind: 'css', value: '#pinno' }] }, // unique — keep
+    { credentialKey: 'nationalID', selectors: [] }, // wellKnown → #pinno
   ],
   submit: [{ kind: 'css', value: '.btn' }],
   checkReadiness: async (page: Page) => {
-    await Promise.all([
-      waitUntilElementFound(page, '#username'),
-      waitUntilElementFound(page, '#password'),
-      waitUntilElementFound(page, '#pinno'),
-      waitUntilElementFound(page, '.btn'),
-    ]);
+    await Promise.all([waitUntilElementFound(page, '#pinno'), waitUntilElementFound(page, '.btn')]);
   },
   postAction: yahavPostAction,
   possibleResults: {
