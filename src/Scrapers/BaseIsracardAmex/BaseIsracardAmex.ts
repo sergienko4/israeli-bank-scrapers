@@ -3,16 +3,23 @@ import moment from 'moment';
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { humanDelay } from '../../Common/Waiting';
-import { ScraperProgressTypes } from '../../Definitions';
+import { CompanyTypes, ScraperProgressTypes } from '../../Definitions';
 import { type Transaction } from '../../Transactions';
 import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes, WafBlockError } from '../Base/Errors';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { fetchAllTransactions } from './BaseIsracardAmexEnrich';
 import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
 
-const COUNTRY_CODE = '212';
-const ID_TYPE = '1';
+// Shared by both Amex and Isracard — identical values in both config entries
+const {
+  countryCode: COUNTRY_CODE,
+  idType: ID_TYPE,
+  checkLevel: CHECK_LEVEL,
+} = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex].auth;
+const { loginDelayMinMs: LOGIN_DELAY_MIN, loginDelayMaxMs: LOGIN_DELAY_MAX } =
+  SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex].timing;
 
 const LOG = getDebug('base-isracard-amex');
 
@@ -74,7 +81,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       cardSuffix: credentials.card6Digits,
       countryCode: COUNTRY_CODE,
       idType: ID_TYPE,
-      checkLevel: '1',
+      checkLevel: CHECK_LEVEL,
       companyCode: this.companyCode,
     };
   }
@@ -163,7 +170,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     LOG.info(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
-    await humanDelay(1500, 3000);
+    await humanDelay(LOGIN_DELAY_MIN, LOGIN_DELAY_MAX);
     this.emitProgress(ScraperProgressTypes.LoggingIn);
   }
 }

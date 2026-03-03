@@ -19,11 +19,10 @@ import {
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const ACCOUNT_DETAILS_SELECTOR = '.account-details';
-const ACCOUNT_ID_SELECTOR =
-  'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]';
-const DATE_FORMAT = 'DD/MM/YYYY';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
+const SEL = CFG.selectors;
 
 interface ScrapedTransaction {
   credit: string;
@@ -37,7 +36,7 @@ interface ScrapedTransaction {
 
 async function getAccountID(page: Page): Promise<string> {
   try {
-    const selectedSnifAccount = await page.$eval(ACCOUNT_ID_SELECTOR, (element: Element) => {
+    const selectedSnifAccount = await page.$eval(SEL.accountId, (element: Element) => {
       return element.textContent;
     });
 
@@ -45,7 +44,7 @@ async function getAccountID(page: Page): Promise<string> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to retrieve account ID. Possible outdated selector '${ACCOUNT_ID_SELECTOR}: ${errorMessage}`,
+      `Failed to retrieve account ID. Possible outdated selector '${SEL.accountId}: ${errorMessage}`,
       { cause: error },
     );
   }
@@ -68,7 +67,7 @@ interface TransactionsTr {
 }
 
 function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
-  const convertedDate = moment(txn.date, DATE_FORMAT).toISOString();
+  const convertedDate = moment(txn.date, CFG.format.date).toISOString();
   const convertedAmount = getTxnAmount(txn);
   const result: Transaction = {
     type: TransactionTypes.Normal,
@@ -111,7 +110,7 @@ function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr
 
 async function scrapeTransactionDivs(page: Page): Promise<TransactionsTr[]> {
   return pageEvalAll<TransactionsTr[]>(page, {
-    selector: '.list-item-holder .entire-content-ctr',
+    selector: SEL.transactionRows,
     defaultResult: [],
     callback: divs =>
       (divs as HTMLElement[]).map(div => ({
@@ -127,7 +126,7 @@ async function getAccountTransactions(
   page: Page,
   options?: ScraperOptions,
 ): Promise<Transaction[]> {
-  await waitUntilElementFound(page, '.under-line-txn-table-header', { visible: true });
+  await waitUntilElementFound(page, SEL.transactionTableHeader, { visible: true });
   const txns: ScrapedTransaction[] = [];
   const transactionsDivs = await scrapeTransactionDivs(page);
   for (const txnRow of transactionsDivs) {
@@ -159,10 +158,8 @@ async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
 }
 
 async function openDatePicker(page: Page): Promise<void> {
-  const dateFromPick =
-    'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)';
-  await waitUntilElementFound(page, dateFromPick, { visible: true });
-  await clickButton(page, dateFromPick);
+  await waitUntilElementFound(page, SEL.datePickerOpener, { visible: true });
+  await clickButton(page, SEL.datePickerOpener);
   await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
 }
 
@@ -170,16 +167,15 @@ async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   const startDateDay = startDate.format('D');
   const startDateMonth = startDate.format('M');
   const startDateYear = startDate.format('Y');
-  const monthFromPick = '.pmu-month';
   await openDatePicker(page);
-  await waitUntilElementFound(page, monthFromPick, { visible: true });
-  await clickButton(page, monthFromPick);
-  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', { visible: true });
-  await waitUntilElementFound(page, monthFromPick, { visible: true });
-  await clickButton(page, monthFromPick);
-  await waitUntilElementFound(page, '.pmu-years > div:nth-child(1)', { visible: true });
+  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
+  await clickButton(page, SEL.monthPickerBtn);
+  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
+  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
+  await clickButton(page, SEL.monthPickerBtn);
+  await waitUntilElementFound(page, SEL.yearsGridCheck, { visible: true });
   await selectYearFromGrid(page, startDateYear);
-  await waitUntilElementFound(page, '.pmu-months > div:nth-child(1)', { visible: true });
+  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
   await clickButton(page, `.pmu-months > div:nth-child(${startDateMonth})`);
   await selectDayFromGrid(page, startDateDay);
 }
@@ -193,9 +189,9 @@ interface FetchAccDataOpts {
 
 async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAccount> {
   const { page, startDate, accountID, options } = opts;
-  await waitUntilElementDisappear(page, '.loading-bar-spinner');
+  await waitUntilElementDisappear(page, SEL.loadingSpinner);
   await searchByDates(page, startDate);
-  await waitUntilElementDisappear(page, '.loading-bar-spinner');
+  await waitUntilElementDisappear(page, SEL.loadingSpinner);
   const txns = await getAccountTransactions(page, options);
   return { accountNumber: accountID, txns };
 }
@@ -228,8 +224,8 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     // Goto statements page
-    await waitUntilElementFound(this.page, ACCOUNT_DETAILS_SELECTOR, { visible: true });
-    await clickButton(this.page, ACCOUNT_DETAILS_SELECTOR);
+    await waitUntilElementFound(this.page, SEL.accountDetails, { visible: true });
+    await clickButton(this.page, SEL.accountDetails);
     await waitUntilElementFound(this.page, '.statement-options .selected-item-top', {
       visible: true,
     });

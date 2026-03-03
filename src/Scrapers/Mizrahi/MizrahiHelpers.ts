@@ -3,7 +3,9 @@ import { type Page, type Request } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
+import { CompanyTypes } from '../../Definitions';
 import { type ScraperOptions } from '../Base/Interface';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const LOG = getDebug('mizrahi');
 
@@ -77,7 +79,8 @@ export interface ConvertOneRowOpts {
   options?: ScraperOptions;
 }
 
-export const BASE_APP_URL = 'https://mto.mizrahi-tefahot.co.il';
+const MIZRAHI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
+const BASE_APP_URL = MIZRAHI_CFG.api.base;
 export const OSH_PAGE = '/osh/legacy/legacy-Osh-Main';
 export const TRANSACTIONS_PAGE = '/osh/legacy/root-main-osh-p428New';
 export const TRANSACTIONS_REQUEST_URLS = [
@@ -87,8 +90,8 @@ export const TRANSACTIONS_REQUEST_URLS = [
 export const PENDING_TRANSACTIONS_PAGE = '/osh/legacy/legacy-Osh-p420';
 export const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
 const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
-export const DATE_FORMAT = 'DD/MM/YYYY';
-export const MAX_ROWS_PER_REQUEST = 10000000000;
+export const DATE_FORMAT = MIZRAHI_CFG.format.date;
+export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
 
 export const ACCOUNT_DROP_DOWN_ITEM_SELECTOR = '#AccountPicker .item';
 export const PENDING_TRX_IDENTIFIER_ID = '#ctl00_ContentPlaceHolder2_panel1';

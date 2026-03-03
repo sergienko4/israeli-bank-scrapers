@@ -1,12 +1,13 @@
+import { CompanyTypes } from '../../Definitions';
 import { type ScraperOptions } from '../Base/Interface';
 import IsracardAmexBaseScraper from '../BaseIsracardAmex/BaseIsracardAmex';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const BASE_URL = 'https://digital.isracard.co.il';
-const COMPANY_CODE = '11';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Isracard];
 
 class IsracardScraper extends IsracardAmexBaseScraper {
   constructor(options: ScraperOptions) {
-    super(options, BASE_URL, COMPANY_CODE);
+    super(options, CFG.api.base, CFG.auth.companyCode);
   }
 }
 

@@ -109,7 +109,7 @@ function discountConfig(loginUrl: string): LoginConfig {
 }
 
 export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
-  [CompanyTypes.Beinleumi]: beinleumiConfig('https://www.fibi.co.il/private'),
+  [CompanyTypes.Beinleumi]: beinleumiConfig('https://www.fibi.co.il'),
   [CompanyTypes.OtsarHahayal]: beinleumiConfig('https://www.bankotsar.co.il'),
   [CompanyTypes.Massad]: beinleumiConfig('https://www.bankmassad.co.il'),
   [CompanyTypes.Pagi]: beinleumiConfig('https://www.pagi.co.il'),

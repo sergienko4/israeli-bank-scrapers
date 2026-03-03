@@ -9,6 +9,7 @@ import {
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
 import { waitForNavigation } from '../../Common/Navigation';
+import { CompanyTypes } from '../../Definitions';
 import {
   type Transaction,
   type TransactionsAccount,
@@ -25,9 +26,9 @@ export {
   clickAccountSelectorGetAccountIds,
   selectAccountFromDropdown,
 } from '../Beinleumi/BeinleumiAccountSelector';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   convertTransactions,
-  DATE_FORMAT,
   ERROR_MESSAGE_CLASS,
   extractTransaction,
   getTransactionsColsTypeClasses,
@@ -36,14 +37,10 @@ import {
   type TransactionsTr,
 } from './BaseBeinleumiGroupHelpers';
 
-const ACCOUNTS_NUMBER = 'div.fibi_account span.acc_num';
-const CLOSE_SEARCH_BY_DATES_BUTTON_CLASS = 'ui-datepicker-close';
-const SHOW_SEARCH_BY_DATES_BUTTON_VALUE = 'הצג';
-const COMPLETED_TRANSACTIONS_TABLE = 'table#dataTable077';
-const PENDING_TRANSACTIONS_TABLE = 'table#dataTable023';
-const NEXT_PAGE_LINK = 'a#Npage.paging';
-const CURRENT_BALANCE = '.main_balance';
-const ELEMENT_RENDER_TIMEOUT_MS = 10000;
+// All Beinleumi group banks share the same selectors and timing
+const BEINLEUMI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi];
+const SEL = BEINLEUMI_CFG.selectors;
+const ELEMENT_RENDER_TIMEOUT_MS = BEINLEUMI_CFG.timing.elementRenderMs;
 
 async function extractTransactions(
   page: Page | Frame,
@@ -67,21 +64,21 @@ async function extractTransactions(
 }
 
 async function searchByDates(page: Page | Frame, startDate: Moment): Promise<void> {
-  await clickButton(page, 'a#tabHeader4');
-  await waitUntilElementFound(page, 'div#fibi_dates');
-  await fillInput(page, 'input#fromDate', startDate.format(DATE_FORMAT));
-  await clickButton(page, `button[class*=${CLOSE_SEARCH_BY_DATES_BUTTON_CLASS}]`);
-  await clickButton(page, `input[value=${SHOW_SEARCH_BY_DATES_BUTTON_VALUE}]`);
+  await clickButton(page, SEL.transactionsTab);
+  await waitUntilElementFound(page, SEL.datesContainer);
+  await fillInput(page, SEL.fromDateInput, startDate.format(BEINLEUMI_CFG.format.date));
+  await clickButton(page, `button[class*=${SEL.closeDatePickerClass}]`);
+  await clickButton(page, SEL.showButton);
   await waitForNavigation(page);
 }
 
 async function getAccountNumber(page: Page | Frame): Promise<string> {
-  await waitUntilElementFound(page, ACCOUNTS_NUMBER, {
+  await waitUntilElementFound(page, SEL.accountsNumber, {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
   const selectedSnifAccount = await page.$eval(
-    ACCOUNTS_NUMBER,
+    SEL.accountsNumber,
     option => (option as HTMLElement).innerText,
   );
   return selectedSnifAccount.replace('/', '_').trim();
@@ -102,9 +99,9 @@ async function scrapeTransactions(opts: ScrapeOpts): Promise<Transaction[]> {
   do {
     txns.push(...(await extractTransactions(page, tableLocator, transactionStatus)));
     if (shouldPaginate) {
-      hasNextPage = await elementPresentOnPage(page, NEXT_PAGE_LINK);
+      hasNextPage = await elementPresentOnPage(page, SEL.nextPageLink);
       if (hasNextPage) {
-        await clickButton(page, NEXT_PAGE_LINK);
+        await clickButton(page, SEL.nextPageLink);
         await waitForNavigation(page);
       }
     }
@@ -118,14 +115,14 @@ async function fetchPendingAndCompleted(
 ): Promise<Transaction[]> {
   const pendingTxns = await scrapeTransactions({
     page,
-    tableLocator: PENDING_TRANSACTIONS_TABLE,
+    tableLocator: SEL.pendingTransactionsTable,
     transactionStatus: TransactionStatuses.Pending,
     shouldPaginate: false,
     options,
   });
   const completedTxns = await scrapeTransactions({
     page,
-    tableLocator: COMPLETED_TRANSACTIONS_TABLE,
+    tableLocator: SEL.completedTransactionsTable,
     transactionStatus: TransactionStatuses.Completed,
     shouldPaginate: true,
     options,
@@ -138,7 +135,7 @@ async function getAccountTransactions(
   options?: ScraperOptions,
 ): Promise<Transaction[]> {
   await Promise.race([
-    waitUntilElementFound(page, "div[id*='divTable']", { visible: false }),
+    waitUntilElementFound(page, SEL.tableContainer, { visible: false }),
     waitUntilElementFound(page, `.${ERROR_MESSAGE_CLASS}`, { visible: false }),
   ]);
   if (await isNoTransactionInDateRangeError(page)) return [];
@@ -146,11 +143,11 @@ async function getAccountTransactions(
 }
 
 async function getCurrentBalance(page: Page | Frame): Promise<number> {
-  await waitUntilElementFound(page, CURRENT_BALANCE, {
+  await waitUntilElementFound(page, SEL.currentBalance, {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  const balanceStr = await page.$eval(CURRENT_BALANCE, el => (el as HTMLElement).innerText);
+  const balanceStr = await page.$eval(SEL.currentBalance, el => (el as HTMLElement).innerText);
   return parseFloat(balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', ''));
 }
 
@@ -213,14 +210,11 @@ interface ScraperSpecificCredentials {
 }
 
 abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  abstract BASE_URL: string;
-
-  abstract TRANSACTIONS_URL: string;
-
   async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const startMomentLimit = moment({ year: 1600 });
     const startMoment = moment.max(startMomentLimit, moment(this.options.startDate));
-    await this.navigateTo(this.TRANSACTIONS_URL);
+    const transactionsUrl = SCRAPER_CONFIGURATION.banks[this.options.companyId].urls.transactions!;
+    await this.navigateTo(transactionsUrl);
     const accounts = await fetchAccounts(this.page, startMoment, this.options);
     return { success: true, accounts };
   }

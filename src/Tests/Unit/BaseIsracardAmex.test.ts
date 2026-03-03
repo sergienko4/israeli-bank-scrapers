@@ -47,7 +47,7 @@ jest.mock('../../Common/Dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });
 
-const BASE_URL = 'https://digital.americanexpress.co.il';
+const BASE_URL = 'https://americanexpress.co.il';
 
 class TestAmexScraper extends IsracardAmexBaseScraper {
   constructor(overrides: Partial<ScraperOptions> = {}) {

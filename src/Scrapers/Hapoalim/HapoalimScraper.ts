@@ -12,10 +12,11 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const LOG = getDebug('hapoalim');
 
-const DATE_FORMAT = 'YYYYMMDD';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 declare namespace window {
@@ -85,8 +86,8 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
   const result: Transaction = {
     type: TransactionTypes.Normal,
     identifier: txn.referenceNumber,
-    date: moment(txn.eventDate, DATE_FORMAT).toISOString(),
-    processedDate: moment(txn.valueDate, DATE_FORMAT).toISOString(),
+    date: moment(txn.eventDate, CFG.format.date).toISOString(),
+    processedDate: moment(txn.valueDate, CFG.format.date).toISOString(),
     originalAmount: amount,
     originalCurrency: 'ILS',
     chargedAmount: amount,
@@ -152,7 +153,7 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
   const { transaction, baseUrl, page, accountNumber } = opts;
   const { pfmDetails, serialNumber } = transaction;
   if (serialNumber === 0) return transaction;
-  const url = `${baseUrl}${pfmDetails}&accountId=${accountNumber}&lang=he`;
+  const url = `${baseUrl}${pfmDetails}&accountId=${accountNumber}&lang=${CFG.format.apiLang}`;
   const extraDetails = (await fetchGetWithinPage<ScrapedPfmTransaction[]>(page, url)) ?? [];
   if (extraDetails.length && extraDetails[0].transactionNumber) {
     return {
@@ -197,7 +198,7 @@ async function enrichTxnsIfNeeded(
 
 async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
   const { apiSiteUrl, accountNumber, startDate, endDate, page, options } = opts;
-  const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=1000&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=1`;
+  const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=${CFG.format.numItemsPerPage}&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=${CFG.format.sortCode}`;
   const txnsResult = await fetchPoalimXSRFWithinPage(
     page,
     txnsUrl,
@@ -212,7 +213,7 @@ async function getAccountBalance(
   page: Page,
   accountNumber: string,
 ): Promise<number | undefined> {
-  const balanceAndCreditLimitUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details&lang=he`;
+  const balanceAndCreditLimitUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details&lang=${CFG.format.apiLang}`;
   const balanceAndCreditLimit = await fetchGetWithinPage<BalanceAndCreditLimit>(
     page,
     balanceAndCreditLimitUrl,
@@ -269,8 +270,8 @@ function buildDateOpts(options: ScraperOptions): { startDateStr: string; endDate
   const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   return {
-    startDateStr: startMoment.format(DATE_FORMAT),
-    endDateStr: moment().format(DATE_FORMAT),
+    startDateStr: startMoment.format(CFG.format.date),
+    endDateStr: moment().format(CFG.format.date),
   };
 }
 
@@ -301,8 +302,6 @@ interface ScraperSpecificCredentials {
 }
 
 class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  readonly baseUrl = 'https://login.bankhapoalim.co.il';
-
   constructor(options: ScraperOptions) {
     super(options, BANK_REGISTRY[CompanyTypes.Hapoalim]!);
   }
@@ -311,7 +310,7 @@ class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     success: boolean;
     accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[];
   }> {
-    return fetchAccountData(this.page, this.baseUrl, this.options);
+    return fetchAccountData(this.page, CFG.api.base, this.options);
   }
 }
 

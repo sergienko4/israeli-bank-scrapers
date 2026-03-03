@@ -16,13 +16,14 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const LOG = getDebug('max');
 
 export type { ScrapedTransaction } from './MaxTypes';
 import { MaxPlanName, type ScrapedTransaction } from './MaxTypes';
 
-const BASE_API_ACTIONS_URL = 'https://onlinelcapi.max.co.il';
+const BASE_API_ACTIONS_URL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max].api.base;
 
 const CATEGORIES = new Map<number, string>();
 

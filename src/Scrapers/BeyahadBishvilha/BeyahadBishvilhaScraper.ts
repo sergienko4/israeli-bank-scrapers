@@ -17,11 +17,12 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const LOG = getDebug('beyahadBishvilha');
 
-const DATE_FORMAT = 'DD/MM/YY';
-const CARD_URL = 'https://www.hist.org.il/card/balanceAndUses';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
+const SEL = CFG.selectors;
 
 interface ScrapedTransaction {
   date: string;
@@ -53,7 +54,7 @@ function getAmountData(amountStr: string): { amount: number; currency: string } 
 
 function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
   const chargedAmountTuple = getAmountData(txn.chargedAmount || '');
-  const txnProcessedDate = moment(txn.date, DATE_FORMAT);
+  const txnProcessedDate = moment(txn.date, CFG.format.date);
   const result: Transaction = {
     type: TransactionTypes.Normal,
     status: TransactionStatuses.Completed,
@@ -78,13 +79,11 @@ function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOption
 
 async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | null)[]> {
   return pageEvalAll<(ScrapedTransaction | null)[]>(page, {
-    selector: '.transaction-container, .transaction-component-container',
+    selector: SEL.transactionContainer,
     defaultResult: [],
     callback: items =>
       items.map(el => {
-        const columns: NodeListOf<HTMLSpanElement> = el.querySelectorAll(
-          '.transaction-item > span',
-        );
+        const columns: NodeListOf<HTMLSpanElement> = el.querySelectorAll(SEL.transactionColumns);
         if (columns.length !== 7) return null;
         return {
           date: columns[0].innerText,
@@ -99,12 +98,12 @@ async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | 
 
 async function scrapeAccountInfo(page: Page): Promise<{ accountNumber: string; balance: string }> {
   const accountNumber = await pageEval(page, {
-    selector: '.wallet-details div:nth-of-type(2)',
+    selector: SEL.cardNumber,
     defaultResult: '',
     callback: element => (element as HTMLElement).innerText.replace('מספר כרטיס ', ''),
   });
   const balance = await pageEval(page, {
-    selector: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)',
+    selector: SEL.balance,
     defaultResult: '',
     callback: element => (element as HTMLElement).innerText,
   });
@@ -140,8 +139,8 @@ async function fetchTransactions(
   page: Page,
   options: ScraperOptions,
 ): Promise<{ accountNumber: string; balance: number; txns: Transaction[] }> {
-  await page.goto(CARD_URL);
-  await waitUntilElementFound(page, '.react-loading.hide', { visible: false });
+  await page.goto(CFG.api.card);
+  await waitUntilElementFound(page, SEL.loadingIndicator, { visible: false });
   const defaultStartMoment = moment().subtract(1, 'years');
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
   const { accountNumber, balance } = await scrapeAccountInfo(page);

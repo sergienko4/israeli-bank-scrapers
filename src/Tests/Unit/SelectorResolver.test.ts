@@ -134,17 +134,20 @@ describe('resolveFieldContext', () => {
     expect(result.context).toBe(page);
   });
 
-  it('Round 4: finds field inside an iframe when main page has no matching element', async () => {
+  it('Round 1: finds field inside an iframe before checking the main page', async () => {
     const iframeElement = {};
     const iframe = makeFrame({ $: jest.fn().mockResolvedValue(iframeElement) });
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/') };
+    const mainPageQuery = jest.fn().mockResolvedValue(null);
     const page = makePage({
-      $: jest.fn().mockResolvedValue(null), // all main-page searches fail
+      $: mainPageQuery,
       frames: jest.fn().mockReturnValue([mainFrame, iframe]), // one child iframe
       mainFrame: jest.fn().mockReturnValue(mainFrame),
     });
     const result = await resolveFieldContext(page, field, 'https://bank.test/');
+    // Iframe is found in Round 1 — main page query is never called
     expect(result.context).toBe(iframe);
+    expect(mainPageQuery).not.toHaveBeenCalled();
   });
 
   it('throws a descriptive error listing all tried candidates when nothing resolves', async () => {
@@ -168,11 +171,11 @@ describe('resolveFieldContext', () => {
     );
   });
 
-  it('does not trigger Round 4 when called with a Frame (not a Page)', async () => {
+  it('does not search iframes when called with a Frame directly (not a Page)', async () => {
     const frame = makeFrame({ $: jest.fn().mockResolvedValue(null) });
     await expect(resolveFieldContext(frame, field, 'https://bank.test/')).rejects.toThrow(
       /Could not find 'username'/,
     );
-    // `frames` is not a method on Frame, so Round 4 is never attempted
+    // Iframe search (Round 1) is skipped — `frames` is not a method on Frame
   });
 });

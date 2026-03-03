@@ -1,73 +1,16 @@
 import { type Frame, type Page } from 'playwright';
 
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
+import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
 import { getDebug } from './Debug';
 
 const LOG = getDebug('selector-resolver');
 
-/**
- * Global dictionary of well-known Hebrew display-name selectors for each credential key.
- * Tried in Round 3 (after the bank's configured selectors) for every bank automatically.
- */
-const WELL_KNOWN_SELECTORS: Record<string, SelectorCandidate[]> = {
-  username: [
-    { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
-    { kind: 'placeholder', value: 'מספר לקוח' },
-    { kind: 'placeholder', value: 'תז' },
-    { kind: 'ariaLabel', value: 'שם משתמש' },
-    { kind: 'ariaLabel', value: 'קוד משתמש' },
-    { kind: 'name', value: 'username' },
-    { kind: 'name', value: 'userCode' },
-  ],
-  userCode: [
-    { kind: 'placeholder', value: 'קוד משתמש' },
-    { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'מספר לקוח' },
-    { kind: 'ariaLabel', value: 'קוד משתמש' },
-    { kind: 'name', value: 'userCode' },
-    { kind: 'name', value: 'username' },
-  ],
-  password: [
-    { kind: 'placeholder', value: 'סיסמה' },
-    { kind: 'placeholder', value: 'סיסמא' },
-    { kind: 'placeholder', value: 'קוד סודי' },
-    { kind: 'ariaLabel', value: 'סיסמה' },
-    { kind: 'name', value: 'password' },
-    { kind: 'css', value: 'input[type="password"]' },
-  ],
-  id: [
-    { kind: 'placeholder', value: 'תעודת זהות' },
-    { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'ת.ז' },
-    { kind: 'ariaLabel', value: 'תעודת זהות' },
-    { kind: 'name', value: 'id' },
-  ],
-  nationalID: [
-    { kind: 'placeholder', value: 'תעודת זהות' },
-    { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'ariaLabel', value: 'תעודת זהות' },
-    { kind: 'name', value: 'nationalID' },
-    { kind: 'name', value: 'id' },
-  ],
-  card6Digits: [
-    { kind: 'placeholder', value: '6 ספרות' },
-    { kind: 'placeholder', value: 'ספרות הכרטיס' },
-    { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
-  ],
-  num: [
-    { kind: 'placeholder', value: 'מספר חשבון' },
-    { kind: 'ariaLabel', value: 'מספר חשבון' },
-    { kind: 'name', value: 'num' },
-  ],
-  otpCode: [
-    { kind: 'placeholder', value: 'קוד חד פעמי' },
-    { kind: 'placeholder', value: 'קוד SMS' },
-    { kind: 'placeholder', value: 'קוד אימות' },
-    { kind: 'placeholder', value: 'הזן קוד' },
-    { kind: 'name', value: 'otpCode' },
-  ],
-};
+/** Global login-field fallback dictionary — sourced from central ScraperConfig. */
+const WELL_KNOWN_SELECTORS = SCRAPER_CONFIGURATION.wellKnownSelectors as Record<
+  string,
+  SelectorCandidate[]
+>;
 
 /** Convert a SelectorCandidate to a Playwright-compatible selector string */
 export function candidateToCss(c: SelectorCandidate): string {
@@ -186,19 +129,16 @@ export interface FieldContext {
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
-  tried: string[],
 ): Promise<FieldContext | null> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
-  if (childFrames.length > 0) LOG.info('Round 4: searching %d iframe(s)', childFrames.length);
+  if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
     if (found) {
-      LOG.info('Round 4: resolved in iframe %s → %s', frame.url(), found);
+      LOG.info('Round 1: resolved in iframe %s → %s', frame.url(), found);
       return { selector: found, context: frame };
     }
   }
-  if (childFrames.length > 0)
-    tried.push(`  [Round 4: searched ${childFrames.length} iframe(s)] → NOT FOUND`);
   return null;
 }
 
@@ -237,9 +177,10 @@ async function resolveInMainContext(
   allCandidates: SelectorCandidate[],
   credentialKey: string,
 ): Promise<FieldContext | null> {
+  LOG.info('Round 2: searching main page');
   const main = await tryInContext(pageOrFrame, allCandidates);
   if (!main) return null;
-  LOG.info('resolved "%s" via Rounds 1-3: %s', credentialKey, main);
+  LOG.info('Round 2: resolved "%s" → %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
 }
 
@@ -250,13 +191,9 @@ interface ResolveIframesOpts {
   allCandidates: SelectorCandidate[];
 }
 
-async function resolveInIframesOrThrow(opts: ResolveIframesOpts): Promise<FieldContext> {
-  const { pageOrFrame, field, pageUrl, allCandidates } = opts;
+async function throwNotFound(opts: ResolveIframesOpts): Promise<never> {
+  const { field, pageUrl, allCandidates, pageOrFrame } = opts;
   const tried = allCandidates.map(c => `  ${c.kind} "${c.value}" → NOT FOUND`);
-  if (isPage(pageOrFrame)) {
-    const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates, tried);
-    if (iframeResult) return iframeResult;
-  }
   LOG.info('FAILED "%s" on %s (%d candidates tried)', field.credentialKey, pageUrl, tried.length);
   for (const line of tried) LOG.info(line);
   const msg = buildNotFoundMessage({
@@ -278,9 +215,13 @@ export async function resolveFieldContext(
     ...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? []),
   ];
   LOG.info('resolving "%s" on %s', field.credentialKey, pageUrl);
+  if (isPage(pageOrFrame)) {
+    const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates);
+    if (iframeResult) return iframeResult;
+  }
   const main = await resolveInMainContext(pageOrFrame, allCandidates, field.credentialKey);
   if (main) return main;
-  return resolveInIframesOrThrow({ pageOrFrame, field, pageUrl, allCandidates });
+  return throwNotFound({ pageOrFrame, field, pageUrl, allCandidates });
 }
 
 /**

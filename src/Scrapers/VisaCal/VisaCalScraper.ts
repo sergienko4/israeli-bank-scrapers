@@ -12,9 +12,11 @@ import { getCurrentUrl, waitForUrl } from '../../Common/Navigation';
 import { getFromSessionStorage } from '../../Common/Storage';
 import { filterOldTransactions } from '../../Common/Transactions';
 import { waitUntil } from '../../Common/Waiting';
+import { CompanyTypes } from '../../Definitions';
 import { type TransactionsAccount } from '../../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
 import { type ScraperScrapingResult } from '../Base/Interface';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   CONNECT_IFRAME_OPTS,
   convertParsedDataToTransactions,
@@ -38,24 +40,23 @@ import {
   type LoginResponse,
 } from './VisaCalTypes';
 
+const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 const API_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-  Origin: 'https://digital-web.cal-online.co.il',
-  Referer: 'https://digital-web.cal-online.co.il',
+  Origin: VISCAL_CFG.api.calOrigin!,
+  Referer: VISCAL_CFG.api.calOrigin!,
   'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
   'Sec-Fetch-Site': 'same-site',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Dest': 'empty',
 };
-const LOGIN_URL = 'https://www.cal-online.co.il/';
-const TRANSACTIONS_REQUEST_ENDPOINT =
-  'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails';
-const FRAMES_REQUEST_ENDPOINT = 'https://api.cal-online.co.il/Frames/api/Frames/GetFrameStatus';
-const PENDING_TRANSACTIONS_REQUEST_ENDPOINT =
-  'https://api.cal-online.co.il/Transactions/api/approvals/getClearanceRequests';
-const LOGIN_RESPONSE_URL = '/col-rest/calconnect/authentication/login';
-const INIT_ENDPOINT = 'https://api.cal-online.co.il/Authentication/api/account/init';
+const LOGIN_URL = VISCAL_CFG.urls.base;
+const TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calTransactions!;
+const FRAMES_REQUEST_ENDPOINT = VISCAL_CFG.api.calFrames!;
+const PENDING_TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calPending!;
+const LOGIN_RESPONSE_URL = VISCAL_CFG.api.calLoginResponse!;
+const INIT_ENDPOINT = VISCAL_CFG.api.calInit!;
 
 const LOG = getDebug('visa-cal');
 
@@ -109,7 +110,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   async getXSiteId(): Promise<string> {
-    return Promise.resolve('09031987-273E-2311-906C-8AF85B17C8D9');
+    return Promise.resolve(VISCAL_CFG.api.calXSiteId!);
   }
 
   getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {

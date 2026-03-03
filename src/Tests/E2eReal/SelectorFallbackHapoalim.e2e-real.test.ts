@@ -1,4 +1,4 @@
-/** Selector-fallback: Hapoalim — Round 2 (fallback CSS id) + Round 4 (iframe injection). */
+/** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
 import { type Page } from 'playwright';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
@@ -74,7 +74,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
     }
   });
 
-  it('Round 4 — form injected into iframe; Round 4 detects iframe and fills fields', async () => {
+  it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
       ...baseCfg,
       checkReadiness: async (page: Page) => {

@@ -8,8 +8,9 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const PURCHASE_HISTORY_URL = 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 
 const LOG = getDebug('behatsdaa');
 
@@ -82,12 +83,12 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       BenefitStatusId: null,
     };
     LOG.info('Fetching data');
-    return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, PURCHASE_HISTORY_URL, {
+    return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
       data: body,
       extraHeaders: {
         authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        organizationid: '20',
+        organizationid: CFG.auth.organizationId,
       },
     });
   }

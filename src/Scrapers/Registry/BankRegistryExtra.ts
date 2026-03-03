@@ -7,7 +7,9 @@ import {
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
 import { waitForNavigation, waitForRedirect } from '../../Common/Navigation';
+import { CompanyTypes } from '../../Definitions';
 import { type LoginConfig } from '../Base/LoginConfig';
+import { SCRAPER_CONFIGURATION } from './ScraperConfig';
 
 const HAPOALIM_BASE = 'https://www.bankhapoalim.co.il';
 
@@ -179,14 +181,17 @@ export const LEUMI_CONFIG: LoginConfig = {
   },
 };
 
+const MIZRAHI_LOGIN_ROUTE = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.loginRoute;
+
 export const MIZRAHI_CONFIG: LoginConfig = {
-  loginUrl: 'https://www.mizrahi-tefahot.co.il/login/index.html#/auth-page-he',
+  loginUrl: 'https://www.mizrahi-tefahot.co.il',
   fields: [
     { credentialKey: 'username', selectors: [{ kind: 'css', value: '#userNumberDesktopHeb' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#passwordDesktopHeb' }] },
   ],
   submit: [{ kind: 'css', value: 'button.btn.btn-primary' }],
   checkReadiness: async (page: Page) => {
+    await page.goto(MIZRAHI_LOGIN_ROUTE, { waitUntil: 'domcontentloaded' });
     await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
   },
   postAction: mizrahiPostAction,
@@ -226,7 +231,7 @@ export const MAX_CONFIG: LoginConfig = {
 };
 
 export const BEHATSDAA_CONFIG: LoginConfig = {
-  loginUrl: 'https://www.behatsdaa.org.il/login',
+  loginUrl: 'https://www.behatsdaa.org.il',
   fields: [
     { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
@@ -236,10 +241,7 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
     { kind: 'ariaLabel', value: 'התחברות' },
   ],
   checkReadiness: async (page: Page) => {
-    await Promise.all([
-      waitUntilElementFound(page, '#loginId'),
-      waitUntilElementFound(page, '#loginPassword'),
-    ]);
+    await page.goto('https://www.behatsdaa.org.il/login');
   },
   possibleResults: {
     success: ['https://www.behatsdaa.org.il/'],
@@ -251,7 +253,7 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
 };
 
 export const BEYAHAD_CONFIG: LoginConfig = {
-  loginUrl: 'https://www.hist.org.il/login',
+  loginUrl: 'https://www.hist.org.il',
   fields: [
     { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
@@ -260,6 +262,9 @@ export const BEYAHAD_CONFIG: LoginConfig = {
     { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
     { kind: 'ariaLabel', value: 'התחבר' },
   ],
+  checkReadiness: async (page: Page) => {
+    await page.goto('https://www.hist.org.il/login');
+  },
   possibleResults: { success: ['https://www.hist.org.il/'] },
 };
 

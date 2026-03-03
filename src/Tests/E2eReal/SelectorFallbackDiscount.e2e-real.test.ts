@@ -1,4 +1,4 @@
-/** Selector-fallback: Discount Bank — Round 2 (wrong CSS id → fallback CSS id on same page) + Round 4 (form injected into iframe). */
+/** Selector-fallback: Discount Bank — Round 2 (main page fallback CSS id) + Round 1 (iframe-first detection). */
 import * as dotenv from 'dotenv';
 import { type Page } from 'playwright';
 
@@ -95,7 +95,7 @@ describeIf('E2E: Selector fallback — Discount', () => {
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });
 
-  it('Round 4 — form injected into iframe; Round 4 detects iframe and fills fields', async () => {
+  it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
       ...baseCfg,
       checkReadiness: async (page: Page) => {

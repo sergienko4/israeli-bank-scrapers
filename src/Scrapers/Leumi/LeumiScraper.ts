@@ -14,12 +14,12 @@ import {
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const BASE_URL = 'https://hb2.bankleumi.co.il';
-const TRANSACTIONS_URL = `${BASE_URL}/eBanking/SO/SPA.aspx#/ts/BusinessAccountTrx?WidgetPar=1`;
-const FILTERED_TRANSACTIONS_URL = `${BASE_URL}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
-
-const DATE_FORMAT = 'DD.MM.YY';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
+const SEL = CFG.selectors;
+const TRANSACTIONS_URL = CFG.urls.transactions;
+const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
 
 interface LeumiRawTransaction {
   DateUTC: string;
@@ -94,14 +94,14 @@ interface FetchForAccountOpts {
 }
 
 async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
-  await waitUntilElementFound(page, 'button[title="חיפוש מתקדם"]', { visible: true });
-  await clickButton(page, 'button[title="חיפוש מתקדם"]');
-  await waitUntilElementFound(page, 'bll-radio-button', { visible: true });
-  await clickButton(page, 'bll-radio-button:not([checked])');
-  await waitUntilElementFound(page, 'input[formcontrolname="txtInputFrom"]', { visible: true });
-  await fillInput(page, 'input[formcontrolname="txtInputFrom"]', startDate.format(DATE_FORMAT));
-  await page.focus("button[aria-label='סנן']");
-  await clickButton(page, "button[aria-label='סנן']");
+  await waitUntilElementFound(page, SEL.advancedSearchBtn, { visible: true });
+  await clickButton(page, SEL.advancedSearchBtn);
+  await waitUntilElementFound(page, SEL.dateRangeRadio.split(':')[0], { visible: true });
+  await clickButton(page, SEL.dateRangeRadio);
+  await waitUntilElementFound(page, SEL.dateFromInput, { visible: true });
+  await fillInput(page, SEL.dateFromInput, startDate.format(CFG.format.date));
+  await page.focus(SEL.filterBtn);
+  await clickButton(page, SEL.filterBtn);
 }
 
 interface LeumiAccountResponse {
@@ -156,11 +156,9 @@ async function fetchTransactionsForAccount(
 }
 
 async function extractAccountIds(page: Page): Promise<string[]> {
-  const ids = await page.evaluate(() =>
-    Array.from(
-      document.querySelectorAll('app-masked-number-combo span.display-number-li'),
-      e => e.textContent,
-    ),
+  const ids = await page.evaluate(
+    sel => Array.from(document.querySelectorAll(sel), e => e.textContent),
+    SEL.accountListItems,
   );
   if (!ids.length) throw new Error('Failed to extract or parse the account number');
   return ids;
@@ -172,10 +170,7 @@ async function switchToAccount(
   totalAccounts: number,
 ): Promise<void> {
   if (totalAccounts <= 1) return;
-  await clickByXPath(
-    page,
-    'xpath=//*[contains(@class, "number") and contains(@class, "combo-inner")]',
-  );
+  await clickByXPath(page, SEL.accountCombo);
   await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
 }
 

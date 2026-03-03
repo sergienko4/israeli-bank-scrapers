@@ -10,9 +10,9 @@ import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
 import { type LoginConfig } from '../Base/LoginConfig';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const BASE_URL = 'https://start.telebank.co.il';
-const DATE_FORMAT = 'YYYYMMDD';
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 
 interface ScrapedTransaction {
   OperationNumber: number;
@@ -56,8 +56,8 @@ function convertOneTxn(
   const result: Transaction = {
     type: TransactionTypes.Normal,
     identifier: txn.OperationNumber,
-    date: moment(txn.OperationDate, DATE_FORMAT).toISOString(),
-    processedDate: moment(txn.ValueDate, DATE_FORMAT).toISOString(),
+    date: moment(txn.OperationDate, CFG.format.date).toISOString(),
+    processedDate: moment(txn.ValueDate, CFG.format.date).toISOString(),
     originalAmount: txn.OperationAmount,
     originalCurrency: 'ILS',
     chargedAmount: txn.OperationAmount,
@@ -128,7 +128,7 @@ async function fetchOneAccount(
 function buildStartDateStr(options: ScraperOptions): string {
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
   const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
-  return startMoment.format(DATE_FORMAT);
+  return startMoment.format(CFG.format.date);
 }
 
 interface FetchAllAccountsOpts {
@@ -177,7 +177,7 @@ async function fetchAccountData(
   page: Page,
   options: ScraperOptions,
 ): Promise<ScraperScrapingResult> {
-  const apiSiteUrl = `${BASE_URL}/Titan/gatewayAPI`;
+  const apiSiteUrl = `${CFG.api.base}/Titan/gatewayAPI`;
   const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(
     page,
     `${apiSiteUrl}/userAccountsData`,
