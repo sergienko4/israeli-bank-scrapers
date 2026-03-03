@@ -76,12 +76,13 @@ describe('getAllMonthMoments', () => {
   });
 
   it('never returns months after current month for any past start', () => {
+    const nowMoment = moment(NOW);
     fc.assert(
       fc.property(fc.integer({ min: -24, max: -1 }), monthsBack => {
         const start = moment(NOW).add(monthsBack, 'months').startOf('month');
         const result = getAllMonthMoments(start);
         result.forEach(m => {
-          expect(m.isSameOrBefore(moment(NOW), 'month')).toBe(true);
+          expect(m.isSameOrBefore(nowMoment, 'month')).toBe(true);
         });
       }),
     );

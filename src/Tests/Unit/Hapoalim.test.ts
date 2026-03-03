@@ -8,6 +8,7 @@ import { waitUntil } from '../../Common/Waiting';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import HapoalimScraper from '../../Scrapers/Hapoalim/HapoalimScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { HEBREW_TRANSACTION_TYPES } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
@@ -102,7 +103,7 @@ function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
 function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
   return {
     serialNumber: faker.number.int({ min: 1, max: 9999 }),
-    activityDescription: faker.helpers.arrayElement(['העברה בנקאית', 'הוראת קבע', 'עמלה', 'משיכה']),
+    activityDescription: faker.helpers.arrayElement([...HEBREW_TRANSACTION_TYPES]),
     eventAmount: faker.number.float({ min: 10, max: 5000, fractionDigits: 2 }),
     eventDate: '20240615',
     valueDate: '20240616',

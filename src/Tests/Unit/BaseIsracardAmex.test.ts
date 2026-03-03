@@ -13,6 +13,7 @@ import type { ScraperOptions } from '../../Scrapers/Base/Interface';
 import IsracardAmexBaseScraper from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmex';
 import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
@@ -120,7 +121,7 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
     paymentSum: amount,
     paymentSumOutbound: 0,
     fullPurchaseDate: moment(faker.date.recent({ days: 365 })).format('DD/MM/YYYY'),
-    fullSupplierNameHeb: faker.helpers.arrayElement(['סופר שופ', 'ספנסר', 'קפה גרג', 'מגה']),
+    fullSupplierNameHeb: faker.helpers.arrayElement([...HEBREW_MERCHANTS]),
     fullSupplierNameOutbound: '',
     moreInfo: '',
     ...overrides,
