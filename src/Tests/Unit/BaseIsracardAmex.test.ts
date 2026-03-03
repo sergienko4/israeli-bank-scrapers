@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import moment from 'moment';
 import { chromium } from 'playwright-extra';
 
@@ -107,18 +108,19 @@ function setupFullLogin(): void {
 }
 
 function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
+  const amount = faker.number.float({ min: 10, max: 5000, fractionDigits: 2 });
   return {
     dealSumType: '0',
-    voucherNumberRatz: '123456789',
-    voucherNumberRatzOutbound: '987654321',
+    voucherNumberRatz: faker.string.numeric(9),
+    voucherNumberRatzOutbound: faker.string.numeric(9),
     dealSumOutbound: false,
     currencyId: 'ש"ח',
     currentPaymentCurrency: 'ש"ח',
-    dealSum: 100,
-    paymentSum: 100,
+    dealSum: amount,
+    paymentSum: amount,
     paymentSumOutbound: 0,
-    fullPurchaseDate: '15/06/2024',
-    fullSupplierNameHeb: 'סופר שופ',
+    fullPurchaseDate: moment(faker.date.recent({ days: 365 })).format('DD/MM/YYYY'),
+    fullSupplierNameHeb: faker.helpers.arrayElement(['סופר שופ', 'ספנסר', 'קפה גרג', 'מגה']),
     fullSupplierNameOutbound: '',
     moreInfo: '',
     ...overrides,
@@ -126,6 +128,7 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
 }
 
 beforeEach(() => {
+  faker.seed(42);
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());

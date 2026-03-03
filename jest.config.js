@@ -8,7 +8,9 @@ const config = {
   rootDir: './src',
   transform: {
     '^.+\\.ts$': ['ts-jest'],
+    '@faker-js.+\\.js$': ['ts-jest', { diagnostics: false, tsconfig: { allowJs: true, checkJs: false } }],
   },
+  transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
   setupFilesAfterEnv: [
     './Tests/JestSetup.ts',
   ],
