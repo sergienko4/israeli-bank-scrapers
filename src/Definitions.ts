@@ -5,7 +5,6 @@ export const PASSWORD_FIELD = 'password';
 export enum CompanyTypes {
   Hapoalim = 'hapoalim',
   Beinleumi = 'beinleumi',
-  Union = 'union',
   Amex = 'amex',
   Isracard = 'isracard',
   VisaCal = 'visaCal',
@@ -63,10 +62,6 @@ export const SCRAPERS = {
   [CompanyTypes.Amex]: {
     name: 'Amex',
     loginFields: ['id', 'card6Digits', PASSWORD_FIELD],
-  },
-  [CompanyTypes.Union]: {
-    name: 'Union',
-    loginFields: ['username', PASSWORD_FIELD],
   },
   [CompanyTypes.Beinleumi]: {
     name: 'Beinleumi',

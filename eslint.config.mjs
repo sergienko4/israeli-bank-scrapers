@@ -1,7 +1,7 @@
 // @ts-check
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import importPlugin from 'eslint-plugin-import';
+import importPlugin from 'eslint-plugin-import-x';
 import unusedImports from 'eslint-plugin-unused-imports';
 import checkFile from 'eslint-plugin-check-file';
 import prettier from 'eslint-config-prettier';
@@ -24,7 +24,7 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     plugins: {
-      import: importPlugin,
+      'import-x': importPlugin,
       'unused-imports': unusedImports,
       'check-file': checkFile,
       'simple-import-sort': simpleImportSort,
@@ -54,13 +54,13 @@ export default tseslint.config(
       // ── Import organization ──────────────────────────────────────────────
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
-      'import/no-duplicates': 'error',
+      'import-x/no-duplicates': 'error',
 
       // Quotes
       quotes: ['error', 'single', { avoidEscape: true }],
 
       // Relaxed rules (matching previous .eslintrc.js)
-      'import/prefer-default-export': 'off',
+      'import-x/prefer-default-export': 'off',
       'no-nested-ternary': 'off',
       'class-methods-use-this': 'off',
       'arrow-body-style': 'off',
@@ -72,6 +72,12 @@ export default tseslint.config(
         {
           selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
           message: 'SECURITY: Do not log sensitive data keys.',
+        },
+        // Security: block passing credential variables to logger.debug()
+        {
+          selector:
+            "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
+          message: 'SECURITY: Do not pass credential variables to logger. Pino redaction handles sensitive paths.',
         },
         'ForInStatement',
         'LabeledStatement',
@@ -111,8 +117,8 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
 
       // Import rules
-      'import/no-unresolved': 'off', // TypeScript handles this
-      'import/named': 'off', // TypeScript handles this
+      'import-x/no-unresolved': 'off', // TypeScript handles this
+      'import-x/named': 'off', // TypeScript handles this
 
       // ── Structural & naming ──────────────────────────────────────────────
       'check-file/filename-naming-convention': [
@@ -222,7 +228,7 @@ export default tseslint.config(
       'eslint.config.mjs',
     ],
     rules: {
-      'import/no-extraneous-dependencies': 'off',
+      'import-x/no-extraneous-dependencies': 'off',
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-deprecated': 'off',

@@ -1,4 +1,8 @@
-import { type Browser, chromium } from 'playwright';
+import { type Browser } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(StealthPlugin());
 
 let sharedBrowser: Browser | null = null;
 

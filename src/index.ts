@@ -1,5 +1,5 @@
 export { CompanyTypes, SCRAPERS } from './Definitions';
-export { default as createScraper } from './Scrapers/Factory';
+export { default as createScraper } from './Scrapers/Registry/Factory';
 
 // Note: the typo ScaperScrapingResult & ScraperLoginResult (sic) are exported here for backward compatibility
 export {
@@ -10,5 +10,5 @@ export {
   ScraperLoginResult,
   ScraperOptions,
   ScraperScrapingResult,
-} from './Scrapers/Interface';
-export { default as OneZeroScraper } from './Scrapers/OneZero';
+} from './Scrapers/Base/Interface';
+export { default as OneZeroScraper } from './Scrapers/OneZero/OneZeroScraper';

@@ -1,6 +1,6 @@
 import { type Browser } from 'playwright';
 
-import { buildContextOptions } from '../../Helpers/Browser';
+import { buildContextOptions } from '../../Common/Browser';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 
 let browser: Browser;
@@ -20,20 +20,30 @@ describe('Playwright context options verification (real browser)', () => {
     try {
       await page.goto('about:blank');
       const ua = await page.evaluate(() => navigator.userAgent);
-      expect(ua).toMatch(/Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/);
+      // Stealth plugin uses real Chromium build number (e.g. 145.0.7632.6)
+      expect(ua).toMatch(/Chrome\/\d+\.\d+\.\d+\.\d+ Safari\/537\.36$/);
       expect(ua).not.toContain('HeadlessChrome');
     } finally {
       await context.close();
     }
   });
 
-  it('sets Hebrew language preferences', async () => {
+  it('sets Hebrew Accept-Language header', async () => {
     const context = await browser.newContext(buildContextOptions());
     const page = await context.newPage();
     try {
+      let capturedHeaders: Record<string, string> = {};
+      await page.route('**/*', async (route, request) => {
+        if (request.url().includes('test-endpoint')) {
+          capturedHeaders = request.headers();
+        }
+        await route.continue();
+      });
       await page.goto('about:blank');
-      const language = await page.evaluate(() => navigator.language);
-      expect(language).toBe('he-IL');
+      // Stealth plugin may override navigator.language, but the HTTP header
+      // is what Israeli banks check — our extraHTTPHeaders always set it.
+      await page.evaluate(() => fetch('https://test-endpoint.example.com').catch(() => {}));
+      expect(capturedHeaders['accept-language']).toMatch(/he-IL/);
     } finally {
       await context.close();
     }

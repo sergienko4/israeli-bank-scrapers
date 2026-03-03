@@ -100,7 +100,7 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
       - run: npx tsup
-      - run: npx rimraf lib/Helpers lib/Scrapers lib/Tests
+      - run: npx rimraf lib/Common lib/Scrapers lib/Tests
       - name: Verify build output
         run: |
           test -f lib/index.cjs || (echo "ERROR: lib/index.cjs not found" && exit 1)

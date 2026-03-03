@@ -18,19 +18,6 @@ describe('E2E: Otsar Hahayal (invalid login)', () => {
   });
 });
 
-describe('E2E: Union Bank (invalid login)', () => {
-  it('fails with invalid credentials', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Union,
-      startDate: new Date(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-    });
-    const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
-    assertFailedLogin(result);
-  });
-});
-
 describe('E2E: Beinleumi (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({

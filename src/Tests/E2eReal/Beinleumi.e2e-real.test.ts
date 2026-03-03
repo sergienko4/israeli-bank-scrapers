@@ -2,12 +2,13 @@ import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 
 import { CompanyTypes, createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -15,6 +16,8 @@ dotenv.config();
 
 const hasCredentials = !!(process.env.BEINLEUMI_USERNAME && process.env.BEINLEUMI_PASSWORD);
 const describeIf = hasCredentials ? describe : describe.skip;
+// Full scrape requires OTP — skip in CI unless BEINLEUMI_OTP env var is provided
+const itIfOtp = process.env.BEINLEUMI_OTP ? it : it.skip;
 
 /**
  * Prompts the user via stdin for the OTP code.
@@ -39,25 +42,25 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully (OTP supported via stdin or BEINLEUMI_OTP env)', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Beinleumi,
-      startDate: lastMonthStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-      otpCodeRetriever: promptOtpCode,
-    });
-    const result = await scraper.scrape({
-      username: process.env.BEINLEUMI_USERNAME!,
-      password: process.env.BEINLEUMI_PASSWORD!,
-    });
-    // Oracle CI IPs are blocked by fibi.co.il (403) — skip full-scrape assertion
-    if (result.errorType === ScraperErrorTypes.Generic) {
-      console.log('[skip] Beinleumi portal blocked from CI IP:', result.errorMessage);
-      return;
-    }
-    assertSuccessfulScrape(result);
-  });
+  itIfOtp(
+    'scrapes transactions successfully (OTP supported via stdin or BEINLEUMI_OTP env)',
+    async () => {
+      const scraper = createScraper({
+        companyId: CompanyTypes.Beinleumi,
+        startDate: lastMonthStartDate(),
+        shouldShowBrowser: false,
+        args: BROWSER_ARGS,
+        otpCodeRetriever: promptOtpCode,
+      });
+      const result = await scraper.scrape({
+        username: process.env.BEINLEUMI_USERNAME!,
+        password: process.env.BEINLEUMI_PASSWORD!,
+      });
+
+      assertSuccessfulScrape(result);
+      logScrapedTransactions(result);
+    },
+  );
 
   it('reaches OTP screen with valid credentials (no OTP retriever)', async () => {
     const scraper = createScraper({

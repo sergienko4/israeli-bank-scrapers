@@ -6,6 +6,7 @@ import {
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
+  logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers';
 
@@ -35,7 +36,9 @@ describeIf('E2E: Isracard (real credentials)', () => {
       card6Digits: process.env.ISRACARD_CARD6DIGITS!,
       password: process.env.ISRACARD_PASSWORD!,
     });
+
     assertSuccessfulScrape(result);
+    logScrapedTransactions(result);
   });
 
   it('fails with invalid credentials', async () => {

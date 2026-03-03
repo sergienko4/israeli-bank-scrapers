@@ -1,11 +1,11 @@
-/** Selector-fallback: Hapoalim — Round 2 (fallback CSS id) + Round 4 (iframe injection). */
+/** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
 import { type Page } from 'playwright';
 
+import { waitUntilElementFound } from '../../Common/ElementsInteractions';
+import { waitForRedirect } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
-import { waitUntilElementFound } from '../../Helpers/ElementsInteractions';
-import { waitForRedirect } from '../../Helpers/Navigation';
-import { ConcreteGenericScraper } from '../../Scrapers/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/LoginConfig';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
@@ -74,7 +74,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
     }
   });
 
-  it('Round 4 — form injected into iframe; Round 4 detects iframe and fills fields', async () => {
+  it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
       ...baseCfg,
       checkReadiness: async (page: Page) => {

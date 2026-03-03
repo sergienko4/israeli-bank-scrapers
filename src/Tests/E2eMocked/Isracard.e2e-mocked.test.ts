@@ -2,7 +2,7 @@ import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Errors';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import { amexRoutes } from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { loadFixture, setupRequestInterception } from './Helpers/RequestInterceptor';
