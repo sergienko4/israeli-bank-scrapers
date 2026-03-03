@@ -231,9 +231,10 @@ export const MAX_CONFIG: LoginConfig = {
 };
 
 // Behatsdaa and BeyahadBishvilha share the same login form selectors
+// (selectors: [] — wellKnown finds #loginId and #loginPassword)
 const HISTBASED_FIELDS: LoginConfig['fields'] = [
-  { credentialKey: 'id', selectors: [{ kind: 'css', value: '#loginId' }] },
-  { credentialKey: 'password', selectors: [{ kind: 'css', value: '#loginPassword' }] },
+  { credentialKey: 'id', selectors: [] }, // wellKnown → #loginId
+  { credentialKey: 'password', selectors: [] }, // wellKnown → #loginPassword
 ];
 
 export const BEHATSDAA_CONFIG: LoginConfig = {
@@ -271,9 +272,9 @@ export const BEYAHAD_CONFIG: LoginConfig = {
 export const YAHAV_CONFIG: LoginConfig = {
   loginUrl: 'https://www.yahav.co.il',
   fields: [
-    { credentialKey: 'username', selectors: [{ kind: 'css', value: '#username' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
-    { credentialKey: 'nationalID', selectors: [{ kind: 'css', value: '#pinno' }] },
+    { credentialKey: 'username', selectors: [] }, // wellKnown → #username
+    { credentialKey: 'password', selectors: [] }, // wellKnown → #password
+    { credentialKey: 'nationalID', selectors: [{ kind: 'css', value: '#pinno' }] }, // unique — keep
   ],
   submit: [{ kind: 'css', value: '.btn' }],
   checkReadiness: async (page: Page) => {

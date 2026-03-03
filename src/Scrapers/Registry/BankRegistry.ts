@@ -28,8 +28,8 @@ async function beinleumiPostAction(page: Page): Promise<void> {
 }
 
 const BEINLEUMI_FIELDS: LoginConfig['fields'] = [
-  { credentialKey: 'username', selectors: [{ kind: 'css', value: '#username' }] },
-  { credentialKey: 'password', selectors: [{ kind: 'css', value: '#password' }] },
+  { credentialKey: 'username', selectors: [] }, // wellKnown → #username
+  { credentialKey: 'password', selectors: [] }, // wellKnown → #password
 ];
 
 const BEINLEUMI_SUBMIT: LoginConfig['submit'] = [

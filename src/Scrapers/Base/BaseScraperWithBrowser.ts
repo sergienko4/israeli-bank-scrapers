@@ -133,15 +133,15 @@ class BaseScraperWithBrowser<
     field: { selector: string; value: string; credentialKey?: string },
   ): Promise<void> {
     const fc = this.buildFieldConfig(field);
-    try {
-      const { selector, context } = await resolveFieldContext(
-        this.activeLoginContext ?? pageOrFrame,
-        fc,
-        this.page.url(),
-      );
-      this.activeLoginContext = context;
-      await fillInput(context, selector, field.value);
-    } catch {
+    const result = await resolveFieldContext(
+      this.activeLoginContext ?? pageOrFrame,
+      fc,
+      this.page.url(),
+    );
+    if (result.isResolved) {
+      this.activeLoginContext = result.context;
+      await fillInput(result.context, result.selector, field.value);
+    } else {
       await fillInput(this.activeLoginContext ?? pageOrFrame, field.selector, field.value);
     }
   }

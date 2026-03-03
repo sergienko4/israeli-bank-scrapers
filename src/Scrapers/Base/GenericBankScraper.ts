@@ -1,7 +1,11 @@
 import { type Frame, type Page } from 'playwright';
 
 import { clickButton, fillInput } from '../../Common/ElementsInteractions';
-import { candidateToCss, resolveFieldContext } from '../../Common/SelectorResolver';
+import {
+  candidateToCss,
+  type FieldContext,
+  resolveFieldContext,
+} from '../../Common/SelectorResolver';
 import {
   BaseScraperWithBrowser,
   LOGIN_RESULTS,
@@ -16,10 +20,7 @@ function submitCandidates(submit: SelectorCandidate | SelectorCandidate[]): Sele
 }
 
 function toSubmitField(candidates: SelectorCandidate[]): FieldConfig {
-  return {
-    credentialKey: '__submit__',
-    selectors: candidates as [SelectorCandidate, ...SelectorCandidate[]],
-  };
+  return { credentialKey: '__submit__', selectors: candidates };
 }
 
 function mapPossibleResults(r: LoginConfig['possibleResults']): PossibleLoginResults {
@@ -43,10 +44,10 @@ function buildSubmitButtonFunction(opts: SubmitButtonOpts): () => Promise<void> 
   const { submitCands, submitField, ctx, page } = opts;
   return async () => {
     const activeCtx = ctx() ?? page();
-    try {
-      const { selector, context } = await resolveFieldContext(activeCtx, submitField, page().url());
-      await clickButton(context, selector);
-    } catch {
+    const result = await resolveFieldContext(activeCtx, submitField, page().url());
+    if (result.isResolved) {
+      await clickButton(result.context, result.selector);
+    } else {
       await clickButton(activeCtx, candidateToCss(submitCands[0]));
     }
   };
@@ -57,7 +58,8 @@ function buildFieldList(
   credentials: ScraperCredentials,
 ): { selector: string; value: string; credentialKey: string }[] {
   return config.fields.map(f => ({
-    selector: candidateToCss(f.selectors[0]),
+    // Empty selectors means wellKnown handles detection — use empty string as fallback anchor
+    selector: f.selectors.length > 0 ? candidateToCss(f.selectors[0]) : '',
     value: (credentials as Record<string, string>)[f.credentialKey] ?? '',
     credentialKey: f.credentialKey,
   }));
@@ -137,27 +139,17 @@ export abstract class GenericBankScraper<
     pageOrFrame: Page | Frame,
     fieldConfig: FieldConfig,
     value: string,
-  ): Promise<void> {
-    const { selector, context } = await resolveFieldContext(
+  ): Promise<FieldContext> {
+    const result = await resolveFieldContext(
       this.activeLoginContext ?? pageOrFrame,
       fieldConfig,
       this.page.url(),
     );
-    this.activeLoginContext = context;
-    await fillInput(context, selector, value);
-  }
-
-  private async tryFallbackOrRethrow(
-    pageOrFrame: Page | Frame,
-    field: { selector: string; value: string },
-    resolveError: unknown,
-  ): Promise<void> {
-    try {
-      const ctx = this.activeLoginContext ?? pageOrFrame;
-      await this.fillWithFallback(ctx, field.selector, field.value);
-    } catch {
-      throw resolveError;
+    if (result.isResolved) {
+      this.activeLoginContext = result.context;
+      await fillInput(result.context, result.selector, value);
     }
+    return result;
   }
 
   private async fillFieldWithFallback(
@@ -165,10 +157,10 @@ export abstract class GenericBankScraper<
     fieldConfig: FieldConfig,
     field: { selector: string; value: string },
   ): Promise<void> {
-    try {
-      await this.resolveAndFill(pageOrFrame, fieldConfig, field.value);
-    } catch (e: unknown) {
-      await this.tryFallbackOrRethrow(pageOrFrame, field, e);
+    const result = await this.resolveAndFill(pageOrFrame, fieldConfig, field.value);
+    if (!result.isResolved && field.selector) {
+      const ctx = this.activeLoginContext ?? pageOrFrame;
+      await this.fillWithFallback(ctx, field.selector, field.value);
     }
   }
 }

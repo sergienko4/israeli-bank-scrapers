@@ -13,10 +13,11 @@ export type SelectorCandidate =
   | { kind: 'name'; value: string } // input[name="password"]
   | { kind: 'xpath'; value: string }; // //button[contains(., "כניסה")]
 
-/** One form field: which credential key to use + ordered selector candidates */
+/** One form field: which credential key to use + ordered selector candidates.
+ *  `selectors` may be empty — wellKnownSelectors provides the fallback in that case. */
 export interface FieldConfig {
   credentialKey: string;
-  selectors: [SelectorCandidate, ...SelectorCandidate[]];
+  selectors: SelectorCandidate[];
 }
 
 /** OTP step config — DOM (selector-driven) or API (class override) */

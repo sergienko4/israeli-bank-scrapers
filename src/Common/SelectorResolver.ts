@@ -119,9 +119,24 @@ export async function tryInContext(
 }
 
 /**
- * The resolved location of a login field.
+ * The resolved location of a login field — always returned, never throws.
+ * Check `isResolved` before using `selector` / `context`.
+ * - `resolvedVia`: 'bankConfig' (bank's own selector) | 'wellKnown' (global fallback) | 'notResolved'
+ * - `round`: 'iframe' (found in child frame) | 'mainPage' (found in main context) | 'notResolved'
  */
 export interface FieldContext {
+  isResolved: boolean;
+  selector: string;
+  context: Page | Frame;
+  resolvedVia: 'bankConfig' | 'wellKnown' | 'notResolved';
+  round: 'iframe' | 'mainPage' | 'notResolved';
+  /** Diagnostic message — populated when isResolved is false */
+  message?: string;
+}
+
+/** Internal match result — callers add isResolved, resolvedVia, round.
+ *  `selector` is empty string when not found (never null). */
+interface FieldMatch {
   selector: string;
   context: Page | Frame;
 }
@@ -129,7 +144,7 @@ export interface FieldContext {
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
-): Promise<FieldContext | null> {
+): Promise<FieldMatch> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
@@ -139,7 +154,7 @@ async function searchInChildFrames(
       return { selector: found, context: frame };
     }
   }
-  return null;
+  return { selector: '', context: page }; // not found — caller checks selector !== ''
 }
 
 async function getPageTitle(pageOrFrame: Page | Frame): Promise<string> {
@@ -176,33 +191,98 @@ async function resolveInMainContext(
   pageOrFrame: Page | Frame,
   allCandidates: SelectorCandidate[],
   credentialKey: string,
-): Promise<FieldContext | null> {
+): Promise<FieldMatch> {
   LOG.info('Round 2: searching main page');
   const main = await tryInContext(pageOrFrame, allCandidates);
-  if (!main) return null;
+  if (!main) return { selector: '', context: pageOrFrame }; // not found
   LOG.info('Round 2: resolved "%s" → %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
 }
 
-interface ResolveIframesOpts {
+/** All inputs needed to resolve a single login field. */
+interface ResolveAllOpts {
   pageOrFrame: Page | Frame;
   field: FieldConfig;
   pageUrl: string;
-  allCandidates: SelectorCandidate[];
+  bankCandidates: SelectorCandidate[];
+  wellKnownCandidates: SelectorCandidate[];
 }
 
-async function throwNotFound(opts: ResolveIframesOpts): Promise<never> {
-  const { field, pageUrl, allCandidates, pageOrFrame } = opts;
-  const tried = allCandidates.map(c => `  ${c.kind} "${c.value}" → NOT FOUND`);
-  LOG.info('FAILED "%s" on %s (%d candidates tried)', field.credentialKey, pageUrl, tried.length);
+function logTriedCandidates(key: string, url: string, tried: string[]): void {
+  LOG.info('FAILED "%s" on %s (%d tried)', key, url, tried.length);
   for (const line of tried) LOG.info(line);
+}
+
+async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext> {
+  const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
+  const tried = [...b, ...wk].map(c => `  ${c.kind} "${c.value}" → NOT found`);
+  logTriedCandidates(field.credentialKey, pageUrl, tried);
   const msg = buildNotFoundMessage({
     credentialKey: field.credentialKey,
     pageUrl,
     tried,
     pageTitle: await getPageTitle(pageOrFrame),
   });
-  throw new Error(msg);
+  LOG.info(msg);
+  return {
+    isResolved: false,
+    selector: '',
+    context: pageOrFrame,
+    resolvedVia: 'notResolved',
+    round: 'notResolved',
+    message: msg,
+  };
+}
+
+async function probeIframes(
+  page: Page,
+  b: SelectorCandidate[],
+  wk: SelectorCandidate[],
+): Promise<FieldContext | null> {
+  if (b.length > 0) {
+    const r = await searchInChildFrames(page, b);
+    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'iframe' };
+  }
+  if (wk.length > 0) {
+    const r = await searchInChildFrames(page, wk);
+    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'iframe' };
+  }
+  return null;
+}
+
+async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null> {
+  const { pageOrFrame: ctx, bankCandidates: b, wellKnownCandidates: wk, field } = opts;
+  if (b.length > 0) {
+    const r = await resolveInMainContext(ctx, b, field.credentialKey);
+    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'mainPage' };
+  }
+  if (wk.length > 0) {
+    const r = await resolveInMainContext(ctx, wk, field.credentialKey);
+    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'mainPage' };
+  }
+  return null;
+}
+
+function splitCandidates(field: FieldConfig): {
+  bank: SelectorCandidate[];
+  wellKnown: SelectorCandidate[];
+} {
+  return {
+    bank: [...field.selectors],
+    wellKnown: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
+  };
+}
+
+async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
+  const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
+  LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
+  if (isPage(pageOrFrame)) {
+    const r = await probeIframes(pageOrFrame, b, wk);
+    if (r) return r;
+  }
+  const main = await probeMainPage(opts);
+  if (main) return main;
+  return buildNotFoundContext(opts);
 }
 
 export async function resolveFieldContext(
@@ -210,18 +290,14 @@ export async function resolveFieldContext(
   field: FieldConfig,
   pageUrl: string,
 ): Promise<FieldContext> {
-  const allCandidates: SelectorCandidate[] = [
-    ...field.selectors,
-    ...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? []),
-  ];
-  LOG.info('resolving "%s" on %s', field.credentialKey, pageUrl);
-  if (isPage(pageOrFrame)) {
-    const iframeResult = await searchInChildFrames(pageOrFrame, allCandidates);
-    if (iframeResult) return iframeResult;
-  }
-  const main = await resolveInMainContext(pageOrFrame, allCandidates, field.credentialKey);
-  if (main) return main;
-  return throwNotFound({ pageOrFrame, field, pageUrl, allCandidates });
+  const { bank, wellKnown } = splitCandidates(field);
+  return resolveAll({
+    pageOrFrame,
+    field,
+    pageUrl,
+    bankCandidates: bank,
+    wellKnownCandidates: wellKnown,
+  });
 }
 
 /**

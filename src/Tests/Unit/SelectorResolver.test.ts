@@ -114,15 +114,18 @@ describe('resolveFieldContext', () => {
     selectors: [{ kind: 'css', value: '#userCode' }],
   };
 
-  it('Round 1: returns immediately when configured CSS id found on page', async () => {
+  it('resolves bankConfig CSS id — isResolved:true, resolvedVia:bankConfig, round:mainPage', async () => {
     const element = {};
     const page = makePage({ $: jest.fn().mockResolvedValue(element) });
     const result = await resolveFieldContext(page, field, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('#userCode');
     expect(result.context).toBe(page);
+    expect(result.resolvedVia).toBe('bankConfig');
+    expect(result.round).toBe('mainPage');
   });
 
-  it('Round 3: falls back to WELL_KNOWN_SELECTORS when configured selector is absent', async () => {
+  it('falls back to wellKnown when configured selector absent — resolvedVia:wellKnown', async () => {
     const findOnSecondCall = jest
       .fn()
       .mockResolvedValueOnce(null) // #userCode → not found
@@ -130,8 +133,20 @@ describe('resolveFieldContext', () => {
     const page = makePage({ $: findOnSecondCall });
     const result = await resolveFieldContext(page, field, 'https://bank.test/');
     // WELL_KNOWN_SELECTORS.username[0] = input[placeholder*="שם משתמש"]
+    expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('input[placeholder*="שם משתמש"]');
-    expect(result.context).toBe(page);
+    expect(result.resolvedVia).toBe('wellKnown');
+    expect(result.round).toBe('mainPage');
+  });
+
+  it('empty bank selectors resolved via wellKnown — resolvedVia:wellKnown', async () => {
+    const element = {};
+    const page = makePage({ $: jest.fn().mockResolvedValue(element) });
+    const emptyField: FieldConfig = { credentialKey: 'username', selectors: [] };
+    const result = await resolveFieldContext(page, emptyField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.selector).toBe('input[placeholder*="שם משתמש"]');
+    expect(result.resolvedVia).toBe('wellKnown');
   });
 
   it('Round 1: finds field inside an iframe before checking the main page', async () => {
@@ -146,36 +161,28 @@ describe('resolveFieldContext', () => {
     });
     const result = await resolveFieldContext(page, field, 'https://bank.test/');
     // Iframe is found in Round 1 — main page query is never called
+    expect(result.isResolved).toBe(true);
     expect(result.context).toBe(iframe);
+    expect(result.round).toBe('iframe');
     expect(mainPageQuery).not.toHaveBeenCalled();
   });
 
-  it('throws a descriptive error listing all tried candidates when nothing resolves', async () => {
+  it('returns isResolved:false with message when nothing resolves', async () => {
     const page = makePage({ $: jest.fn().mockResolvedValue(null) });
-    await expect(resolveFieldContext(page, field, 'https://bank.test/')).rejects.toThrow(
-      /Could not find 'username' field on https:\/\/bank\.test\//,
-    );
-  });
-
-  it('error message includes tried candidate count and page title', async () => {
-    const page = makePage({ $: jest.fn().mockResolvedValue(null) });
-    await expect(resolveFieldContext(page, field, 'https://bank.test/')).rejects.toThrow(
-      /Page title: "Bank Login"/,
-    );
-  });
-
-  it('error message includes the inspect-bank-login hint', async () => {
-    const page = makePage({ $: jest.fn().mockResolvedValue(null) });
-    await expect(resolveFieldContext(page, field, 'https://bank.test/')).rejects.toThrow(
-      /inspect-bank-login\.ts/,
-    );
+    const result = await resolveFieldContext(page, field, 'https://bank.test/');
+    expect(result.isResolved).toBe(false);
+    expect(result.resolvedVia).toBe('notResolved');
+    expect(result.round).toBe('notResolved');
+    expect(result.message).toMatch(/Could not find 'username' field on https:\/\/bank\.test\//);
+    expect(result.message).toMatch(/Page title: "Bank Login"/);
+    expect(result.message).toMatch(/inspect-bank-login\.ts/);
   });
 
   it('does not search iframes when called with a Frame directly (not a Page)', async () => {
     const frame = makeFrame({ $: jest.fn().mockResolvedValue(null) });
-    await expect(resolveFieldContext(frame, field, 'https://bank.test/')).rejects.toThrow(
-      /Could not find 'username'/,
-    );
+    const result = await resolveFieldContext(frame, field, 'https://bank.test/');
     // Iframe search (Round 1) is skipped — `frames` is not a method on Frame
+    expect(result.isResolved).toBe(false);
+    expect(result.resolvedVia).toBe('notResolved');
   });
 });

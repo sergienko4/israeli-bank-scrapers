@@ -337,6 +337,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'ariaLabel', value: 'קוד משתמש' },
       { kind: 'name', value: 'username' },
       { kind: 'name', value: 'userCode' },
+      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
     ],
     userCode: [
       { kind: 'placeholder', value: 'קוד משתמש' },
@@ -353,6 +354,8 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'ariaLabel', value: 'סיסמה' },
       { kind: 'name', value: 'password' },
       { kind: 'css', value: 'input[type="password"]' },
+      { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
+      { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
     ],
     id: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -360,6 +363,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'placeholder', value: 'ת.ז' },
       { kind: 'ariaLabel', value: 'תעודת זהות' },
       { kind: 'name', value: 'id' },
+      { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
     ],
     nationalID: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -367,6 +371,7 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'ariaLabel', value: 'תעודת זהות' },
       { kind: 'name', value: 'nationalID' },
       { kind: 'name', value: 'id' },
+      { kind: 'css', value: '#pinno' }, // Yahav
     ],
     card6Digits: [
       { kind: 'placeholder', value: '6 ספרות' },
