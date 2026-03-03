@@ -82,7 +82,7 @@ export abstract class GenericBankScraper<
     super(options);
   }
 
-  getLoginOptions(credentials: TCredentials): LoginOptions {
+  public getLoginOptions(credentials: TCredentials): LoginOptions {
     this.fieldConfigs = this.loginConfig.fields;
     const submitCands = submitCandidates(this.loginConfig.submit);
     const submitField = toSubmitField(submitCands);
@@ -92,15 +92,13 @@ export abstract class GenericBankScraper<
       loginUrl: config.loginUrl,
       fields: buildFieldList(config, credentials),
       submitButtonSelector: this.buildSubmitSelector(submitCands, submitField),
-      checkReadiness: config.checkReadiness ? () => config.checkReadiness!(page) : undefined,
-      preAction: config.preAction ? () => config.preAction!(page) : undefined,
-      postAction: config.postAction ? () => config.postAction!(page) : undefined,
+      ...this.buildLoginCallbacks(config, page),
       possibleResults: mapPossibleResults(config.possibleResults),
       waitUntil: config.waitUntil,
     };
   }
 
-  async fillInputs(
+  public async fillInputs(
     pageOrFrame: Page | Frame,
     fields: { selector: string; value: string; credentialKey?: string }[],
   ): Promise<void> {
@@ -112,6 +110,21 @@ export abstract class GenericBankScraper<
         value,
       });
     }
+  }
+
+  private buildLoginCallbacks(
+    config: LoginConfig,
+    page: Page,
+  ): Pick<LoginOptions, 'checkReadiness' | 'preAction' | 'postAction'> {
+    return {
+      checkReadiness: config.checkReadiness
+        ? (): Promise<void> => config.checkReadiness!(page)
+        : undefined,
+      preAction: config.preAction
+        ? (): Promise<Frame | undefined> => config.preAction!(page)
+        : undefined,
+      postAction: config.postAction ? (): Promise<void> => config.postAction!(page) : undefined,
+    };
   }
 
   private buildSubmitSelector(

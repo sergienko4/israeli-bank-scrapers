@@ -1,4 +1,4 @@
-import { type Browser, type Frame, type Page } from 'playwright';
+import type { Browser, Frame, Page } from 'playwright';
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 chromium.use(StealthPlugin());
@@ -21,12 +21,8 @@ import {
   safeCleanup,
 } from './BaseScraperHelpers';
 import { ScraperErrorTypes } from './Errors';
-import {
-  type DefaultBrowserOptions,
-  type ScraperCredentials,
-  type ScraperScrapingResult,
-} from './Interface';
-import { type FieldConfig } from './LoginConfig';
+import type { DefaultBrowserOptions, ScraperCredentials, ScraperScrapingResult } from './Interface';
+import type { FieldConfig } from './LoginConfig';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
@@ -43,7 +39,7 @@ class BaseScraperWithBrowser<
 
   private cleanups: (() => Promise<void>)[] = [];
 
-  async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     await super.initialize();
     this.emitProgress(ScraperProgressTypes.Initializing);
     const page = await this.initializePage();
@@ -54,7 +50,7 @@ class BaseScraperWithBrowser<
     await this.setupPage(page);
   }
 
-  async navigateTo(
+  public async navigateTo(
     url: string,
     waitUntil: WaitUntilState | undefined = 'load',
     retries = this.options.navigationRetryCount ?? 0,
@@ -74,11 +70,11 @@ class BaseScraperWithBrowser<
     throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
   }
 
-  getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
+  public getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
     throw new Error(`getLoginOptions() is not created in ${this.options.companyId}`);
   }
 
-  async fillInputs(
+  public async fillInputs(
     pageOrFrame: Page | Frame,
     fields: { selector: string; value: string; credentialKey?: string }[],
   ): Promise<void> {
@@ -87,7 +83,7 @@ class BaseScraperWithBrowser<
     }
   }
 
-  async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
+  public async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
     await this.prepareLoginPage(loginOptions);
@@ -108,7 +104,7 @@ class BaseScraperWithBrowser<
     return this.handleLoginResult(loginResult);
   }
 
-  async terminate(_success: boolean): Promise<void> {
+  public async terminate(_success: boolean): Promise<void> {
     LOG.info(`terminating browser with success = ${_success}`);
     this.emitProgress(ScraperProgressTypes.Terminating);
     if (!_success && !!this.options.storeFailureScreenShotPath) {

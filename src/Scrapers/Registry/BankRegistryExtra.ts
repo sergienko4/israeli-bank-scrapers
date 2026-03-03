@@ -156,7 +156,7 @@ export const LEUMI_CONFIG: LoginConfig = {
   possibleResults: {
     success: [/ebanking\/SO\/SPA.aspx/i],
     invalidPassword: [
-      async opts => {
+      async (opts): Promise<boolean> => {
         if (!opts?.page) return false;
         const msg = await pageEvalAll(opts.page, {
           selector: 'svg#Capa_1',
@@ -167,7 +167,7 @@ export const LEUMI_CONFIG: LoginConfig = {
       },
     ],
     accountBlocked: [
-      async opts => {
+      async (opts): Promise<boolean> => {
         if (!opts?.page) return false;
         const msg = await pageEvalAll(opts.page, {
           selector: '.errHeader',
@@ -198,7 +198,8 @@ export const MIZRAHI_CONFIG: LoginConfig = {
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i, mizrahiIsLoggedIn],
     invalidPassword: [
-      async opts => !!(opts?.page && (await opts.page.$(MIZRAHI_INVALID_SELECTOR))),
+      async (opts): Promise<boolean> =>
+        !!(opts?.page && (await opts.page.$(MIZRAHI_INVALID_SELECTOR))),
     ],
     changePassword: [/https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/],
   },
@@ -221,10 +222,11 @@ export const MAX_CONFIG: LoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [
-      async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupWrongDetails'))),
+      async (opts): Promise<boolean> =>
+        !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupWrongDetails'))),
     ],
     unknownError: [
-      async opts =>
+      async (opts): Promise<boolean> =>
         !!(opts?.page && (await elementPresentOnPage(opts.page, '#popupCardHoldersLoginError'))),
     ],
   },
@@ -250,7 +252,7 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
   possibleResults: {
     success: ['https://www.behatsdaa.org.il/'],
     invalidPassword: [
-      async opts =>
+      async (opts): Promise<boolean> =>
         !!(opts?.page && (await elementPresentOnPage(opts.page, '.custom-input-error-label'))),
     ],
   },
@@ -284,10 +286,11 @@ export const YAHAV_CONFIG: LoginConfig = {
   possibleResults: {
     success: ['https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'],
     invalidPassword: [
-      async opts => !!(opts?.page && (await elementPresentOnPage(opts.page, '.ui-dialog-buttons'))),
+      async (opts): Promise<boolean> =>
+        !!(opts?.page && (await elementPresentOnPage(opts.page, '.ui-dialog-buttons'))),
     ],
     changePassword: [
-      async opts =>
+      async (opts): Promise<boolean> =>
         !!(
           opts?.page &&
           (await elementPresentOnPage(opts.page, 'input#ef_req_parameter_old_credential'))

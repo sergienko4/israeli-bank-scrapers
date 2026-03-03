@@ -1,3 +1,4 @@
+/* eslint-disable import-x/max-dependencies */
 import { CompanyTypes } from '../../Definitions';
 import AmexScraper from '../Amex/AmexScraper';
 import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';

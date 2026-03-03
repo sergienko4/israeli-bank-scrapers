@@ -304,7 +304,7 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Max]!);
   }
 
-  async fetchData(): Promise<{
+  public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; txns: Transaction[] }[];
   }> {

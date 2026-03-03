@@ -43,7 +43,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     this.servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
-  async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
+  public async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
     this.setupResponseLogging();
     await this.navigateToLoginPage();
     const validatedData = await this.validateCredentials(credentials);
@@ -60,7 +60,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       : this.handleValidateReturnCode(validateReturnCode);
   }
 
-  async fetchData(): Promise<{
+  public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; txns: Transaction[] }[];
   }> {

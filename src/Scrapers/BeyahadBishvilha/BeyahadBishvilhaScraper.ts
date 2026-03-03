@@ -3,6 +3,7 @@ import { type Page } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions';
+import { toFirstCss } from '../../Common/SelectorResolver';
 import { filterOldTransactions, getRawTransaction } from '../../Common/Transactions';
 import {
   DOLLAR_CURRENCY,
@@ -22,7 +23,10 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 const LOG = getDebug('beyahadBishvilha');
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
-const SEL = CFG.selectors;
+// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+const SEL = Object.fromEntries(
+  Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
+) as Record<string, string>;
 
 interface ScrapedTransaction {
   date: string;
@@ -161,7 +165,7 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     super(options, BANK_REGISTRY[CompanyTypes.BeyahadBishvilha]!);
   }
 
-  async fetchData(): Promise<{
+  public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; balance: number; txns: Transaction[] }[];
   }> {
@@ -172,7 +176,7 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     };
   }
 
-  getViewPort(): { width: number; height: number } {
+  public getViewPort(): { width: number; height: number } {
     return {
       width: 1500,
       height: 800,

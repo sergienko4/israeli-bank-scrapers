@@ -65,7 +65,7 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Behatsdaa]!);
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
       LOG.info('Token not found in local storage');

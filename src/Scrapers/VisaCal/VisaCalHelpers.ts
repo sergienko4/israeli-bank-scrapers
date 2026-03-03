@@ -73,10 +73,12 @@ export function getPossibleLoginResults(): Record<
   return {
     [LOGIN_RESULTS.Success]: [/dashboard/i, /cal-online\.co\.il\/#/],
     [LOGIN_RESULTS.InvalidPassword]: [
-      async (opts?: { page?: Page }) => (opts?.page ? hasInvalidPasswordError(opts.page) : false),
+      async (opts?: { page?: Page }): Promise<boolean> =>
+        opts?.page ? hasInvalidPasswordError(opts.page) : false,
     ],
     [LOGIN_RESULTS.ChangePassword]: [
-      async (opts?: { page?: Page }) => (opts?.page ? hasChangePasswordForm(opts.page) : false),
+      async (opts?: { page?: Page }): Promise<boolean> =>
+        opts?.page ? hasChangePasswordForm(opts.page) : false,
     ],
   };
 }

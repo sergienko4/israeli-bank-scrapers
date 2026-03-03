@@ -70,7 +70,11 @@ export class WafBlockError extends Error {
     this.details = details;
   }
 
-  static cloudflareBlock(httpStatus: number, pageTitle: string, pageUrl: string): WafBlockError {
+  public static cloudflareBlock(
+    httpStatus: number,
+    pageTitle: string,
+    pageUrl: string,
+  ): WafBlockError {
     return new WafBlockError({
       provider: 'cloudflare',
       httpStatus,
@@ -84,7 +88,7 @@ export class WafBlockError extends Error {
     });
   }
 
-  static cloudflareTurnstile(pageTitle: string, pageUrl: string): WafBlockError {
+  public static cloudflareTurnstile(pageTitle: string, pageUrl: string): WafBlockError {
     return new WafBlockError({
       provider: 'cloudflare',
       httpStatus: 403,
@@ -94,7 +98,7 @@ export class WafBlockError extends Error {
     });
   }
 
-  static apiBlock(
+  public static apiBlock(
     httpStatus: number,
     pageUrl: string,
     opts: { pageTitle?: string; responseSnippet?: string } = {},

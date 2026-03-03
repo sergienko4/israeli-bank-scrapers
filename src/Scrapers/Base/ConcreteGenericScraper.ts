@@ -10,7 +10,7 @@ export class ConcreteGenericScraper<
   TCredentials extends ScraperCredentials,
 > extends GenericBankScraper<TCredentials> {
   // eslint-disable-next-line @typescript-eslint/require-await
-  async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<ScraperScrapingResult> {
     return { success: true, accounts: [] };
   }
 }

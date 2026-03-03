@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Frame } from 'playwright';
+import type { Frame } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
 import {
@@ -8,6 +8,7 @@ import {
   waitUntilIframeFound,
 } from '../../Common/ElementsInteractions';
 import { fetchPostWithinPage } from '../../Common/Fetch';
+import { toFirstCss } from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -19,10 +20,10 @@ import {
 } from '../../Transactions';
 import { ScraperErrorTypes } from '../Base/Errors';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
+import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
-  ACCOUNT_DROP_DOWN_ITEM_SELECTOR,
   type ConvertOneRowOpts,
   type ConvertTxnsOpts,
   createDataFromRequest,
@@ -32,17 +33,20 @@ import {
   getStartMoment,
   getTransactionIdentifier,
   type MoreDetails,
-  OSH_PAGE,
   PENDING_TRANSACTIONS_IFRAME,
-  PENDING_TRANSACTIONS_PAGE,
   type ScrapedTransaction,
   type ScrapedTransactionsResult,
-  TRANSACTIONS_PAGE,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers';
 
 const LOG = getDebug('mizrahi');
-const PENDING_TRX_IDENTIFIER_ID = '#ctl00_ContentPlaceHolder2_panel1';
+// Phase-1 compat: extract first CSS candidate — full resolveDashboardField() migration in Phase 2
+const SEL = Object.fromEntries(
+  Object.entries(SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors).map(([k, cs]) => [
+    k,
+    toFirstCss(cs),
+  ]),
+) as Record<string, string>;
 
 interface BuildRowBaseOpts {
   row: ScrapedTransaction;
@@ -112,7 +116,7 @@ function mapPendingRow([
 
 async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
   const pendingTxn = await pageEvalAll(page, {
-    selector: 'tr.rgRow, tr.rgAltRow',
+    selector: SEL.pendingTransactionRows,
     defaultResult: [],
     callback: trs =>
       trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
@@ -130,11 +134,11 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, BANK_REGISTRY[CompanyTypes.Mizrahi]!);
   }
 
-  async fetchData(): Promise<ScraperScrapingResult> {
-    await this.page.$eval('#dropdownBasic, .item', el => {
+  public async fetchData(): Promise<ScraperScrapingResult> {
+    await this.page.$eval(SEL.accountDropdown, el => {
       (el as HTMLElement).click();
     });
-    const numOfAccounts = (await this.page.$$(ACCOUNT_DROP_DOWN_ITEM_SELECTOR)).length;
+    const numOfAccounts = (await this.page.$$(SEL.accountDropdownItem)).length;
     try {
       const results: TransactionsAccount[] = [];
       for (let i = 0; i < numOfAccounts; i += 1) {
@@ -152,23 +156,23 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
     if (index > 0)
-      await this.page.$eval('#dropdownBasic, .item', el => {
+      await this.page.$eval(SEL.accountDropdown, el => {
         (el as HTMLElement).click();
       });
-    await this.page.$eval(`${ACCOUNT_DROP_DOWN_ITEM_SELECTOR}:nth-child(${index + 1})`, el => {
+    await this.page.$eval(`${SEL.accountDropdownItem}:nth-child(${index + 1})`, el => {
       (el as HTMLElement).click();
     });
     return this.fetchAccount();
   }
 
   private async getPendingTransactions(): Promise<Transaction[]> {
-    await this.page.$eval(`a[href*="${PENDING_TRANSACTIONS_PAGE}"]`, el => {
+    await this.page.$eval(SEL.pendingTransactionsLink, el => {
       (el as HTMLElement).click();
     });
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
-    const isPending = await waitUntilElementFound(frame, PENDING_TRX_IDENTIFIER_ID)
+    const isPending = await waitUntilElementFound(frame, SEL.pendingFrameIdentifier)
       .then(() => true)
       .catch(() => false);
     if (!isPending) {
@@ -180,18 +184,18 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   }
 
   private async navigateToTransactions(): Promise<void> {
-    await this.page.waitForSelector(`a[href*="${OSH_PAGE}"]`);
-    await this.page.$eval(`a[href*="${OSH_PAGE}"]`, el => {
+    await this.page.waitForSelector(SEL.oshLink);
+    await this.page.$eval(SEL.oshLink, el => {
       (el as HTMLElement).click();
     });
-    await waitUntilElementFound(this.page, `a[href*="${TRANSACTIONS_PAGE}"]`);
-    await this.page.$eval(`a[href*="${TRANSACTIONS_PAGE}"]`, el => {
+    await waitUntilElementFound(this.page, SEL.transactionsLink);
+    await this.page.$eval(SEL.transactionsLink, el => {
       (el as HTMLElement).click();
     });
   }
 
   private async getAccountNumber(): Promise<string> {
-    const accountNumberElement = await this.page.$('#dropdownBasic b span');
+    const accountNumberElement = await this.page.$(SEL.accountNumberSpan);
     const accountNumberHandle = await accountNumberElement?.getProperty('title');
     const accountNumber = (await accountNumberHandle?.jsonValue()) as string;
     if (!accountNumber) throw new Error('Account number not found');
@@ -221,8 +225,9 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     apiHeaders: Record<string, string>,
   ): (row: ScrapedTransaction) => Promise<MoreDetails> {
     return this.options.shouldAddTransactionInformation
-      ? row => getExtraTransactionDetails(this.page, row, apiHeaders)
-      : () => Promise.resolve({ entries: {}, memo: undefined });
+      ? (row: ScrapedTransaction): Promise<MoreDetails> =>
+          getExtraTransactionDetails(this.page, row, apiHeaders)
+      : (): Promise<MoreDetails> => Promise.resolve({ entries: {}, memo: undefined });
   }
 
   private async convertAndMarkTxns(

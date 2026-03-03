@@ -100,7 +100,7 @@ function discountConfig(loginUrl: string): LoginConfig {
     loginUrl,
     fields: DISCOUNT_FIELDS,
     submit: [{ kind: 'css', value: '.sendBtn' }],
-    checkReadiness: async (page: Page) => {
+    checkReadiness: async (page: Page): Promise<void> => {
       await waitUntilElementFound(page, '#tzId');
     },
     postAction: discountPostAction,

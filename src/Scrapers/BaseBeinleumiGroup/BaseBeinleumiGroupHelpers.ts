@@ -9,17 +9,18 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-const SEL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].selectors;
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';
-const DATE_COLUMN_CLASS_COMPLETED = SEL.dateColumnCompleted;
-const DATE_COLUMN_CLASS_PENDING = SEL.dateColumnPending;
-const DESCRIPTION_COLUMN_CLASS_COMPLETED = SEL.descriptionColumnCompleted;
-const DESCRIPTION_COLUMN_CLASS_PENDING = SEL.descriptionColumnPending;
-const REFERENCE_COLUMN_CLASS = SEL.referenceColumn;
-const DEBIT_COLUMN_CLASS = SEL.debitColumn;
-const CREDIT_COLUMN_CLASS = SEL.creditColumn;
-export const ERROR_MESSAGE_CLASS = SEL.errorMessageClass;
+// Column class strings are stable HTML class names used to identify table columns.
+// They are not CSS query selectors, so they live here rather than in ScraperConfig.
+const DATE_COLUMN_CLASS_COMPLETED = 'date first';
+const DATE_COLUMN_CLASS_PENDING = 'first date';
+const DESCRIPTION_COLUMN_CLASS_COMPLETED = 'reference wrap_normal';
+const DESCRIPTION_COLUMN_CLASS_PENDING = 'details wrap_normal';
+const REFERENCE_COLUMN_CLASS = 'details';
+const DEBIT_COLUMN_CLASS = 'debit';
+const CREDIT_COLUMN_CLASS = 'credit';
+export const ERROR_MESSAGE_CLASS = 'NO_DATA';
 
 export type TransactionsColsTypes = Record<string, number>;
 export type TransactionsTrTds = string[];

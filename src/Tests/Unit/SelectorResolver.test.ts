@@ -3,7 +3,9 @@ import { type Frame, type Page } from 'playwright';
 import {
   candidateToCss,
   extractCredentialKey,
+  resolveDashboardField,
   resolveFieldContext,
+  toFirstCss,
   tryInContext,
 } from '../../Common/SelectorResolver';
 import { type FieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
@@ -184,5 +186,95 @@ describe('resolveFieldContext', () => {
     // Iframe search (Round 1) is skipped — `frames` is not a method on Frame
     expect(result.isResolved).toBe(false);
     expect(result.resolvedVia).toBe('notResolved');
+  });
+});
+
+// ── toFirstCss ────────────────────────────────────────────────────────────────
+
+describe('toFirstCss', () => {
+  it('returns the CSS of the first candidate', () => {
+    const candidates = [
+      { kind: 'css' as const, value: '.balance' },
+      { kind: 'ariaLabel' as const, value: 'יתרה' },
+    ];
+    expect(toFirstCss(candidates)).toBe('.balance');
+  });
+
+  it('returns empty string for an empty array', () => {
+    expect(toFirstCss([])).toBe('');
+  });
+
+  it('converts non-css kinds via candidateToCss', () => {
+    expect(toFirstCss([{ kind: 'placeholder', value: 'שם' }])).toBe('input[placeholder*="שם"]');
+  });
+});
+
+// ── resolveDashboardField ─────────────────────────────────────────────────────
+
+describe('resolveDashboardField', () => {
+  it('resolves bank candidate on main page — resolvedVia:bankConfig, round:mainPage', async () => {
+    const page = makePage({ $: jest.fn().mockResolvedValue({}) });
+    const result = await resolveDashboardField({
+      pageOrFrame: page,
+      fieldKey: 'accountNumber',
+      bankCandidates: [{ kind: 'css', value: '#acc-num' }],
+      pageUrl: 'https://bank.test/dashboard',
+    });
+    expect(result.isResolved).toBe(true);
+    expect(result.selector).toBe('#acc-num');
+    expect(result.resolvedVia).toBe('bankConfig');
+    expect(result.round).toBe('mainPage');
+  });
+
+  it('falls back to wellKnownDashboardSelectors when bank candidates miss', async () => {
+    // bank candidate not found → falls through to wellKnown 'balance' key
+    const findOnSecondCall = jest
+      .fn()
+      .mockResolvedValueOnce(null) // bank candidate #custom-balance → not found
+      .mockResolvedValue({}); // wellKnown .balance → found
+    const page = makePage({ $: findOnSecondCall });
+    const result = await resolveDashboardField({
+      pageOrFrame: page,
+      fieldKey: 'balance',
+      bankCandidates: [{ kind: 'css', value: '#custom-balance' }],
+      pageUrl: 'https://bank.test/dashboard',
+    });
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedVia).toBe('wellKnown');
+    expect(result.selector).toBe('.balance'); // first wellKnownDashboardSelectors.balance entry
+  });
+
+  it('resolves in iframe (Round 1) before main page (Round 2)', async () => {
+    const iframe = makeFrame({ $: jest.fn().mockResolvedValue({}) });
+    const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/') };
+    const mainPageQuery = jest.fn().mockResolvedValue(null);
+    const page = makePage({
+      $: mainPageQuery,
+      frames: jest.fn().mockReturnValue([mainFrame, iframe]),
+      mainFrame: jest.fn().mockReturnValue(mainFrame),
+    });
+    const result = await resolveDashboardField({
+      pageOrFrame: page,
+      fieldKey: 'balance',
+      bankCandidates: [{ kind: 'css', value: '.balance' }],
+      pageUrl: 'https://bank.test/dashboard',
+    });
+    expect(result.isResolved).toBe(true);
+    expect(result.context).toBe(iframe);
+    expect(result.round).toBe('iframe');
+    expect(mainPageQuery).not.toHaveBeenCalled();
+  });
+
+  it('returns isResolved:false when nothing resolves', async () => {
+    const page = makePage({ $: jest.fn().mockResolvedValue(null) });
+    const result = await resolveDashboardField({
+      pageOrFrame: page,
+      fieldKey: 'unknownField',
+      bankCandidates: [{ kind: 'css', value: '#no-such-element' }],
+      pageUrl: 'https://bank.test/dashboard',
+    });
+    expect(result.isResolved).toBe(false);
+    expect(result.resolvedVia).toBe('notResolved');
+    expect(result.round).toBe('notResolved');
   });
 });
