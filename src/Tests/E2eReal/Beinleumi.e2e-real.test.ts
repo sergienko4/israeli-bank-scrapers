@@ -16,6 +16,8 @@ dotenv.config();
 
 const hasCredentials = !!(process.env.BEINLEUMI_USERNAME && process.env.BEINLEUMI_PASSWORD);
 const describeIf = hasCredentials ? describe : describe.skip;
+// Full scrape requires OTP — skip in CI unless BEINLEUMI_OTP env var is provided
+const itIfOtp = process.env.BEINLEUMI_OTP ? it : it.skip;
 
 /**
  * Prompts the user via stdin for the OTP code.
@@ -40,22 +42,25 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully (OTP supported via stdin or BEINLEUMI_OTP env)', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Beinleumi,
-      startDate: lastMonthStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-      otpCodeRetriever: promptOtpCode,
-    });
-    const result = await scraper.scrape({
-      username: process.env.BEINLEUMI_USERNAME!,
-      password: process.env.BEINLEUMI_PASSWORD!,
-    });
+  itIfOtp(
+    'scrapes transactions successfully (OTP supported via stdin or BEINLEUMI_OTP env)',
+    async () => {
+      const scraper = createScraper({
+        companyId: CompanyTypes.Beinleumi,
+        startDate: lastMonthStartDate(),
+        shouldShowBrowser: false,
+        args: BROWSER_ARGS,
+        otpCodeRetriever: promptOtpCode,
+      });
+      const result = await scraper.scrape({
+        username: process.env.BEINLEUMI_USERNAME!,
+        password: process.env.BEINLEUMI_PASSWORD!,
+      });
 
-    assertSuccessfulScrape(result);
-    logScrapedTransactions(result);
-  });
+      assertSuccessfulScrape(result);
+      logScrapedTransactions(result);
+    },
+  );
 
   it('reaches OTP screen with valid credentials (no OTP retriever)', async () => {
     const scraper = createScraper({
