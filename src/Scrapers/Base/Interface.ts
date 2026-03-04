@@ -20,6 +20,7 @@ export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
 export type ScraperCredentials =
   | { userCode: string; password: string }
   | { username: string; password: string }
+  | { username: string; password: string; id: string } // Max: second-login flow with ID (ת.ז.)
   | { id: string; password: string }
   | { id: string; password: string; num: string }
   | { id: string; password: string; card6Digits: string }

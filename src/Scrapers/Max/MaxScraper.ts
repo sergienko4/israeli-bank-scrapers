@@ -13,9 +13,11 @@ import {
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import type { LoginOptions } from '../Base/BaseScraperWithBrowser';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { BANK_REGISTRY } from '../Registry/BankRegistry';
+import { maxHandleSecondLoginStep } from '../Registry/BankRegistryExtra';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const LOG = getDebug('max');
@@ -294,14 +296,33 @@ async function fetchTransactions(
   return allResults;
 }
 
+/**
+ * Max has two login flows:
+ *  - Flow A (common):     home → username+password → dashboard
+ *  - Flow B (occasional): home → username+password → 2nd form (username+password+id) → dashboard
+ * Provide `id` (Israeli national ID / ת.ז.) so Flow B is handled automatically.
+ */
 interface ScraperSpecificCredentials {
   username: string;
   password: string;
+  id?: string;
 }
 
 class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
     super(options, BANK_REGISTRY[CompanyTypes.Max]!);
+  }
+
+  public override getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
+    const opts = super.getLoginOptions(credentials);
+    const original = opts.postAction;
+    return {
+      ...opts,
+      postAction: async (): Promise<void> => {
+        await maxHandleSecondLoginStep(this.page, credentials);
+        if (original) await original();
+      },
+    };
   }
 
   public async fetchData(): Promise<{

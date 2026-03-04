@@ -31,6 +31,7 @@ describeIf('E2E: Max (real credentials)', () => {
     const result = await scraper.scrape({
       username: process.env.MAX_USERNAME!,
       password: process.env.MAX_PASSWORD!,
+      id: process.env.MAX_ID,
     });
 
     if (result.errorType === ScraperErrorTypes.Timeout) {
