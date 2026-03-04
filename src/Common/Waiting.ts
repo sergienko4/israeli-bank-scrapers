@@ -1,7 +1,10 @@
+import type { Page } from 'playwright';
 import type { Falsy } from 'utility-types';
 
+import type { ReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
 import type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 
+export type { ReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
 export type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 
 export class TimeoutError extends Error {}
@@ -84,6 +87,48 @@ export function waitUntil<T>(
     throw new TimeoutError(`${e.message} — last: ${safeStringify(lastSeenValue)}`);
   });
   return withContext as WaitUntilReturn<T>;
+}
+
+async function retryWithReload<T>(
+  page: Page,
+  asyncTest: () => Promise<T>,
+  opts: { label: string; pollTimeout: number; interval: number; left: number; used: number },
+): Promise<ReloadRetryResult<T>> {
+  const { label, pollTimeout, interval, left, used } = opts;
+  const result = await waitUntil(asyncTest, label, { timeout: pollTimeout, interval }).catch(
+    () => null,
+  );
+  if (result !== null)
+    return { found: true, value: result as NonNullable<T>, reloadsUsed: used, description: label };
+  if (left <= 0) return { found: false, value: null, reloadsUsed: used, description: label };
+  await page.reload({ waitUntil: 'networkidle' });
+  return retryWithReload(page, asyncTest, { ...opts, left: left - 1, used: used + 1 });
+}
+
+/**
+ * Like waitUntil, but reloads the page on timeout and retries.
+ * Returns a result object — never throws. Caller decides what to do when found=false.
+ * Use when a bank's SPA needs a page refresh to complete post-login JS initialization
+ * (e.g. writing an auth token to sessionStorage) that stalls in headless mode.
+ */
+export async function waitUntilWithReload<T>(
+  page: Page,
+  asyncTest: () => Promise<T>,
+  opts: { description?: string; pollTimeout?: number; reloadAttempts?: number; interval?: number },
+): Promise<ReloadRetryResult<T>> {
+  const {
+    description = 'waitUntilWithReload',
+    pollTimeout = 20_000,
+    reloadAttempts = 2,
+    interval = 500,
+  } = opts;
+  return retryWithReload(page, asyncTest, {
+    label: description,
+    pollTimeout,
+    interval,
+    left: reloadAttempts,
+    used: 0,
+  });
 }
 
 export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {

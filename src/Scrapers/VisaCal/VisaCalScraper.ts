@@ -11,11 +11,13 @@ import { fetchPost } from '../../Common/Fetch';
 import { getCurrentUrl, waitForUrl } from '../../Common/Navigation';
 import { getFromSessionStorage } from '../../Common/Storage';
 import { filterOldTransactions } from '../../Common/Transactions';
-import { waitUntil } from '../../Common/Waiting';
+import { waitUntilWithReload } from '../../Common/Waiting';
 import { CompanyTypes } from '../../Definitions';
 import type { TransactionsAccount } from '../../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
 import type { ScraperScrapingResult } from '../Base/Interface';
+import { ScraperAuthenticationError } from '../Base/ScraperAuthenticationError';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   CONNECT_IFRAME_OPTS,
@@ -85,11 +87,15 @@ async function fetchMonthData(
     hdrs,
   );
   if (monthData.statusCode !== 1)
-    throw new Error(
-      `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
+    throw new ScraperWebsiteChangedError(
+      'VisaCal',
+      `fetch card ${card.last4Digits}: ${monthData.title}`,
     );
   if (!isCardTransactionDetails(monthData))
-    throw new Error('monthData is not of type CardTransactionDetails');
+    throw new ScraperWebsiteChangedError(
+      'VisaCal',
+      'monthData is not of type CardTransactionDetails',
+    );
   return monthData;
 }
 
@@ -148,9 +154,9 @@ export interface ScraperSpecificCredentials {
 }
 
 class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  private authorization: string | undefined = undefined;
+  private _authorization: string | undefined = undefined;
 
-  private authTokenPromise: Promise<string | undefined> | undefined;
+  private _authTokenPromise: Promise<string | undefined> | undefined;
 
   public openLoginPopup = async (): Promise<Frame> => {
     LOG.info('open login popup');
@@ -176,23 +182,35 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   public async getAuthorizationHeader(): Promise<string> {
-    if (!this.authorization) {
-      LOG.info('token not captured from POST response — falling back to sessionStorage (60s)');
+    if (!this._authorization) {
+      LOG.info(
+        'token not captured from POST response — falling back to sessionStorage with reload retry',
+      );
       const startMs = Date.now();
-      const authModule = await waitUntil(
+      const retry = await waitUntilWithReload<AuthModule | undefined>(
+        this.page,
         async () =>
           authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
-        'get authorization header with valid token in session storage',
-        { timeout: 60_000, interval: 500 },
+        {
+          description: 'VisaCal auth-module',
+          pollTimeout: 20_000,
+          reloadAttempts: 2,
+          interval: 500,
+        },
       );
+      if (!retry.found || !retry.value)
+        throw new ScraperAuthenticationError(
+          'VisaCal',
+          'auth token unavailable after reload retries',
+        );
       LOG.info('sessionStorage auth-module populated after %dms', Date.now() - startMs);
-      this.authorization = `CALAuthScheme ${authModule.auth.calConnectToken}`;
+      this._authorization = `CALAuthScheme ${retry.value.auth.calConnectToken ?? ''}`;
     }
-    return this.authorization;
+    return this._authorization;
   }
 
   public getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
-    this.authTokenPromise = this.interceptLoginToken();
+    this._authTokenPromise = this.interceptLoginToken();
     return {
       loginUrl: LOGIN_URL,
       fields: createLoginFields(credentials),
@@ -212,7 +230,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const cards = await this.getCards();
     const ctx = await this.buildApiContext(startDate, startMoment);
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
-    LOG.info(`return ${accounts.length} scraped accounts`);
+    LOG.info('return %d scraped accounts', accounts.length);
     return { success: true, accounts };
   }
 
@@ -222,13 +240,13 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     if (!isAlreadyLoggedIn) {
       await this.waitForPostLoginRedirect();
     }
-    const token = await this.authTokenPromise;
+    const token = await this._authTokenPromise;
     if (token) {
       LOG.info('login token intercepted from POST response');
-      this.authorization = `CALAuthScheme ${token}`;
+      this._authorization = `CALAuthScheme ${token}`;
     } else {
       LOG.info('login token NOT intercepted — will fall back to sessionStorage on first API call');
-      this.authorization = '';
+      this._authorization = '';
     }
     LOG.info('post-login URL: %s', await getCurrentUrl(this.page));
   }
