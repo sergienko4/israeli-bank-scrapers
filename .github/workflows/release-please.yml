@@ -13,9 +13,7 @@ on:
         options: ['false', 'true']
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+  contents: read
 
 jobs:
   release-please:
