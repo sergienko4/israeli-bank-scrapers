@@ -85,18 +85,13 @@ export interface FetchGraphqlOptions {
   extraHeaders?: Record<string, string>;
 }
 
-interface GraphqlResponse<TResult> {
-  data: TResult;
-  errors?: { message: string }[];
-}
-
 export async function fetchGraphql<TResult>(
   url: string,
   query: string,
   opts: FetchGraphqlOptions = {},
 ): Promise<TResult> {
   const { variables = {}, extraHeaders = {} } = opts;
-  const result = await fetchPost<GraphqlResponse<TResult>>(
+  const result = await fetchPost<{ data: TResult; errors?: { message: string }[] }>(
     url,
     { operationName: null, query, variables },
     extraHeaders,
@@ -123,14 +118,12 @@ async function evaluateGet(page: Page, url: string): Promise<readonly [string | 
   }, url);
 }
 
-export interface ParseGetOpts {
+function parseGetResult(opts: {
   result: string | null;
   status: number;
   url: string;
   shouldIgnoreErrors: boolean;
-}
-
-function parseGetResult(opts: ParseGetOpts): unknown {
+}): unknown {
   const { result, status, url, shouldIgnoreErrors } = opts;
   if (result === null) return null;
   try {
@@ -158,69 +151,67 @@ export async function fetchGetWithinPage<TResult>(
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult | null;
 }
 
-export interface FetchPostOptions {
-  data: Record<string, unknown> | unknown[];
-  extraHeaders?: Record<string, string>;
-  shouldIgnoreErrors?: boolean;
-}
-
-interface PostEvalArgs {
-  innerUrl: string;
-  innerData: Record<string, unknown> | unknown[];
-  innerExtraHeaders: Record<string, string>;
-}
-
 // NOTE: doPostFetch runs inside page.evaluate() (browser context).
 // Must be entirely self-contained — no external function references allowed.
-async function doPostFetch(args: PostEvalArgs): Promise<readonly [string | null, number]> {
-  const { innerUrl, innerData, innerExtraHeaders } = args;
+async function doPostFetch(a: {
+  u: string;
+  d: Record<string, unknown> | unknown[];
+  h: Record<string, string>;
+}): Promise<readonly [string | null, number]> {
   let response: Response;
-
   try {
-    response = await fetch(innerUrl, {
+    response = await fetch(a.u, {
       method: 'POST',
-      body: JSON.stringify(innerData as unknown),
+      body: JSON.stringify(a.d as unknown),
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        ...innerExtraHeaders,
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', ...a.h },
     });
   } catch (e) {
     const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
-    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${innerUrl}`, { cause: e });
+    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${a.u}`, { cause: e });
   }
-
   if (response.status === 204) return [null, 204] as const;
   return [await response.text(), response.status] as const;
 }
 
 async function runPostEvaluate(
   page: Page,
-  args: PostEvalArgs,
+  args: Parameters<typeof doPostFetch>[0],
 ): Promise<readonly [string | null, number]> {
   return page.evaluate(doPostFetch, args);
 }
 
-export interface ParsePostOpts {
-  text: string | null;
-  status: number;
-  url: string;
-  opts: FetchPostOptions;
+function buildParseError(
+  e: unknown,
+  url: string,
+  ctx: {
+    data: Record<string, unknown> | unknown[];
+    extraHeaders: Record<string, string>;
+    status: number;
+    text: string | null;
+  },
+): Error {
+  const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+  return new Error(
+    `fetchPostWithinPage parse error: ${msg}, url: ${url}, data: ${JSON.stringify(ctx.data)}, extraHeaders: ${JSON.stringify(ctx.extraHeaders)}, result: ${ctx.text}, status: ${ctx.status}`,
+    { cause: e },
+  );
 }
 
-function parsePostResult(pOpts: ParsePostOpts): unknown {
-  const { text, status, url, opts } = pOpts;
-  const { data, extraHeaders = {}, shouldIgnoreErrors = false } = opts;
+function parsePostResult(
+  text: string | null,
+  url: string,
+  ctx: {
+    data: Record<string, unknown> | unknown[];
+    extraHeaders: Record<string, string>;
+    shouldIgnoreErrors: boolean;
+    status: number;
+  },
+): unknown {
   try {
     if (text !== null) return JSON.parse(text) as unknown;
   } catch (e) {
-    if (!shouldIgnoreErrors) {
-      throw new Error(
-        `fetchPostWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, data: ${JSON.stringify(data)}, extraHeaders: ${JSON.stringify(extraHeaders)}, result: ${text}, status: ${status}`,
-        { cause: e },
-      );
-    }
+    if (!ctx.shouldIgnoreErrors) throw buildParseError(e, url, { ...ctx, text });
   }
   return null;
 }
@@ -228,16 +219,17 @@ function parsePostResult(pOpts: ParsePostOpts): unknown {
 export async function fetchPostWithinPage<TResult>(
   page: Page,
   url: string,
-  opts: FetchPostOptions,
+  opts: {
+    data: Record<string, unknown> | unknown[];
+    extraHeaders?: Record<string, string>;
+    shouldIgnoreErrors?: boolean;
+  },
 ): Promise<TResult | null> {
-  const { data, extraHeaders = {} } = opts;
+  const { data, extraHeaders = {}, shouldIgnoreErrors = false } = opts;
   const startMs = Date.now();
-  const [text, status] = await runPostEvaluate(page, {
-    innerUrl: url,
-    innerData: data,
-    innerExtraHeaders: extraHeaders,
-  });
+  const [text, status] = await runPostEvaluate(page, { u: url, d: data, h: extraHeaders });
   logApiCall(`POST(page) ${url.slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, text, url);
-  return parsePostResult({ text, status, url, opts }) as TResult | null;
+  const ctx = { data, extraHeaders, shouldIgnoreErrors, status };
+  return parsePostResult(text, url, ctx) as TResult | null;
 }

@@ -19,3 +19,5 @@ export const BEYAHAD_CONFIG: LoginConfig = {
   },
   possibleResults: { success: [`${CFG.urls.base}/`] },
 };
+
+export default BEYAHAD_CONFIG;

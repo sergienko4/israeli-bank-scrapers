@@ -56,19 +56,11 @@ interface ExternalBrowserOptions {
   skipCloseBrowser?: boolean;
 }
 
-interface ExternalBrowserContextOptions {
-  /**
-   * An externally managed browser context. This is useful when you want to manage the browser
-   */
-  browserContext: BrowserContext;
-}
-
-type ScraperBrowserOptions =
+export type ScraperOptions = (
   | ExternalBrowserOptions
-  | ExternalBrowserContextOptions
-  | DefaultBrowserOptions;
-
-export type ScraperOptions = ScraperBrowserOptions & {
+  | { browserContext: BrowserContext }
+  | DefaultBrowserOptions
+) & {
   /**
    * The company you want to scrape
    */

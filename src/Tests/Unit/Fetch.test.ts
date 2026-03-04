@@ -183,9 +183,9 @@ describe('fetchPostWithinPage', () => {
       extraHeaders: { 'X-Custom': 'val' },
     });
     expect(evaluate).toHaveBeenCalledWith(expect.any(Function), {
-      innerUrl: 'https://bank.co.il/api',
-      innerData: {},
-      innerExtraHeaders: { 'X-Custom': 'val' },
+      u: 'https://bank.co.il/api',
+      d: {},
+      h: { 'X-Custom': 'val' },
     });
   });
 });

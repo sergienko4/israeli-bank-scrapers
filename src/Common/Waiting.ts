@@ -22,15 +22,10 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
   ]);
 }
 
-interface WaitCallbacks<T> {
-  resolve: (v: NonNullable<T>) => void;
-  reject: () => void;
-}
-
 function makeWaitTick<T>(
   asyncTest: () => Promise<T>,
   interval: number,
-  cbs: WaitCallbacks<T>,
+  cbs: { resolve: (v: NonNullable<T>) => void; reject: () => void },
 ): () => void {
   function wait(): void {
     asyncTest()

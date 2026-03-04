@@ -10,3 +10,5 @@ export enum ScraperErrorTypes {
   General = 'GENERAL_ERROR',
   WafBlocked = 'WAF_BLOCKED',
 }
+
+export default ScraperErrorTypes;

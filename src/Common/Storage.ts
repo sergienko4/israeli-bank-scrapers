@@ -9,3 +9,5 @@ export async function getFromSessionStorage<T>(page: Page, key: string): Promise
     return null; // page navigating or context destroyed — caller retries via waitUntil
   }
 }
+
+export default getFromSessionStorage;

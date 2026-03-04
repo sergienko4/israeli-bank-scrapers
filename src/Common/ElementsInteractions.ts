@@ -104,7 +104,7 @@ async function fillInput(
   await humanDelay(200, 600);
   await pageOrFrame.$eval(inputSelector, (input: Element) => {
     const inputElement = input;
-    // @ts-ignore
+    // @ts-expect-error -- setting value directly on input element
     inputElement.value = '';
   });
   await pageOrFrame
@@ -121,7 +121,7 @@ async function setValue(
     inputSelector,
     (input: Element, value) => {
       const inputElement = input;
-      // @ts-ignore
+      // @ts-expect-error -- setting value directly on input element
       inputElement.value = value;
     },
     [inputValue],

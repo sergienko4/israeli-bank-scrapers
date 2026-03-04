@@ -47,7 +47,7 @@ function buildTxnAmounts(
 ): Pick<Transaction, 'originalAmount' | 'originalCurrency' | 'chargedAmount' | 'chargedCurrency'> {
   const isOutbound = txn.dealSumOutbound;
   return {
-    originalAmount: isOutbound ? -txn.dealSumOutbound : -txn.dealSum,
+    originalAmount: isOutbound ? -Number(txn.dealSumOutbound) : -txn.dealSum,
     originalCurrency: convertCurrency(txn.currentPaymentCurrency),
     chargedAmount: isOutbound ? -txn.paymentSumOutbound : -txn.paymentSum,
     chargedCurrency: convertCurrency(txn.currencyId),

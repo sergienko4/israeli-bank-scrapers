@@ -129,14 +129,6 @@ async function getAccountNumber(page: Page | Frame): Promise<string> {
   return text.replace('/', '_').trim();
 }
 
-interface ScrapeOpts {
-  page: Page | Frame;
-  tableLocator: string;
-  transactionStatus: TransactionStatuses;
-  shouldPaginate: boolean;
-  options?: ScraperOptions;
-}
-
 /** Resolve the "next page" link CSS — returns '' when all results fit on one page. */
 async function resolveNextLinkCss(page: Page | Frame, shouldPaginate: boolean): Promise<string> {
   if (!shouldPaginate) return '';
@@ -144,35 +136,42 @@ async function resolveNextLinkCss(page: Page | Frame, shouldPaginate: boolean): 
   return r.isResolved ? r.selector : '';
 }
 
-async function scrapeTransactions(opts: ScrapeOpts): Promise<Transaction[]> {
-  const { page, tableLocator, transactionStatus, shouldPaginate, options } = opts;
-  const nextLinkCss = await resolveNextLinkCss(page, shouldPaginate);
-  const canPaginate = nextLinkCss !== '';
-  const txns: ScrapedTransaction[] = [];
-  let hasNextPage = false;
-  do {
-    txns.push(...(await extractTransactions(page, tableLocator, transactionStatus)));
-    if (canPaginate) {
-      hasNextPage = await elementPresentOnPage(page, nextLinkCss);
-      if (hasNextPage) {
-        await clickButton(page, nextLinkCss);
-        await waitForNavigation(page);
-      }
-    }
-  } while (hasNextPage);
-  return convertTransactions(txns, options);
+async function collectPages(
+  opts: {
+    page: Page | Frame;
+    tableLocator: string;
+    transactionStatus: TransactionStatuses;
+    nextLinkCss: string;
+  },
+  acc: ScrapedTransaction[] = [],
+): Promise<ScrapedTransaction[]> {
+  const { page, tableLocator, transactionStatus, nextLinkCss } = opts;
+  const batch = await extractTransactions(page, tableLocator, transactionStatus);
+  const all = [...acc, ...batch];
+  const hasNext = nextLinkCss !== '' && (await elementPresentOnPage(page, nextLinkCss));
+  if (!hasNext) return all;
+  await clickButton(page, nextLinkCss);
+  await waitForNavigation(page);
+  return collectPages(opts, all);
 }
 
-interface ScrapeTableByKeyOpts {
-  status: TransactionStatuses;
+async function scrapeTransactions(opts: {
+  page: Page | Frame;
+  tableLocator: string;
+  transactionStatus: TransactionStatuses;
   shouldPaginate: boolean;
   options?: ScraperOptions;
+}): Promise<Transaction[]> {
+  const { page, tableLocator, transactionStatus, shouldPaginate, options } = opts;
+  const nextLinkCss = await resolveNextLinkCss(page, shouldPaginate);
+  const txns = await collectPages({ page, tableLocator, transactionStatus, nextLinkCss });
+  return convertTransactions(txns, options);
 }
 
 async function scrapeTableByKey(
   page: Page | Frame,
   key: string,
-  opts: ScrapeTableByKeyOpts,
+  opts: { status: TransactionStatuses; shouldPaginate: boolean; options?: ScraperOptions },
 ): Promise<Transaction[]> {
   const r = await resolveDashboardField(dashOpts(page, key));
   if (!r.isResolved) return []; // table absent from DOM (e.g. no pending txns for period)
@@ -269,24 +268,26 @@ async function fetchAccounts(
 ): Promise<TransactionsAccount[]> {
   const accountsIds = await getAccountIdsBothUIs(page);
   if (accountsIds.length === 0) return [await fetchAccountDataBothUIs(page, startDate, options)];
-  const accounts: TransactionsAccount[] = [];
-  for (const accountId of accountsIds) {
-    await selectAccountBothUIs(page, accountId);
-    accounts.push(await fetchAccountDataBothUIs(page, startDate, options));
-  }
-  return accounts;
+  return accountsIds.reduce(
+    async (prevPromise, accountId) => {
+      const acc = await prevPromise;
+      await selectAccountBothUIs(page, accountId);
+      acc.push(await fetchAccountDataBothUIs(page, startDate, options));
+      return acc;
+    },
+    Promise.resolve([] as TransactionsAccount[]),
+  );
 }
 
-interface ScraperSpecificCredentials {
+abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<{
   username: string;
   password: string;
-}
-
-abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+}> {
   public async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     const startMomentLimit = moment({ year: 1600 });
     const startMoment = moment.max(startMomentLimit, moment(this.options.startDate));
-    const transactionsUrl = SCRAPER_CONFIGURATION.banks[this.options.companyId].urls.transactions!;
+    const transactionsUrl =
+      SCRAPER_CONFIGURATION.banks[this.options.companyId].urls.transactions ?? '';
     await this.navigateTo(transactionsUrl);
     const accounts = await fetchAccounts(this.page, startMoment, this.options);
     return { success: true, accounts };

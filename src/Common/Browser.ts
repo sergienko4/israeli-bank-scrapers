@@ -40,3 +40,5 @@ export function buildContextOptions(): BrowserContextOptions {
     },
   };
 }
+
+export default buildContextOptions;

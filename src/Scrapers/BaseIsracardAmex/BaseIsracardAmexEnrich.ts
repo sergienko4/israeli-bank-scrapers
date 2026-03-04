@@ -48,7 +48,7 @@ export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise
   const url = new URL(options.servicesUrl);
   url.searchParams.set('reqName', 'PirteyIska_204');
   url.searchParams.set('CardIndex', accountIndex.toString());
-  url.searchParams.set('shovarRatz', transaction.identifier!.toString());
+  url.searchParams.set('shovarRatz', (transaction.identifier ?? 0).toString());
   url.searchParams.set('moedChiuv', month.format('MMYYYY'));
   LOG.info(
     `fetching extra scrap for transaction ${transaction.identifier} for month ${month.format('YYYY-MM')}`,
@@ -96,10 +96,14 @@ async function enrichAccountTxns(
   account: ScrapedAccountsWithIndex[string],
   opts: Pick<ExtraScrapAccountOpts, 'options' | 'month'>,
 ): Promise<ScrapedAccountsWithIndex[string]> {
-  const txns: Transaction[] = [];
-  for (const txnsChunk of _.chunk(account.txns, RATE_LIMIT.TRANSACTIONS_BATCH_SIZE)) {
-    txns.push(...(await enrichTxnsChunk({ page, chunk: txnsChunk, account, opts })));
-  }
+  const txns = await _.chunk(account.txns, RATE_LIMIT.TRANSACTIONS_BATCH_SIZE).reduce(
+    async (prevPromise, txnsChunk) => {
+      const acc = await prevPromise;
+      const enriched = await enrichTxnsChunk({ page, chunk: txnsChunk, account, opts });
+      return [...acc, ...enriched];
+    },
+    Promise.resolve([] as Transaction[]),
+  );
   return { ...account, txns };
 }
 
@@ -107,13 +111,17 @@ export async function getExtraScrapAccount(
   opts: ExtraScrapAccountOpts,
 ): Promise<ScrapedAccountsWithIndex> {
   const { page, options, accountMap, month } = opts;
-  const accounts: ScrapedAccountsWithIndex[string][] = [];
-  for (const account of Object.values(accountMap)) {
-    LOG.info(
-      `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions, month ${month.format('YYYY-MM')}`,
-    );
-    accounts.push(await enrichAccountTxns(page, account, { options, month }));
-  }
+  const accounts = await Object.values(accountMap).reduce(
+    async (prevPromise, account) => {
+      const acc = await prevPromise;
+      LOG.info(
+        `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions, month ${month.format('YYYY-MM')}`,
+      );
+      acc.push(await enrichAccountTxns(page, account, { options, month }));
+      return acc;
+    },
+    Promise.resolve([] as ScrapedAccountsWithIndex[string][]),
+  );
   return accounts.reduce((m, x) => ({ ...m, [x.accountNumber]: x }), {});
 }
 

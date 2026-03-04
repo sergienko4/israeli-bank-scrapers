@@ -66,17 +66,16 @@ export async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
 
 async function clickMatchingOption(page: Page, accountLabel: string): Promise<boolean> {
   const accountOptions = await page.$$(OPTION_SELECTOR);
-  for (const option of accountOptions) {
-    const text = await page.evaluate(el => el.textContent.trim(), option);
-    if (text === accountLabel) {
-      const optionHandle = await option.evaluateHandle(el => el as HTMLElement);
-      await page.evaluate((el: HTMLElement) => {
-        el.click();
-      }, optionHandle);
-      return true;
-    }
-  }
-  return false;
+  const texts = await Promise.all(
+    accountOptions.map(option => page.evaluate(el => el.textContent.trim(), option)),
+  );
+  const matchIdx = texts.findIndex(text => text === accountLabel);
+  if (matchIdx === -1) return false;
+  const optionHandle = await accountOptions[matchIdx].evaluateHandle(el => el as HTMLElement);
+  await page.evaluate((el: HTMLElement) => {
+    el.click();
+  }, optionHandle);
+  return true;
 }
 
 export async function selectAccountFromDropdown(
@@ -114,13 +113,16 @@ async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | 
 }
 
 export async function getTransactionsFrame(page: Page): Promise<Frame | null> {
-  for (let attempt = 0; attempt < TRANSACTIONS_FRAME_LOAD_ATTEMPTS; attempt++) {
-    const frame = await tryGetFrameAttempt(page, attempt);
-    if (frame) return frame;
-  }
-  LOG.info(
-    'getTransactionsFrame: failed to find frame after %d attempts',
-    TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
-  );
-  return null;
+  const attempts = Array.from({ length: TRANSACTIONS_FRAME_LOAD_ATTEMPTS }, (_, i) => i);
+  const result = await attempts.reduce(async (prevPromise, attempt) => {
+    const found = await prevPromise;
+    if (found) return found;
+    return tryGetFrameAttempt(page, attempt);
+  }, Promise.resolve<Frame | null>(null));
+  if (!result)
+    LOG.info(
+      'getTransactionsFrame: failed to find frame after %d attempts',
+      TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
+    );
+  return result;
 }

@@ -14,29 +14,19 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 
 const LOG = getDebug('behatsdaa');
 
-interface ScraperSpecificCredentials {
-  id: string;
-  password: string;
-}
-
-interface Variant {
+export interface BehatsdaaVariant {
   name: string;
   variantName: string;
   customerPrice: number;
-  orderDate: string; // ISO timestamp with no timezone
+  orderDate: string;
   tTransactionID: string;
 }
-
-interface PurchaseHistoryResponse {
-  data?: {
-    errorDescription?: string;
-    memberId: string;
-    variants: Variant[];
-  };
+export interface BehatsdaaPurchaseResponse {
+  data?: { errorDescription?: string; memberId: string; variants: BehatsdaaVariant[] };
   errorDescription?: string;
 }
 
-function variantToTransaction(variant: Variant, options?: ScraperOptions): Transaction {
+function variantToTransaction(variant: BehatsdaaVariant, options?: ScraperOptions): Transaction {
   // The price is positive, make it negative as it's an expense
   const originalAmount = -variant.customerPrice;
   const result: Transaction = {
@@ -60,7 +50,7 @@ function variantToTransaction(variant: Variant, options?: ScraperOptions): Trans
   return result;
 }
 
-class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+class BehatsdaaScraper extends GenericBankScraper<{ id: string; password: string }> {
   constructor(options: ScraperOptions) {
     super(options, BEHATSDAA_CONFIG);
   }
@@ -76,14 +66,14 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return this.buildAccountResult(res ?? {});
   }
 
-  private async fetchWithToken(token: string): Promise<PurchaseHistoryResponse | null> {
+  private async fetchWithToken(token: string): Promise<BehatsdaaPurchaseResponse | null> {
     const body = {
       FromDate: moment(this.options.startDate).format('YYYY-MM-DDTHH:mm:ss'),
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
     LOG.info('Fetching data');
-    return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
+    return fetchPostWithinPage<BehatsdaaPurchaseResponse>(this.page, CFG.api.purchaseHistory, {
       data: body,
       extraHeaders: {
         authorization: `Bearer ${token}`,
@@ -93,7 +83,7 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     });
   }
 
-  private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
+  private buildAccountResult(res: NonNullable<BehatsdaaPurchaseResponse>): ScraperScrapingResult {
     if (res.errorDescription || res.data?.errorDescription) {
       LOG.info('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };

@@ -35,25 +35,17 @@ const MAX_PASSWORD_FIELD_CONFIG: FieldConfig = {
 /** Selector for the Flow B ID field — only visible when Angular shows the second login step. */
 const MAX_ID_SEL = '#login-password.tab-pane.active [formcontrolname="id"]';
 
-/**
- * Handles the optional second-login step in Max's Flow B:
- *   home → username+password → 2nd form (username+password+ID) → dashboard
- * Detection uses CSS visibility (isVisible) — not DOM presence — to avoid false positives:
- * Angular keeps [formcontrolname="id"] in the DOM for both flows, CSS-hidden in Flow A.
- * If the ID form is not visible (Flow A), this function is a no-op.
- */
-export async function maxHandleSecondLoginStep(
+async function isMaxIdFieldVisible(page: Page): Promise<boolean> {
+  return page
+    .locator(MAX_ID_SEL)
+    .isVisible()
+    .catch(() => false);
+}
+
+async function fillSecondStepFields(
   page: Page,
-  credentials: { username: string; password: string; id?: string },
+  credentials: { username: string; password: string; id: string },
 ): Promise<void> {
-  if (!credentials.id) return;
-  if (
-    !(await page
-      .locator(MAX_ID_SEL)
-      .isVisible()
-      .catch(() => false))
-  )
-    return;
   const url = page.url();
   const userCtx = await resolveFieldContext(page, MAX_USERNAME_FIELD_CONFIG, url);
   const passCtx = await resolveFieldContext(page, MAX_PASSWORD_FIELD_CONFIG, url);
@@ -62,6 +54,19 @@ export async function maxHandleSecondLoginStep(
   await fillInput(page, MAX_ID_SEL, credentials.id);
   await clickButton(page, 'app-user-login-form .general-button.send-me-code');
   await sleep(1000);
+}
+
+/**
+ * Handles the optional second-login step in Max's Flow B.
+ * Detection uses CSS visibility (isVisible) — not DOM presence — to avoid false positives.
+ */
+export async function maxHandleSecondLoginStep(
+  page: Page,
+  credentials: { username: string; password: string; id?: string },
+): Promise<void> {
+  if (!credentials.id) return;
+  if (!(await isMaxIdFieldVisible(page))) return;
+  await fillSecondStepFields(page, { ...credentials, id: credentials.id });
 }
 
 async function maxPreActionStep1(page: Page): Promise<void> {

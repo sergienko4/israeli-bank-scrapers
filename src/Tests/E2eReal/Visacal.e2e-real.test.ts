@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 
-import { CompanyTypes, createScraper } from '../../index';
+import { CompanyTypes, createScraper } from '../../Index';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -28,8 +28,8 @@ describeIf('E2E: VisaCal (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      username: process.env.VISACAL_USERNAME!,
-      password: process.env.VISACAL_PASSWORD!,
+      username: process.env.VISACAL_USERNAME ?? '',
+      password: process.env.VISACAL_PASSWORD ?? '',
     });
 
     assertSuccessfulScrape(result);

@@ -35,3 +35,5 @@ export const HAPOALIM_CONFIG: LoginConfig = {
     ],
   },
 };
+
+export default HAPOALIM_CONFIG;

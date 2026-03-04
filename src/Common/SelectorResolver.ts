@@ -168,17 +168,10 @@ export interface FieldContext {
   message?: string;
 }
 
-/** Internal match result — callers add isResolved, resolvedVia, round.
- *  `selector` is empty string when not found (never null). */
-interface FieldMatch {
-  selector: string;
-  context: Page | Frame;
-}
-
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
-): Promise<FieldMatch> {
+): Promise<{ selector: string; context: Page | Frame }> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
   const frameResults = await Promise.all(
@@ -200,14 +193,12 @@ async function getPageTitle(pof: Page | Frame): Promise<string> {
   }
 }
 
-interface NotFoundContext {
+function buildNotFoundMessage(ctx: {
   credentialKey: string;
   pageUrl: string;
   tried: string[];
   pageTitle: string;
-}
-
-function buildNotFoundMessage(ctx: NotFoundContext): string {
+}): string {
   const { credentialKey, pageUrl, tried, pageTitle } = ctx;
   return [
     `Could not find '${credentialKey}' field on ${pageUrl}`,
@@ -223,7 +214,7 @@ async function resolveInMainContext(
   pageOrFrame: Page | Frame,
   allCandidates: SelectorCandidate[],
   credentialKey: string,
-): Promise<FieldMatch> {
+): Promise<{ selector: string; context: Page | Frame }> {
   LOG.info('Round 2: searching main page');
   const main = await tryInContext(pageOrFrame, allCandidates);
   if (!main) return { selector: '', context: pageOrFrame }; // not found

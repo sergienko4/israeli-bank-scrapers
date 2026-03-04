@@ -145,7 +145,7 @@ function buildTxnStatus(isPendingTxn: boolean): TransactionStatuses {
   return isPendingTxn ? TransactionStatuses.Pending : TransactionStatuses.Completed;
 }
 
-interface TxnAmounts {
+export interface TxnAmounts {
   originalAmount: number;
   originalCurrency: string;
   chargedAmount: number;

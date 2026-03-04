@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 
-import { CompanyTypes, createScraper } from '../../index';
+import { CompanyTypes, createScraper } from '../../Index';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,

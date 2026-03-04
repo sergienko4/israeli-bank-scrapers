@@ -28,7 +28,7 @@ const SEL = Object.fromEntries(
   Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
 
-interface ScrapedTransaction {
+export interface ScrapedTransaction {
   date: string;
   description: string;
   type: string;
@@ -155,12 +155,7 @@ async function fetchTransactions(
   return { accountNumber, balance: getAmountData(balance).amount, txns };
 }
 
-interface ScraperSpecificCredentials {
-  id: string;
-  password: string;
-}
-
-class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+class BeyahadBishvilhaScraper extends GenericBankScraper<{ id: string; password: string }> {
   constructor(options: ScraperOptions) {
     super(options, BEYAHAD_CONFIG);
   }
@@ -173,13 +168,6 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<ScraperSpecificCredenti
     return {
       success: true,
       accounts: [account],
-    };
-  }
-
-  public getViewPort(): { width: number; height: number } {
-    return {
-      width: 1500,
-      height: 800,
     };
   }
 }

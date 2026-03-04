@@ -33,7 +33,7 @@ const SEL = Object.fromEntries(
   Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
 
-type YahavDashKey = keyof typeof CFG.selectors;
+export type YahavDashKey = keyof typeof CFG.selectors;
 // Typed key constants derived from config — no inline string literals in scraper code
 const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
   [K in YahavDashKey]: K;
@@ -48,7 +48,7 @@ function dashOpts(page: Page, key: YahavDashKey): DashboardFieldOpts {
   };
 }
 
-interface ScrapedTransaction {
+export interface ScrapedTransaction {
   credit: string;
   debit: string;
   date: string;
@@ -85,7 +85,7 @@ function getTxnAmount(txn: ScrapedTransaction): number {
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
 }
 
-interface TransactionsTr {
+export interface TransactionsTr {
   id: string;
   innerDivs: string[];
 }
@@ -159,7 +159,7 @@ async function getAccountTransactions(
   return convertTransactions(txns, options);
 }
 
-interface SelectFromGridOpts {
+export interface SelectFromGridOpts {
   page: Page;
   baseSelector: string;
   count: number;
@@ -223,7 +223,7 @@ async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   await selectDayFromGrid(page, startDateDay);
 }
 
-interface FetchAccDataOpts {
+export interface FetchAccDataOpts {
   page: Page;
   startDate: Moment;
   accountID: string;
@@ -254,7 +254,7 @@ async function fetchAccounts(
   return accounts;
 }
 
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   username: string;
   password: string;
   nationalID: string;

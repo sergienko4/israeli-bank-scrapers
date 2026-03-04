@@ -28,6 +28,15 @@ export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLogin
 
 const LOG = getDebug('base-scraper-with-browser');
 
+function buildFieldConfig(field: { selector: string; credentialKey?: string }): FieldConfig {
+  const key = field.credentialKey ?? extractCredentialKey(field.selector);
+  return { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
+}
+
+function isSuccessStatus(status: number): boolean {
+  return status === 200 || (status >= 300 && status < 400);
+}
+
 class BaseScraperWithBrowser<
   TCredentials extends ScraperCredentials,
 > extends BaseScraper<TCredentials> {
@@ -70,7 +79,8 @@ class BaseScraperWithBrowser<
     throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
   }
 
-  public getLoginOptions(_credentials: ScraperCredentials): LoginOptions {
+  public getLoginOptions(credentials: ScraperCredentials): LoginOptions {
+    void credentials;
     throw new Error(`getLoginOptions() is not created in ${this.options.companyId}`);
   }
 
@@ -78,9 +88,10 @@ class BaseScraperWithBrowser<
     pageOrFrame: Page | Frame,
     fields: { selector: string; value: string; credentialKey?: string }[],
   ): Promise<void> {
-    for (const field of fields) {
+    await fields.reduce(async (prev, field) => {
+      await prev;
       await this.fillOneInput(pageOrFrame, field);
-    }
+    }, Promise.resolve());
   }
 
   public async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
@@ -119,16 +130,11 @@ class BaseScraperWithBrowser<
     this.cleanups = [];
   }
 
-  private buildFieldConfig(field: { selector: string; credentialKey?: string }): FieldConfig {
-    const key = field.credentialKey ?? extractCredentialKey(field.selector);
-    return { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
-  }
-
   private async fillOneInput(
     pageOrFrame: Page | Frame,
     field: { selector: string; value: string; credentialKey?: string },
   ): Promise<void> {
-    const fc = this.buildFieldConfig(field);
+    const fc = buildFieldConfig(field);
     const result = await resolveFieldContext(
       this.activeLoginContext ?? pageOrFrame,
       fc,
@@ -212,10 +218,6 @@ class BaseScraperWithBrowser<
     return this.launchNewBrowser();
   }
 
-  private isSuccessStatus(status: number): boolean {
-    return status === 200 || (status >= 300 && status < 400);
-  }
-
   private async navigateAfterDelay(
     url: string,
     waitUntil: WaitUntilState | undefined,
@@ -239,7 +241,7 @@ class BaseScraperWithBrowser<
         `Failed to navigate to url ${url}, status code: 403 (after ${maxRetries} retries)`,
       );
     const currentStatus = await this.navigateAfterDelay(url, waitUntil, attempt);
-    if (this.isSuccessStatus(currentStatus)) {
+    if (isSuccessStatus(currentStatus)) {
       LOG.info('WAF 403 resolved after retry %d', attempt + 1);
       return;
     }

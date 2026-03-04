@@ -277,3 +277,5 @@ fragment MovementsFragment on Movements {
   }
 }
 `;
+
+export default MOVEMENTS_FRAGMENTS_2;

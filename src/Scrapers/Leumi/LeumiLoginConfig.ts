@@ -71,3 +71,5 @@ export const LEUMI_CONFIG: LoginConfig = {
     changePassword: ['https://hb2.bankleumi.co.il/authenticate'],
   },
 };
+
+export default LEUMI_CONFIG;

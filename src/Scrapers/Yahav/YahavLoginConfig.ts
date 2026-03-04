@@ -53,3 +53,5 @@ export const YAHAV_CONFIG: LoginConfig = {
     ],
   },
 };
+
+export default YAHAV_CONFIG;

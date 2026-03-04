@@ -9,8 +9,10 @@ import { type ScraperCredentials, type ScraperScrapingResult } from './Interface
 export class ConcreteGenericScraper<
   TCredentials extends ScraperCredentials,
 > extends GenericBankScraper<TCredentials> {
-  // eslint-disable-next-line @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await, class-methods-use-this
   public async fetchData(): Promise<ScraperScrapingResult> {
     return { success: true, accounts: [] };
   }
 }
+
+export default ConcreteGenericScraper;

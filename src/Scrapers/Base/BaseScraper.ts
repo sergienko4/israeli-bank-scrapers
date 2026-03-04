@@ -73,13 +73,15 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     return finalResult;
   }
 
-  public triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
+  public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
+    void phoneNumber;
     throw new Error(`triggerOtp() is not created in ${this.options.companyId}`);
   }
 
   public getLongTermTwoFactorToken(
-    _otpCode: string,
+    otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
+    void otpCode;
     throw new Error(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
   }
 
@@ -90,7 +92,8 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  protected async login(_credentials: TCredentials): Promise<ScraperLoginResult> {
+  protected async login(credentials: TCredentials): Promise<ScraperLoginResult> {
+    void credentials;
     throw new Error(`login() is not created in ${this.options.companyId}`);
   }
 
@@ -100,7 +103,8 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  protected async terminate(_success: boolean): Promise<void> {
+  protected async terminate(success: boolean): Promise<void> {
+    void success;
     this.emitProgress(ScraperProgressTypes.Terminating);
   }
 
@@ -168,3 +172,5 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     return scrapeResult;
   }
 }
+
+export default BaseScraper;

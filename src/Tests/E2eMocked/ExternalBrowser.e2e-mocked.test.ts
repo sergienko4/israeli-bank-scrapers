@@ -1,7 +1,7 @@
 import { type Browser, type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
-import { createScraper } from '../../index';
+import { createScraper } from '../../Index';
 import { amexRoutes } from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';

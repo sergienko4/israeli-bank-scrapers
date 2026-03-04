@@ -23,13 +23,25 @@ const { loginDelayMinMs: LOGIN_DELAY_MIN, loginDelayMaxMs: LOGIN_DELAY_MAX } =
 
 const LOG = getDebug('base-isracard-amex');
 
-interface ScraperSpecificCredentials {
+function buildLoginRequest(
+  credentials: { id: string; password: string; card6Digits: string },
+  userName: string,
+): Record<string, string> {
+  return {
+    KodMishtamesh: userName,
+    MisparZihuy: credentials.id,
+    Sisma: credentials.password,
+    cardSuffix: credentials.card6Digits,
+    countryCode: COUNTRY_CODE,
+    idType: ID_TYPE,
+  };
+}
+
+class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   id: string;
   password: string;
   card6Digits: string;
-}
-
-class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
+}> {
   private baseUrl: string;
 
   private companyCode: string;
@@ -43,7 +55,11 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     this.servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
-  public async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
+  public async login(credentials: {
+    id: string;
+    password: string;
+    card6Digits: string;
+  }): Promise<ScraperScrapingResult> {
     this.setupResponseLogging();
     await this.navigateToLoginPage();
     const validatedData = await this.validateCredentials(credentials);
@@ -75,7 +91,11 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     });
   }
 
-  private buildValidateRequest(credentials: ScraperSpecificCredentials): Record<string, string> {
+  private buildValidateRequest(credentials: {
+    id: string;
+    password: string;
+    card6Digits: string;
+  }): Record<string, string> {
     return {
       id: credentials.id,
       cardSuffix: credentials.card6Digits,
@@ -86,9 +106,11 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
-  private async validateCredentials(
-    credentials: ScraperSpecificCredentials,
-  ): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
+  private async validateCredentials(credentials: {
+    id: string;
+    password: string;
+    card6Digits: string;
+  }): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
     const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
     LOG.info('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
@@ -99,20 +121,6 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       return null;
     }
     return result.ValidateIdDataBean;
-  }
-
-  private buildLoginRequest(
-    credentials: ScraperSpecificCredentials,
-    userName: string,
-  ): Record<string, string> {
-    return {
-      KodMishtamesh: userName,
-      MisparZihuy: credentials.id,
-      Sisma: credentials.password,
-      cardSuffix: credentials.card6Digits,
-      countryCode: COUNTRY_CODE,
-      idType: ID_TYPE,
-    };
   }
 
   private interpretLoginStatus(status: string | undefined): ScraperScrapingResult {
@@ -133,13 +141,13 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
   }
 
   private async performLogin(
-    credentials: ScraperSpecificCredentials,
+    credentials: { id: string; password: string; card6Digits: string },
     userName: string,
   ): Promise<ScraperScrapingResult> {
     const loginUrl = `${this.servicesUrl}?reqName=performLogonI`;
     LOG.info('user login started');
     const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
-      data: this.buildLoginRequest(credentials, userName),
+      data: buildLoginRequest(credentials, userName),
     });
     LOG.info(loginResult, `user login with status '${loginResult?.status}'`);
     return this.interpretLoginStatus(loginResult?.status);

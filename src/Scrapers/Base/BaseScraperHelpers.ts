@@ -15,11 +15,12 @@ enum LoginBaseResults {
 }
 
 const {
-  Timeout: _TIMEOUT,
-  Generic: _GENERIC,
-  WafBlocked: _WAF_BLOCKED,
+  Timeout: TIMEOUT,
+  Generic: GENERIC,
+  WafBlocked: WAF_BLOCKED,
   ...LOGIN_BASE_ENTRIES
 } = ScraperErrorTypes;
+void [TIMEOUT, GENERIC, WAF_BLOCKED]; // excluded from LOGIN_RESULTS — handled by BaseScraper
 
 export const LOGIN_RESULTS = {
   ...LOGIN_BASE_ENTRIES,
@@ -61,10 +62,10 @@ export async function matchesAnyCondition(
   value: string,
   page: Page,
 ): Promise<boolean> {
-  for (const condition of conditions) {
-    if (await testCondition(condition, value, page)) return true;
-  }
-  return false;
+  return conditions.reduce(
+    async (acc, condition) => (await acc) || testCondition(condition, value, page),
+    Promise.resolve(false),
+  );
 }
 
 export function createGeneralError(): ScraperScrapingResult {
@@ -85,13 +86,15 @@ export async function getKeyByValue(
   page: Page,
 ): Promise<LoginResults> {
   const keys = Object.keys(object) as LoginResults[];
-  for (const key of keys) {
+  const matched = await keys.reduce(async (acc, key) => {
+    const prev = await acc;
+    if (prev !== null) return prev;
     const conditions = object[key];
-    if (!conditions) continue;
-    if (await matchesAnyCondition(conditions, value, page)) return key;
-  }
-  LOG.info('no login result matched — url: %s, value: %s', page.url(), value);
-  return LOGIN_RESULTS.UnknownError;
+    if (!conditions) return null;
+    return (await matchesAnyCondition(conditions, value, page)) ? key : null;
+  }, Promise.resolve<LoginResults | null>(null));
+  if (!matched) LOG.info('no login result matched — url: %s, value: %s', page.url(), value);
+  return matched ?? LOGIN_RESULTS.UnknownError;
 }
 
 export async function alreadyAtResultUrl(

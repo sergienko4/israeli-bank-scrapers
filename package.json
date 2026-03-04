@@ -10,18 +10,18 @@
     "provenance": true
   },
   "type": "commonjs",
-  "main": "lib/index.cjs",
-  "module": "lib/index.mjs",
-  "types": "lib/index.d.ts",
+  "main": "lib/Index.cjs",
+  "module": "lib/Index.mjs",
+  "types": "lib/Index.d.ts",
   "exports": {
     ".": {
       "import": {
-        "types": "./lib/index.d.mts",
-        "default": "./lib/index.mjs"
+        "types": "./lib/Index.d.mts",
+        "default": "./lib/Index.mjs"
       },
       "require": {
-        "types": "./lib/index.d.ts",
-        "default": "./lib/index.cjs"
+        "types": "./lib/Index.d.ts",
+        "default": "./lib/Index.cjs"
       }
     }
   },
@@ -51,11 +51,7 @@
     "type": "git",
     "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
-  "keywords": [
-    "israel",
-    "israeli bank",
-    "israeli bank scraper"
-  ],
+  "keywords": ["israel", "israeli bank", "israeli bank scraper"],
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
@@ -108,22 +104,13 @@
     "utility-types": "^3.11.0",
     "uuid": "^11.1.0"
   },
-  "files": [
-    "lib/**/*"
-  ],
+  "files": ["lib/**/*"],
   "overrides": {
     "test-exclude": "^7.0.2"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ],
-    "*.json": [
-      "prettier --parser json --write"
-    ],
-    "*.md": [
-      "prettier --parser markdown --write"
-    ]
+    "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0 --no-warn-ignored", "prettier --write"],
+    "*.json": ["prettier --parser json --write"],
+    "*.md": ["prettier --parser markdown --write"]
   }
 }

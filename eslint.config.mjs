@@ -10,7 +10,7 @@ import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts'] },
+  { ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', '**/*.js', '**/*.mjs', 'tsup.config.ts', 'src/Tests/**', 'src/**/*.test.ts', 'src/**/*.spec.ts'] },
 
   // Base configs
   eslint.configs.recommended,
@@ -93,6 +93,11 @@ export default tseslint.config(
           selector: "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
           message: 'SECURITY: Do not pass credential variables to logger. Pino redaction handles sensitive paths.',
         },
+         'error',
+        {
+          selector: ":matches(TSInterfaceDeclaration, TSTypeAliasDeclaration, ClassDeclaration) ~ :matches(TSInterfaceDeclaration, TSTypeAliasDeclaration, ClassDeclaration)",
+          message: "Each file should only export one primary structure (Interface, Type, or Class).",
+       },
         'ForInStatement',
         'LabeledStatement',
         'WithStatement',
@@ -178,7 +183,7 @@ export default tseslint.config(
       'no-unused-expressions': 'error',
       '@typescript-eslint/no-unused-private-class-members': 'error',
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
-      'no-unused-vars': 'error',
+      'no-unused-vars':  'error',
       'max-len': [
         'error',
         {
@@ -195,42 +200,49 @@ export default tseslint.config(
 
   // Test / spec / mock / config files — Exemptions
   {
-    files: [
+   files: [
       'src/**/*.test.ts',
       'src/**/*.spec.ts',
       'src/Tests/**/*.ts',
       '**/mocks/**/*.ts',
       'eslint.config.mjs',
     ],
+    // This overrides the inclusion above
+    ignores: ['src/Tests/**/*.ts', 'src/**/*.test.ts', '**/mocks/**/*.ts'],
     rules: {
-      'import-x/no-extraneous-dependencies': 'off',
-      'import-x/max-dependencies': 'off', // Tests often need many imports
-      '@typescript-eslint/prefer-nullish-coalescing': 'off',
-      '@typescript-eslint/no-empty-function': 'off',
-      '@typescript-eslint/no-deprecated': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
+      'import-x/no-extraneous-dependencies': 'error',
+      'import-x/max-dependencies': 'error', // Tests often need many imports
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      '@typescript-eslint/no-empty-function': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
       'no-console': 'off',
-      'no-warning-comments': 'off',
-      'max-lines': 'off',
-      'max-lines-per-function': 'off',
-      'max-len': 'off',
-      'max-classes-per-file': 'off',
-      'check-file/filename-naming-convention': 'off',
-      'check-file/folder-naming-convention': 'off',
-      '@typescript-eslint/naming-convention': 'off',
-      '@typescript-eslint/member-ordering': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/explicit-member-accessibility': 'off', // Relaxed for tests
+      'no-warning-comments': 'error',
+      'max-lines': 'error',
+      'max-lines-per-function': 'error',
+      'max-len': 'error',
+      'max-classes-per-file': 'error',
+      'check-file/filename-naming-convention': 'error',
+      'check-file/folder-naming-convention': 'error',
+      '@typescript-eslint/naming-convention': 'error',
+      '@typescript-eslint/member-ordering': 'error',
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'error',
+      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/explicit-member-accessibility': 'error', 
+      '@typescript-eslint/no-non-null-assertion': 'error',
+      'no-unused-vars': 'error',
+      'class-methods-use-this': 'error',
+      'no-await-in-loop': 'error',
+      'import-x/prefer-default-export': 'error',
     },
   },
 
-  // Lowercase entry-point & reserved filenames
+  // Lowercase entry-point & reserved filenames — disable naming check
   {
     files: [
       'src/index.ts',

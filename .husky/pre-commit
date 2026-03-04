@@ -43,11 +43,11 @@ echo "🔒  [6/8] npm audit (production deps)..." | tee -a "$LOG_FILE"
 run_gate npm audit --audit-level=high --omit=dev || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🏦  [7/8] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount)..." | tee -a "$LOG_FILE"
+echo "🏦  [7/8] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount, VisaCal)..." | tee -a "$LOG_FILE"
 if [ -f .env ]; then
   npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js 2>/dev/null
   run_gate npx jest --no-coverage --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
-    --testPathPatterns='E2eReal/Amex|E2eReal/Isracard|E2eReal/Max|E2eReal/Discount' \
+    --testPathPatterns='E2eReal/Amex|E2eReal/Isracard|E2eReal/Max|E2eReal/Discount|E2eReal/Visacal' \
     --verbose || exit 1
 else
   echo "  ⚠️  No .env file — skipping real E2E (CI will run them)" | tee -a "$LOG_FILE"

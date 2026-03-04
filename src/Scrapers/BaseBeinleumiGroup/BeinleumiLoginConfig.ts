@@ -55,3 +55,5 @@ export function beinleumiConfig(loginUrl: string): LoginConfig {
     possibleResults: BEINLEUMI_POSSIBLE_RESULTS,
   };
 }
+
+export default beinleumiConfig;

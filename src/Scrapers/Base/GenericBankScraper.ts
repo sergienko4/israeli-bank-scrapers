@@ -33,14 +33,24 @@ function mapPossibleResults(r: LoginConfig['possibleResults']): PossibleLoginRes
   };
 }
 
-interface SubmitButtonOpts {
+function buildLoginCallbacks(
+  config: LoginConfig,
+  page: Page,
+): Pick<LoginOptions, 'checkReadiness' | 'preAction' | 'postAction'> {
+  const { checkReadiness, preAction, postAction } = config;
+  return {
+    checkReadiness: checkReadiness ? (): Promise<void> => checkReadiness(page) : undefined,
+    preAction: preAction ? (): Promise<Frame | undefined> => preAction(page) : undefined,
+    postAction: postAction ? (): Promise<void> => postAction(page) : undefined,
+  };
+}
+
+function buildSubmitButtonFunction(opts: {
   submitCands: SelectorCandidate[];
   submitField: FieldConfig;
   ctx: () => Page | Frame | null;
   page: () => Page;
-}
-
-function buildSubmitButtonFunction(opts: SubmitButtonOpts): () => Promise<void> {
+}): () => Promise<void> {
   const { submitCands, submitField, ctx, page } = opts;
   return async () => {
     const activeCtx = ctx() ?? page();
@@ -92,7 +102,7 @@ export abstract class GenericBankScraper<
       loginUrl: config.loginUrl,
       fields: buildFieldList(config, credentials),
       submitButtonSelector: this.buildSubmitSelector(submitCands, submitField),
-      ...this.buildLoginCallbacks(config, page),
+      ...buildLoginCallbacks(config, page),
       possibleResults: mapPossibleResults(config.possibleResults),
       waitUntil: config.waitUntil,
     };
@@ -102,29 +112,13 @@ export abstract class GenericBankScraper<
     pageOrFrame: Page | Frame,
     fields: { selector: string; value: string; credentialKey?: string }[],
   ): Promise<void> {
-    for (let i = 0; i < fields.length; i++) {
-      const fieldConfig = this.fieldConfigs[i];
-      const value = fields[i].value;
-      await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
-        selector: fields[i].selector,
-        value,
+    await fields.reduce(async (prev, field, i) => {
+      await prev;
+      await this.fillFieldWithFallback(pageOrFrame, this.fieldConfigs[i], {
+        selector: field.selector,
+        value: field.value,
       });
-    }
-  }
-
-  private buildLoginCallbacks(
-    config: LoginConfig,
-    page: Page,
-  ): Pick<LoginOptions, 'checkReadiness' | 'preAction' | 'postAction'> {
-    return {
-      checkReadiness: config.checkReadiness
-        ? (): Promise<void> => config.checkReadiness!(page)
-        : undefined,
-      preAction: config.preAction
-        ? (): Promise<Frame | undefined> => config.preAction!(page)
-        : undefined,
-      postAction: config.postAction ? (): Promise<void> => config.postAction!(page) : undefined,
-    };
+    }, Promise.resolve());
   }
 
   private buildSubmitSelector(
@@ -138,14 +132,6 @@ export abstract class GenericBankScraper<
       ctx: () => this.activeLoginContext,
       page: () => page,
     });
-  }
-
-  private async fillWithFallback(
-    ctx: Page | Frame,
-    selector: string,
-    value: string,
-  ): Promise<void> {
-    await fillInput(ctx, selector, value);
   }
 
   private async resolveAndFill(
@@ -173,7 +159,9 @@ export abstract class GenericBankScraper<
     const result = await this.resolveAndFill(pageOrFrame, fieldConfig, field.value);
     if (!result.isResolved && field.selector) {
       const ctx = this.activeLoginContext ?? pageOrFrame;
-      await this.fillWithFallback(ctx, field.selector, field.value);
+      await fillInput(ctx, field.selector, field.value);
     }
   }
 }
+
+export default GenericBankScraper;

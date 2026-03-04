@@ -14,7 +14,7 @@ import { discountConfig } from './DiscountLoginConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 
-interface ScrapedTransaction {
+export interface ScrapedTransaction {
   OperationNumber: number;
   OperationDate: string;
   ValueDate: string;
@@ -22,11 +22,11 @@ interface ScrapedTransaction {
   OperationDescriptionToDisplay: string;
 }
 
-interface CurrentAccountInfo {
+export interface CurrentAccountInfo {
   AccountBalance: number;
 }
 
-interface ScrapedAccountData {
+export interface ScrapedAccountData {
   UserAccountsData: {
     DefaultAccountNumber: string;
     UserAccounts: {
@@ -37,7 +37,7 @@ interface ScrapedAccountData {
   };
 }
 
-interface ScrapedTransactionData {
+export interface ScrapedTransactionData {
   Error?: { MsgText: string };
   CurrentAccountLastTransactions?: {
     OperationEntry: ScrapedTransaction[] | null;
@@ -76,7 +76,7 @@ function convertTransactions(
   return txns.map(txn => convertOneTxn(txn, txnStatus, options));
 }
 
-interface FetchOneAccOpts {
+export interface FetchOneAccOpts {
   page: Page;
   apiSiteUrl: string;
   accountNumber: string;
@@ -99,7 +99,10 @@ function buildOneAccountResult(
   accountNumber: string,
   options: ScraperOptions,
 ): { accountNumber: string; balance: number; txns: Transaction[] } {
-  const data = txnsResult.CurrentAccountLastTransactions!;
+  const data = txnsResult.CurrentAccountLastTransactions ?? {
+    OperationEntry: [],
+    CurrentAccountInfo: { AccountBalance: 0 },
+  };
   const completedTxns = data.OperationEntry
     ? convertTransactions(data.OperationEntry, TransactionStatuses.Completed, options)
     : [];
@@ -131,7 +134,7 @@ function buildStartDateStr(options: ScraperOptions): string {
   return startMoment.format(CFG.format.date);
 }
 
-interface FetchAllAccountsOpts {
+export interface FetchAllAccountsOpts {
   page: Page;
   apiSiteUrl: string;
   accountNumbers: string[];
@@ -141,23 +144,25 @@ interface FetchAllAccountsOpts {
 
 async function fetchAllAccounts(opts: FetchAllAccountsOpts): Promise<ScraperScrapingResult> {
   const { page, apiSiteUrl, accountNumbers, startDateStr, options } = opts;
-  const accountsData = [];
-  for (const accountNumber of accountNumbers) {
-    const result = await fetchOneAccount({
-      page,
-      apiSiteUrl,
-      accountNumber,
-      startDateStr,
-      options,
-    });
-    if ('error' in result)
-      return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: result.error };
-    accountsData.push(result);
-  }
-  return { success: true, accounts: accountsData };
+  const results = await Promise.all(
+    accountNumbers.map(accountNumber =>
+      fetchOneAccount({ page, apiSiteUrl, accountNumber, startDateStr, options }),
+    ),
+  );
+  const errorResult = results.find(r => 'error' in r);
+  if (errorResult && 'error' in errorResult)
+    return {
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: errorResult.error,
+    };
+  const accounts = results.filter(
+    (r): r is Exclude<typeof r, { error: string }> => !('error' in r),
+  );
+  return { success: true, accounts };
 }
 
-interface FetchAccountDataOpts {
+export interface FetchAccountDataOpts {
   page: Page;
   apiSiteUrl: string;
   accountInfo: ScrapedAccountData;
@@ -191,7 +196,7 @@ async function fetchAccountData(
   return fetchAllAccounts(buildAccountsOpts({ page, apiSiteUrl, accountInfo, options }));
 }
 
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   id: string;
   password: string;
   num: string;

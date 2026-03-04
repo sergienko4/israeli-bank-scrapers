@@ -51,6 +51,7 @@ export function getTestsConfig(): TestsConfig {
 
   try {
     const configPath = path.join(__dirname, '.tests-config.js');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     testsConfig = require(configPath) as TestsConfig;
     return testsConfig;
   } catch (e) {
@@ -61,7 +62,7 @@ export function getTestsConfig(): TestsConfig {
 
 export function maybeTestCompanyAPI(
   scraperId: string,
-  filter?: (config: TestsConfig) => boolean | undefined,
+  filter?: (_config: TestsConfig) => boolean | undefined,
 ): jest.It {
   if (!configurationLoaded) {
     getTestsConfig();

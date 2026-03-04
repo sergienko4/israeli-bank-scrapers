@@ -50,7 +50,7 @@ function getTransactionsUrl(monthMoment: Moment): string {
   return url.toString();
 }
 
-interface FetchCategoryResult {
+export interface FetchCategoryResult {
   result?: {
     id: number;
     name: string;
@@ -180,7 +180,7 @@ function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'ra
     ...buildTxnDates(rawTransaction),
     originalAmount: -rawTransaction.originalAmount,
     originalCurrency: rawTransaction.originalCurrency,
-    chargedAmount: -rawTransaction.actualPaymentAmount,
+    chargedAmount: -parseFloat(rawTransaction.actualPaymentAmount),
     chargedCurrency: getChargedCurrency(rawTransaction.paymentCurrency),
     description: rawTransaction.merchantName.trim(),
     memo: getMemo(rawTransaction),
@@ -196,7 +196,7 @@ function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOpt
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(rawTransaction);
   return result;
 }
-interface ScrapedTransactionsResult {
+export interface ScrapedTransactionsResult {
   result?: {
     transactions: ScrapedTransaction[];
   };
@@ -236,7 +236,7 @@ function addResult(
   return clonedResults;
 }
 
-interface PrepareOpts {
+export interface PrepareOpts {
   txns: Transaction[];
   startMoment: moment.Moment;
   shouldCombineInstallments: boolean;
@@ -258,11 +258,13 @@ async function collectAllMonthResults(
   allMonths: Moment[],
   options: ScraperOptions,
 ): Promise<Record<string, Transaction[]>> {
-  let allResults: Record<string, Transaction[]> = {};
-  for (const month of allMonths) {
-    allResults = addResult(allResults, await fetchTransactionsForMonth(page, month, options));
-  }
-  return allResults;
+  return allMonths.reduce(
+    async (prevPromise, month) => {
+      const prev = await prevPromise;
+      return addResult(prev, await fetchTransactionsForMonth(page, month, options));
+    },
+    Promise.resolve({} as Record<string, Transaction[]>),
+  );
 }
 
 function applyPrepareToAllAccounts(
@@ -301,7 +303,7 @@ async function fetchTransactions(
  *  - Flow B (occasional): home → username+password → 2nd form (username+password+id) → dashboard
  * Provide `id` (Israeli national ID / ת.ז.) so Flow B is handled automatically.
  */
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   username: string;
   password: string;
   id?: string;

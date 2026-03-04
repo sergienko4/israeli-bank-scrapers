@@ -50,3 +50,5 @@ export const MIZRAHI_CONFIG: LoginConfig = {
     changePassword: [/https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/],
   },
 };
+
+export default MIZRAHI_CONFIG;

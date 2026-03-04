@@ -23,7 +23,7 @@ declare namespace window {
   const bnhpApp: { restContext: string };
 }
 
-interface ScrapedTransaction {
+export interface ScrapedTransaction {
   serialNumber?: number;
   activityDescription?: string;
   eventAmount: number;
@@ -43,22 +43,22 @@ interface ScrapedTransaction {
   additionalInformation?: unknown;
 }
 
-interface ScrapedPfmTransaction {
+export interface ScrapedPfmTransaction {
   transactionNumber: number;
 }
 
-type FetchedAccountData = {
+export type FetchedAccountData = {
   bankNumber: string;
   accountNumber: string;
   branchNumber: string;
   accountClosingReasonCode: number;
 }[];
 
-interface FetchedAccountTransactionsData {
+export interface FetchedAccountTransactionsData {
   transactions: ScrapedTransaction[];
 }
 
-interface BalanceAndCreditLimit {
+export interface BalanceAndCreditLimit {
   creditLimitAmount: number;
   creditLimitDescription: string;
   creditLimitUtilizationAmount: number;
@@ -135,14 +135,14 @@ async function fetchPoalimXSRFWithinPage(
   });
 }
 
-interface ExtraScrapOpts {
+export interface ExtraScrapOpts {
   txnsResult: FetchedAccountTransactionsData;
   baseUrl: string;
   page: Page;
   accountNumber: string;
 }
 
-interface EnrichTxnOpts {
+export interface EnrichTxnOpts {
   transaction: ScrapedTransaction;
   baseUrl: string;
   page: Page;
@@ -175,7 +175,7 @@ async function getExtraScrap(opts: ExtraScrapOpts): Promise<FetchedAccountTransa
   return { transactions: res };
 }
 
-interface GetAccountTxnsOpts {
+export interface GetAccountTxnsOpts {
   baseUrl: string;
   apiSiteUrl: string;
   page: Page;
@@ -222,7 +222,7 @@ async function getAccountBalance(
   return balanceAndCreditLimit?.currentBalance;
 }
 
-interface FetchOneAccountOpts {
+export interface FetchOneAccountOpts {
   page: Page;
   baseUrl: string;
   apiSiteUrl: string;
@@ -296,7 +296,7 @@ async function fetchAccountData(
   return { success: true, accounts };
 }
 
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   userCode: string;
   password: string;
 }

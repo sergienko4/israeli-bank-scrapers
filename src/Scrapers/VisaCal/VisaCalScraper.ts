@@ -41,26 +41,108 @@ import {
 } from './VisaCalTypes';
 
 const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
+const CAL_ORIGIN = VISCAL_CFG.api.calOrigin ?? '';
 const API_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-  Origin: VISCAL_CFG.api.calOrigin!,
-  Referer: VISCAL_CFG.api.calOrigin!,
+  Origin: CAL_ORIGIN,
+  Referer: CAL_ORIGIN,
   'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
   'Sec-Fetch-Site': 'same-site',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Dest': 'empty',
 };
 const LOGIN_URL = VISCAL_CFG.urls.base;
-const TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calTransactions!;
-const FRAMES_REQUEST_ENDPOINT = VISCAL_CFG.api.calFrames!;
-const PENDING_TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calPending!;
-const LOGIN_RESPONSE_URL = VISCAL_CFG.api.calLoginResponse!;
-const INIT_ENDPOINT = VISCAL_CFG.api.calInit!;
+const TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calTransactions ?? '';
+const FRAMES_REQUEST_ENDPOINT = VISCAL_CFG.api.calFrames ?? '';
+const PENDING_TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calPending ?? '';
+const LOGIN_RESPONSE_URL = VISCAL_CFG.api.calLoginResponse ?? '';
+const INIT_ENDPOINT = VISCAL_CFG.api.calInit ?? '';
 
 const LOG = getDebug('visa-cal');
 
-interface ScraperSpecificCredentials {
+function getXSiteId(): Promise<string> {
+  return Promise.resolve(VISCAL_CFG.api.calXSiteId ?? '');
+}
+
+function buildApiHeaders(authorization: string, xSiteId: string): Record<string, string> {
+  return {
+    authorization,
+    'X-Site-Id': xSiteId,
+    'Content-Type': 'application/json',
+    ...API_HEADERS,
+  };
+}
+
+async function fetchMonthData(
+  card: CardInfo,
+  month: moment.Moment,
+  hdrs: Record<string, string>,
+): Promise<CardTransactionDetails> {
+  const monthData = await fetchPost<CardTransactionDetails | CardApiStatus>(
+    TRANSACTIONS_REQUEST_ENDPOINT,
+    { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
+    hdrs,
+  );
+  if (monthData.statusCode !== 1)
+    throw new Error(
+      `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
+    );
+  if (!isCardTransactionDetails(monthData))
+    throw new Error('monthData is not of type CardTransactionDetails');
+  return monthData;
+}
+
+async function fetchCardDataMonths(
+  card: CardInfo,
+  allMonths: moment.Moment[],
+  hdrs: Record<string, string>,
+): Promise<CardTransactionDetails[]> {
+  return allMonths.reduce(
+    async (prevPromise, month) => {
+      const acc = await prevPromise;
+      acc.push(await fetchMonthData(card, month, hdrs));
+      return acc;
+    },
+    Promise.resolve([] as CardTransactionDetails[]),
+  );
+}
+
+async function fetchCardData(
+  card: CardInfo,
+  opts: { startMoment: moment.Moment; futureMonthsToScrape: number; hdrs: Record<string, string> },
+): Promise<CardTransactionDetails[]> {
+  const { startMoment, futureMonthsToScrape, hdrs } = opts;
+  const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
+  const months = finalMonthToFetchMoment.diff(startMoment, 'months');
+  const allMonths = Array.from({ length: months + 1 }, (_, i) =>
+    finalMonthToFetchMoment.clone().subtract(i, 'months'),
+  );
+  LOG.info(`fetch completed transactions for card ${card.cardUniqueId}`);
+  return fetchCardDataMonths(card, allMonths, hdrs);
+}
+
+async function fetchPendingData(
+  card: CardInfo,
+  hdrs: Record<string, string>,
+): Promise<CardPendingTransactionDetails | null> {
+  LOG.info(`fetch pending transactions for card ${card.cardUniqueId}`);
+  let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
+    CardPendingTransactionDetails | CardApiStatus
+  >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
+  if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
+    LOG.info(
+      `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
+    );
+    pendingData = null;
+  } else if (!isCardPendingTransactionDetails(pendingData)) {
+    LOG.info('pendingData is not of type CardTransactionDetails');
+    pendingData = null;
+  }
+  return pendingData;
+}
+
+export interface ScraperSpecificCredentials {
   username: string;
   password: string;
 }
@@ -85,7 +167,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   public async getCards(): Promise<CardInfo[]> {
     LOG.info('fetch cards via init API (bypasses sessionStorage race)');
     const authorization = await this.getAuthorizationHeader();
-    const hdrs = this.buildApiHeaders(authorization, await this.getXSiteId());
+    const hdrs = buildApiHeaders(authorization, await getXSiteId());
     const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
     return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
       cardUniqueId,
@@ -107,10 +189,6 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       this.authorization = `CALAuthScheme ${authModule.auth.calConnectToken}`;
     }
     return this.authorization;
-  }
-
-  public async getXSiteId(): Promise<string> {
-    return Promise.resolve(VISCAL_CFG.api.calXSiteId!);
   }
 
   public getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
@@ -179,82 +257,6 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       });
   }
 
-  private buildApiHeaders(authorization: string, xSiteId: string): Record<string, string> {
-    return {
-      authorization,
-      'X-Site-Id': xSiteId,
-      'Content-Type': 'application/json',
-      ...API_HEADERS,
-    };
-  }
-
-  private async fetchMonthData(
-    card: CardInfo,
-    month: moment.Moment,
-    hdrs: Record<string, string>,
-  ): Promise<CardTransactionDetails> {
-    const monthData = await fetchPost<CardTransactionDetails | CardApiStatus>(
-      TRANSACTIONS_REQUEST_ENDPOINT,
-      { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
-      hdrs,
-    );
-    if (monthData.statusCode !== 1)
-      throw new Error(
-        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
-      );
-    if (!isCardTransactionDetails(monthData))
-      throw new Error('monthData is not of type CardTransactionDetails');
-    return monthData;
-  }
-
-  private async fetchPendingData(
-    card: CardInfo,
-    hdrs: Record<string, string>,
-  ): Promise<CardPendingTransactionDetails | null> {
-    LOG.info(`fetch pending transactions for card ${card.cardUniqueId}`);
-    let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
-      CardPendingTransactionDetails | CardApiStatus
-    >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
-    if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
-      LOG.info(
-        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
-      );
-      pendingData = null;
-    } else if (!isCardPendingTransactionDetails(pendingData)) {
-      LOG.info('pendingData is not of type CardTransactionDetails');
-      pendingData = null;
-    }
-    return pendingData;
-  }
-
-  private async fetchCardDataMonths(
-    card: CardInfo,
-    allMonths: moment.Moment[],
-    hdrs: Record<string, string>,
-  ): Promise<CardTransactionDetails[]> {
-    const allMonthsData: CardTransactionDetails[] = [];
-    for (const month of allMonths) allMonthsData.push(await this.fetchMonthData(card, month, hdrs));
-    return allMonthsData;
-  }
-
-  private async fetchCardData(
-    card: CardInfo,
-    opts: {
-      startMoment: moment.Moment;
-      futureMonthsToScrape: number;
-      hdrs: Record<string, string>;
-    },
-  ): Promise<CardTransactionDetails[]> {
-    const { startMoment, futureMonthsToScrape, hdrs } = opts;
-    const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
-    const months = finalMonthToFetchMoment.diff(startMoment, 'months');
-    const allMonths = Array.from({ length: months + 1 }, (_, i) =>
-      finalMonthToFetchMoment.clone().subtract(i, 'months'),
-    );
-    LOG.info(`fetch completed transactions for card ${card.cardUniqueId}`);
-    return this.fetchCardDataMonths(card, allMonths, hdrs);
-  }
-
   private filterCardTxns(
     transactions: ReturnType<typeof convertParsedDataToTransactions>,
     startDate: Date,
@@ -272,8 +274,8 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     ctx: ApiContext,
   ): Promise<ReturnType<typeof convertParsedDataToTransactions>> {
     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
-    const pendingData = await this.fetchPendingData(card, ctx.hdrs);
-    const allMonthsData = await this.fetchCardData(card, {
+    const pendingData = await fetchPendingData(card, ctx.hdrs);
+    const allMonthsData = await fetchCardData(card, {
       startMoment: ctx.startMoment,
       futureMonthsToScrape,
       hdrs: ctx.hdrs,
@@ -311,10 +313,10 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
 
   private async buildApiContext(startDate: Date, startMoment: moment.Moment): Promise<ApiContext> {
     const [xSiteId, authorization] = await Promise.all([
-      this.getXSiteId(),
+      getXSiteId(),
       this.getAuthorizationHeader(),
     ]);
-    const hdrs = this.buildApiHeaders(authorization, xSiteId);
+    const hdrs = buildApiHeaders(authorization, xSiteId);
     const frames = await this.fetchFrames(hdrs);
     return { startDate, startMoment, hdrs, frames };
   }

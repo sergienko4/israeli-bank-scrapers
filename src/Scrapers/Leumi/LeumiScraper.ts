@@ -29,7 +29,7 @@ const SEL = Object.fromEntries(
 ) as Record<string, string>;
 const TRANSACTIONS_URL = CFG.urls.transactions;
 
-type LeumiDashKey = keyof typeof CFG.selectors;
+export type LeumiDashKey = keyof typeof CFG.selectors;
 // Typed key constants derived from config — no inline string literals in scraper code
 const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
   [K in LeumiDashKey]: K;
@@ -45,7 +45,7 @@ function dashOpts(page: Page, key: LeumiDashKey): DashboardFieldOpts {
 }
 const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
 
-interface LeumiRawTransaction {
+export interface LeumiRawTransaction {
   DateUTC: string;
   Description?: string;
   ReferenceNumberLong?: number;
@@ -110,7 +110,7 @@ function removeSpecialCharacters(str: string): string {
   return str.replace(/[^0-9/-]/g, '');
 }
 
-interface FetchForAccountOpts {
+export interface FetchForAccountOpts {
   page: Page;
   startDate: Moment;
   accountId: string;
@@ -135,7 +135,7 @@ async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
   await resolveAndClick(page, KEYS.filterBtn);
 }
 
-interface LeumiAccountResponse {
+export interface LeumiAccountResponse {
   BalanceDisplay?: string;
   TodayTransactionsItems: LeumiRawTransaction[] | null;
   HistoryTransactionsItems: LeumiRawTransaction[] | null;
@@ -205,7 +205,7 @@ async function switchToAccount(
   await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
 }
 
-interface FetchByIdOpts {
+export interface FetchByIdOpts {
   page: Page;
   rawAccountId: string;
   totalAccounts: number;
@@ -237,7 +237,7 @@ async function fetchTransactions(
   );
 }
 
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   username: string;
   password: string;
 }

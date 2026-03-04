@@ -48,16 +48,10 @@ export interface WaitForRedirectOptions {
   ignoreList?: string[];
 }
 
-interface RedirectPollOpts {
-  isClientSide: boolean;
-  ignoreList: string[];
-  timeout: number;
-}
-
 async function pollForRedirect(
   pageOrFrame: Page | Frame,
   initial: string,
-  opts: RedirectPollOpts,
+  opts: { isClientSide: boolean; ignoreList: string[]; timeout: number },
 ): Promise<void> {
   await waitUntil(
     async () => {
@@ -94,15 +88,10 @@ export interface WaitForUrlOptions {
   isClientSide?: boolean;
 }
 
-interface UrlPollOpts {
-  timeout: number;
-  isClientSide: boolean;
-}
-
 async function pollForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
-  opts: UrlPollOpts,
+  opts: { timeout: number; isClientSide: boolean },
 ): Promise<void> {
   await waitUntil(
     async () => {

@@ -65,6 +65,38 @@ function sanitizeHebrew(text: string): string {
   return reverseHebrewRanges(plain, ranges);
 }
 
+async function fetchDeviceToken(): Promise<string> {
+  const resp = await fetchPost<{ resultData: { deviceToken: string } }>(
+    `${IDENTITY_SERVER_URL}/devices/token`,
+    { extClientId: 'mobile', os: 'Android' },
+  );
+  return resp.resultData.deviceToken;
+}
+
+async function prepareOtp(phoneNumber: string, deviceToken: string): Promise<string> {
+  const resp = await fetchPost<{ resultData: { otpContext: string } }>(
+    `${IDENTITY_SERVER_URL}/otp/prepare`,
+    { factorValue: phoneNumber, deviceToken, otpChannel: 'SMS_OTP' },
+  );
+  return resp.resultData.otpContext;
+}
+
+async function getIdToken(otpSmsToken: string, email: string, pass: string): Promise<string> {
+  const resp = await fetchPost<{ resultData: { idToken: string } }>(
+    `${IDENTITY_SERVER_URL}/getIdToken`,
+    { otpSmsToken, email, pass, pinCode: '' },
+  );
+  return resp.resultData.idToken;
+}
+
+async function getSessionToken(idToken: string, pass: string): Promise<string> {
+  const resp = await fetchPost<{ resultData: { accessToken: string } }>(
+    `${IDENTITY_SERVER_URL}/sessions/token`,
+    { idToken, pass },
+  );
+  return resp.resultData.accessToken;
+}
+
 export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentials> {
   private otpContext?: string;
 
@@ -79,9 +111,9 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       );
     }
     LOG.info('Fetching device token');
-    const deviceToken = await this.fetchDeviceToken();
+    const deviceToken = await fetchDeviceToken();
     LOG.info(`Sending OTP to phone number ${phoneNumber}`);
-    this.otpContext = await this.prepareOtp(phoneNumber, deviceToken);
+    this.otpContext = await prepareOtp(phoneNumber, deviceToken);
     return { success: true };
   }
 
@@ -111,13 +143,13 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     const otpTokenResult = await this.resolveOtpToken(credentials);
     if (!otpTokenResult.success) return otpTokenResult;
     LOG.info('Requesting id token');
-    const idToken = await this.getIdToken(
+    const idToken = await getIdToken(
       otpTokenResult.longTermTwoFactorAuthToken,
       credentials.email,
       credentials.password,
     );
     LOG.info('Requesting session token');
-    this.accessToken = await this.getSessionToken(idToken, credentials.password);
+    this.accessToken = await getSessionToken(idToken, credentials.password);
     return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
   }
 
@@ -132,29 +164,6 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
         portfolios.map(portfolio => this.fetchPortfolioMovements(portfolio, startMoment.toDate())),
       ),
     };
-  }
-
-  private async fetchDeviceToken(): Promise<string> {
-    const resp = await fetchPost<{ resultData: { deviceToken: string } }>(
-      `${IDENTITY_SERVER_URL}/devices/token`,
-      {
-        extClientId: 'mobile',
-        os: 'Android',
-      },
-    );
-    return resp.resultData.deviceToken;
-  }
-
-  private async prepareOtp(phoneNumber: string, deviceToken: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { otpContext: string } }>(
-      `${IDENTITY_SERVER_URL}/otp/prepare`,
-      {
-        factorValue: phoneNumber,
-        deviceToken,
-        otpChannel: 'SMS_OTP',
-      },
-    );
-    return resp.resultData.otpContext;
   }
 
   private async resolveOtpTokenViaRetriever(
@@ -193,30 +202,6 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     return this.resolveOtpTokenViaRetriever(credentials);
   }
 
-  private async getIdToken(otpSmsToken: string, email: string, pass: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { idToken: string } }>(
-      `${IDENTITY_SERVER_URL}/getIdToken`,
-      {
-        otpSmsToken,
-        email,
-        pass,
-        pinCode: '',
-      },
-    );
-    return resp.resultData.idToken;
-  }
-
-  private async getSessionToken(idToken: string, pass: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { accessToken: string } }>(
-      `${IDENTITY_SERVER_URL}/sessions/token`,
-      {
-        idToken,
-        pass,
-      },
-    );
-    return resp.resultData.accessToken;
-  }
-
   private async fetchMovementsPage(
     portfolioId: string,
     accountId: string,
@@ -238,6 +223,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   ): Promise<{ movements: Movement[]; done: boolean }> {
     const result: Movement[] = [];
     let cursor: string | null = null;
+    /* eslint-disable no-await-in-loop */
     while (!result.length || new Date(result[0].movementTimestamp) >= startDate) {
       LOG.info(`Fetching transactions for account ${portfolio.portfolioNum}...`);
       const { movements: newMovements, pagination } = await this.fetchMovementsPage(
@@ -249,6 +235,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       cursor = pagination.cursor;
       if (!pagination.hasMore) return { movements: result, done: true };
     }
+    /* eslint-enable no-await-in-loop */
     return { movements: result, done: false };
   }
 

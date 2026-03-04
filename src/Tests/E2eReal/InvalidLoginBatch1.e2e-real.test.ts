@@ -1,4 +1,4 @@
-import { CompanyTypes, createScraper } from '../../index';
+import { CompanyTypes, createScraper } from '../../Index';
 import { assertFailedLogin, BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 
 beforeAll(() => {

@@ -52,7 +52,7 @@ const SEL = Object.fromEntries(
   Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
 
-type MizrahiDashKey = keyof typeof CFG.selectors;
+export type MizrahiDashKey = keyof typeof CFG.selectors;
 // Typed key constants derived from config — no inline string literals in scraper code
 const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
   [K in MizrahiDashKey]: K;
@@ -67,7 +67,7 @@ function dashOpts(page: Page, key: MizrahiDashKey): DashboardFieldOpts {
   };
 }
 
-interface BuildRowBaseOpts {
+export interface BuildRowBaseOpts {
   row: ScrapedTransaction;
   txnDate: string;
   moreDetails: MoreDetails;
@@ -138,7 +138,7 @@ async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
   return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
 }
 
-interface ScraperSpecificCredentials {
+export interface ScraperSpecificCredentials {
   username: string;
   password: string;
 }

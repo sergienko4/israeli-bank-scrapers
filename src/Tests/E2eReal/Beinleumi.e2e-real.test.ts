@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 
-import { CompanyTypes, createScraper } from '../../index';
+import { CompanyTypes, createScraper } from '../../Index';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import {
   assertFailedLogin,
