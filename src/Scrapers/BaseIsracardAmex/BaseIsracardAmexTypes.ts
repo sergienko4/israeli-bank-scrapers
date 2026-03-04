@@ -1,114 +1,15 @@
-import { type Moment } from 'moment';
-import { type Page } from 'playwright';
-
-import { type Transaction, type TransactionsAccount } from '../../Transactions';
-import { type ScraperOptions } from '../Base/Interface';
-
-export interface CompanyServiceOptions {
-  servicesUrl: string;
-  companyCode: string;
-}
-
-export type ScrapedAccountsWithIndex = Record<string, TransactionsAccount & { index: number }>;
-
-export interface ScrapedTransaction {
-  dealSumType: string;
-  voucherNumberRatzOutbound: string;
-  voucherNumberRatz: string;
-  moreInfo?: string;
-  dealSumOutbound: boolean;
-  currencyId: string;
-  currentPaymentCurrency: string;
-  dealSum: number;
-  fullPaymentDate?: string;
-  fullPurchaseDate?: string;
-  fullPurchaseDateOutbound?: string;
-  fullSupplierNameHeb: string;
-  fullSupplierNameOutbound: string;
-  paymentSum: number;
-  paymentSumOutbound: number;
-}
-
-export interface ScrapedAccount {
-  index: number;
-  accountNumber: string;
-  processedDate: string;
-}
-
-export interface ScrapedLoginValidation {
-  Header: { Status: string };
-  ValidateIdDataBean?: { userName?: string; returnCode: string };
-}
-
-export interface ScrapedAccountsWithinPageResponse {
-  Header: { Status: string };
-  DashboardMonthBean?: {
-    cardsCharges?: { cardIndex: string; cardNumber: string; billingDate: string }[];
-  };
-}
-
-export interface ScrapedCurrentCardTransactions {
-  txnIsrael?: ScrapedTransaction[];
-  txnAbroad?: ScrapedTransaction[];
-}
-
-export interface ScrapedTransactionData {
-  Header?: { Status: string };
-  PirteyIska_204Bean?: { sector: string };
-  CardsTransactionsListBean?: Record<
-    string,
-    { CurrentCardTransactions: ScrapedCurrentCardTransactions[] }
-  >;
-}
-
-export interface CollectTxnsOpts {
-  txnGroups: ScrapedCurrentCardTransactions[];
-  account: ScrapedAccount;
-  options: ScraperOptions;
-  startMoment: Moment;
-}
-
-export interface FetchTransactionsOpts {
-  page: Page;
-  options: ScraperOptions;
-  companyServiceOptions: CompanyServiceOptions;
-  startMoment: Moment;
-  monthMoment: Moment;
-}
-
-export interface BuildTxnsOpts {
-  accounts: ScrapedAccount[];
-  dataResult: ScrapedTransactionData;
-  options: ScraperOptions;
-  startMoment: Moment;
-}
-
-export interface ExtraScrapTxnOpts {
-  page: Page;
-  options: CompanyServiceOptions;
-  month: Moment;
-  accountIndex: number;
-  transaction: Transaction;
-}
-
-export interface ExtraScrapAccountOpts {
-  page: Page;
-  options: CompanyServiceOptions;
-  accountMap: ScrapedAccountsWithIndex;
-  month: Moment;
-}
-
-export interface AdditionalInfoOpts {
-  scraperOptions: ScraperOptions;
-  accountsWithIndex: ScrapedAccountsWithIndex[];
-  page: Page;
-  options: CompanyServiceOptions;
-  allMonths: Moment[];
-}
-
-export interface FetchAllOpts {
-  page: Page;
-  options: ScraperOptions;
-  companyServiceOptions: CompanyServiceOptions;
-  startMoment: Moment;
-}
+export type { ScrapedAccountsWithIndex } from './BaseIsracardAmexBaseTypes';
+export type { AdditionalInfoOpts } from './Interfaces/AdditionalInfoOpts';
+export type { BuildTxnsOpts } from './Interfaces/BuildTxnsOpts';
+export type { CollectTxnsOpts } from './Interfaces/CollectTxnsOpts';
+export type { CompanyServiceOptions } from './Interfaces/CompanyServiceOptions';
+export type { ExtraScrapAccountOpts } from './Interfaces/ExtraScrapAccountOpts';
+export type { ExtraScrapTxnOpts } from './Interfaces/ExtraScrapTxnOpts';
+export type { FetchAllOpts } from './Interfaces/FetchAllOpts';
+export type { FetchTransactionsOpts } from './Interfaces/FetchTransactionsOpts';
+export type { ScrapedAccount } from './Interfaces/ScrapedAccount';
+export type { ScrapedAccountsWithinPageResponse } from './Interfaces/ScrapedAccountsWithinPageResponse';
+export type { ScrapedCurrentCardTransactions } from './Interfaces/ScrapedCurrentCardTransactions';
+export type { ScrapedLoginValidation } from './Interfaces/ScrapedLoginValidation';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+export type { ScrapedTransactionData } from './Interfaces/ScrapedTransactionData';

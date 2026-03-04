@@ -8,6 +8,15 @@ import { CompanyTypes } from '../../Definitions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
+import type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
+import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+import type { TransactionsTr } from './Interfaces/TransactionsTr';
+
+export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
+export type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+export type { TransactionsTr } from './Interfaces/TransactionsTr';
 
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';
@@ -21,29 +30,6 @@ const REFERENCE_COLUMN_CLASS = 'details';
 const DEBIT_COLUMN_CLASS = 'debit';
 const CREDIT_COLUMN_CLASS = 'credit';
 export const ERROR_MESSAGE_CLASS = 'NO_DATA';
-
-export type TransactionsColsTypes = Record<string, number>;
-export type TransactionsTrTds = string[];
-export interface TransactionsTr {
-  innerTds: TransactionsTrTds;
-}
-
-export interface ScrapedTransaction {
-  reference: string;
-  date: string;
-  credit: string;
-  debit: string;
-  memo?: string;
-  description: string;
-  status: TransactionStatuses;
-}
-
-export interface ExtractTxnOpts {
-  txns: ScrapedTransaction[];
-  transactionStatus: TransactionStatuses;
-  txnRow: TransactionsTr;
-  transactionsColsTypes: TransactionsColsTypes;
-}
 
 function getAmountData(amountStr: string): number {
   return parseFloat(amountStr.replace(SHEKEL_CURRENCY_SYMBOL, '').replaceAll(',', ''));

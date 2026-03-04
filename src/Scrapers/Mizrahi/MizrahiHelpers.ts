@@ -4,41 +4,37 @@ import { type Page, type Request } from 'playwright';
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { CompanyTypes } from '../../Definitions';
-import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
+import type { MoreDetails } from './Interfaces/MoreDetails';
+import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+
+export type { ConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts';
+export type { ConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts';
+export type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
+export type { MoreDetails } from './Interfaces/MoreDetails';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+export type { ScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult';
 
 const LOG = getDebug('mizrahi');
 
-export interface ScrapedTransaction {
-  RecTypeSpecified: boolean;
-  MC02PeulaTaaEZ: string;
-  MC02SchumEZ: number;
-  MC02AsmahtaMekoritEZ: string;
-  MC02TnuaTeurEZ: string;
-  IsTodayTransaction: boolean;
-  MC02ErehTaaEZ: string;
-  MC02ShowDetailsEZ?: string;
-  MC02KodGoremEZ: string;
-  MC02SugTnuaKaspitEZ: string;
-  MC02AgidEZ: string;
-  MC02SeifMaralEZ: string;
-  MC02NoseMaralEZ: string;
-  TransactionNumber: string | number;
-}
+const MIZRAHI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
+const BASE_APP_URL = MIZRAHI_CFG.api.base;
+export const TRANSACTIONS_REQUEST_URLS = [
+  `${BASE_APP_URL}/OnlinePilot/api/SkyOSH/get428Index`,
+  `${BASE_APP_URL}/Online/api/SkyOSH/get428Index`,
+];
+// URL fragment used to identify the pending-transactions iframe by its src URL
+export const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
+const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
+export const DATE_FORMAT = MIZRAHI_CFG.format.date;
+export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
+export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
 
-export interface ScrapedTransactionsResult {
-  header: {
-    success: boolean;
-    messages: { text: string }[];
-  };
-  body: {
-    fields: {
-      Yitra: string;
-    };
-    table: {
-      rows: ScrapedTransaction[];
-    };
-  };
+export function getStartMoment(optionsStartDate: Date): moment.Moment {
+  const defaultStartMoment = moment().subtract(1, 'years');
+  const startDate = optionsStartDate;
+  return moment.max(defaultStartMoment, moment(startDate));
 }
 
 interface MoreDetailsResponse {
@@ -58,44 +54,6 @@ interface MoreDetailsResponse {
       ],
     ];
   };
-}
-
-export interface MoreDetails {
-  entries: Record<string, string>;
-  memo: string | undefined;
-}
-
-export interface ConvertTxnsOpts {
-  txns: ScrapedTransaction[];
-  getMoreDetails: (row: ScrapedTransaction) => Promise<MoreDetails>;
-  isPendingIfTodayTransaction?: boolean;
-  options?: ScraperOptions;
-}
-
-export interface ConvertOneRowOpts {
-  row: ScrapedTransaction;
-  getMoreDetails: (r: ScrapedTransaction) => Promise<MoreDetails>;
-  isPendingIfTodayTransaction: boolean;
-  options?: ScraperOptions;
-}
-
-const MIZRAHI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
-const BASE_APP_URL = MIZRAHI_CFG.api.base;
-export const TRANSACTIONS_REQUEST_URLS = [
-  `${BASE_APP_URL}/OnlinePilot/api/SkyOSH/get428Index`,
-  `${BASE_APP_URL}/Online/api/SkyOSH/get428Index`,
-];
-// URL fragment used to identify the pending-transactions iframe by its src URL
-export const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
-const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
-export const DATE_FORMAT = MIZRAHI_CFG.format.date;
-export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
-export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
-
-export function getStartMoment(optionsStartDate: Date): moment.Moment {
-  const defaultStartMoment = moment().subtract(1, 'years');
-  const startDate = optionsStartDate;
-  return moment.max(defaultStartMoment, moment(startDate));
 }
 
 function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
@@ -160,13 +118,6 @@ export async function getExtraTransactionDetails(
     LOG.info(error, 'Error fetching extra transaction details');
   }
   return { entries: {}, memo: undefined };
-}
-
-export interface MizrahiRequestData {
-  inFromDate: string;
-  inToDate: string;
-  table: { maxRow: number };
-  [key: string]: unknown;
 }
 
 export function createDataFromRequest(
