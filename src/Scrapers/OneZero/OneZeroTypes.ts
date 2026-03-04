@@ -1,62 +1,11 @@
-export interface Category {
-  categoryId: number;
-  dataSource: string;
-  subCategoryId?: number | null;
-}
-
-export interface Recurrence {
-  dataSource: string;
-  isRecurrent: boolean;
-}
-
-interface TransactionEnrichment {
-  categories?: Category[] | null;
-  recurrences?: Recurrence[] | null;
-}
-
-export interface OneZeroTransaction {
-  enrichment?: TransactionEnrichment | null;
-}
-
-export interface Movement {
-  accountId: string;
-  bankCurrencyAmount: string;
-  bookingDate: string;
-  conversionRate: string;
-  creditDebit: string;
-  description: string;
-  isReversed: boolean;
-  movementAmount: string;
-  movementCurrency: string;
-  movementId: string;
-  movementReversedId?: string | null;
-  movementTimestamp: string;
-  movementType: string;
-  portfolioId: string;
-  runningBalance: string;
-  transaction?: OneZeroTransaction | null;
-  valueDate: string;
-}
-
-export interface QueryPagination {
-  hasMore: boolean;
-  cursor: string;
-}
-
-export interface Account {
-  accountId: string;
-}
-
-export interface Portfolio {
-  accounts: Account[];
-  portfolioId: string;
-  portfolioNum: string;
-}
-
-export interface Customer {
-  customerId: string;
-  portfolios?: Portfolio[] | null;
-}
+export type { Account } from './Interfaces/Account';
+export type { Category } from './Interfaces/Category';
+export type { Customer } from './Interfaces/Customer';
+export type { Movement } from './Interfaces/Movement';
+export type { OneZeroTransaction } from './Interfaces/OneZeroTransaction';
+export type { Portfolio } from './Interfaces/Portfolio';
+export type { QueryPagination } from './Interfaces/QueryPagination';
+export type { Recurrence } from './Interfaces/Recurrence';
 
 export type ScraperSpecificCredentials = { email: string; password: string } & (
   | { otpCodeRetriever: () => Promise<string>; phoneNumber: string }

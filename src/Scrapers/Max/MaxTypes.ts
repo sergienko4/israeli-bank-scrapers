@@ -1,22 +1,4 @@
-export interface ScrapedTransaction {
-  shortCardNumber: string;
-  paymentDate?: string | null;
-  purchaseDate: string;
-  actualPaymentAmount: string;
-  paymentCurrency: number | null;
-  originalCurrency: string;
-  originalAmount: number;
-  planName: string;
-  planTypeId: number;
-  comments: string;
-  merchantName: string;
-  categoryId: number;
-  fundsTransferComment?: string;
-  fundsTransferReceiverOrTransfer?: string;
-  dealData?: {
-    arn: string;
-  };
-}
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
 
 export enum MaxPlanName {
   Normal = 'רגילה',
@@ -32,6 +14,7 @@ export enum MaxPlanName {
   ThirtyDaysPlus = 'עסקת 30 פלוס',
   TwoMonthsPostponed = 'דחוי חודשיים',
   TwoMonthsPostponed2 = "דחוי 2 ח' תשלומים",
+  MonthlyChargeDistribution = 'חלוקת חיוב חודשי',
   MonthlyChargePlusInterest = 'חודשי + ריבית',
   Credit = 'קרדיט',
   CreditOutsideTheLimit = 'קרדיט-מחוץ למסגרת',
@@ -41,5 +24,4 @@ export enum MaxPlanName {
   EarlyRepayment = 'פרעון מוקדם',
   MonthlyCardFee = 'דמי כרטיס',
   CurrencyPocket = 'חיוב ארנק מטח',
-  MonthlyChargeDistribution = 'חלוקת חיוב חודשי',
 }
