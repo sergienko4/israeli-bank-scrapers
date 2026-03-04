@@ -11,6 +11,7 @@ import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig';
 import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig';
 import { SCRAPER_CONFIGURATION } from './ScraperConfig';
 
+// eslint-disable-next-line import-x/prefer-default-export
 export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.Beinleumi]: beinleumiConfig(
     SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].urls.base,
