@@ -1,55 +1,18 @@
 import { type Page } from 'playwright';
 
 import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
+import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
 import { getDebug } from './Debug';
 import { tryInContext } from './SelectorResolver';
 
 const LOG = getDebug('otp-detector');
 
-// OTP text patterns — Hebrew + English, most-specific first
-const OTP_TEXT_PATTERNS = [
-  'סיסמה חד פעמית',
-  'קוד חד פעמי',
-  'אימות זהות',
-  'לצורך אימות',
-  'בחר טלפון',
-  'שלח קוד',
-  'קוד SMS',
-  'קוד אימות',
-  'one-time password',
-  'SMS code',
-] as const;
-
+const CFG = SCRAPER_CONFIGURATION.otp;
 const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'placeholder', value: 'קוד חד פעמי' },
-  { kind: 'placeholder', value: 'קוד SMS' },
-  { kind: 'placeholder', value: 'קוד אימות' },
-  { kind: 'placeholder', value: 'הזן קוד' },
-  { kind: 'name', value: 'otpCode' },
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'css', value: '#codeinput' },
+  ...SCRAPER_CONFIGURATION.wellKnownSelectors.otpCode,
 ];
-
-const PHONE_PATTERN = /[*]{4,}\d{2,4}/;
-
-export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'xpath', value: '//button[contains(.,"אשר")]' },
-  { kind: 'xpath', value: '//button[contains(.,"המשך")]' },
-  { kind: 'xpath', value: '//button[contains(.,"אישור")]' },
-  { kind: 'xpath', value: '//button[contains(.,"כניסה")]' },
-  { kind: 'ariaLabel', value: 'כניסה' },
-  { kind: 'css', value: 'button[type="submit"]' },
-  { kind: 'css', value: 'input[type="button"]' },
-];
-
-const SMS_TRIGGER_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'xpath', value: '//button[contains(.,"SMS")]' },
-  { kind: 'ariaLabel', value: 'שלח SMS' },
-  { kind: 'css', value: 'input[type="radio"][value="SMS"]' },
-  { kind: 'xpath', value: '//button[contains(.,"שלח")]' },
-  { kind: 'xpath', value: '//button[contains(.,"קבל קוד")]' },
-];
+export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [...CFG.submitSelectors];
+const SMS_TRIGGER_CANDIDATES: SelectorCandidate[] = [...CFG.smsTriggerSelectors];
 
 type TextCheckResult = 'otp' | 'clear' | 'unknown';
 
@@ -66,7 +29,7 @@ async function getBodyText(page: Page): Promise<string | null> {
 async function detectByText(page: Page): Promise<TextCheckResult> {
   const bodyText = await getBodyText(page);
   if (bodyText === null) return 'unknown';
-  return OTP_TEXT_PATTERNS.some(pattern => bodyText.includes(pattern)) ? 'otp' : 'clear';
+  return CFG.textPatterns.some(p => bodyText.includes(p)) ? 'otp' : 'clear';
 }
 
 async function detectByInputField(page: Page): Promise<boolean> {
@@ -96,7 +59,7 @@ export async function detectOtpScreen(page: Page): Promise<boolean> {
 
 export async function extractPhoneHint(page: Page): Promise<string> {
   const bodyText = await getBodyText(page);
-  return bodyText?.match(PHONE_PATTERN)?.[0] ?? '';
+  return bodyText?.match(CFG.phonePattern)?.[0] ?? '';
 }
 
 export async function findOtpSubmitSelector(page: Page): Promise<string | null> {

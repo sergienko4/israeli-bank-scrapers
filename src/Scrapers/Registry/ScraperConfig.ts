@@ -458,6 +458,8 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'placeholder', value: 'קוד אימות' },
       { kind: 'placeholder', value: 'הזן קוד' },
       { kind: 'name', value: 'otpCode' },
+      { kind: 'css', value: '#sendSms' }, // Beinleumi SMS trigger + input
+      { kind: 'css', value: '#codeinput' }, // Beinleumi OTP input
     ],
     /** Universal submit-button fallback — tried after every bank's explicit submit candidate */
     __submit__: [
@@ -516,4 +518,42 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'xpath', value: '//button[contains(., "הצג")]' },
     ],
   } satisfies Record<string, SelectorCandidate[]>,
+
+  /** OTP detection & interaction config — shared by OtpDetector and OtpHandler */
+  otp: {
+    /** Hebrew + English text patterns that indicate an OTP screen is shown */
+    textPatterns: [
+      'סיסמה חד פעמית',
+      'קוד חד פעמי',
+      'אימות זהות',
+      'לצורך אימות',
+      'בחר טלפון',
+      'שלח קוד',
+      'קוד SMS',
+      'קוד אימות',
+      'one-time password',
+      'SMS code',
+    ] as const,
+    /** Matches masked phone numbers like ***1234 in OTP confirmation screens */
+    phonePattern: /[*]{4,}\d{2,4}/,
+    /** Submit-button candidates for the OTP confirmation step */
+    submitSelectors: [
+      { kind: 'xpath', value: '//button[contains(.,"אשר")]' },
+      { kind: 'xpath', value: '//button[contains(.,"המשך")]' },
+      { kind: 'xpath', value: '//button[contains(.,"אישור")]' },
+      { kind: 'xpath', value: '//button[contains(.,"כניסה")]' },
+      { kind: 'ariaLabel', value: 'כניסה' },
+      { kind: 'css', value: 'button[type="submit"]' },
+      { kind: 'css', value: 'input[type="button"]' },
+    ] satisfies SelectorCandidate[],
+    /** Buttons/inputs that trigger an SMS OTP to be sent */
+    smsTriggerSelectors: [
+      { kind: 'css', value: '#sendSms' },
+      { kind: 'xpath', value: '//button[contains(.,"SMS")]' },
+      { kind: 'ariaLabel', value: 'שלח SMS' },
+      { kind: 'css', value: 'input[type="radio"][value="SMS"]' },
+      { kind: 'xpath', value: '//button[contains(.,"שלח")]' },
+      { kind: 'xpath', value: '//button[contains(.,"קבל קוד")]' },
+    ] satisfies SelectorCandidate[],
+  },
 } as const;
