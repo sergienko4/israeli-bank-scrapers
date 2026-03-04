@@ -77,12 +77,12 @@ export default tseslint.config(
       }],
 
       // Relaxed rules (matching previous .eslintrc.js)
-      'import-x/prefer-default-export': 'off',
-      'no-nested-ternary': 'off',
-      'class-methods-use-this': 'off',
+      'import-x/prefer-default-export': 'error',
+      'no-nested-ternary': 'error',
+      'class-methods-use-this': 'error',
       'arrow-body-style': 'off',
       'no-shadow': 'off',
-      'no-await-in-loop': 'off',
+      'no-await-in-loop': 'error',
       'no-restricted-syntax': [
         'error',
         {
@@ -105,17 +105,17 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
-      '@typescript-eslint/no-non-null-assertion': 'off', 
-      '@typescript-eslint/ban-ts-comment': 'off', 
+      '@typescript-eslint/no-non-null-assertion': 'error', 
+      '@typescript-eslint/ban-ts-comment': 'error', 
 
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' },
       ],
 
-      '@typescript-eslint/no-require-imports': 'off',
-      '@typescript-eslint/no-unsafe-unary-minus': 'off',
-      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-require-imports': 'error',
+      '@typescript-eslint/no-unsafe-unary-minus': 'error',
+      '@typescript-eslint/prefer-promise-reject-errors': 'error',
 
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNever: true }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
@@ -178,7 +178,7 @@ export default tseslint.config(
       'no-unused-expressions': 'error',
       '@typescript-eslint/no-unused-private-class-members': 'error',
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
-      'no-unused-vars': 'off',
+      'no-unused-vars': 'error',
       'max-len': [
         'error',
         {
@@ -239,6 +239,6 @@ export default tseslint.config(
       'src/Utils/currency.ts',
       'src/Utils/date.ts',
     ],
-    rules: { 'check-file/filename-naming-convention': 'off' },
+    rules: { 'check-file/filename-naming-convention': 'error' },
   },
 );

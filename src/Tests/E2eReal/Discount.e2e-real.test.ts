@@ -1,7 +1,6 @@
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -33,17 +32,11 @@ describeIf('E2E: Discount Bank (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      id: process.env.DISCOUNT_ID!,
-      password: process.env.DISCOUNT_PASSWORD!,
-      num: process.env.DISCOUNT_NUM!,
+      id: process.env.DISCOUNT_ID ?? '',
+      password: process.env.DISCOUNT_PASSWORD ?? '',
+      num: process.env.DISCOUNT_NUM ?? '',
     });
 
-    if (result.errorType === ScraperErrorTypes.Generic) {
-      console.log(
-        '[skip] Discount login failed with Generic — homepage does not expose login form yet',
-      );
-      return;
-    }
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

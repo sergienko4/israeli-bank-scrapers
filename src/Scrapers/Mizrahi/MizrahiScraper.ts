@@ -1,14 +1,19 @@
 import moment from 'moment';
-import type { Frame } from 'playwright';
+import type { Frame, Page } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
 import {
+  clickButton,
   pageEvalAll,
   waitUntilElementFound,
   waitUntilIframeFound,
 } from '../../Common/ElementsInteractions';
 import { fetchPostWithinPage } from '../../Common/Fetch';
-import { toFirstCss } from '../../Common/SelectorResolver';
+import {
+  type DashboardFieldOpts,
+  resolveDashboardField,
+  toFirstCss,
+} from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -21,6 +26,7 @@ import {
 import { ScraperErrorTypes } from '../Base/Errors';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface';
+import { type SelectorCandidate } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   type ConvertOneRowOpts,
@@ -40,13 +46,26 @@ import {
 import { MIZRAHI_CONFIG } from './MizrahiLoginConfig';
 
 const LOG = getDebug('mizrahi');
-// Phase-1 compat: extract first CSS candidate — full resolveDashboardField() migration in Phase 2
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
+// SEL kept for data-extraction fields (pendingTransactionRows, accountNumberSpan, pendingFrameIdentifier)
 const SEL = Object.fromEntries(
-  Object.entries(SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors).map(([k, cs]) => [
-    k,
-    toFirstCss(cs),
-  ]),
+  Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
+
+type MizrahiDashKey = keyof typeof CFG.selectors;
+// Typed key constants derived from config — no inline string literals in scraper code
+const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
+  [K in MizrahiDashKey]: K;
+};
+
+function dashOpts(page: Page, key: MizrahiDashKey): DashboardFieldOpts {
+  return {
+    pageOrFrame: page,
+    fieldKey: key,
+    bankCandidates: [...(CFG.selectors[key] as SelectorCandidate[])],
+    pageUrl: page.url(),
+  };
+}
 
 interface BuildRowBaseOpts {
   row: ScrapedTransaction;
@@ -94,12 +113,7 @@ async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]
   );
 }
 
-function mapPendingRow([
-  dateStr,
-  description,
-  _incomeAmountStr,
-  amountStr,
-]: string[]): Transaction | null {
+function mapPendingRow([dateStr, description, , amountStr]: string[]): Transaction | null {
   const date = moment(dateStr, 'DD/MM/YY').toISOString();
   if (!date) return null;
   return {
@@ -129,22 +143,29 @@ interface ScraperSpecificCredentials {
   password: string;
 }
 
+function validateTransactionResponse(
+  response: ScrapedTransactionsResult | null,
+): asserts response is ScrapedTransactionsResult {
+  if (!response?.header.success) {
+    throw new Error(
+      `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
+    );
+  }
+}
+
 class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
     super(options, MIZRAHI_CONFIG);
   }
 
   public async fetchData(): Promise<ScraperScrapingResult> {
-    await this.page.$eval(SEL.accountDropdown, el => {
-      (el as HTMLElement).click();
-    });
-    const numOfAccounts = (await this.page.$$(SEL.accountDropdownItem)).length;
+    const numOfAccounts = await this.getNumAccounts();
     try {
-      const results: TransactionsAccount[] = [];
-      for (let i = 0; i < numOfAccounts; i += 1) {
-        results.push(await this.selectAndFetchAccount(i));
-      }
-      return { success: true, accounts: results };
+      const accounts = await Array.from({ length: numOfAccounts }, (_, i) => i).reduce(
+        async (acc, i) => [...(await acc), await this.selectAndFetchAccount(i)],
+        Promise.resolve<TransactionsAccount[]>([]),
+      );
+      return { success: true, accounts };
     } catch (e) {
       return {
         success: false,
@@ -154,21 +175,27 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     }
   }
 
+  private async getNumAccounts(): Promise<number> {
+    const dd = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdown));
+    if (dd.isResolved) await clickButton(dd.context, dd.selector);
+    const ddItem = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdownItem));
+    return ddItem.isResolved ? (await this.page.$$(ddItem.selector)).length : 0;
+  }
+
   private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
-    if (index > 0)
-      await this.page.$eval(SEL.accountDropdown, el => {
-        (el as HTMLElement).click();
-      });
-    await this.page.$eval(`${SEL.accountDropdownItem}:nth-child(${index + 1})`, el => {
-      (el as HTMLElement).click();
-    });
+    if (index > 0) {
+      const dd = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdown));
+      if (dd.isResolved) await clickButton(dd.context, dd.selector);
+    }
+    const ddItem = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdownItem));
+    if (ddItem.isResolved)
+      await clickButton(ddItem.context, `${ddItem.selector}:nth-child(${index + 1})`);
     return this.fetchAccount();
   }
 
   private async getPendingTransactions(): Promise<Transaction[]> {
-    await this.page.$eval(SEL.pendingTransactionsLink, el => {
-      (el as HTMLElement).click();
-    });
+    const link = await resolveDashboardField(dashOpts(this.page, KEYS.pendingTransactionsLink));
+    if (link.isResolved) await clickButton(link.context, link.selector);
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
@@ -184,14 +211,16 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   }
 
   private async navigateToTransactions(): Promise<void> {
-    await this.page.waitForSelector(SEL.oshLink);
-    await this.page.$eval(SEL.oshLink, el => {
-      (el as HTMLElement).click();
-    });
-    await waitUntilElementFound(this.page, SEL.transactionsLink);
-    await this.page.$eval(SEL.transactionsLink, el => {
-      (el as HTMLElement).click();
-    });
+    const osh = await resolveDashboardField(dashOpts(this.page, KEYS.oshLink));
+    if (osh.isResolved) {
+      await waitUntilElementFound(osh.context, osh.selector);
+      await clickButton(osh.context, osh.selector);
+    }
+    const txn = await resolveDashboardField(dashOpts(this.page, KEYS.transactionsLink));
+    if (txn.isResolved) {
+      await waitUntilElementFound(txn.context, txn.selector);
+      await clickButton(txn.context, txn.selector);
+    }
   }
 
   private async getAccountNumber(): Promise<string> {
@@ -255,20 +284,10 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
-    this.validateTransactionResponse(response);
+    validateTransactionResponse(response);
     const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
     const allTxn = await this.filterAndMergeTxns(oshTxn);
     return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
-  }
-
-  private validateTransactionResponse(
-    response: ScrapedTransactionsResult | null,
-  ): asserts response is ScrapedTransactionsResult {
-    if (!response?.header.success) {
-      throw new Error(
-        `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
-      );
-    }
   }
 
   private async filterAndMergeTxns(oshTxn: Transaction[]): Promise<Transaction[]> {

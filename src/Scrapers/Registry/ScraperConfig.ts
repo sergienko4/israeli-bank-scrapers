@@ -162,7 +162,11 @@ export const SCRAPER_CONFIGURATION = {
       },
     },
     [CompanyTypes.Discount]: {
-      urls: { base: 'https://www.discountbank.co.il', loginRoute: null, transactions: null },
+      urls: {
+        base: 'https://www.discountbank.co.il',
+        loginRoute: 'https://start.telebank.co.il',
+        transactions: null,
+      },
       api: { ...NULL_API, base: 'https://start.telebank.co.il' },
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
@@ -170,7 +174,11 @@ export const SCRAPER_CONFIGURATION = {
       selectors: {},
     },
     [CompanyTypes.Mercantile]: {
-      urls: { base: 'https://www.mercantile.co.il', loginRoute: null, transactions: null },
+      urls: {
+        base: 'https://www.mercantile.co.il',
+        loginRoute: 'https://start.telebank.co.il',
+        transactions: null,
+      },
       api: { ...NULL_API, base: 'https://start.telebank.co.il' },
       auth: NULL_AUTH,
       format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
@@ -338,6 +346,12 @@ export const SCRAPER_CONFIGURATION = {
         loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
         monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],
         yearsGridCheck: [{ kind: 'css', value: '.pmu-years > div:nth-child(1)' }],
+        // Date-picker grid cell base selectors — used with :nth-child(i) for dynamic navigation
+        pmuDaysFirstCell: [{ kind: 'css', value: '.pmu-days > div:nth-child(1)' }],
+        pmuDaysCell: [{ kind: 'css', value: '.pmu-days > div' }],
+        pmuYearsCell: [{ kind: 'css', value: '.pmu-years > div' }],
+        pmuMonthsCell: [{ kind: 'css', value: '.pmu-months > div' }],
+        statementOptionsTop: [{ kind: 'css', value: '.statement-options .selected-item-top' }],
       },
     },
     [CompanyTypes.OneZero]: {
@@ -364,6 +378,15 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
       { kind: 'css', value: '#user-name' }, // Max
       { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal (Angular Material)
+      { kind: 'label', value: 'שם משתמש' }, // last-resort: find input by visible label text
+      { kind: 'label', value: 'קוד משתמש' },
+      { kind: 'label', value: 'מספר לקוח' },
+      { kind: 'label', value: 'תז' },
+      { kind: 'label', value: 'ת.ז.' },
+      { kind: 'label', value: 'תעודת זהות' },
+      { kind: 'label', value: 'שם משתמש' },
+      { kind: 'label', value: 'קוד משתמש' },
+      { kind: 'label', value: 'מספר זהות' },
     ],
     userCode: [
       { kind: 'placeholder', value: 'קוד משתמש' },
@@ -373,6 +396,9 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'name', value: 'userCode' },
       { kind: 'name', value: 'username' },
       { kind: 'css', value: '#userCode' }, // Hapoalim
+      { kind: 'label', value: 'קוד משתמש' },
+      { kind: 'label', value: 'שם משתמש' },
+      { kind: 'label', value: 'מספר לקוח' },
     ],
     password: [
       { kind: 'placeholder', value: 'סיסמה' },
@@ -385,6 +411,8 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzPassword' }, // Discount
       { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal (Angular Material)
+      { kind: 'label', value: 'סיסמה' }, // last-resort: find input by visible label text
+      { kind: 'label', value: 'קוד סודי' },
     ],
     id: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -394,6 +422,9 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'name', value: 'id' },
       { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzId' }, // Discount
+      { kind: 'label', value: 'תעודת זהות' }, // last-resort: find input by visible label text
+      { kind: 'label', value: 'מספר זהות' }, // Discount #tzId label: "מספר זהות *"
+      { kind: 'label', value: 'ת.ז' },
     ],
     nationalID: [
       { kind: 'placeholder', value: 'תעודת זהות' },
@@ -402,17 +433,24 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'name', value: 'nationalID' },
       { kind: 'name', value: 'id' },
       { kind: 'css', value: '#pinno' }, // Yahav
+      { kind: 'label', value: 'תעודת זהות' },
+      { kind: 'label', value: 'מספר זהות' },
     ],
     card6Digits: [
       { kind: 'placeholder', value: '6 ספרות' },
       { kind: 'placeholder', value: 'ספרות הכרטיס' },
       { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
+      { kind: 'label', value: 'ספרות הכרטיס' },
+      { kind: 'label', value: '6 ספרות' },
     ],
     num: [
       { kind: 'placeholder', value: 'מספר חשבון' },
       { kind: 'ariaLabel', value: 'מספר חשבון' },
       { kind: 'name', value: 'num' },
       { kind: 'css', value: '#aidnum' }, // Discount
+      { kind: 'label', value: 'קוד מזהה' }, // Discount #aidnum label: "קוד מזהה *"
+      { kind: 'label', value: 'מספר מנוי' },
+      { kind: 'label', value: 'מספר חשבון' },
     ],
     otpCode: [
       { kind: 'placeholder', value: 'קוד חד פעמי' },
@@ -458,6 +496,24 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'css', value: '.loading-bar-spinner' },
       { kind: 'css', value: '.loading' },
       { kind: 'css', value: '[role="progressbar"]' },
+    ],
+    /** Advanced search / filter opener — matched by visible display name */
+    advancedSearchBtn: [
+      { kind: 'ariaLabel', value: 'חיפוש מתקדם' },
+      { kind: 'xpath', value: '//button[contains(., "חיפוש מתקדם")]' },
+      { kind: 'xpath', value: '//a[contains(., "חיפוש מתקדם")]' },
+    ],
+    /** Date range radio button — matched by visible label text */
+    dateRangeRadio: [
+      { kind: 'ariaLabel', value: 'טווח תאריכים' },
+      { kind: 'xpath', value: '//label[contains(., "טווח תאריכים")]' },
+    ],
+    /** Apply / show filter button — matched by visible display name, not HTML type */
+    filterBtn: [
+      { kind: 'ariaLabel', value: 'סנן' },
+      { kind: 'ariaLabel', value: 'הצג' },
+      { kind: 'xpath', value: '//button[contains(., "סנן")]' },
+      { kind: 'xpath', value: '//button[contains(., "הצג")]' },
     ],
   } satisfies Record<string, SelectorCandidate[]>,
 } as const;

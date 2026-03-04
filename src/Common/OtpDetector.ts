@@ -25,7 +25,6 @@ const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
   { kind: 'placeholder', value: 'קוד SMS' },
   { kind: 'placeholder', value: 'קוד אימות' },
   { kind: 'placeholder', value: 'הזן קוד' },
-  { kind: 'ariaLabel', value: 'קוד' },
   { kind: 'name', value: 'otpCode' },
   { kind: 'css', value: '#sendSms' },
   { kind: 'css', value: '#codeinput' },
@@ -73,11 +72,11 @@ async function detectByText(page: Page): Promise<TextCheckResult> {
 async function detectByInputField(page: Page): Promise<boolean> {
   const found = await tryInContext(page, OTP_INPUT_CANDIDATES);
   if (found) return true;
-  for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
-    const inFrame = await tryInContext(frame, OTP_INPUT_CANDIDATES);
-    if (inFrame) return true;
-  }
-  return false;
+  const childFrames = page.frames().filter(f => f !== page.mainFrame());
+  const frameResults = await Promise.all(
+    childFrames.map(f => tryInContext(f, OTP_INPUT_CANDIDATES)),
+  );
+  return frameResults.some(r => r !== null);
 }
 
 export async function detectOtpScreen(page: Page): Promise<boolean> {
@@ -103,31 +102,53 @@ export async function extractPhoneHint(page: Page): Promise<string> {
 export async function findOtpSubmitSelector(page: Page): Promise<string | null> {
   const main = await tryInContext(page, OTP_SUBMIT_CANDIDATES);
   if (main) return main;
-  for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
-    const inFrame = await tryInContext(frame, OTP_SUBMIT_CANDIDATES);
-    if (inFrame) return inFrame;
+  const submitFrames = page.frames().filter(f => f !== page.mainFrame());
+  const frameResults = await Promise.all(
+    submitFrames.map(f => tryInContext(f, OTP_SUBMIT_CANDIDATES)),
+  );
+  return frameResults.find(r => r !== null) ?? null;
+}
+
+async function tryOneTrigger(page: Page, sel: string): Promise<boolean> {
+  try {
+    const locator = page.frameLocator('#loginFrame').locator(sel);
+    await locator.waitFor({ state: 'attached', timeout: 5000 });
+    await locator.hover();
+    await locator.click();
+    LOG.info('isClicked SMS trigger in #loginFrame: %s', sel);
+    return true;
+  } catch (e: unknown) {
+    LOG.info('SMS trigger failed for %s: %s', sel, e instanceof Error ? e.message.slice(0, 80) : e);
+    return false;
   }
-  return null;
 }
 
 async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<boolean> {
-  for (const sel of triggers) {
-    try {
-      const locator = page.frameLocator('#loginFrame').locator(sel);
-      await locator.waitFor({ state: 'attached', timeout: 5000 });
-      await locator.hover();
-      await locator.click();
-      LOG.info('isClicked SMS trigger in #loginFrame: %s', sel);
-      return true;
-    } catch (e: unknown) {
-      LOG.info(
-        'SMS trigger failed for %s: %s',
-        sel,
-        e instanceof Error ? e.message.slice(0, 80) : e,
-      );
-    }
-  }
-  return false;
+  return triggers.reduce(
+    async (acc, sel) => (await acc) || tryOneTrigger(page, sel),
+    Promise.resolve(false),
+  );
+}
+
+async function tryClickInFrame(
+  frame: { click: (sel: string) => Promise<void>; url: () => string },
+  sel: string,
+): Promise<boolean> {
+  LOG.info('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
+  await frame.click(sel);
+  return true;
+}
+
+async function tryFramesTriggers(page: Page): Promise<boolean> {
+  const childFrames = page.frames().filter(f => f !== page.mainFrame());
+  const selectorResults = await Promise.all(
+    childFrames.map(f => tryInContext(f, SMS_TRIGGER_CANDIDATES)),
+  );
+  const firstIdx = selectorResults.findIndex(s => s !== null);
+  const firstSel = selectorResults[firstIdx];
+  if (!firstSel) return false;
+  await tryClickInFrame(childFrames[firstIdx], firstSel);
+  return true;
 }
 
 async function tryGenericFrameTriggers(page: Page): Promise<void> {
@@ -137,15 +158,11 @@ async function tryGenericFrameTriggers(page: Page): Promise<void> {
     await page.click(mainSelector);
     return;
   }
-  for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
-    const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
-    if (sel) {
-      LOG.info('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
-      await frame.click(sel);
-      return;
-    }
-  }
-  LOG.info('No SMS trigger button found — SMS may be auto-sent or page is already on entry screen');
+  const isFound = await tryFramesTriggers(page);
+  if (!isFound)
+    LOG.info(
+      'No SMS trigger button found — SMS may be auto-sent or page is already on entry screen',
+    );
 }
 
 export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {

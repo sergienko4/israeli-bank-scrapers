@@ -7,7 +7,11 @@ import {
   waitUntilElementDisappear,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
-import { toFirstCss } from '../../Common/SelectorResolver';
+import {
+  type DashboardFieldOpts,
+  resolveDashboardField,
+  toFirstCss,
+} from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -19,14 +23,30 @@ import {
 } from '../../Transactions';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
+import { type SelectorCandidate } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { YAHAV_CONFIG } from './YahavLoginConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
-// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+// SEL kept for data-extraction fields (accountId, transactionRows, transactionTableHeader, accountDetails)
 const SEL = Object.fromEntries(
   Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
+
+type YahavDashKey = keyof typeof CFG.selectors;
+// Typed key constants derived from config — no inline string literals in scraper code
+const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
+  [K in YahavDashKey]: K;
+};
+
+function dashOpts(page: Page, key: YahavDashKey): DashboardFieldOpts {
+  return {
+    pageOrFrame: page,
+    fieldKey: key,
+    bankCandidates: [...(CFG.selectors[key] as SelectorCandidate[])],
+    pageUrl: page.url(),
+  };
+}
 
 interface ScrapedTransaction {
   credit: string;
@@ -139,32 +159,53 @@ async function getAccountTransactions(
   return convertTransactions(txns, options);
 }
 
+interface SelectFromGridOpts {
+  page: Page;
+  baseSelector: string;
+  count: number;
+  target: string;
+}
+
+async function selectFromGrid(opts: SelectFromGridOpts): Promise<void> {
+  const { page, baseSelector, count, target } = opts;
+  const indices = Array.from({ length: count }, (_, i) => i + 1);
+  const texts = await Promise.all(
+    indices.map(i =>
+      page.$eval(`${baseSelector}:nth-child(${i})`, el => (el as HTMLElement).innerText),
+    ),
+  );
+  const matchIdx = texts.findIndex(t => t === target);
+  if (matchIdx >= 0) await clickButton(page, `${baseSelector}:nth-child(${matchIdx + 1})`);
+}
+
 async function selectYearFromGrid(page: Page, targetYear: string): Promise<void> {
-  for (let i = 1; i < 13; i += 1) {
-    const selector = `.pmu-years > div:nth-child(${i})`;
-    const year = await page.$eval(selector, y => (y as HTMLElement).innerText);
-    if (targetYear === year) {
-      await clickButton(page, selector);
-      break;
-    }
-  }
+  await selectFromGrid({ page, baseSelector: SEL.pmuYearsCell, count: 12, target: targetYear });
 }
 
 async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
-  for (let i = 1; i < 42; i += 1) {
-    const selector = `.pmu-days > div:nth-child(${i})`;
-    const day = await page.$eval(selector, d => (d as HTMLElement).innerText);
-    if (targetDay === day) {
-      await clickButton(page, selector);
-      break;
-    }
-  }
+  await selectFromGrid({ page, baseSelector: SEL.pmuDaysCell, count: 41, target: targetDay });
+}
+
+async function resolveAndWait(page: Page, key: YahavDashKey): Promise<void> {
+  const r = await resolveDashboardField(dashOpts(page, key));
+  if (r.isResolved) await waitUntilElementFound(r.context, r.selector, { visible: true });
+}
+
+async function resolveAndDisappear(page: Page, key: YahavDashKey): Promise<void> {
+  const r = await resolveDashboardField(dashOpts(page, key));
+  if (r.isResolved) await waitUntilElementDisappear(page, r.selector);
+}
+
+async function resolveAndClick(page: Page, key: YahavDashKey): Promise<void> {
+  const r = await resolveDashboardField(dashOpts(page, key));
+  if (!r.isResolved) return;
+  await waitUntilElementFound(r.context, r.selector, { visible: true });
+  await clickButton(r.context, r.selector);
 }
 
 async function openDatePicker(page: Page): Promise<void> {
-  await waitUntilElementFound(page, SEL.datePickerOpener, { visible: true });
-  await clickButton(page, SEL.datePickerOpener);
-  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
+  await resolveAndClick(page, KEYS.datePickerOpener);
+  await resolveAndWait(page, KEYS.pmuDaysFirstCell);
 }
 
 async function searchByDates(page: Page, startDate: Moment): Promise<void> {
@@ -172,15 +213,13 @@ async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   const startDateMonth = startDate.format('M');
   const startDateYear = startDate.format('Y');
   await openDatePicker(page);
-  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
-  await clickButton(page, SEL.monthPickerBtn);
-  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
-  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
-  await clickButton(page, SEL.monthPickerBtn);
-  await waitUntilElementFound(page, SEL.yearsGridCheck, { visible: true });
+  await resolveAndClick(page, KEYS.monthPickerBtn);
+  await resolveAndWait(page, KEYS.monthsGridCheck);
+  await resolveAndClick(page, KEYS.monthPickerBtn);
+  await resolveAndWait(page, KEYS.yearsGridCheck);
   await selectYearFromGrid(page, startDateYear);
-  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
-  await clickButton(page, `.pmu-months > div:nth-child(${startDateMonth})`);
+  await resolveAndWait(page, KEYS.monthsGridCheck);
+  await clickButton(page, `${SEL.pmuMonthsCell}:nth-child(${startDateMonth})`);
   await selectDayFromGrid(page, startDateDay);
 }
 
@@ -193,9 +232,9 @@ interface FetchAccDataOpts {
 
 async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAccount> {
   const { page, startDate, accountID, options } = opts;
-  await waitUntilElementDisappear(page, SEL.loadingSpinner);
+  await resolveAndDisappear(page, KEYS.loadingSpinner);
   await searchByDates(page, startDate);
-  await waitUntilElementDisappear(page, SEL.loadingSpinner);
+  await resolveAndDisappear(page, KEYS.loadingSpinner);
   const txns = await getAccountTransactions(page, options);
   return { accountNumber: accountID, txns };
 }
@@ -228,11 +267,8 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   public async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
     // Goto statements page
-    await waitUntilElementFound(this.page, SEL.accountDetails, { visible: true });
-    await clickButton(this.page, SEL.accountDetails);
-    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', {
-      visible: true,
-    });
+    await resolveAndClick(this.page, KEYS.accountDetails);
+    await resolveAndWait(this.page, KEYS.statementOptionsTop);
 
     const defaultStartMoment = moment().subtract(3, 'months').add(1, 'day');
     const startDate = this.options.startDate;

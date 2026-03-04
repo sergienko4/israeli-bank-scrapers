@@ -9,7 +9,8 @@ export type SelectorCandidate =
   | { kind: 'placeholder'; value: string } // input[placeholder*="סיסמה"]
   | { kind: 'ariaLabel'; value: string } // [aria-label*="משתמש"]
   | { kind: 'name'; value: string } // input[name="password"]
-  | { kind: 'xpath'; value: string }; // //button[contains(., "כניסה")]
+  | { kind: 'xpath'; value: string } // //button[contains(., "כניסה")]
+  | { kind: 'label'; value: string }; // last-resort: find input by visible <label> text
 
 /** OTP step config — DOM (selector-driven) or API (class override) */
 export type OtpConfig =

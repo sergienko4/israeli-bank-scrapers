@@ -15,25 +15,51 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 
-// FieldConfig for the ID field — selectors empty so SelectorResolver falls back to wellKnownSelectors.id
-const MAX_ID_FIELD_CONFIG: FieldConfig = { credentialKey: 'id', selectors: [] };
+// All three FieldConfigs scope to #login-password.tab-pane.active to avoid iframe false
+// positives: wellKnown placeholder/ariaLabel candidates can match cross-origin iframes
+// before reaching the CSS ID; the scoped formcontrolname selector targets only the main page.
+const MAX_USERNAME_FIELD_CONFIG: FieldConfig = {
+  credentialKey: 'username',
+  selectors: [
+    { kind: 'css', value: '#login-password.tab-pane.active [formcontrolname="username"]' },
+    { kind: 'css', value: '#user-name' }, // CSS ID fallback
+  ],
+};
+const MAX_PASSWORD_FIELD_CONFIG: FieldConfig = {
+  credentialKey: 'password',
+  selectors: [
+    { kind: 'css', value: '#login-password.tab-pane.active [formcontrolname="password"]' },
+    { kind: 'css', value: '#password' }, // CSS ID fallback
+  ],
+};
+/** Selector for the Flow B ID field — only visible when Angular shows the second login step. */
+const MAX_ID_SEL = '#login-password.tab-pane.active [formcontrolname="id"]';
 
 /**
  * Handles the optional second-login step in Max's Flow B:
  *   home → username+password → 2nd form (username+password+ID) → dashboard
- * Uses wellKnownSelectors.id from ScraperConfig to detect the field.
- * If the ID form is not present (Flow A), this function is a no-op.
+ * Detection uses CSS visibility (isVisible) — not DOM presence — to avoid false positives:
+ * Angular keeps [formcontrolname="id"] in the DOM for both flows, CSS-hidden in Flow A.
+ * If the ID form is not visible (Flow A), this function is a no-op.
  */
 export async function maxHandleSecondLoginStep(
   page: Page,
   credentials: { username: string; password: string; id?: string },
 ): Promise<void> {
   if (!credentials.id) return;
-  const idCtx = await resolveFieldContext(page, MAX_ID_FIELD_CONFIG, page.url());
-  if (!idCtx.isResolved) return;
-  await fillInput(page, '#user-name', credentials.username);
-  await fillInput(page, '#password', credentials.password);
-  await fillInput(idCtx.context, idCtx.selector, credentials.id);
+  if (
+    !(await page
+      .locator(MAX_ID_SEL)
+      .isVisible()
+      .catch(() => false))
+  )
+    return;
+  const url = page.url();
+  const userCtx = await resolveFieldContext(page, MAX_USERNAME_FIELD_CONFIG, url);
+  const passCtx = await resolveFieldContext(page, MAX_PASSWORD_FIELD_CONFIG, url);
+  if (userCtx.isResolved) await fillInput(userCtx.context, userCtx.selector, credentials.username);
+  if (passCtx.isResolved) await fillInput(passCtx.context, passCtx.selector, credentials.password);
+  await fillInput(page, MAX_ID_SEL, credentials.id);
   await clickButton(page, 'app-user-login-form .general-button.send-me-code');
   await sleep(1000);
 }

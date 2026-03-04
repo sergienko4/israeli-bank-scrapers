@@ -2,7 +2,11 @@ import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
 
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { toFirstCss } from '../../Common/SelectorResolver';
+import {
+  type DashboardFieldOpts,
+  resolveDashboardField,
+  toFirstCss,
+} from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
@@ -14,15 +18,31 @@ import {
 } from '../../Transactions';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
+import { type SelectorCandidate } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { LEUMI_CONFIG } from './LeumiLoginConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
-// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+// SEL kept for fields not yet migrated to resolveDashboardField (accountListItems, accountCombo)
 const SEL = Object.fromEntries(
   Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
 ) as Record<string, string>;
 const TRANSACTIONS_URL = CFG.urls.transactions;
+
+type LeumiDashKey = keyof typeof CFG.selectors;
+// Typed key constants derived from config — no inline string literals in scraper code
+const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
+  [K in LeumiDashKey]: K;
+};
+
+function dashOpts(page: Page, key: LeumiDashKey): DashboardFieldOpts {
+  return {
+    pageOrFrame: page,
+    fieldKey: key,
+    bankCandidates: [...(CFG.selectors[key] as SelectorCandidate[])],
+    pageUrl: page.url(),
+  };
+}
 const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
 
 interface LeumiRawTransaction {
@@ -97,15 +117,22 @@ interface FetchForAccountOpts {
   options: ScraperOptions;
 }
 
+async function resolveAndClick(page: Page, key: LeumiDashKey): Promise<void> {
+  const r = await resolveDashboardField(dashOpts(page, key));
+  if (!r.isResolved) return;
+  await waitUntilElementFound(r.context, r.selector, { visible: true });
+  await clickButton(r.context, r.selector);
+}
+
 async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
-  await waitUntilElementFound(page, SEL.advancedSearchBtn, { visible: true });
-  await clickButton(page, SEL.advancedSearchBtn);
-  await waitUntilElementFound(page, SEL.dateRangeRadio.split(':')[0], { visible: true });
-  await clickButton(page, SEL.dateRangeRadio);
-  await waitUntilElementFound(page, SEL.dateFromInput, { visible: true });
-  await fillInput(page, SEL.dateFromInput, startDate.format(CFG.format.date));
-  await page.focus(SEL.filterBtn);
-  await clickButton(page, SEL.filterBtn);
+  await resolveAndClick(page, KEYS.advancedSearchBtn);
+  await resolveAndClick(page, KEYS.dateRangeRadio);
+  const dateInput = await resolveDashboardField(dashOpts(page, KEYS.dateFromInput));
+  if (dateInput.isResolved) {
+    await waitUntilElementFound(dateInput.context, dateInput.selector, { visible: true });
+    await fillInput(dateInput.context, dateInput.selector, startDate.format(CFG.format.date));
+  }
+  await resolveAndClick(page, KEYS.filterBtn);
 }
 
 interface LeumiAccountResponse {
@@ -200,14 +227,14 @@ async function fetchTransactions(
 ): Promise<TransactionsAccount[]> {
   await hangProcess(4000);
   const accountsIds = await extractAccountIds(page);
-  const accounts: TransactionsAccount[] = [];
   const totalAccounts = accountsIds.length;
-  for (const rawAccountId of accountsIds) {
-    accounts.push(
+  return accountsIds.reduce(
+    async (acc, rawAccountId) => [
+      ...(await acc),
       await fetchAccountById({ page, rawAccountId, totalAccounts, startDate, options }),
-    );
-  }
-  return accounts;
+    ],
+    Promise.resolve<TransactionsAccount[]>([]),
+  );
 }
 
 interface ScraperSpecificCredentials {

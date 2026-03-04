@@ -151,22 +151,22 @@ describe('resolveFieldContext', () => {
     expect(result.resolvedVia).toBe('wellKnown');
   });
 
-  it('Round 1: finds field inside an iframe before checking the main page', async () => {
+  it('Round 2: finds field inside an iframe when main page has no match', async () => {
     const iframeElement = {};
     const iframe = makeFrame({ $: jest.fn().mockResolvedValue(iframeElement) });
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/') };
-    const mainPageQuery = jest.fn().mockResolvedValue(null);
+    const mainPageQuery = jest.fn().mockResolvedValue(null); // main page returns null
     const page = makePage({
       $: mainPageQuery,
       frames: jest.fn().mockReturnValue([mainFrame, iframe]), // one child iframe
       mainFrame: jest.fn().mockReturnValue(mainFrame),
     });
     const result = await resolveFieldContext(page, field, 'https://bank.test/');
-    // Iframe is found in Round 1 — main page query is never called
+    // Main page checked first (Round 1) — not found; iframe found in Round 2
     expect(result.isResolved).toBe(true);
     expect(result.context).toBe(iframe);
     expect(result.round).toBe('iframe');
-    expect(mainPageQuery).not.toHaveBeenCalled();
+    expect(mainPageQuery).toHaveBeenCalled(); // main page IS queried first
   });
 
   it('returns isResolved:false with message when nothing resolves', async () => {
@@ -244,10 +244,10 @@ describe('resolveDashboardField', () => {
     expect(result.selector).toBe('.balance'); // first wellKnownDashboardSelectors.balance entry
   });
 
-  it('resolves in iframe (Round 1) before main page (Round 2)', async () => {
+  it('falls back to iframe (Round 2) when main page has no match (Round 1)', async () => {
     const iframe = makeFrame({ $: jest.fn().mockResolvedValue({}) });
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/') };
-    const mainPageQuery = jest.fn().mockResolvedValue(null);
+    const mainPageQuery = jest.fn().mockResolvedValue(null); // main page returns null
     const page = makePage({
       $: mainPageQuery,
       frames: jest.fn().mockReturnValue([mainFrame, iframe]),
@@ -262,7 +262,7 @@ describe('resolveDashboardField', () => {
     expect(result.isResolved).toBe(true);
     expect(result.context).toBe(iframe);
     expect(result.round).toBe('iframe');
-    expect(mainPageQuery).not.toHaveBeenCalled();
+    expect(mainPageQuery).toHaveBeenCalled(); // main page IS queried first
   });
 
   it('returns isResolved:false when nothing resolves', async () => {

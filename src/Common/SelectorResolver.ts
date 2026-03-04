@@ -31,6 +31,8 @@ export function candidateToCss(c: SelectorCandidate): string {
       return `[name="${c.value}"]`;
     case 'xpath':
       return `xpath=${c.value}`;
+    case 'label':
+      return ''; // handled by probeLabelCandidate — never reaches this path
   }
 }
 
@@ -91,10 +93,37 @@ function debugCandidateSkipped(candidate: SelectorCandidate): void {
   );
 }
 
+/** Browser-side: scan every <label> for `text`, return a CSS selector for its input. */
+function scanLabelForInput(text: string): string | null {
+  const m = Array.from(document.querySelectorAll('label')).find(l => l.textContent.includes(text));
+  if (!m) return null;
+  const fid = m.getAttribute('for');
+  if (fid && document.getElementById(fid)) return `#${fid}`;
+  const ch = m.querySelector('input, textarea, select');
+  if (!(ch instanceof HTMLElement)) return null;
+  if (ch.id) return `#${ch.id}`;
+  const n = ch.getAttribute('name');
+  return n ? `[name="${n}"]` : null;
+}
+
+/** Last-resort: find input by visible <label> text. Reports found/not-found. */
+async function probeLabelCandidate(ctx: Page | Frame, labelText: string): Promise<string | null> {
+  try {
+    const result = await ctx.evaluate(scanLabelForInput, labelText);
+    if (result) LOG.info('resolved label "%s" → %s', labelText, result);
+    else LOG.info('candidate label "%s" → NOT FOUND', labelText);
+    return result;
+  } catch {
+    debugCandidateSkipped({ kind: 'label', value: labelText });
+    return null;
+  }
+}
+
 async function probeCandidate(
   ctx: Page | Frame,
   candidate: SelectorCandidate,
 ): Promise<string | null> {
+  if (candidate.kind === 'label') return probeLabelCandidate(ctx, candidate.value);
   const css = candidateToCss(candidate);
   try {
     const isFound = await queryWithTimeout(ctx, css);
@@ -117,11 +146,10 @@ export async function tryInContext(
   ctx: Page | Frame,
   candidates: SelectorCandidate[],
 ): Promise<string | null> {
-  for (const candidate of candidates) {
-    const found = await probeCandidate(ctx, candidate);
-    if (found) return found;
-  }
-  return null;
+  return candidates.reduce(
+    async (acc, candidate) => (await acc) ?? probeCandidate(ctx, candidate),
+    Promise.resolve<string | null>(null),
+  );
 }
 
 /**
@@ -153,27 +181,25 @@ async function searchInChildFrames(
 ): Promise<FieldMatch> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
-  for (const frame of childFrames) {
-    const found = await tryInContext(frame, allCandidates);
-    if (found) {
-      LOG.info('Round 1: resolved in iframe %s → %s', frame.url(), found);
-      return { selector: found, context: frame };
-    }
+  const frameResults = await Promise.all(
+    childFrames.map(async frame => ({ frame, found: await tryInContext(frame, allCandidates) })),
+  );
+  const match = frameResults.find(r => r.found !== null);
+  if (match?.found) {
+    LOG.info('Round 1: resolved in iframe %s → %s', match.frame.url(), match.found);
+    return { selector: match.found, context: match.frame };
   }
   return { selector: '', context: page }; // not found — caller checks selector !== ''
 }
 
-async function getPageTitle(pageOrFrame: Page | Frame): Promise<string> {
+async function getPageTitle(pof: Page | Frame): Promise<string> {
   try {
-    return await (pageOrFrame as Page).title();
+    return await (pof as Page).title();
   } catch {
     return '(unknown)';
   }
 }
 
-/**
- * Resolve a FieldConfig to a selector + context pair.
- */
 interface NotFoundContext {
   credentialKey: string;
   pageUrl: string;
@@ -183,14 +209,14 @@ interface NotFoundContext {
 
 function buildNotFoundMessage(ctx: NotFoundContext): string {
   const { credentialKey, pageUrl, tried, pageTitle } = ctx;
-  return (
-    `Could not find '${credentialKey}' field on ${pageUrl}\n` +
-    `Tried ${tried.length} candidates:\n` +
-    tried.join('\n') +
-    `\nPage title: "${pageTitle}"\n` +
-    'This usually means the bank redesigned their login page.\n' +
-    `Run: npx ts-node scripts/inspect-bank-login.ts --url '${pageUrl}' to re-detect selectors.`
-  );
+  return [
+    `Could not find '${credentialKey}' field on ${pageUrl}`,
+    `Tried ${tried.length} candidates:`,
+    ...tried,
+    `Page title: "${pageTitle}"`,
+    'This usually means the bank redesigned their login page.',
+    `Run: npx ts-node scripts/inspect-bank-login.ts --url '${pageUrl}' to re-detect selectors.`,
+  ].join('\n');
 }
 
 async function resolveInMainContext(
@@ -214,22 +240,17 @@ interface ResolveAllOpts {
   wellKnownCandidates: SelectorCandidate[];
 }
 
-function logTriedCandidates(key: string, url: string, tried: string[]): void {
-  LOG.info('FAILED "%s" on %s (%d tried)', key, url, tried.length);
-  for (const line of tried) LOG.info(line);
-}
-
 async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   const tried = [...b, ...wk].map(c => `  ${c.kind} "${c.value}" → NOT found`);
-  logTriedCandidates(field.credentialKey, pageUrl, tried);
+  LOG.info('FAILED "%s" on %s (%d tried)', field.credentialKey, pageUrl, tried.length);
+  for (const t of tried) LOG.info(t);
   const msg = buildNotFoundMessage({
     credentialKey: field.credentialKey,
     pageUrl,
     tried,
     pageTitle: await getPageTitle(pageOrFrame),
   });
-  LOG.info(msg);
   return {
     isResolved: false,
     selector: '',
@@ -269,25 +290,15 @@ async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null>
   return null;
 }
 
-function splitCandidates(field: FieldConfig): {
-  bank: SelectorCandidate[];
-  wellKnown: SelectorCandidate[];
-} {
-  return {
-    bank: [...field.selectors],
-    wellKnown: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
-  };
-}
-
 async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
+  const main = await probeMainPage(opts); // main page first — avoids iframe false positives
+  if (main) return main;
   if (isPage(pageOrFrame)) {
-    const r = await probeIframes(pageOrFrame, b, wk);
+    const r = await probeIframes(pageOrFrame, b, wk); // iframes fallback
     if (r) return r;
   }
-  const main = await probeMainPage(opts);
-  if (main) return main;
   return buildNotFoundContext(opts);
 }
 
@@ -296,7 +307,8 @@ export async function resolveFieldContext(
   field: FieldConfig,
   pageUrl: string,
 ): Promise<FieldContext> {
-  const { bank, wellKnown } = splitCandidates(field);
+  const bank = [...field.selectors];
+  const wellKnown = [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])];
   return resolveAll({
     pageOrFrame,
     field,
