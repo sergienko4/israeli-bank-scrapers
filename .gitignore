@@ -5,6 +5,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+
 # Runtime data
 pids
 *.pid
@@ -75,3 +76,4 @@ CLAUDE.md
 # Local debug sessions, trace output, inspection scripts — never commit
 # All local work lives in local-debug/ (debug captures + scripts)
 local-debug/
+.visacal-debug/
