@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.8.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.8.0...v7.8.1) (2026-03-04)
+
+
+### Bug Fixes
+
+* handle Max second-login ID verification step (Flow B) ([#102](https://github.com/sergienko4/israeli-bank-scrapers/issues/102)) ([0995ff3](https://github.com/sergienko4/israeli-bank-scrapers/commit/0995ff315dcd13fb692885f29c4c13cf8e82684d))
+
 ## [7.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.7.0...v7.8.0) (2026-03-03)
 
 
