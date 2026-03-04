@@ -16,9 +16,8 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import type { LoginOptions } from '../Base/BaseScraperWithBrowser';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
-import { BANK_REGISTRY } from '../Registry/BankRegistry';
-import { maxHandleSecondLoginStep } from '../Registry/BankRegistryExtra';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import { MAX_CONFIG, maxHandleSecondLoginStep } from './MaxLoginConfig';
 
 const LOG = getDebug('max');
 
@@ -310,7 +309,7 @@ interface ScraperSpecificCredentials {
 
 class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   constructor(options: ScraperOptions) {
-    super(options, BANK_REGISTRY[CompanyTypes.Max]!);
+    super(options, MAX_CONFIG);
   }
 
   public override getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
