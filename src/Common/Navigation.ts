@@ -1,11 +1,16 @@
 import { type Frame, type Page } from 'playwright';
 
+import type { WaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
+import type { WaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
+import type { WaitUntilState } from '../Interfaces/Common/WaitUntilState';
 import { getDebug } from './Debug';
 import { waitUntil } from './Waiting';
 
-const LOG = getDebug('navigation');
+export type { WaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
+export type { WaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
+export type { WaitUntilState } from '../Interfaces/Common/WaitUntilState';
 
-export type WaitUntilState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
+const LOG = getDebug('navigation');
 
 interface WaitForOptions {
   waitUntil?: WaitUntilState;
@@ -42,12 +47,6 @@ async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Pro
   }
 }
 
-export interface WaitForRedirectOptions {
-  timeout?: number;
-  isClientSide?: boolean;
-  ignoreList?: string[];
-}
-
 async function pollForRedirect(
   pageOrFrame: Page | Frame,
   initial: string,
@@ -81,11 +80,6 @@ export async function waitForRedirect(
     throw e;
   }
   LOG.info('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
-}
-
-export interface WaitForUrlOptions {
-  timeout?: number;
-  isClientSide?: boolean;
 }
 
 async function pollForUrl(

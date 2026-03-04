@@ -1,9 +1,9 @@
-import type { ErrorResult } from './Interfaces/ErrorResult';
-import type { WafErrorDetails } from './Interfaces/WafErrorDetails';
+import type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
+import type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 
+export type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
+export type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 export { ScraperErrorTypes } from './ErrorTypes';
-export type { ErrorResult } from './Interfaces/ErrorResult';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
 
 import { ScraperErrorTypes } from './ErrorTypes';
 

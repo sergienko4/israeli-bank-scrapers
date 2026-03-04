@@ -1,6 +1,9 @@
 import { type Page } from 'playwright';
 
+import type { FetchGraphqlOptions } from '../Interfaces/Common/FetchGraphqlOptions';
 import { getDebug } from './Debug';
+
+export type { FetchGraphqlOptions } from '../Interfaces/Common/FetchGraphqlOptions';
 
 const LOG = getDebug('fetch');
 
@@ -78,11 +81,6 @@ export async function fetchPost<TResult = unknown>(
   const text = await result.text();
   LOG.info('response body: %s', text.substring(0, 300));
   return JSON.parse(text) as TResult;
-}
-
-export interface FetchGraphqlOptions {
-  variables?: Record<string, unknown>;
-  extraHeaders?: Record<string, string>;
 }
 
 export async function fetchGraphql<TResult>(
@@ -184,7 +182,7 @@ async function runPostEvaluate(
 function buildParseError(
   e: unknown,
   url: string,
-  ctx: {
+  errCtx: {
     data: Record<string, unknown> | unknown[];
     extraHeaders: Record<string, string>;
     status: number;
@@ -193,7 +191,7 @@ function buildParseError(
 ): Error {
   const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
   return new Error(
-    `fetchPostWithinPage parse error: ${msg}, url: ${url}, data: ${JSON.stringify(ctx.data)}, extraHeaders: ${JSON.stringify(ctx.extraHeaders)}, result: ${ctx.text}, status: ${ctx.status}`,
+    `fetchPostWithinPage parse error: ${msg}, url: ${url}, data: ${JSON.stringify(errCtx.data)}, extraHeaders: ${JSON.stringify(errCtx.extraHeaders)}, result: ${errCtx.text}, status: ${errCtx.status}`,
     { cause: e },
   );
 }

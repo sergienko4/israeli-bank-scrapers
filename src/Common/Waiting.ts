@@ -1,5 +1,9 @@
 import type { Falsy } from 'utility-types';
 
+import type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
+
+export type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
+
 export class TimeoutError extends Error {}
 
 export const SECOND = 1000;
@@ -47,11 +51,6 @@ function buildWaitPromise<T>(
   return new Promise<NonNullable<T>>((resolve, reject) => {
     makeWaitTick(asyncTest, interval, { resolve, reject })();
   });
-}
-
-export interface WaitUntilOpts {
-  timeout?: number;
-  interval?: number;
 }
 
 function safeStringify(v: unknown): string {

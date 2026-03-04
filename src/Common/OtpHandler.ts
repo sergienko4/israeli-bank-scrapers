@@ -1,6 +1,7 @@
 import path from 'path';
 import { type Frame, type Page } from 'playwright';
 
+import type { OtpFillOpts } from '../Interfaces/Common/OtpFillOpts';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface';
 import { getDebug } from './Debug';
@@ -78,13 +79,6 @@ async function injectOtpViaEvaluate(
     input.value = val;
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }, code);
-}
-
-interface OtpFillOpts {
-  frame: Frame;
-  sel: string;
-  el: Awaited<ReturnType<Frame['$']>>;
-  code: string;
 }
 
 async function fillOtpWithFallback(opts: OtpFillOpts): Promise<void> {

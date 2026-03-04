@@ -5,18 +5,18 @@ import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteract
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
+import type { ExtractTxnOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
+import type { ScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
+import type { TransactionsTr } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
-import type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-import type { TransactionsTr } from './Interfaces/TransactionsTr';
 
+export type { ExtractTxnOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
+export type { ScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
+export type { TransactionsTr } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
 export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
-export type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-export type { TransactionsTr } from './Interfaces/TransactionsTr';
 
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';

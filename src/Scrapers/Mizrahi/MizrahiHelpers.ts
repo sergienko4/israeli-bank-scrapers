@@ -4,17 +4,17 @@ import { type Page, type Request } from 'playwright';
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { CompanyTypes } from '../../Definitions';
+import type { MizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
+import type { MoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
+import type { ScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
-import type { MoreDetails } from './Interfaces/MoreDetails';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
 
-export type { ConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts';
-export type { ConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts';
-export type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
-export type { MoreDetails } from './Interfaces/MoreDetails';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-export type { ScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult';
+export type { ConvertOneRowOpts } from '../../Interfaces/Banks/Mizrahi/ConvertOneRowOpts';
+export type { ConvertTxnsOpts } from '../../Interfaces/Banks/Mizrahi/ConvertTxnsOpts';
+export type { MizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
+export type { MoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
+export type { ScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
+export type { ScrapedTransactionsResult } from '../../Interfaces/Banks/Mizrahi/ScrapedTransactionsResult';
 
 const LOG = getDebug('mizrahi');
 

@@ -1,7 +1,14 @@
 import { type Frame, type Page } from 'playwright';
 
+import type { PageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
+import type { PageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
+import type { WaitOptions } from '../Interfaces/Common/WaitOptions';
 import { getDebug } from './Debug';
 import { humanDelay, waitUntil } from './Waiting';
+
+export type { PageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
+export type { PageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
+export type { WaitOptions } from '../Interfaces/Common/WaitOptions';
 
 const LOG = getDebug('elements');
 
@@ -18,23 +25,6 @@ async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): 
       selector,
     )
     .catch(() => '(context unavailable)');
-}
-
-export interface WaitOptions {
-  visible?: boolean;
-  timeout?: number;
-}
-
-export interface PageEvalOpts<R> {
-  selector: string;
-  defaultResult: R;
-  callback: (element: Element, ...args: unknown[]) => R;
-}
-
-export interface PageEvalAllOpts<R> {
-  selector: string;
-  defaultResult: R;
-  callback: (elements: Element[], ...args: unknown[]) => R;
 }
 
 async function waitUntilElementFound(
@@ -142,7 +132,10 @@ async function clickLink(page: Page, aSelector: string): Promise<void> {
   });
 }
 
-async function pageEvalAll<R>(page: Page | Frame, opts: PageEvalAllOpts<R>): Promise<R> {
+async function pageEvalAll<TResult>(
+  page: Page | Frame,
+  opts: PageEvalAllOpts<TResult>,
+): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {
@@ -158,7 +151,10 @@ async function pageEvalAll<R>(page: Page | Frame, opts: PageEvalAllOpts<R>): Pro
   return result;
 }
 
-async function pageEval<R>(page: Page | Frame, opts: PageEvalOpts<R>): Promise<R> {
+async function pageEval<TResult>(
+  page: Page | Frame,
+  opts: PageEvalOpts<TResult>,
+): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {

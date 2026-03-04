@@ -143,16 +143,16 @@ async function collectPages(
     transactionStatus: TransactionStatuses;
     nextLinkCss: string;
   },
-  acc: ScrapedTransaction[] = [],
+  previousTxns: ScrapedTransaction[] = [],
 ): Promise<ScrapedTransaction[]> {
   const { page, tableLocator, transactionStatus, nextLinkCss } = opts;
-  const batch = await extractTransactions(page, tableLocator, transactionStatus);
-  const all = [...acc, ...batch];
-  const hasNext = nextLinkCss !== '' && (await elementPresentOnPage(page, nextLinkCss));
-  if (!hasNext) return all;
+  const currentPageTxns = await extractTransactions(page, tableLocator, transactionStatus);
+  const allTxns = [...previousTxns, ...currentPageTxns];
+  const hasNextPage = nextLinkCss !== '' && (await elementPresentOnPage(page, nextLinkCss));
+  if (!hasNextPage) return allTxns;
   await clickButton(page, nextLinkCss);
   await waitForNavigation(page);
-  return collectPages(opts, all);
+  return collectPages(opts, allTxns);
 }
 
 async function scrapeTransactions(opts: {

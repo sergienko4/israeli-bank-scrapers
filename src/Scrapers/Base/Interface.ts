@@ -1,19 +1,19 @@
 import { type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions';
+import type { DefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
+import type { OutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
+import type { ScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
 import { type ErrorResult } from './Errors';
-import type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
-import type { OutputDataOptions } from './Interfaces/OutputDataOptions';
-import type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
 
-export type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
-export type { ErrorResult } from './Interfaces/ErrorResult';
-export type { FutureDebit } from './Interfaces/FutureDebit';
-export type { OutputDataOptions } from './Interfaces/OutputDataOptions';
-export type { ScraperDiagnostics } from './Interfaces/ScraperDiagnostics';
-export type { ScraperLoginResult } from './Interfaces/ScraperLoginResult';
-export type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
+export type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
+export type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
+export type { DefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
+export type { OutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
+export type { ScraperDiagnostics } from '../../Interfaces/Scraper/ScraperDiagnostics';
+export type { ScraperLoginResult } from '../../Interfaces/Scraper/ScraperLoginResult';
+export type { ScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
+export type { FutureDebit } from '../../Interfaces/Transaction/FutureDebit';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
@@ -41,7 +41,7 @@ export type OptInFeatures =
   | 'mizrahi:pendingIfHasGenericDescription'
   | 'mizrahi:isPendingIfTodayTransaction';
 
-interface ExternalBrowserOptions {
+export interface ExternalBrowserOptions {
   /**
    * An externally created browser instance.
    * you can get a browser directly from playwright via `chromium.launch()`

@@ -1,8 +1,14 @@
 import { type Frame, type Page } from 'playwright';
 
+import type { DashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
+import type { FieldContext } from '../Interfaces/Common/FieldContext';
+import type { ResolveAllOpts } from '../Interfaces/Common/ResolveAllOpts';
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
 import { getDebug } from './Debug';
+
+export type { DashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
+export type { FieldContext } from '../Interfaces/Common/FieldContext';
 
 const LOG = getDebug('selector-resolver');
 
@@ -152,22 +158,6 @@ export async function tryInContext(
   );
 }
 
-/**
- * The resolved location of a login field — always returned, never throws.
- * Check `isResolved` before using `selector` / `context`.
- * - `resolvedVia`: 'bankConfig' (bank's own selector) | 'wellKnown' (global fallback) | 'notResolved'
- * - `round`: 'iframe' (found in child frame) | 'mainPage' (found in main context) | 'notResolved'
- */
-export interface FieldContext {
-  isResolved: boolean;
-  selector: string;
-  context: Page | Frame;
-  resolvedVia: 'bankConfig' | 'wellKnown' | 'notResolved';
-  round: 'iframe' | 'mainPage' | 'notResolved';
-  /** Diagnostic message — populated when isResolved is false */
-  message?: string;
-}
-
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
@@ -220,15 +210,6 @@ async function resolveInMainContext(
   if (!main) return { selector: '', context: pageOrFrame }; // not found
   LOG.info('Round 2: resolved "%s" → %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
-}
-
-/** All inputs needed to resolve a single login field. */
-interface ResolveAllOpts {
-  pageOrFrame: Page | Frame;
-  field: FieldConfig;
-  pageUrl: string;
-  bankCandidates: SelectorCandidate[];
-  wellKnownCandidates: SelectorCandidate[];
 }
 
 async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext> {
@@ -329,14 +310,6 @@ export async function resolveSelector(
  */
 export function toFirstCss(candidates: SelectorCandidate[]): string {
   return candidates.length > 0 ? candidateToCss(candidates[0]) : '';
-}
-
-/** Options for resolving a post-login dashboard selector. */
-export interface DashboardFieldOpts {
-  pageOrFrame: Page | Frame;
-  fieldKey: string;
-  bankCandidates: SelectorCandidate[];
-  pageUrl: string;
 }
 
 /**
