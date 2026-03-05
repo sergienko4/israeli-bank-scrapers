@@ -243,11 +243,10 @@ export function validateMonthDataResponse(
   monthData: CardTransactionDetails | CardApiStatus,
   card: CardInfo,
 ): asserts monthData is CardTransactionDetails {
-  if (monthData.statusCode !== 1)
-    throw new ScraperWebsiteChangedError(
-      'VisaCal',
-      `fetch card ${card.last4Digits}: ${monthData.title}`,
-    );
+  if (monthData.statusCode !== 1) {
+    const desc = monthData.title ?? `statusCode=${String(monthData.statusCode)}`;
+    throw new ScraperWebsiteChangedError('VisaCal', `fetch card ${card.last4Digits}: ${desc}`);
+  }
   if (!isCardTransactionDetails(monthData))
     throw new ScraperWebsiteChangedError(
       'VisaCal',

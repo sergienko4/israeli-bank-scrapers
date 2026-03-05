@@ -13,7 +13,12 @@ export type { CardLevelFrame } from '../../Interfaces/Banks/VisaCal/CardLevelFra
 export type { CardPendingTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardPendingTransactionDetails';
 export type { CardTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardTransactionDetails';
 export type { FramesResponse } from '../../Interfaces/Banks/VisaCal/FramesResponse';
-export type { InitResponse } from '../../Interfaces/Banks/VisaCal/InitResponse';
+export type {
+  InitBankAccount,
+  InitCard,
+  InitResponse,
+  InitUser,
+} from '../../Interfaces/Banks/VisaCal/InitResponse';
 export type { LoginResponse } from '../../Interfaces/Banks/VisaCal/LoginResponse';
 export type { ScrapedPendingTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedPendingTransaction';
 export type { ScrapedTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedTransaction';

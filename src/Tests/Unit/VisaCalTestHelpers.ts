@@ -18,12 +18,26 @@ export const MOCK_BROWSER: ReturnType<typeof createMockBrowser> = createMockBrow
 
 export const CREDS = createMockCredentials('visacal');
 
+const MOCK_INIT_USER = { custFullName: 'Test User', custExtId: '123456789' };
+
 export const INIT_RESPONSE = {
-  result: { cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }] },
+  statusCode: 1,
+  statusDescription: null,
+  statusTitle: null,
+  groupPid: null,
+  result: {
+    user: MOCK_INIT_USER,
+    cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }],
+    bankAccounts: [],
+  },
 };
 
 export const EMPTY_CARDS_INIT_RESPONSE = {
-  result: { cards: [] },
+  statusCode: 1,
+  statusDescription: null,
+  statusTitle: null,
+  groupPid: null,
+  result: { user: MOCK_INIT_USER, cards: [], bankAccounts: [] },
 };
 
 export function visaCalOptions(

@@ -126,7 +126,7 @@ async function fetchPendingData(
   >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
   if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
     LOG.info(
-      `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
+      `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title ?? ''}`,
     );
     pendingData = null;
   } else if (!isCardPendingTransactionDetails(pendingData)) {
@@ -163,6 +163,8 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const authorization = await this.getAuthorizationHeader();
     const hdrs = buildApiHeaders(authorization, X_SITE_ID);
     const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
+    if (initData.statusCode !== 1)
+      throw new ScraperAuthenticationError('VisaCal', initData.statusDescription ?? 'init failed');
     return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
       cardUniqueId,
       last4Digits,
