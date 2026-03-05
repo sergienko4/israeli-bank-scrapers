@@ -19,7 +19,7 @@ import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers'
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: LoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
   fields: [
     {
@@ -65,14 +65,20 @@ const baseCfg: LoginConfig = {
       }),
       page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
       page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
-    ]).catch(() => {});
+    ]).catch(() => {
+      /* no-op */
+    });
   },
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
-    invalidPassword: [async opts => !!(opts?.page && (await opts.page.$('#popupWrongDetails')))],
+    invalidPassword: [
+      async (opts?: { page?: Page }): Promise<boolean> =>
+        !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
+    ],
     unknownError: [
-      async opts => !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
+      async (opts?: { page?: Page }): Promise<boolean> =>
+        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
     ],
   },
 };
@@ -91,7 +97,7 @@ describe('E2E: Selector fallback — Max', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMAX' } as {
       username: string;
       password: string;

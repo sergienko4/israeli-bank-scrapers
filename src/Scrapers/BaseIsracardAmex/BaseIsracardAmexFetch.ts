@@ -48,11 +48,11 @@ export async function fetchAccounts(
 function getTransactionsUrl(servicesUrl: string, monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
-  const monthStr = month < 10 ? `0${month}` : month.toString();
+  const monthStr = month < 10 ? `0${String(month)}` : month.toString();
   const url = new URL(servicesUrl);
   url.searchParams.set('reqName', 'CardsTransactionsList');
   url.searchParams.set('month', monthStr);
-  url.searchParams.set('year', `${year}`);
+  url.searchParams.set('year', String(year));
   url.searchParams.set('requiredDate', 'N');
   return url.toString();
 }

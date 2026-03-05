@@ -42,7 +42,11 @@ describe('Playwright context options verification (real browser)', () => {
       await page.goto('about:blank');
       // Stealth plugin may override navigator.language, but the HTTP header
       // is what Israeli banks check — our extraHTTPHeaders always set it.
-      await page.evaluate(() => fetch('https://test-endpoint.example.com').catch(() => {}));
+      await page.evaluate(() =>
+        fetch('https://test-endpoint.example.com').catch(() => {
+          /* no-op */
+        }),
+      );
       expect(capturedHeaders['accept-language']).toMatch(/he-IL/);
     } finally {
       await context.close();
@@ -61,7 +65,11 @@ describe('Playwright context options verification (real browser)', () => {
         await route.continue();
       });
       await page.goto('about:blank');
-      await page.evaluate(() => fetch('https://test-endpoint.example.com').catch(() => {}));
+      await page.evaluate(() =>
+        fetch('https://test-endpoint.example.com').catch(() => {
+          /* no-op */
+        }),
+      );
       expect(capturedHeaders['sec-ch-ua-platform']).toBe('"Windows"');
       expect(capturedHeaders['sec-ch-ua-mobile']).toBe('?0');
     } finally {

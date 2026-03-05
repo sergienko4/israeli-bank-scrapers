@@ -19,6 +19,7 @@ import {
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
 import { type SelectorCandidate } from '../Base/LoginConfig';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { LEUMI_CONFIG } from './LeumiLoginConfig';
 
@@ -43,7 +44,9 @@ function dashOpts(page: Page, key: LeumiDashKey): DashboardFieldOpts {
     pageUrl: page.url(),
   };
 }
-const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx`;
+const LEUMI_TRXS_PATH =
+  '/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx';
+const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}${LEUMI_TRXS_PATH}`;
 
 export interface LeumiRawTransaction {
   DateUTC: string;
@@ -191,7 +194,8 @@ async function extractAccountIds(page: Page): Promise<string[]> {
     sel => Array.from(document.querySelectorAll(sel), e => e.textContent),
     SEL.accountListItems,
   );
-  if (!ids.length) throw new Error('Failed to extract or parse the account number');
+  if (!ids.length)
+    throw new ScraperWebsiteChangedError('Leumi', 'Failed to extract or parse the account number');
   return ids;
 }
 

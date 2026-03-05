@@ -51,7 +51,7 @@ export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise
   url.searchParams.set('shovarRatz', (transaction.identifier ?? 0).toString());
   url.searchParams.set('moedChiuv', month.format('MMYYYY'));
   LOG.info(
-    `fetching extra scrap for transaction ${transaction.identifier} for month ${month.format('YYYY-MM')}`,
+    `fetching extra scrap for transaction ${String(transaction.identifier ?? '')} for month ${month.format('YYYY-MM')}`,
   );
   const data = await fetchGetWithinPage<ScrapedTransactionData>(page, url.toString());
   if (!data) return transaction;
@@ -115,7 +115,7 @@ export async function getExtraScrapAccount(
     async (prevPromise, account) => {
       const acc = await prevPromise;
       LOG.info(
-        `get extra scrap for ${account.accountNumber} with ${account.txns.length} transactions, month ${month.format('YYYY-MM')}`,
+        `get extra scrap for ${account.accountNumber} with ${String(account.txns.length)} transactions, month ${month.format('YYYY-MM')}`,
       );
       acc.push(await enrichAccountTxns(page, account, { options, month }));
       return acc;

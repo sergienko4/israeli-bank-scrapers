@@ -12,7 +12,7 @@ import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './Selec
 const ERR = selectorErrorFor('userCode', 'password');
 const BASE = 'https://login.bankhapoalim.co.il';
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: LoginConfig = {
   loginUrl: `${BASE}/cgi-bin/poalwwwc?reqName=getLogonPage`,
   fields: [
     {
@@ -38,7 +38,9 @@ const baseCfg: LoginConfig = {
     await waitUntilElementFound(page, '#userCode');
   },
   postAction: async page => {
-    await waitForRedirect(page, { timeout: 20000 }).catch(() => {});
+    await waitForRedirect(page, { timeout: 20000 }).catch(() => {
+      /* no-op */
+    });
   },
   possibleResults: {
     // Narrow patterns — /ng-portals/ alone is too broad and matches the auth redirect URL
@@ -62,7 +64,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ userCode: 'INVALID_USER', password: 'FallbackTestHPO' } as {
       userCode: string;
       password: string;
@@ -76,13 +78,15 @@ describe('E2E: Selector fallback — Hapoalim', () => {
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
-      ...baseCfg,
+      ...BASE_CFG,
       checkReadiness: async (page: Page) => {
         await waitUntilElementFound(page, '#userCode');
         await injectFormByInput(page, '#userCode');
       },
       postAction: async (page: Page) => {
-        await waitForRedirect(page, { timeout: 10000 }).catch(() => {});
+        await waitForRedirect(page, { timeout: 10000 }).catch(() => {
+          /* no-op */
+        });
       },
     };
     const result = await new ConcreteGenericScraper(

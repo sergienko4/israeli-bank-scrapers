@@ -4,6 +4,7 @@ import type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 export type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
 export type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 export { ScraperErrorTypes } from './ErrorTypes';
+export { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
 import { ScraperErrorTypes } from './ErrorTypes';
 
@@ -44,7 +45,10 @@ export class WafBlockError extends Error {
   public readonly details: WafErrorDetails;
 
   constructor(details: WafErrorDetails) {
-    const msg = `WAF blocked by ${details.provider} (HTTP ${details.httpStatus}, "${details.pageTitle}"). ${details.suggestions[0]}`;
+    const httpStatus = String(details.httpStatus);
+    const msg =
+      `WAF blocked by ${details.provider} (HTTP ${httpStatus}, ` +
+      `"${details.pageTitle}"). ${details.suggestions[0]}`;
     super(msg);
     this.name = 'WafBlockError';
     this.details = details;

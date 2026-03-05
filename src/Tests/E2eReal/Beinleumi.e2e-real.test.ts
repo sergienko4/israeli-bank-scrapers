@@ -15,9 +15,9 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(process.env.BEINLEUMI_USERNAME && process.env.BEINLEUMI_PASSWORD);
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 // Full scrape requires OTP — skip in CI unless BEINLEUMI_OTP env var is provided
-const itIfOtp = process.env.BEINLEUMI_OTP ? it : it.skip;
+const IT_IF_OTP = process.env.BEINLEUMI_OTP ? it : it.skip;
 
 /**
  * Prompts the user via stdin for the OTP code.
@@ -37,12 +37,12 @@ async function promptOtpCode(phoneHint: string): Promise<string> {
   });
 }
 
-describeIf('E2E: Beinleumi (real credentials)', () => {
+DESCRIBE_IF('E2E: Beinleumi (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  itIfOtp(
+  IT_IF_OTP(
     'scrapes transactions successfully (OTP supported via stdin or BEINLEUMI_OTP env)',
     async () => {
       const scraper = createScraper({
@@ -53,8 +53,8 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
         otpCodeRetriever: promptOtpCode,
       });
       const result = await scraper.scrape({
-        username: process.env.BEINLEUMI_USERNAME!,
-        password: process.env.BEINLEUMI_PASSWORD!,
+        username: process.env.BEINLEUMI_USERNAME ?? '',
+        password: process.env.BEINLEUMI_PASSWORD ?? '',
       });
 
       assertSuccessfulScrape(result);
@@ -70,8 +70,8 @@ describeIf('E2E: Beinleumi (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      username: process.env.BEINLEUMI_USERNAME!,
-      password: process.env.BEINLEUMI_PASSWORD!,
+      username: process.env.BEINLEUMI_USERNAME ?? '',
+      password: process.env.BEINLEUMI_PASSWORD ?? '',
     });
     expect(result.success).toBe(false);
     // TwoFactorRetrieverMissing = reached OTP screen (ideal case, non-Oracle IPs)

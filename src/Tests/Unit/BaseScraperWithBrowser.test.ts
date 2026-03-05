@@ -150,7 +150,7 @@ describe('initializePage', () => {
       executablePath: '/usr/bin/chromium',
     } as Partial<ScraperOptions>);
     await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
-      'Custom executablePath "/usr/bin/chromium" is not supported',
+      'Custom executablePath is not supported',
     );
   });
 });
@@ -196,7 +196,7 @@ describe('navigateTo', () => {
     const scraper = createScraper({ navigationRetryCount: 0 });
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('status code: 500');
+    expect(result.errorMessage).toContain('Failed to navigate');
   });
 });
 

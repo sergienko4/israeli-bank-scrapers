@@ -20,6 +20,7 @@ import {
   type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from './Interface';
+import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
 interface DiagnosticsState {
   loginUrl: string;
@@ -53,7 +54,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     warnings: [],
   };
 
-  private eventEmitter = new EventEmitter();
+  private _eventEmitter = new EventEmitter();
 
   constructor(public options: ScraperOptions) {}
 
@@ -75,31 +76,34 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
 
   public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
     void phoneNumber;
-    throw new Error(`triggerOtp() is not created in ${this.options.companyId}`);
+    throw new ScraperWebsiteChangedError(this.options.companyId, 'triggerOtp() not implemented');
   }
 
   public getLongTermTwoFactorToken(
     otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
     void otpCode;
-    throw new Error(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
+    throw new ScraperWebsiteChangedError(
+      this.options.companyId,
+      'getPermanentOtpToken() not implemented',
+    );
   }
 
   public onProgress(
     func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
   ): void {
-    this.eventEmitter.on(SCRAPE_PROGRESS, func);
+    this._eventEmitter.on(SCRAPE_PROGRESS, func);
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
   protected async login(credentials: TCredentials): Promise<ScraperLoginResult> {
     void credentials;
-    throw new Error(`login() is not created in ${this.options.companyId}`);
+    throw new ScraperWebsiteChangedError(this.options.companyId, 'login() not implemented');
   }
 
   // eslint-disable-next-line  @typescript-eslint/require-await
   protected async fetchData(): Promise<ScraperScrapingResult> {
-    throw new Error(`fetchData() is not created in ${this.options.companyId}`);
+    throw new ScraperWebsiteChangedError(this.options.companyId, 'fetchData() not implemented');
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -113,7 +117,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
   }
 
   protected emit(eventName: string, payload: Record<string, unknown>): void {
-    this.eventEmitter.emit(eventName, this.options.companyId, payload);
+    this._eventEmitter.emit(eventName, this.options.companyId, payload);
   }
 
   protected buildDiagnostics(): ScraperDiagnostics {

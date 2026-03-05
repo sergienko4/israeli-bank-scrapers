@@ -143,7 +143,7 @@ export function getTransactionIdentifier(row: ScrapedTransaction): string | numb
     return undefined;
   }
   if (row.TransactionNumber && String(row.TransactionNumber) !== '1') {
-    return `${row.MC02AsmahtaMekoritEZ}-${row.TransactionNumber}`;
+    return `${row.MC02AsmahtaMekoritEZ}-${String(row.TransactionNumber)}`;
   }
   return parseInt(row.MC02AsmahtaMekoritEZ, 10);
 }

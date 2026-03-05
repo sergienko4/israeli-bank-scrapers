@@ -11,11 +11,15 @@ import { getRawTransaction } from '../../Common/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { LOGIN_RESULTS } from '../Base/BaseScraperWithBrowser';
 import { type ScraperOptions } from '../Base/Interface';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import {
+  type CardApiStatus,
+  type CardInfo,
   type CardLevelFrame,
   type CardPendingTransactionDetails,
   type CardTransactionDetails,
   type FramesResponse,
+  isCardTransactionDetails,
   isPending,
   type ScrapedPendingTransaction,
   type ScrapedTransaction,
@@ -233,4 +237,20 @@ export function findCardFrame(
   return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
     f => f.cardUniqueId === cardUniqueId,
   );
+}
+
+export function validateMonthDataResponse(
+  monthData: CardTransactionDetails | CardApiStatus,
+  card: CardInfo,
+): asserts monthData is CardTransactionDetails {
+  if (monthData.statusCode !== 1)
+    throw new ScraperWebsiteChangedError(
+      'VisaCal',
+      `fetch card ${card.last4Digits}: ${monthData.title}`,
+    );
+  if (!isCardTransactionDetails(monthData))
+    throw new ScraperWebsiteChangedError(
+      'VisaCal',
+      'monthData is not of type CardTransactionDetails',
+    );
 }

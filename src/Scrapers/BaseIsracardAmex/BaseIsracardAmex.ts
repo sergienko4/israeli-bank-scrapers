@@ -42,17 +42,17 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   password: string;
   card6Digits: string;
 }> {
-  private baseUrl: string;
+  private _baseUrl: string;
 
-  private companyCode: string;
+  private _companyCode: string;
 
-  private servicesUrl: string;
+  private _servicesUrl: string;
 
   constructor(options: ScraperOptions, baseUrl: string, companyCode: string) {
     super(options);
-    this.baseUrl = baseUrl;
-    this.companyCode = companyCode;
-    this.servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
+    this._baseUrl = baseUrl;
+    this._companyCode = companyCode;
+    this._servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
   public async login(credentials: {
@@ -86,7 +86,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     return fetchAllTransactions({
       page: this.page,
       options: this.options,
-      companyServiceOptions: { servicesUrl: this.servicesUrl, companyCode: this.companyCode },
+      companyServiceOptions: { servicesUrl: this._servicesUrl, companyCode: this._companyCode },
       startMoment,
     });
   }
@@ -102,7 +102,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
       countryCode: COUNTRY_CODE,
       idType: ID_TYPE,
       checkLevel: CHECK_LEVEL,
-      companyCode: this.companyCode,
+      companyCode: this._companyCode,
     };
   }
 
@@ -111,7 +111,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     password: string;
     card6Digits: string;
   }): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
-    const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
+    const validateUrl = `${this._servicesUrl}?reqName=ValidateIdData`;
     LOG.info('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
@@ -144,12 +144,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     credentials: { id: string; password: string; card6Digits: string },
     userName: string,
   ): Promise<ScraperScrapingResult> {
-    const loginUrl = `${this.servicesUrl}?reqName=performLogonI`;
+    const loginUrl = `${this._servicesUrl}?reqName=performLogonI`;
     LOG.info('user login started');
     const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
       data: buildLoginRequest(credentials, userName),
     });
-    LOG.info(loginResult, `user login with status '${loginResult?.status}'`);
+    LOG.info(loginResult, `user login with status '${loginResult?.status ?? ''}'`);
     return this.interpretLoginStatus(loginResult?.status);
   }
 
@@ -175,8 +175,8 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   }
 
   private async navigateToLoginPage(): Promise<void> {
-    LOG.info(`navigating to ${this.baseUrl}/personalarea/Login`);
-    await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
+    LOG.info(`navigating to ${this._baseUrl}/personalarea/Login`);
+    await this.navigateTo(`${this._baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
     await humanDelay(LOGIN_DELAY_MIN, LOGIN_DELAY_MAX);
     this.emitProgress(ScraperProgressTypes.LoggingIn);

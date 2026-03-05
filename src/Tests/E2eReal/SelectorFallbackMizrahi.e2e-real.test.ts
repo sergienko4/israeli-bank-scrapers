@@ -8,7 +8,7 @@ import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers'
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: LoginConfig = {
   loginUrl: 'https://www.mizrahi-tefahot.co.il/login/index.html#/auth-page-he',
   fields: [
     {
@@ -57,7 +57,7 @@ describe('E2E: Selector fallback — Mizrahi', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMZR' } as {
       username: string;
       password: string;

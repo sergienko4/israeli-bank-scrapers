@@ -2,6 +2,7 @@
 import { CompanyTypes } from '../../Definitions';
 import AmexScraper from '../Amex/AmexScraper';
 import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import BehatsdaaScraper from '../Behatsdaa/BehatsdaaScraper';
 import BeinleumiScraper from '../Beinleumi/BeinleumiScraper';
 import BeyahadBishvilhaScraper from '../BeyahadBishvilha/BeyahadBishvilhaScraper';
@@ -44,5 +45,5 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
 export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
-  throw new Error(`unknown company id ${options.companyId}`);
+  throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
 }

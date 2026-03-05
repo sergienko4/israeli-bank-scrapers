@@ -14,9 +14,7 @@ const BROWSER_ARGS = [
 ];
 
 export async function getSharedBrowser(): Promise<Browser> {
-  if (!sharedBrowser) {
-    sharedBrowser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
-  }
+  sharedBrowser ??= await chromium.launch({ headless: true, args: BROWSER_ARGS });
   return sharedBrowser;
 }
 

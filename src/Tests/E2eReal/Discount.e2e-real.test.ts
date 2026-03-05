@@ -17,9 +17,9 @@ const hasCredentials = !!(
   process.env.DISCOUNT_PASSWORD &&
   process.env.DISCOUNT_NUM
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Discount Bank (real credentials)', () => {
+DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });

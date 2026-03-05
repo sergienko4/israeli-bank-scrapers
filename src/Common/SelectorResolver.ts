@@ -192,7 +192,7 @@ function buildNotFoundMessage(ctx: {
   const { credentialKey, pageUrl, tried, pageTitle } = ctx;
   return [
     `Could not find '${credentialKey}' field on ${pageUrl}`,
-    `Tried ${tried.length} candidates:`,
+    `Tried ${String(tried.length)} candidates:`,
     ...tried,
     `Page title: "${pageTitle}"`,
     'This usually means the bank redesigned their login page.',
@@ -264,7 +264,9 @@ async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null>
 
 async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
-  LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
+  const bLen = String(b.length);
+  const wkLen = String(wk.length);
+  LOG.info(`resolving "${field.credentialKey}": ${bLen}b+${wkLen}wk on ${pageUrl}`);
   const main = await probeMainPage(opts); // main page first — avoids iframe false positives
   if (main) return main;
   if (isPage(pageOrFrame)) {

@@ -17,7 +17,7 @@ import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers'
 
 const ERR = selectorErrorFor('username', 'password');
 
-const leumiWellKnownCfg: LoginConfig = {
+const LEUMI_WELL_KNOWN_CFG: LoginConfig = {
   loginUrl: 'https://www.leumi.co.il/he',
   fields: [
     // NO fallback — relies entirely on WELL_KNOWN_SELECTORS.username + .password
@@ -44,7 +44,7 @@ const leumiWellKnownCfg: LoginConfig = {
   possibleResults: {
     success: [/eBanking\/SO\/SPA\.aspx/i],
     invalidPassword: [
-      async opts => {
+      async (opts?: { page?: Page }): Promise<boolean> => {
         if (!opts?.page) return false;
         const txt = await opts.page.evaluate(() => document.body.innerText);
         return txt.includes('אחד או יותר מפרטי ההזדהות שמסרת שגויים');
@@ -68,7 +68,7 @@ describe('E2E: Selector fallback — Leumi (Round 3 WELL_KNOWN_SELECTORS)', () =
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      leumiWellKnownCfg,
+      LEUMI_WELL_KNOWN_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'WellKnownTestLMI' } as {
       username: string;
       password: string;

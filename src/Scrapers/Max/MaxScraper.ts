@@ -31,7 +31,7 @@ const CATEGORIES = new Map<number, string>();
 function getTransactionsUrl(monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
-  const date = `${year}-${month}-01`;
+  const date = `${String(year)}-${String(month)}-01`;
 
   /**
    * url explanation:
@@ -42,10 +42,10 @@ function getTransactionsUrl(monthMoment: Moment): string {
   const url = new URL(
     `${BASE_API_ACTIONS_URL}/api/registered/transactionDetails/getTransactionsAndGraphs`,
   );
-  url.searchParams.set(
-    'filterData',
-    `{"userIndex":-1,"cardIndex":-1,"monthView":true,"date":"${date}","dates":{"startDate":"0","endDate":"0"},"bankAccount":{"bankAccountIndex":-1,"cards":null}}`,
-  );
+  const filterData =
+    `{"userIndex":-1,"cardIndex":-1,"monthView":true,"date":"${date}",` +
+    '"dates":{"startDate":"0","endDate":"0"},"bankAccount":{"bankAccountIndex":-1,"cards":null}}';
+  url.searchParams.set('filterData', filterData);
   url.searchParams.set('firstCallCardIndex', '-1');
   return url.toString();
 }
@@ -64,7 +64,7 @@ async function loadCategories(page: Page): Promise<void> {
     `${BASE_API_ACTIONS_URL}/api/contents/getCategories`,
   );
   if (res && Array.isArray(res.result)) {
-    LOG.info(`${res.result.length} categories loaded`);
+    LOG.info(`${String(res.result.length)} categories loaded`);
     res.result.forEach(({ id, name }) => CATEGORIES.set(id, name));
   }
 }
@@ -160,7 +160,7 @@ function getTxnIdentifier(
   installments: ReturnType<typeof getInstallmentsInfo>,
 ): string | undefined {
   return installments
-    ? `${rawTransaction.dealData?.arn}_${installments.number}`
+    ? `${rawTransaction.dealData?.arn ?? ''}_${String(installments.number)}`
     : rawTransaction.dealData?.arn;
 }
 

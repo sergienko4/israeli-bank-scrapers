@@ -13,9 +13,9 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(process.env.VISACAL_USERNAME && process.env.VISACAL_PASSWORD);
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: VisaCal (real credentials)', () => {
+DESCRIBE_IF('E2E: VisaCal (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });

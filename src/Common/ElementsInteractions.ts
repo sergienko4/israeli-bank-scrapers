@@ -3,6 +3,7 @@ import { type Frame, type Page } from 'playwright';
 import type { PageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
 import type { PageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
 import type { WaitOptions } from '../Interfaces/Common/WaitOptions';
+import { ScraperWebsiteChangedError } from '../Scrapers/Base/ScraperWebsiteChangedError';
 import { getDebug } from './Debug';
 import { humanDelay, waitUntil } from './Waiting';
 
@@ -79,7 +80,10 @@ async function waitUntilIframeFound(
   const frame = await waitForIframe(page, framePredicate, timeout);
 
   if (!frame) {
-    throw new Error(`failed to find iframe: ${description}`);
+    throw new ScraperWebsiteChangedError(
+      'ElementsInteractions',
+      `failed to find iframe: ${description}`,
+    );
   }
 
   return frame;

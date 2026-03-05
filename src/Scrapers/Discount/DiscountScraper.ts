@@ -117,7 +117,10 @@ async function fetchOneAccount(
   opts: FetchOneAccOpts,
 ): Promise<{ error: string } | { accountNumber: string; balance: number; txns: Transaction[] }> {
   const { page, apiSiteUrl, accountNumber, startDateStr, options } = opts;
-  const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
+  const txnsQuery =
+    'IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True' +
+    `&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
+  const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?${txnsQuery}`;
   const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
   if (!txnsResult || txnsResult.Error) {
     return { error: txnsResult?.Error?.MsgText ?? 'unknown error' };

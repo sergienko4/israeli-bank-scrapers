@@ -198,7 +198,12 @@ async function enrichTxnsIfNeeded(
 
 async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
   const { apiSiteUrl, accountNumber, startDate, endDate, page, options } = opts;
-  const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=${CFG.format.numItemsPerPage}&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=${CFG.format.sortCode}`;
+  const numItems = String(CFG.format.numItemsPerPage);
+  const sortCode = String(CFG.format.sortCode);
+  const txnsQuery =
+    `accountId=${accountNumber}&numItemsPerPage=${numItems}` +
+    `&retrievalEndDate=${endDate}&retrievalStartDate=${startDate}&sortCode=${sortCode}`;
+  const txnsUrl = `${apiSiteUrl}/current-account/transactions?${txnsQuery}`;
   const txnsResult = await fetchPoalimXSRFWithinPage(
     page,
     txnsUrl,
@@ -213,7 +218,9 @@ async function getAccountBalance(
   page: Page,
   accountNumber: string,
 ): Promise<number | undefined> {
-  const balanceAndCreditLimitUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details&lang=${CFG.format.apiLang}`;
+  const balanceQuery = `accountId=${accountNumber}&view=details&lang=${CFG.format.apiLang}`;
+  const balancePath = '/current-account/composite/balanceAndCreditLimit';
+  const balanceAndCreditLimitUrl = `${apiSiteUrl}${balancePath}?${balanceQuery}`;
   const balanceAndCreditLimit = await fetchGetWithinPage<BalanceAndCreditLimit>(
     page,
     balanceAndCreditLimitUrl,

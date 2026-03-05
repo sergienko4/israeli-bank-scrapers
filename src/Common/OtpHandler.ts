@@ -20,7 +20,7 @@ const LOG = getDebug('otp-handler');
 const OTP_ANIMATION_DELAY_MS = 800;
 
 async function saveScreenshot(page: Page, screenshotDir: string): Promise<string> {
-  const screenshotPath = path.join(screenshotDir, `otp-required-${Date.now()}.png`);
+  const screenshotPath = path.join(screenshotDir, `otp-required-${String(Date.now())}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return screenshotPath;
 }

@@ -23,6 +23,7 @@ import {
 } from '../../Transactions';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import {
   getAccountIdsBothUIs,
   getTransactionsFrame,
@@ -61,13 +62,15 @@ function dashOpts(ctx: Page | Frame, key: string): DashboardFieldOpts {
 
 async function resolveAndClick(ctx: Page | Frame, key: string): Promise<void> {
   const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+  if (!r.isResolved)
+    throw new ScraperWebsiteChangedError('Beinleumi', `selector '${key}' not found`);
   await clickButton(r.context, r.selector);
 }
 
 async function resolveAndFill(ctx: Page | Frame, key: string, value: string): Promise<void> {
   const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+  if (!r.isResolved)
+    throw new ScraperWebsiteChangedError('Beinleumi', `selector '${key}' not found`);
   await fillInput(r.context, r.selector, value);
 }
 
@@ -77,14 +80,16 @@ async function resolveAndWait(
   opts?: { visible?: boolean; timeout?: number },
 ): Promise<FieldContext> {
   const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+  if (!r.isResolved)
+    throw new ScraperWebsiteChangedError('Beinleumi', `selector '${key}' not found`);
   await waitUntilElementFound(r.context, r.selector, opts ?? {});
   return r;
 }
 
 async function resolveSelectorCss(ctx: Page | Frame, key: string): Promise<string> {
   const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+  if (!r.isResolved)
+    throw new ScraperWebsiteChangedError('Beinleumi', `selector '${key}' not found`);
   return r.selector;
 }
 

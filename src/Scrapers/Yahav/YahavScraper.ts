@@ -24,6 +24,7 @@ import {
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { type SelectorCandidate } from '../Base/LoginConfig';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { YAHAV_CONFIG } from './YahavLoginConfig';
 
@@ -67,10 +68,8 @@ async function getAccountID(page: Page): Promise<string> {
     return selectedSnifAccount;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Failed to retrieve account ID. Possible outdated selector '${SEL.accountId}: ${errorMessage}`,
-      { cause: error },
-    );
+    const detail = `Possible outdated selector '${SEL.accountId}: ${errorMessage}`;
+    throw new ScraperWebsiteChangedError('Yahav', `Failed to retrieve account ID. ${detail}`);
   }
 }
 
@@ -171,11 +170,11 @@ async function selectFromGrid(opts: SelectFromGridOpts): Promise<void> {
   const indices = Array.from({ length: count }, (_, i) => i + 1);
   const texts = await Promise.all(
     indices.map(i =>
-      page.$eval(`${baseSelector}:nth-child(${i})`, el => (el as HTMLElement).innerText),
+      page.$eval(`${baseSelector}:nth-child(${String(i)})`, el => (el as HTMLElement).innerText),
     ),
   );
   const matchIdx = texts.findIndex(t => t === target);
-  if (matchIdx >= 0) await clickButton(page, `${baseSelector}:nth-child(${matchIdx + 1})`);
+  if (matchIdx >= 0) await clickButton(page, `${baseSelector}:nth-child(${String(matchIdx + 1)})`);
 }
 
 async function selectYearFromGrid(page: Page, targetYear: string): Promise<void> {

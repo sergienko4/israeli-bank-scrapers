@@ -17,11 +17,11 @@ const hasCredentials = !!(
   process.env.DISCOUNT_PASSWORD &&
   process.env.DISCOUNT_NUM
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
 const ERR = selectorErrorFor('id', 'password', 'num');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: LoginConfig = {
   loginUrl: 'https://start.telebank.co.il/login/#/LOGIN_PAGE',
   fields: [
     {
@@ -75,7 +75,7 @@ const baseCfg: LoginConfig = {
   },
 };
 
-describeIf('E2E: Selector fallback — Discount', () => {
+DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -89,7 +89,7 @@ describeIf('E2E: Selector fallback — Discount', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ id: '000000000', password: 'FallbackTest123', num: '000000' });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
@@ -97,7 +97,7 @@ describeIf('E2E: Selector fallback — Discount', () => {
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
-      ...baseCfg,
+      ...BASE_CFG,
       checkReadiness: async (page: Page) => {
         await waitUntilElementFound(page, '#tzId');
         await injectFormByInput(page, '#tzId');

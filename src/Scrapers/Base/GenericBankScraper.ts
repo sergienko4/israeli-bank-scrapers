@@ -83,7 +83,7 @@ function buildFieldList(
 export abstract class GenericBankScraper<
   TCredentials extends ScraperCredentials,
 > extends BaseScraperWithBrowser<TCredentials> {
-  private fieldConfigs: FieldConfig[] = [];
+  private _fieldConfigs: FieldConfig[] = [];
 
   constructor(
     options: ScraperOptions,
@@ -93,7 +93,7 @@ export abstract class GenericBankScraper<
   }
 
   public getLoginOptions(credentials: TCredentials): LoginOptions {
-    this.fieldConfigs = this.loginConfig.fields;
+    this._fieldConfigs = this.loginConfig.fields;
     const submitCands = submitCandidates(this.loginConfig.submit);
     const submitField = toSubmitField(submitCands);
     const config = this.loginConfig;
@@ -114,7 +114,7 @@ export abstract class GenericBankScraper<
   ): Promise<void> {
     await fields.reduce(async (prev, field, i) => {
       await prev;
-      await this.fillFieldWithFallback(pageOrFrame, this.fieldConfigs[i], {
+      await this.fillFieldWithFallback(pageOrFrame, this._fieldConfigs[i], {
         selector: field.selector,
         value: field.value,
       });

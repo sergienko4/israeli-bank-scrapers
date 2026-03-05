@@ -13,9 +13,9 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(process.env.MAX_USERNAME && process.env.MAX_PASSWORD);
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Max (real credentials)', () => {
+DESCRIBE_IF('E2E: Max (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });

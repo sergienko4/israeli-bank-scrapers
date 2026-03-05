@@ -7,7 +7,7 @@ interface AmexRouteOverrides {
   transactions?: string;
 }
 
-export function amexRoutes(
+export default function amexRoutes(
   overrides: AmexRouteOverrides = {},
 ): { match: string; method?: 'POST'; contentType: string; body: string }[] {
   return [

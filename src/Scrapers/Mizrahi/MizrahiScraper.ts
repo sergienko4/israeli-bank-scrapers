@@ -23,7 +23,7 @@ import {
   TransactionStatuses,
   TransactionTypes,
 } from '../../Transactions';
-import { ScraperErrorTypes } from '../Base/Errors';
+import { ScraperErrorTypes, ScraperWebsiteChangedError } from '../Base/Errors';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface';
 import { type SelectorCandidate } from '../Base/LoginConfig';
@@ -147,8 +147,10 @@ function validateTransactionResponse(
   response: ScrapedTransactionsResult | null,
 ): asserts response is ScrapedTransactionsResult {
   if (!response?.header.success) {
-    throw new Error(
-      `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
+    const msg = response ? response.header.messages[0].text : '';
+    throw new ScraperWebsiteChangedError(
+      'Mizrahi',
+      `Error fetching transaction. Response message: ${msg}`,
     );
   }
 }
@@ -189,7 +191,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     }
     const ddItem = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdownItem));
     if (ddItem.isResolved)
-      await clickButton(ddItem.context, `${ddItem.selector}:nth-child(${index + 1})`);
+      await clickButton(ddItem.context, `${ddItem.selector}:nth-child(${String(index + 1)})`);
     return this.fetchAccount();
   }
 
@@ -227,7 +229,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     const accountNumberElement = await this.page.$(SEL.accountNumberSpan);
     const accountNumberHandle = await accountNumberElement?.getProperty('title');
     const accountNumber = (await accountNumberHandle?.jsonValue()) as string;
-    if (!accountNumber) throw new Error('Account number not found');
+    if (!accountNumber) throw new ScraperWebsiteChangedError('Mizrahi', 'Account number not found');
     return accountNumber;
   }
 

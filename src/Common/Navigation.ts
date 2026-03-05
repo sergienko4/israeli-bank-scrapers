@@ -92,7 +92,7 @@ async function pollForUrl(
       const current = await getCurrentUrl(pageOrFrame, opts.isClientSide);
       return url instanceof RegExp ? url.test(current) : url === current;
     },
-    `waiting for url to be ${url}`,
+    `waiting for url to be ${String(url)}`,
     { timeout: opts.timeout, interval: 1000 },
   );
 }

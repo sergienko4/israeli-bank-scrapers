@@ -17,7 +17,6 @@ import type { TransactionsAccount } from '../../Transactions';
 import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
 import type { ScraperScrapingResult } from '../Base/Interface';
 import { ScraperAuthenticationError } from '../Base/ScraperAuthenticationError';
-import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
   CONNECT_IFRAME_OPTS,
@@ -26,6 +25,7 @@ import {
   findCardFrame,
   getPossibleLoginResults,
   isConnectFrame,
+  validateMonthDataResponse,
 } from './VisaCalHelpers';
 import {
   type ApiContext,
@@ -38,7 +38,6 @@ import {
   type FramesResponse,
   type InitResponse,
   isCardPendingTransactionDetails,
-  isCardTransactionDetails,
   type LoginResponse,
 } from './VisaCalTypes';
 
@@ -63,9 +62,7 @@ const INIT_ENDPOINT = VISCAL_CFG.api.calInit ?? '';
 
 const LOG = getDebug('visa-cal');
 
-function getXSiteId(): Promise<string> {
-  return Promise.resolve(VISCAL_CFG.api.calXSiteId ?? '');
-}
+const X_SITE_ID = VISCAL_CFG.api.calXSiteId ?? '';
 
 function buildApiHeaders(authorization: string, xSiteId: string): Record<string, string> {
   return {
@@ -86,16 +83,7 @@ async function fetchMonthData(
     { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
     hdrs,
   );
-  if (monthData.statusCode !== 1)
-    throw new ScraperWebsiteChangedError(
-      'VisaCal',
-      `fetch card ${card.last4Digits}: ${monthData.title}`,
-    );
-  if (!isCardTransactionDetails(monthData))
-    throw new ScraperWebsiteChangedError(
-      'VisaCal',
-      'monthData is not of type CardTransactionDetails',
-    );
+  validateMonthDataResponse(monthData, card);
   return monthData;
 }
 
@@ -173,7 +161,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   public async getCards(): Promise<CardInfo[]> {
     LOG.info('fetch cards via init API (bypasses sessionStorage race)');
     const authorization = await this.getAuthorizationHeader();
-    const hdrs = buildApiHeaders(authorization, await getXSiteId());
+    const hdrs = buildApiHeaders(authorization, X_SITE_ID);
     const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
     return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
       cardUniqueId,
@@ -186,25 +174,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       LOG.info(
         'token not captured from POST response — falling back to sessionStorage with reload retry',
       );
-      const startMs = Date.now();
-      const retry = await waitUntilWithReload<AuthModule | undefined>(
-        this.page,
-        async () =>
-          authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
-        {
-          description: 'VisaCal auth-module',
-          pollTimeout: 20_000,
-          reloadAttempts: 2,
-          interval: 500,
-        },
-      );
-      if (!retry.found || !retry.value)
-        throw new ScraperAuthenticationError(
-          'VisaCal',
-          'auth token unavailable after reload retries',
-        );
-      LOG.info('sessionStorage auth-module populated after %dms', Date.now() - startMs);
-      this._authorization = `CALAuthScheme ${retry.value.auth.calConnectToken ?? ''}`;
+      this._authorization = await this.resolveAuthToken();
     }
     return this._authorization;
   }
@@ -232,6 +202,23 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
     LOG.info('return %d scraped accounts', accounts.length);
     return { success: true, accounts };
+  }
+
+  private async resolveAuthToken(): Promise<string> {
+    const startMs = Date.now();
+    const retry = await waitUntilWithReload<AuthModule | undefined>(
+      this.page,
+      async () =>
+        authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
+      { description: 'VisaCal auth-module', pollTimeout: 20_000, reloadAttempts: 2, interval: 500 },
+    );
+    if (!retry.found || !retry.value)
+      throw new ScraperAuthenticationError(
+        'VisaCal',
+        'auth token unavailable after reload retries',
+      );
+    LOG.info('sessionStorage auth-module populated after %dms', Date.now() - startMs);
+    return `CALAuthScheme ${retry.value.auth.calConnectToken ?? ''}`;
   }
 
   private async handlePostLogin(): Promise<void> {
@@ -330,11 +317,8 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   private async buildApiContext(startDate: Date, startMoment: moment.Moment): Promise<ApiContext> {
-    const [xSiteId, authorization] = await Promise.all([
-      getXSiteId(),
-      this.getAuthorizationHeader(),
-    ]);
-    const hdrs = buildApiHeaders(authorization, xSiteId);
+    const authorization = await this.getAuthorizationHeader();
+    const hdrs = buildApiHeaders(authorization, X_SITE_ID);
     const frames = await this.fetchFrames(hdrs);
     return { startDate, startMoment, hdrs, frames };
   }

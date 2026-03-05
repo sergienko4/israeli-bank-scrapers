@@ -3,7 +3,7 @@ import { type Browser } from 'playwright';
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../Index';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { amexRoutes } from './Helpers/AmexRoutes';
+import amexRoutes from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { loadFixture, setupRequestInterception } from './Helpers/RequestInterceptor';
 
@@ -33,12 +33,12 @@ describe('Isracard: Mocked E2E', () => {
     });
 
     const result = await scraper.scrape(CREDS);
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBe(true);
     expect(result.accounts).toBeDefined();
-    expect(result.accounts!.length).toBeGreaterThan(0);
-    expect(result.accounts![0].txns.length).toBeGreaterThan(0);
+    expect(result.accounts?.length).toBeGreaterThan(0);
+    expect(result.accounts?.[0].txns.length).toBeGreaterThan(0);
   }, 60000);
 
   it('detects invalid password', async () => {

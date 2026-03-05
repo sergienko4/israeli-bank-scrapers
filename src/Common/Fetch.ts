@@ -1,6 +1,7 @@
 import { type Page } from 'playwright';
 
 import type { FetchGraphqlOptions } from '../Interfaces/Common/FetchGraphqlOptions';
+import { ScraperWebsiteChangedError } from '../Scrapers/Base/ScraperWebsiteChangedError';
 import { getDebug } from './Debug';
 
 export type { FetchGraphqlOptions } from '../Interfaces/Common/FetchGraphqlOptions';
@@ -24,7 +25,7 @@ function getJsonHeaders(): Record<string, string> {
 
 export function detectWafBlock(status: number, body: string | null): string | null {
   if (status === 403 || status === 429 || status === 503) {
-    return `HTTP ${status}`;
+    return `HTTP ${String(status)}`;
   }
   if (!body) return null;
   const lower = body.toLowerCase();
@@ -58,8 +59,9 @@ export async function fetchGet<TResult>(
   const text = await fetchResult.text();
   LOG.info('response body: %s', text.substring(0, 300));
   if (fetchResult.status !== 200) {
-    throw new Error(
-      `sending a request to the institute server returned with status code ${fetchResult.status}`,
+    throw new ScraperWebsiteChangedError(
+      'Fetch',
+      `request to institute server failed with status ${String(fetchResult.status)}`,
     );
   }
   return JSON.parse(text) as TResult;
@@ -95,25 +97,47 @@ export async function fetchGraphql<TResult>(
     extraHeaders,
   );
   if (result.errors?.length) {
-    throw new Error(result.errors[0].message);
+    throw new ScraperWebsiteChangedError('Fetch', result.errors[0].message);
   }
   return result.data;
 }
 
+function assertEvalGetOk(result: { ok: boolean; err?: string; status: number }, url: string): void {
+  if (!result.ok)
+    throw new ScraperWebsiteChangedError(
+      'Fetch',
+      `fetchGetWithinPage error: ${result.err ?? ''}, url: ${url}, status: ${String(result.status)}`,
+    );
+}
+
 async function evaluateGet(page: Page, url: string): Promise<readonly [string | null, number]> {
-  return page.evaluate(async innerUrl => {
+  // Use `as const` on ok: so TypeScript infers the discriminated union — no top-level type needed.
+  const evalResult = await page.evaluate(async (innerUrl: string) => {
     let response: Response | undefined;
     try {
       response = await fetch(innerUrl, { credentials: 'include' });
-      if (response.status === 204) return [null, response.status] as const;
-      return [await response.text(), response.status] as const;
+      const s = response.status;
+      if (s === 204) return { ok: true as const, text: null as string | null, status: s };
+      return { ok: true as const, text: (await response.text()) as string | null, status: s };
     } catch (e) {
-      throw new Error(
-        `fetchGetWithinPage error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${innerUrl}, status: ${response?.status}`,
-        { cause: e },
-      );
+      const errMsg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
+      return { ok: false as const, err: errMsg, status: response?.status ?? 0 };
     }
   }, url);
+  assertEvalGetOk(evalResult, url);
+  return [evalResult.text ?? null, evalResult.status] as const;
+}
+
+function throwGetParseError(
+  e: unknown,
+  ctx: { url: string; result: string; status: number },
+): never {
+  const errMsg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
+  throw new ScraperWebsiteChangedError(
+    'Fetch',
+    `fetchGetWithinPage parse error: ${errMsg}, ` +
+      `url: ${ctx.url}, result: ${ctx.result}, status: ${String(ctx.status)}`,
+  );
 }
 
 function parseGetResult(opts: {
@@ -127,12 +151,7 @@ function parseGetResult(opts: {
   try {
     return JSON.parse(result) as unknown;
   } catch (e) {
-    if (!shouldIgnoreErrors) {
-      throw new Error(
-        `fetchGetWithinPage parse error: ${e instanceof Error ? `${e.message}\n${e.stack}` : String(e)}, url: ${url}, result: ${result}, status: ${status}`,
-        { cause: e },
-      );
-    }
+    if (!shouldIgnoreErrors) throwGetParseError(e, { url, result, status });
   }
   return null;
 }
@@ -151,11 +170,12 @@ export async function fetchGetWithinPage<TResult>(
 
 // NOTE: doPostFetch runs inside page.evaluate() (browser context).
 // Must be entirely self-contained — no external function references allowed.
+// Returns a plain object so the result can be JSON-serialised across the evaluate boundary.
 async function doPostFetch(a: {
   u: string;
   d: Record<string, unknown> | unknown[];
   h: Record<string, string>;
-}): Promise<readonly [string | null, number]> {
+}): Promise<{ ok: boolean; text: string | null; status: number; err?: string }> {
   let response: Response;
   try {
     response = await fetch(a.u, {
@@ -165,18 +185,22 @@ async function doPostFetch(a: {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', ...a.h },
     });
   } catch (e) {
-    const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
-    throw new Error(`fetchPostWithinPage error: ${msg}, url: ${a.u}`, { cause: e });
+    return { ok: false, text: null, status: 0, err: `fetchPost error: ${String(e)}, url: ${a.u}` };
   }
-  if (response.status === 204) return [null, 204] as const;
-  return [await response.text(), response.status] as const;
+  if (response.status === 204) return { ok: true, text: null, status: 204 };
+  return { ok: true, text: await response.text(), status: response.status };
 }
 
 async function runPostEvaluate(
   page: Page,
   args: Parameters<typeof doPostFetch>[0],
 ): Promise<readonly [string | null, number]> {
-  return page.evaluate(doPostFetch, args);
+  const evalResult = await page.evaluate(doPostFetch, args);
+  if (!evalResult.ok) {
+    const errMsg = `fetchPostWithinPage error: ${evalResult.err ?? ''}`;
+    throw new ScraperWebsiteChangedError('Fetch', errMsg);
+  }
+  return [evalResult.text, evalResult.status] as const;
 }
 
 function buildParseError(
@@ -189,9 +213,12 @@ function buildParseError(
     text: string | null;
   },
 ): Error {
-  const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+  const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
+  const dataStr = JSON.stringify(errCtx.data);
+  const headersStr = JSON.stringify(errCtx.extraHeaders);
   return new Error(
-    `fetchPostWithinPage parse error: ${msg}, url: ${url}, data: ${JSON.stringify(errCtx.data)}, extraHeaders: ${JSON.stringify(errCtx.extraHeaders)}, result: ${errCtx.text}, status: ${errCtx.status}`,
+    `fetchPostWithinPage parse error: ${msg}, url: ${url}, data: ${dataStr}, ` +
+      `extraHeaders: ${headersStr}, result: ${errCtx.text ?? ''}, status: ${String(errCtx.status)}`,
     { cause: e },
   );
 }

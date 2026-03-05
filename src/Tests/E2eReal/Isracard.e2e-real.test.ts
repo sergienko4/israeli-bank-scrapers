@@ -17,9 +17,9 @@ const hasCredentials = !!(
   process.env.ISRACARD_CARD6DIGITS &&
   process.env.ISRACARD_PASSWORD
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Isracard (real credentials)', () => {
+DESCRIBE_IF('E2E: Isracard (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -32,9 +32,9 @@ describeIf('E2E: Isracard (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      id: process.env.ISRACARD_ID!,
-      card6Digits: process.env.ISRACARD_CARD6DIGITS!,
-      password: process.env.ISRACARD_PASSWORD!,
+      id: process.env.ISRACARD_ID ?? '',
+      card6Digits: process.env.ISRACARD_CARD6DIGITS ?? '',
+      password: process.env.ISRACARD_PASSWORD ?? '',
     });
 
     assertSuccessfulScrape(result);

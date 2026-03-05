@@ -132,7 +132,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',
@@ -171,7 +171,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',
@@ -211,7 +211,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',
@@ -248,7 +248,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',
@@ -285,7 +285,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',

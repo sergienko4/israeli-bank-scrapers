@@ -98,9 +98,9 @@ async function getSessionToken(idToken: string, pass: string): Promise<string> {
 }
 
 export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentials> {
-  private otpContext?: string;
+  private _otpContext?: string;
 
-  private accessToken?: string;
+  private _accessToken?: string;
 
   public async triggerTwoFactorAuth(
     phoneNumber: string,
@@ -113,14 +113,14 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     LOG.info('Fetching device token');
     const deviceToken = await fetchDeviceToken();
     LOG.info(`Sending OTP to phone number ${phoneNumber}`);
-    this.otpContext = await prepareOtp(phoneNumber, deviceToken);
+    this._otpContext = await prepareOtp(phoneNumber, deviceToken);
     return { success: true };
   }
 
   public async getLongTermTwoFactorToken(
     otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    if (!this.otpContext) {
+    if (!this._otpContext) {
       return createGenericError('triggerOtp was not called before calling getPermenantOtpToken()');
     }
 
@@ -128,7 +128,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
     const otpVerifyResponse = await fetchPost<{ resultData: { otpToken: string } }>(
       `${IDENTITY_SERVER_URL}/otp/verify`,
       {
-        otpContext: this.otpContext,
+        otpContext: this._otpContext,
         otpCode,
       },
     );
@@ -149,12 +149,12 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       credentials.password,
     );
     LOG.info('Requesting session token');
-    this.accessToken = await getSessionToken(idToken, credentials.password);
+    this._accessToken = await getSessionToken(idToken, credentials.password);
     return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
   }
 
   public async fetchData(): Promise<ScraperScrapingResult> {
-    if (!this.accessToken) return createGenericError('login() was not called');
+    if (!this._accessToken) return createGenericError('login() was not called');
     const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
     const startMoment = moment.max(defaultStartMoment, moment(this.options.startDate));
     const portfolios = await this.fetchPortfolios();
@@ -211,7 +211,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       movements: { movements: Movement[]; pagination: QueryPagination };
     }>(GRAPHQL_API_URL, GET_MOVEMENTS, {
       variables: { portfolioId, accountId, language: 'HEBREW', pagination: { cursor, limit: 50 } },
-      extraHeaders: { authorization: `Bearer ${this.accessToken}` },
+      extraHeaders: { authorization: `Bearer ${this._accessToken ?? ''}` },
     });
     return movements;
   }
@@ -260,7 +260,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
       const { balance: accountBalance }: { balance: { currentAccountBalance: number } } =
         await fetchGraphql(GRAPHQL_API_URL, GET_ACCOUNT_BALANCE, {
           variables: { portfolioId: portfolio.portfolioId, accountId },
-          extraHeaders: { authorization: `Bearer ${this.accessToken}` },
+          extraHeaders: { authorization: `Bearer ${this._accessToken ?? ''}` },
         });
       return accountBalance.currentAccountBalance;
     } catch {
@@ -311,7 +311,7 @@ export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentia
   private async fetchPortfolios(): Promise<Portfolio[]> {
     LOG.info('Fetching account list');
     const result = await fetchGraphql<{ customer: Customer[] }>(GRAPHQL_API_URL, GET_CUSTOMER, {
-      extraHeaders: { authorization: `Bearer ${this.accessToken}` },
+      extraHeaders: { authorization: `Bearer ${this._accessToken ?? ''}` },
     });
     return result.customer.flatMap(customer => customer.portfolios ?? []);
   }

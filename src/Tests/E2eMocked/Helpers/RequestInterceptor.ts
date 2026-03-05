@@ -15,32 +15,45 @@ export function loadFixture(fixturePath: string): string {
   return fs.readFileSync(path.resolve(__dirname, '..', 'fixtures', fixturePath), 'utf-8');
 }
 
+function findMatchingRoute(
+  url: string,
+  method: string,
+  routes: MockRoute[],
+): MockRoute | undefined {
+  return routes.find(mockRoute => {
+    const isUrlMatch =
+      mockRoute.match instanceof RegExp ? mockRoute.match.test(url) : url.includes(mockRoute.match);
+    const isMethodMatch = !mockRoute.method || mockRoute.method === method;
+    return isUrlMatch && isMethodMatch;
+  });
+}
+
+async function handleMockRoute(
+  route: Route,
+  request: Request,
+  mockRoute: MockRoute,
+): Promise<void> {
+  if (mockRoute.abort) {
+    await route.abort('failed');
+    return;
+  }
+  const body = typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
+  await route.fulfill({
+    status: mockRoute.status ?? 200,
+    contentType: mockRoute.contentType ?? 'text/plain',
+    body,
+  });
+}
+
 export async function setupRequestInterception(page: Page, routes: MockRoute[]): Promise<void> {
   await page.route('**/*', async (route: Route, request: Request) => {
     const url = request.url();
     const method = request.method();
+    const matched = findMatchingRoute(url, method, routes);
 
-    for (const mockRoute of routes) {
-      const urlMatch =
-        mockRoute.match instanceof RegExp
-          ? mockRoute.match.test(url)
-          : url.includes(mockRoute.match);
-      const methodMatch = !mockRoute.method || mockRoute.method === method;
-
-      if (urlMatch && methodMatch) {
-        if (mockRoute.abort) {
-          await route.abort('failed');
-          return;
-        }
-        const body =
-          typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
-        await route.fulfill({
-          status: mockRoute.status ?? 200,
-          contentType: mockRoute.contentType!,
-          body,
-        });
-        return;
-      }
+    if (matched) {
+      await handleMockRoute(route, request, matched);
+      return;
     }
 
     await route.continue();

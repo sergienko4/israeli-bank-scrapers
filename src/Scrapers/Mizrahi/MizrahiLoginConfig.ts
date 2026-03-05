@@ -11,12 +11,14 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
 const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking Account';
-const MIZRAHI_INVALID_SELECTOR =
-  'a[href*="https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx"]';
+const MIZRAHI_INVALID_HREF = 'https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx';
+const MIZRAHI_INVALID_SELECTOR = `a[href*="${MIZRAHI_INVALID_HREF}"]`;
 
 async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  const xpath = `//a//span[contains(., "${MIZRAHI_CHECKING_ACCOUNT_HE}") or contains(., "${MIZRAHI_CHECKING_ACCOUNT_EN}")]`;
+  const heContains = `contains(., "${MIZRAHI_CHECKING_ACCOUNT_HE}")`;
+  const enContains = `contains(., "${MIZRAHI_CHECKING_ACCOUNT_EN}")`;
+  const xpath = `//a//span[${heContains} or ${enContains}]`;
   return (await opts.page.$$(`xpath=${xpath}`)).length > 0;
 }
 

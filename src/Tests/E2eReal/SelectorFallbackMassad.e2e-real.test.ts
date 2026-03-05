@@ -7,7 +7,7 @@ import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers'
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: LoginConfig = {
   loginUrl:
     'https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE',
   fields: [
@@ -38,7 +38,9 @@ const baseCfg: LoginConfig = {
     await Promise.race([
       page.waitForSelector('#card-header', { timeout: 15000 }),
       page.waitForSelector('#validationMsg', { timeout: 15000 }),
-    ]).catch(() => {});
+    ]).catch(() => {
+      /* no-op */
+    });
   },
   possibleResults: {
     success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/],
@@ -60,7 +62,7 @@ describe('E2E: Selector fallback — Massad (FIBI MATAF portal)', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMSD' } as {
       username: string;
       password: string;

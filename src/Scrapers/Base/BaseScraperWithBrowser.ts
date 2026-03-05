@@ -1,7 +1,9 @@
 import type { Browser, Frame, Page } from 'playwright';
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
 chromium.use(StealthPlugin());
+
 import { buildContextOptions } from '../../Common/Browser';
 import { getDebug } from '../../Common/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
@@ -23,6 +25,7 @@ import {
 import { ScraperErrorTypes } from './Errors';
 import type { DefaultBrowserOptions, ScraperCredentials, ScraperScrapingResult } from './Interface';
 import type { FieldConfig } from './LoginConfig';
+import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
@@ -33,20 +36,16 @@ function buildFieldConfig(field: { selector: string; credentialKey?: string }): 
   return { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
 }
 
-function isSuccessStatus(status: number): boolean {
-  return status === 200 || (status >= 300 && status < 400);
-}
-
 class BaseScraperWithBrowser<
   TCredentials extends ScraperCredentials,
 > extends BaseScraper<TCredentials> {
-  private static readonly MAX_403_RETRIES = 2;
+  private static readonly _max403Retries = 2;
 
   protected activeLoginContext: Page | Frame | null = null;
 
   protected page!: Page;
 
-  private cleanups: (() => Promise<void>)[] = [];
+  private _cleanups: (() => Promise<void>)[] = [];
 
   public async initialize(): Promise<void> {
     await super.initialize();
@@ -70,18 +69,21 @@ class BaseScraperWithBrowser<
     const status = response.status();
     LOG.info('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
     if (response.ok()) return;
-
     if (status === 403) return this.retryOn403(url, waitUntil);
     if (retries > 0) {
       LOG.info('navigateTo %s → %d, retrying (%d left)', url, status, retries);
       return this.navigateTo(url, waitUntil, retries - 1);
     }
-    throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
+    const navError = `Failed to navigate: ${url} (${String(status)})`;
+    throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', navError);
   }
 
   public getLoginOptions(credentials: ScraperCredentials): LoginOptions {
     void credentials;
-    throw new Error(`getLoginOptions() is not created in ${this.options.companyId}`);
+    throw new ScraperWebsiteChangedError(
+      this.options.companyId,
+      'getLoginOptions() not implemented',
+    );
   }
 
   public async fillInputs(
@@ -116,7 +118,7 @@ class BaseScraperWithBrowser<
   }
 
   public async terminate(_success: boolean): Promise<void> {
-    LOG.info(`terminating browser with success = ${_success}`);
+    LOG.info(`terminating browser with success = ${String(_success)}`);
     this.emitProgress(ScraperProgressTypes.Terminating);
     if (!_success && !!this.options.storeFailureScreenShotPath) {
       LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
@@ -126,8 +128,8 @@ class BaseScraperWithBrowser<
           LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
         });
     }
-    await Promise.all(this.cleanups.reverse().map(safeCleanup));
-    this.cleanups = [];
+    await Promise.all(this._cleanups.reverse().map(safeCleanup));
+    this._cleanups = [];
   }
 
   private async fillOneInput(
@@ -150,7 +152,7 @@ class BaseScraperWithBrowser<
 
   private async setupPage(page: Page): Promise<void> {
     this.page = page;
-    this.cleanups.push(() => page.close());
+    this._cleanups.push(() => page.close());
     if (this.options.defaultTimeout) this.page.setDefaultTimeout(this.options.defaultTimeout);
     if (this.options.preparePage) {
       LOG.info("execute 'preparePage' interceptor provided in options");
@@ -166,22 +168,20 @@ class BaseScraperWithBrowser<
     registerContextCleanup = true,
   ): Promise<Page> {
     const context = await browser.newContext(buildContextOptions());
-    if (registerContextCleanup) this.cleanups.push(async () => context.close());
+    if (registerContextCleanup) this._cleanups.push(async () => context.close());
     return context.newPage();
   }
 
   private rejectCustomExecutablePath(): void {
     if ('executablePath' in this.options && this.options.executablePath) {
-      throw new Error(
-        `Custom executablePath "${this.options.executablePath}" is not supported.\n\n` +
-          'PROBLEM: System Chromium (from apt-get) is incompatible with Playwright.\n' +
-          'FIX: npx playwright install chromium --with-deps',
-      );
+      const msg =
+        'Custom executablePath is not supported. Use: npx playwright install chromium --with-deps';
+      throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', msg);
     }
   }
 
   private registerBrowserCleanup(browser: Browser): void {
-    this.cleanups.push(async () => {
+    this._cleanups.push(async () => {
       LOG.info('closing the browser');
       await browser.close();
     });
@@ -190,7 +190,7 @@ class BaseScraperWithBrowser<
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
     const { timeout, args = [], executablePath, shouldShowBrowser } = opts;
-    LOG.info(`launch a browser with headless mode = ${!shouldShowBrowser}`);
+    LOG.info(`launch a browser with headless mode = ${String(!shouldShowBrowser)}`);
     this.rejectCustomExecutablePath();
     const browser = await chromium.launch({
       headless: !shouldShowBrowser,
@@ -224,7 +224,7 @@ class BaseScraperWithBrowser<
     attempt: number,
   ): Promise<number> {
     const delayMs = 15_000;
-    const max = BaseScraperWithBrowser.MAX_403_RETRIES;
+    const max = BaseScraperWithBrowser._max403Retries;
     LOG.info('WAF 403 on %s, retry %d/%d after %ds', url, attempt + 1, max, delayMs / 1000);
     await sleep(delayMs);
     return (await this.page.goto(url, { waitUntil }))?.status() ?? 0;
@@ -235,13 +235,14 @@ class BaseScraperWithBrowser<
     waitUntil: WaitUntilState | undefined,
     attempt = 0,
   ): Promise<void> {
-    const maxRetries = BaseScraperWithBrowser.MAX_403_RETRIES;
+    const maxRetries = BaseScraperWithBrowser._max403Retries;
     if (attempt >= maxRetries)
-      throw new Error(
-        `Failed to navigate to url ${url}, status code: 403 (after ${maxRetries} retries)`,
+      throw new ScraperWebsiteChangedError(
+        'BaseScraperWithBrowser',
+        `Failed: 403 on ${url} (after ${String(maxRetries)} retries)`,
       );
     const currentStatus = await this.navigateAfterDelay(url, waitUntil, attempt);
-    if (isSuccessStatus(currentStatus)) {
+    if (currentStatus === 200 || (currentStatus >= 300 && currentStatus < 400)) {
       LOG.info('WAF 403 resolved after retry %d', attempt + 1);
       return;
     }
@@ -323,7 +324,8 @@ class BaseScraperWithBrowser<
     }
     if (loginResult === LOGIN_RESULTS.InvalidPassword || loginResult === LOGIN_RESULTS.UnknownError)
       return this.handleFailedLogin(loginResult);
-    throw new Error(`unexpected login result "${loginResult}"`);
+    const loginError = `unexpected login result "${loginResult}"`;
+    throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', loginError);
   }
 }
 

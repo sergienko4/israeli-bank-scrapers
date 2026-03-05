@@ -17,9 +17,9 @@ const hasCredentials = !!(
   process.env.AMEX_CARD6DIGITS &&
   process.env.AMEX_PASSWORD
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Amex (real credentials)', () => {
+DESCRIBE_IF('E2E: Amex (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -32,9 +32,9 @@ describeIf('E2E: Amex (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      id: process.env.AMEX_ID!,
-      card6Digits: process.env.AMEX_CARD6DIGITS!,
-      password: process.env.AMEX_PASSWORD!,
+      id: process.env.AMEX_ID ?? '',
+      card6Digits: process.env.AMEX_CARD6DIGITS ?? '',
+      password: process.env.AMEX_PASSWORD ?? '',
     });
 
     assertSuccessfulScrape(result);

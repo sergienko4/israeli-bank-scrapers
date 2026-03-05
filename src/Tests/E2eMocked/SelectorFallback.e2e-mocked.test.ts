@@ -35,7 +35,7 @@ const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
 //   1. configured CSS id → NOT FOUND (wrong id)
 //   2. WELL_KNOWN_SELECTORS → finds input[placeholder*="שם משתמש"] etc.
 // No iframes on this page → Round 1 (iframe search) skips immediately.
-const wrongIdConfig: LoginConfig = {
+const WRONG_ID_CONFIG: LoginConfig = {
   loginUrl: 'https://test-bank.local/login',
   fields: [
     {
@@ -76,7 +76,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 10000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             {
               match: 'test-bank.local/login',
@@ -91,7 +91,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
           ]);
         },
       },
-      wrongIdConfig,
+      WRONG_ID_CONFIG,
     );
 
     const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
@@ -127,7 +127,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 10000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             // Page with no inputs — every selector attempt fails
             {
@@ -205,7 +205,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async page => {
+        preparePage: async (page): Promise<void> => {
           await setupRequestInterception(page, [
             // More-specific paths must come before the catch-all root match.
             // 'test-bank.local' would match every URL; login-frame and home first.

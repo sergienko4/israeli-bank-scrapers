@@ -2,7 +2,7 @@ import { type Browser, type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../Index';
-import { amexRoutes } from './Helpers/AmexRoutes';
+import amexRoutes from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
@@ -70,7 +70,7 @@ describe('External Browser: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async (page: Page) => {
+      preparePage: async (page: Page): Promise<void> => {
         await setupRequestInterception(page, amexRoutes());
       },
     };

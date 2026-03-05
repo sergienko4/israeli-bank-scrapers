@@ -126,7 +126,8 @@ export function buildAccountTxns(bOpts: BuildTxnsOpts): ScrapedAccountsWithIndex
   const accountTxns: ScrapedAccountsWithIndex = {};
   accounts.forEach(account => {
     const txnGroups =
-      dataResult.CardsTransactionsListBean?.[`Index${account.index}`]?.CurrentCardTransactions;
+      dataResult.CardsTransactionsListBean?.[`Index${String(account.index)}`]
+        ?.CurrentCardTransactions;
     if (!txnGroups) return;
     accountTxns[account.accountNumber] = {
       accountNumber: account.accountNumber,

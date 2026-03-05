@@ -3,38 +3,37 @@ import fs from 'fs';
 import moment from 'moment';
 import path from 'path';
 
+import { ScraperWebsiteChangedError } from '../Scrapers/Base/ScraperWebsiteChangedError';
 import { type TransactionsAccount } from '../Transactions';
 
-interface TestsCompanyAPI {
-  enabled: boolean;
-  excelFilesDist?: string;
-  invalidPassword?: boolean;
-  [key: string]: unknown;
-}
-
-interface TestsConfig {
-  companyAPI: TestsCompanyAPI;
+export interface TestsConfig {
+  companyAPI: {
+    enabled: boolean;
+    excelFilesDist?: string;
+    invalidPassword?: boolean;
+    [key: string]: unknown;
+  };
   credentials: Record<string, unknown>;
   options?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
 let testsConfig: TestsConfig | undefined;
-let configurationLoaded = false;
+let isConfigurationLoaded = false;
 
 const MISSING_ERROR_MESSAGE =
   'Missing test environment configuration. To troubleshoot this issue open CONTRIBUTING.md file and read the "F.A.Q regarding the tests" section.';
 
 export function getTestsConfig(): TestsConfig {
-  if (configurationLoaded) {
+  if (isConfigurationLoaded) {
     if (!testsConfig) {
-      throw new Error(MISSING_ERROR_MESSAGE);
+      throw new ScraperWebsiteChangedError('TestContext', MISSING_ERROR_MESSAGE);
     }
 
     return testsConfig;
   }
 
-  configurationLoaded = true;
+  isConfigurationLoaded = true;
 
   try {
     const environmentConfig = process.env.TESTS_CONFIG;
@@ -43,9 +42,9 @@ export function getTestsConfig(): TestsConfig {
       return testsConfig;
     }
   } catch (e) {
-    throw new Error(
+    throw new ScraperWebsiteChangedError(
+      'TestContext',
       `failed to parse environment variable 'TESTS_CONFIG' with error '${(e as Error).message}'`,
-      { cause: e },
     );
   }
 
@@ -56,7 +55,7 @@ export function getTestsConfig(): TestsConfig {
     return testsConfig;
   } catch (e) {
     console.error(e);
-    throw new Error(MISSING_ERROR_MESSAGE, { cause: e });
+    throw new ScraperWebsiteChangedError('TestContext', MISSING_ERROR_MESSAGE);
   }
 }
 
@@ -64,7 +63,7 @@ export function maybeTestCompanyAPI(
   scraperId: string,
   filter?: (_config: TestsConfig) => boolean | undefined,
 ): jest.It {
-  if (!configurationLoaded) {
+  if (!isConfigurationLoaded) {
     getTestsConfig();
   }
   return testsConfig &&
@@ -79,14 +78,6 @@ export function extendAsyncTimeout(timeout = 120000): void {
   jest.setTimeout(timeout);
 }
 
-interface TransactionRow {
-  account: string;
-  balance: string;
-  date: string;
-  processedDate: string;
-  [key: string]: unknown;
-}
-
 export function exportTransactions(fileName: string, accounts: TransactionsAccount[]): void {
   const config = getTestsConfig();
 
@@ -98,7 +89,13 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
     return;
   }
 
-  let data: TransactionRow[] = [];
+  let data: {
+    account: string;
+    balance: string;
+    date: string;
+    processedDate: string;
+    [key: string]: unknown;
+  }[] = [];
 
   for (const account of accounts) {
     data = [
@@ -106,7 +103,7 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
       ...account.txns.map(txn => {
         return {
           account: account.accountNumber,
-          balance: `account balance: ${account.balance ?? ''}`,
+          balance: `account balance: ${String(account.balance ?? '')}`,
           ...txn,
           date: moment(txn.date).format('DD/MM/YYYY'),
           processedDate: moment(txn.processedDate).format('DD/MM/YYYY'),
