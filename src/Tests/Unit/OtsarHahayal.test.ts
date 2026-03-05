@@ -9,8 +9,8 @@ import {
   maybeTestCompanyAPI,
 } from '../TestsUtils';
 
-const COMPANY_ID = 'otsarHahayal'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'otsarHahayal';
+const TESTS_CONFIG = getTestsConfig();
 
 describe('OtsarHahayal legacy scraper', () => {
   beforeAll(() => {
@@ -27,7 +27,7 @@ describe('OtsarHahayal legacy scraper', () => {
     'should fail on invalid user/password"',
     async () => {
       const options = {
-        ...testsConfig.options,
+        ...TESTS_CONFIG.options,
         companyId: COMPANY_ID,
       };
 
@@ -43,19 +43,19 @@ describe('OtsarHahayal legacy scraper', () => {
 
   maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
     const scraper = new OtsarHahayalScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.otsarHahayal as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.otsarHahayal as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    exportTransactions(COMPANY_ID, result.accounts ?? []);
   });
 });

@@ -32,15 +32,20 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -76,8 +81,8 @@ function createBehatsdaaPage(
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createBehatsdaaPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createBehatsdaaPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
 });
 
@@ -97,7 +102,7 @@ describe('login', () => {
 
 describe('fetchData', () => {
   it('returns error when token not in localStorage', async () => {
-    mockContext.newPage.mockResolvedValue(createBehatsdaaPage(null));
+    MOCK_CONTEXT.newPage.mockResolvedValue(createBehatsdaaPage(null));
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -141,9 +146,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('M001');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('M001');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-250);
     expect(t.originalCurrency).toBe('ILS');
     expect(t.status).toBe(TransactionStatuses.Completed);
@@ -160,7 +165,7 @@ describe('fetchData', () => {
     const scraper = new BehatsdaaScraper(createMockScraperOptions({ includeRawTransaction: true }));
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('sends Bearer token in authorization header', async () => {

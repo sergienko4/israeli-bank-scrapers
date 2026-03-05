@@ -32,15 +32,20 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -92,8 +97,8 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
   );
@@ -140,9 +145,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('12-345-67890');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('12-345-67890');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-250);
     expect(t.description).toBe('רמי לוי');
     expect(t.originalCurrency).toBe('ILS');
@@ -160,8 +165,8 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].accountNumber).toBe('111');
-    expect(result.accounts![1].accountNumber).toBe('222');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('111');
+    expect((result.accounts ?? [])[1].accountNumber).toBe('222');
   });
 
   it('returns error when accountInfo is null', async () => {
@@ -196,7 +201,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
   });
 
   it('includes pending (future) transactions', async () => {
@@ -209,10 +214,12 @@ describe('fetchData', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(2);
-    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(2);
+    const pending = (result.accounts ?? [])[0].txns.find(
+      t => t.status === TransactionStatuses.Pending,
+    );
     expect(pending).toBeDefined();
-    expect(pending!.description).toBe('עתידי');
+    expect(pending?.description).toBe('עתידי');
   });
 
   it('returns empty when transactions array is null', async () => {
@@ -229,7 +236,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
   });
 
   it('includes rawTransaction when option is set', async () => {
@@ -239,7 +246,7 @@ describe('fetchData', () => {
     const scraper = new DiscountScraper(createMockScraperOptions({ includeRawTransaction: true }));
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('includes account balance', async () => {
@@ -249,7 +256,7 @@ describe('fetchData', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].balance).toBe(12345);
+    expect((result.accounts ?? [])[0].balance).toBe(12345);
   });
 });
 

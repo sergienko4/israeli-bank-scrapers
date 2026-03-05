@@ -30,7 +30,12 @@ jest.mock('../../Common/ElementsInteractions', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 jest.mock('../../Common/SelectorResolver', () => ({

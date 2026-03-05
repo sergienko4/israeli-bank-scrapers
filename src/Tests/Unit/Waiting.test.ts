@@ -87,7 +87,7 @@ describe('raceTimeout', () => {
 describe('runSerial', () => {
   it('executes actions sequentially and returns results', async () => {
     const order: number[] = [];
-    const actions = [1, 2, 3].map(n => () => {
+    const actions = [1, 2, 3].map(n => (): Promise<number> => {
       order.push(n);
       return Promise.resolve(n * 10);
     });
@@ -102,7 +102,10 @@ describe('runSerial', () => {
   });
 
   it('propagates errors from actions', async () => {
-    const actions = [() => Promise.resolve(1), () => Promise.reject(new Error('fail'))];
+    const actions = [
+      (): Promise<number> => Promise.resolve(1),
+      (): Promise<number> => Promise.reject(new Error('fail')),
+    ];
     await expect(runSerial(actions)).rejects.toThrow('fail');
   });
 });

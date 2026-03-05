@@ -9,12 +9,11 @@ import { sleep } from '../../Common/Waiting';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { ScraperProgressTypes } from '../../Definitions';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type { ScraperOptions } from '../../Scrapers/Base/Interface';
-import IsracardAmexBaseScraper from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmex';
 import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import { createMockPage } from '../MockPage';
+import TestAmexScraper from './BaseIsracardAmexTestHelpers';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
 jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
@@ -43,26 +42,23 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 jest.mock('../../Common/Dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });
 
-const BASE_URL = 'https://americanexpress.co.il';
-
-class TestAmexScraper extends IsracardAmexBaseScraper {
-  constructor(overrides: Partial<ScraperOptions> = {}) {
-    super(createMockScraperOptions(overrides), BASE_URL, '77');
-  }
-}
-
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -131,8 +127,8 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
 });
 
 describe('login', () => {
@@ -203,9 +199,9 @@ describe('fetchData', () => {
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('4580-1234');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('4580-1234');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-250);
     expect(t.description).toBe('רמי לוי');
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
@@ -231,7 +227,7 @@ describe('fetchData', () => {
     );
 
     const result = await new TestAmexScraper().scrape(CREDS);
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.description).toBe('Amazon US');
     expect(t.originalCurrency).toBe('USD');
     expect(t.chargedAmount).toBe(-50);
@@ -243,7 +239,7 @@ describe('fetchData', () => {
     mockTxns([txn({ moreInfo: 'תשלום 3 מתוך 12' })]);
 
     const result = await new TestAmexScraper().scrape(CREDS);
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.type).toBe(TransactionTypes.Installments);
     expect(t.installments).toEqual({ number: 3, total: 12 });
   });
@@ -254,7 +250,7 @@ describe('fetchData', () => {
     mockTxns([txn({ dealSumType: '1' }), txn()]);
 
     const result = await new TestAmexScraper().scrape(CREDS);
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
   });
 
   it('filters zero voucher numbers', async () => {
@@ -263,7 +259,7 @@ describe('fetchData', () => {
     mockTxns([txn({ voucherNumberRatz: '000000000', voucherNumberRatzOutbound: '000000000' })]);
 
     const result = await new TestAmexScraper().scrape(CREDS);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
   });
 
   it('returns empty when Header.Status is not 1', async () => {
@@ -318,7 +314,7 @@ describe('fetchData', () => {
     mockTxns([txn()]);
 
     const result = await new TestAmexScraper({ includeRawTransaction: true }).scrape(CREDS);
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 });
 

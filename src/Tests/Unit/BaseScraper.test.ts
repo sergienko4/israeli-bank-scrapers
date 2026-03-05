@@ -10,17 +10,17 @@ import type {
 import { createMockScraperOptions } from '../MockPage';
 
 class TestScraper extends BaseScraper<ScraperCredentials> {
-  loginResult: ScraperLoginResult = { success: true };
+  public loginResult: ScraperLoginResult = { success: true };
 
-  fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
+  public fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
 
-  loginError: Error | null = null;
+  public loginError: Error | null = null;
 
-  fetchError: Error | null = null;
+  public fetchError: Error | null = null;
 
-  terminateError: Error | null = null;
+  public terminateError: Error | null = null;
 
-  terminated = false;
+  public terminated = false;
 
   // eslint-disable-next-line @typescript-eslint/require-await
   protected async login(): Promise<ScraperLoginResult> {

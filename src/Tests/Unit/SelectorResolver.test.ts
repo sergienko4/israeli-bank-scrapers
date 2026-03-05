@@ -11,7 +11,12 @@ import {
 import { type FieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
 
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 // ── Minimal Page/Frame mocks ─────────────────────────────────────────────────

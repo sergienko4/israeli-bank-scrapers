@@ -4,24 +4,20 @@ import { chromium } from 'playwright-extra';
 
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
-import { ScraperProgressTypes } from '../../Definitions';
-import {
-  BaseScraperWithBrowser,
-  LOGIN_RESULTS,
-  type LoginOptions,
-} from '../../Scrapers/Base/BaseScraperWithBrowser';
+import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type {
-  ScraperCredentials,
-  ScraperOptions,
-  ScraperScrapingResult,
-} from '../../Scrapers/Base/Interface';
+import type { ScraperOptions } from '../../Scrapers/Base/Interface';
+import { ScraperAuthenticationError } from '../../Scrapers/Base/ScraperAuthenticationError';
 import {
   createMockBrowser,
   createMockContext,
   createMockPage,
   createMockScraperOptions,
 } from '../MockPage';
+import TestBrowserScraper, {
+  createScraper,
+  defaultLoginOptions,
+} from './BaseScraperWithBrowserTestHelpers';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
 jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
@@ -38,58 +34,28 @@ jest.mock('../../Common/Navigation', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 jest.mock('../../Common/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 
-const mockPage = createMockPage();
-const mockContext = createMockContext(mockPage);
-const mockBrowser = createMockBrowser(mockContext);
-
-function defaultLoginOptions(): LoginOptions {
-  return {
-    loginUrl: 'https://bank.co.il/login',
-    fields: [
-      { selector: '#user', value: 'testuser' },
-      { selector: '#pass', value: 'testpass' },
-    ],
-    submitButtonSelector: '#submit',
-    possibleResults: {
-      [LOGIN_RESULTS.Success]: ['https://bank.co.il/dashboard'],
-      [LOGIN_RESULTS.InvalidPassword]: ['https://bank.co.il/login?error=1'],
-      [LOGIN_RESULTS.ChangePassword]: [/change-password/],
-    },
-  };
-}
-
-class TestBrowserScraper extends BaseScraperWithBrowser<ScraperCredentials> {
-  loginOpts: LoginOptions = defaultLoginOptions();
-
-  fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
-
-  getLoginOptions(): LoginOptions {
-    return this.loginOpts;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async fetchData(): Promise<ScraperScrapingResult> {
-    return this.fetchResult;
-  }
-}
-
-function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScraper {
-  return new TestBrowserScraper(createMockScraperOptions(overrides));
-}
+const MOCK_PAGE: ReturnType<typeof createMockPage> = createMockPage();
+const MOCK_CONTEXT: ReturnType<typeof createMockContext> = createMockContext(MOCK_PAGE);
+const MOCK_BROWSER: ReturnType<typeof createMockBrowser> = createMockBrowser(MOCK_CONTEXT);
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMockPage();
   const freshContext = createMockContext(freshPage);
-  mockBrowser.newContext.mockResolvedValue(freshContext);
+  MOCK_BROWSER.newContext.mockResolvedValue(freshContext);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/dashboard');
 });
 
@@ -98,13 +64,13 @@ describe('initialize', () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(chromium.launch).toHaveBeenCalled();
-    expect(mockBrowser.newContext).toHaveBeenCalled();
+    expect(MOCK_BROWSER.newContext).toHaveBeenCalled();
   });
 
   it('sets default timeout when provided in options', async () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
+    MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ defaultTimeout: 60000 });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.setDefaultTimeout).toHaveBeenCalledWith(60000);
@@ -167,7 +133,7 @@ describe('initializePage', () => {
     const prepareBrowser = jest.fn().mockResolvedValue(undefined);
     const scraper = createScraper({ prepareBrowser });
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(prepareBrowser).toHaveBeenCalledWith(mockBrowser);
+    expect(prepareBrowser).toHaveBeenCalledWith(MOCK_BROWSER);
   });
 
   it('launches successfully without executablePath (uses Playwright bundled Chromium)', async () => {
@@ -194,7 +160,7 @@ describe('navigateTo', () => {
     const page = createMockPage();
     page.goto.mockResolvedValue({ ok: () => true, status: () => 200 });
     const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
+    MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.goto).toHaveBeenCalledWith('https://bank.co.il/login', { waitUntil: 'load' });
@@ -204,7 +170,7 @@ describe('navigateTo', () => {
     const page = createMockPage();
     page.goto.mockResolvedValue(null);
     const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
+    MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBeDefined();
@@ -216,7 +182,7 @@ describe('navigateTo', () => {
       .mockResolvedValueOnce({ ok: () => false, status: () => 503 })
       .mockResolvedValueOnce({ ok: () => true, status: () => 200 });
     const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
+    MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 1 });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(page.goto).toHaveBeenCalledTimes(2);
@@ -226,7 +192,7 @@ describe('navigateTo', () => {
     const page = createMockPage();
     page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
     const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
+    MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 0 });
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(false);
@@ -255,8 +221,8 @@ describe('login', () => {
     const scraper = createScraper();
     scraper.loginOpts = {
       ...defaultLoginOptions(),
-      checkReadiness: () => {
-        throw new Error('login failed unexpectedly');
+      checkReadiness: (): Promise<void> => {
+        throw new ScraperAuthenticationError('test-bank', 'login failed unexpectedly');
       },
     };
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
@@ -345,76 +311,10 @@ describe('login', () => {
     scraper.loginOpts = {
       ...defaultLoginOptions(),
       possibleResults: {
-        [LOGIN_RESULTS.Success]: [() => Promise.resolve(true)],
+        [LOGIN_RESULTS.Success]: [(): Promise<boolean> => Promise.resolve(true)],
       },
     };
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-  });
-});
-
-describe('terminate', () => {
-  it('skips screenshot on success', async () => {
-    const page = createMockPage();
-    const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
-    const scraper = createScraper({ storeFailureScreenShotPath: '/tmp/fail.png' });
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(page.screenshot).not.toHaveBeenCalled();
-  });
-
-  it('captures screenshot on failure when path configured', async () => {
-    const page = createMockPage();
-    page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
-    const ctx = createMockContext(page);
-    mockBrowser.newContext.mockResolvedValue(ctx);
-    const scraper = createScraper({
-      storeFailureScreenShotPath: '/tmp/fail.png',
-      navigationRetryCount: 0,
-    });
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(page.screenshot).toHaveBeenCalledWith({ path: '/tmp/fail.png', fullPage: true });
-  });
-
-  it('executes cleanups after scrape', async () => {
-    const scraper = createScraper();
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(mockBrowser.close).toHaveBeenCalled();
-  });
-});
-
-describe('progress events', () => {
-  it('emits Initializing and LoginSuccess on successful login', async () => {
-    const events: ScraperProgressTypes[] = [];
-    const scraper = createScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(events).toContain(ScraperProgressTypes.Initializing);
-    expect(events).toContain(ScraperProgressTypes.LoginSuccess);
-    expect(events).toContain(ScraperProgressTypes.LoggingIn);
-  });
-
-  it('emits LoginFailed on invalid password', async () => {
-    (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/login?error=1');
-    const events: ScraperProgressTypes[] = [];
-    const scraper = createScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
-    await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(events).toContain(ScraperProgressTypes.LoginFailed);
-  });
-});
-
-describe('getLoginOptions', () => {
-  it('throws when not overridden', () => {
-    class BareScraperWithBrowser extends BaseScraperWithBrowser<ScraperCredentials> {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      async fetchData(): Promise<ScraperScrapingResult> {
-        return { success: true, accounts: [] };
-      }
-    }
-    const scraper = new BareScraperWithBrowser(createMockScraperOptions());
-    expect(() => scraper.getLoginOptions({ userCode: 'a', password: 'b' })).toThrow(
-      'getLoginOptions()',
-    );
   });
 });

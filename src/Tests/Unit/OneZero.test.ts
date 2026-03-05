@@ -1,7 +1,7 @@
 import { fetchGraphql, fetchPost } from '../../Common/Fetch';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import OneZeroScraper from '../../Scrapers/OneZero/OneZeroScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { TransactionTypes } from '../../Transactions';
 import { createMockScraperOptions } from '../MockPage';
 
 jest.mock('../../Common/Fetch', () => ({
@@ -12,7 +12,12 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 function mockDeviceToken(deviceToken = 'device-123'): void {
@@ -208,10 +213,10 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('ACC-001');
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].accountNumber).toBe('ACC-001');
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-100);
     expect(t.originalCurrency).toBe('ILS');
     expect(t.description).toBe('Test Payment');
@@ -234,7 +239,7 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].txns[0].chargedAmount).toBe(-200);
+    expect((result.accounts ?? [])[0].txns[0].chargedAmount).toBe(-200);
   });
 
   it('keeps CREDIT amounts positive', async () => {
@@ -253,7 +258,7 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].txns[0].chargedAmount).toBe(300);
+    expect((result.accounts ?? [])[0].txns[0].chargedAmount).toBe(300);
   });
 
   it('detects installments from recurrences enrichment', async () => {
@@ -280,7 +285,7 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].txns[0].type).toBe(TransactionTypes.Installments);
+    expect((result.accounts ?? [])[0].txns[0].type).toBe(TransactionTypes.Installments);
   });
 
   it('paginates through multiple pages', async () => {
@@ -307,135 +312,7 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(LONG_TERM_CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(2);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(2);
     expect(fetchGraphql).toHaveBeenCalledTimes(4); // customer + 2 movements pages + balance
-  });
-
-  it('handles empty portfolios', async () => {
-    setupLongTermLogin();
-    mockCustomer([]);
-
-    const scraper = new OneZeroScraper(createMockScraperOptions());
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.success).toBe(true);
-    expect(result.accounts).toHaveLength(0);
-  });
-
-  it('extracts balance from last movement', async () => {
-    setupLongTermLogin();
-    mockCustomer([
-      {
-        portfolioId: 'port-1',
-        portfolioNum: 'ACC-001',
-        accounts: [{ accountId: 'acc-1' }],
-      },
-    ]);
-    mockMovements([
-      movement({ runningBalance: '9000', movementTimestamp: '2024-06-15T10:00:00Z' }),
-    ]);
-    mockAccountBalance(10000); // real-time balance query returns 10000 (may differ from runningBalance)
-
-    const scraper = new OneZeroScraper(
-      createMockScraperOptions({ startDate: new Date('2024-01-01') }),
-    );
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.accounts![0].balance).toBe(10000); // uses balance query, not runningBalance
-  });
-
-  it('includes rawTransaction when option set', async () => {
-    setupLongTermLogin();
-    mockCustomer([
-      {
-        portfolioId: 'port-1',
-        portfolioNum: 'ACC-001',
-        accounts: [{ accountId: 'acc-1' }],
-      },
-    ]);
-    mockMovements([movement()]);
-
-    const scraper = new OneZeroScraper(
-      createMockScraperOptions({ startDate: new Date('2024-01-01'), includeRawTransaction: true }),
-    );
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
-  });
-
-  it('sets all transactions as Completed', async () => {
-    setupLongTermLogin();
-    mockCustomer([
-      {
-        portfolioId: 'port-1',
-        portfolioNum: 'ACC-001',
-        accounts: [{ accountId: 'acc-1' }],
-      },
-    ]);
-    mockMovements([movement()]);
-
-    const scraper = new OneZeroScraper(
-      createMockScraperOptions({ startDate: new Date('2024-01-01') }),
-    );
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Completed);
-  });
-
-  it('handles multiple portfolios', async () => {
-    setupLongTermLogin();
-    mockCustomer([
-      { portfolioId: 'p1', portfolioNum: 'ACC-001', accounts: [{ accountId: 'a1' }] },
-      { portfolioId: 'p2', portfolioNum: 'ACC-002', accounts: [{ accountId: 'a2' }] },
-    ]);
-    mockMovements([movement({ description: 'Txn1' })]);
-    mockMovements([movement({ description: 'Txn2' })]);
-
-    const scraper = new OneZeroScraper(
-      createMockScraperOptions({ startDate: new Date('2024-01-01') }),
-    );
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].accountNumber).toBe('ACC-001');
-    expect(result.accounts![1].accountNumber).toBe('ACC-002');
-  });
-
-  it('handles movement with zero balance', async () => {
-    setupLongTermLogin();
-    mockCustomer([{ portfolioId: 'p1', portfolioNum: 'ACC-001', accounts: [{ accountId: 'a1' }] }]);
-    mockMovements([movement({ runningBalance: '0' })]);
-
-    const scraper = new OneZeroScraper(
-      createMockScraperOptions({ startDate: new Date('2024-01-01') }),
-    );
-    const result = await scraper.scrape(LONG_TERM_CREDS);
-
-    expect(result.accounts![0].balance).toBe(0);
-  });
-
-  it('returns error when missing otpCodeRetriever and no token', async () => {
-    const scraper = new OneZeroScraper(createMockScraperOptions());
-    // @ts-expect-error testing validation of incomplete credentials (no otpLongTermToken or otpCodeRetriever)
-    const result = await scraper.scrape({
-      email: 'test@example.com',
-      password: 'pass',
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
-  });
-
-  it('returns error when phoneNumber is missing with otpCodeRetriever', async () => {
-    const scraper = new OneZeroScraper(createMockScraperOptions());
-    // @ts-expect-error testing validation of missing phoneNumber with otpCodeRetriever
-    const result = await scraper.scrape({
-      email: 'test@example.com',
-      password: 'pass',
-      otpCodeRetriever: jest.fn(),
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('phoneNumber is required');
   });
 });

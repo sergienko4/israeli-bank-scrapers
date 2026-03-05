@@ -29,15 +29,20 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -82,8 +87,8 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createLeumiPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createLeumiPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx',
   );
@@ -125,9 +130,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('123_456');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('123_456');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-100);
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
     expect(t.type).toBe(TransactionTypes.Normal);
@@ -163,19 +168,21 @@ describe('fetchData', () => {
 
     const page = createLeumiPage();
     page.waitForResponse.mockResolvedValue(mockResponse);
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
-    const completed = result.accounts![0].txns.find(
+    const pending = (result.accounts ?? [])[0].txns.find(
+      t => t.status === TransactionStatuses.Pending,
+    );
+    const completed = (result.accounts ?? [])[0].txns.find(
       t => t.status === TransactionStatuses.Completed,
     );
     expect(pending).toBeDefined();
     expect(completed).toBeDefined();
-    expect(pending!.description).toBe('Pending');
-    expect(completed!.description).toBe('Completed');
+    expect(pending?.description).toBe('Pending');
+    expect(completed?.description).toBe('Completed');
   });
 
   it('handles empty transaction arrays', async () => {
@@ -190,18 +197,18 @@ describe('fetchData', () => {
 
     const page = createLeumiPage();
     page.waitForResponse.mockResolvedValue(mockResponse);
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(0);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
   });
 
   it('throws on empty account IDs', async () => {
     const page = createLeumiPage();
     page.evaluate.mockResolvedValue([]);
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -214,24 +221,24 @@ describe('fetchData', () => {
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].balance).toBe(5000);
+    expect((result.accounts ?? [])[0].balance).toBe(5000);
   });
 
   it('removes special characters from account ID', async () => {
     const page = createLeumiPage(['123&/456']);
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].accountNumber).toBe('123_456');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('123_456');
   });
 
   it('includes rawTransaction when option set', async () => {
     const scraper = new LeumiScraper(createMockScraperOptions({ includeRawTransaction: true }));
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('handles multiple accounts with clicking', async () => {
@@ -250,26 +257,26 @@ describe('fetchData', () => {
       }),
     );
     page.waitForSelector.mockResolvedValue(undefined);
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].accountNumber).toBe('111_222');
-    expect(result.accounts![1].accountNumber).toBe('333_444');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('111_222');
+    expect((result.accounts ?? [])[1].accountNumber).toBe('333_444');
   });
 
   it('handles undefined balance gracefully', async () => {
     const page = createLeumiPage();
     page.waitForResponse.mockResolvedValue(createLeumiResponse());
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].balance).toBeUndefined();
+    expect((result.accounts ?? [])[0].balance).toBeUndefined();
   });
 
   it('uses empty string for missing description and memo', async () => {
@@ -280,12 +287,12 @@ describe('fetchData', () => {
         BalanceDisplay: '1000.00',
       }),
     );
-    mockContext.newPage.mockResolvedValue(page);
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].description).toBe('');
-    expect(result.accounts![0].txns[0].memo).toBe('');
+    expect((result.accounts ?? [])[0].txns[0].description).toBe('');
+    expect((result.accounts ?? [])[0].txns[0].memo).toBe('');
   });
 });

@@ -23,14 +23,21 @@ jest.mock('../../Common/Browser', () => ({ buildContextOptions: jest.fn().mockRe
 jest.mock('../../Common/Waiting', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(async (fns: (() => Promise<unknown>)[]) => {
-    const results = [];
-    for (const fn of fns) results.push(await fn());
-    return results;
-  }),
+  runSerial: jest.fn(
+    <T>(actions: (() => Promise<T>)[]): Promise<T[]> =>
+      actions.reduce(
+        (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
+        Promise.resolve([] as T[]),
+      ),
+  ),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 jest.mock('../../Common/Dates', () => jest.fn(() => []));
 jest.mock('../../Common/Transactions', () => ({
@@ -41,12 +48,12 @@ jest.mock('../../Common/Transactions', () => ({
 
 const AMEX_CREDS = { id: '123456789', card6Digits: '123456', password: 'pass' };
 
-const mockAmexContext = {
+const MOCK_AMEX_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockAmexBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockAmexContext),
+const MOCK_AMEX_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_AMEX_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -59,14 +66,14 @@ function mockAmexLogin(): void {
     .mockResolvedValueOnce({ status: '1' });
 }
 
-const COMPANY_ID = 'amex'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'amex';
+const TESTS_CONFIG = getTestsConfig();
 
 describe('AMEX fetchData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (chromium.launch as jest.Mock).mockResolvedValue(mockAmexBrowser);
-    mockAmexContext.newPage.mockResolvedValue(createMockPage());
+    (chromium.launch as jest.Mock).mockResolvedValue(MOCK_AMEX_BROWSER);
+    MOCK_AMEX_CONTEXT.newPage.mockResolvedValue(createMockPage());
   });
 
   it('handles empty month response — returns accounts[]', async () => {
@@ -97,7 +104,7 @@ describe('AMEX legacy scraper', () => {
     'should fail on invalid user/password"',
     async () => {
       const options = {
-        ...testsConfig.options,
+        ...TESTS_CONFIG.options,
         companyId: COMPANY_ID,
       };
 
@@ -117,19 +124,19 @@ describe('AMEX legacy scraper', () => {
 
   maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
     const scraper = new AMEXScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.amex as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.amex as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    exportTransactions(COMPANY_ID, result.accounts ?? []);
   });
 });

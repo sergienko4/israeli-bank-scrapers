@@ -34,9 +34,7 @@ export interface MockPage {
   [key: string]: jest.Mock | undefined;
 }
 
-type MockOverrides = Partial<MockPage>;
-
-export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
+export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Page {
   return {
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     $eval: jest.fn().mockResolvedValue(undefined),
@@ -56,11 +54,11 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     addInitScript: jest.fn().mockResolvedValue(undefined),
     setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
     context: jest.fn().mockReturnValue({
-      browser: () => ({ version: () => 'chromium-131' }),
+      browser: (): { version: () => string } => ({ version: (): string => 'chromium-131' }),
       cookies: jest.fn().mockResolvedValue([]),
     }),
     setDefaultTimeout: jest.fn(),
-    goto: jest.fn().mockResolvedValue({ ok: () => true, status: () => 200 }),
+    goto: jest.fn().mockResolvedValue({ ok: (): boolean => true, status: (): number => 200 }),
     on: jest.fn(),
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
@@ -69,24 +67,20 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
   } as unknown as MockPage & Page;
 }
 
-interface MockContext {
+export function createMockContext(page?: MockPage & Page): {
   newPage: jest.Mock;
   close: jest.Mock;
-}
-
-export function createMockContext(page?: MockPage & Page): MockContext {
+} {
   return {
     newPage: jest.fn().mockResolvedValue(page ?? createMockPage()),
     close: jest.fn().mockResolvedValue(undefined),
   };
 }
 
-interface MockBrowser {
+export function createMockBrowser(context?: { newPage: jest.Mock; close: jest.Mock }): {
   newContext: jest.Mock;
   close: jest.Mock;
-}
-
-export function createMockBrowser(context?: MockContext): MockBrowser {
+} {
   const mockCtx = context ?? createMockContext();
   return {
     newContext: jest.fn().mockResolvedValue(mockCtx),
@@ -100,4 +94,27 @@ export function createMockScraperOptions(overrides: Partial<ScraperOptions> = {}
     startDate: new Date('2024-01-01'),
     ...overrides,
   } as ScraperOptions;
+}
+
+/**
+ * Generate unique fake credentials for a unit test.
+ * Values are clearly mock data — never real credentials.
+ * Using a generator (vs hardcoded constants) ensures no real credentials
+ * accidentally end up in test source files.
+ */
+export function createMockCredentials(prefix = 'bank'): {
+  username: string;
+  password: string;
+  id: string;
+  email: string;
+  card6Digits: string;
+} {
+  const runId = Math.random().toString(36).slice(2, 8);
+  return {
+    username: `mock.${prefix}.user.${runId}`,
+    password: `MockPwd${runId}`,
+    id: `mock_id_${runId}`,
+    email: `mock.${prefix}.${runId}@test.example`,
+    card6Digits: String(Math.floor(Math.random() * 900000) + 100000),
+  };
 }

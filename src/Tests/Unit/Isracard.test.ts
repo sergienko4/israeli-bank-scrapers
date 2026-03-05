@@ -9,8 +9,8 @@ import {
   maybeTestCompanyAPI,
 } from '../TestsUtils';
 
-const COMPANY_ID = 'isracard'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'isracard';
+const TESTS_CONFIG = getTestsConfig();
 
 describe('Isracard legacy scraper', () => {
   beforeAll(() => {
@@ -28,7 +28,7 @@ describe('Isracard legacy scraper', () => {
     'should fail on invalid user/password"',
     async () => {
       const options = {
-        ...testsConfig.options,
+        ...TESTS_CONFIG.options,
         companyId: COMPANY_ID,
       };
 
@@ -48,19 +48,19 @@ describe('Isracard legacy scraper', () => {
 
   maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
     const scraper = new IsracardScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.isracard as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.isracard as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    exportTransactions(COMPANY_ID, result.accounts ?? []);
   });
 });

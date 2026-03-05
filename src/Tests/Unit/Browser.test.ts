@@ -3,11 +3,17 @@ import { dirname, join } from 'path';
 
 import { buildContextOptions } from '../../Common/Browser';
 
-const pkgPath = require.resolve('playwright-core/package.json');
-const browsersJson = JSON.parse(readFileSync(join(dirname(pkgPath), 'browsers.json'), 'utf8'));
-const EXPECTED_VERSION: string = browsersJson.browsers
-  .find((b: { name: string }) => b.name === 'chromium')
-  .browserVersion.split('.')[0];
+interface BrowsersJson {
+  browsers: { name: string; browserVersion: string }[];
+}
+
+const PKG_PATH = require.resolve('playwright-core/package.json');
+const BROWSERS_JSON = JSON.parse(
+  readFileSync(join(dirname(PKG_PATH), 'browsers.json'), 'utf8'),
+) as BrowsersJson;
+const EXPECTED_VERSION: string = (
+  BROWSERS_JSON.browsers.find(b => b.name === 'chromium')?.browserVersion ?? ''
+).split('.')[0];
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {

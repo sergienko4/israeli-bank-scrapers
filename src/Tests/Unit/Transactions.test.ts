@@ -204,10 +204,10 @@ describe('getRawTransaction', () => {
 });
 
 describe('property-based invariants', () => {
-  const MIN_MS = new Date('2020-01-01').getTime();
-  const MAX_MS = new Date('2026-12-31').getTime();
+  const minMs = new Date('2020-01-01').getTime();
+  const maxMs = new Date('2026-12-31').getTime();
   const txnArb = fc
-    .integer({ min: MIN_MS, max: MAX_MS })
+    .integer({ min: minMs, max: maxMs })
     .map(ms => createTransaction({ date: new Date(ms).toISOString() }));
 
   it('sortTransactionsByDate always produces ascending order', () => {

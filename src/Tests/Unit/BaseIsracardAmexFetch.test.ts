@@ -17,7 +17,12 @@ jest.mock('../../Common/Waiting', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 const SERVICES_URL = 'https://digital.example.co.il/ServerServices/services/ProxyService';
@@ -86,7 +91,9 @@ describe('fetchAccounts', () => {
 
     await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-15'));
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const calledUrl: string = (
+      (fetchGetWithinPage as jest.Mock).mock.calls[0] as [unknown, string]
+    )[1];
     expect(calledUrl).toContain('reqName=DashboardMonth');
     expect(calledUrl).toContain('billingDate=2024-06-15');
   });
@@ -110,7 +117,9 @@ describe('fetchTxnData', () => {
 
     await fetchTxnData(page as never, SERVICES_URL, moment('2024-06-01'));
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const calledUrl: string = (
+      (fetchGetWithinPage as jest.Mock).mock.calls[0] as [unknown, string]
+    )[1];
     expect(calledUrl).toContain('reqName=CardsTransactionsList');
     expect(calledUrl).toContain('month=06');
     expect(calledUrl).toContain('year=2024');
@@ -140,7 +149,9 @@ describe('fetchTxnData', () => {
 
     await fetchTxnData(page as never, SERVICES_URL, moment('2024-03-01'));
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const calledUrl: string = (
+      (fetchGetWithinPage as jest.Mock).mock.calls[0] as [unknown, string]
+    )[1];
     expect(calledUrl).toContain('month=03');
   });
 
@@ -149,7 +160,9 @@ describe('fetchTxnData', () => {
 
     await fetchTxnData(page as never, SERVICES_URL, moment('2024-11-01'));
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const calledUrl: string = (
+      (fetchGetWithinPage as jest.Mock).mock.calls[0] as [unknown, string]
+    )[1];
     expect(calledUrl).toContain('month=11');
   });
 });

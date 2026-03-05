@@ -88,15 +88,15 @@ describe('elementPresentOnPage', () => {
   it('returns true when element exists', async () => {
     const page = createMockPage();
     page.$.mockResolvedValue({});
-    const result = await elementPresentOnPage(page, '.exists');
-    expect(result).toBe(true);
+    const isPresent = await elementPresentOnPage(page, '.exists');
+    expect(isPresent).toBe(true);
   });
 
   it('returns false when element does not exist', async () => {
     const page = createMockPage();
     page.$.mockResolvedValue(null);
-    const result = await elementPresentOnPage(page, '.missing');
-    expect(result).toBe(false);
+    const isPresent = await elementPresentOnPage(page, '.missing');
+    expect(isPresent).toBe(false);
   });
 });
 
@@ -130,7 +130,7 @@ describe('pageEval', () => {
     const result = await pageEval(page, {
       selector: '.balance',
       defaultResult: '',
-      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+      callback: (el: Element) => (el as HTMLElement).textContent,
     });
     expect(result).toBe('evaluated');
   });
@@ -141,7 +141,7 @@ describe('pageEval', () => {
     const result = await pageEval(page, {
       selector: '.missing',
       defaultResult: 'default',
-      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+      callback: (el: Element) => (el as HTMLElement).textContent,
     });
     expect(result).toBe('default');
   });

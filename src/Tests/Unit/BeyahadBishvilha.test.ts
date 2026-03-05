@@ -28,15 +28,20 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -46,13 +51,13 @@ function setupPage(): ReturnType<typeof createMockPage> {
   const page = createMockPage({
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
   });
-  mockContext.newPage.mockResolvedValue(page);
+  MOCK_CONTEXT.newPage.mockResolvedValue(page);
   return page;
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   setupPage();
 });
 
@@ -92,9 +97,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.description).toBe('סופר שופ');
     expect(t.originalAmount).toBe(150);
     expect(t.originalCurrency).toBe('ILS');
@@ -119,8 +124,8 @@ describe('fetchData', () => {
     const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('USD');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(50);
+    expect((result.accounts ?? [])[0].txns[0].originalCurrency).toBe('USD');
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(50);
   });
 
   it('parses euro amounts', async () => {
@@ -139,8 +144,8 @@ describe('fetchData', () => {
     const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('EUR');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(75.5);
+    expect((result.accounts ?? [])[0].txns[0].originalCurrency).toBe('EUR');
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(75.5);
   });
 
   it('parses space-separated currency format', async () => {
@@ -159,8 +164,8 @@ describe('fetchData', () => {
     const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('GBP');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(200);
+    expect((result.accounts ?? [])[0].txns[0].originalCurrency).toBe('GBP');
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(200);
   });
 
   it('filters null transactions from DOM extraction', async () => {
@@ -180,7 +185,7 @@ describe('fetchData', () => {
     const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
   });
 
   it('calls filterOldTransactions when enabled', async () => {
@@ -220,6 +225,6 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 });

@@ -32,15 +32,20 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -60,8 +65,8 @@ function createYahavPage(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createYahavPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createYahavPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home',
   );
@@ -104,9 +109,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('ACC-12345');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('ACC-12345');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-150);
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
     expect(t.type).toBe(TransactionTypes.Normal);
@@ -122,7 +127,7 @@ describe('fetchData', () => {
     const scraper = new YahavScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].identifier).toBe(123);
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBe(123);
   });
 
   it('calculates credit minus debit', async () => {
@@ -133,7 +138,7 @@ describe('fetchData', () => {
     const scraper = new YahavScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalAmount).toBe(300);
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(300);
   });
 
   it('handles NaN amounts', async () => {
@@ -144,7 +149,7 @@ describe('fetchData', () => {
     const scraper = new YahavScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalAmount).toBe(0);
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(0);
   });
 
   it('includes rawTransaction when option set', async () => {
@@ -155,6 +160,6 @@ describe('fetchData', () => {
     const scraper = new YahavScraper(createMockScraperOptions({ includeRawTransaction: true }));
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 });

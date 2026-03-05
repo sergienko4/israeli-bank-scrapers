@@ -9,8 +9,8 @@ import {
   maybeTestCompanyAPI,
 } from '../TestsUtils';
 
-const COMPANY_ID = 'beinleumi'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'beinleumi';
+const TESTS_CONFIG = getTestsConfig();
 
 describe('Beinleumi', () => {
   beforeAll(() => {
@@ -27,7 +27,7 @@ describe('Beinleumi', () => {
     'should fail on invalid user/password',
     async () => {
       const options = {
-        ...testsConfig.options,
+        ...TESTS_CONFIG.options,
         companyId: COMPANY_ID,
       };
 
@@ -43,19 +43,19 @@ describe('Beinleumi', () => {
 
   maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
     const scraper = new BeinleumiScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.beinleumi as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.beinleumi as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    exportTransactions(COMPANY_ID, result.accounts ?? []);
   });
 });

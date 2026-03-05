@@ -38,18 +38,23 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 jest.mock('../../Common/Dates', () => {
   return jest.fn(() => [moment('2024-06-01')]);
 });
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -87,8 +92,8 @@ function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -162,9 +167,9 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('4580');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('4580');
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(-250);
     expect(t.description).toBe('רמי לוי');
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
@@ -180,7 +185,7 @@ describe('fetchData', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.type).toBe(TransactionTypes.Installments);
     expect(t.installments).toEqual({ number: 3, total: 12 });
   });
@@ -192,7 +197,7 @@ describe('fetchData', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.type).toBe(TransactionTypes.Installments);
   });
 
@@ -203,7 +208,7 @@ describe('fetchData', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
+    expect((result.accounts ?? [])[0].txns[0].status).toBe(TransactionStatuses.Pending);
   });
 
   it('maps currency IDs correctly', async () => {
@@ -213,7 +218,7 @@ describe('fetchData', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].chargedCurrency).toBe(DOLLAR_CURRENCY);
+    expect((result.accounts ?? [])[0].txns[0].chargedCurrency).toBe(DOLLAR_CURRENCY);
   });
 
   it('handles empty month response', async () => {
@@ -234,7 +239,7 @@ describe('fetchData', () => {
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
   });
 
   it('calls fixInstallments when shouldCombineInstallments=false', async () => {
@@ -272,7 +277,7 @@ describe('fetchData', () => {
     const result = await new MaxScraper(
       createMockScraperOptions({ includeRawTransaction: true }),
     ).scrape(CREDS);
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('builds identifier from ARN and installment number', async () => {
@@ -286,7 +291,7 @@ describe('fetchData', () => {
     ]);
 
     const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
-    expect(result.accounts![0].txns[0].identifier).toBe('ARN123_2');
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBe('ARN123_2');
   });
 
   it('uses ARN alone when no installments', async () => {
@@ -294,7 +299,7 @@ describe('fetchData', () => {
     mockTxnMonth([rawTxn({ dealData: { arn: 'ARN456' } })]);
 
     const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
-    expect(result.accounts![0].txns[0].identifier).toBe('ARN456');
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBe('ARN456');
   });
 
   it('groups transactions by card number', async () => {
@@ -303,7 +308,7 @@ describe('fetchData', () => {
 
     const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
     expect(result.accounts).toHaveLength(2);
-    expect(result.accounts!.map(a => a.accountNumber).sort()).toEqual(['1111', '2222']);
+    expect((result.accounts ?? []).map(a => a.accountNumber).sort()).toEqual(['1111', '2222']);
   });
 
   it('assigns category from loaded categories', async () => {
@@ -311,6 +316,6 @@ describe('fetchData', () => {
     mockTxnMonth([rawTxn({ categoryId: 1 })]);
 
     const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
-    expect(result.accounts![0].txns[0].category).toBe('מזון');
+    expect((result.accounts ?? [])[0].txns[0].category).toBe('מזון');
   });
 });

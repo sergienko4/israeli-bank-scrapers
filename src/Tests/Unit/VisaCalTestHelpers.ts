@@ -8,6 +8,7 @@ import {
 import {
   createMockBrowser,
   createMockContext,
+  createMockCredentials,
   createMockPage,
   createMockScraperOptions,
 } from '../MockPage';
@@ -15,7 +16,7 @@ import {
 export const MOCK_CONTEXT: ReturnType<typeof createMockContext> = createMockContext();
 export const MOCK_BROWSER: ReturnType<typeof createMockBrowser> = createMockBrowser(MOCK_CONTEXT);
 
-export const CREDS = { username: 'testuser', password: 'testpass' };
+export const CREDS = createMockCredentials('visacal');
 
 export const INIT_RESPONSE = {
   result: { cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }] },

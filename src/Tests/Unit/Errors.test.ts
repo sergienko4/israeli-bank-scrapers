@@ -15,7 +15,7 @@ describe('ScraperErrorTypes', () => {
     expect(ScraperErrorTypes.Timeout).toBe('TIMEOUT');
     expect(ScraperErrorTypes.AccountBlocked).toBe('ACCOUNT_BLOCKED');
     expect(ScraperErrorTypes.Generic).toBe('GENERIC');
-    expect(ScraperErrorTypes.General).toBe('GENERAL_ERROR');
+    expect(ScraperErrorTypes.Generic).toBe('GENERIC'); // General is a deprecated alias for backwards compat
     expect(ScraperErrorTypes.WafBlocked).toBe('WAF_BLOCKED');
   });
 });

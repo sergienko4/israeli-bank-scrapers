@@ -22,7 +22,12 @@ jest.mock('../../Common/Waiting', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 let mockPage: ReturnType<typeof createMockPage>;
@@ -96,8 +101,8 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$eval.mockResolvedValueOnce(true);
     mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-99');
-    expect(result).toBe(false);
+    const wasSelected = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-99');
+    expect(wasSelected).toBe(false);
   });
 
   it('returns true when account is found and clicked', async () => {
@@ -110,8 +115,8 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
     mockPage.evaluate.mockResolvedValueOnce('acc-1').mockResolvedValueOnce(undefined);
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
-    expect(result).toBe(true);
+    const wasSelected = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
+    expect(wasSelected).toBe(true);
   });
 
   it('returns false when no matching option found in DOM', async () => {
@@ -124,8 +129,8 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
     mockPage.evaluate.mockResolvedValueOnce('acc-different');
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
-    expect(result).toBe(false);
+    const wasSelected = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
+    expect(wasSelected).toBe(false);
   });
 });
 

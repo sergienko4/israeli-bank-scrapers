@@ -6,11 +6,9 @@ import { getCurrentUrl } from '../../Common/Navigation';
 import { sleep } from '../../Common/Waiting';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { type ScraperOptions } from '../../Scrapers/Base/Interface';
-import BeinleumiGroupBaseScraper from '../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroup';
-import { beinleumiConfig } from '../../Scrapers/BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
+import TestBeinleumiScraper from './BaseBeinleumiGroupTestHelpers';
 
 jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
 jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
@@ -38,28 +36,23 @@ jest.mock('../../Common/Waiting', () => ({
   SECOND: 1000,
 }));
 jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: (): Record<string, jest.Mock> => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 // OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
 // Return null here so login/fetchData tests are not affected by OTP detection.
 jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
 
-class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
-  BASE_URL = 'https://test.fibi.co.il';
-
-  TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
-
-  constructor(options: ScraperOptions) {
-    super(options, beinleumiConfig('https://www.fibi.co.il'));
-  }
-}
-
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -108,8 +101,8 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): void {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createPageWithAccountFeatures());
+  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  MOCK_CONTEXT.newPage.mockResolvedValue(createPageWithAccountFeatures());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://test.fibi.co.il/Resources/PortalNG/shell',
   );
@@ -145,7 +138,7 @@ describe('fetchData', () => {
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('12_345678');
+    expect((result.accounts ?? [])[0].accountNumber).toBe('12_345678');
   });
 
   it('converts transaction amounts correctly (credit - debit)', async () => {
@@ -154,7 +147,7 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    const t = result.accounts![0].txns[0];
+    const t = (result.accounts ?? [])[0].txns[0];
     expect(t.originalAmount).toBe(50 - 200);
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
     expect(t.type).toBe(TransactionTypes.Normal);
@@ -169,7 +162,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
   });
 
   it('skips rows with empty date', async () => {
@@ -181,7 +174,7 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
   });
 
   it('includes rawTransaction when option set', async () => {
@@ -192,7 +185,7 @@ describe('fetchData', () => {
     );
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('parses reference number as integer', async () => {
@@ -201,7 +194,7 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].identifier).toBe(12345);
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBe(12345);
   });
 
   it('sets identifier to undefined when reference is empty', async () => {
@@ -210,7 +203,7 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].identifier).toBeUndefined();
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBeUndefined();
   });
 
   it('extracts pending transactions with pending column layout', async () => {
@@ -225,10 +218,10 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(1);
-    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
-    expect(result.accounts![0].txns[0].description).toBe('Pending Purchase');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(-75);
+    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
+    expect((result.accounts ?? [])[0].txns[0].status).toBe(TransactionStatuses.Pending);
+    expect((result.accounts ?? [])[0].txns[0].description).toBe('Pending Purchase');
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(-75);
   });
 
   it('combines pending and completed transactions', async () => {
@@ -241,9 +234,11 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(2);
-    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
-    const completed = result.accounts![0].txns.find(
+    expect((result.accounts ?? [])[0].txns).toHaveLength(2);
+    const pending = (result.accounts ?? [])[0].txns.find(
+      t => t.status === TransactionStatuses.Pending,
+    );
+    const completed = (result.accounts ?? [])[0].txns.find(
       t => t.status === TransactionStatuses.Completed,
     );
     expect(pending).toBeDefined();
@@ -277,9 +272,9 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(2);
-    expect(result.accounts![0].txns[0].description).toBe('Page1');
-    expect(result.accounts![0].txns[1].description).toBe('Page2');
+    expect((result.accounts ?? [])[0].txns).toHaveLength(2);
+    expect((result.accounts ?? [])[0].txns[0].description).toBe('Page1');
+    expect((result.accounts ?? [])[0].txns[1].description).toBe('Page2');
     expect(clickButton).toHaveBeenCalledWith(expect.anything(), 'a#Npage.paging');
   });
 
@@ -300,7 +295,7 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].balance).toBe(5000);
+    expect((result.accounts ?? [])[0].balance).toBe(5000);
   });
 
   it('handles commas in currency amounts', async () => {
@@ -309,6 +304,6 @@ describe('fetchData', () => {
     const scraper = new TestBeinleumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalAmount).toBe(-1500.5);
+    expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(-1500.5);
   });
 });

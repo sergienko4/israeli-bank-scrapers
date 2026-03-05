@@ -8,15 +8,15 @@ import {
 } from '../../Common/Fetch';
 import { createMockPage } from '../MockPage';
 
-const mockFetch = jest.fn();
-const originalFetch = global.fetch;
+const MOCK_FETCH = jest.fn();
+const ORIGINAL_FETCH = global.fetch;
 
 beforeAll(() => {
-  global.fetch = mockFetch;
+  global.fetch = MOCK_FETCH;
 });
 
 afterAll(() => {
-  global.fetch = originalFetch;
+  global.fetch = ORIGINAL_FETCH;
 });
 
 function mockJsonResponse(data: unknown, status = 200): Record<string, unknown> {
@@ -26,49 +26,49 @@ function mockJsonResponse(data: unknown, status = 200): Record<string, unknown> 
 
 describe('fetchGet', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends GET request with JSON headers', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: 'test' }));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ data: 'test' }));
     const result = await fetchGet('https://api.bank.co.il/data', {});
     expect(result).toEqual({ data: 'test' });
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(MOCK_FETCH).toHaveBeenCalledWith(
       'https://api.bank.co.il/data',
       expect.objectContaining({ method: 'GET' }),
     );
   });
 
   it('merges extra headers', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({}));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({}));
     await fetchGet('https://api.bank.co.il/data', { Authorization: 'Bearer token' });
-    const callArgs = (mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }])[1];
+    const callArgs = (MOCK_FETCH.mock.calls[0] as [string, { headers: Record<string, string> }])[1];
     expect(callArgs.headers.Authorization).toBe('Bearer token');
     expect(callArgs.headers.Accept).toBe('application/json');
   });
 
   it('throws when status is not 200', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({}, 500));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({}, 500));
     await expect(fetchGet('https://api.bank.co.il/data', {})).rejects.toThrow('status code 500');
   });
 });
 
 describe('fetchPost', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends POST request with JSON body', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ success: true }));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ success: true }));
     const result = await fetchPost('https://api.bank.co.il/login', { user: 'test' });
     expect(result).toEqual({ success: true });
-    const callArgs = (mockFetch.mock.calls[0] as [string, { method: string; body: string }])[1];
+    const callArgs = (MOCK_FETCH.mock.calls[0] as [string, { method: string; body: string }])[1];
     expect(callArgs.method).toBe('POST');
     expect(callArgs.body).toBe(JSON.stringify({ user: 'test' }));
   });
 
   it('returns JSON even on non-200 status', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ error: true }, 500));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ error: true }, 500));
     const result = await fetchPost('https://api.bank.co.il/fail', {});
     expect(result).toEqual({ error: true });
   });
@@ -76,28 +76,28 @@ describe('fetchPost', () => {
 
 describe('fetchGraphql', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends GraphQL query and returns data', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: { accounts: [] } }));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ data: { accounts: [] } }));
     const result = await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts { id } }');
     expect(result).toEqual({ accounts: [] });
   });
 
   it('throws when GraphQL response has errors', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ errors: [{ message: 'Unauthorized' }] }));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ errors: [{ message: 'Unauthorized' }] }));
     await expect(fetchGraphql('https://api.bank.co.il/graphql', 'query')).rejects.toThrow(
       'Unauthorized',
     );
   });
 
   it('sends variables in the request body', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: {} }));
+    MOCK_FETCH.mockResolvedValue(mockJsonResponse({ data: {} }));
     await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts }', {
       variables: { id: '123' },
     });
-    const rawBody = (mockFetch.mock.calls[0] as [string, { body: string }])[1].body;
+    const rawBody = (MOCK_FETCH.mock.calls[0] as [string, { body: string }])[1].body;
     const body = JSON.parse(rawBody) as { variables: Record<string, unknown>; query: string };
     expect(body.variables).toEqual({ id: '123' });
     expect(body.query).toBe('{ accounts }');
