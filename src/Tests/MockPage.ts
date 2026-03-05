@@ -14,6 +14,7 @@ export interface MockPage {
   selectOption: jest.Mock;
   waitForFunction: jest.Mock;
   frames: jest.Mock;
+  waitForLoadState: jest.Mock;
   waitForNavigation: jest.Mock;
   waitForURL: jest.Mock;
   waitForResponse: jest.Mock;
@@ -46,6 +47,7 @@ export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Pa
     selectOption: jest.fn().mockResolvedValue(undefined),
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
+    waitForLoadState: jest.fn().mockResolvedValue(undefined),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     waitForURL: jest.fn().mockResolvedValue(undefined),
     waitForResponse: jest.fn().mockResolvedValue(undefined),

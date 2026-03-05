@@ -12,6 +12,7 @@ import {
   extractPhoneHint,
   OTP_SUBMIT_CANDIDATES,
 } from './OtpDetector';
+import waitForPageStability from './PageStability';
 import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
 import { sleep } from './Waiting';
 
@@ -190,6 +191,7 @@ export async function handleOtpStep(
 
   const phoneHint = await extractPhoneHint(page);
   await clickOtpTriggerIfPresent(page);
+  await waitForPageStability(page);
   const code = await otpCodeRetriever(phoneHint);
   await fillAndSubmitOtpCode(page, code);
   return verifyOtpAccepted(page);

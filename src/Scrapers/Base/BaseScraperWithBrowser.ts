@@ -10,6 +10,7 @@ import { getDebug } from '../../Common/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
 import { handleOtpStep } from '../../Common/OtpHandler';
+import waitForPageStability from '../../Common/PageStability';
 import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
 import { ScraperProgressTypes } from '../../Definitions';
@@ -287,6 +288,7 @@ class BaseScraperWithBrowser<
     loginOptions: LoginOptions,
     loginFrameOrPage: Page | Frame,
   ): Promise<void> {
+    await waitForPageStability(this.page);
     LOG.info('login[3/5] fill %d fields', loginOptions.fields.length);
     await this.fillInputs(loginFrameOrPage, loginOptions.fields);
     const submitCtx = this.activeLoginContext ?? loginFrameOrPage;
