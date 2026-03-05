@@ -100,7 +100,7 @@ async function maxPreAction(page: Page): Promise<Frame | undefined> {
 }
 
 async function maxPostAction(page: Page): Promise<void> {
-  if (page.url().includes('/homepage/personal')) return;
+  if (page.url().startsWith(`${CFG.urls.base}/homepage`)) return;
   await Promise.race([
     waitForRedirect(page, {
       timeout: 20000,
@@ -125,7 +125,8 @@ export const MAX_CONFIG: LoginConfig = {
   postAction: maxPostAction,
   waitUntil: 'domcontentloaded',
   possibleResults: {
-    success: [`${CFG.urls.base}/homepage/personal`],
+    // Covers /homepage/personal (old flow) and /homepage?SourceGA=... (ReturnURL-based flow).
+    success: [/^https:\/\/www\.max\.co\.il\/homepage/],
     changePassword: [`${CFG.urls.base}/renew-password`],
     invalidPassword: [
       async (opts): Promise<boolean> =>

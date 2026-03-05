@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { Browser, Frame, Page } from 'playwright';
 import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -97,8 +98,45 @@ class BaseScraperWithBrowser<
   }
 
   public async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
-    this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
+    try {
+      return await this.attemptLogin(loginOptions);
+    } catch (err) {
+      if (this.isStuckOnLoginPage(loginOptions.loginUrl)) {
+        LOG.info('login: stuck on login URL — retrying once');
+        this.activeLoginContext = null;
+        return this.attemptLogin(loginOptions);
+      }
+      throw err;
+    }
+  }
+
+  public async terminate(_success: boolean): Promise<void> {
+    LOG.info(`terminating browser with success = ${String(_success)}`);
+    this.emitProgress(ScraperProgressTypes.Terminating);
+    if (!_success && !!this.options.storeFailureScreenShotPath) {
+      LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+      await this.page
+        .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
+        .catch((e: unknown) => {
+          LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
+        });
+    }
+    await Promise.all(this._cleanups.reverse().map(safeCleanup));
+    this._cleanups = [];
+  }
+
+  private isStuckOnLoginPage(loginUrl: string): boolean {
+    try {
+      const current = this.page.url();
+      return current === loginUrl || current === `${loginUrl}/` || current.includes('/login');
+    } catch {
+      return false;
+    }
+  }
+
+  private async attemptLogin(loginOptions: LoginOptions): Promise<ScraperScrapingResult> {
+    this.activeLoginContext = null;
     await this.prepareLoginPage(loginOptions);
     let loginFrameOrPage: Page | Frame | null = this.page;
     if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
@@ -115,21 +153,6 @@ class BaseScraperWithBrowser<
     )
       loginResult = LOGIN_RESULTS.InvalidPassword;
     return this.handleLoginResult(loginResult);
-  }
-
-  public async terminate(_success: boolean): Promise<void> {
-    LOG.info(`terminating browser with success = ${String(_success)}`);
-    this.emitProgress(ScraperProgressTypes.Terminating);
-    if (!_success && !!this.options.storeFailureScreenShotPath) {
-      LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
-      await this.page
-        .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-        .catch((e: unknown) => {
-          LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
-        });
-    }
-    await Promise.all(this._cleanups.reverse().map(safeCleanup));
-    this._cleanups = [];
   }
 
   private async fillOneInput(
