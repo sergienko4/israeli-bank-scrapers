@@ -107,10 +107,10 @@ jobs:
       - run: npx rimraf lib/Common lib/Scrapers lib/Tests
       - name: Verify build output
         run: |
-          test -f lib/index.cjs || (echo "ERROR: lib/index.cjs not found" && exit 1)
-          test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
-          test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
-          test -f lib/index.d.mts || (echo "ERROR: lib/index.d.mts not found" && exit 1)
+          test -f lib/Index.cjs || (echo "ERROR: lib/Index.cjs not found" && exit 1)
+          test -f lib/Index.mjs || (echo "ERROR: lib/Index.mjs not found" && exit 1)
+          test -f lib/Index.d.ts || (echo "ERROR: lib/Index.d.ts not found" && exit 1)
+          test -f lib/Index.d.mts || (echo "ERROR: lib/Index.d.mts not found" && exit 1)
       - name: Validate package exports
         run: npm run check-exports
 

@@ -20,22 +20,26 @@ echo "🔍  [1/8] Type check — strict, no implicit any..." | tee -a "$LOG_FILE
 run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧪  [2/8] Unit tests..." | tee -a "$LOG_FILE"
-run_gate npm run test:unit -- --no-coverage || exit 1
+echo "🧪  [2/8] Unit tests (with coverage thresholds — same as CI)..." | tee -a "$LOG_FILE"
+run_gate npm run test:unit --coverage || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🎭  [3/8] Mocked E2E tests..." | tee -a "$LOG_FILE"
-run_gate npm run test:e2e:mock -- --no-coverage || exit 1
+run_gate npm run test:e2e:mock --no-coverage || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧹  [4/8] Lint + format (changed files only)..." | tee -a "$LOG_FILE"
+echo "🧹  [4/8] Lint + format (CI parity)..." | tee -a "$LOG_FILE"
 run_gate npx lint-staged || exit 1
+echo "  → ESLint all src/ (matches CI: npx eslint src --max-warnings 0)..." | tee -a "$LOG_FILE"
+run_gate npx eslint src --max-warnings 0 || exit 1
+echo "  → Prettier full check (matches CI scope)..." | tee -a "$LOG_FILE"
+run_gate npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}" || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
 run_gate npx tsup || exit 1
 npx rimraf lib/Common lib/Scrapers lib/Tests
-test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.mts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
+test -f lib/Index.cjs && test -f lib/Index.mjs && test -f lib/Index.d.ts && test -f lib/Index.d.mts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
 echo "" | tee -a "$LOG_FILE"
