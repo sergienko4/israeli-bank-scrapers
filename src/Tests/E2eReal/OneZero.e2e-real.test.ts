@@ -23,10 +23,15 @@ const IT_IF_TOKEN = process.env.ONEZERO_OTP_LONG_TERM_TOKEN ? it : it.skip;
 /** Save the long-term token back to .env so the next run can reuse it. */
 function persistLongTermToken(token: string): void {
   const envPath = path.resolve(process.cwd(), '.env');
-  if (!fs.existsSync(envPath)) return;
-  const envContent = fs.readFileSync(envPath, 'utf8');
+  // Read atomically (no existsSync check) to eliminate TOCTOU race condition.
+  let envContent: string;
+  try {
+    envContent = fs.readFileSync(envPath, 'utf8');
+  } catch {
+    return; // .env does not exist — nothing to update
+  }
   const newEntry = `ONEZERO_OTP_LONG_TERM_TOKEN=${token}`;
-  // Use a replacement function to avoid '$' special-character interpretation in the replacement string.
+  // Use a replacement function to avoid '$' special-character interpretation.
   const updated = envContent.includes('ONEZERO_OTP_LONG_TERM_TOKEN=')
     ? envContent.replace(/ONEZERO_OTP_LONG_TERM_TOKEN=[^\r\n]*/u, () => newEntry)
     : `${envContent}\n${newEntry}`;

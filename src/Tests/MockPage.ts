@@ -1,3 +1,4 @@
+import { randomBytes, randomInt } from 'crypto';
 import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../Definitions';
@@ -109,12 +110,12 @@ export function createMockCredentials(prefix = 'bank'): {
   email: string;
   card6Digits: string;
 } {
-  const runId = Math.random().toString(36).slice(2, 8);
+  const runId = randomBytes(3).toString('hex'); // 6 hex chars, cryptographically random
   return {
     username: `mock.${prefix}.user.${runId}`,
     password: `MockPwd${runId}`,
     id: `mock_id_${runId}`,
     email: `mock.${prefix}.${runId}@test.example`,
-    card6Digits: String(Math.floor(Math.random() * 900000) + 100000),
+    card6Digits: String(randomInt(100000, 1000000)),
   };
 }
