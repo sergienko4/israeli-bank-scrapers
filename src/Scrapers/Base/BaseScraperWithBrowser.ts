@@ -211,15 +211,28 @@ class BaseScraperWithBrowser<
     });
   }
 
+  private static buildHeadlessArgs(isHeadless: boolean): string[] {
+    if (!isHeadless) return [];
+    // Enable software WebGL (SwiftShader) so fingerprinting libs can collect a GPU hash.
+    // Stealth plugin's webgl.vendor patch then hides the SwiftShader renderer string.
+    // --disable-blink-features=AutomationControlled complements the JS-level webdriver patch.
+    return [
+      '--use-gl=swiftshader',
+      '--use-angle=swiftshader',
+      '--disable-blink-features=AutomationControlled',
+    ];
+  }
+
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
     const { timeout, args = [], executablePath, shouldShowBrowser } = opts;
-    LOG.info(`launch a browser with headless mode = ${String(!shouldShowBrowser)}`);
+    const isHeadless = !shouldShowBrowser;
+    LOG.info(`launch a browser with headless mode = ${String(isHeadless)}`);
     this.rejectCustomExecutablePath();
     const browser = await chromium.launch({
-      headless: !shouldShowBrowser,
+      headless: isHeadless,
       executablePath,
-      args,
+      args: [...BaseScraperWithBrowser.buildHeadlessArgs(isHeadless), ...args],
       timeout,
     });
     this.registerBrowserCleanup(browser);
