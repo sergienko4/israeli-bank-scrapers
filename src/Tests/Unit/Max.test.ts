@@ -319,3 +319,5 @@ describe('fetchData', () => {
     expect((result.accounts ?? [])[0].txns[0].category).toBe('מזון');
   });
 });
+
+// maxHandleSecondLoginStep tests live in MaxLoginConfig.test.ts

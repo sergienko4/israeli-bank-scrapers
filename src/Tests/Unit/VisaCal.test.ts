@@ -3,15 +3,18 @@ import { chromium } from 'playwright-extra';
 import { buildContextOptions } from '../../Common/Browser';
 import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { fetchPost } from '../../Common/Fetch';
-import { getCurrentUrl } from '../../Common/Navigation';
+import { getCurrentUrl, waitForUrl } from '../../Common/Navigation';
 import { filterOldTransactions } from '../../Common/Transactions';
+import { waitUntilWithReload } from '../../Common/Waiting';
 import VisaCalScraper from '../../Scrapers/VisaCal/VisaCalScraper';
 import { TrnTypeCode } from '../../Scrapers/VisaCal/VisaCalTypes';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { createMockPage } from '../MockPage';
 import {
   CREDS,
   INIT_RESPONSE,
   MOCK_BROWSER,
+  MOCK_CONTEXT,
   mockCardTransactionDetails,
   mockPendingResponse,
   pendingTxn,
@@ -37,6 +40,7 @@ jest.mock('../../Common/ElementsInteractions', () => ({
 jest.mock('../../Common/Navigation', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://digital-web.cal-online.co.il/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../../Common/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
@@ -241,6 +245,14 @@ describe('fetchData', () => {
     expect((result.accounts ?? [])[0].txns[0].category).toBe('מסעדות');
   });
 
+  it('returns auth error when init API statusCode is not 1', async () => {
+    setupVisaCalMocks();
+    (fetchPost as jest.Mock).mockResolvedValueOnce({ statusCode: 2, statusDescription: 'שגיאה' });
+
+    const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
+    expect(result.success).toBe(false);
+  });
+
   it('merges pending transactions with completed ones', async () => {
     setupVisaCalMocks();
     (fetchPost as jest.Mock)
@@ -259,5 +271,66 @@ describe('fetchData', () => {
     expect(pending?.description).toBe('Pending Shop');
     expect(pending?.originalAmount).toBe(-75);
     expect(completed).toBeDefined();
+  });
+});
+
+describe('auth flow edge cases', () => {
+  function makePageNoToken(): ReturnType<typeof createMockPage> {
+    return createMockPage({
+      frames: jest
+        .fn()
+        .mockReturnValue([{ url: (): string => 'https://connect.cal-online.co.il/login' }]),
+      waitForResponse: jest.fn().mockRejectedValue(new Error('Timeout 15s')),
+    });
+  }
+
+  it('falls back to sessionStorage when login token not intercepted', async () => {
+    const page = makePageNoToken();
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
+    (waitUntilWithReload as jest.Mock).mockResolvedValue({
+      found: true,
+      value: { auth: { calConnectToken: 'session-token' } },
+      reloadsUsed: 1,
+      description: 'VisaCal auth-module',
+    });
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce(INIT_RESPONSE)
+      .mockResolvedValueOnce(INIT_RESPONSE)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
+    expect(result.success).toBe(true);
+    expect(waitUntilWithReload).toHaveBeenCalled();
+  });
+
+  it('returns auth error when sessionStorage not populated after retries', async () => {
+    const page = makePageNoToken();
+    MOCK_CONTEXT.newPage.mockResolvedValue(page);
+    (waitUntilWithReload as jest.Mock).mockResolvedValue({
+      found: false,
+      value: null,
+      reloadsUsed: 2,
+      description: 'VisaCal auth-module',
+    });
+
+    const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('auth token unavailable');
+  });
+
+  it('catches waitForPostLoginRedirect timeout and continues', async () => {
+    setupVisaCalMocks();
+    (waitForUrl as jest.Mock).mockRejectedValueOnce(new Error('redirect timeout'));
+    (fetchPost as jest.Mock)
+      .mockResolvedValueOnce(INIT_RESPONSE)
+      .mockResolvedValueOnce(INIT_RESPONSE)
+      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+      .mockResolvedValueOnce({ statusCode: 96 })
+      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+
+    const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
+    expect(result.success).toBe(true);
   });
 });

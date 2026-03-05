@@ -5,6 +5,7 @@ import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { SHEKEL_CURRENCY } from '../../Constants';
+import { MIZRAHI_CONFIG } from '../../Scrapers/Mizrahi/MizrahiLoginConfig';
 import MizrahiScraper from '../../Scrapers/Mizrahi/MizrahiScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
@@ -312,5 +313,12 @@ describe('fetchData', () => {
     expect(result.accounts).toHaveLength(2);
     expect((result.accounts ?? [])[0].txns[0].description).toBe('Acc1');
     expect((result.accounts ?? [])[1].txns[0].description).toBe('Acc2');
+  });
+});
+
+describe('mizrahiPostAction', () => {
+  it('resolves when all race participants resolve', async () => {
+    await MIZRAHI_CONFIG.postAction?.(createMockPage());
+    // all mocked participants (waitUntilElementFound × 2, waitForNavigation) resolve immediately
   });
 });

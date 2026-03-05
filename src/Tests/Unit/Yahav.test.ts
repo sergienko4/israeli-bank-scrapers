@@ -163,3 +163,18 @@ describe('fetchData', () => {
     expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 });
+
+describe('getAccountID error path', () => {
+  it('returns failed result when $eval throws on account ID selector', async () => {
+    MOCK_CONTEXT.newPage.mockResolvedValue(
+      createMockPage({
+        $eval: jest.fn().mockRejectedValue(new Error('element not found')),
+        waitForSelector: jest.fn().mockResolvedValue(undefined),
+      }),
+    );
+
+    const scraper = new YahavScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(false);
+  });
+});

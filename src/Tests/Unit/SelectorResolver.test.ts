@@ -212,6 +212,26 @@ describe('toFirstCss', () => {
   it('converts non-css kinds via candidateToCss', () => {
     expect(toFirstCss([{ kind: 'placeholder', value: 'שם' }])).toBe('input[placeholder*="שם"]');
   });
+
+  it('returns empty string for label kind (handled by probeLabelCandidate separately)', () => {
+    expect(toFirstCss([{ kind: 'label', value: 'שם משתמש' }])).toBe('');
+  });
+});
+
+// ── resolveFieldContext label candidate ───────────────────────────────────────
+
+describe('resolveFieldContext label candidate', () => {
+  it('returns isResolved:false when label evaluate fails', async () => {
+    const page = makePage({
+      evaluate: jest.fn().mockRejectedValue(new Error('page closed')),
+    });
+    const field: FieldConfig = {
+      credentialKey: 'test',
+      selectors: [{ kind: 'label', value: 'שם משתמש' }],
+    };
+    const result = await resolveFieldContext(page, field, 'https://bank.test/login');
+    expect(result.isResolved).toBe(false);
+  });
 });
 
 // ── resolveDashboardField ─────────────────────────────────────────────────────

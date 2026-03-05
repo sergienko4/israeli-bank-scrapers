@@ -107,4 +107,18 @@ describe('waitForUrl', () => {
     await waitForUrl(page, /dashboard\/\d+/, { timeout: 5000 });
     expect(callCount).toBeGreaterThan(1);
   });
+
+  it('throws TimeoutError when URL never matches', async () => {
+    const page = createNavMockPage();
+    page.url = jest.fn().mockReturnValue('https://bank.co.il/login');
+    await expect(waitForUrl(page, /never-matches/, { timeout: 80 })).rejects.toThrow();
+  });
+});
+
+describe('waitForRedirect timeout', () => {
+  it('throws when URL never changes within timeout', async () => {
+    const page = createNavMockPage();
+    page.url = jest.fn().mockReturnValue('https://bank.co.il/login');
+    await expect(waitForRedirect(page, { timeout: 80 })).rejects.toThrow();
+  });
 });

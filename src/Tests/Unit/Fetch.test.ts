@@ -139,6 +139,15 @@ describe('fetchGetWithinPage', () => {
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/bad', true);
     expect(result).toBeNull();
   });
+
+  it('throws when evaluate returns ok:false (fetch network error)', async () => {
+    const page = createMockPage({
+      evaluate: jest.fn().mockResolvedValue({ ok: false, err: 'network error', status: 0 }),
+    });
+    await expect(fetchGetWithinPage(page, 'https://bank.co.il/api/fail')).rejects.toThrow(
+      'fetchGetWithinPage error',
+    );
+  });
 });
 
 describe('fetchPostWithinPage', () => {
@@ -191,6 +200,17 @@ describe('fetchPostWithinPage', () => {
     await expect(
       fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', { data: {} }),
     ).rejects.toThrow('status: 403');
+  });
+
+  it('throws when evaluate returns ok:false (post network error)', async () => {
+    const page = createMockPage({
+      evaluate: jest
+        .fn()
+        .mockResolvedValue({ ok: false, text: null, status: 0, err: 'post failed' }),
+    });
+    await expect(
+      fetchPostWithinPage(page, 'https://bank.co.il/api/fail', { data: {} }),
+    ).rejects.toThrow('fetchPostWithinPage error');
   });
 
   it('passes extraHeaders to page.evaluate as single arg', async () => {

@@ -1,3 +1,5 @@
+import type { Page } from 'playwright';
+
 import {
   humanDelay,
   raceTimeout,
@@ -6,6 +8,7 @@ import {
   sleep,
   TimeoutError,
   waitUntil,
+  waitUntilWithReload,
 } from '../../Common/Waiting';
 
 describe('SECOND', () => {
@@ -107,6 +110,35 @@ describe('runSerial', () => {
       (): Promise<number> => Promise.reject(new Error('fail')),
     ];
     await expect(runSerial(actions)).rejects.toThrow('fail');
+  });
+});
+
+describe('waitUntilWithReload', () => {
+  it('returns found=true when condition met immediately', async () => {
+    const page = { reload: jest.fn() } as unknown as Page;
+    const result = await waitUntilWithReload(page, () => Promise.resolve('auth-token'), {
+      description: 'test',
+      pollTimeout: 5000,
+      reloadAttempts: 2,
+      interval: 10,
+    });
+    expect(result.found).toBe(true);
+    expect(result.value).toBe('auth-token');
+    expect(result.reloadsUsed).toBe(0);
+  });
+
+  it('reloads and returns found=false when condition never met', async () => {
+    const mockReload = jest.fn().mockResolvedValue(undefined);
+    const page = { reload: mockReload } as unknown as Page;
+    const result = await waitUntilWithReload(page, () => Promise.resolve(null), {
+      description: 'test',
+      pollTimeout: 50,
+      reloadAttempts: 1,
+      interval: 10,
+    });
+    expect(result.found).toBe(false);
+    expect(result.reloadsUsed).toBe(1);
+    expect(mockReload).toHaveBeenCalledWith({ waitUntil: 'networkidle' });
   });
 });
 

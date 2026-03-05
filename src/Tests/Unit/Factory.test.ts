@@ -13,4 +13,13 @@ describe('Factory', () => {
     expect(scraper.scrape).toBeInstanceOf(Function);
     expect(scraper.onProgress).toBeInstanceOf(Function);
   });
+
+  test('throws on unknown company id', () => {
+    expect(() =>
+      createScraper({
+        companyId: 'UNKNOWN_BANK' as unknown as CompanyTypes,
+        startDate: new Date(),
+      }),
+    ).toThrow('unknown company id');
+  });
 });

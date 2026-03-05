@@ -98,4 +98,11 @@ describe('WafBlockError', () => {
     });
     expect(error.details.responseSnippet).toHaveLength(200);
   });
+
+  it('apiBlock uses empty defaults when opts not provided', () => {
+    const error = WafBlockError.apiBlock(403, 'https://example.com');
+    expect(error.details.pageTitle).toBe('');
+    expect(error.details.responseSnippet).toBeUndefined();
+    expect(error.details.httpStatus).toBe(403);
+  });
 });

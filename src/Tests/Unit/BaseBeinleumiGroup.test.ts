@@ -118,6 +118,14 @@ describe('login', () => {
     expect(sleep).toHaveBeenCalledWith(1000);
   });
 
+  it('calls page.evaluate when login trigger is present', async () => {
+    (elementPresentOnPage as jest.Mock).mockResolvedValueOnce(true); // preAction: hasTrigger=true
+    const scraper = new TestBeinleumiScraper(createMockScraperOptions());
+    const result = await scraper.scrape(CREDS);
+    expect(result.success).toBe(true);
+    expect(sleep).toHaveBeenCalledWith(2000);
+  });
+
   it('returns InvalidPassword for marketing URL', async () => {
     (getCurrentUrl as jest.Mock).mockResolvedValue(
       'https://test.fibi.co.il/FibiMenu/Marketing/Private/Home',
