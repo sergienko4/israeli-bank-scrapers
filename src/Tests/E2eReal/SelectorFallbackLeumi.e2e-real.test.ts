@@ -32,15 +32,27 @@ const LEUMI_WELL_KNOWN_CFG: LoginConfig = {
   ],
   submit: [{ kind: 'css', value: "button[type='submit']" }],
   // Navigate from Leumi home to the actual login page that has Hebrew placeholder inputs
-  checkReadiness: async (page: Page) => {
-    await waitUntilElementFound(page, '.enter_account');
-    const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
-    await page.goto(href, { waitUntil: 'networkidle' });
-    await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
-  },
-  postAction: async (page: Page) => {
-    await page.waitForTimeout(3000);
-  },
+  checkReadiness:
+    /**
+     * Navigates from the Leumi home page to the login form and waits for the username input.
+     *
+     * @param page - the Playwright page to navigate on
+     */
+    async (page: Page) => {
+      await waitUntilElementFound(page, '.enter_account');
+      const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
+      await page.goto(href, { waitUntil: 'networkidle' });
+      await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
+    },
+  postAction:
+    /**
+     * Waits briefly after login submission to allow navigation to settle.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async (page: Page) => {
+      await page.waitForTimeout(3000);
+    },
   possibleResults: {
     success: [/eBanking\/SO\/SPA\.aspx/i],
     invalidPassword: [

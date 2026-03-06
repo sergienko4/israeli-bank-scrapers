@@ -1,5 +1,13 @@
 import moment, { type Moment } from 'moment';
 
+/**
+ * Generates an array of moment objects, one per calendar month from startMoment up to and
+ * including the current month (or beyond it when futureMonths is specified).
+ *
+ * @param startMoment - the first month to include; accepts a Moment or an ISO date string
+ * @param futureMonths - optional number of additional months past the current month to include
+ * @returns an ordered array of moment objects, each set to the start of its month
+ */
 export default function getAllMonthMoments(
   startMoment: Moment | string,
   futureMonths?: number,

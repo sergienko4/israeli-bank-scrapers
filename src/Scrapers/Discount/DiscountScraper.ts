@@ -48,6 +48,14 @@ export interface ScrapedTransactionData {
   };
 }
 
+/**
+ * Converts a single scraped Discount Bank transaction to a normalized Transaction.
+ *
+ * @param txn - the raw scraped transaction
+ * @param txnStatus - whether the transaction is pending or completed
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a normalized Transaction object
+ */
 function convertOneTxn(
   txn: ScrapedTransaction,
   txnStatus: TransactionStatuses,
@@ -68,6 +76,14 @@ function convertOneTxn(
   return result;
 }
 
+/**
+ * Converts an array of scraped transactions to normalized Transaction objects.
+ *
+ * @param txns - the raw scraped transactions
+ * @param txnStatus - whether the transactions are pending or completed
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns an array of normalized Transaction objects
+ */
 function convertTransactions(
   txns: ScrapedTransaction[],
   txnStatus: TransactionStatuses,
@@ -84,6 +100,13 @@ export interface FetchOneAccOpts {
   options: ScraperOptions;
 }
 
+/**
+ * Extracts pending (future) transactions from the API response.
+ *
+ * @param txnsResult - the full API transaction response
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns an array of pending transactions
+ */
 function getPendingTxns(
   txnsResult: ScrapedTransactionData,
   options: ScraperOptions,
@@ -94,6 +117,14 @@ function getPendingTxns(
   return convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options);
 }
 
+/**
+ * Builds a single account result with balance and combined transactions from the API data.
+ *
+ * @param txnsResult - the full API transaction response for one account
+ * @param accountNumber - the account number this result belongs to
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns the account data with balance and transactions
+ */
 function buildOneAccountResult(
   txnsResult: ScrapedTransactionData,
   accountNumber: string,
@@ -113,6 +144,12 @@ function buildOneAccountResult(
   };
 }
 
+/**
+ * Fetches transaction data for a single account via the Discount API.
+ *
+ * @param opts - options with page, API URL, account number, start date, and scraper options
+ * @returns the account data or an error object if the API call failed
+ */
 async function fetchOneAccount(
   opts: FetchOneAccOpts,
 ): Promise<{ error: string } | { accountNumber: string; balance: number; txns: Transaction[] }> {
@@ -131,9 +168,16 @@ async function fetchOneAccount(
   return buildOneAccountResult(txnsResult, accountNumber, options);
 }
 
+/**
+ * Calculates the start date string for the API request, limited to max 1 year back.
+ *
+ * @param options - scraper options containing the user-specified start date
+ * @returns the formatted start date string for the Discount API
+ */
 function buildStartDateStr(options: ScraperOptions): string {
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
-  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
+  const optionsStartMoment = moment(options.startDate);
+  const startMoment = moment.max(defaultStartMoment, optionsStartMoment);
   return startMoment.format(CFG.format.date);
 }
 
@@ -145,13 +189,18 @@ export interface FetchAllAccountsOpts {
   options: ScraperOptions;
 }
 
+/**
+ * Fetches transaction data for all accounts in parallel and combines the results.
+ *
+ * @param opts - options with page, API URL, account numbers, start date, and scraper options
+ * @returns a scraping result with all account data or the first error encountered
+ */
 async function fetchAllAccounts(opts: FetchAllAccountsOpts): Promise<ScraperScrapingResult> {
   const { page, apiSiteUrl, accountNumbers, startDateStr, options } = opts;
-  const results = await Promise.all(
-    accountNumbers.map(accountNumber =>
-      fetchOneAccount({ page, apiSiteUrl, accountNumber, startDateStr, options }),
-    ),
+  const fetchPromises = accountNumbers.map(accountNumber =>
+    fetchOneAccount({ page, apiSiteUrl, accountNumber, startDateStr, options }),
   );
+  const results = await Promise.all(fetchPromises);
   const errorResult = results.find(r => 'error' in r);
   if (errorResult && 'error' in errorResult)
     return {
@@ -172,6 +221,12 @@ export interface FetchAccountDataOpts {
   options: ScraperOptions;
 }
 
+/**
+ * Builds the FetchAllAccountsOpts from the account info and scraper options.
+ *
+ * @param opts - fetch account data options with page, API URL, account info, and scraper options
+ * @returns options for fetching all accounts' transaction data
+ */
 function buildAccountsOpts(opts: FetchAccountDataOpts): FetchAllAccountsOpts {
   const { page, apiSiteUrl, accountInfo, options } = opts;
   const startDateStr = buildStartDateStr(options);
@@ -181,6 +236,13 @@ function buildAccountsOpts(opts: FetchAccountDataOpts): FetchAllAccountsOpts {
   return { page, apiSiteUrl, accountNumbers, startDateStr, options };
 }
 
+/**
+ * Fetches account metadata and then all account transaction data.
+ *
+ * @param page - the Playwright page for API requests
+ * @param options - scraper options for date range and rawTransaction inclusion
+ * @returns the complete scraping result for all Discount Bank accounts
+ */
 async function fetchAccountData(
   page: Page,
   options: ScraperOptions,
@@ -196,7 +258,8 @@ async function fetchAccountData(
       errorType: ScraperErrorTypes.Generic,
       errorMessage: 'failed to get account data',
     };
-  return fetchAllAccounts(buildAccountsOpts({ page, apiSiteUrl, accountInfo, options }));
+  const allAccountsOpts = buildAccountsOpts({ page, apiSiteUrl, accountInfo, options });
+  return fetchAllAccounts(allAccountsOpts);
 }
 
 export interface ScraperSpecificCredentials {
@@ -205,7 +268,14 @@ export interface ScraperSpecificCredentials {
   num: string;
 }
 
+/** Scraper implementation for Discount Bank (Bank Discont). */
 class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  /**
+   * Creates a DiscountScraper with the bank-specific login configuration.
+   *
+   * @param options - scraper options including companyId and timeouts
+   * @param config - login configuration (defaults to the Discount Bank config)
+   */
   constructor(
     options: ScraperOptions,
     config: LoginConfig = discountConfig(
@@ -215,6 +285,11 @@ class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     super(options, config);
   }
 
+  /**
+   * Fetches all account data and transactions for the logged-in Discount Bank user.
+   *
+   * @returns a scraping result with all account data or an error
+   */
   public async fetchData(): Promise<ScraperScrapingResult> {
     return fetchAccountData(this.page, this.options);
   }

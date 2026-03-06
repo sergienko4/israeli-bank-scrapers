@@ -35,6 +35,12 @@ const MAX_PASSWORD_FIELD_CONFIG: FieldConfig = {
 /** Selector for the Flow B ID field — only visible when Angular shows the second login step. */
 const MAX_ID_SEL = '#login-password.tab-pane.active [formcontrolname="id"]';
 
+/**
+ * Checks whether the Max Flow B ID input field is currently visible on the page.
+ *
+ * @param page - the Playwright page to check for the ID field
+ * @returns true if the ID field is visible (Flow B is active)
+ */
 async function isMaxIdFieldVisible(page: Page): Promise<boolean> {
   return page
     .locator(MAX_ID_SEL)
@@ -42,6 +48,15 @@ async function isMaxIdFieldVisible(page: Page): Promise<boolean> {
     .catch(() => false);
 }
 
+/**
+ * Fills the username, password, and ID fields in the Max Flow B second login step.
+ *
+ * @param page - the Playwright page showing the second login form
+ * @param credentials - the user credentials for the second step
+ * @param credentials.username - the Max username
+ * @param credentials.password - the Max password
+ * @param credentials.id - the user's national ID number (ת.ז.)
+ */
 async function fillSecondStepFields(
   page: Page,
   credentials: { username: string; password: string; id: string },
@@ -59,6 +74,12 @@ async function fillSecondStepFields(
 /**
  * Handles the optional second-login step in Max's Flow B.
  * Detection uses CSS visibility (isVisible) — not DOM presence — to avoid false positives.
+ *
+ * @param page - the Playwright page after initial login form submission
+ * @param credentials - the user credentials (id is optional, used only in Flow B)
+ * @param credentials.username - the Max username
+ * @param credentials.password - the Max password
+ * @param credentials.id - optional national ID; required only when Flow B appears
  */
 export async function maxHandleSecondLoginStep(
   page: Page,
@@ -69,6 +90,11 @@ export async function maxHandleSecondLoginStep(
   await fillSecondStepFields(page, { ...credentials, id: credentials.id });
 }
 
+/**
+ * First pre-action step: dismisses any popup and clicks the personal area link.
+ *
+ * @param page - the Playwright page on the Max home page
+ */
 async function maxPreActionStep1(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '#closePopup'))
     await page.$eval('#closePopup', el => {
@@ -79,6 +105,11 @@ async function maxPreActionStep1(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Second pre-action step: clicks the private login link and waits for the password tab to activate.
+ *
+ * @param page - the Playwright page showing the Max login area
+ */
 async function maxPreActionStep2(page: Page): Promise<void> {
   if (await elementPresentOnPage(page, '.login-link#private'))
     await page.$eval('.login-link#private', el => {
@@ -93,12 +124,23 @@ async function maxPreActionStep2(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Pre-login action that navigates from the Max home page to the password login form.
+ *
+ * @param page - the Playwright page on the Max home page
+ * @returns undefined (login form is on the main page, not in a frame)
+ */
 async function maxPreAction(page: Page): Promise<Frame | undefined> {
   await maxPreActionStep1(page);
   await maxPreActionStep2(page);
   return undefined;
 }
 
+/**
+ * Post-login action that waits for the Max homepage redirect or a login error popup.
+ *
+ * @param page - the Playwright page after form submission
+ */
 async function maxPostAction(page: Page): Promise<void> {
   if (page.url().startsWith(`${CFG.urls.base}/homepage`)) return;
   await Promise.race([
@@ -118,6 +160,11 @@ export const MAX_CONFIG: LoginConfig = {
     { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
   submit: [{ kind: 'css', value: 'app-user-login-form .general-button.send-me-code' }],
+  /**
+   * Waits for the Max personal area link to appear before starting the login flow.
+   *
+   * @param page - the Playwright page on the Max home page
+   */
   checkReadiness: async (page: Page) => {
     await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
   },

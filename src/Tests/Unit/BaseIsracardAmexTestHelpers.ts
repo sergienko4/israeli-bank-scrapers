@@ -4,8 +4,15 @@ import { createMockScraperOptions } from '../MockPage';
 
 const BASE_URL = 'https://americanexpress.co.il';
 
+/** Concrete AmexScraper used in unit tests with a fixed base URL and company code. */
 export default class TestAmexScraper extends IsracardAmexBaseScraper {
+  /**
+   * Creates a TestAmexScraper with optional scraper option overrides.
+   *
+   * @param overrides - partial scraper options to override the test defaults
+   */
   constructor(overrides: Partial<ScraperOptions> = {}) {
-    super(createMockScraperOptions(overrides), BASE_URL, '77');
+    const opts = createMockScraperOptions(overrides);
+    super(opts, BASE_URL, '77');
   }
 }

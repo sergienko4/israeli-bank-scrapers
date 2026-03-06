@@ -8,6 +8,11 @@ import {
 } from '../../Common/OtpDetector';
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -18,6 +23,12 @@ jest.mock('../../Common/Debug', () => ({
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 jest.mock('../../Common/SelectorResolver', () => ({
+  /**
+   * Delegates to the MOCK_TRY_IN_CONTEXT spy for testing.
+   *
+   * @param args - the arguments forwarded to the mock
+   * @returns the result from MOCK_TRY_IN_CONTEXT
+   */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
@@ -31,6 +42,12 @@ interface OtpMockPage {
   frameLocator: jest.Mock;
 }
 
+/**
+ * Creates a minimal mock page for OTP detector tests.
+ *
+ * @param bodyText - the body text to return from page.evaluate
+ * @returns a mock page object for OTP detection tests
+ */
 function makePage(bodyText: string | undefined): OtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
@@ -52,6 +69,12 @@ function makePage(bodyText: string | undefined): OtpMockPage & Page {
   } as unknown as OtpMockPage & Page;
 }
 
+/**
+ * Creates a mock page with a child iframe for OTP detector tests.
+ *
+ * @param bodyText - the body text to return from page.evaluate
+ * @returns a mock page with a child frame for testing iframe-based OTP detection
+ */
 function makePageWithIframe(bodyText: string): OtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),

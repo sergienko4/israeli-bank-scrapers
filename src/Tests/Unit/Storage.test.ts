@@ -1,6 +1,12 @@
 import { getFromSessionStorage } from '../../Common/Storage';
 import { createMockPage } from '../MockPage';
 
+/**
+ * Creates a mock page that returns session storage data from the given map.
+ *
+ * @param sessionData - a map of session storage keys to their string values (or null)
+ * @returns a mock page configured to return the given session data
+ */
 function createSessionMockPage(
   sessionData: Record<string, string | null>,
 ): ReturnType<typeof createMockPage> {

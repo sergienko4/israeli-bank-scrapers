@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchOneAccountOpts } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { FetchOneAccountOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

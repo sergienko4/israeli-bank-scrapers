@@ -1,5 +1,6 @@
 import { Parser } from '@json2csv/plainjs';
 import fs from 'fs';
+import { createRequire } from 'module';
 import moment from 'moment';
 import path from 'path';
 
@@ -24,6 +25,11 @@ let isConfigurationLoaded = false;
 const MISSING_ERROR_MESSAGE =
   'Missing test environment configuration. To troubleshoot this issue open CONTRIBUTING.md file and read the "F.A.Q regarding the tests" section.';
 
+/**
+ * Returns the loaded tests configuration, reading it from environment or file on first call.
+ *
+ * @returns the TestsConfig object for the current test environment
+ */
 export function getTestsConfig(): TestsConfig {
   if (isConfigurationLoaded) {
     if (!testsConfig) {
@@ -50,8 +56,8 @@ export function getTestsConfig(): TestsConfig {
 
   try {
     const configPath = path.join(__dirname, '.tests-config.js');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    testsConfig = require(configPath) as TestsConfig;
+    const loadConfig = createRequire(__filename);
+    testsConfig = loadConfig(configPath) as TestsConfig;
     return testsConfig;
   } catch (e) {
     console.error(e);
@@ -59,6 +65,13 @@ export function getTestsConfig(): TestsConfig {
   }
 }
 
+/**
+ * Returns the test or test.skip function based on whether the company API is enabled in config.
+ *
+ * @param scraperId - the scraper company identifier to check in the config credentials
+ * @param filter - optional predicate that further gates the test based on config values
+ * @returns the jest test function or test.skip depending on configuration
+ */
 export function maybeTestCompanyAPI(
   scraperId: string,
   filter?: (_config: TestsConfig) => boolean | undefined,
@@ -74,10 +87,21 @@ export function maybeTestCompanyAPI(
     : test.skip;
 }
 
+/**
+ * Extends the Jest test timeout to allow for long async scraping operations.
+ *
+ * @param timeout - the timeout in milliseconds; defaults to 120000 (2 minutes)
+ */
 export function extendAsyncTimeout(timeout = 120000): void {
   jest.setTimeout(timeout);
 }
 
+/**
+ * Exports scraped transactions to a CSV file in the configured output directory.
+ *
+ * @param fileName - the base file name (without extension) for the CSV output
+ * @param accounts - the list of transaction accounts to serialize
+ */
 export function exportTransactions(fileName: string, accounts: TransactionsAccount[]): void {
   const config = getTestsConfig();
 

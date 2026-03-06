@@ -38,6 +38,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -60,18 +65,32 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
+/**
+ * Sets up fetchGetWithinPage to return a mock Max categories response.
+ */
 function mockCategories(): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     result: [{ id: 1, name: 'מזון' }],
   });
 }
 
+/**
+ * Sets up fetchGetWithinPage to return a mock Max transaction month response.
+ *
+ * @param txns - the transactions to include in the mock response
+ */
 function mockTxnMonth(txns: ScrapedTransaction[] = []): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     result: { transactions: txns },
   });
 }
 
+/**
+ * Creates a mock ScrapedTransaction for Max unit tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a ScrapedTransaction object for testing
+ */
 function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     shortCardNumber: '4580',
@@ -93,7 +112,8 @@ function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
+  const freshPage = createMockPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -308,7 +328,8 @@ describe('fetchData', () => {
 
     const result = await new MaxScraper(createMockScraperOptions()).scrape(CREDS);
     expect(result.accounts).toHaveLength(2);
-    expect((result.accounts ?? []).map(a => a.accountNumber).sort()).toEqual(['1111', '2222']);
+    const accountNumbers = (result.accounts ?? []).map(a => a.accountNumber).sort();
+    expect(accountNumbers).toEqual(['1111', '2222']);
   });
 
   it('assigns category from loaded categories', async () => {

@@ -16,6 +16,11 @@ jest.mock('../../Common/SelectorResolver', () => ({
 }));
 jest.mock('../../Common/Waiting', () => ({ sleep: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -30,7 +35,8 @@ beforeEach(() => {
 
 describe('maxHandleSecondLoginStep', () => {
   it('returns early when no id credential provided', async () => {
-    await maxHandleSecondLoginStep(createMockPage(), { username: 'u', password: 'p' });
+    const page = createMockPage();
+    await maxHandleSecondLoginStep(page, { username: 'u', password: 'p' });
     expect(fillInput).not.toHaveBeenCalled();
   });
 

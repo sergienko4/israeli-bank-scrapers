@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchedAccountTransactionsData } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { FetchedAccountTransactionsData as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

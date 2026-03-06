@@ -34,14 +34,26 @@ const BASE_CFG: LoginConfig = {
     { kind: 'css', value: '#WRONG_loginBtn' },
     { kind: 'css', value: '.login-btn' },
   ],
-  checkReadiness: async page => {
-    await waitUntilElementFound(page, '#userCode');
-  },
-  postAction: async page => {
-    await waitForRedirect(page, { timeout: 20000 }).catch(() => {
-      /* no-op */
-    });
-  },
+  checkReadiness:
+    /**
+     * Waits for the Hapoalim login user-code field to appear before filling inputs.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await waitUntilElementFound(page, '#userCode');
+    },
+  postAction:
+    /**
+     * Waits for a redirect after login submission, ignoring timeout errors.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await waitForRedirect(page, { timeout: 20000 }).catch(() => {
+        /* no-op */
+      });
+    },
   possibleResults: {
     // Narrow patterns — /ng-portals/ alone is too broad and matches the auth redirect URL
     success: [`${BASE}/portalserver/HomePage`, /ng-portals\/rb\/he\/homepage/],
@@ -79,15 +91,27 @@ describe('E2E: Selector fallback — Hapoalim', () => {
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
       ...BASE_CFG,
-      checkReadiness: async (page: Page) => {
-        await waitUntilElementFound(page, '#userCode');
-        await injectFormByInput(page, '#userCode');
-      },
-      postAction: async (page: Page) => {
-        await waitForRedirect(page, { timeout: 10000 }).catch(() => {
-          /* no-op */
-        });
-      },
+      checkReadiness:
+        /**
+         * Waits for the user-code field then injects it into an iframe for Round 1 testing.
+         *
+         * @param page - the Playwright page to interact with
+         */
+        async (page: Page) => {
+          await waitUntilElementFound(page, '#userCode');
+          await injectFormByInput(page, '#userCode');
+        },
+      postAction:
+        /**
+         * Waits for a redirect after iframe form submission, ignoring timeout errors.
+         *
+         * @param page - the Playwright page to wait on
+         */
+        async (page: Page) => {
+          await waitForRedirect(page, { timeout: 10000 }).catch(() => {
+            /* no-op */
+          });
+        },
     };
     const result = await new ConcreteGenericScraper(
       {

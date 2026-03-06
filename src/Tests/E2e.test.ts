@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { CompanyTypes, createScraper, SCRAPERS } from '../Index';
 
 describe('E2E: Scraper Factory', () => {
@@ -10,8 +9,8 @@ describe('E2E: Scraper Factory', () => {
       startDate: new Date(),
     });
     expect(scraper).toBeDefined();
-    expect(scraper.scrape).toBeInstanceOf(Function);
-    expect(scraper.onProgress).toBeInstanceOf(Function);
+    expect(typeof scraper.scrape).toBe('function');
+    expect(typeof scraper.onProgress).toBe('function');
   });
 
   test('every CompanyType has a SCRAPERS definition', () => {
@@ -32,6 +31,7 @@ describe('E2E: Scraper error handling', () => {
       shouldShowBrowser: false,
     });
 
-    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow();
+    const scrapePromise = scraper.scrape({ userCode: 'test', password: 'test' });
+    await expect(scrapePromise).rejects.toThrow();
   }, 30000);
 });

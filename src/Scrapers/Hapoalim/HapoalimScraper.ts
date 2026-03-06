@@ -18,9 +18,10 @@ const LOG = getDebug('hapoalim');
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];
 
-// eslint-disable-next-line @typescript-eslint/no-namespace
-declare namespace window {
-  const bnhpApp: { restContext: string };
+declare global {
+  interface Window {
+    bnhpApp: { restContext: string };
+  }
 }
 
 export interface ScrapedTransaction {
@@ -69,6 +70,12 @@ export interface BalanceAndCreditLimit {
   withdrawalBalance: number;
 }
 
+/**
+ * Builds a human-readable memo string from a Hapoalim transaction's beneficiary details.
+ *
+ * @param txn - the raw scraped transaction with optional beneficiary data
+ * @returns a memo string with beneficiary info, or an empty string if no data
+ */
 function buildMemo(txn: ScrapedTransaction): string {
   if (!txn.beneficiaryDetailsData) return '';
   const { partyHeadline, partyName, messageHeadline, messageDetail } = txn.beneficiaryDetailsData;
@@ -80,6 +87,13 @@ function buildMemo(txn: ScrapedTransaction): string {
   return memoLines.join(' ');
 }
 
+/**
+ * Converts a single Hapoalim scraped transaction to a normalized Transaction.
+ *
+ * @param txn - the raw scraped transaction
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a normalized Transaction object
+ */
 function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
   const isOutbound = txn.eventActivityTypeCode === 2;
   const amount = isOutbound ? -txn.eventAmount : txn.eventAmount;
@@ -99,10 +113,23 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
   return result;
 }
 
+/**
+ * Converts an array of scraped transactions to normalized Transaction objects.
+ *
+ * @param txns - the raw scraped transactions
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns an array of normalized Transaction objects
+ */
 function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
+/**
+ * Reads the restContext path from the bnhpApp global variable on the page.
+ *
+ * @param page - the Playwright page with the Hapoalim app loaded
+ * @returns the REST context path used to build API URLs
+ */
 async function getRestContext(page: Page): Promise<string> {
   await waitUntil(() => {
     return page.evaluate(() => !!window.bnhpApp);
@@ -115,6 +142,14 @@ async function getRestContext(page: Page): Promise<string> {
   return result.slice(1);
 }
 
+/**
+ * Performs a POST request with Hapoalim's XSRF token from the browser cookie jar.
+ *
+ * @param page - the Playwright page with an active Hapoalim session
+ * @param url - the API endpoint URL to POST to
+ * @param pageUuid - the page identifier to include in the request headers
+ * @returns the fetched transaction data, or null if the request failed
+ */
 async function fetchPoalimXSRFWithinPage(
   page: Page,
   url: string,
@@ -149,6 +184,12 @@ export interface EnrichTxnOpts {
   accountNumber: string;
 }
 
+/**
+ * Fetches additional PFM details for a single transaction and merges them in.
+ *
+ * @param opts - enrichment options with transaction, API base URL, page, and account number
+ * @returns the transaction enriched with PFM reference number, or the original if unavailable
+ */
 async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
   const { transaction, baseUrl, page, accountNumber } = opts;
   const { pfmDetails, serialNumber } = transaction;
@@ -165,13 +206,18 @@ async function enrichOneTxn(opts: EnrichTxnOpts): Promise<ScrapedTransaction> {
   return transaction;
 }
 
+/**
+ * Enriches all transactions in the result with additional PFM details in parallel.
+ *
+ * @param opts - options with transactions, API base URL, page, and account number
+ * @returns the transaction result with all transactions enriched
+ */
 async function getExtraScrap(opts: ExtraScrapOpts): Promise<FetchedAccountTransactionsData> {
   const { txnsResult, baseUrl, page, accountNumber } = opts;
-  const res = await Promise.all(
-    txnsResult.transactions.map(t =>
-      enrichOneTxn({ transaction: t, baseUrl, page, accountNumber }),
-    ),
+  const enrichPromises = txnsResult.transactions.map(t =>
+    enrichOneTxn({ transaction: t, baseUrl, page, accountNumber }),
   );
+  const res = await Promise.all(enrichPromises);
   return { transactions: res };
 }
 
@@ -186,6 +232,13 @@ export interface GetAccountTxnsOpts {
   options?: ScraperOptions;
 }
 
+/**
+ * Optionally enriches the transaction result with additional PFM data.
+ *
+ * @param txnsResult - the raw transaction result from the API
+ * @param opts - options including the shouldAddTransactionInformation flag
+ * @returns the enriched result or the original if enrichment is disabled
+ */
 async function enrichTxnsIfNeeded(
   txnsResult: FetchedAccountTransactionsData | null,
   opts: GetAccountTxnsOpts,
@@ -196,6 +249,12 @@ async function enrichTxnsIfNeeded(
   return txnsResult;
 }
 
+/**
+ * Fetches and converts transactions for a single account within a date range.
+ *
+ * @param opts - options with API URLs, page, account number, dates, and scraper options
+ * @returns normalized Transaction objects for the account
+ */
 async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transaction[]> {
   const { apiSiteUrl, accountNumber, startDate, endDate, page, options } = opts;
   const numItems = String(CFG.format.numItemsPerPage);
@@ -213,6 +272,14 @@ async function getAccountTransactions(opts: GetAccountTxnsOpts): Promise<Transac
   return convertTransactions(finalResult?.transactions ?? [], options);
 }
 
+/**
+ * Fetches the current balance for a single Hapoalim account.
+ *
+ * @param apiSiteUrl - the API site URL with the restContext path
+ * @param page - the Playwright page with an active session
+ * @param accountNumber - the account number to fetch the balance for
+ * @returns the current balance as a number, or undefined if unavailable
+ */
 async function getAccountBalance(
   apiSiteUrl: string,
   page: Page,
@@ -238,6 +305,12 @@ export interface FetchOneAccountOpts {
   options: ScraperOptions;
 }
 
+/**
+ * Fetches balance and transactions for a single Hapoalim account.
+ *
+ * @param opts - options with page, URLs, account data, date options, and scraper options
+ * @returns the account number, balance, and transactions
+ */
 async function fetchOneAccount(
   opts: FetchOneAccountOpts,
 ): Promise<{ accountNumber: string; balance: number | undefined; txns: Transaction[] }> {
@@ -258,6 +331,13 @@ async function fetchOneAccount(
   return { accountNumber, balance, txns };
 }
 
+/**
+ * Fetches the list of open accounts (not closed) from the Hapoalim accounts API.
+ *
+ * @param page - the Playwright page with an active Hapoalim session
+ * @param baseUrl - the Hapoalim API base URL
+ * @returns an array of open account data objects
+ */
 async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAccountData> {
   const accountsInfo =
     (await fetchGetWithinPage<FetchedAccountData>(
@@ -273,15 +353,30 @@ async function fetchOpenAccounts(page: Page, baseUrl: string): Promise<FetchedAc
   return openAccountsInfo;
 }
 
+/**
+ * Builds the start and end date strings for Hapoalim API transaction queries.
+ *
+ * @param options - scraper options containing the user-specified start date
+ * @returns start and end date strings in the Hapoalim API format
+ */
 function buildDateOpts(options: ScraperOptions): { startDateStr: string; endDateStr: string } {
   const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
+  const optionsStartMoment = moment(options.startDate);
+  const startMoment = moment.max(defaultStartMoment, optionsStartMoment);
   return {
     startDateStr: startMoment.format(CFG.format.date),
     endDateStr: moment().format(CFG.format.date),
   };
 }
 
+/**
+ * Fetches all open account data and transactions for the logged-in Hapoalim user.
+ *
+ * @param page - the Playwright page with an active Hapoalim session
+ * @param baseUrl - the Hapoalim API base URL
+ * @param options - scraper options for date range and enrichment settings
+ * @returns a successful scraping result with all account data
+ */
 async function fetchAccountData(
   page: Page,
   baseUrl: string,
@@ -294,11 +389,10 @@ async function fetchAccountData(
   const apiSiteUrl = `${baseUrl}/${restContext}`;
   const openAccountsInfo = await fetchOpenAccounts(page, baseUrl);
   const dateOpts = buildDateOpts(options);
-  const accounts = await Promise.all(
-    openAccountsInfo.map(acc =>
-      fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options }),
-    ),
+  const accountFetchPromises = openAccountsInfo.map(acc =>
+    fetchOneAccount({ page, baseUrl, apiSiteUrl, account: acc, dateOpts, options }),
   );
+  const accounts = await Promise.all(accountFetchPromises);
   LOG.info('fetching ended');
   return { success: true, accounts };
 }
@@ -308,11 +402,22 @@ export interface ScraperSpecificCredentials {
   password: string;
 }
 
+/** Scraper implementation for Bank Hapoalim. */
 class HapoalimScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  /**
+   * Creates a HapoalimScraper with the standard Hapoalim login configuration.
+   *
+   * @param options - scraper options including companyId and timeouts
+   */
   constructor(options: ScraperOptions) {
     super(options, HAPOALIM_CONFIG);
   }
 
+  /**
+   * Fetches all account data and transactions for the Hapoalim user.
+   *
+   * @returns a successful scraping result with all open account transactions
+   */
   public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; balance: number | undefined; txns: Transaction[] }[];

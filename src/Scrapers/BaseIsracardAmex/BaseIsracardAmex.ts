@@ -23,6 +23,16 @@ const { loginDelayMinMs: LOGIN_DELAY_MIN, loginDelayMaxMs: LOGIN_DELAY_MAX } =
 
 const LOG = getDebug('base-isracard-amex');
 
+/**
+ * Builds the login POST body for the performLogonI endpoint.
+ *
+ * @param credentials - user card credentials
+ * @param credentials.id - the user's national ID number
+ * @param credentials.password - the user's bank password
+ * @param credentials.card6Digits - the last 6 digits of the card number
+ * @param userName - the userName returned by the ValidateIdData API
+ * @returns a key-value map for the login POST request body
+ */
 function buildLoginRequest(
   credentials: { id: string; password: string; card6Digits: string },
   userName: string,
@@ -37,6 +47,7 @@ function buildLoginRequest(
   };
 }
 
+/** Base scraper shared by Amex and Isracard — uses API login with card validation. */
 class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   id: string;
   password: string;
@@ -48,6 +59,13 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
 
   private _servicesUrl: string;
 
+  /**
+   * Creates an IsracardAmexBaseScraper with the given API base URL and company code.
+   *
+   * @param options - scraper options including companyId, timeouts, and browser settings
+   * @param baseUrl - the bank's API base URL (e.g. he.americanexpress.co.il)
+   * @param companyCode - the bank-specific company code used in API requests
+   */
   constructor(options: ScraperOptions, baseUrl: string, companyCode: string) {
     super(options);
     this._baseUrl = baseUrl;
@@ -55,6 +73,15 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     this._servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
+  /**
+   * Performs API-based login via ValidateIdData → performLogonI flow.
+   *
+   * @param credentials - user card credentials
+   * @param credentials.id - the user's national ID number
+   * @param credentials.password - the user's bank password
+   * @param credentials.card6Digits - the last 6 digits of the card number
+   * @returns the login result (success or appropriate error type)
+   */
   public async login(credentials: {
     id: string;
     password: string;
@@ -63,12 +90,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     this.setupResponseLogging();
     await this.navigateToLoginPage();
     const validatedData = await this.validateCredentials(credentials);
-    if (!validatedData) {
-      throw WafBlockError.apiBlock(0, this.page.url(), {
-        pageTitle: await this.page.title(),
-        responseSnippet: 'validateCredentials returned null',
-      });
-    }
+    if (!validatedData) return await this.throwWafBlockError();
     const validateReturnCode = validatedData.returnCode;
     LOG.info(`user validate with return code '${validateReturnCode}'`);
     return validateReturnCode === '1'
@@ -76,13 +98,19 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
       : this.handleValidateReturnCode(validateReturnCode);
   }
 
+  /**
+   * Fetches all transaction data for the current user across all months.
+   *
+   * @returns a successful scraping result with all account transactions
+   */
   public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; txns: Transaction[] }[];
   }> {
     const defaultStartMoment = moment().subtract(1, 'years');
     const startDate = this.options.startDate;
-    const startMoment = moment.max(defaultStartMoment, moment(startDate));
+    const startDateMoment = moment(startDate);
+    const startMoment = moment.max(defaultStartMoment, startDateMoment);
     return fetchAllTransactions({
       page: this.page,
       options: this.options,
@@ -91,6 +119,27 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     });
   }
 
+  /**
+   * Throws a WafBlockError when credential validation returns null (WAF or IP block detected).
+   * @returns a Promise that never resolves — always throws
+   */
+  private async throwWafBlockError(): Promise<never> {
+    const currentPageUrl = this.page.url();
+    throw WafBlockError.apiBlock(0, currentPageUrl, {
+      pageTitle: await this.page.title(),
+      responseSnippet: 'validateCredentials returned null',
+    });
+  }
+
+  /**
+   * Builds the validation POST body for the ValidateIdData endpoint.
+   *
+   * @param credentials - user card credentials
+   * @param credentials.id - the user's national ID number
+   * @param credentials.password - the user's bank password
+   * @param credentials.card6Digits - the last 6 digits of the card number
+   * @returns a key-value map for the validation POST request body
+   */
   private buildValidateRequest(credentials: {
     id: string;
     password: string;
@@ -106,6 +155,15 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     };
   }
 
+  /**
+   * Calls ValidateIdData API to verify card ownership and retrieve the userName.
+   *
+   * @param credentials - user card credentials
+   * @param credentials.id - the user's national ID number
+   * @param credentials.password - the user's bank password
+   * @param credentials.card6Digits - the last 6 digits of the card number
+   * @returns the ValidateIdDataBean on success, or null if validation failed
+   */
   private async validateCredentials(credentials: {
     id: string;
     password: string;
@@ -117,12 +175,19 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
       data: this.buildValidateRequest(credentials),
     });
     if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      LOG.info('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
+      const resultSnippet = JSON.stringify(result).substring(0, 300);
+      LOG.info('validation failed: result=%s', resultSnippet);
       return null;
     }
     return result.ValidateIdDataBean;
   }
 
+  /**
+   * Maps the performLogonI status code to a ScraperScrapingResult.
+   *
+   * @param status - the login status string ('1'=success, '3'=change password, other=failed)
+   * @returns the appropriate scraping result
+   */
   private interpretLoginStatus(status: string | undefined): ScraperScrapingResult {
     if (status === '1') {
       this.emitProgress(ScraperProgressTypes.LoginSuccess);
@@ -140,6 +205,16 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     };
   }
 
+  /**
+   * Sends the performLogonI login request and interprets the result.
+   *
+   * @param credentials - user card credentials
+   * @param credentials.id - the user's national ID number
+   * @param credentials.password - the user's bank password
+   * @param credentials.card6Digits - the last 6 digits of the card number
+   * @param userName - the userName returned by ValidateIdData
+   * @returns the login result based on the API response status
+   */
   private async performLogin(
     credentials: { id: string; password: string; card6Digits: string },
     userName: string,
@@ -153,6 +228,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     return this.interpretLoginStatus(loginResult?.status);
   }
 
+  /**
+   * Interprets a non-'1' ValidateIdData returnCode to a scraping error result.
+   *
+   * @param returnCode - the returnCode from ValidateIdDataBean ('4'=change password, other=invalid)
+   * @returns the appropriate error scraping result
+   */
   private handleValidateReturnCode(returnCode: string): ScraperScrapingResult {
     if (returnCode === '4') {
       this.emitProgress(ScraperProgressTypes.ChangePassword);
@@ -166,14 +247,23 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     };
   }
 
+  /**
+   * Attaches a response listener that logs API proxy and personal area responses.
+   */
   private setupResponseLogging(): void {
     this.page.on('response', response => {
       const url = response.url();
-      if (url.includes('ProxyRequestHandler') || url.includes('personalarea'))
-        LOG.info('response: %d %s', response.status(), url.substring(0, 120));
+      if (url.includes('ProxyRequestHandler') || url.includes('personalarea')) {
+        const responseStatus = response.status();
+        const urlSnippet = url.substring(0, 120);
+        LOG.info('response: %d %s', responseStatus, urlSnippet);
+      }
     });
   }
 
+  /**
+   * Navigates to the bank's personal area login page and waits for it to be fully loaded.
+   */
   private async navigateToLoginPage(): Promise<void> {
     LOG.info(`navigating to ${this._baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this._baseUrl}/personalarea/Login`);

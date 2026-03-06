@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { ScraperSpecificCredentials } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { ScraperSpecificCredentials as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

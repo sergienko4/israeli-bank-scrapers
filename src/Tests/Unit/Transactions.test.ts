@@ -9,6 +9,12 @@ import {
 } from '../../Common/Transactions';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 
+/**
+ * Creates a mock Transaction for transaction utility unit tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a Transaction object with sensible defaults
+ */
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
     type: TransactionTypes.Normal,
@@ -52,11 +58,14 @@ describe('fixInstallments', () => {
     ];
     const result = fixInstallments(txns);
     const expected = moment('2024-01-15').add(2, 'month');
-    expect(moment(result[0].date).isSame(expected, 'month')).toBe(true);
+    const resultMoment = moment(result[0].date);
+    const isSameMonth = resultMoment.isSame(expected, 'month');
+    expect(isSameMonth).toBe(true);
   });
 
   it('returns empty array for empty input', () => {
-    expect(fixInstallments([])).toEqual([]);
+    const emptyResult = fixInstallments([]);
+    expect(emptyResult).toEqual([]);
   });
 
   it('does not mutate original transaction', () => {
@@ -84,7 +93,8 @@ describe('sortTransactionsByDate', () => {
   });
 
   it('returns empty array for empty input', () => {
-    expect(sortTransactionsByDate([])).toEqual([]);
+    const sortedEmpty = sortTransactionsByDate([]);
+    expect(sortedEmpty).toEqual([]);
   });
 
   it('handles single transaction', () => {
@@ -148,7 +158,8 @@ describe('filterOldTransactions', () => {
   });
 
   it('returns empty for empty input', () => {
-    expect(filterOldTransactions([], startMoment, false)).toEqual([]);
+    const filteredEmpty = filterOldTransactions([], startMoment, false);
+    expect(filteredEmpty).toEqual([]);
   });
 });
 
@@ -198,8 +209,10 @@ describe('getRawTransaction', () => {
   });
 
   it('returns primitive values as-is', () => {
-    expect(getRawTransaction('hello')).toBe('hello');
-    expect(getRawTransaction(42)).toBe(42);
+    const strResult = getRawTransaction('hello');
+    const numResult = getRawTransaction(42);
+    expect(strResult).toBe('hello');
+    expect(numResult).toBe(42);
   });
 });
 
@@ -211,28 +224,30 @@ describe('property-based invariants', () => {
     .map(ms => createTransaction({ date: new Date(ms).toISOString() }));
 
   it('sortTransactionsByDate always produces ascending order', () => {
-    fc.assert(
-      fc.property(fc.array(txnArb, { minLength: 2, maxLength: 20 }), txns => {
-        const sorted = sortTransactionsByDate(txns);
-        for (let i = 1; i < sorted.length; i++) {
-          expect(new Date(sorted[i].date).getTime()).toBeGreaterThanOrEqual(
-            new Date(sorted[i - 1].date).getTime(),
-          );
-        }
-      }),
-    );
+    const arrArb1 = fc.array(txnArb, { minLength: 2, maxLength: 20 });
+    const property1 = fc.property(arrArb1, txns => {
+      const sorted = sortTransactionsByDate(txns);
+      for (let i = 1; i < sorted.length; i++) {
+        const curMs = new Date(sorted[i].date).getTime();
+        const prevMs = new Date(sorted[i - 1].date).getTime();
+        expect(curMs).toBeGreaterThanOrEqual(prevMs);
+      }
+    });
+    fc.assert(property1);
   });
 
   it('filterOldTransactions never returns transactions before start date', () => {
     const startDate = new Date('2023-06-01');
     const startMoment = moment(startDate);
-    fc.assert(
-      fc.property(fc.array(txnArb, { minLength: 1, maxLength: 20 }), txns => {
-        const result = filterOldTransactions(txns, startMoment, false);
-        result.forEach(t => {
-          expect(moment(t.date).isSameOrAfter(startMoment, 'day')).toBe(true);
-        });
-      }),
-    );
+    const arrArb2 = fc.array(txnArb, { minLength: 1, maxLength: 20 });
+    const property2 = fc.property(arrArb2, txns => {
+      const result = filterOldTransactions(txns, startMoment, false);
+      result.forEach(t => {
+        const dateMoment = moment(t.date);
+        const isAfterStart = dateMoment.isSameOrAfter(startMoment, 'day');
+        expect(isAfterStart).toBe(true);
+      });
+    });
+    fc.assert(property2);
   });
 });

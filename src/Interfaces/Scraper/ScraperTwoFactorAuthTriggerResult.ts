@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { ScraperTwoFactorAuthTriggerResult } from '../../Scrapers/Base/Interface';
+export type { ScraperTwoFactorAuthTriggerResult as default } from '../../Scrapers/Base/Interface';

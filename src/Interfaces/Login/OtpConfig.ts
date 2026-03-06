@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { OtpConfig } from '../../Scrapers/Base/LoginConfigTypes';
+export type { OtpConfig as default } from '../../Scrapers/Base/LoginConfigTypes';

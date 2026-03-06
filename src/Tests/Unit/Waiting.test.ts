@@ -50,40 +50,41 @@ describe('waitUntil', () => {
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(
-      waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 }),
-    ).rejects.toThrow(TimeoutError);
+    const neverTruePromise = waitUntil(() => Promise.resolve(false), 'never true', {
+      timeout: 100,
+      interval: 10,
+    });
+    await expect(neverTruePromise).rejects.toThrow(TimeoutError);
   });
 
   // waitUntil's catch handler calls reject() with no value (undefined)
   it('rejects when async test throws', async () => {
-    await expect(
-      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', {
-        timeout: 5000,
-        interval: 10,
-      }),
-    ).rejects.toBeUndefined();
+    const failingPromise = waitUntil(
+      () => Promise.reject(new Error('test error')),
+      'failing test',
+      { timeout: 5000, interval: 10 },
+    );
+    await expect(failingPromise).rejects.toBeUndefined();
   });
 });
 
 describe('raceTimeout', () => {
   it('returns promise result when it resolves before timeout', async () => {
-    const result: unknown = await raceTimeout(5000, Promise.resolve('fast'));
+    const fastPromise = Promise.resolve('fast');
+    const result: unknown = await raceTimeout(5000, fastPromise);
     expect(result).toBe('fast');
   });
 
   it('returns undefined when promise times out', async () => {
-    const result: unknown = await raceTimeout(
-      50,
-      sleep(200).then(() => 'slow'),
-    );
+    const slowPromise = sleep(200).then(() => 'slow');
+    const result: unknown = await raceTimeout(50, slowPromise);
     expect(result).toBeUndefined();
   });
 
   it('throws non-timeout errors from the promise', async () => {
-    await expect(raceTimeout(5000, Promise.reject(new Error('real error')))).rejects.toThrow(
-      'real error',
-    );
+    const rejectPromise = Promise.reject(new Error('real error'));
+    const racePromise = raceTimeout(5000, rejectPromise);
+    await expect(racePromise).rejects.toThrow('real error');
   });
 });
 
@@ -109,7 +110,8 @@ describe('runSerial', () => {
       (): Promise<number> => Promise.resolve(1),
       (): Promise<number> => Promise.reject(new Error('fail')),
     ];
-    await expect(runSerial(actions)).rejects.toThrow('fail');
+    const serialPromise = runSerial(actions);
+    await expect(serialPromise).rejects.toThrow('fail');
   });
 });
 

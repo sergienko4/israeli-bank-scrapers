@@ -6,13 +6,24 @@ interface PlaywrightBrowsersJson {
   browsers: { name: string; browserVersion: string }[];
 }
 
+/**
+ * Reads the bundled Playwright browsers.json to detect the pinned Chromium major version.
+ * Falls back to '145' when the file cannot be read (e.g. in environments without playwright-core).
+ *
+ * @returns the Chromium major version string, e.g. '124'
+ */
 function detectChromeVersion(): string {
   try {
     const pkgPath = require.resolve('playwright-core/package.json');
-    const browsersPath = join(dirname(pkgPath), 'browsers.json');
-    const data = JSON.parse(readFileSync(browsersPath, 'utf8')) as PlaywrightBrowsersJson;
+    const playwrightCoreDir = dirname(pkgPath);
+    const browsersPath = join(playwrightCoreDir, 'browsers.json');
+    const fileContent = readFileSync(browsersPath, 'utf8');
+    const data = JSON.parse(fileContent) as PlaywrightBrowsersJson;
     const chromium = data.browsers.find(b => b.name === 'chromium');
-    if (chromium) return chromium.browserVersion.split('.')[0];
+    if (chromium) {
+      const versionParts = chromium.browserVersion.split('.');
+      return versionParts[0];
+    }
   } catch {
     /* fall through to default */
   }
@@ -24,8 +35,10 @@ const UA_BASE = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (K
 const HEBREW_UA = `${UA_BASE} Chrome/${CHROME_VERSION}.0.0.0 Safari/537.36`;
 
 /**
- * Build Playwright browser context options with Israeli bank-friendly defaults:
- * Hebrew locale, Israel timezone, realistic Chrome UA and client hints.
+ * Assembles the HTTP request headers that mimic a genuine Israeli Chrome browser session,
+ * including Accept-Language, Sec-CH-UA client-hint fields, and Sec-Fetch-* navigation hints.
+ *
+ * @returns a map of HTTP header name to value
  */
 function buildClientHintHeaders(): Record<string, string> {
   return {
@@ -41,6 +54,12 @@ function buildClientHintHeaders(): Record<string, string> {
   };
 }
 
+/**
+ * Builds Playwright browser context options configured for Israeli bank sites:
+ * Hebrew locale, Israel timezone, a realistic Chrome user-agent, and client-hint headers.
+ *
+ * @returns a BrowserContextOptions object ready to pass to browser.newContext()
+ */
 export function buildContextOptions(): BrowserContextOptions {
   return {
     userAgent: HEBREW_UA,

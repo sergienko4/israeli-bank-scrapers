@@ -21,15 +21,23 @@ afterAll(async () => {
 
 describe('Isracard: Mocked E2E', () => {
   it('completes full scrape lifecycle', async () => {
+    /** Default mock Amex routes for the full Isracard lifecycle test. */
+    const routes = amexRoutes();
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
-      },
+      preparePage:
+        /**
+         * Intercepts all network requests and serves mock Amex/Isracard API fixtures.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, routes);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -42,18 +50,23 @@ describe('Isracard: Mocked E2E', () => {
   }, 60000);
 
   it('detects invalid password', async () => {
+    /** Routes with login status 9 to simulate invalid-password response. */
+    const routes = amexRoutes({ login: JSON.stringify({ status: '9' }) });
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async page => {
-        await setupRequestInterception(
-          page,
-          amexRoutes({ login: JSON.stringify({ status: '9' }) }),
-        );
-      },
+      preparePage:
+        /**
+         * Intercepts requests with login status 9 to trigger invalid-password detection.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, routes);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -62,27 +75,35 @@ describe('Isracard: Mocked E2E', () => {
   }, 60000);
 
   it('detects WAF block when validate returns null', async () => {
+    /** Login page HTML fixture for WAF block test. */
+    const loginPageHtml = loadFixture('amex/login-page.html');
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async page => {
-        await setupRequestInterception(page, [
-          {
-            match: '/personalarea/Login',
-            contentType: 'text/html',
-            body: loadFixture('amex/login-page.html'),
-          },
-          {
-            match: 'reqName=ValidateIdData',
-            method: 'POST',
-            contentType: 'application/json',
-            body: 'null',
-          },
-        ]);
-      },
+      preparePage:
+        /**
+         * Returns null for ValidateIdData to simulate a WAF block.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, [
+            {
+              match: '/personalarea/Login',
+              contentType: 'text/html',
+              body: loginPageHtml,
+            },
+            {
+              match: 'reqName=ValidateIdData',
+              method: 'POST',
+              contentType: 'application/json',
+              body: 'null',
+            },
+          ]);
+        },
     });
 
     const result = await scraper.scrape(CREDS);

@@ -4,6 +4,11 @@ import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { sleep } from '../../Common/Waiting';
 import { type LoginConfig } from '../Base/LoginConfig';
 
+/**
+ * Post-login action that waits for any known Beinleumi dashboard selector to appear.
+ *
+ * @param page - the Playwright page after login form submission
+ */
 async function beinleumiPostAction(page: Page): Promise<void> {
   await Promise.race([
     page.waitForSelector('#card-header'),
@@ -31,6 +36,12 @@ const BEINLEUMI_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {
   invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],
 };
 
+/**
+ * Pre-login action that opens the login popup if a trigger link is present.
+ *
+ * @param page - the Playwright page before filling in the login form
+ * @returns undefined (login form is on the main page, not in a frame)
+ */
 async function beinleumiPreAction(page: Page): Promise<Frame | undefined> {
   const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
   if (hasTrigger) {
@@ -45,6 +56,12 @@ async function beinleumiPreAction(page: Page): Promise<Frame | undefined> {
   return undefined;
 }
 
+/**
+ * Builds the LoginConfig for the Beinleumi group banks.
+ *
+ * @param loginUrl - the login URL for the specific bank variant
+ * @returns a LoginConfig for Beinleumi-style login
+ */
 export function beinleumiConfig(loginUrl: string): LoginConfig {
   return {
     loginUrl,

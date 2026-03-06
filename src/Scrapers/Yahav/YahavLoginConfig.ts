@@ -12,6 +12,11 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
+/**
+ * Post-login action for Yahav that waits for navigation and handles the welcome popup.
+ *
+ * @param page - the Playwright page after login form submission
+ */
 async function yahavPostAction(page: Page): Promise<void> {
   await waitForNavigation(page);
   await waitUntilElementDisappear(page, '.loader');
@@ -34,6 +39,11 @@ export const YAHAV_CONFIG: LoginConfig = {
     { credentialKey: 'nationalID', selectors: [] }, // wellKnown → #pinno
   ],
   submit: [{ kind: 'css', value: '.btn' }],
+  /**
+   * Waits for the Yahav national ID field and submit button to be present.
+   *
+   * @param page - the Playwright page showing the Yahav login form
+   */
   checkReadiness: async (page: Page) => {
     await Promise.all([waitUntilElementFound(page, '#pinno'), waitUntilElementFound(page, '.btn')]);
   },

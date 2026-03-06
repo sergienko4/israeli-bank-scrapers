@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchForAccountOpts } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { FetchForAccountOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';

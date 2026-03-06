@@ -76,20 +76,26 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 10000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: LOGIN_HTML,
-            },
-            {
-              match: 'test-bank.local/home',
-              contentType: 'text/html; charset=utf-8',
-              body: HOME_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves a login page with Hebrew placeholders so WELL_KNOWN_SELECTORS can resolve.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: LOGIN_HTML,
+              },
+              {
+                match: 'test-bank.local/home',
+                contentType: 'text/html; charset=utf-8',
+                body: HOME_HTML,
+              },
+            ]);
+          },
       },
       WRONG_ID_CONFIG,
     );
@@ -127,16 +133,22 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 10000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            // Page with no inputs — every selector attempt fails
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html',
-              body: '<html><body><p>no form here</p></body></html>',
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves an empty page with no inputs so all selector resolution fails.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              // Page with no inputs — every selector attempt fails
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html',
+                body: '<html><body><p>no form here</p></body></html>',
+              },
+            ]);
+          },
       },
       emptyPageConfig,
     );
@@ -205,27 +217,33 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            // More-specific paths must come before the catch-all root match.
-            // 'test-bank.local' would match every URL; login-frame and home first.
-            {
-              match: 'test-bank.local/login-frame',
-              contentType: 'text/html; charset=utf-8',
-              body: FRAME_LOGIN_HTML,
-            },
-            {
-              match: 'test-bank.local/home',
-              contentType: 'text/html; charset=utf-8',
-              body: HOME_HTML,
-            },
-            {
-              match: 'test-bank.local',
-              contentType: 'text/html; charset=utf-8',
-              body: MAIN_PAGE_WITH_IFRAME,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves the main page with iframe and the iframe login form for iframe round detection.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              // More-specific paths must come before the catch-all root match.
+              // 'test-bank.local' would match every URL; login-frame and home first.
+              {
+                match: 'test-bank.local/login-frame',
+                contentType: 'text/html; charset=utf-8',
+                body: FRAME_LOGIN_HTML,
+              },
+              {
+                match: 'test-bank.local/home',
+                contentType: 'text/html; charset=utf-8',
+                body: HOME_HTML,
+              },
+              {
+                match: 'test-bank.local',
+                contentType: 'text/html; charset=utf-8',
+                body: MAIN_PAGE_WITH_IFRAME,
+              },
+            ]);
+          },
       },
       iframeConfig,
     );

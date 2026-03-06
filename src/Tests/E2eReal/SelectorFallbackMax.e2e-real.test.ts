@@ -42,33 +42,54 @@ const BASE_CFG: LoginConfig = {
     { kind: 'css', value: 'app-user-login-form .general-button.send-me-code' },
   ],
   waitUntil: 'domcontentloaded',
-  checkReadiness: async (page: Page) => {
-    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
-  },
-  preAction: async (page: Page) => {
-    if (await elementPresentOnPage(page, '#closePopup')) await clickButton(page, '#closePopup');
-    await clickButton(page, '.personal-area > a.go-to-personal-area');
-    if (await elementPresentOnPage(page, '.login-link#private'))
-      await clickButton(page, '.login-link#private');
-    await waitUntilElementFound(page, '#login-password-link', { visible: true });
-    await clickButton(page, '#login-password-link');
-    await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
-      visible: true,
-    });
-    return undefined;
-  },
-  postAction: async (page: Page) => {
-    await Promise.race([
-      waitForRedirect(page, {
-        timeout: 20000,
-        ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
-      }),
-      page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
-      page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
-    ]).catch(() => {
-      /* no-op */
-    });
-  },
+  checkReadiness:
+    /**
+     * Waits for the Max personal-area link to confirm the page is loaded.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async (page: Page) => {
+      await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', {
+        visible: true,
+      });
+    },
+  preAction:
+    /**
+     * Closes any popup, navigates to the password login tab, and waits for the login form.
+     *
+     * @param page - the Playwright page to interact with
+     * @returns undefined after all navigation steps complete
+     */
+    async (page: Page) => {
+      if (await elementPresentOnPage(page, '#closePopup')) await clickButton(page, '#closePopup');
+      await clickButton(page, '.personal-area > a.go-to-personal-area');
+      if (await elementPresentOnPage(page, '.login-link#private'))
+        await clickButton(page, '.login-link#private');
+      await waitUntilElementFound(page, '#login-password-link', { visible: true });
+      await clickButton(page, '#login-password-link');
+      await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
+        visible: true,
+      });
+      return undefined;
+    },
+  postAction:
+    /**
+     * Waits for a redirect or an error popup after login submission, ignoring timeout errors.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async (page: Page) => {
+      await Promise.race([
+        waitForRedirect(page, {
+          timeout: 20000,
+          ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
+        }),
+        page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
+        page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
+      ]).catch(() => {
+        /* no-op */
+      });
+    },
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],

@@ -26,6 +26,13 @@ export interface BehatsdaaPurchaseResponse {
   errorDescription?: string;
 }
 
+/**
+ * Converts a Behatsdaa purchase variant to a normalized Transaction.
+ *
+ * @param variant - the raw purchase variant from the Behatsdaa API
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a normalized Transaction representing the purchase
+ */
 function variantToTransaction(variant: BehatsdaaVariant, options?: ScraperOptions): Transaction {
   // The price is positive, make it negative as it's an expense
   const originalAmount = -variant.customerPrice;
@@ -50,11 +57,22 @@ function variantToTransaction(variant: BehatsdaaVariant, options?: ScraperOption
   return result;
 }
 
+/** Scraper for the Behatsdaa employee benefits portal. */
 class BehatsdaaScraper extends GenericBankScraper<{ id: string; password: string }> {
+  /**
+   * Creates a BehatsdaaScraper with the shared Behatsdaa login configuration.
+   *
+   * @param options - scraper options including companyId and timeouts
+   */
   constructor(options: ScraperOptions) {
     super(options, BEHATSDAA_CONFIG);
   }
 
+  /**
+   * Reads the auth token from localStorage and fetches purchase history.
+   *
+   * @returns a scraping result with purchase transactions or an error
+   */
   public async fetchData(): Promise<ScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
@@ -66,6 +84,12 @@ class BehatsdaaScraper extends GenericBankScraper<{ id: string; password: string
     return this.buildAccountResult(res ?? {});
   }
 
+  /**
+   * Fetches purchase history from the API using a Bearer token.
+   *
+   * @param token - the JWT token from localStorage
+   * @returns the API response or null if the request failed
+   */
   private async fetchWithToken(token: string): Promise<BehatsdaaPurchaseResponse | null> {
     const body = {
       FromDate: moment(this.options.startDate).format('YYYY-MM-DDTHH:mm:ss'),
@@ -83,6 +107,12 @@ class BehatsdaaScraper extends GenericBankScraper<{ id: string; password: string
     });
   }
 
+  /**
+   * Converts the API purchase response to a ScraperScrapingResult with transaction data.
+   *
+   * @param res - the API response from the Behatsdaa purchase history endpoint
+   * @returns a scraping result with account transactions or an error
+   */
   private buildAccountResult(res: NonNullable<BehatsdaaPurchaseResponse>): ScraperScrapingResult {
     if (res.errorDescription || res.data?.errorDescription) {
       LOG.info('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);

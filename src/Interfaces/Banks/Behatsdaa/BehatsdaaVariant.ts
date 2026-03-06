@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { BehatsdaaVariant } from '../../../Scrapers/Behatsdaa/BehatsdaaScraper';
+export type { BehatsdaaVariant as default } from '../../../Scrapers/Behatsdaa/BehatsdaaScraper';

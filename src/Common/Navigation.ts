@@ -17,6 +17,12 @@ interface WaitForOptions {
   timeout?: number;
 }
 
+/**
+ * Waits for any URL change on the page or frame, effectively waiting for a navigation event.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to monitor
+ * @param options - optional Playwright wait options including waitUntil state and timeout
+ */
 export async function waitForNavigation(
   pageOrFrame: Page | Frame,
   options?: WaitForOptions,
@@ -24,10 +30,23 @@ export async function waitForNavigation(
   await pageOrFrame.waitForURL('**', options);
 }
 
+/**
+ * Waits for a navigation event and ensures the DOM content is fully loaded before resolving.
+ *
+ * @param page - the Playwright Page to wait on
+ */
 export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
 }
 
+/**
+ * Returns the current URL of the page or frame. When isClientSide is true, retrieves the URL
+ * via window.location.href inside the browser context to capture SPA client-side routing state.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to read the URL from
+ * @param isClientSide - when true, evaluates window.location.href in the browser context
+ * @returns the current URL as a string, or a Promise resolving to the URL for client-side mode
+ */
 export function getCurrentUrl(
   pageOrFrame: Page | Frame,
   isClientSide = false,
@@ -39,6 +58,14 @@ export function getCurrentUrl(
   return pageOrFrame.url();
 }
 
+/**
+ * Attempts to retrieve the current page URL without throwing; returns '?' on any error.
+ * Used in log messages where the URL is diagnostic and a failure must not mask the real error.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to read the URL from
+ * @param isClientSide - when true, evaluates window.location.href in the browser context
+ * @returns the current URL string, or '?' if reading the URL fails
+ */
 async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Promise<string> {
   try {
     return await getCurrentUrl(pageOrFrame, isClientSide);
@@ -47,6 +74,16 @@ async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Pro
   }
 }
 
+/**
+ * Polls the page URL until it changes away from the initial value and is not on the ignore list.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to monitor
+ * @param initial - the starting URL to detect a departure from
+ * @param opts - polling options including isClientSide flag, ignored URLs, and timeout in ms
+ * @param opts.isClientSide - when true, reads URL via window.location.href in browser context
+ * @param opts.ignoreList - URLs that should not count as a redirect destination
+ * @param opts.timeout - maximum wait time in milliseconds before throwing
+ */
 async function pollForRedirect(
   pageOrFrame: Page | Frame,
   initial: string,
@@ -62,6 +99,13 @@ async function pollForRedirect(
   );
 }
 
+/**
+ * Waits for the page to navigate away from its current URL, logging the before and after URLs.
+ * Throws when no redirect occurs within the timeout.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to monitor for navigation
+ * @param opts - options including timeout, client-side URL mode, and list of URLs to skip
+ */
 export async function waitForRedirect(
   pageOrFrame: Page | Frame,
   opts: WaitForRedirectOptions = {},
@@ -82,6 +126,15 @@ export async function waitForRedirect(
   LOG.info('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
 }
 
+/**
+ * Polls the page URL until it matches the given exact string or regular expression.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to monitor
+ * @param url - the expected URL as an exact string or a matching RegExp
+ * @param opts - polling options including timeout in ms and client-side URL mode flag
+ * @param opts.timeout - maximum wait time in milliseconds before throwing
+ * @param opts.isClientSide - when true, reads URL via window.location.href in browser context
+ */
 async function pollForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
@@ -97,6 +150,14 @@ async function pollForUrl(
   );
 }
 
+/**
+ * Waits until the current page URL matches the given exact string or regular expression.
+ * Logs the stuck URL on timeout before rethrowing the error.
+ *
+ * @param pageOrFrame - the Playwright Page or Frame to monitor
+ * @param url - the expected URL as an exact string or a matching RegExp
+ * @param opts - options including timeout in ms and client-side URL mode flag
+ */
 export async function waitForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,

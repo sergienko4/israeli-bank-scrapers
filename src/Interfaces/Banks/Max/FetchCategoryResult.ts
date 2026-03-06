@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchCategoryResult } from '../../../Scrapers/Max/MaxScraper';
+export type { FetchCategoryResult as default } from '../../../Scrapers/Max/MaxScraper';

@@ -27,6 +27,11 @@ jest.mock('../../Common/Navigation', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -62,7 +67,20 @@ describe('terminate', () => {
 
   it('captures screenshot on failure when path configured', async () => {
     const page = createMockPage();
-    page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
+    page.goto.mockResolvedValue({
+      /**
+       * Mock ok() returning false for an error response.
+       *
+       * @returns false indicating a failed response
+       */
+      ok: () => false,
+      /**
+       * Mock status() returning 500 for a server error.
+       *
+       * @returns 500 HTTP status code
+       */
+      status: () => 500,
+    });
     const ctx = createMockContext(page);
     MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({

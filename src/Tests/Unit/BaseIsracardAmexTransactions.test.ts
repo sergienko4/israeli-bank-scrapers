@@ -27,6 +27,11 @@ jest.mock('../../Common/Transactions', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -38,13 +43,13 @@ jest.mock('../../Common/Debug', () => ({
 jest.mock('../../Common/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(
-    <T>(actions: (() => Promise<T>)[]): Promise<T[]> =>
-      actions.reduce(
-        (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
-        Promise.resolve([] as T[]),
-      ),
-  ),
+  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+    const init = Promise.resolve([]) as Promise<T[]>;
+    return actions.reduce(
+      (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
+      init,
+    );
+  }),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
@@ -56,6 +61,12 @@ jest.mock('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch', () => ({
   fetchTxnData: jest.fn(),
 }));
 
+/**
+ * Creates a mock ScrapedTransaction with sensible defaults for IsracardAmex tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a ScrapedTransaction object for testing
+ */
 function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     dealSumType: '0',
@@ -75,6 +86,12 @@ function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransactio
   };
 }
 
+/**
+ * Creates mock ScraperOptions for IsracardAmex tests.
+ *
+ * @param overrides - optional partial options to override the defaults
+ * @returns a ScraperOptions object for testing
+ */
 function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
     companyId: 'hapoalim' as ScraperOptions['companyId'],
@@ -85,41 +102,51 @@ function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
 
 describe('convertCurrency', () => {
   it('converts Hebrew shekel keyword to ILS', () => {
-    expect(convertCurrency('ש"ח')).toBe(SHEKEL_CURRENCY);
+    const result = convertCurrency('ש"ח');
+    expect(result).toBe(SHEKEL_CURRENCY);
   });
 
   it('converts alt shekel keyword to ILS', () => {
-    expect(convertCurrency('NIS')).toBe(SHEKEL_CURRENCY);
+    const result = convertCurrency('NIS');
+    expect(result).toBe(SHEKEL_CURRENCY);
   });
 
   it('leaves other currencies unchanged', () => {
-    expect(convertCurrency('USD')).toBe('USD');
+    const result = convertCurrency('USD');
+    expect(result).toBe('USD');
   });
 });
 
 describe('getInstallmentsInfo', () => {
   it('returns undefined when no moreInfo', () => {
-    expect(getInstallmentsInfo(makeTxn())).toBeUndefined();
+    const t = makeTxn();
+    const info = getInstallmentsInfo(t);
+    expect(info).toBeUndefined();
   });
 
   it('returns undefined when moreInfo has no installments keyword', () => {
-    expect(getInstallmentsInfo(makeTxn({ moreInfo: 'regular purchase' }))).toBeUndefined();
+    const t = makeTxn({ moreInfo: 'regular purchase' });
+    const info = getInstallmentsInfo(t);
+    expect(info).toBeUndefined();
   });
 
   it('returns installments when keyword present', () => {
-    const result = getInstallmentsInfo(makeTxn({ moreInfo: 'תשלום 3 מתוך 12' }));
+    const t = makeTxn({ moreInfo: 'תשלום 3 מתוך 12' });
+    const result = getInstallmentsInfo(t);
     expect(result).toEqual({ number: 3, total: 12 });
   });
 
   it('returns undefined when fewer than 2 numbers found', () => {
-    const result = getInstallmentsInfo(makeTxn({ moreInfo: 'תשלום 3' }));
+    const t = makeTxn({ moreInfo: 'תשלום 3' });
+    const result = getInstallmentsInfo(t);
     expect(result).toBeUndefined();
   });
 });
 
 describe('buildTransactionBase', () => {
   it('builds normal inbound transaction', () => {
-    const result = buildTransactionBase(makeTxn(), '2024-06-15T00:00:00.000Z');
+    const t = makeTxn();
+    const result = buildTransactionBase(t, '2024-06-15T00:00:00.000Z');
     expect(result.type).toBe(TransactionTypes.Normal);
     expect(result.originalAmount).toBe(-100);
     expect(result.originalCurrency).toBe(SHEKEL_CURRENCY);
@@ -149,15 +176,14 @@ describe('buildTransactionBase', () => {
 
   it('uses fallback processedDate when fullPaymentDate absent', () => {
     const fallback = '2024-06-15T00:00:00.000Z';
-    const result = buildTransactionBase(makeTxn(), fallback);
+    const t = makeTxn();
+    const result = buildTransactionBase(t, fallback);
     expect(result.processedDate).toBe(fallback);
   });
 
   it('sets installment type when moreInfo contains installment keyword', () => {
-    const result = buildTransactionBase(
-      makeTxn({ moreInfo: 'תשלום 2 מתוך 6' }),
-      '2024-06-15T00:00:00.000Z',
-    );
+    const t = makeTxn({ moreInfo: 'תשלום 2 מתוך 6' });
+    const result = buildTransactionBase(t, '2024-06-15T00:00:00.000Z');
     expect(result.type).toBe(TransactionTypes.Installments);
     expect(result.installments).toEqual({ number: 2, total: 6 });
   });
@@ -165,16 +191,15 @@ describe('buildTransactionBase', () => {
 
 describe('buildTransaction', () => {
   it('does not include rawTransaction by default', () => {
-    const result = buildTransaction(makeTxn(), '2024-06-15T00:00:00.000Z');
+    const t = makeTxn();
+    const result = buildTransaction(t, '2024-06-15T00:00:00.000Z');
     expect(result.rawTransaction).toBeUndefined();
   });
 
   it('includes rawTransaction when option set', () => {
-    const result = buildTransaction(
-      makeTxn(),
-      '2024-06-15T00:00:00.000Z',
-      makeOptions({ includeRawTransaction: true }),
-    );
+    const t = makeTxn();
+    const opts = makeOptions({ includeRawTransaction: true });
+    const result = buildTransaction(t, '2024-06-15T00:00:00.000Z', opts);
     expect(result.rawTransaction).toBeDefined();
   });
 });

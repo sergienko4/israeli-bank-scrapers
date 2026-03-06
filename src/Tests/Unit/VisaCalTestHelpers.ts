@@ -40,12 +40,24 @@ export const EMPTY_CARDS_INIT_RESPONSE = {
   result: { user: MOCK_INIT_USER, cards: [], bankAccounts: [] },
 };
 
+/**
+ * Creates mock ScraperOptions for VisaCal unit tests.
+ *
+ * @param overrides - optional overrides for the default VisaCal test options
+ * @returns a ScraperOptions object suitable for VisaCal tests
+ */
 export function visaCalOptions(
   overrides: Record<string, unknown> = {},
 ): ReturnType<typeof createMockScraperOptions> {
   return createMockScraperOptions({ startDate: new Date(), futureMonthsToScrape: 0, ...overrides });
 }
 
+/**
+ * Creates a mock ScrapedTransaction with sensible defaults for VisaCal tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a ScrapedTransaction object for use in VisaCal unit tests
+ */
 export function scrapedTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     amtBeforeConvAndIndex: 100,
@@ -94,6 +106,12 @@ export function scrapedTxn(overrides: Partial<ScrapedTransaction> = {}): Scraped
   };
 }
 
+/**
+ * Creates a mock ScrapedPendingTransaction with defaults for VisaCal tests.
+ *
+ * @param overrides - optional field overrides for the mock pending transaction
+ * @returns a ScrapedPendingTransaction object for use in VisaCal unit tests
+ */
 export function pendingTxn(
   overrides: Partial<ScrapedPendingTransaction> = {},
 ): ScrapedPendingTransaction {
@@ -118,6 +136,12 @@ export function pendingTxn(
   };
 }
 
+/**
+ * Creates a mock VisaCal pending transactions API response.
+ *
+ * @param txns - the pending transactions to include in the mock response
+ * @returns a mock API response object with the given pending transactions
+ */
 export function mockPendingResponse(txns: ScrapedPendingTransaction[] = [pendingTxn()]): object {
   return {
     statusCode: 1,
@@ -127,6 +151,13 @@ export function mockPendingResponse(txns: ScrapedPendingTransaction[] = [pending
   };
 }
 
+/**
+ * Creates a mock VisaCal card transaction details API response.
+ *
+ * @param txns - the completed transactions to include in the mock response
+ * @param overrides - optional top-level overrides for the response object
+ * @returns a mock API response object with the given transactions
+ */
 export function mockCardTransactionDetails(
   txns: ScrapedTransaction[] = [],
   overrides: Record<string, unknown> = {},
@@ -167,19 +198,46 @@ export function mockCardTransactionDetails(
   };
 }
 
+/**
+ * Sets up all mock functions required for VisaCal scraper unit tests.
+ *
+ * @returns the mock page configured with VisaCal-specific mock responses
+ */
 export function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
   const page = createMockPage({
     frames: jest.fn().mockReturnValue([
       {
+        /**
+         * Returns the mock VisaCal connect iframe URL.
+         *
+         * @returns the mock connect iframe URL string
+         */
         url: (): string => 'https://connect.cal-online.co.il/login',
         waitForSelector: jest.fn().mockResolvedValue(undefined),
       },
     ]),
     waitForResponse: jest.fn().mockResolvedValue({
       json: jest.fn().mockResolvedValue({ token: 'cal-auth-token' }),
+      /**
+       * Returns the mock login response URL.
+       *
+       * @returns the mock login endpoint URL string
+       */
       url: (): string =>
         'https://connect.cal-online.co.il/col-rest/calconnect/authentication/login',
-      request: (): { method: () => string } => ({ method: (): string => 'POST' }),
+      /**
+       * Returns the mock request object for the login response.
+       *
+       * @returns a mock request with a method() function
+       */
+      request: (): { method: () => string } => ({
+        /**
+         * Returns the mock HTTP method for the login request.
+         *
+         * @returns the HTTP method string 'POST'
+         */
+        method: (): string => 'POST',
+      }),
     }),
   });
   MOCK_CONTEXT.newPage.mockResolvedValue(page);

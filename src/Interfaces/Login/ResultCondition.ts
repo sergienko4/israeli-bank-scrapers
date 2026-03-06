@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { ResultCondition } from '../../Scrapers/Base/LoginConfigTypes';
+export type { ResultCondition as default } from '../../Scrapers/Base/LoginConfigTypes';

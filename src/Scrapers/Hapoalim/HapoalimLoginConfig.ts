@@ -17,6 +17,11 @@ export const HAPOALIM_CONFIG: LoginConfig = {
     { kind: 'css', value: '.login-btn' },
     // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
   ],
+  /**
+   * Post-login action that waits for Hapoalim's redirect after form submission.
+   *
+   * @param page - the Playwright page to monitor for redirection
+   */
   postAction: async (page: Page) => {
     await waitForRedirect(page, {});
   },

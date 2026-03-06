@@ -28,6 +28,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -47,6 +52,11 @@ const MOCK_BROWSER = {
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
+/**
+ * Creates a fresh mock page and sets it as the next page returned by the mock context.
+ *
+ * @returns the configured mock page
+ */
 function setupPage(): ReturnType<typeof createMockPage> {
   const page = createMockPage({
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),

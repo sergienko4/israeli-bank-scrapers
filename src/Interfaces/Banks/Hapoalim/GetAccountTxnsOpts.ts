@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { GetAccountTxnsOpts } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { GetAccountTxnsOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

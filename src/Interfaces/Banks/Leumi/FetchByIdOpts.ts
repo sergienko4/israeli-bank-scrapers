@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchByIdOpts } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { FetchByIdOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';

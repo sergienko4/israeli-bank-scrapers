@@ -23,15 +23,20 @@ jest.mock('../../Common/Browser', () => ({ buildContextOptions: jest.fn().mockRe
 jest.mock('../../Common/Waiting', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(
-    <T>(actions: (() => Promise<T>)[]): Promise<T[]> =>
-      actions.reduce(
-        (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
-        Promise.resolve([] as T[]),
-      ),
-  ),
+  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+    const initialResult: Promise<T[]> = Promise.resolve([]);
+    return actions.reduce(
+      (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
+      initialResult,
+    );
+  }),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -57,6 +62,9 @@ const MOCK_AMEX_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
+/**
+ * Configures fetchPostWithinPage mocks for a successful Amex login sequence.
+ */
 function mockAmexLogin(): void {
   (fetchPostWithinPage as jest.Mock)
     .mockResolvedValueOnce({
@@ -73,7 +81,8 @@ describe('AMEX fetchData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (chromium.launch as jest.Mock).mockResolvedValue(MOCK_AMEX_BROWSER);
-    MOCK_AMEX_CONTEXT.newPage.mockResolvedValue(createMockPage());
+    const freshPage = createMockPage();
+    MOCK_AMEX_CONTEXT.newPage.mockResolvedValue(freshPage);
   });
 
   it('handles empty month response — returns accounts[]', async () => {

@@ -11,6 +11,11 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 
+/**
+ * Navigates to the Leumi login page and waits for the form fields to be visible.
+ *
+ * @param page - the Playwright page to navigate to the login form
+ */
 async function leumiCheckReadiness(page: Page): Promise<void> {
   await waitUntilElementFound(page, '.enter_account');
   const loginUrl = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
@@ -23,6 +28,11 @@ async function leumiCheckReadiness(page: Page): Promise<void> {
   ]);
 }
 
+/**
+ * Post-login action that waits for any of the known Leumi post-login indicators.
+ *
+ * @param page - the Playwright page after login form submission
+ */
 async function leumiPostAction(page: Page): Promise<void> {
   await Promise.race([
     waitUntilElementFound(page, 'a[title="דלג לחשבון"]', { visible: true, timeout: 60000 }),
@@ -52,6 +62,12 @@ export const LEUMI_CONFIG: LoginConfig = {
         const msg = await pageEvalAll(opts.page, {
           selector: 'svg#Capa_1',
           defaultResult: '',
+          /**
+           * Extracts the error message text next to the error icon.
+           *
+           * @param el - the array of matched SVG elements
+           * @returns the inner text of the sibling div next to the error icon
+           */
           callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement).innerText,
         });
         return msg.startsWith(LEUMI_INVALID_PASSWORD_MSG);
@@ -63,6 +79,12 @@ export const LEUMI_CONFIG: LoginConfig = {
         const msg = await pageEvalAll(opts.page, {
           selector: '.errHeader',
           defaultResult: '',
+          /**
+           * Extracts the account blocked error header text.
+           *
+           * @param el - the array of matched error header elements
+           * @returns the inner text of the first error header element
+           */
           callback: el => (el[0] as HTMLElement).innerText,
         });
         return msg.startsWith(LEUMI_ACCOUNT_BLOCKED_MSG);

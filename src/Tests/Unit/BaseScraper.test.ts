@@ -9,6 +9,7 @@ import type {
 } from '../../Scrapers/Base/Interface';
 import { createMockScraperOptions } from '../MockPage';
 
+/** Minimal concrete BaseScraper subclass used in unit tests with configurable responses. */
 class TestScraper extends BaseScraper<ScraperCredentials> {
   public loginResult: ScraperLoginResult = { success: true };
 
@@ -22,18 +23,31 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
 
   public terminated = false;
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async login(): Promise<ScraperLoginResult> {
+  /**
+   * Returns the configurable loginResult or throws loginError if set.
+   *
+   * @returns the configured ScraperLoginResult
+   */
+  protected login(): Promise<ScraperLoginResult> {
     if (this.loginError) throw this.loginError;
-    return this.loginResult;
+    return Promise.resolve(this.loginResult);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async fetchData(): Promise<ScraperScrapingResult> {
+  /**
+   * Returns the configurable fetchResult or throws fetchError if set.
+   *
+   * @returns the configured ScraperScrapingResult
+   */
+  protected fetchData(): Promise<ScraperScrapingResult> {
     if (this.fetchError) throw this.fetchError;
-    return this.fetchResult;
+    return Promise.resolve(this.fetchResult);
   }
 
+  /**
+   * Records termination and optionally throws terminateError.
+   *
+   * @param success - whether the scraping was successful
+   */
   protected async terminate(success: boolean): Promise<void> {
     this.terminated = true;
     if (this.terminateError) throw this.terminateError;

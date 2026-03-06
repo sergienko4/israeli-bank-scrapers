@@ -21,6 +21,11 @@ export const BEHATSDAA_CONFIG: LoginConfig = {
     { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
     // ariaLabel 'התחברות' fallback is now in wellKnownSelectors.__submit__
   ],
+  /**
+   * Navigates to the Behatsdaa login route before filling credentials.
+   *
+   * @param page - the Playwright page to navigate
+   */
   checkReadiness: async (page: Page) => {
     await page.goto(`${CFG.urls.base}/login`);
   },

@@ -15,6 +15,13 @@ const DATE_FORMAT = 'DD/MM/YYYY';
 const RATE_LIMIT_SLEEP_BETWEEN = 1000;
 const LOG = getDebug('base-isracard-amex');
 
+/**
+ * Builds the DashboardMonth API URL for the given month.
+ *
+ * @param servicesUrl - the base services URL for the bank's API
+ * @param monthMoment - the billing month to fetch account data for
+ * @returns the full URL for the DashboardMonth API endpoint
+ */
 function getAccountsUrl(servicesUrl: string, monthMoment: Moment): string {
   const billingDate = monthMoment.format('YYYY-MM-DD');
   const url = new URL(servicesUrl);
@@ -25,6 +32,14 @@ function getAccountsUrl(servicesUrl: string, monthMoment: Moment): string {
   return url.toString();
 }
 
+/**
+ * Fetches all card accounts for the given billing month.
+ *
+ * @param page - the Playwright page used to make the API request
+ * @param servicesUrl - the base services URL for the bank's API
+ * @param monthMoment - the billing month to fetch account data for
+ * @returns an array of scraped account objects for the given month
+ */
 export async function fetchAccounts(
   page: Page,
   servicesUrl: string,
@@ -45,6 +60,13 @@ export async function fetchAccounts(
   return [];
 }
 
+/**
+ * Builds the CardsTransactionsList API URL for the given month.
+ *
+ * @param servicesUrl - the base services URL for the bank's API
+ * @param monthMoment - the billing month to fetch transactions for
+ * @returns the full URL for the CardsTransactionsList API endpoint
+ */
 function getTransactionsUrl(servicesUrl: string, monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
@@ -52,11 +74,20 @@ function getTransactionsUrl(servicesUrl: string, monthMoment: Moment): string {
   const url = new URL(servicesUrl);
   url.searchParams.set('reqName', 'CardsTransactionsList');
   url.searchParams.set('month', monthStr);
-  url.searchParams.set('year', String(year));
+  const yearStr = String(year);
+  url.searchParams.set('year', yearStr);
   url.searchParams.set('requiredDate', 'N');
   return url.toString();
 }
 
+/**
+ * Fetches raw transaction data for the given billing month.
+ *
+ * @param page - the Playwright page used to make the API request
+ * @param servicesUrl - the base services URL for the bank's API
+ * @param monthMoment - the billing month to fetch transactions for
+ * @returns the raw transaction data, or null if the request failed
+ */
 export async function fetchTxnData(
   page: Page,
   servicesUrl: string,

@@ -28,6 +28,11 @@ jest.mock('../../Common/Transactions', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -39,13 +44,13 @@ jest.mock('../../Common/Debug', () => ({
 jest.mock('../../Common/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(
-    <T>(actions: (() => Promise<T>)[]): Promise<T[]> =>
-      actions.reduce(
-        (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
-        Promise.resolve([] as T[]),
-      ),
-  ),
+  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+    const init = Promise.resolve([]) as Promise<T[]>;
+    return actions.reduce(
+      (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
+      init,
+    );
+  }),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
@@ -57,6 +62,12 @@ jest.mock('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch', () => ({
   fetchTxnData: jest.fn(),
 }));
 
+/**
+ * Creates a mock ScrapedTransaction with sensible defaults.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a ScrapedTransaction object for testing
+ */
 function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {
     dealSumType: '0',
@@ -76,6 +87,12 @@ function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransactio
   };
 }
 
+/**
+ * Creates mock ScraperOptions for IsracardAmexEnrich tests.
+ *
+ * @param overrides - optional partial options to override the defaults
+ * @returns a ScraperOptions object for testing
+ */
 function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
     companyId: 'hapoalim' as ScraperOptions['companyId'],
@@ -128,11 +145,10 @@ describe('fetchTransactionsForMonth', () => {
 
 describe('combineTxnsFromResults', () => {
   it('merges txns from multiple results', () => {
-    const t1 = buildTransaction(makeTxn(), '2024-06-15T00:00:00.000Z');
-    const t2 = buildTransaction(
-      makeTxn({ voucherNumberRatz: '222222222' }),
-      '2024-06-15T00:00:00.000Z',
-    );
+    const raw1 = makeTxn();
+    const t1 = buildTransaction(raw1, '2024-06-15T00:00:00.000Z');
+    const raw2 = makeTxn({ voucherNumberRatz: '222222222' });
+    const t2 = buildTransaction(raw2, '2024-06-15T00:00:00.000Z');
     const results = [
       { '1234': { accountNumber: '1234', index: 0, txns: [t1] } },
       { '1234': { accountNumber: '1234', index: 0, txns: [t2] } },
@@ -198,7 +214,8 @@ describe('fetchAllTransactions', () => {
       startMoment: moment('2024-01-01'),
     });
     expect(result.success).toBe(true);
-    expect(Array.isArray(result.accounts)).toBe(true);
+    const isAccounts = Array.isArray(result.accounts);
+    expect(isAccounts).toBe(true);
   });
 
   it('returns empty accounts when fetches fail', async () => {
@@ -217,10 +234,8 @@ describe('fetchAllTransactions', () => {
 
 describe('getExtraScrapTransaction', () => {
   const page = createMockPage();
-  const baseTransaction = buildTransaction(
-    makeTxn({ voucherNumberRatz: '12345' }),
-    '2024-06-15T00:00:00.000Z',
-  );
+  const rawTxn = makeTxn({ voucherNumberRatz: '12345' });
+  const baseTransaction = buildTransaction(rawTxn, '2024-06-15T00:00:00.000Z');
   const opts = {
     page: page as never,
     options: { servicesUrl: 'https://example.com/api', companyCode: '11' },
@@ -265,7 +280,8 @@ describe('getExtraScrapTransaction', () => {
 
 describe('getExtraScrapAccount', () => {
   const page = createMockPage();
-  const txn1 = buildTransaction(makeTxn(), '2024-06-15T00:00:00.000Z');
+  const rawTxn1 = makeTxn();
+  const txn1 = buildTransaction(rawTxn1, '2024-06-15T00:00:00.000Z');
   const accountMap = {
     '1234': { accountNumber: '1234', index: 0, txns: [txn1] },
   };

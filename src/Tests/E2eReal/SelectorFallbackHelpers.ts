@@ -18,15 +18,22 @@ export const VALID_REACHED_BANK: string[] = [
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
 
-/** Regex matching "Could not find '<key>' field" for the given credential keys. */
+/**
+ * Builds a regex matching "Could not find '&lt;key&gt;' field" for the given credential keys.
+ *
+ * @param keys - the credential key names to include in the pattern
+ * @returns a RegExp that matches the selector-not-found error message
+ */
 export function selectorErrorFor(...keys: string[]): RegExp {
   return new RegExp(`Could not find '(${keys.join('|')})' field`);
 }
 
 /**
- * Inject the login form (identified by a visible input inside it) into a
- * same-origin srcdoc iframe, then remove the form from the main page.
- * Simulates a bank that moved its login form into an iframe.
+ * Injects the login form identified by a visible input into a same-origin srcdoc iframe,
+ * then removes the form from the main page to simulate a bank that moved its login form.
+ *
+ * @param page - the Playwright page whose form to inject into an iframe
+ * @param inputSelector - CSS selector identifying an input inside the form to inject
  */
 export async function injectFormByInput(page: Page, inputSelector: string): Promise<void> {
   await page.evaluate(sel => {

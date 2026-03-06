@@ -29,6 +29,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -48,6 +53,12 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
+/**
+ * Creates a mock Leumi API response object for intercepting filtered transaction responses.
+ *
+ * @param overrides - optional fields to merge into the mock jsonResp data
+ * @returns a mock response with a json() method returning the Leumi API format
+ */
 function createLeumiResponse(overrides: Record<string, unknown> = {}): { json: jest.Mock } {
   return {
     json: jest.fn().mockResolvedValue({
@@ -60,6 +71,12 @@ function createLeumiResponse(overrides: Record<string, unknown> = {}): { json: j
   };
 }
 
+/**
+ * Creates a mock page configured for Leumi scraper tests with given account IDs.
+ *
+ * @param accountIds - the account IDs the page should report
+ * @returns a mock page configured for Leumi tests
+ */
 function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof createMockPage> {
   const mockResponse = createLeumiResponse({
     BalanceDisplay: '5000.00',
@@ -76,7 +93,20 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
 
   return createMockPage({
     evaluate: jest.fn().mockResolvedValue(accountIds),
-    goto: jest.fn().mockResolvedValue({ ok: () => true, status: () => 200 }),
+    goto: jest.fn().mockResolvedValue({
+      /**
+       * Mock ok() indicating a successful navigation.
+       *
+       * @returns true
+       */
+      ok: () => true,
+      /**
+       * Mock status() returning 200.
+       *
+       * @returns 200 HTTP status code
+       */
+      status: () => 200,
+    }),
     waitForResponse: jest.fn().mockResolvedValue(mockResponse),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
@@ -88,7 +118,8 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createLeumiPage());
+  const freshPage = createLeumiPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx',
   );
@@ -99,14 +130,13 @@ describe('login', () => {
   it('succeeds with valid credentials', async () => {
     const scraper = new LeumiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
-    if (!result.success)
-      console.log(
-        'LEUMI FAILURE:',
-        JSON.stringify({
-          errorType: result.errorType,
-          errorMessage: result.errorMessage?.substring(0, 200),
-        }),
-      );
+    if (!result.success) {
+      const failureInfo = JSON.stringify({
+        errorType: result.errorType,
+        errorMessage: result.errorMessage?.substring(0, 200),
+      });
+      console.log('LEUMI FAILURE:', failureInfo);
+    }
 
     expect(result.success).toBe(true);
     expect(buildContextOptions).toHaveBeenCalled();
@@ -243,19 +273,18 @@ describe('fetchData', () => {
 
   it('handles multiple accounts with clicking', async () => {
     const page = createLeumiPage(['111/222', '333/444']);
-    page.waitForResponse.mockResolvedValue(
-      createLeumiResponse({
-        HistoryTransactionsItems: [
-          {
-            DateUTC: '2025-06-15T00:00:00',
-            Amount: -100,
-            Description: 'Txn',
-            ReferenceNumberLong: 1,
-          },
-        ],
-        BalanceDisplay: '3000.00',
-      }),
-    );
+    const leumiResp1 = createLeumiResponse({
+      HistoryTransactionsItems: [
+        {
+          DateUTC: '2025-06-15T00:00:00',
+          Amount: -100,
+          Description: 'Txn',
+          ReferenceNumberLong: 1,
+        },
+      ],
+      BalanceDisplay: '3000.00',
+    });
+    page.waitForResponse.mockResolvedValue(leumiResp1);
     page.waitForSelector.mockResolvedValue(undefined);
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
@@ -270,7 +299,8 @@ describe('fetchData', () => {
 
   it('handles undefined balance gracefully', async () => {
     const page = createLeumiPage();
-    page.waitForResponse.mockResolvedValue(createLeumiResponse());
+    const leumiResp2 = createLeumiResponse();
+    page.waitForResponse.mockResolvedValue(leumiResp2);
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());
@@ -281,12 +311,11 @@ describe('fetchData', () => {
 
   it('uses empty string for missing description and memo', async () => {
     const page = createLeumiPage();
-    page.waitForResponse.mockResolvedValue(
-      createLeumiResponse({
-        HistoryTransactionsItems: [{ DateUTC: '2025-06-15T00:00:00', Amount: -50 }],
-        BalanceDisplay: '1000.00',
-      }),
-    );
+    const leumiResp3 = createLeumiResponse({
+      HistoryTransactionsItems: [{ DateUTC: '2025-06-15T00:00:00', Amount: -50 }],
+      BalanceDisplay: '1000.00',
+    });
+    page.waitForResponse.mockResolvedValue(leumiResp3);
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LeumiScraper(createMockScraperOptions());

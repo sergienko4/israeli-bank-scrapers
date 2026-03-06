@@ -22,6 +22,9 @@ const IT_IF_OTP = process.env.BEINLEUMI_OTP ? it : it.skip;
 /**
  * Prompts the user via stdin for the OTP code.
  * Falls back to BEINLEUMI_OTP env var if set (for CI use).
+ *
+ * @param phoneHint - masked phone number hint shown to the user
+ * @returns the OTP code entered by the user or read from the env var
  */
 async function promptOtpCode(phoneHint: string): Promise<string> {
   if (process.env.BEINLEUMI_OTP) {
@@ -32,7 +35,8 @@ async function promptOtpCode(phoneHint: string): Promise<string> {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     rl.question(`\n[OTP] Enter the code sent to ${phoneHint || 'your phone'}: `, code => {
       rl.close();
-      resolve(code.trim());
+      const trimmedCode = code.trim();
+      resolve(trimmedCode);
     });
   });
 }

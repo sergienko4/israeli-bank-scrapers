@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { SelectFromGridOpts } from '../../../Scrapers/Yahav/YahavScraper';
+export type { SelectFromGridOpts as default } from '../../../Scrapers/Yahav/YahavScraper';

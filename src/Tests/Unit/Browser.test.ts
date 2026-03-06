@@ -8,9 +8,13 @@ interface BrowsersJson {
 }
 
 const PKG_PATH = require.resolve('playwright-core/package.json');
-const BROWSERS_JSON = JSON.parse(
-  readFileSync(join(dirname(PKG_PATH), 'browsers.json'), 'utf8'),
-) as BrowsersJson;
+/** Directory containing playwright-core's browsers.json manifest. */
+const BROWSERS_JSON_DIR = dirname(PKG_PATH);
+/** Path to playwright-core's browsers.json file. */
+const BROWSERS_JSON_PATH = join(BROWSERS_JSON_DIR, 'browsers.json');
+/** Raw content of playwright-core's browsers.json manifest file. */
+const BROWSERS_JSON_CONTENT = readFileSync(BROWSERS_JSON_PATH, 'utf8');
+const BROWSERS_JSON = JSON.parse(BROWSERS_JSON_CONTENT) as BrowsersJson;
 const EXPECTED_VERSION: string = (
   BROWSERS_JSON.browsers.find(b => b.name === 'chromium')?.browserVersion ?? ''
 ).split('.')[0];
@@ -30,14 +34,15 @@ describe('buildContextOptions', () => {
 
   it('returns client hint headers matching Chrome version', () => {
     const options = buildContextOptions();
-    expect(options.extraHTTPHeaders).toEqual(
-      expect.objectContaining({
-        'Accept-Language': expect.stringContaining('he-IL') as string,
-        'sec-ch-ua': expect.stringContaining(EXPECTED_VERSION) as string,
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-      }),
-    );
+    const heIlMatcher = expect.stringContaining('he-IL') as string;
+    const versionMatcher = expect.stringContaining(EXPECTED_VERSION) as string;
+    const headersMatcher = expect.objectContaining({
+      'Accept-Language': heIlMatcher,
+      'sec-ch-ua': versionMatcher,
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+    }) as object;
+    expect(options.extraHTTPHeaders).toEqual(headersMatcher);
   });
 
   it('always uses 1920x1080 viewport', () => {

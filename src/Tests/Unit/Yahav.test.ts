@@ -32,6 +32,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -51,6 +56,11 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass', nationalID: '123456789' };
 
+/**
+ * Creates a mock page configured for Yahav scraper tests.
+ *
+ * @returns a mock page with selectors configured for the Yahav portal
+ */
 function createYahavPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
     $eval: jest.fn().mockImplementation((selector: string) => {
@@ -66,7 +76,8 @@ function createYahavPage(): ReturnType<typeof createMockPage> {
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createYahavPage());
+  const freshPage = createYahavPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home',
   );
@@ -166,12 +177,11 @@ describe('fetchData', () => {
 
 describe('getAccountID error path', () => {
   it('returns failed result when $eval throws on account ID selector', async () => {
-    MOCK_CONTEXT.newPage.mockResolvedValue(
-      createMockPage({
-        $eval: jest.fn().mockRejectedValue(new Error('element not found')),
-        waitForSelector: jest.fn().mockResolvedValue(undefined),
-      }),
-    );
+    const errorPage = createMockPage({
+      $eval: jest.fn().mockRejectedValue(new Error('element not found')),
+      waitForSelector: jest.fn().mockResolvedValue(undefined),
+    });
+    MOCK_CONTEXT.newPage.mockResolvedValue(errorPage);
 
     const scraper = new YahavScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

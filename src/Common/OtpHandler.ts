@@ -20,12 +20,29 @@ const LOG = getDebug('otp-handler');
 
 const OTP_ANIMATION_DELAY_MS = 800;
 
+/**
+ * Takes a full-page screenshot and saves it to the given directory with a timestamp filename.
+ *
+ * @param page - the Playwright Page to screenshot
+ * @param screenshotDir - the directory path where the screenshot file should be saved
+ * @returns the absolute file path of the saved screenshot
+ */
 async function saveScreenshot(page: Page, screenshotDir: string): Promise<string> {
-  const screenshotPath = path.join(screenshotDir, `otp-required-${String(Date.now())}.png`);
+  const nowMs = Date.now();
+  const timestamp = String(nowMs);
+  const screenshotPath = path.join(screenshotDir, `otp-required-${timestamp}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return screenshotPath;
 }
 
+/**
+ * Builds the failure result returned when an OTP screen is detected but no retriever function
+ * was provided. Optionally saves a diagnostic screenshot to screenshotDir.
+ *
+ * @param page - the Playwright Page showing the OTP screen, used for the screenshot
+ * @param screenshotDir - optional directory to save a screenshot into for diagnostics
+ * @returns a failure ScraperScrapingResult with errorType TwoFactorRetrieverMissing
+ */
 async function buildMissingRetrieverResult(
   page: Page,
   screenshotDir?: string,
@@ -56,21 +73,44 @@ const OTP_FILL_INPUT_SELECTORS = [
   '[name="otpCode"]',
 ];
 
+/**
+ * Checks whether the given frame contains any of the known OTP input selectors.
+ *
+ * @param frame - the Playwright Frame to search for an OTP input element
+ * @returns the frame when an OTP input is found, or null otherwise
+ */
 async function frameHasOtpInput(frame: Frame): Promise<Frame | null> {
-  const found = await Promise.all(
-    OTP_FILL_INPUT_SELECTORS.map(sel => frame.$(sel).catch(() => null)),
-  );
+  const selectorChecks = OTP_FILL_INPUT_SELECTORS.map(sel => frame.$(sel).catch(() => null));
+  const found = await Promise.all(selectorChecks);
   if (found.some(Boolean)) return frame;
   return null;
 }
 
+/**
+ * Searches all frames on the page for one containing an OTP input field,
+ * returning the first matching frame or null when none is found.
+ *
+ * @param page - the Playwright Page whose frames are searched
+ * @returns the Frame containing an OTP input, or null if no frame has one
+ */
 async function findOtpFillFrame(page: Page): Promise<Frame | null> {
-  const results = await Promise.all(page.frames().map(frameHasOtpInput));
+  const frameChecks = page.frames().map(frameHasOtpInput);
+  const results = await Promise.all(frameChecks);
   const match = results.find(Boolean) ?? null;
-  if (match) LOG.info('OTP input found in frame %s', match.url().slice(-60));
+  if (match) {
+    const matchFrameUrl = match.url().slice(-60);
+    LOG.info('OTP input found in frame %s', matchFrameUrl);
+  }
   return match;
 }
 
+/**
+ * Injects an OTP code directly into a form input element via page evaluation,
+ * firing an input event so SPA frameworks recognise the value change.
+ *
+ * @param el - the Playwright ElementHandle for the OTP input element
+ * @param code - the OTP code string to inject
+ */
 async function injectOtpViaEvaluate(
   el: Awaited<ReturnType<Frame['$']>>,
   code: string,
@@ -82,6 +122,12 @@ async function injectOtpViaEvaluate(
   }, code);
 }
 
+/**
+ * Types the OTP code into the input field via locator.pressSequentially, falling back to
+ * direct DOM injection when the locator approach fails (e.g. hidden or detached elements).
+ *
+ * @param opts - options including the target frame, selector, element handle, and OTP code
+ */
 async function fillOtpWithFallback(opts: OtpFillOpts): Promise<void> {
   const { frame, sel, el, code } = opts;
   await sleep(OTP_ANIMATION_DELAY_MS);
@@ -94,19 +140,33 @@ async function fillOtpWithFallback(opts: OtpFillOpts): Promise<void> {
   }
 }
 
+/**
+ * Finds the first present OTP input selector in the frame and types the code into it.
+ * Uses fillOtpWithFallback for compatibility with hidden or framework-managed inputs.
+ *
+ * @param frame - the Playwright Frame containing the OTP input field
+ * @param code - the OTP code string to type
+ */
 async function typeOtpCode(frame: Frame, code: string): Promise<void> {
-  const results = await Promise.all(
-    OTP_FILL_INPUT_SELECTORS.map(sel =>
-      frame
-        .$(sel)
-        .catch(() => null)
-        .then(el => ({ sel, el })),
-    ),
+  const otpInputProbes = OTP_FILL_INPUT_SELECTORS.map(sel =>
+    frame
+      .$(sel)
+      .catch(() => null)
+      .then(el => ({ sel, el })),
   );
+  const results = await Promise.all(otpInputProbes);
   const match = results.find(r => r.el);
   if (match) await fillOtpWithFallback({ frame, ...match, code });
 }
 
+/**
+ * Clicks the OTP submit button via DOM evaluation, removing its disabled attribute first
+ * and using jQuery trigger when available for SPA compatibility.
+ *
+ * @param match - an object containing the CSS selector and ElementHandle for the submit button
+ * @param match.sel - the CSS selector string identifying the submit button
+ * @param match.el - the Playwright ElementHandle for the submit button
+ */
 async function clickOtpButton(match: {
   sel: string;
   el: Awaited<ReturnType<Frame['$']>>;
@@ -121,43 +181,65 @@ async function clickOtpButton(match: {
   LOG.info('clicked OTP submit button via evaluate: %s', match.sel);
 }
 
+/**
+ * Finds and clicks the OTP submit button within a specific frame using the OTP_SUBMIT_CANDIDATES list.
+ * Logs a message and returns without error when no submit button is found.
+ *
+ * @param frame - the Playwright Frame to search for an OTP submit button
+ */
 async function submitOtpInFrame(frame: Frame): Promise<void> {
-  const results = await Promise.all(
-    OTP_SUBMIT_CANDIDATES.map(candidate => {
-      const sel = candidateToCss(candidate);
-      return frame
-        .$(sel)
-        .catch(() => null)
-        .then(el => ({ sel, el }));
-    }),
-  );
+  const submitProbes = OTP_SUBMIT_CANDIDATES.map(candidate => {
+    const sel = candidateToCss(candidate);
+    return frame
+      .$(sel)
+      .catch(() => null)
+      .then(el => ({ sel, el }));
+  });
+  const results = await Promise.all(submitProbes);
   const match = results.find(r => r.el);
   if (!match) {
-    LOG.info('no OTP submit button found in frame %s', frame.url().slice(-60));
+    const submitFrameUrl = frame.url().slice(-60);
+    LOG.info('no OTP submit button found in frame %s', submitFrameUrl);
     return;
   }
   await clickOtpButton(match);
 }
 
+/**
+ * Enters the OTP code into the appropriate input and submits the OTP form.
+ * Tries frame-based input first; falls back to resolveFieldContext for the main page.
+ *
+ * @param page - the Playwright Page showing the OTP entry screen
+ * @param code - the OTP code string to enter and submit
+ */
 async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
   const frame = await findOtpFillFrame(page);
   if (frame) {
-    LOG.info('filling OTP in frame: %s', frame.url().slice(-60));
+    const fillFrameUrl = frame.url().slice(-60);
+    LOG.info('filling OTP in frame: %s', fillFrameUrl);
     await typeOtpCode(frame, code);
     await submitOtpInFrame(frame);
     return;
   }
   LOG.info('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
+  const currentPageUrl = page.url();
   const { selector: inputSelector, context } = await resolveFieldContext(
     page,
     { credentialKey: 'otpCode', selectors: [{ kind: 'name', value: 'otpCode' }] },
-    page.url(),
+    currentPageUrl,
   );
   await fillInput(context, inputSelector, code);
   const submitSelector = await tryInContext(context, OTP_SUBMIT_CANDIDATES);
   if (submitSelector) await clickButton(context, submitSelector);
 }
 
+/**
+ * Waits briefly after OTP submission and checks whether the OTP screen is still visible.
+ * Returns an InvalidOtp failure result when the screen persists; otherwise returns null.
+ *
+ * @param page - the Playwright Page to check after OTP submission
+ * @returns null when OTP was accepted, or a failure ScraperScrapingResult on rejection
+ */
 async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | null> {
   await sleep(5000);
   const isStillOnOtp = await detectOtpScreen(page);
@@ -174,6 +256,15 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
   return null;
 }
 
+/**
+ * Orchestrates the full OTP handling flow: detects the OTP screen, triggers SMS delivery,
+ * invokes the retriever callback, fills and submits the code, and verifies acceptance.
+ * Returns null when no OTP screen is detected, or a ScraperScrapingResult on error or rejection.
+ *
+ * @param page - the Playwright Page currently displayed after the login form was submitted
+ * @param options - the scraper options, including the otpCodeRetriever callback and screenshot path
+ * @returns null on success or when OTP is not needed, or a failure result when handling fails
+ */
 export async function handleOtpStep(
   page: Page,
   options: ScraperOptions,

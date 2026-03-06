@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { type Browser, type BrowserContext } from 'playwright';
 import { chromium } from 'playwright-extra';
 
@@ -34,6 +33,11 @@ jest.mock('../../Common/Navigation', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -87,46 +91,45 @@ describe('initialize', () => {
 describe('initializePage', () => {
   it('uses browserContext when provided', async () => {
     const page = createMockPage();
-    const browserContext = {
-      newPage: jest.fn().mockResolvedValue(page),
-    } as unknown as BrowserContext;
+    const newPageMock = jest.fn().mockResolvedValue(page);
+    const browserContext = { newPage: newPageMock } as unknown as BrowserContext;
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(browserContext.newPage).toHaveBeenCalled();
+    expect(newPageMock).toHaveBeenCalled();
     expect(chromium.launch).not.toHaveBeenCalled();
   });
 
   it('uses external browser and creates context', async () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
-    const browser = {
-      newContext: jest.fn().mockResolvedValue(ctx),
-      close: jest.fn(),
-    } as unknown as Browser;
+    const newContextMock = jest.fn().mockResolvedValue(ctx);
+    const browser = { newContext: newContextMock, close: jest.fn() } as unknown as Browser;
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browser }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(browser.newContext).toHaveBeenCalled();
+    expect(newContextMock).toHaveBeenCalled();
     expect(chromium.launch).not.toHaveBeenCalled();
   });
 
   it('skips browser close cleanup when skipCloseBrowser is true', async () => {
     const page = createMockPage();
     const ctx = createMockContext(page);
+    const closeMock = jest.fn();
     const browser = {
       newContext: jest.fn().mockResolvedValue(ctx),
-      close: jest.fn(),
+      close: closeMock,
     } as unknown as Browser;
     const scraper = new TestBrowserScraper(
       createMockScraperOptions({ browser, skipCloseBrowser: true }),
     );
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(browser.close).not.toHaveBeenCalled();
+    expect(closeMock).not.toHaveBeenCalled();
   });
 
   it('launches new browser with headless mode', async () => {
     const scraper = createScraper({ shouldShowBrowser: false });
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(chromium.launch).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
+    const headlessMatcher = expect.objectContaining({ headless: true }) as object;
+    expect(chromium.launch).toHaveBeenCalledWith(headlessMatcher);
   });
 
   it('calls prepareBrowser hook when provided', async () => {
@@ -140,25 +143,37 @@ describe('initializePage', () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-    expect(chromium.launch).toHaveBeenCalledWith(
-      expect.not.objectContaining({ executablePath: expect.any(String) as string }),
-    );
+    const anyStr = expect.any(String) as string;
+    const noExecPath = expect.not.objectContaining({ executablePath: anyStr }) as object;
+    expect(chromium.launch).toHaveBeenCalledWith(noExecPath);
   });
 
   it('rejects custom executablePath to prevent system Chromium usage', async () => {
     const scraper = createScraper({
       executablePath: '/usr/bin/chromium',
     } as Partial<ScraperOptions>);
-    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
-      'Custom executablePath is not supported',
-    );
+    const scrapePromise = scraper.scrape({ userCode: 'test', password: 'test' });
+    await expect(scrapePromise).rejects.toThrow('Custom executablePath is not supported');
   });
 });
 
 describe('navigateTo', () => {
   it('navigates to URL successfully', async () => {
     const page = createMockPage();
-    page.goto.mockResolvedValue({ ok: () => true, status: () => 200 });
+    page.goto.mockResolvedValue({
+      /**
+       * Mock ok() returning true for a successful navigation.
+       *
+       * @returns true indicating a successful response
+       */
+      ok: () => true,
+      /**
+       * Mock status() returning 200 for a successful navigation.
+       *
+       * @returns 200 HTTP status code
+       */
+      status: () => 200,
+    });
     const ctx = createMockContext(page);
     MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper();
@@ -179,8 +194,34 @@ describe('navigateTo', () => {
   it('retries on non-OK response when retries available', async () => {
     const page = createMockPage();
     page.goto
-      .mockResolvedValueOnce({ ok: () => false, status: () => 503 })
-      .mockResolvedValueOnce({ ok: () => true, status: () => 200 });
+      .mockResolvedValueOnce({
+        /**
+         * Mock ok() returning false for a failed response.
+         *
+         * @returns false indicating a failed response
+         */
+        ok: () => false,
+        /**
+         * Mock status() returning 503 for a service unavailable response.
+         *
+         * @returns 503 HTTP status code
+         */
+        status: () => 503,
+      })
+      .mockResolvedValueOnce({
+        /**
+         * Mock ok() returning true for a successful retry.
+         *
+         * @returns true indicating a successful retry response
+         */
+        ok: () => true,
+        /**
+         * Mock status() returning 200 for a successful retry.
+         *
+         * @returns 200 HTTP status code for successful retry
+         */
+        status: () => 200,
+      });
     const ctx = createMockContext(page);
     MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 1 });
@@ -190,7 +231,20 @@ describe('navigateTo', () => {
 
   it('throws when retries exhausted', async () => {
     const page = createMockPage();
-    page.goto.mockResolvedValue({ ok: () => false, status: () => 500 });
+    page.goto.mockResolvedValue({
+      /**
+       * Mock ok() returning false for an error response.
+       *
+       * @returns false indicating a failed response
+       */
+      ok: () => false,
+      /**
+       * Mock status() returning 500 for a server error response.
+       *
+       * @returns 500 HTTP status code
+       */
+      status: () => 500,
+    });
     const ctx = createMockContext(page);
     MOCK_BROWSER.newContext.mockResolvedValue(ctx);
     const scraper = createScraper({ navigationRetryCount: 0 });
@@ -204,8 +258,9 @@ describe('fillInputs', () => {
   it('fills multiple input fields', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(fillInput).toHaveBeenCalledWith(expect.anything(), '#user', 'testuser');
-    expect(fillInput).toHaveBeenCalledWith(expect.anything(), '#pass', 'testpass');
+    const anyArg = expect.anything() as unknown;
+    expect(fillInput).toHaveBeenCalledWith(anyArg, '#user', 'testuser');
+    expect(fillInput).toHaveBeenCalledWith(anyArg, '#pass', 'testpass');
   });
 
   it('handles empty fields array', async () => {
@@ -221,6 +276,11 @@ describe('login', () => {
     const scraper = createScraper();
     scraper.loginOpts = {
       ...defaultLoginOptions(),
+      /**
+       * Simulates a checkReadiness function that throws to test error handling.
+       *
+       * @returns never — always throws
+       */
       checkReadiness: (): Promise<void> => {
         throw new ScraperAuthenticationError('test-bank', 'login failed unexpectedly');
       },
@@ -248,7 +308,8 @@ describe('login', () => {
   it('waits for submit button when no checkReadiness', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#submit');
+    const anyArg2 = expect.anything() as unknown;
+    expect(waitUntilElementFound).toHaveBeenCalledWith(anyArg2, '#submit');
   });
 
   it('calls function submitButtonSelector instead of clicking', async () => {
@@ -263,7 +324,8 @@ describe('login', () => {
   it('clicks string submitButtonSelector', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(clickButton).toHaveBeenCalledWith(expect.anything(), '#submit');
+    const anyArg3 = expect.anything() as unknown;
+    expect(clickButton).toHaveBeenCalledWith(anyArg3, '#submit');
   });
 
   it('calls postAction when provided', async () => {

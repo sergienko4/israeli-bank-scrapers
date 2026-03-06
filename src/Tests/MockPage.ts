@@ -36,7 +36,37 @@ export interface MockPage {
   [key: string]: jest.Mock | undefined;
 }
 
+/**
+ * Creates a mock Playwright Page with jest spies for all common page methods.
+ *
+ * @param overrides - optional mock overrides to customize specific page methods
+ * @returns a mock Page object typed as both MockPage and Playwright Page
+ */
 export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Page {
+  /**
+   * Mock browser version stub returned by the context.browser() method.
+   *
+   * @returns the mock Chromium version string
+   */
+  const mockBrowserVersionStub = (): string => 'chromium-131';
+  /**
+   * Mock browser stub returned by the context() method.
+   *
+   * @returns a minimal browser object with a version stub
+   */
+  const mockBrowserStub = (): { version: () => string } => ({ version: mockBrowserVersionStub });
+  /**
+   * Mock ok response predicate for goto responses.
+   *
+   * @returns true to indicate a successful navigation response
+   */
+  const mockOk = (): boolean => true;
+  /**
+   * Mock status response accessor for goto responses.
+   *
+   * @returns 200 as the mock HTTP status code
+   */
+  const mockStatus = (): number => 200;
   return {
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     $eval: jest.fn().mockResolvedValue(undefined),
@@ -57,11 +87,11 @@ export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Pa
     addInitScript: jest.fn().mockResolvedValue(undefined),
     setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
     context: jest.fn().mockReturnValue({
-      browser: (): { version: () => string } => ({ version: (): string => 'chromium-131' }),
+      browser: mockBrowserStub,
       cookies: jest.fn().mockResolvedValue([]),
     }),
     setDefaultTimeout: jest.fn(),
-    goto: jest.fn().mockResolvedValue({ ok: (): boolean => true, status: (): number => 200 }),
+    goto: jest.fn().mockResolvedValue({ ok: mockOk, status: mockStatus }),
     on: jest.fn(),
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
@@ -70,16 +100,31 @@ export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Pa
   } as unknown as MockPage & Page;
 }
 
+/**
+ * Creates a mock browser context with jest spies for newPage and close.
+ *
+ * @param page - optional mock page to return from newPage; creates a new one if omitted
+ * @returns a mock context object with newPage and close mocks
+ */
 export function createMockContext(page?: MockPage & Page): {
   newPage: jest.Mock;
   close: jest.Mock;
 } {
+  const resolvedPage = page ?? createMockPage();
   return {
-    newPage: jest.fn().mockResolvedValue(page ?? createMockPage()),
+    newPage: jest.fn().mockResolvedValue(resolvedPage),
     close: jest.fn().mockResolvedValue(undefined),
   };
 }
 
+/**
+ * Creates a mock browser with jest spies for newContext and close.
+ *
+ * @param context - optional mock context to return from newContext; creates a new one if omitted
+ * @param context.newPage - mock function to create a new page in the context
+ * @param context.close - mock function to close the context
+ * @returns a mock browser object with newContext and close mocks
+ */
 export function createMockBrowser(context?: { newPage: jest.Mock; close: jest.Mock }): {
   newContext: jest.Mock;
   close: jest.Mock;
@@ -91,6 +136,12 @@ export function createMockBrowser(context?: { newPage: jest.Mock; close: jest.Mo
   };
 }
 
+/**
+ * Creates a ScraperOptions object with sane defaults for unit tests.
+ *
+ * @param overrides - optional partial options to override the defaults
+ * @returns a complete ScraperOptions object for use in test scrapers
+ */
 export function createMockScraperOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
     companyId: CompanyTypes.Hapoalim,
@@ -100,10 +151,13 @@ export function createMockScraperOptions(overrides: Partial<ScraperOptions> = {}
 }
 
 /**
- * Generate unique fake credentials for a unit test.
+ * Generates unique fake credentials for a unit test.
  * Values are clearly mock data — never real credentials.
  * Using a generator (vs hardcoded constants) ensures no real credentials
  * accidentally end up in test source files.
+ *
+ * @param prefix - optional prefix for the username and email to identify the test context
+ * @returns an object with mock username, password, id, email, and card6Digits fields
  */
 export function createMockCredentials(prefix = 'bank'): {
   username: string;
@@ -113,11 +167,12 @@ export function createMockCredentials(prefix = 'bank'): {
   card6Digits: string;
 } {
   const runId = randomBytes(3).toString('hex'); // 6 hex chars, cryptographically random
+  const cardNum = randomInt(100000, 1000000);
   return {
     username: `mock.${prefix}.user.${runId}`,
     password: `MockPwd${runId}`,
     id: `mock_id_${runId}`,
     email: `mock.${prefix}.${runId}@test.example`,
-    card6Digits: String(randomInt(100000, 1000000)),
+    card6Digits: String(cardNum),
   };
 }

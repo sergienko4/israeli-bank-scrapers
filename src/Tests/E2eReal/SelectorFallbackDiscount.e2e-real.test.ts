@@ -50,16 +50,28 @@ const BASE_CFG: LoginConfig = {
     { kind: 'css', value: '#WRONG_sendBtn' },
     { kind: 'css', value: '.sendBtn' },
   ],
-  checkReadiness: async page => {
-    await waitUntilElementFound(page, '#tzId');
-  },
-  postAction: async page => {
-    try {
-      await waitForNavigation(page);
-    } catch {
-      await page.waitForSelector('#general-error');
-    }
-  },
+  checkReadiness:
+    /**
+     * Waits for the Discount login form ID field to appear before filling inputs.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await waitUntilElementFound(page, '#tzId');
+    },
+  postAction:
+    /**
+     * Waits for navigation after login or falls back to checking for a general error element.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      try {
+        await waitForNavigation(page);
+      } catch {
+        await page.waitForSelector('#general-error');
+      }
+    },
   possibleResults: {
     success: [
       'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
@@ -98,17 +110,29 @@ DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
     const iframeCfg: LoginConfig = {
       ...BASE_CFG,
-      checkReadiness: async (page: Page) => {
-        await waitUntilElementFound(page, '#tzId');
-        await injectFormByInput(page, '#tzId');
-      },
-      postAction: async (page: Page) => {
-        try {
-          await waitForNavigation(page, { timeout: 15000 });
-        } catch {
-          /* form lacks React handlers */
-        }
-      },
+      checkReadiness:
+        /**
+         * Waits for the form then injects it into a srcdoc iframe to simulate iframe detection.
+         *
+         * @param page - the Playwright page to interact with
+         */
+        async (page: Page) => {
+          await waitUntilElementFound(page, '#tzId');
+          await injectFormByInput(page, '#tzId');
+        },
+      postAction:
+        /**
+         * Waits for navigation after iframe form submission, ignoring React handler errors.
+         *
+         * @param page - the Playwright page to wait on
+         */
+        async (page: Page) => {
+          try {
+            await waitForNavigation(page, { timeout: 15000 });
+          } catch {
+            /* form lacks React handlers */
+          }
+        },
     };
     const result = await new ConcreteGenericScraper(
       {

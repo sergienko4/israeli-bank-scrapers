@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { OptInFeatures } from '../../Scrapers/Base/Interface';
+export type { OptInFeatures as default } from '../../Scrapers/Base/Interface';

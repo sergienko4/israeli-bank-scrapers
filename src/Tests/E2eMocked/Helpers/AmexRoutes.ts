@@ -7,6 +7,12 @@ interface AmexRouteOverrides {
   transactions?: string;
 }
 
+/**
+ * Builds the default Amex mock route array with optional per-endpoint overrides.
+ *
+ * @param overrides - optional body overrides for validate, login, accounts, or transactions
+ * @returns array of MockRoute objects for use with setupRequestInterception
+ */
 export default function amexRoutes(
   overrides: AmexRouteOverrides = {},
 ): { match: string; method?: 'POST'; contentType: string; body: string }[] {

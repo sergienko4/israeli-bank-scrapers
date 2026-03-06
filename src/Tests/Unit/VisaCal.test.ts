@@ -31,9 +31,14 @@ jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  waitUntilIframeFound: jest
-    .fn()
-    .mockResolvedValue({ url: (): string => 'https://connect.cal-online.co.il/login' }),
+  waitUntilIframeFound: jest.fn().mockResolvedValue({
+    /**
+     * Returns the mock VisaCal connect iframe URL.
+     *
+     * @returns the mock iframe URL string
+     */
+    url: (): string => 'https://connect.cal-online.co.il/login',
+  }),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEval: jest.fn().mockResolvedValue(''),
 }));
@@ -57,6 +62,11 @@ jest.mock('../../Common/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -72,16 +82,25 @@ beforeEach(() => {
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
 
+/**
+ * Sets up the standard 5-call fetchPost mock chain for a VisaCal scrape cycle.
+ *
+ * @param txnDetails - the card transaction details response for the 5th mock call
+ */
+function mockFetchPostChain(txnDetails: object): void {
+  (fetchPost as jest.Mock)
+    .mockResolvedValueOnce(INIT_RESPONSE)
+    .mockResolvedValueOnce(INIT_RESPONSE)
+    .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+    .mockResolvedValueOnce({ statusCode: 96 })
+    .mockResolvedValueOnce(txnDetails);
+}
+
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock).mockResolvedValueOnce(INIT_RESPONSE);
-    (fetchPost as jest.Mock).mockResolvedValueOnce(INIT_RESPONSE);
-    (fetchPost as jest.Mock).mockResolvedValueOnce({
-      result: { bankIssuedCards: { cardLevelFrames: [] } },
-    });
-    (fetchPost as jest.Mock).mockResolvedValueOnce({ statusCode: 96 });
-    (fetchPost as jest.Mock).mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+    const details1 = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(details1);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
 
@@ -93,16 +112,10 @@ describe('login', () => {
 describe('fetchData', () => {
   it('fetches and converts normal transactions', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(
-        mockCardTransactionDetails([
-          scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: TrnTypeCode.Regular }),
-        ]),
-      );
+    const details2 = mockCardTransactionDetails([
+      scrapedTxn({ trnAmt: 250, merchantName: 'רמי לוי', trnTypeCode: TrnTypeCode.Regular }),
+    ]);
+    mockFetchPostChain(details2);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     const accounts = result.accounts ?? [];
@@ -118,20 +131,10 @@ describe('fetchData', () => {
 
   it('detects installment transactions', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(
-        mockCardTransactionDetails([
-          scrapedTxn({
-            trnTypeCode: TrnTypeCode.Installments,
-            numOfPayments: 12,
-            curPaymentNum: 3,
-          }),
-        ]),
-      );
+    const details3 = mockCardTransactionDetails([
+      scrapedTxn({ trnTypeCode: TrnTypeCode.Installments, numOfPayments: 12, curPaymentNum: 3 }),
+    ]);
+    mockFetchPostChain(details3);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     const t = (result.accounts ?? [])[0].txns[0];
@@ -142,14 +145,10 @@ describe('fetchData', () => {
 
   it('handles credit transactions with positive amount', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ trnTypeCode: TrnTypeCode.Credit, trnAmt: 50 })]),
-      );
+    const details4 = mockCardTransactionDetails([
+      scrapedTxn({ trnTypeCode: TrnTypeCode.Credit, trnAmt: 50 }),
+    ]);
+    mockFetchPostChain(details4);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(50);
@@ -157,12 +156,8 @@ describe('fetchData', () => {
 
   it('handles pending transactions with statusCode 96 (no data)', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+    const details5 = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(details5);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect(result.success).toBe(true);
@@ -170,12 +165,7 @@ describe('fetchData', () => {
 
   it('throws on failed month data fetch', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce({ statusCode: 0, title: 'Error' });
+    mockFetchPostChain({ statusCode: 0, title: 'Error' });
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
 
@@ -185,26 +175,16 @@ describe('fetchData', () => {
 
   it('calls filterOldTransactions when enabled', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
-
+    const details6 = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(details6);
     await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect(filterOldTransactions).toHaveBeenCalled();
   });
 
   it('includes rawTransaction when option set', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
-
+    const details7 = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(details7);
     const result = await new VisaCalScraper(visaCalOptions({ includeRawTransaction: true })).scrape(
       CREDS,
     );
@@ -213,18 +193,18 @@ describe('fetchData', () => {
 
   it('extracts balance from frames data', async () => {
     setupVisaCalMocks();
+    const details8 = mockCardTransactionDetails([scrapedTxn()]);
+    const framesResp = {
+      result: {
+        bankIssuedCards: { cardLevelFrames: [{ cardUniqueId: 'card-1', nextTotalDebit: 5000 }] },
+      },
+    };
     (fetchPost as jest.Mock)
       .mockResolvedValueOnce(INIT_RESPONSE)
       .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({
-        result: {
-          bankIssuedCards: {
-            cardLevelFrames: [{ cardUniqueId: 'card-1', nextTotalDebit: 5000 }],
-          },
-        },
-      })
+      .mockResolvedValueOnce(framesResp)
       .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+      .mockResolvedValueOnce(details8);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect((result.accounts ?? [])[0].balance).toBe(-5000);
@@ -232,14 +212,8 @@ describe('fetchData', () => {
 
   it('assigns category from branchCodeDesc', async () => {
     setupVisaCalMocks();
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(
-        mockCardTransactionDetails([scrapedTxn({ branchCodeDesc: 'מסעדות' })]),
-      );
+    const details9 = mockCardTransactionDetails([scrapedTxn({ branchCodeDesc: 'מסעדות' })]);
+    mockFetchPostChain(details9);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].category).toBe('מסעדות');
@@ -255,12 +229,14 @@ describe('fetchData', () => {
 
   it('merges pending transactions with completed ones', async () => {
     setupVisaCalMocks();
+    const pendingResp = mockPendingResponse([pendingTxn({ branchCodeDesc: 'קניות' })]);
+    const completedResp = mockCardTransactionDetails([scrapedTxn()]);
     (fetchPost as jest.Mock)
       .mockResolvedValueOnce(INIT_RESPONSE)
       .mockResolvedValueOnce(INIT_RESPONSE)
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce(mockPendingResponse([pendingTxn({ branchCodeDesc: 'קניות' })]))
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+      .mockResolvedValueOnce(pendingResp)
+      .mockResolvedValueOnce(completedResp);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     const txns = (result.accounts ?? [])[0].txns;
@@ -275,11 +251,23 @@ describe('fetchData', () => {
 });
 
 describe('auth flow edge cases', () => {
+  /**
+   * Creates a mock page simulating a VisaCal session where the auth token cannot be captured.
+   *
+   * @returns a mock page with the login response timing out
+   */
   function makePageNoToken(): ReturnType<typeof createMockPage> {
     return createMockPage({
-      frames: jest
-        .fn()
-        .mockReturnValue([{ url: (): string => 'https://connect.cal-online.co.il/login' }]),
+      frames: jest.fn().mockReturnValue([
+        {
+          /**
+           * Returns the mock VisaCal connect iframe URL.
+           *
+           * @returns the connect iframe URL string
+           */
+          url: (): string => 'https://connect.cal-online.co.il/login',
+        },
+      ]),
       waitForResponse: jest.fn().mockRejectedValue(new Error('Timeout 15s')),
     });
   }
@@ -293,12 +281,8 @@ describe('auth flow edge cases', () => {
       reloadsUsed: 1,
       description: 'VisaCal auth-module',
     });
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+    const detailsA = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(detailsA);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect(result.success).toBe(true);
@@ -323,12 +307,8 @@ describe('auth flow edge cases', () => {
   it('catches waitForPostLoginRedirect timeout and continues', async () => {
     setupVisaCalMocks();
     (waitForUrl as jest.Mock).mockRejectedValueOnce(new Error('redirect timeout'));
-    (fetchPost as jest.Mock)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce(INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
-      .mockResolvedValueOnce({ statusCode: 96 })
-      .mockResolvedValueOnce(mockCardTransactionDetails([scrapedTxn()]));
+    const detailsB = mockCardTransactionDetails([scrapedTxn()]);
+    mockFetchPostChain(detailsB);
 
     const result = await new VisaCalScraper(visaCalOptions()).scrape(CREDS);
     expect(result.success).toBe(true);

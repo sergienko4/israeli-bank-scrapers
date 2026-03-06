@@ -15,7 +15,9 @@ afterAll(async () => {
 
 describe('Playwright context options verification (real browser)', () => {
   it('sets realistic user agent with Chrome version', async () => {
-    const context = await browser.newContext(buildContextOptions());
+    /** Browser context options for the user-agent test. */
+    const contextOpts = buildContextOptions();
+    const context = await browser.newContext(contextOpts);
     const page = await context.newPage();
     try {
       await page.goto('about:blank');
@@ -29,7 +31,9 @@ describe('Playwright context options verification (real browser)', () => {
   });
 
   it('sets Hebrew Accept-Language header', async () => {
-    const context = await browser.newContext(buildContextOptions());
+    /** Browser context options for the Accept-Language header test. */
+    const contextOpts = buildContextOptions();
+    const context = await browser.newContext(contextOpts);
     const page = await context.newPage();
     try {
       let capturedHeaders: Record<string, string> = {};
@@ -54,7 +58,9 @@ describe('Playwright context options verification (real browser)', () => {
   });
 
   it('sets client hints headers on requests', async () => {
-    const context = await browser.newContext(buildContextOptions());
+    /** Browser context options for the client hints test. */
+    const contextOpts = buildContextOptions();
+    const context = await browser.newContext(contextOpts);
     const page = await context.newPage();
     try {
       let capturedHeaders: Record<string, string> = {};

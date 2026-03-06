@@ -95,6 +95,12 @@ const ERROR_PAGE_HTML =
 
 // ── Shared LoginConfig helpers ────────────────────────────────────────────────
 
+/**
+ * Builds a LoginConfig pointing to test-bank.local with optional overrides.
+ *
+ * @param overrides - partial LoginConfig fields to override defaults
+ * @returns a complete LoginConfig for use in test scrapers
+ */
 function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
   return {
     loginUrl: 'https://test-bank.local/login',
@@ -132,20 +138,26 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_CODE_ENTRY_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves OTP code-entry page to trigger OTP detection with no retriever configured.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: OTP_CODE_ENTRY_HTML,
+              },
+              {
+                match: 'test-bank.local/dashboard',
+                contentType: 'text/html; charset=utf-8',
+                body: DASHBOARD_HTML,
+              },
+            ]);
+          },
         // No otpCodeRetriever provided
       },
       makeLoginConfig(),
@@ -171,20 +183,26 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_CODE_ENTRY_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves OTP code-entry page so the retriever is invoked with the phone hint.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: OTP_CODE_ENTRY_HTML,
+              },
+              {
+                match: 'test-bank.local/dashboard',
+                contentType: 'text/html; charset=utf-8',
+                body: DASHBOARD_HTML,
+              },
+            ]);
+          },
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
@@ -198,7 +216,8 @@ describe('OTP detection', () => {
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
     // phoneHint is empty string — page has no masked phone pattern
-    expect(retrieverSpy).toHaveBeenCalledWith(expect.any(String));
+    const anyString = expect.any(String) as string;
+    expect(retrieverSpy).toHaveBeenCalledWith(anyString);
   }, 30000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {
@@ -211,20 +230,26 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_SELECTION_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves the OTP selection page for the two-screen flow test.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: OTP_SELECTION_HTML,
+              },
+              {
+                match: 'test-bank.local/dashboard',
+                contentType: 'text/html; charset=utf-8',
+                body: DASHBOARD_HTML,
+              },
+            ]);
+          },
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
@@ -248,20 +273,26 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: NORMAL_LOGIN_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves a normal login page with no OTP keywords for the no-OTP regression test.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: NORMAL_LOGIN_HTML,
+              },
+              {
+                match: 'test-bank.local/dashboard',
+                contentType: 'text/html; charset=utf-8',
+                body: DASHBOARD_HTML,
+              },
+            ]);
+          },
       },
       makeLoginConfig(),
     );
@@ -285,20 +316,26 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 15000,
-        preparePage: async (page): Promise<void> => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: LOGIN_ERROR_HTML,
-            },
-            {
-              match: 'test-bank.local/error',
-              contentType: 'text/html; charset=utf-8',
-              body: ERROR_PAGE_HTML,
-            },
-          ]);
-        },
+        preparePage:
+          /**
+           * Serves the login error page to verify no OTP is triggered on wrong credentials.
+           *
+           * @param page - the Playwright page to attach route interception to
+           */
+          async (page): Promise<void> => {
+            await setupRequestInterception(page, [
+              {
+                match: 'test-bank.local/login',
+                contentType: 'text/html; charset=utf-8',
+                body: LOGIN_ERROR_HTML,
+              },
+              {
+                match: 'test-bank.local/error',
+                contentType: 'text/html; charset=utf-8',
+                body: ERROR_PAGE_HTML,
+              },
+            ]);
+          },
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),

@@ -12,6 +12,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -20,31 +25,64 @@ jest.mock('../../Common/Debug', () => ({
   }),
 }));
 
+/**
+ * Sets up fetchPost to return a mock device token response.
+ *
+ * @param deviceToken - the device token to return
+ */
 function mockDeviceToken(deviceToken = 'device-123'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });
 }
 
+/**
+ * Sets up fetchPost to return a mock OTP preparation response.
+ *
+ * @param otpContext - the OTP context string to return
+ */
 function mockOtpPrepare(otpContext = 'otp-ctx-456'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpContext } });
 }
 
+/**
+ * Sets up fetchPost to return a mock OTP verification response with a long-term token.
+ *
+ * @param otpToken - the long-term OTP token to return
+ */
 function mockOtpVerify(otpToken = 'otp-long-term-token'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpToken } });
 }
 
+/**
+ * Sets up fetchPost to return a mock ID token response.
+ *
+ * @param idToken - the ID token string to return
+ */
 function mockIdToken(idToken = 'id-token-789'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
 }
 
+/**
+ * Sets up fetchPost to return a mock session token response.
+ *
+ * @param accessToken - the session access token to return
+ */
 function mockSessionToken(accessToken = 'access-token-abc'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
 }
 
+/**
+ * Sets up the standard ID token and session token mocks for a long-term token login test.
+ */
 function setupLongTermLogin(): void {
   mockIdToken();
   mockSessionToken();
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero customer response.
+ *
+ * @param portfolios - the portfolios to include in the mock customer response
+ */
 function mockCustomer(
   portfolios: {
     portfolioId: string;
@@ -57,6 +95,13 @@ function mockCustomer(
   });
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero movements page response.
+ *
+ * @param movements - the movements to include in the mock response
+ * @param hasMore - whether there are more pages to fetch
+ * @param cursor - the pagination cursor for the next page
+ */
 function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, cursor = 'next'): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
@@ -66,6 +111,11 @@ function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, curso
   });
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero account balance response.
+ *
+ * @param currentAccountBalance - the balance amount to return
+ */
 function mockAccountBalance(currentAccountBalance = 5000): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     balance: {
@@ -77,6 +127,11 @@ function mockAccountBalance(currentAccountBalance = 5000): void {
   });
 }
 
+/**
+ * Returns an ISO date string from approximately one month ago for use in test fixtures.
+ *
+ * @returns an ISO date string one month before today
+ */
 function recentDate(): string {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
@@ -106,6 +161,12 @@ interface OneZeroMovement {
   accountId?: string;
 }
 
+/**
+ * Creates a mock OneZeroMovement for unit tests.
+ *
+ * @param overrides - optional field overrides for the mock movement
+ * @returns a OneZeroMovement object for testing
+ */
 function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
   const ts = recentDate();
   return {

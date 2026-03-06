@@ -19,6 +19,8 @@ const LOG = getDebug('navigation');
  *
  * Never throws — both steps have independent timeouts with .catch(() => null) fallback.
  * Call before any fillInput / clickButton sequence on a form.
+ *
+ * @param page - the Playwright Page to wait on
  */
 async function waitForPageStability(page: Page): Promise<void> {
   // A: wait for network to settle

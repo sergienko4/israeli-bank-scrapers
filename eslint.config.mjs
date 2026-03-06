@@ -7,6 +7,7 @@ import checkFile from 'eslint-plugin-check-file';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import jsdoc from 'eslint-plugin-jsdoc';
 
 export default tseslint.config(
   // 1. GLOBAL IGNORES
@@ -38,6 +39,7 @@ export default tseslint.config(
       'unused-imports': unusedImports,
       'check-file': checkFile,
       'simple-import-sort': simpleImportSort,
+      jsdoc,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -57,10 +59,81 @@ export default tseslint.config(
       },
     },
     rules: {
+
       // ── Logging & Security ───────────────────────────────────────────────
       'no-console': 'error',
-      'no-warning-comments': ['error', { terms: ['todo', 'fixme'], location: 'anywhere' }],
+      'no-warning-comments': [
+        'error',
+        {
+          terms: [
+            'todo',
+            'fixme',
+            'istanbul ignore',
+            'c8 ignore',
+            'v8 ignore',
+            '@ts-ignore',
+            '@ts-nocheck',
+            '@ts-expect-error',
+            'eslint-disable'
+          ],
+          location: 'anywhere'
+        }
+      ],
 
+      // ── Structural & Bypass Protection (AST Level) ───────────────────────
+      'no-restricted-syntax': [
+        'error',
+        // Block: /* istanbul ignore next */
+        {
+          selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'])",
+          message: "🚫 COVERAGE SKIP: Write a test instead of ignoring coverage.",
+        },
+        // Block: // eslint-disable-next-line
+        {
+          selector: "Line:matches([value*='eslint-disable'])",
+          message: "🚫 LINT SKIP: Do not disable ESLint rules. Fix the underlying issue.",
+        },
+        // Block: ! (Non-null assertion) - The "Code Skip"
+        {
+          selector: "TSNonNullExpression",
+          message: "🚫 TYPE SKIP: Do not use non-null assertions (!). Use optional chaining (?.) or a proper null check.",
+        },
+        // ── Your existing security selectors ────────────────────────────────
+        {
+          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
+          message: 'SECURITY: Do not log sensitive data keys.',
+        },
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message: "Do not use 'throw new Error()'. Use a custom Error class.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='isStuckOnLoginPage']",
+          message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
+        },
+        {
+          // Targets: any function call that has another function call as an argument
+          selector: "CallExpression > .arguments[type='CallExpression']",
+          message: "🚫 FORBIDDEN NESTED CALL: Do not pass a function call as an argument. Assign the result to a descriptive variable first for better readability and debugging.",
+        },
+
+        'ForInStatement',
+        'LabeledStatement',
+        'WithStatement',
+      ],
+
+      // 2. Explicitly ban the TS-specific skip rules
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-expect-error': 'allow-with-description', // Only allow if they explain why
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          'ts-check': true,
+          minimumDescriptionLength: 10,
+        },
+      ],
+      '@typescript-eslint/no-non-null-assertion': 'error',
       // ── Import Organization ──────────────────────────────────────────────
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
@@ -90,30 +163,6 @@ export default tseslint.config(
       'no-shadow': 'off',
       'no-await-in-loop': 'error',
 
-      // ── Restricted Syntax (Security & Structure) ─────────────────────────
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
-          message: 'SECURITY: Do not log sensitive data keys.',
-        },
-        {
-          selector: "CallExpression[callee.object.name='logger'][callee.property.name=/debug|info|warn|error/] Identifier[name=/^credentials$|^password$|^token$|^secret$|^otp$/]",
-          message: 'SECURITY: Do not pass credential variables to logger.',
-        },
-        {
-          selector: ":matches(TSInterfaceDeclaration, TSTypeAliasDeclaration, ClassDeclaration) ~ :matches(TSInterfaceDeclaration, TSTypeAliasDeclaration, ClassDeclaration)",
-          message: "Each file should only export one primary structure (Interface, Type, or Class).",
-        },
-        {
-          selector: "ThrowStatement > NewExpression[callee.name='Error']",
-          message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') to ensure better error categorization and PII safety.",
-        },
-        'ForInStatement',
-        'LabeledStatement',
-        'WithStatement',
-      ],
-
       // ── Strict Type Safety ───────────────────────────────────────────────
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unsafe-assignment': 'error',
@@ -121,11 +170,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
-      '@typescript-eslint/no-non-null-assertion': 'error',
-      '@typescript-eslint/ban-ts-comment': 'error',
 
       // Use TS-specific unused vars rule and turn off the base one
-      'no-unused-vars': 'off',
+      'no-unused-vars': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' },
@@ -179,6 +226,27 @@ export default tseslint.config(
         ],
       }],
 
+      // === JSDOC DOCUMENTATION ===
+      'jsdoc/require-jsdoc': ['error', {
+        publicOnly: false, // Ensures ALL functions (even private) have comments
+        require: {
+          FunctionDeclaration: true,
+          MethodDefinition: true,
+          ClassDeclaration: true,
+          ArrowFunctionExpression: true,
+          FunctionExpression: true,
+        },
+      }],
+      'jsdoc/require-description': ['error', { contexts: ['any'] }],
+      'jsdoc/require-param': 'error',
+      'jsdoc/require-param-description': 'error',
+      'jsdoc/require-param-type': 'off', // TS handles types
+      'jsdoc/require-returns': 'error',
+      'jsdoc/require-returns-description': 'error',
+      'jsdoc/require-returns-type': 'off', // TS handles types
+      'jsdoc/check-param-names': 'error',
+      'jsdoc/check-tag-names': 'error',
+
       // ── Clean Code Limits ────────────────────────────────────────────────
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
       '@typescript-eslint/max-params': ['error', { max: 3 }],
@@ -217,5 +285,6 @@ export default tseslint.config(
     rules: {
       'check-file/filename-naming-convention': 'off'
     },
+
   },
 );

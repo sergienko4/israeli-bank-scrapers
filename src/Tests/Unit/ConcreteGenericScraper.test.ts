@@ -30,6 +30,11 @@ jest.mock('../../Common/ElementsInteractions', () => ({
 }));
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -53,6 +58,12 @@ jest.mock('../../Common/Waiting', () => ({
 
 const SUCCESS_URL = 'https://bank.example.com/dashboard';
 
+/**
+ * Creates a minimal LoginConfig for ConcreteGenericScraper unit tests.
+ *
+ * @param overrides - optional partial overrides for the login config
+ * @returns a LoginConfig object for testing
+ */
 function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
   return {
     loginUrl: 'https://bank.example.com/login',
@@ -125,16 +136,19 @@ describe('ConcreteGenericScraper', () => {
     it('includes loginUrl from config', async () => {
       const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
       await scraper.scrape(CREDS);
-      expect(mockPage.goto).toHaveBeenCalledWith(
-        'https://bank.example.com/login',
-        expect.anything(),
-      );
+      const anyOpts = expect.anything() as unknown;
+      expect(mockPage.goto).toHaveBeenCalledWith('https://bank.example.com/login', anyOpts);
     });
 
     it('uses preAction when provided', async () => {
       const preAction = jest.fn().mockResolvedValue(undefined);
       const config = makeLoginConfig({
-        preAction: async _page => {
+        /**
+         * Pre-action that invokes the spy and returns undefined.
+         *
+         * @returns a promise that resolves to undefined after invoking the spy
+         */
+        preAction: async () => {
           await preAction();
           return undefined;
         },
@@ -147,6 +161,9 @@ describe('ConcreteGenericScraper', () => {
     it('uses postAction when provided', async () => {
       const postAction = jest.fn().mockResolvedValue(undefined);
       const config = makeLoginConfig({
+        /**
+         * Post-action that invokes the spy after login.
+         */
         postAction: async () => {
           await postAction();
         },

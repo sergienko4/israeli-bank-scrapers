@@ -20,29 +20,35 @@ describe('getAllMonthMoments', () => {
     const start = moment().startOf('month');
     const result = getAllMonthMoments(start);
     expect(result).toHaveLength(1);
-    expect(result[0].isSame(start, 'month')).toBe(true);
+    const isSame = result[0].isSame(start, 'month');
+    expect(isSame).toBe(true);
   });
 
   it('returns all months from start to current month', () => {
     const start = moment().subtract(3, 'months').startOf('month');
     const result = getAllMonthMoments(start);
     expect(result).toHaveLength(4);
-    expect(result[0].format('YYYY-MM')).toBe('2024-03');
-    expect(result[3].format('YYYY-MM')).toBe('2024-06');
+    const first = result[0].format('YYYY-MM');
+    const last = result[3].format('YYYY-MM');
+    expect(first).toBe('2024-03');
+    expect(last).toBe('2024-06');
   });
 
   it('includes future months when futureMonths is specified', () => {
     const start = moment().startOf('month');
     const result = getAllMonthMoments(start, 2);
     expect(result).toHaveLength(3);
-    expect(result[2].format('YYYY-MM')).toBe('2024-08');
+    const future = result[2].format('YYYY-MM');
+    expect(future).toBe('2024-08');
   });
 
   it('accepts string date input', () => {
     const result = getAllMonthMoments('2024-05-01');
     expect(result).toHaveLength(2);
-    expect(result[0].format('YYYY-MM')).toBe('2024-05');
-    expect(result[1].format('YYYY-MM')).toBe('2024-06');
+    const first = result[0].format('YYYY-MM');
+    const second = result[1].format('YYYY-MM');
+    expect(first).toBe('2024-05');
+    expect(second).toBe('2024-06');
   });
 
   it('returns empty array when start is in the future', () => {
@@ -64,27 +70,29 @@ describe('getAllMonthMoments', () => {
   });
 
   it('always returns months in ascending order for any past start', () => {
-    fc.assert(
-      fc.property(fc.integer({ min: -24, max: 0 }), monthsBack => {
-        const start = moment(NOW).add(monthsBack, 'months').startOf('month');
-        const result = getAllMonthMoments(start);
-        for (let i = 1; i < result.length; i++) {
-          expect(result[i].isAfter(result[i - 1])).toBe(true);
-        }
-      }),
-    );
+    const intArb = fc.integer({ min: -24, max: 0 });
+    const property = fc.property(intArb, monthsBack => {
+      const start = moment(NOW).add(monthsBack, 'months').startOf('month');
+      const result = getAllMonthMoments(start);
+      for (let i = 1; i < result.length; i++) {
+        const isAfter = result[i].isAfter(result[i - 1]);
+        expect(isAfter).toBe(true);
+      }
+    });
+    fc.assert(property);
   });
 
   it('never returns months after current month for any past start', () => {
     const nowMoment = moment(NOW);
-    fc.assert(
-      fc.property(fc.integer({ min: -24, max: -1 }), monthsBack => {
-        const start = moment(NOW).add(monthsBack, 'months').startOf('month');
-        const result = getAllMonthMoments(start);
-        result.forEach(m => {
-          expect(m.isSameOrBefore(nowMoment, 'month')).toBe(true);
-        });
-      }),
-    );
+    const intArb = fc.integer({ min: -24, max: -1 });
+    const property = fc.property(intArb, monthsBack => {
+      const start = moment(NOW).add(monthsBack, 'months').startOf('month');
+      const result = getAllMonthMoments(start);
+      result.forEach(m => {
+        const isBefore = m.isSameOrBefore(nowMoment, 'month');
+        expect(isBefore).toBe(true);
+      });
+    });
+    fc.assert(property);
   });
 });

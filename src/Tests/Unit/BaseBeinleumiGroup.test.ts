@@ -36,6 +36,11 @@ jest.mock('../../Common/Waiting', () => ({
   SECOND: 1000,
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -58,6 +63,12 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
+/**
+ * Creates a mock page with account selectors pre-configured for Beinleumi scraper tests.
+ *
+ * @param overrides - optional jest mock overrides for specific page methods
+ * @returns a mock page with Beinleumi account data pre-configured
+ */
 function createPageWithAccountFeatures(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof createMockPage> {
@@ -91,6 +102,11 @@ const PENDING_COLUMN_TYPES = [
   { colClass: 'credit', index: 4 },
 ];
 
+/**
+ * Configures pageEvalAll mocks to return the given rows as completed transactions.
+ *
+ * @param rows - transaction row data with innerTds cell values to return from the mock
+ */
 function mockTransactionTable(rows: { innerTds: string[] }[]): void {
   (pageEvalAll as jest.Mock)
     .mockResolvedValueOnce([]) // pending column types
@@ -102,7 +118,8 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): void {
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createPageWithAccountFeatures());
+  const freshPage = createPageWithAccountFeatures();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://test.fibi.co.il/Resources/PortalNG/shell',
   );
@@ -283,7 +300,8 @@ describe('fetchData', () => {
     expect((result.accounts ?? [])[0].txns).toHaveLength(2);
     expect((result.accounts ?? [])[0].txns[0].description).toBe('Page1');
     expect((result.accounts ?? [])[0].txns[1].description).toBe('Page2');
-    expect(clickButton).toHaveBeenCalledWith(expect.anything(), 'a#Npage.paging');
+    const anythingMatcher = expect.anything() as unknown;
+    expect(clickButton).toHaveBeenCalledWith(anythingMatcher, 'a#Npage.paging');
   });
 
   it('retries iframe detection with sleep', async () => {

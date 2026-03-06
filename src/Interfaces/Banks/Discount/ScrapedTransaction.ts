@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { ScrapedTransaction } from '../../../Scrapers/Discount/DiscountScraper';
+export type { ScrapedTransaction as default } from '../../../Scrapers/Discount/DiscountScraper';

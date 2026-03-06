@@ -28,10 +28,9 @@ jest.mock('../../Common/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
-    return actions.reduce(
-      (p: Promise<T[]>, a: () => Promise<T>) => p.then(async (r: T[]) => [...r, await a()]),
-      Promise.resolve([] as T[]),
-    );
+    let acc = Promise.resolve([]) as Promise<T[]>;
+    for (const action of actions) acc = acc.then(async r => [...r, await action()]);
+    return acc;
   }),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
@@ -42,6 +41,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -49,9 +53,7 @@ jest.mock('../../Common/Debug', () => ({
     error: jest.fn(),
   }),
 }));
-jest.mock('../../Common/Dates', () => {
-  return jest.fn(() => [moment('2024-06-01')]);
-});
+jest.mock('../../Common/Dates', () => jest.fn(() => [moment('2024-06-01')]));
 
 const MOCK_CONTEXT = {
   newPage: jest.fn(),
@@ -64,6 +66,12 @@ const MOCK_BROWSER = {
 
 const CREDS = { id: '123456789', password: 'pass123', card6Digits: '123456' };
 
+/**
+ * Mocks a validate response.
+ *
+ * @param returnCode - the return code in ValidateIdDataBean
+ * @param userName - the user name in ValidateIdDataBean
+ */
 function mockValidate(returnCode = '1', userName = 'TestUser'): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
     Header: { Status: '1' },
@@ -71,10 +79,20 @@ function mockValidate(returnCode = '1', userName = 'TestUser'): void {
   });
 }
 
+/**
+ * Mocks a login response.
+ *
+ * @param status - the login status code
+ */
 function mockLogin(status = '1'): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ status });
 }
 
+/**
+ * Mocks a dashboard accounts response.
+ *
+ * @param cardNumber - the card number to return
+ */
 function mockAccounts(cardNumber = '1234'): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     Header: { Status: '1' },
@@ -84,6 +102,12 @@ function mockAccounts(cardNumber = '1234'): void {
   });
 }
 
+/**
+ * Mocks a transactions response.
+ *
+ * @param txnIsrael - Israel transactions
+ * @param txnAbroad - abroad transactions
+ */
 function mockTxns(
   txnIsrael: ScrapedTransaction[] = [],
   txnAbroad: ScrapedTransaction[] = [],
@@ -99,13 +123,24 @@ function mockTxns(
   });
 }
 
+/**
+ * Configures mocks for a successful validate + login sequence.
+ */
 function setupFullLogin(): void {
   mockValidate('1');
   mockLogin('1');
 }
 
+/**
+ * Creates a fake ScrapedTransaction with randomized values.
+ *
+ * @param overrides - partial fields to override generated defaults
+ * @returns a complete ScrapedTransaction
+ */
 function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   const amount = faker.number.float({ min: 10, max: 5000, fractionDigits: 2 });
+  const recentDate = faker.date.recent({ days: 365 });
+  const fullPurchaseDate = moment(recentDate).format('DD/MM/YYYY');
   return {
     dealSumType: '0',
     voucherNumberRatz: faker.string.numeric(9),
@@ -116,7 +151,7 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
     dealSum: amount,
     paymentSum: amount,
     paymentSumOutbound: 0,
-    fullPurchaseDate: moment(faker.date.recent({ days: 365 })).format('DD/MM/YYYY'),
+    fullPurchaseDate,
     fullSupplierNameHeb: faker.helpers.arrayElement([...HEBREW_MERCHANTS]),
     fullSupplierNameOutbound: '',
     moreInfo: '',
@@ -128,7 +163,8 @@ beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
+  const freshPage = createMockPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
 });
 
 describe('login', () => {

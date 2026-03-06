@@ -31,10 +31,16 @@ export const DATE_FORMAT = MIZRAHI_CFG.format.date;
 export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
 export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
 
+/**
+ * Calculates the effective start moment, limited to at most 1 year ago.
+ *
+ * @param optionsStartDate - the user-specified start date
+ * @returns the later of the user date and 1 year ago
+ */
 export function getStartMoment(optionsStartDate: Date): moment.Moment {
   const defaultStartMoment = moment().subtract(1, 'years');
-  const startDate = optionsStartDate;
-  return moment.max(defaultStartMoment, moment(startDate));
+  const startMoment = moment(optionsStartDate);
+  return moment.max(defaultStartMoment, startMoment);
 }
 
 interface MoreDetailsResponse {
@@ -56,6 +62,12 @@ interface MoreDetailsResponse {
   };
 }
 
+/**
+ * Builds the request parameters for the Mizrahi getMaherBerurimSMF (more details) API.
+ *
+ * @param item - the scraped transaction to build extra detail parameters for
+ * @returns a key-value map for the API POST body
+ */
 function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
   const tarPeula = moment(item.MC02PeulaTaaEZ);
   const tarErech = moment(item.MC02ErehTaaEZ);
@@ -74,6 +86,12 @@ function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, strin
   };
 }
 
+/**
+ * Parses the detail fields from the Mizrahi more-details API response into a MoreDetails object.
+ *
+ * @param fields - the array of Label/Value pairs from the API response
+ * @returns a MoreDetails object with an entries map and a formatted memo string
+ */
 function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDetails {
   const entries: [string, string][] = fields.map(record => [
     record.Label.trim(),
@@ -88,6 +106,14 @@ function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDet
   };
 }
 
+/**
+ * Fetches additional transaction detail data from the Mizrahi API if available.
+ *
+ * @param page - the Playwright page with an active Mizrahi session
+ * @param item - the transaction to fetch details for
+ * @param apiHeaders - the XSRF and Content-Type headers for the API request
+ * @returns parsed MoreDetails or null if details are unavailable
+ */
 async function fetchMoreDetails(
   page: Page,
   item: ScrapedTransaction,
@@ -105,6 +131,14 @@ async function fetchMoreDetails(
   return null;
 }
 
+/**
+ * Safely fetches additional details for a Mizrahi transaction, returning an empty result on error.
+ *
+ * @param page - the Playwright page with an active Mizrahi session
+ * @param item - the transaction to fetch details for
+ * @param apiHeaders - the XSRF and Content-Type headers for the API request
+ * @returns the MoreDetails or an empty result if the fetch fails
+ */
 export async function getExtraTransactionDetails(
   page: Page,
   item: ScrapedTransaction,
@@ -120,6 +154,13 @@ export async function getExtraTransactionDetails(
   return { entries: {}, memo: undefined };
 }
 
+/**
+ * Extracts and modifies the API request data to include the desired date range.
+ *
+ * @param request - the intercepted Playwright request containing the original POST data
+ * @param optionsStartDate - the user-specified start date for transactions
+ * @returns the modified MizrahiRequestData with corrected date range
+ */
 export function createDataFromRequest(
   request: Request,
   optionsStartDate: Date,
@@ -131,6 +172,12 @@ export function createDataFromRequest(
   return data;
 }
 
+/**
+ * Extracts the XSRF token and Content-Type headers from an intercepted request.
+ *
+ * @param request - the intercepted Playwright request with Mizrahi session headers
+ * @returns a header map with the XSRF token and Content-Type for replay requests
+ */
 export function createHeadersFromRequest(request: Request): Record<string, string> {
   return {
     mizrahixsrftoken: request.headers().mizrahixsrftoken,
@@ -138,6 +185,12 @@ export function createHeadersFromRequest(request: Request): Record<string, strin
   };
 }
 
+/**
+ * Builds a unique transaction identifier from the Mizrahi transaction data.
+ *
+ * @param row - the scraped transaction row from the Mizrahi API
+ * @returns a unique identifier string/number or undefined if no reference is available
+ */
 export function getTransactionIdentifier(row: ScrapedTransaction): string | number | undefined {
   if (!row.MC02AsmahtaMekoritEZ) {
     return undefined;

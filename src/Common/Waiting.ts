@@ -7,12 +7,21 @@ import type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 export type { ReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
 export type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 
+/** Error thrown when a polling operation exceeds its configured timeout. */
 export class TimeoutError extends Error {}
 
 export const SECOND = 1000;
 
 type WaitUntilReturn<T> = T extends Falsy ? never : Promise<NonNullable<T>>;
 
+/**
+ * Races the given promise against a timeout, rejecting with a TimeoutError after ms milliseconds.
+ *
+ * @param ms - the timeout duration in milliseconds
+ * @param promise - the promise to race against the timeout
+ * @param description - a human-readable label included in the TimeoutError message
+ * @returns the result of the promise if it resolves before the timeout
+ */
 function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string): Promise<T> {
   const timeout = new Promise((_, reject) => {
     const id = setTimeout(() => {
@@ -29,11 +38,25 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
   ]);
 }
 
+/**
+ * Creates a polling tick function that calls asyncTest repeatedly at the given interval.
+ * Resolves via cbs.resolve when asyncTest returns a truthy value; rejects on error.
+ *
+ * @param asyncTest - the async predicate to poll; resolves when it returns a truthy value
+ * @param interval - the polling interval in milliseconds between each test invocation
+ * @param cbs - resolve/reject callbacks for the enclosing promise
+ * @param cbs.resolve - callback to call with the truthy value when asyncTest succeeds
+ * @param cbs.reject - callback to call when asyncTest throws an error
+ * @returns a function that, when called, starts the polling loop
+ */
 function makeWaitTick<T>(
   asyncTest: () => Promise<T>,
   interval: number,
   cbs: { resolve: (v: NonNullable<T>) => void; reject: () => void },
 ): () => void {
+  /**
+   * Inner polling loop: evaluates asyncTest and schedules the next tick or resolves.
+   */
   function wait(): void {
     asyncTest()
       .then(value => {
@@ -47,6 +70,13 @@ function makeWaitTick<T>(
   return wait;
 }
 
+/**
+ * Builds a promise that resolves when asyncTest returns a truthy value, polling at the given interval.
+ *
+ * @param asyncTest - the async predicate to poll; resolves the promise when it returns truthy
+ * @param interval - the polling interval in milliseconds
+ * @returns a promise that resolves with the first non-null/undefined truthy value from asyncTest
+ */
 function buildWaitPromise<T>(
   asyncTest: () => Promise<T>,
   interval: number,
@@ -56,6 +86,13 @@ function buildWaitPromise<T>(
   });
 }
 
+/**
+ * Safely converts a value to a JSON string for diagnostic logging, truncating at 100 characters.
+ * Returns String(v) when JSON.stringify throws (e.g. for circular references).
+ *
+ * @param v - the value to stringify
+ * @returns a truncated JSON or string representation of the value
+ */
 function safeStringify(v: unknown): string {
   try {
     const s = JSON.stringify(v);
@@ -66,8 +103,13 @@ function safeStringify(v: unknown): string {
 }
 
 /**
- * Wait until a promise resolves with a truthy value or reject after a timeout.
- * On timeout the error message includes the last polled value for diagnostics.
+ * Polls asyncTest at the given interval until it returns a truthy value or the timeout expires.
+ * On timeout, the error message includes the last polled value for diagnostics.
+ *
+ * @param asyncTest - the async predicate to poll; the wait ends when it returns truthy
+ * @param description - a human-readable label used in the TimeoutError message
+ * @param opts - optional polling configuration including timeout (ms) and interval (ms)
+ * @returns a promise that resolves with the first truthy result from asyncTest
  */
 export function waitUntil<T>(
   asyncTest: () => Promise<T>,
@@ -76,6 +118,11 @@ export function waitUntil<T>(
 ): WaitUntilReturn<T> {
   const { timeout = 10000, interval = 100 } = opts;
   let lastSeenValue: unknown;
+  /**
+   * Wraps asyncTest to capture each polled value for timeout diagnostics.
+   *
+   * @returns the result of the underlying asyncTest call
+   */
   const trackingTest = async (): Promise<T> => {
     const v = await asyncTest();
     lastSeenValue = v;
@@ -89,6 +136,20 @@ export function waitUntil<T>(
   return withContext as WaitUntilReturn<T>;
 }
 
+/**
+ * Recursive helper for waitUntilWithReload: polls asyncTest and reloads the page on timeout.
+ * Counts remaining reload attempts via `left` and accumulated reloads via `used`.
+ *
+ * @param page - the Playwright Page to reload when polling times out
+ * @param asyncTest - the async predicate to poll at each attempt
+ * @param opts - internal counters and timing config for the recursive retry loop
+ * @param opts.label - human-readable description for diagnostics
+ * @param opts.pollTimeout - maximum time in ms to poll before reloading
+ * @param opts.interval - polling interval in ms between asyncTest calls
+ * @param opts.left - remaining reload attempts before giving up
+ * @param opts.used - number of reloads already performed
+ * @returns a ReloadRetryResult describing whether the value was found and how many reloads were used
+ */
 async function retryWithReload<T>(
   page: Page,
   asyncTest: () => Promise<T>,
@@ -106,10 +167,19 @@ async function retryWithReload<T>(
 }
 
 /**
- * Like waitUntil, but reloads the page on timeout and retries.
+ * Like waitUntil, but reloads the page on timeout and retries up to reloadAttempts times.
  * Returns a result object — never throws. Caller decides what to do when found=false.
  * Use when a bank's SPA needs a page refresh to complete post-login JS initialization
  * (e.g. writing an auth token to sessionStorage) that stalls in headless mode.
+ *
+ * @param page - the Playwright Page to reload when polling times out
+ * @param asyncTest - the async predicate to poll; the wait ends when it returns truthy
+ * @param opts - configuration for the retry loop
+ * @param opts.description - a human-readable label for diagnostics; defaults to 'waitUntilWithReload'
+ * @param opts.pollTimeout - maximum time in ms to wait at each attempt before reloading; defaults to 20000
+ * @param opts.reloadAttempts - maximum number of page reloads before giving up; defaults to 2
+ * @param opts.interval - polling interval in ms between each asyncTest call; defaults to 500
+ * @returns a ReloadRetryResult with found=true and value, or found=false when all attempts fail
  */
 export async function waitUntilWithReload<T>(
   page: Page,
@@ -131,26 +201,50 @@ export async function waitUntilWithReload<T>(
   });
 }
 
+/**
+ * Races a promise against a timeout, silently swallowing TimeoutError when it expires.
+ * Other errors thrown by the promise are re-thrown normally.
+ *
+ * @param ms - the timeout duration in milliseconds
+ * @param promise - the promise to race against the timeout
+ * @returns the promise result, or undefined when the timeout fires first
+ */
 export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {
   return timeoutPromise(ms, promise, 'timeout').catch((err: unknown) => {
     if (!(err instanceof TimeoutError)) throw err;
   });
 }
 
+/**
+ * Executes an array of async action functions sequentially, collecting their results.
+ * Each action waits for the previous one to complete before starting.
+ *
+ * @param actions - an array of zero-argument async functions to execute in order
+ * @returns a promise that resolves with an array of each action's result in order
+ */
 export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
-  return actions.reduce(
-    (m, a) => m.then(async x => [...x, await a()]),
-    Promise.resolve<T[]>(new Array<T>()),
-  );
+  const emptyResult = new Array<T>();
+  const initial = Promise.resolve<T[]>(emptyResult);
+  return actions.reduce((m, a) => m.then(async x => [...x, await a()]), initial);
 }
 
+/**
+ * Pauses execution for the specified number of milliseconds.
+ *
+ * @param ms - the duration to sleep in milliseconds
+ * @returns a promise that resolves after the delay
+ */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
- * Random delay that mimics human interaction timing.
- * Default range: 300-1200ms (realistic for clicks and navigation).
+ * Introduces a random delay that mimics human interaction timing to reduce bot-detection risk.
+ * The delay is uniformly distributed between minMs and maxMs.
+ *
+ * @param minMs - the minimum delay in milliseconds; defaults to 300
+ * @param maxMs - the maximum delay in milliseconds; defaults to 1200
+ * @returns a promise that resolves after the random delay
  */
 export function humanDelay(minMs = 300, maxMs = 1200): Promise<void> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;

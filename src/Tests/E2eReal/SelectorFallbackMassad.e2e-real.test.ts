@@ -30,18 +30,31 @@ const BASE_CFG: LoginConfig = {
     { kind: 'css', value: '#WRONG_continueBtn' },
     { kind: 'css', value: '#continueBtn' },
   ],
-  preAction: async page => {
-    await page.waitForTimeout(1000);
-    return undefined;
-  },
-  postAction: async page => {
-    await Promise.race([
-      page.waitForSelector('#card-header', { timeout: 15000 }),
-      page.waitForSelector('#validationMsg', { timeout: 15000 }),
-    ]).catch(() => {
-      /* no-op */
-    });
-  },
+  preAction:
+    /**
+     * Waits briefly before attempting to fill the login form.
+     *
+     * @param page - the Playwright page to wait on
+     * @returns undefined after the wait
+     */
+    async page => {
+      await page.waitForTimeout(1000);
+      return undefined;
+    },
+  postAction:
+    /**
+     * Waits for the card header or validation message after login submission.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await Promise.race([
+        page.waitForSelector('#card-header', { timeout: 15000 }),
+        page.waitForSelector('#validationMsg', { timeout: 15000 }),
+      ]).catch(() => {
+        /* no-op */
+      });
+    },
   possibleResults: {
     success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/],
     invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],

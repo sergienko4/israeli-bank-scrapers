@@ -22,6 +22,15 @@ const SENSITIVE_PATHS = [
 
 const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
 
+/**
+ * Pino redaction censor function that replaces sensitive field values with masked strings.
+ * Account numbers are partially masked showing only the last 4 digits; amounts are shown
+ * as +*** or -***, and all other sensitive fields are replaced with '[REDACTED]'.
+ *
+ * @param value - the original field value that is being redacted
+ * @param path - the key path within the logged object leading to this value
+ * @returns a safe replacement value to log instead of the original
+ */
 function censor(value: unknown, path: string[]): unknown {
   const key = path[path.length - 1];
   if (key === 'accountNumber' && value) {
@@ -51,6 +60,13 @@ const ROOT_LOGGER = pino({
     : undefined,
   redact: { paths: SENSITIVE_PATHS, censor },
   hooks: {
+    /**
+     * Pino hook that sanitizes log message strings before they are written,
+     * replacing Israeli national ID numbers and credit card numbers with redaction tokens.
+     *
+     * @param inputArgs - the raw arguments passed to the log method
+     * @param method - the underlying pino log method to invoke after sanitizing
+     */
     logMethod(inputArgs, method) {
       if (inputArgs.length >= 1 && typeof inputArgs[0] === 'string') {
         inputArgs[0] = inputArgs[0]
@@ -64,6 +80,13 @@ const ROOT_LOGGER = pino({
 
 export type ScraperLogger = Logger;
 
+/**
+ * Creates a child pino logger scoped to the given module name.
+ * The logger automatically redacts PII fields and sanitizes message strings.
+ *
+ * @param name - the module identifier used as the `module` field in every log entry
+ * @returns a scoped pino Logger instance
+ */
 export function getDebug(name: string): Logger {
   return ROOT_LOGGER.child({ module: name });
 }

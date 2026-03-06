@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { SelectorCandidate } from '../../Scrapers/Base/LoginConfigTypes';
+export type { SelectorCandidate as default } from '../../Scrapers/Base/LoginConfigTypes';

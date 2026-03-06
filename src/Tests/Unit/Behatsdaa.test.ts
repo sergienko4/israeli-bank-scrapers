@@ -32,6 +32,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -59,6 +64,12 @@ interface BehatsdaaVariant {
   tTransactionID: string;
 }
 
+/**
+ * Creates a mock BehatsdaaVariant for unit tests.
+ *
+ * @param overrides - optional field overrides for the mock variant
+ * @returns a BehatsdaaVariant object for testing
+ */
 function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
   return {
     name: 'Test Product',
@@ -70,6 +81,12 @@ function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
   };
 }
 
+/**
+ * Creates a mock page configured with a Behatsdaa user token.
+ *
+ * @param token - the mock token to return from localStorage.getItem evaluation
+ * @returns a mock page configured for Behatsdaa tests
+ */
 function createBehatsdaaPage(
   token: string | null = 'mock-token',
 ): ReturnType<typeof createMockPage> {
@@ -82,7 +99,8 @@ function createBehatsdaaPage(
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createBehatsdaaPage());
+  const freshPage = createBehatsdaaPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
 });
 
@@ -102,7 +120,8 @@ describe('login', () => {
 
 describe('fetchData', () => {
   it('returns error when token not in localStorage', async () => {
-    MOCK_CONTEXT.newPage.mockResolvedValue(createBehatsdaaPage(null));
+    const nullTokenPage = createBehatsdaaPage(null);
+    MOCK_CONTEXT.newPage.mockResolvedValue(nullTokenPage);
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -176,13 +195,11 @@ describe('fetchData', () => {
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
+    const anyArg = expect.anything() as unknown;
+    const anyStr = expect.any(String) as string;
     const extraHeadersMatcher = { authorization: 'Bearer mock-token' };
-    expect(fetchPostWithinPage).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.any(String) as string,
-      expect.objectContaining({
-        extraHeaders: expect.objectContaining(extraHeadersMatcher) as Record<string, string>,
-      }),
-    );
+    const headersMatcher = expect.objectContaining(extraHeadersMatcher) as Record<string, string>;
+    const bodyMatcher = expect.objectContaining({ extraHeaders: headersMatcher }) as object;
+    expect(fetchPostWithinPage).toHaveBeenCalledWith(anyArg, anyStr, bodyMatcher);
   });
 });

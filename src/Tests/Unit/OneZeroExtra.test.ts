@@ -12,6 +12,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -32,12 +37,23 @@ interface OneZeroMovement {
   transaction: null;
 }
 
+/**
+ * Returns an ISO date string from approximately one month ago.
+ *
+ * @returns an ISO date string one month before today
+ */
 function recentDate(): string {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   return d.toISOString();
 }
 
+/**
+ * Creates a mock OneZeroMovement for extra OneZero unit tests.
+ *
+ * @param overrides - optional field overrides for the mock movement
+ * @returns a OneZeroMovement object for testing
+ */
 function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
   const ts = recentDate();
   return {
@@ -54,19 +70,37 @@ function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
   };
 }
 
+/**
+ * Sets up fetchPost to return a mock ID token response.
+ *
+ * @param idToken - the ID token string to return
+ */
 function mockIdToken(idToken = 'id-token-789'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
 }
 
+/**
+ * Sets up fetchPost to return a mock session token response.
+ *
+ * @param accessToken - the session access token to return
+ */
 function mockSessionToken(accessToken = 'access-token-abc'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
 }
 
+/**
+ * Sets up ID token and session token mocks for long-term login tests.
+ */
 function setupLongTermLogin(): void {
   mockIdToken();
   mockSessionToken();
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero customer response.
+ *
+ * @param portfolios - the portfolios to include in the mock customer response
+ */
 function mockCustomer(
   portfolios: {
     portfolioId: string;
@@ -79,6 +113,12 @@ function mockCustomer(
   });
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero movements page response.
+ *
+ * @param movements - the movements to include in the mock response
+ * @param hasMore - whether there are more pages to fetch
+ */
 function mockMovements(movements: OneZeroMovement[] = [], hasMore = false): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
@@ -88,6 +128,11 @@ function mockMovements(movements: OneZeroMovement[] = [], hasMore = false): void
   });
 }
 
+/**
+ * Sets up fetchGraphql to return a mock OneZero account balance response.
+ *
+ * @param currentAccountBalance - the balance amount to return
+ */
 function mockAccountBalance(currentAccountBalance = 5000): void {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     balance: {
@@ -158,8 +203,10 @@ describe('fetchData extra', () => {
 
   it('returns error when missing otpCodeRetriever and no token', async () => {
     const scraper = new OneZeroScraper(createMockScraperOptions());
-    // @ts-expect-error testing validation of incomplete credentials
-    const result = await scraper.scrape({ email: 'test@example.com', password: 'pass' });
+    const result = await scraper.scrape({
+      email: 'test@example.com',
+      password: 'pass',
+    } as unknown as Parameters<typeof scraper.scrape>[0]);
 
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
@@ -167,12 +214,11 @@ describe('fetchData extra', () => {
 
   it('returns error when phoneNumber is missing with otpCodeRetriever', async () => {
     const scraper = new OneZeroScraper(createMockScraperOptions());
-    // @ts-expect-error testing validation of missing phoneNumber with otpCodeRetriever
     const result = await scraper.scrape({
       email: 'test@example.com',
       password: 'pass',
-      otpCodeRetriever: jest.fn(),
-    });
+      otpCodeRetriever: jest.fn() as () => Promise<string>,
+    } as unknown as Parameters<typeof scraper.scrape>[0]);
 
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('phoneNumber is required');

@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { ExtraScrapOpts } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { ExtraScrapOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

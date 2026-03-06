@@ -6,7 +6,11 @@ export enum ScraperErrorTypes {
   Timeout = 'TIMEOUT',
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
-  /** @deprecated Use `Generic` instead. Kept for backwards-compatibility. */
+  /**
+   * Legacy general error type — identical to Generic.
+   *
+   * @deprecated Use `Generic` instead. Kept for backwards-compatibility.
+   */
   General = 'GENERAL_ERROR',
   WafBlocked = 'WAF_BLOCKED',
 }

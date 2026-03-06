@@ -27,16 +27,22 @@ describe('Error Scenarios: Mocked E2E', () => {
       skipCloseBrowser: true,
       defaultTimeout: 10000,
       navigationRetryCount: 0,
-      preparePage: async page => {
-        await setupRequestInterception(page, [
-          {
-            match: '/personalarea/Login',
-            contentType: 'text/html',
-            body: 'Server Error',
-            status: 500,
-          },
-        ]);
-      },
+      preparePage:
+        /**
+         * Serves a 500 error for the login page to simulate a server failure.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, [
+            {
+              match: '/personalarea/Login',
+              contentType: 'text/html',
+              body: 'Server Error',
+              status: 500,
+            },
+          ]);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -51,16 +57,22 @@ describe('Error Scenarios: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 10000,
-      preparePage: async page => {
-        await setupRequestInterception(page, [
-          {
-            match: '/personalarea/Login',
-            contentType: 'text/html',
-            body: '<html><body>Login</body></html>',
-          },
-          { match: 'reqName=ValidateIdData', method: 'POST', abort: true },
-        ]);
-      },
+      preparePage:
+        /**
+         * Aborts the ValidateIdData request to simulate a network error inside page.evaluate.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, [
+            {
+              match: '/personalarea/Login',
+              contentType: 'text/html',
+              body: '<html><body>Login</body></html>',
+            },
+            { match: 'reqName=ValidateIdData', method: 'POST', abort: true },
+          ]);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -76,21 +88,27 @@ describe('Error Scenarios: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 10000,
-      preparePage: async page => {
-        await setupRequestInterception(page, [
-          {
-            match: '/personalarea/Login',
-            contentType: 'text/html',
-            body: '<html><body>Login</body></html>',
-          },
-          {
-            match: 'reqName=ValidateIdData',
-            method: 'POST',
-            contentType: 'application/json',
-            body: JSON.stringify({ Header: { Status: '0' } }),
-          },
-        ]);
-      },
+      preparePage:
+        /**
+         * Returns a validate response with Status 0 to trigger WAF-blocked detection.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, [
+            {
+              match: '/personalarea/Login',
+              contentType: 'text/html',
+              body: '<html><body>Login</body></html>',
+            },
+            {
+              match: 'reqName=ValidateIdData',
+              method: 'POST',
+              contentType: 'application/json',
+              body: JSON.stringify({ Header: { Status: '0' } }),
+            },
+          ]);
+        },
     });
 
     const result = await scraper.scrape(CREDS);

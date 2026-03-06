@@ -7,6 +7,12 @@ import {
 } from '../../Common/Navigation';
 import { createMockPage } from '../MockPage';
 
+/**
+ * Creates a mock page with the given current URL for navigation tests.
+ *
+ * @param currentUrl - the URL the mock page should return
+ * @returns a mock page configured with the given URL
+ */
 function createNavMockPage(
   currentUrl = 'https://bank.co.il/login',
 ): ReturnType<typeof createMockPage> {
@@ -111,7 +117,8 @@ describe('waitForUrl', () => {
   it('throws TimeoutError when URL never matches', async () => {
     const page = createNavMockPage();
     page.url = jest.fn().mockReturnValue('https://bank.co.il/login');
-    await expect(waitForUrl(page, /never-matches/, { timeout: 80 })).rejects.toThrow();
+    const urlPromise = waitForUrl(page, /never-matches/, { timeout: 80 });
+    await expect(urlPromise).rejects.toThrow();
   });
 });
 
@@ -119,6 +126,7 @@ describe('waitForRedirect timeout', () => {
   it('throws when URL never changes within timeout', async () => {
     const page = createNavMockPage();
     page.url = jest.fn().mockReturnValue('https://bank.co.il/login');
-    await expect(waitForRedirect(page, { timeout: 80 })).rejects.toThrow();
+    const redirectPromise = waitForRedirect(page, { timeout: 80 });
+    await expect(redirectPromise).rejects.toThrow();
   });
 });

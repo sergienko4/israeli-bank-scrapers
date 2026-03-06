@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { TransactionsAccount } from '../../Transactions';
+export type { TransactionsAccount as default } from '../../Transactions';

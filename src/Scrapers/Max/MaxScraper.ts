@@ -28,6 +28,12 @@ const BASE_API_ACTIONS_URL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max].api.b
 
 const CATEGORIES = new Map<number, string>();
 
+/**
+ * Builds the Max API URL for fetching transactions for a given billing month.
+ *
+ * @param monthMoment - the billing month to fetch transactions for
+ * @returns the full API URL with filterData query parameter
+ */
 function getTransactionsUrl(monthMoment: Moment): string {
   const month = monthMoment.month() + 1;
   const year = monthMoment.year();
@@ -57,6 +63,11 @@ export interface FetchCategoryResult {
   }[];
 }
 
+/**
+ * Fetches and caches transaction category names from the Max API.
+ *
+ * @param page - the Playwright page with an active Max session
+ */
 async function loadCategories(page: Page): Promise<void> {
   LOG.info('Loading categories');
   const res = await fetchGetWithinPage<FetchCategoryResult>(
@@ -101,6 +112,13 @@ const PLAN_ID_MAP: Record<number, TransactionTypes> = {
   5: TransactionTypes.Normal,
 };
 
+/**
+ * Determines the transaction type from the Max plan name and plan type ID.
+ *
+ * @param planName - the raw plan name string from the API
+ * @param planTypeId - the numeric plan type ID
+ * @returns the TransactionType (Normal or Installments)
+ */
 function getTransactionType(planName: string, planTypeId: number): TransactionTypes {
   const cleanedUpTxnTypeStr = planName.replaceAll('\t', ' ').trim() as MaxPlanName;
   const byName = PLAN_TYPE_MAP[cleanedUpTxnTypeStr];
@@ -109,6 +127,12 @@ function getTransactionType(planName: string, planTypeId: number): TransactionTy
   return byId;
 }
 
+/**
+ * Parses installment plan information from the Max transaction comments field.
+ *
+ * @param comments - the raw comments string from the API
+ * @returns installment info (current number and total) if this is an installment, otherwise undefined
+ */
 function getInstallmentsInfo(comments: string): { number: number; total: number } | undefined {
   if (!comments) {
     return undefined;
@@ -124,6 +148,12 @@ function getInstallmentsInfo(comments: string): { number: number; total: number 
   };
 }
 
+/**
+ * Maps a Max API currency ID to the standard currency code string.
+ *
+ * @param currencyId - the numeric currency ID from the Max API
+ * @returns the currency code (ILS, USD, EUR) or undefined if not recognized
+ */
 function getChargedCurrency(currencyId: number | null): string | undefined {
   switch (currencyId) {
     case 376:
@@ -137,6 +167,15 @@ function getChargedCurrency(currencyId: number | null): string | undefined {
   }
 }
 
+/**
+ * Builds the transaction memo from funds transfer fields or comments.
+ *
+ * @param memoFields - the relevant fields from a scraped Max transaction
+ * @param memoFields.comments - general transaction comments
+ * @param memoFields.fundsTransferReceiverOrTransfer - receiver or transfer label for fund transfers
+ * @param memoFields.fundsTransferComment - additional comment for fund transfers
+ * @returns the constructed memo string
+ */
 export function getMemo({
   comments,
   fundsTransferReceiverOrTransfer,
@@ -155,6 +194,13 @@ export function getMemo({
   return comments;
 }
 
+/**
+ * Builds a unique transaction identifier from the ARN and installment number.
+ *
+ * @param rawTransaction - the raw scraped transaction
+ * @param installments - the parsed installment info (if applicable)
+ * @returns a unique identifier string or undefined if ARN is unavailable
+ */
 function getTxnIdentifier(
   rawTransaction: ScrapedTransaction,
   installments: ReturnType<typeof getInstallmentsInfo>,
@@ -164,6 +210,12 @@ function getTxnIdentifier(
     : rawTransaction.dealData?.arn;
 }
 
+/**
+ * Extracts the purchase and payment dates from a scraped Max transaction.
+ *
+ * @param raw - the raw scraped transaction
+ * @returns ISO date strings for the transaction date and processed date
+ */
 function buildTxnDates(raw: ScrapedTransaction): { date: string; processedDate: string } {
   const isPending = raw.paymentDate === null;
   return {
@@ -172,6 +224,12 @@ function buildTxnDates(raw: ScrapedTransaction): { date: string; processedDate: 
   };
 }
 
+/**
+ * Builds the core Transaction fields from a raw Max transaction (without rawTransaction).
+ *
+ * @param rawTransaction - the raw scraped transaction from the Max API
+ * @returns a Transaction object without the rawTransaction field
+ */
 function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'rawTransaction'> {
   const isPending = rawTransaction.paymentDate === null;
   const installments = getInstallmentsInfo(rawTransaction.comments);
@@ -191,6 +249,13 @@ function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'ra
   };
 }
 
+/**
+ * Converts a raw Max transaction to a normalized Transaction, optionally including raw data.
+ *
+ * @param rawTransaction - the raw scraped transaction from the Max API
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a complete Transaction object
+ */
 function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOptions): Transaction {
   const result: Transaction = buildTxnBase(rawTransaction);
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(rawTransaction);
@@ -202,6 +267,14 @@ export interface ScrapedTransactionsResult {
   };
 }
 
+/**
+ * Fetches and maps all transactions for a given billing month from the Max API.
+ *
+ * @param page - the Playwright page with an active Max session
+ * @param monthMoment - the billing month to fetch transactions for
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a map of card number to transactions for the given month
+ */
 async function fetchTransactionsForMonth(
   page: Page,
   monthMoment: Moment,
@@ -225,6 +298,13 @@ async function fetchTransactionsForMonth(
   return transactionsByAccount;
 }
 
+/**
+ * Merges a monthly result map into the accumulator map.
+ *
+ * @param allResults - the accumulated card-to-transactions map
+ * @param result - the per-month result to merge in
+ * @returns a new merged map with all transactions combined
+ */
 function addResult(
   allResults: Record<string, Transaction[]>,
   result: Record<string, Transaction[]>,
@@ -243,6 +323,12 @@ export interface PrepareOpts {
   isFilterByDateEnabled: boolean;
 }
 
+/**
+ * Applies installment fix, date sort, and date filtering to a list of transactions.
+ *
+ * @param opts - preparation options including transactions, start date, and filtering settings
+ * @returns the prepared and filtered transaction list
+ */
 function prepareTransactions(opts: PrepareOpts): Transaction[] {
   const { txns, startMoment, shouldCombineInstallments, isFilterByDateEnabled } = opts;
   let clonedTxns = Array.from(txns);
@@ -253,20 +339,33 @@ function prepareTransactions(opts: PrepareOpts): Transaction[] {
     : clonedTxns;
 }
 
+/**
+ * Fetches and merges transaction results for all billing months.
+ *
+ * @param page - the Playwright page with an active Max session
+ * @param allMonths - the list of billing months to fetch
+ * @param options - scraper options controlling rawTransaction inclusion
+ * @returns a merged map of card number to all transactions across all months
+ */
 async function collectAllMonthResults(
   page: Page,
   allMonths: Moment[],
   options: ScraperOptions,
 ): Promise<Record<string, Transaction[]>> {
-  return allMonths.reduce(
-    async (prevPromise, month) => {
-      const prev = await prevPromise;
-      return addResult(prev, await fetchTransactionsForMonth(page, month, options));
-    },
-    Promise.resolve({} as Record<string, Transaction[]>),
-  );
+  const initialResults = Promise.resolve({} as Record<string, Transaction[]>);
+  return allMonths.reduce(async (prevPromise, month) => {
+    const prev = await prevPromise;
+    return addResult(prev, await fetchTransactionsForMonth(page, month, options));
+  }, initialResults);
 }
 
+/**
+ * Applies installment fix, sort, and date filtering to all accounts in-place.
+ *
+ * @param allResults - the map of card numbers to transaction arrays (mutated in-place)
+ * @param startMoment - the earliest transaction date to retain
+ * @param options - scraper options for shouldCombineInstallments and isFilterByDateEnabled
+ */
 function applyPrepareToAllAccounts(
   allResults: Record<string, Transaction[]>,
   startMoment: moment.Moment,
@@ -284,12 +383,21 @@ function applyPrepareToAllAccounts(
   });
 }
 
+/**
+ * Orchestrates the full Max transaction fetch: categories → months → prepare → return.
+ *
+ * @param page - the Playwright page with an active Max session
+ * @param options - scraper options for date range, installments, and filtering
+ * @returns a map of card number to all prepared transactions
+ */
 async function fetchTransactions(
   page: Page,
   options: ScraperOptions,
 ): Promise<Record<string, Transaction[]>> {
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
-  const startMoment = moment.max(moment().subtract(4, 'years'), moment(options.startDate));
+  const defaultStartMoment = moment().subtract(4, 'years');
+  const optionsStartMoment = moment(options.startDate);
+  const startMoment = moment.max(defaultStartMoment, optionsStartMoment);
   const allMonths = getAllMonthMoments(startMoment, futureMonthsToScrape);
   await loadCategories(page);
   const allResults = await collectAllMonthResults(page, allMonths, options);
@@ -309,16 +417,29 @@ export interface ScraperSpecificCredentials {
   id?: string;
 }
 
+/** Scraper implementation for Max (מקס) credit card. */
 class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  /**
+   * Creates a MaxScraper with the Max login configuration.
+   *
+   * @param options - scraper options including companyId and timeouts
+   */
   constructor(options: ScraperOptions) {
     super(options, MAX_CONFIG);
   }
 
+  /**
+   * Returns login options augmented with the maxHandleSecondLoginStep for Flow B.
+   *
+   * @param credentials - Max credentials including optional national ID for Flow B
+   * @returns login options with an extended postAction for the second login step
+   */
   public override getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
     const opts = super.getLoginOptions(credentials);
     const original = opts.postAction;
     return {
       ...opts,
+      /** Handles the optional Flow B second-login step before the original postAction. */
       postAction: async (): Promise<void> => {
         await maxHandleSecondLoginStep(this.page, credentials);
         if (original) await original();
@@ -326,6 +447,11 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     };
   }
 
+  /**
+   * Fetches transactions for all Max card accounts.
+   *
+   * @returns a successful scraping result with all card account transactions
+   */
   public async fetchData(): Promise<{
     success: boolean;
     accounts: { accountNumber: string; txns: Transaction[] }[];

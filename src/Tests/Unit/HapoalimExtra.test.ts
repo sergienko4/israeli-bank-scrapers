@@ -39,6 +39,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -73,6 +78,11 @@ interface HapoalimScrapedTxn {
   beneficiaryDetailsData?: Record<string, string | undefined>;
 }
 
+/**
+ * Creates a mock page for Hapoalim extra tests with evaluate configured for app context.
+ *
+ * @returns a mock page with evaluate mocked for bnhpApp and restContext
+ */
 function createHapoalimPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest.fn().mockResolvedValueOnce(true).mockResolvedValueOnce('/api/v1'),
@@ -80,6 +90,11 @@ function createHapoalimPage(): ReturnType<typeof createMockPage> {
   });
 }
 
+/**
+ * Sets up fetchGetWithinPage to return account list data for Hapoalim tests.
+ *
+ * @param accounts - the list of accounts to return in the mock response
+ */
 function mockAccounts(
   accounts: {
     bankNumber: string;
@@ -91,14 +106,30 @@ function mockAccounts(
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
 }
 
+/**
+ * Sets up fetchGetWithinPage to return a balance for Hapoalim extra tests.
+ *
+ * @param balance - the current balance to return in the mock response
+ */
 function mockBalance(balance = 10000): void {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ currentBalance: balance });
 }
 
+/**
+ * Sets up fetchPostWithinPage to return transaction data for Hapoalim extra tests.
+ *
+ * @param txns - the transactions to include in the mock response
+ */
 function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
   (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ transactions: txns });
 }
 
+/**
+ * Creates a mock HapoalimScrapedTxn for extra Hapoalim unit tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a HapoalimScrapedTxn for testing
+ */
 function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
   return {
     serialNumber: 1,
@@ -114,6 +145,12 @@ function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrape
   };
 }
 
+/**
+ * Sets up the mock page, context, and account data for Hapoalim extra tests.
+ *
+ * @param accounts - the accounts to configure in the mock
+ * @returns the configured mock page
+ */
 function setupLoginAndAccounts(
   accounts: {
     bankNumber: string;
@@ -136,7 +173,8 @@ function setupLoginAndAccounts(
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createHapoalimPage());
+  const freshPage = createHapoalimPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://login.bankhapoalim.co.il/portalserver/HomePage',
   );

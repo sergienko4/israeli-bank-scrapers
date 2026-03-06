@@ -74,9 +74,9 @@ describe('WafBlockError', () => {
     const error = WafBlockError.cloudflareTurnstile('Just a moment...', 'https://amex.co.il/login');
     expect(error.details.provider).toBe('cloudflare');
     expect(error.details.httpStatus).toBe(403);
-    expect(error.details.suggestions).toEqual(
-      expect.arrayContaining([expect.stringContaining('Turnstile')]),
-    );
+    const turnstileMatcher = expect.stringContaining('Turnstile') as string;
+    const arrayMatcher = expect.arrayContaining([turnstileMatcher]) as string[];
+    expect(error.details.suggestions).toEqual(arrayMatcher);
   });
 
   it('apiBlock includes pageTitle and responseSnippet separately', () => {

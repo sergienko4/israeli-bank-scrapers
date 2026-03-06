@@ -1,0 +1,17 @@
+export { default as AmexScraper } from '../Amex/AmexScraper';
+export { default as BehatsdaaScraper } from '../Behatsdaa/BehatsdaaScraper';
+export { default as BeinleumiScraper } from '../Beinleumi/BeinleumiScraper';
+export { default as BeyahadBishvilhaScraper } from '../BeyahadBishvilha/BeyahadBishvilhaScraper';
+export { default as DiscountScraper } from '../Discount/DiscountScraper';
+export { default as HapoalimScraper } from '../Hapoalim/HapoalimScraper';
+export { default as IsracardScraper } from '../Isracard/IsracardScraper';
+export { default as LeumiScraper } from '../Leumi/LeumiScraper';
+export { default as MassadScraper } from '../Massad/MassadScraper';
+export { default as MaxScraper } from '../Max/MaxScraper';
+export { default as MercantileScraper } from '../Mercantile/MercantileScraper';
+export { default as MizrahiScraper } from '../Mizrahi/MizrahiScraper';
+export { default as OneZeroScraper } from '../OneZero/OneZeroScraper';
+export { default as OtsarHahayalScraper } from '../OtsarHahayal/OtsarHahayalScraper';
+export { default as PagiScraper } from '../Pagi/PagiScraper';
+export { default as VisaCalScraper } from '../VisaCal/VisaCalScraper';
+export { default as YahavScraper } from '../Yahav/YahavScraper';

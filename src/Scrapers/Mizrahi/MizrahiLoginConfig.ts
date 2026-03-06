@@ -14,6 +14,13 @@ const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking Account';
 const MIZRAHI_INVALID_HREF = 'https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx';
 const MIZRAHI_INVALID_SELECTOR = `a[href*="${MIZRAHI_INVALID_HREF}"]`;
 
+/**
+ * Checks whether the user is already logged into the Mizrahi portal by looking for account links.
+ *
+ * @param opts - optional options object
+ * @param opts.page - the current Playwright page to inspect
+ * @returns true if the dashboard account navigation links are present
+ */
 async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
   const heContains = `contains(., "${MIZRAHI_CHECKING_ACCOUNT_HE}")`;
@@ -22,6 +29,11 @@ async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
   return (await opts.page.$$(`xpath=${xpath}`)).length > 0;
 }
 
+/**
+ * Post-login action that waits for any known Mizrahi post-login indicators.
+ *
+ * @param page - the Playwright page after login form submission
+ */
 async function mizrahiPostAction(page: Page): Promise<void> {
   await Promise.race([
     waitUntilElementFound(page, '#dropdownBasic'),
@@ -37,6 +49,11 @@ export const MIZRAHI_CONFIG: LoginConfig = {
     { credentialKey: 'password', selectors: [{ kind: 'css', value: '#passwordDesktopHeb' }] },
   ],
   submit: [{ kind: 'css', value: 'button.btn.btn-primary' }],
+  /**
+   * Navigates to the Mizrahi login route and waits for the loading overlay to disappear.
+   *
+   * @param page - the Playwright page to navigate to the login form
+   */
   checkReadiness: async (page: Page) => {
     const loginRoute = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.loginRoute;
     await page.goto(loginRoute, { waitUntil: 'domcontentloaded' });

@@ -20,15 +20,23 @@ afterAll(async () => {
 
 describe('External Browser: Mocked E2E', () => {
   it('uses provided browser instance and does not close it', async () => {
+    /** Routes for the shared-browser lifecycle test. */
+    const routes = amexRoutes();
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
-      },
+      preparePage:
+        /**
+         * Sets up request interception with mock Amex routes.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, routes);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -42,15 +50,22 @@ describe('External Browser: Mocked E2E', () => {
 
   it('uses provided browser context', async () => {
     const context = await browser.newContext();
-
+    /** Routes for the browser-context test. */
+    const routes = amexRoutes();
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
       browserContext: context,
       defaultTimeout: 15000,
-      preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
-      },
+      preparePage:
+        /**
+         * Sets up request interception with mock Amex routes for the browser context test.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async page => {
+          await setupRequestInterception(page, routes);
+        },
     });
 
     const result = await scraper.scrape(CREDS);
@@ -64,15 +79,23 @@ describe('External Browser: Mocked E2E', () => {
   }, 60000);
 
   it('can run multiple sequential scrapes with shared browser', async () => {
+    /** Routes shared across sequential scrape runs. */
+    const routes = amexRoutes();
     const options = {
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async (page: Page): Promise<void> => {
-        await setupRequestInterception(page, amexRoutes());
-      },
+      preparePage:
+        /**
+         * Sets up request interception for each sequential scrape run.
+         *
+         * @param page - the Playwright page to attach route interception to
+         */
+        async (page: Page): Promise<void> => {
+          await setupRequestInterception(page, routes);
+        },
     };
 
     const result1 = await createScraper(options).scrape(CREDS);

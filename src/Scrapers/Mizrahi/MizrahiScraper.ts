@@ -48,16 +48,23 @@ import { MIZRAHI_CONFIG } from './MizrahiLoginConfig';
 const LOG = getDebug('mizrahi');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
 // SEL kept for data-extraction fields (pendingTransactionRows, accountNumberSpan, pendingFrameIdentifier)
-const SEL = Object.fromEntries(
-  Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]),
-) as Record<string, string>;
+const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
+const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
 
 export type MizrahiDashKey = keyof typeof CFG.selectors;
 // Typed key constants derived from config — no inline string literals in scraper code
-const KEYS = Object.fromEntries(Object.keys(CFG.selectors).map(k => [k, k])) as {
+const KEYS_ENTRIES = Object.keys(CFG.selectors).map(k => [k, k]);
+const KEYS = Object.fromEntries(KEYS_ENTRIES) as {
   [K in MizrahiDashKey]: K;
 };
 
+/**
+ * Builds a DashboardFieldOpts for a Mizrahi selector key.
+ *
+ * @param page - the Playwright page to resolve the selector in
+ * @param key - the Mizrahi dashboard selector key
+ * @returns a DashboardFieldOpts ready for resolveDashboardField()
+ */
 function dashOpts(page: Page, key: MizrahiDashKey): DashboardFieldOpts {
   return {
     pageOrFrame: page,
@@ -74,6 +81,12 @@ export interface BuildRowBaseOpts {
   isPendingIfTodayTransaction: boolean;
 }
 
+/**
+ * Builds the core Transaction fields for a Mizrahi scraped row.
+ *
+ * @param opts - options with the raw row, date, extra details, and pending flag
+ * @returns a Transaction object without rawTransaction
+ */
 function buildRowBase(opts: BuildRowBaseOpts): Transaction {
   const { row, txnDate, moreDetails, isPendingIfTodayTransaction } = opts;
   return {
@@ -93,6 +106,12 @@ function buildRowBase(opts: BuildRowBaseOpts): Transaction {
   };
 }
 
+/**
+ * Converts a single Mizrahi scraped row to a normalized Transaction.
+ *
+ * @param opts - options with the raw row, more-details getter, pending flag, and scraper options
+ * @returns a complete Transaction object
+ */
 async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
   const { row, getMoreDetails, isPendingIfTodayTransaction, options } = opts;
   const moreDetails = await getMoreDetails(row);
@@ -106,34 +125,64 @@ async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
   return result;
 }
 
+/**
+ * Converts an array of Mizrahi scraped rows to normalized Transaction objects in parallel.
+ *
+ * @param opts - conversion options with raw transactions, more-details getter, and flags
+ * @returns an array of normalized Transaction objects
+ */
 async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]> {
   const { txns, getMoreDetails, isPendingIfTodayTransaction = false, options } = opts;
-  return Promise.all(
-    txns.map(row => convertOneRow({ row, getMoreDetails, isPendingIfTodayTransaction, options })),
+  const convertPromises = txns.map(row =>
+    convertOneRow({ row, getMoreDetails, isPendingIfTodayTransaction, options }),
   );
+  return Promise.all(convertPromises);
 }
 
+/**
+ * Maps a pending row array to a Transaction or null if the date is invalid.
+ *
+ * @param dateStr - the row array containing transaction fields
+ * @param dateStr."0" - the date string (DD/MM/YY format) at index 0
+ * @param dateStr."1" - the transaction description at index 1
+ * @param dateStr."2" - an unused column at index 2
+ * @param dateStr."3" - the amount string (may include commas) at index 3
+ * @returns a pending Transaction or null if the date cannot be parsed
+ */
 function mapPendingRow([dateStr, description, , amountStr]: string[]): Transaction | null {
   const date = moment(dateStr, 'DD/MM/YY').toISOString();
   if (!date) return null;
+  const cleanedAmountStr = amountStr.replaceAll(',', '');
+  const parsedAmount = parseFloat(cleanedAmountStr);
   return {
     type: TransactionTypes.Normal,
     date,
     processedDate: date,
-    originalAmount: parseFloat(amountStr.replaceAll(',', '')),
+    originalAmount: parsedAmount,
     originalCurrency: SHEKEL_CURRENCY,
-    chargedAmount: parseFloat(amountStr.replaceAll(',', '')),
+    chargedAmount: parsedAmount,
     description,
     status: TransactionStatuses.Pending,
   };
 }
 
+/**
+ * Extracts pending transactions from the Mizrahi pending transactions iframe.
+ *
+ * @param page - the iframe frame containing the pending transactions table
+ * @returns an array of pending Transaction objects
+ */
 async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
   const pendingTxn = await pageEvalAll(page, {
     selector: SEL.pendingTransactionRows,
     defaultResult: [],
-    callback: trs =>
-      trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
+    /**
+     * Maps each pending transaction row to an array of cell text values.
+     *
+     * @param trs - the list of tr elements in the pending transactions table
+     * @returns an array of cell text arrays for each row
+     */
+    callback: trs => trs.map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent || '')),
   });
   return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
 }
@@ -143,6 +192,11 @@ export interface ScraperSpecificCredentials {
   password: string;
 }
 
+/**
+ * Asserts that the Mizrahi API response is successful; throws if not.
+ *
+ * @param response - the API response to validate
+ */
 function validateTransactionResponse(
   response: ScrapedTransactionsResult | null,
 ): asserts response is ScrapedTransactionsResult {
@@ -155,17 +209,30 @@ function validateTransactionResponse(
   }
 }
 
+/** Scraper implementation for Mizrahi-Tefahot Bank. */
 class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+  /**
+   * Creates a MizrahiScraper with the Mizrahi login configuration.
+   *
+   * @param options - scraper options including companyId and timeouts
+   */
   constructor(options: ScraperOptions) {
     super(options, MIZRAHI_CONFIG);
   }
 
+  /**
+   * Fetches transaction data for all Mizrahi accounts.
+   *
+   * @returns a scraping result with all account transactions or an error
+   */
   public async fetchData(): Promise<ScraperScrapingResult> {
     const numOfAccounts = await this.getNumAccounts();
     try {
-      const accounts = await Array.from({ length: numOfAccounts }, (_, i) => i).reduce(
+      const accountIndices = Array.from({ length: numOfAccounts }, (_, i) => i);
+      const initialAccounts = Promise.resolve<TransactionsAccount[]>([]);
+      const accounts = await accountIndices.reduce(
         async (acc, i) => [...(await acc), await this.selectAndFetchAccount(i)],
-        Promise.resolve<TransactionsAccount[]>([]),
+        initialAccounts,
       );
       return { success: true, accounts };
     } catch (e) {
@@ -177,26 +244,47 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     }
   }
 
+  /**
+   * Reads the number of available accounts from the account dropdown.
+   *
+   * @returns the count of accounts in the dropdown
+   */
   private async getNumAccounts(): Promise<number> {
-    const dd = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdown));
+    const ddOpts = dashOpts(this.page, KEYS.accountDropdown);
+    const dd = await resolveDashboardField(ddOpts);
     if (dd.isResolved) await clickButton(dd.context, dd.selector);
-    const ddItem = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdownItem));
+    const ddItemOpts = dashOpts(this.page, KEYS.accountDropdownItem);
+    const ddItem = await resolveDashboardField(ddItemOpts);
     return ddItem.isResolved ? (await this.page.$$(ddItem.selector)).length : 0;
   }
 
+  /**
+   * Selects an account by index from the dropdown and fetches its transactions.
+   *
+   * @param index - the zero-based account index to select
+   * @returns a TransactionsAccount with the account data and transactions
+   */
   private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
     if (index > 0) {
-      const dd = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdown));
+      const ddOpts = dashOpts(this.page, KEYS.accountDropdown);
+      const dd = await resolveDashboardField(ddOpts);
       if (dd.isResolved) await clickButton(dd.context, dd.selector);
     }
-    const ddItem = await resolveDashboardField(dashOpts(this.page, KEYS.accountDropdownItem));
+    const ddItemOpts = dashOpts(this.page, KEYS.accountDropdownItem);
+    const ddItem = await resolveDashboardField(ddItemOpts);
     if (ddItem.isResolved)
       await clickButton(ddItem.context, `${ddItem.selector}:nth-child(${String(index + 1)})`);
     return this.fetchAccount();
   }
 
+  /**
+   * Clicks the pending transactions link and extracts pending transactions from the iframe.
+   *
+   * @returns an array of pending transactions
+   */
   private async getPendingTransactions(): Promise<Transaction[]> {
-    const link = await resolveDashboardField(dashOpts(this.page, KEYS.pendingTransactionsLink));
+    const pendingLinkOpts = dashOpts(this.page, KEYS.pendingTransactionsLink);
+    const link = await resolveDashboardField(pendingLinkOpts);
     if (link.isResolved) await clickButton(link.context, link.selector);
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
@@ -212,19 +300,29 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return pendingTxn;
   }
 
+  /**
+   * Clicks the account checking (OSH) and transactions navigation links to reach the transactions view.
+   */
   private async navigateToTransactions(): Promise<void> {
-    const osh = await resolveDashboardField(dashOpts(this.page, KEYS.oshLink));
+    const oshOpts = dashOpts(this.page, KEYS.oshLink);
+    const osh = await resolveDashboardField(oshOpts);
     if (osh.isResolved) {
       await waitUntilElementFound(osh.context, osh.selector);
       await clickButton(osh.context, osh.selector);
     }
-    const txn = await resolveDashboardField(dashOpts(this.page, KEYS.transactionsLink));
+    const txnOpts = dashOpts(this.page, KEYS.transactionsLink);
+    const txn = await resolveDashboardField(txnOpts);
     if (txn.isResolved) {
       await waitUntilElementFound(txn.context, txn.selector);
       await clickButton(txn.context, txn.selector);
     }
   }
 
+  /**
+   * Reads the account number from the account number span on the dashboard.
+   *
+   * @returns the account number string
+   */
   private async getAccountNumber(): Promise<string> {
     const accountNumberElement = await this.page.$(SEL.accountNumberSpan);
     const accountNumberHandle = await accountNumberElement?.getProperty('title');
@@ -233,25 +331,35 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return accountNumber;
   }
 
+  /**
+   * Intercepts the Mizrahi transactions API request and re-fetches with the desired date range.
+   *
+   * @returns the fetched transaction result and the API headers for replay
+   */
   private async fetchTransactionData(): Promise<
     readonly [ScrapedTransactionsResult | null, Record<string, string>]
   > {
-    return Promise.any(
-      TRANSACTIONS_REQUEST_URLS.map(async url => {
-        const request = await this.page.waitForRequest(url);
-        const data = createDataFromRequest(request, this.options.startDate);
-        const headers = createHeadersFromRequest(request);
-        return [
-          await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, {
-            data,
-            extraHeaders: headers,
-          }),
-          headers,
-        ] as const;
-      }),
-    );
+    const requestPromises = TRANSACTIONS_REQUEST_URLS.map(async url => {
+      const request = await this.page.waitForRequest(url);
+      const data = createDataFromRequest(request, this.options.startDate);
+      const headers = createHeadersFromRequest(request);
+      return [
+        await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, {
+          data,
+          extraHeaders: headers,
+        }),
+        headers,
+      ] as const;
+    });
+    return Promise.any(requestPromises);
   }
 
+  /**
+   * Builds a function that fetches extra transaction details based on the shouldAddTransactionInformation option.
+   *
+   * @param apiHeaders - the XSRF and Content-Type headers for API requests
+   * @returns a function that returns MoreDetails for a given transaction row
+   */
   private buildMoreDetailsGetter(
     apiHeaders: Record<string, string>,
   ): (row: ScrapedTransaction) => Promise<MoreDetails> {
@@ -261,6 +369,13 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       : (): Promise<MoreDetails> => Promise.resolve({ entries: {}, memo: undefined });
   }
 
+  /**
+   * Converts the transaction response rows and marks specific ones as pending.
+   *
+   * @param response - the validated Mizrahi transaction API response
+   * @param apiHeaders - the XSRF and Content-Type headers for extra detail requests
+   * @returns converted transactions with pending status applied where applicable
+   */
   private async convertAndMarkTxns(
     response: ScrapedTransactionsResult,
     apiHeaders: Record<string, string>,
@@ -282,6 +397,11 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return oshTxn;
   }
 
+  /**
+   * Fetches account number, transactions, and balance for the currently selected account.
+   *
+   * @returns the account data with account number, transactions, and balance
+   */
   private async fetchAccount(): Promise<TransactionsAccount & { balance: number }> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
@@ -292,6 +412,12 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
   }
 
+  /**
+   * Filters completed transactions by start date and appends pending transactions.
+   *
+   * @param oshTxn - the completed and pending-flagged transactions to filter
+   * @returns the filtered completed transactions merged with separate pending transactions
+   */
   private async filterAndMergeTxns(oshTxn: Transaction[]): Promise<Transaction[]> {
     const startMoment = getStartMoment(this.options.startDate);
     return oshTxn
@@ -299,6 +425,12 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       .concat(await this.getPendingTransactions());
   }
 
+  /**
+   * Determines whether a transaction should be marked as pending based on opt-in features.
+   *
+   * @param txn - the transaction to evaluate
+   * @returns true if the transaction should be marked as pending
+   */
   private shouldMarkAsPending(txn: Transaction): boolean {
     if (this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier') && !txn.identifier) {
       LOG.info(`Marking transaction '${txn.description}' as pending due to no identifier.`);

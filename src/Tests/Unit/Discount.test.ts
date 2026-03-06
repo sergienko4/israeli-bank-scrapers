@@ -32,6 +32,11 @@ jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -51,6 +56,11 @@ const MOCK_BROWSER = {
 
 const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
+/**
+ * Sets up the fetchGetWithinPage mock to return account data for Discount tests.
+ *
+ * @param accounts - the accounts to include in the mock response
+ */
 function mockAccountsData(
   accounts: { AccountID: string }[] = [{ AccountID: '12-345-67890' }],
 ): void {
@@ -70,6 +80,13 @@ interface DiscountTxn {
   OperationDescriptionToDisplay: string;
 }
 
+/**
+ * Sets up the fetchGetWithinPage mock to return transaction data for Discount tests.
+ *
+ * @param txns - completed transactions to include in the response
+ * @param futureTxns - pending/future transactions to include
+ * @param balance - the account balance to return
+ */
 function mockTransactions(
   txns: DiscountTxn[] = [],
   futureTxns: DiscountTxn[] = [],
@@ -84,6 +101,12 @@ function mockTransactions(
   });
 }
 
+/**
+ * Creates a mock DiscountTxn for unit tests.
+ *
+ * @param overrides - optional field overrides for the mock transaction
+ * @returns a DiscountTxn object for testing
+ */
 function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
   return {
     OperationNumber: 1001,
@@ -98,7 +121,8 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 beforeEach(() => {
   jest.clearAllMocks();
   (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  MOCK_CONTEXT.newPage.mockResolvedValue(createMockPage());
+  const freshPage = createMockPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
   );
@@ -279,7 +303,8 @@ describe('navigateOrErrorLabel', () => {
     const scraper = new DiscountScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', {
+    const anyArg = expect.anything() as unknown;
+    expect(waitUntilElementFound).toHaveBeenCalledWith(anyArg, '#general-error', {
       visible: false,
       timeout: 100,
     });

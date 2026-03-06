@@ -30,12 +30,24 @@ const BASE_CFG: LoginConfig = {
     { kind: 'css', value: '#WRONG_btnPrimary' },
     { kind: 'css', value: 'button.btn.btn-primary' },
   ],
-  checkReadiness: async page => {
-    await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
-  },
-  postAction: async page => {
-    await page.waitForTimeout(5000);
-  },
+  checkReadiness:
+    /**
+     * Waits for the Mizrahi loading overlay to disappear before filling inputs.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
+    },
+  postAction:
+    /**
+     * Waits briefly after login submission to allow page navigation to complete.
+     *
+     * @param page - the Playwright page to wait on
+     */
+    async page => {
+      await page.waitForTimeout(5000);
+    },
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i],
     invalidPassword: [/a\[href\*="sc\.mizrahi/],

@@ -20,9 +20,14 @@ const DESCRIBE_IF =
 // Full scrape requires long-term OTP token — skip unless ONEZERO_OTP_LONG_TERM_TOKEN is set
 const IT_IF_TOKEN = process.env.ONEZERO_OTP_LONG_TERM_TOKEN ? it : it.skip;
 
-/** Save the long-term token back to .env so the next run can reuse it. */
+/**
+ * Saves the long-term token back to .env so the next run can reuse it.
+ *
+ * @param token - the new long-term OTP token to persist
+ */
 function persistLongTermToken(token: string): void {
-  const envPath = path.resolve(process.cwd(), '.env');
+  const cwd = process.cwd();
+  const envPath = path.resolve(cwd, '.env');
   // Read atomically (no existsSync check) to eliminate TOCTOU race condition.
   let envContent: string;
   try {
@@ -65,24 +70,36 @@ DESCRIBE_IF('E2E: OneZero (real credentials)', () => {
   });
 
   it('reaches OTP screen with valid credentials (no token)', async () => {
+    /**
+     * Returns an empty string as OTP to reach the OTP screen without completing login.
+     *
+     * @returns an empty string promise as the OTP code
+     */
+    const emptyOtpRetriever = (): Promise<string> => Promise.resolve('');
     const scraper = createScraper({
       companyId: CompanyTypes.OneZero,
       startDate: new Date(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
-      otpCodeRetriever: () => Promise.resolve(''),
+      otpCodeRetriever: emptyOtpRetriever,
     });
     const result = await scraper.scrape({
       email: process.env.ONEZERO_EMAIL ?? '',
       password: process.env.ONEZERO_PASSWORD ?? '',
       phoneNumber: process.env.ONEZERO_PHONE_NUMBER ?? '',
-      otpCodeRetriever: () => Promise.resolve(''),
+      otpCodeRetriever: emptyOtpRetriever,
     });
     expect(result.success).toBe(false);
     expect(result.errorType).not.toBe(ScraperErrorTypes.InvalidPassword);
   });
 
   it('fails with invalid credentials', async () => {
+    /**
+     * Returns an empty string as OTP stub for the invalid-credentials test.
+     *
+     * @returns an empty string promise as the OTP code
+     */
+    const emptyOtpRetriever = (): Promise<string> => Promise.resolve('');
     const scraper = createScraper({
       companyId: CompanyTypes.OneZero,
       startDate: new Date(),
@@ -92,7 +109,7 @@ DESCRIBE_IF('E2E: OneZero (real credentials)', () => {
     const result = await scraper.scrape({
       email: 'invalid@example.com',
       password: 'invalid123',
-      otpCodeRetriever: () => Promise.resolve(''),
+      otpCodeRetriever: emptyOtpRetriever,
       phoneNumber: '+972500000000',
     });
     assertFailedLogin(result);

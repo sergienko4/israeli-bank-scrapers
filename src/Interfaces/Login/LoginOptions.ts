@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { LoginOptions } from '../../Scrapers/Base/BaseScraperHelpers';
+export type { LoginOptions as default } from '../../Scrapers/Base/BaseScraperHelpers';

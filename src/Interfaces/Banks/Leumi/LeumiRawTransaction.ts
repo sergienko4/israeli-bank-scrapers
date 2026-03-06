@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { LeumiRawTransaction } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { LeumiRawTransaction as default } from '../../../Scrapers/Leumi/LeumiScraper';

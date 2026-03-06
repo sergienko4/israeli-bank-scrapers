@@ -14,6 +14,11 @@ export const BEYAHAD_CONFIG: LoginConfig = {
     { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
     // ariaLabel 'התחבר' fallback is now in wellKnownSelectors.__submit__
   ],
+  /**
+   * Navigates to the BeyahadBishvilha login route before filling credentials.
+   *
+   * @param page - the Playwright page to navigate
+   */
   checkReadiness: async (page: Page) => {
     await page.goto(`${CFG.urls.base}/login`);
   },

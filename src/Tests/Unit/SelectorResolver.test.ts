@@ -11,6 +11,11 @@ import {
 import { type FieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
 
 jest.mock('../../Common/Debug', () => ({
+  /**
+   * Returns a set of jest mock functions as a debug logger stub.
+   *
+   * @returns a mock debug logger with debug, info, warn, and error functions
+   */
   getDebug: (): Record<string, jest.Mock> => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -23,6 +28,12 @@ jest.mock('../../Common/Debug', () => ({
 
 type MockPageOverrides = Record<string, jest.Mock>;
 
+/**
+ * Creates a minimal mock Playwright Page for SelectorResolver tests.
+ *
+ * @param overrides - optional jest.Mock overrides for specific page methods
+ * @returns a mock Page configured for SelectorResolver tests
+ */
 function makePage(overrides: MockPageOverrides = {}): Page {
   const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
   return {
@@ -35,6 +46,12 @@ function makePage(overrides: MockPageOverrides = {}): Page {
   } as unknown as Page;
 }
 
+/**
+ * Creates a minimal mock Playwright Frame for SelectorResolver tests.
+ *
+ * @param overrides - optional jest.Mock overrides for specific frame methods
+ * @returns a mock Frame configured for SelectorResolver tests
+ */
 function makeFrame(overrides: MockPageOverrides = {}): Frame {
   return {
     $: jest.fn().mockResolvedValue(null),
@@ -56,7 +73,8 @@ describe('candidateToCss', () => {
       'xpath=//button[contains(., "כניסה")]',
     ],
   ])('converts %j → "%s"', (candidate, expected) => {
-    expect(candidateToCss(candidate)).toBe(expected);
+    const css = candidateToCss(candidate);
+    expect(css).toBe(expected);
   });
 });
 
@@ -72,7 +90,8 @@ describe('extractCredentialKey', () => {
     ['#someOtherField', 'someOtherField'], // no canonical match → returns id portion
     ['input[placeholder="סיסמה"]', 'input[placeholder="סיסמה"]'], // non-id selector → full string
   ])('maps "%s" → "%s"', (selector, expected) => {
-    expect(extractCredentialKey(selector)).toBe(expected);
+    const key = extractCredentialKey(selector);
+    expect(key).toBe(expected);
   });
 });
 
@@ -202,19 +221,23 @@ describe('toFirstCss', () => {
       { kind: 'css' as const, value: '.balance' },
       { kind: 'ariaLabel' as const, value: 'יתרה' },
     ];
-    expect(toFirstCss(candidates)).toBe('.balance');
+    const cssResult1 = toFirstCss(candidates);
+    expect(cssResult1).toBe('.balance');
   });
 
   it('returns empty string for an empty array', () => {
-    expect(toFirstCss([])).toBe('');
+    const cssResult2 = toFirstCss([]);
+    expect(cssResult2).toBe('');
   });
 
   it('converts non-css kinds via candidateToCss', () => {
-    expect(toFirstCss([{ kind: 'placeholder', value: 'שם' }])).toBe('input[placeholder*="שם"]');
+    const cssResult3 = toFirstCss([{ kind: 'placeholder', value: 'שם' }]);
+    expect(cssResult3).toBe('input[placeholder*="שם"]');
   });
 
   it('returns empty string for label kind (handled by probeLabelCandidate separately)', () => {
-    expect(toFirstCss([{ kind: 'label', value: 'שם משתמש' }])).toBe('');
+    const cssResult4 = toFirstCss([{ kind: 'label', value: 'שם משתמש' }]);
+    expect(cssResult4).toBe('');
   });
 });
 

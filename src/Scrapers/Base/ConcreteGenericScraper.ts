@@ -9,9 +9,15 @@ import { type ScraperCredentials, type ScraperScrapingResult } from './Interface
 export class ConcreteGenericScraper<
   TCredentials extends ScraperCredentials,
 > extends GenericBankScraper<TCredentials> {
-  // eslint-disable-next-line @typescript-eslint/require-await, class-methods-use-this
-  public async fetchData(): Promise<ScraperScrapingResult> {
-    return { success: true, accounts: [] };
+  private readonly _emptyResult: ScraperScrapingResult = { success: true, accounts: [] };
+
+  /**
+   * Returns an empty success result — only the login mechanism is exercised.
+   *
+   * @returns a resolved promise with an empty accounts list
+   */
+  public fetchData(): Promise<ScraperScrapingResult> {
+    return Promise.resolve(this._emptyResult);
   }
 }
 

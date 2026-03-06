@@ -15,6 +15,12 @@ const IFRAME_NAME = 'iframe-old-pages';
 const TRANSACTIONS_FRAME_LOAD_ATTEMPTS = 3;
 const TRANSACTIONS_FRAME_WAIT_MS = 2000;
 
+/**
+ * Checks whether the account selector dropdown is currently open and visible.
+ *
+ * @param page - the Playwright page to inspect
+ * @returns true if the dropdown panel is visible
+ */
 async function isDropdownOpen(page: Page): Promise<boolean> {
   return page
     .$eval(DROPDOWN_PANEL_SELECTOR, el => {
@@ -25,6 +31,11 @@ async function isDropdownOpen(page: Page): Promise<boolean> {
     .catch(() => false);
 }
 
+/**
+ * Opens the account selector dropdown if it is not already open.
+ *
+ * @param page - the Playwright page containing the account selector
+ */
 async function ensureDropdownOpen(page: Page): Promise<void> {
   if (await isDropdownOpen(page)) return;
   await waitUntilElementFound(page, ACCOUNT_SELECTOR, {
@@ -38,6 +49,12 @@ async function ensureDropdownOpen(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Opens the account selector dropdown and returns all available account labels.
+ *
+ * @param page - the Playwright page containing the account selector
+ * @returns an array of account label strings, or an empty array if the selector is absent
+ */
 export async function clickAccountSelectorGetAccountIds(page: Page): Promise<string[]> {
   try {
     await ensureDropdownOpen(page);
@@ -50,6 +67,12 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
   }
 }
 
+/**
+ * Reads account IDs from the legacy select dropdown (old Beinleumi UI).
+ *
+ * @param page - the Playwright page containing the legacy select element
+ * @returns an array of account ID strings from the select options
+ */
 async function getAccountIdsOldUI(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const selectElement = document.getElementById('account_num_select');
@@ -58,17 +81,31 @@ async function getAccountIdsOldUI(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * Retrieves all account IDs from either the new dropdown or the legacy select UI.
+ *
+ * @param page - the Playwright page containing the account selector
+ * @returns an array of account ID strings
+ */
 export async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
   let accountsIds: string[] = await clickAccountSelectorGetAccountIds(page);
   if (accountsIds.length === 0) accountsIds = await getAccountIdsOldUI(page);
   return accountsIds;
 }
 
+/**
+ * Clicks the dropdown option matching the given account label.
+ *
+ * @param page - the Playwright page with the open dropdown
+ * @param accountLabel - the account label text to match and click
+ * @returns true if the matching option was found and clicked, false otherwise
+ */
 async function clickMatchingOption(page: Page, accountLabel: string): Promise<boolean> {
   const accountOptions = await page.$$(OPTION_SELECTOR);
-  const texts = await Promise.all(
-    accountOptions.map(option => page.evaluate(el => el.textContent.trim(), option)),
+  const textPromises = accountOptions.map(option =>
+    page.evaluate(el => el.textContent.trim(), option),
   );
+  const texts = await Promise.all(textPromises);
   const matchIdx = texts.findIndex(text => text === accountLabel);
   if (matchIdx === -1) return false;
   const optionHandle = await accountOptions[matchIdx].evaluateHandle(el => el as HTMLElement);
@@ -78,6 +115,13 @@ async function clickMatchingOption(page: Page, accountLabel: string): Promise<bo
   return true;
 }
 
+/**
+ * Selects an account from the new Angular dropdown by label text.
+ *
+ * @param page - the Playwright page containing the account selector
+ * @param accountLabel - the account label to select
+ * @returns true if the account was found and selected, false otherwise
+ */
 export async function selectAccountFromDropdown(
   page: Page,
   accountLabel: string,
@@ -91,6 +135,13 @@ export async function selectAccountFromDropdown(
   return clickMatchingOption(page, accountLabel);
 }
 
+/**
+ * Attempts to locate the transactions iframe on a single try.
+ *
+ * @param page - the Playwright page to search for the iframe
+ * @param attempt - the current attempt index (0-based) for logging
+ * @returns the iframe Frame if found, or null
+ */
 async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | null> {
   await sleep(TRANSACTIONS_FRAME_WAIT_MS);
   const iframeEl = await page.$(`#${IFRAME_NAME}`).catch(() => null);
@@ -112,13 +163,20 @@ async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | 
   return null;
 }
 
+/**
+ * Retries finding the transactions iframe up to TRANSACTIONS_FRAME_LOAD_ATTEMPTS times.
+ *
+ * @param page - the Playwright page containing the iframe
+ * @returns the transactions iframe Frame, or null if not found after all attempts
+ */
 export async function getTransactionsFrame(page: Page): Promise<Frame | null> {
   const attempts = Array.from({ length: TRANSACTIONS_FRAME_LOAD_ATTEMPTS }, (_, i) => i);
+  const initialFrame = Promise.resolve<Frame | null>(null);
   const result = await attempts.reduce(async (prevPromise, attempt) => {
     const found = await prevPromise;
     if (found) return found;
     return tryGetFrameAttempt(page, attempt);
-  }, Promise.resolve<Frame | null>(null));
+  }, initialFrame);
   if (!result)
     LOG.info(
       'getTransactionsFrame: failed to find frame after %d attempts',

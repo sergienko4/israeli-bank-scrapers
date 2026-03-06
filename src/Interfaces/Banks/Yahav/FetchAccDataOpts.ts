@@ -1,2 +1,1 @@
-// eslint-disable-next-line import-x/prefer-default-export
-export type { FetchAccDataOpts } from '../../../Scrapers/Yahav/YahavScraper';
+export type { FetchAccDataOpts as default } from '../../../Scrapers/Yahav/YahavScraper';
