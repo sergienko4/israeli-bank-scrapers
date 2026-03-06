@@ -1,8 +1,8 @@
-import { type BrowserEngineType } from '../../Common/BrowserEngine';
+import { type BrowserEngineType, getGlobalEngineChain } from '../../Common/BrowserEngine';
 import { CompanyTypes } from '../../Definitions';
 import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
 import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
-import { DEFAULT_ENGINE_CHAIN, ScraperWithFallback } from '../Base/ScraperWithFallback';
+import { ScraperWithFallback } from '../Base/ScraperWithFallback';
 import {
   AmexScraper,
   BehatsdaaScraper,
@@ -148,16 +148,30 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
 };
 
 /**
- * Creates and returns a Scraper instance for the bank identified by options.companyId.
- * Throws ScraperWebsiteChangedError when the company ID is not registered.
+ * Instantiates the concrete bank scraper for the given companyId without any fallback wrapping.
+ * Used internally by createScraper() and ScraperWithFallback.
  *
- * @param options - scraper options including the companyId that selects the implementation
- * @returns a Scraper instance configured for the requested bank
+ * @param options - scraper options including the companyId
+ * @returns the concrete Scraper instance for the bank
  */
-export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
+export function createConcreteScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
   throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
+}
+
+/**
+ * Creates a Scraper that automatically tries all engines in the global chain (Camoufox →
+ * PlaywrightStealth → Rebrowser → Patchright) on WafBlocked or Timeout, returning the first
+ * successful result. Existing consumers call this exactly as before — no code changes needed.
+ *
+ * @param options - scraper options including the companyId that selects the implementation
+ * @returns a ScraperWithFallback configured for the requested bank
+ */
+export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
+  if (!SCRAPER_REGISTRY[options.companyId])
+    throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
+  return createScraperWithFallback(options);
 }
 
 /**
@@ -165,12 +179,12 @@ export default function createScraper(options: ScraperOptions): Scraper<ScraperC
  * On success or any other error type the result is returned immediately without fallback.
  *
  * @param options - scraper options including companyId and startDate
- * @param engines - ordered list of engines to try; defaults to PlaywrightStealth→Rebrowser→Patchright
+ * @param engines - ordered list of engines to try; defaults to getGlobalEngineChain()
  * @returns a ScraperWithFallback instance ready to call .scrape(credentials)
  */
 export function createScraperWithFallback(
   options: ScraperOptions,
-  engines: BrowserEngineType[] = DEFAULT_ENGINE_CHAIN,
+  engines: BrowserEngineType[] = getGlobalEngineChain(),
 ): ScraperWithFallback {
-  return new ScraperWithFallback(options, createScraper, engines);
+  return new ScraperWithFallback(options, createConcreteScraper, engines);
 }

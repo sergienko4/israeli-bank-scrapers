@@ -1,4 +1,8 @@
-import { BrowserEngineType } from '../../Common/BrowserEngine';
+import {
+  BrowserEngineType,
+  getGlobalEngineChain,
+  setGlobalEngineChain,
+} from '../../Common/BrowserEngine';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import type {
   ScraperCredentials,
@@ -38,7 +42,7 @@ function mockScraper(result: ScraperScrapingResult): { scrape: jest.Mock; onProg
 }
 
 describe('DEFAULT_ENGINE_CHAIN', () => {
-  it('contains PlaywrightStealth, Rebrowser, and Patchright in order', () => {
+  it('contains PlaywrightStealth, Rebrowser, and Patchright in order (backward compat)', () => {
     expect(DEFAULT_ENGINE_CHAIN).toEqual([
       BrowserEngineType.PlaywrightStealth,
       BrowserEngineType.Rebrowser,
@@ -116,7 +120,7 @@ describe('ScraperWithFallback', () => {
     expect(createFn).toHaveBeenCalledTimes(1);
   });
 
-  it('returns last engine result when all engines fail with WafBlocked', async () => {
+  it('returns rich error when all engines fail with WafBlocked', async () => {
     const wafResult: ScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
@@ -131,11 +135,42 @@ describe('ScraperWithFallback', () => {
     const result = await fallback.scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result.errorMessage).toContain('All engines failed');
+    expect(result.errorMessage).toContain('playwright-stealth');
+    expect(result.errorMessage).toContain('rebrowser');
     expect(createFn).toHaveBeenCalledTimes(2);
   });
 
-  it('catches unexpected throws and wraps as Generic error', async () => {
-    const crashScraper = { scrape: jest.fn().mockRejectedValue(new Error('unexpected crash')) };
+  it('rich error message includes engine name and error for each attempt', async () => {
+    const wafResult1: ScraperScrapingResult = {
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'waf on engine 1',
+    };
+    const wafResult2: ScraperScrapingResult = {
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'waf on engine 2',
+    };
+    const scraper1 = mockScraper(wafResult1);
+    const scraper2 = mockScraper(wafResult2);
+    const createFn = jest.fn().mockReturnValueOnce(scraper1).mockReturnValueOnce(scraper2);
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
+      BrowserEngineType.Camoufox,
+      BrowserEngineType.PlaywrightStealth,
+    ]);
+    const result = await fallback.scrape(CREDS);
+    expect(result.errorMessage).toContain('[camoufox]');
+    expect(result.errorMessage).toContain('waf on engine 1');
+    expect(result.errorMessage).toContain('[playwright-stealth]');
+    expect(result.errorMessage).toContain('waf on engine 2');
+  });
+
+  it('catches unexpected throws and returns Generic error (no fallback for Generic)', async () => {
+    const crashScraper = {
+      scrape: jest.fn().mockRejectedValue(new Error('unexpected crash')),
+      onProgress: jest.fn(),
+    };
     const createFn = jest.fn().mockReturnValue(crashScraper);
     const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
       BrowserEngineType.PlaywrightStealth,
@@ -157,7 +192,7 @@ describe('ScraperWithFallback', () => {
     expect((passedOpts as Record<string, unknown>).engineType).toBe(BrowserEngineType.Rebrowser);
   });
 
-  it('uses DEFAULT_ENGINE_CHAIN when no engines provided', async () => {
+  it('uses getGlobalEngineChain() when no engines provided — first engine is PlaywrightStealth', async () => {
     const success: ScraperScrapingResult = { success: true };
     const successScraper = mockScraper(success);
     const createFn = jest.fn().mockReturnValue(successScraper);
@@ -168,5 +203,63 @@ describe('ScraperWithFallback', () => {
     expect((passedOpts as Record<string, unknown>).engineType).toBe(
       BrowserEngineType.PlaywrightStealth,
     );
+  });
+
+  it('onProgress is forwarded to each engine scraper', async () => {
+    const success: ScraperScrapingResult = { success: true };
+    const scraperMock = mockScraper(success);
+    const createFn = jest.fn().mockReturnValue(scraperMock);
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
+      BrowserEngineType.PlaywrightStealth,
+    ]);
+    const cb = jest.fn();
+    fallback.onProgress(cb);
+    await fallback.scrape(CREDS);
+    expect(scraperMock.onProgress).toHaveBeenCalledWith(cb);
+  });
+
+  it('triggerTwoFactorAuth throws ScraperWebsiteChangedError', () => {
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, jest.fn(), [
+      BrowserEngineType.PlaywrightStealth,
+    ]);
+    expect(() => fallback.triggerTwoFactorAuth('123')).toThrow();
+  });
+
+  it('getLongTermTwoFactorToken throws ScraperWebsiteChangedError', () => {
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, jest.fn(), [
+      BrowserEngineType.PlaywrightStealth,
+    ]);
+    expect(() => fallback.getLongTermTwoFactorToken('123')).toThrow();
+  });
+
+  it('returns buildAllFailedResult([]) when engines list is empty', async () => {
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, jest.fn(), []);
+    const result = await fallback.scrape(CREDS);
+    expect(result.success).toBe(false);
+  });
+
+  it('formatAttempt uses (no message) when errorMessage is absent in attempt', async () => {
+    const noMsgResult: ScraperScrapingResult = {
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    };
+    const scraperForNoMsg = mockScraper(noMsgResult);
+    const createFn = jest.fn().mockReturnValueOnce(scraperForNoMsg);
+    const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
+      BrowserEngineType.PlaywrightStealth,
+    ]);
+    const result = await fallback.scrape(CREDS);
+    const isNoMsg = result.errorMessage?.includes('(no message)') ?? false;
+    expect(isNoMsg).toBe(true);
+  });
+
+  it('setGlobalEngineChain changes what getGlobalEngineChain returns', () => {
+    const original = getGlobalEngineChain().slice();
+    setGlobalEngineChain([BrowserEngineType.PlaywrightStealth]);
+    const updatedChain = getGlobalEngineChain();
+    expect(updatedChain).toEqual([BrowserEngineType.PlaywrightStealth]);
+    setGlobalEngineChain(original);
+    const restoredChain = getGlobalEngineChain();
+    expect(restoredChain).toEqual(original);
   });
 });

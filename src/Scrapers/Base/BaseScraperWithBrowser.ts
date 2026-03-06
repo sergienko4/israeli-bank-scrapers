@@ -31,6 +31,8 @@ import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
 const LOG = getDebug('base-scraper-with-browser');
+const EXEC_PATH_NOT_SUPPORTED =
+  'Custom executablePath is not supported. Use: npx playwright install chromium --with-deps';
 
 /**
  * Base scraper that drives a Playwright browser for bank login and navigation.
@@ -250,6 +252,7 @@ class BaseScraperWithBrowser<
 
   /**
    * Creates a new browser context with Hebrew locale settings and returns a fresh page.
+   * Logs whether the active engine supports context.addInitScript() (not supported for Camoufox).
    *
    * @param browser - the Playwright Browser instance to create the context in
    * @param registerContextCleanup - whether to register a cleanup to close the context on terminate
@@ -287,12 +290,10 @@ class BaseScraperWithBrowser<
     const { timeout, args = [], executablePath, shouldShowBrowser, engineType } = opts;
     const isHeadless = !shouldShowBrowser;
     LOG.info(`launch a browser with headless mode = ${String(isHeadless)}`);
-    if ('executablePath' in this.options && this.options.executablePath) {
-      const msg =
-        'Custom executablePath is not supported. Use: npx playwright install chromium --with-deps';
-      throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', msg);
-    }
-    const browser = await launchWithEngine(engineType ?? BrowserEngineType.PlaywrightStealth, {
+    if ('executablePath' in this.options && this.options.executablePath)
+      throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', EXEC_PATH_NOT_SUPPORTED);
+    const resolvedEngine = engineType ?? BrowserEngineType.PlaywrightStealth;
+    const browser = await launchWithEngine(resolvedEngine, {
       headless: isHeadless,
       executablePath,
       args: [...buildHeadlessArgs(isHeadless), ...args],
