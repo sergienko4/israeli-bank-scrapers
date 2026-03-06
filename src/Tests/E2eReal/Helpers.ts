@@ -2,7 +2,8 @@ import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import type { ScraperScrapingResult } from '../../Scrapers/Base/Interface';
 
-export const SCRAPE_TIMEOUT = 120000;
+// 240s to accommodate multi-engine fallback chain (playwright-stealth → rebrowser → patchright)
+export const SCRAPE_TIMEOUT = 240000;
 export const BROWSER_ARGS = process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
 
 const FAILED_LOGIN_TYPES: string[] = [

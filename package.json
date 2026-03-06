@@ -115,6 +115,7 @@
   "lint-staged": {
     "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0 --no-warn-ignored", "prettier --write"],
     "*.json": ["prettier --parser json --write"],
-    "*.md": ["prettier --parser markdown --write"]
+    "*.md": ["prettier --parser markdown --write"],
+    "!(.github)/**/*.{js,ts,yml}": ["eslint --fix", "prettier --write"]
   }
 }

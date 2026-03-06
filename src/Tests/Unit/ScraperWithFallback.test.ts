@@ -83,7 +83,7 @@ describe('ScraperWithFallback', () => {
     expect(createFn).toHaveBeenCalledTimes(2);
   });
 
-  it('falls back on Timeout and returns next engine result', async () => {
+  it('does NOT fall back on Timeout — returns immediately (login failure, not WAF)', async () => {
     const timeoutResult: ScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.Timeout,
@@ -100,8 +100,9 @@ describe('ScraperWithFallback', () => {
       BrowserEngineType.Rebrowser,
     ]);
     const result = await fallback.scrape(CREDS);
-    expect(result.success).toBe(true);
-    expect(createFn).toHaveBeenCalledTimes(2);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
+    expect(createFn).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT fall back on InvalidPassword — returns immediately', async () => {

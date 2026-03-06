@@ -20,31 +20,39 @@ DESCRIBE_IF('E2E: Max (real credentials)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Max,
-      startDate: lastMonthStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-    });
-    const result = await scraper.scrape({
-      username: process.env.MAX_USERNAME ?? '',
-      password: process.env.MAX_PASSWORD ?? '',
-      id: process.env.MAX_ID,
-    });
+  it(
+    'scrapes transactions successfully',
+    async () => {
+      const scraper = createScraper({
+        companyId: CompanyTypes.Max,
+        startDate: lastMonthStartDate(),
+        shouldShowBrowser: false,
+        args: BROWSER_ARGS,
+      });
+      const result = await scraper.scrape({
+        username: process.env.MAX_USERNAME ?? '',
+        password: process.env.MAX_PASSWORD ?? '',
+        id: process.env.MAX_ID,
+      });
 
-    assertSuccessfulScrape(result);
-    logScrapedTransactions(result);
-  });
+      assertSuccessfulScrape(result);
+      logScrapedTransactions(result);
+    },
+    SCRAPE_TIMEOUT,
+  );
 
-  it('fails with invalid credentials', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Max,
-      startDate: new Date(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-    });
-    const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
-    assertFailedLogin(result);
-  });
+  it(
+    'fails with invalid credentials',
+    async () => {
+      const scraper = createScraper({
+        companyId: CompanyTypes.Max,
+        startDate: new Date(),
+        shouldShowBrowser: false,
+        args: BROWSER_ARGS,
+      });
+      const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
+      assertFailedLogin(result);
+    },
+    SCRAPE_TIMEOUT,
+  );
 });

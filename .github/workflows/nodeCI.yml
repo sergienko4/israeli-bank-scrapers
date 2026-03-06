@@ -103,6 +103,8 @@ jobs:
           key: playwright-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+      - name: Install Rebrowser Chromium (multi-engine fallback)
+        run: npx rebrowser-playwright install chromium --with-deps
       - run: npx tsup
       - run: npx rimraf lib/Common lib/Scrapers lib/Tests
       - name: Verify build output

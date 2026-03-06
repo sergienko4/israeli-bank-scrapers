@@ -17,11 +17,11 @@ type ProgressCallback = (companyId: CompanyTypes, payload: { type: ScraperProgre
 
 const LOG = getDebug('scraper-with-fallback');
 
-/** Error types that trigger a fallback to the next engine (WAF block or timeout). */
-const FALLBACK_ERRORS = new Set<ScraperErrorTypes>([
-  ScraperErrorTypes.WafBlocked,
-  ScraperErrorTypes.Timeout,
-]);
+/**
+ * Error types that trigger a fallback to the next engine.
+ * Only WAF blocks — timeouts could be login failures (wrong credentials) and must not retry.
+ */
+const FALLBACK_ERRORS = new Set<ScraperErrorTypes>([ScraperErrorTypes.WafBlocked]);
 
 /** Default fallback chain: stealth → rebrowser → patchright (kept for backward compat). */
 export const DEFAULT_ENGINE_CHAIN: BrowserEngineType[] = [
@@ -161,7 +161,7 @@ export class ScraperWithFallback implements Scraper<ScraperCredentials> {
   }
 
   /**
-   * Scrapes bank transactions, trying each engine in order on WafBlocked/Timeout.
+   * Scrapes bank transactions, trying each engine in order on WafBlocked only.
    * Collects all attempts; returns the first non-fallback result immediately.
    * If every engine triggers a fallback, returns a rich error listing all attempts.
    *
