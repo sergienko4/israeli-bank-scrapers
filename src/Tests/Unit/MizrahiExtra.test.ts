@@ -1,12 +1,17 @@
-import { chromium } from 'playwright-extra';
-
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import MizrahiScraper from '../../Scrapers/Mizrahi/MizrahiScraper';
 import { TransactionStatuses } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -153,7 +158,7 @@ function createMizrahiPage(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMizrahiPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
 });

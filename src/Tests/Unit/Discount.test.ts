@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { fetchGetWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
@@ -9,8 +8,14 @@ import DiscountScraper from '../../Scrapers/Discount/DiscountScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
@@ -120,7 +125,7 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMockPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(

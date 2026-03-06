@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { clickButton, elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { sleep } from '../../Common/Waiting';
@@ -10,8 +9,14 @@ import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 import TestBeinleumiScraper from './BaseBeinleumiGroupTestHelpers';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -117,7 +122,7 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): void {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createPageWithAccountFeatures();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(

@@ -1,8 +1,8 @@
 import { faker } from '@faker-js/faker';
 import moment from 'moment';
-import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../../Common/Browser';
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
 import { sleep } from '../../Common/Waiting';
@@ -15,8 +15,14 @@ import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
 import { createMockPage } from '../MockPage';
 import TestAmexScraper from './BaseIsracardAmexTestHelpers';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
@@ -55,10 +61,7 @@ jest.mock('../../Common/Debug', () => ({
 }));
 jest.mock('../../Common/Dates', () => jest.fn(() => [moment('2024-06-01')]));
 
-const MOCK_CONTEXT = {
-  newPage: jest.fn(),
-  close: jest.fn().mockResolvedValue(undefined),
-};
+const MOCK_CONTEXT = { newPage: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
@@ -162,17 +165,15 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMockPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
 });
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
-    mockValidate('1');
-    mockLogin('1');
-    const scraper = new TestAmexScraper();
-    const result = await scraper.scrape(CREDS);
+    setupFullLogin();
+    const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(true);
     expect(buildContextOptions).toHaveBeenCalled();
   });

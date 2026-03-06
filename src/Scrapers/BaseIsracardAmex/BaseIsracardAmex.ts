@@ -2,6 +2,7 @@ import moment from 'moment';
 
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
+import waitForPageStability from '../../Common/PageStability';
 import { humanDelay } from '../../Common/Waiting';
 import { CompanyTypes, ScraperProgressTypes } from '../../Definitions';
 import { type Transaction } from '../../Transactions';
@@ -89,6 +90,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   }): Promise<ScraperScrapingResult> {
     this.setupResponseLogging();
     await this.navigateToLoginPage();
+    await waitForPageStability(this.page);
     const validatedData = await this.validateCredentials(credentials);
     if (!validatedData) return await this.throwWafBlockError();
     const validateReturnCode = validatedData.returnCode;

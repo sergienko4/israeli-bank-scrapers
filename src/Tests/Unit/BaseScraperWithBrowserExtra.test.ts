@@ -1,5 +1,4 @@
-import { chromium } from 'playwright-extra';
-
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { ScraperProgressTypes } from '../../Definitions';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
@@ -12,8 +11,14 @@ import {
 import BareScraperWithBrowser from './BareScraperWithBrowserHelper';
 import { createScraper } from './BaseScraperWithBrowserTestHelpers';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -48,7 +53,7 @@ const MOCK_BROWSER: ReturnType<typeof createMockBrowser> = createMockBrowser();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMockPage();
   const freshContext = createMockContext(freshPage);
   MOCK_BROWSER.newContext.mockResolvedValue(freshContext);

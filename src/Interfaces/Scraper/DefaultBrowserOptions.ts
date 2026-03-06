@@ -1,5 +1,7 @@
 import type { Browser } from 'playwright';
 
+import type { BrowserEngineType } from '../../Common/BrowserEngine';
+
 export interface DefaultBrowserOptions {
   /**
    * shows the browser while scraping, good for debugging (default false)
@@ -31,4 +33,10 @@ export interface DefaultBrowserOptions {
    * @param browser
    */
   prepareBrowser?: (browser: Browser) => Promise<void>;
+
+  /**
+   * The browser engine to use for scraping.
+   * Defaults to PlaywrightStealth (playwright-extra + puppeteer-extra-plugin-stealth).
+   */
+  engineType?: BrowserEngineType;
 }

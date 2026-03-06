@@ -1,5 +1,4 @@
-import { chromium } from 'playwright-extra';
-
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { waitUntil } from '../../Common/Waiting';
@@ -8,8 +7,14 @@ import { TransactionTypes } from '../../Transactions';
 import { HEBREW_TRANSACTION_TYPES } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
@@ -172,7 +177,7 @@ function setupLoginAndAccounts(
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createHapoalimPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
   (getCurrentUrl as jest.Mock).mockResolvedValue(

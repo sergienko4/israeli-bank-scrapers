@@ -1,8 +1,7 @@
 import type { Browser, Frame, Page } from 'playwright';
-import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 import { buildContextOptions } from '../../Common/Browser';
+import { BrowserEngineType, launchWithEngine } from '../../Common/BrowserEngine';
 import { getDebug } from '../../Common/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
@@ -28,9 +27,6 @@ import {
 import { ScraperErrorTypes } from './Errors';
 import type { DefaultBrowserOptions, ScraperCredentials, ScraperScrapingResult } from './Interface';
 import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
-
-const STEALTH_PLUGIN = StealthPlugin();
-chromium.use(STEALTH_PLUGIN);
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
@@ -288,7 +284,7 @@ class BaseScraperWithBrowser<
    */
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
-    const { timeout, args = [], executablePath, shouldShowBrowser } = opts;
+    const { timeout, args = [], executablePath, shouldShowBrowser, engineType } = opts;
     const isHeadless = !shouldShowBrowser;
     LOG.info(`launch a browser with headless mode = ${String(isHeadless)}`);
     if ('executablePath' in this.options && this.options.executablePath) {
@@ -296,7 +292,7 @@ class BaseScraperWithBrowser<
         'Custom executablePath is not supported. Use: npx playwright install chromium --with-deps';
       throw new ScraperWebsiteChangedError('BaseScraperWithBrowser', msg);
     }
-    const browser = await chromium.launch({
+    const browser = await launchWithEngine(engineType ?? BrowserEngineType.PlaywrightStealth, {
       headless: isHeadless,
       executablePath,
       args: [...buildHeadlessArgs(isHeadless), ...args],

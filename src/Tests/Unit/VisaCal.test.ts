@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchWithEngine } from '../../Common/BrowserEngine';
 import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { fetchPost } from '../../Common/Fetch';
 import { getCurrentUrl, waitForUrl } from '../../Common/Navigation';
@@ -23,8 +22,14 @@ import {
   visaCalOptions,
 } from './VisaCalTestHelpers';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/BrowserEngine', () => ({
+  launchWithEngine: jest.fn(),
+  BrowserEngineType: {
+    PlaywrightStealth: 'playwright-stealth',
+    Rebrowser: 'rebrowser',
+    Patchright: 'patchright',
+  },
+}));
 jest.mock('../../Common/Fetch', () => ({ fetchPost: jest.fn() }));
 jest.mock('../../Common/Storage', () => ({ getFromSessionStorage: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
@@ -77,7 +82,7 @@ jest.mock('../../Common/Debug', () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://digital-web.cal-online.co.il/dashboard');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });

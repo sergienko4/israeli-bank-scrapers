@@ -1,6 +1,8 @@
+import { type BrowserEngineType } from '../../Common/BrowserEngine';
 import { CompanyTypes } from '../../Definitions';
 import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
 import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
+import { DEFAULT_ENGINE_CHAIN, ScraperWithFallback } from '../Base/ScraperWithFallback';
 import {
   AmexScraper,
   BehatsdaaScraper,
@@ -156,4 +158,19 @@ export default function createScraper(options: ScraperOptions): Scraper<ScraperC
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
   throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
+}
+
+/**
+ * Creates a ScraperWithFallback that tries each engine in order on WafBlocked or Timeout.
+ * On success or any other error type the result is returned immediately without fallback.
+ *
+ * @param options - scraper options including companyId and startDate
+ * @param engines - ordered list of engines to try; defaults to PlaywrightStealth→Rebrowser→Patchright
+ * @returns a ScraperWithFallback instance ready to call .scrape(credentials)
+ */
+export function createScraperWithFallback(
+  options: ScraperOptions,
+  engines: BrowserEngineType[] = DEFAULT_ENGINE_CHAIN,
+): ScraperWithFallback {
+  return new ScraperWithFallback(options, createScraper, engines);
 }
