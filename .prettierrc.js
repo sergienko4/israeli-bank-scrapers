@@ -8,5 +8,11 @@ module.exports = {
   tabWidth: 2,
   useTabs: false,
   arrowParens: 'avoid',
-  parser: 'typescript', // Since this is a TypeScript project
+  // 'parser' removed from global scope — TypeScript is auto-detected for .ts/.tsx.
+  // Keeping it globally caused JSON/YAML files to be parsed as TypeScript (bug).
+  overrides: [
+    { files: ['*.ts', '*.tsx'], options: { parser: 'typescript' } },
+    { files: ['*.json'], options: { parser: 'json' } },
+    { files: ['*.yml', '*.yaml'], options: { parser: 'yaml' } },
+  ],
 };

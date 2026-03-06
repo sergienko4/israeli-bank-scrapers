@@ -37,11 +37,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-      - name: Install Rebrowser Chromium (multi-engine fallback)
-        run: npx rebrowser-playwright install chromium --with-deps
+          key: playwright-all-${{ hashFiles('package-lock.json') }}
+      - name: Install all Playwright browsers (main + rebrowser fallback)
+        run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
       - name: Run E2E smoke tests
         run: npx jest --ci --testPathPatterns='tests/e2e\.test' --verbose
 
@@ -61,11 +59,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-      - name: Install Rebrowser Chromium (multi-engine fallback)
-        run: npx rebrowser-playwright install chromium --with-deps
+          key: playwright-all-${{ hashFiles('package-lock.json') }}
+      - name: Install all Playwright browsers (main + rebrowser fallback)
+        run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
       - name: Run mocked E2E tests
         run: npx jest --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
@@ -86,11 +82,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-      - name: Install Rebrowser Chromium (multi-engine fallback)
-        run: npx rebrowser-playwright install chromium --with-deps
+          key: playwright-all-${{ hashFiles('package-lock.json') }}
+      - name: Install all Playwright browsers (main + rebrowser fallback)
+        run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
       - name: Run real E2E tests
         run: npx jest --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:

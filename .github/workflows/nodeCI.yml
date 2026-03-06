@@ -100,11 +100,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-      - name: Install Rebrowser Chromium (multi-engine fallback)
-        run: npx rebrowser-playwright install chromium --with-deps
+          key: playwright-all-${{ hashFiles('package-lock.json') }}
+      - name: Install all Playwright browsers (main + rebrowser fallback)
+        run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
       - run: npx tsup
       - run: npx rimraf lib/Common lib/Scrapers lib/Tests
       - name: Verify build output
