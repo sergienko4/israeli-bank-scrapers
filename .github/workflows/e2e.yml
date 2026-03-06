@@ -40,6 +40,8 @@ jobs:
           key: playwright-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+      - name: Install Rebrowser Chromium (multi-engine fallback)
+        run: npx rebrowser-playwright install chromium --with-deps
       - name: Run E2E smoke tests
         run: npx jest --ci --testPathPatterns='tests/e2e\.test' --verbose
 
@@ -62,6 +64,8 @@ jobs:
           key: playwright-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+      - name: Install Rebrowser Chromium (multi-engine fallback)
+        run: npx rebrowser-playwright install chromium --with-deps
       - name: Run mocked E2E tests
         run: npx jest --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
@@ -85,6 +89,8 @@ jobs:
           key: playwright-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+      - name: Install Rebrowser Chromium (multi-engine fallback)
+        run: npx rebrowser-playwright install chromium --with-deps
       - name: Run real E2E tests
         run: npx jest --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
