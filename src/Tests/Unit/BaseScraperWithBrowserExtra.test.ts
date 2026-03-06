@@ -13,7 +13,9 @@ import { createScraper } from './BaseScraperWithBrowserTestHelpers';
 
 jest.mock('../../Common/BrowserEngine', () => ({
   launchWithEngine: jest.fn(),
+  getGlobalEngineChain: jest.fn().mockReturnValue(['playwright-stealth']),
   BrowserEngineType: {
+    Camoufox: 'camoufox',
     PlaywrightStealth: 'playwright-stealth',
     Rebrowser: 'rebrowser',
     Patchright: 'patchright',

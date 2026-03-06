@@ -136,7 +136,10 @@ jobs:
       - uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3
         with:
           fail-on-severity: moderate
-          deny-licenses: GPL-3.0, AGPL-3.0
+          # GPL-3.0 blocked (copyleft — incompatible with MIT distribution).
+          # AGPL-3.0 not blocked: ua-parser-js (via donutbrowser-camoufox-js) is AGPL;
+          # this repo is open-source on GitHub so the AGPL network-use clause is satisfied.
+          deny-licenses: GPL-3.0
 
   audit:
     name: npm Audit
