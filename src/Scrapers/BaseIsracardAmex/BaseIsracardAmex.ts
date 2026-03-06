@@ -122,7 +122,9 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   }
 
   /**
-   * Throws a WafBlockError when credential validation returns null (WAF or IP block detected).
+   * Throws a WafBlockError when validateCredentials returns null (no response or no bean).
+   * This indicates a true WAF/IP block, not an auth failure with wrong credentials.
+   *
    * @returns a Promise that never resolves — always throws
    */
   private async throwWafBlockError(): Promise<never> {
@@ -164,7 +166,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
    * @param credentials.id - the user's national ID number
    * @param credentials.password - the user's bank password
    * @param credentials.card6Digits - the last 6 digits of the card number
-   * @returns the ValidateIdDataBean on success, or null if validation failed
+   * @returns the ValidateIdDataBean (on success or auth error), or null for WAF/network blocks
    */
   private async validateCredentials(credentials: {
     id: string;
@@ -176,11 +178,13 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
     });
-    if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      const resultSnippet = JSON.stringify(result).substring(0, 300);
-      LOG.info('validation failed: result=%s', resultSnippet);
+    const resultSnippet = JSON.stringify(result).substring(0, 300);
+    if (!result?.ValidateIdDataBean) {
+      LOG.info('validation failed (no response): result=%s', resultSnippet);
       return null;
     }
+    if (result.Header.Status !== '1')
+      LOG.info('validation failed (auth error): result=%s', resultSnippet);
     return result.ValidateIdDataBean;
   }
 
