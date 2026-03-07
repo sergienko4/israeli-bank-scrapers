@@ -7,12 +7,20 @@ const os = require('os');
 const fs = require('fs');
 
 function findCamoufoxBinary() {
-  const cacheDir = path.join(os.homedir(), 'AppData', 'Local', 'camoufox');
-  const exe = path.join(cacheDir, 'camoufox', 'Cache', 'camoufox.exe');
-  if (fs.existsSync(exe)) return exe;
-  // Linux/Mac fallback
-  const linBin = path.join(cacheDir, 'camoufox-bin');
-  if (fs.existsSync(linBin)) return linBin;
+  const home = os.homedir();
+  const candidates = [
+    // Windows
+    path.join(home, 'AppData', 'Local', 'camoufox', 'camoufox', 'Cache', 'camoufox.exe'),
+    // Linux (pip/appdirs style)
+    path.join(home, '.cache', 'camoufox', 'camoufox', 'camoufox-bin'),
+    // Linux (flat)
+    path.join(home, '.cache', 'camoufox', 'camoufox-bin'),
+    // Mac
+    path.join(home, 'Library', 'Caches', 'camoufox', 'camoufox', 'Contents', 'MacOS', 'camoufox'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
   return null;
 }
 
