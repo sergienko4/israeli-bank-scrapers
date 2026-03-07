@@ -28,9 +28,10 @@
   "scripts": {
     "clean": "rimraf lib",
     "test": "jest",
-    "test:unit": "jest --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked",
-    "test:e2e:mock": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked",
-    "test:e2e:real": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
+    "test:unit": "jest --testPathIgnorePatterns=E2ePublic --testPathIgnorePatterns=E2eCredentials --testPathIgnorePatterns=E2eMocked",
+    "test:e2e:mock": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2ePublic --testPathIgnorePatterns=E2eCredentials --testPathPatterns=E2eMocked",
+    "test:e2e:public": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eCredentials --testPathPatterns=E2ePublic",
+    "test:e2e:credentials": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2ePublic --testPathPatterns=E2eCredentials",
     "test:ci": "ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js && jest --ci --coverage",
     "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "check-exports": "publint",

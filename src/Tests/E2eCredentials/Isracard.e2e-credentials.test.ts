@@ -8,7 +8,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
-} from './Helpers';
+} from '../E2ePublic/Helpers';
 
 dotenv.config();
 

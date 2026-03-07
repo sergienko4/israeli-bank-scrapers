@@ -65,8 +65,30 @@ jobs:
       - name: Run mocked E2E tests
         run: npx jest --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
-  e2e-real:
-    name: E2E Real Bank Tests
+  e2e-public:
+    name: E2E Public Bank Tests (no credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-all-${{ hashFiles('package-lock.json') }}
+      - name: Install all Playwright browsers (main + rebrowser fallback)
+        run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
+      - name: Run public E2E tests (selector fallback + invalid login — no secrets needed)
+        run: npx jest --ci --testPathPatterns='Tests/E2ePublic' --testPathIgnorePatterns='/node_modules/' --verbose
+
+  e2e-credentials:
+    name: E2E Credential Bank Tests (real secrets)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
@@ -85,8 +107,8 @@ jobs:
           key: playwright-all-${{ hashFiles('package-lock.json') }}
       - name: Install all Playwright browsers (main + rebrowser fallback)
         run: npx playwright install --with-deps && npx rebrowser-playwright install --with-deps
-      - name: Run real E2E tests
-        run: npx jest --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
+      - name: Run credential E2E tests (Amex, Isracard, VisaCal, Discount, Max, Beinleumi, OneZero)
+        run: npx jest --ci --testPathPatterns='Tests/E2eCredentials' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
