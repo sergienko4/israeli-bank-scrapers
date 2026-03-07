@@ -1,8 +1,7 @@
 import type { Browser, Frame, Page } from 'playwright';
-import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-chromium.use(StealthPlugin());
+
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { getDebug } from '../../Common/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
@@ -164,16 +163,6 @@ class BaseScraperWithBrowser<
     return context.newPage();
   }
 
-  private rejectCustomExecutablePath(): void {
-    if ('executablePath' in this.options && this.options.executablePath) {
-      throw new Error(
-        `Custom executablePath "${this.options.executablePath}" is not supported.\n\n` +
-          'PROBLEM: System Chromium (from apt-get) is incompatible with Playwright.\n' +
-          'FIX: npx playwright install chromium --with-deps',
-      );
-    }
-  }
-
   private registerBrowserCleanup(browser: Browser): void {
     this.cleanups.push(async () => {
       LOG.info('closing the browser');
@@ -183,15 +172,9 @@ class BaseScraperWithBrowser<
 
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
-    const { timeout, args = [], executablePath, shouldShowBrowser } = opts;
-    LOG.info(`launch a browser with headless mode = ${!shouldShowBrowser}`);
-    this.rejectCustomExecutablePath();
-    const browser = await chromium.launch({
-      headless: !shouldShowBrowser,
-      executablePath,
-      args,
-      timeout,
-    });
+    const { shouldShowBrowser } = opts;
+    LOG.info('launch Camoufox browser headless=%s', !shouldShowBrowser);
+    const browser = await launchCamoufox(!shouldShowBrowser);
     this.registerBrowserCleanup(browser);
     if (opts.prepareBrowser) await opts.prepareBrowser(browser);
     return this.createContextAndPage(browser, false);

@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { pageEval } from '../../Common/ElementsInteractions';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { SHEKEL_CURRENCY } from '../../Constants';
@@ -9,8 +8,7 @@ import LeumiScraper from '../../Scrapers/Leumi/LeumiScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -82,7 +80,7 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createLeumiPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx',

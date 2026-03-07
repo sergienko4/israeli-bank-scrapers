@@ -1,14 +1,12 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import BehatsdaaScraper from '../../Scrapers/Behatsdaa/BehatsdaaScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../../Common/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
@@ -76,7 +74,7 @@ function createBehatsdaaPage(
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createBehatsdaaPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
 });

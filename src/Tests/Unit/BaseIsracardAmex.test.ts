@@ -1,8 +1,8 @@
 import { faker } from '@faker-js/faker';
 import moment from 'moment';
-import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
 import { sleep } from '../../Common/Waiting';
@@ -16,8 +16,7 @@ import { type Transaction, TransactionStatuses, TransactionTypes } from '../../T
 import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
@@ -131,7 +130,7 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());
 });
 

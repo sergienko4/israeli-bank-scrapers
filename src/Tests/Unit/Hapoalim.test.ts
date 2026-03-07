@@ -1,7 +1,7 @@
 import { faker } from '@faker-js/faker';
-import { chromium } from 'playwright-extra';
 
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { waitUntil } from '../../Common/Waiting';
@@ -11,8 +11,7 @@ import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { HEBREW_TRANSACTION_TYPES } from '../HebrewBankingFixtures';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
@@ -137,7 +136,7 @@ function setupLoginAndAccounts(
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createHapoalimPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://login.bankhapoalim.co.il/portalserver/HomePage',

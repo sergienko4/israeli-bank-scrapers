@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { type Browser, type BrowserContext } from 'playwright';
-import { chromium } from 'playwright-extra';
 
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
 import { ScraperProgressTypes } from '../../Definitions';
@@ -23,8 +23,7 @@ import {
   createMockScraperOptions,
 } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -86,7 +85,7 @@ function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScra
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   const freshPage = createMockPage();
   const freshContext = createMockContext(freshPage);
   mockBrowser.newContext.mockResolvedValue(freshContext);
@@ -97,7 +96,7 @@ describe('initialize', () => {
   it('launches browser and creates context + page', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(chromium.launch).toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).toHaveBeenCalled();
     expect(mockBrowser.newContext).toHaveBeenCalled();
   });
 
@@ -127,7 +126,7 @@ describe('initializePage', () => {
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browserContext.newPage).toHaveBeenCalled();
-    expect(chromium.launch).not.toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).not.toHaveBeenCalled();
   });
 
   it('uses external browser and creates context', async () => {
@@ -140,7 +139,7 @@ describe('initializePage', () => {
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browser }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.newContext).toHaveBeenCalled();
-    expect(chromium.launch).not.toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).not.toHaveBeenCalled();
   });
 
   it('skips browser close cleanup when skipCloseBrowser is true', async () => {
@@ -160,7 +159,7 @@ describe('initializePage', () => {
   it('launches new browser with headless mode', async () => {
     const scraper = createScraper({ shouldShowBrowser: false });
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(chromium.launch).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
+    expect(launchCamoufox).toHaveBeenCalledWith(true);
   });
 
   it('calls prepareBrowser hook when provided', async () => {
@@ -170,22 +169,11 @@ describe('initializePage', () => {
     expect(prepareBrowser).toHaveBeenCalledWith(mockBrowser);
   });
 
-  it('launches successfully without executablePath (uses Playwright bundled Chromium)', async () => {
+  it('launches Camoufox successfully', async () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-    expect(chromium.launch).toHaveBeenCalledWith(
-      expect.not.objectContaining({ executablePath: expect.any(String) as string }),
-    );
-  });
-
-  it('rejects custom executablePath to prevent system Chromium usage', async () => {
-    const scraper = createScraper({
-      executablePath: '/usr/bin/chromium',
-    } as Partial<ScraperOptions>);
-    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
-      'Custom executablePath "/usr/bin/chromium" is not supported',
-    );
+    expect(launchCamoufox).toHaveBeenCalled();
   });
 });
 

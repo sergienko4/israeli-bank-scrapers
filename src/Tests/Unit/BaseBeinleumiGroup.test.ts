@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { clickButton, elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { sleep } from '../../Common/Waiting';
@@ -12,8 +11,7 @@ import { beinleumiConfig } from '../../Scrapers/BaseBeinleumiGroup/BeinleumiLogi
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -108,7 +106,7 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): void {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createPageWithAccountFeatures());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://test.fibi.co.il/Resources/PortalNG/shell',

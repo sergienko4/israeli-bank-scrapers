@@ -1,5 +1,4 @@
-import { chromium } from 'playwright-extra';
-
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface';
@@ -11,8 +10,7 @@ import {
   createMockScraperOptions,
 } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 
 jest.mock('../../Common/Browser', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
@@ -75,7 +73,7 @@ beforeEach(() => {
   mockPage = createMockPage();
   mockContext = createMockContext(mockPage);
   mockBrowser = createMockBrowser(mockContext);
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   (getCurrentUrl as jest.Mock).mockResolvedValue(SUCCESS_URL);
 });
 

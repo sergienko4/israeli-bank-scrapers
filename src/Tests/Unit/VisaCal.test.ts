@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { fetchPost } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
@@ -16,8 +15,7 @@ import {
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({ fetchPost: jest.fn() }));
 jest.mock('../../Common/Storage', () => ({ getFromSessionStorage: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
@@ -237,7 +235,7 @@ function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://digital-web.cal-online.co.il/dashboard');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });

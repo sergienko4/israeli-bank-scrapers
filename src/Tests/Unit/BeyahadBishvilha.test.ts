@@ -1,14 +1,12 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { pageEval, pageEvalAll } from '../../Common/ElementsInteractions';
 import { filterOldTransactions } from '../../Common/Transactions';
 import BeyahadBishvilhaScraper from '../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
@@ -52,7 +50,7 @@ function setupPage(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   setupPage();
 });
 

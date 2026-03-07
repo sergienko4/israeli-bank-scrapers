@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { elementPresentOnPage } from '../../Common/ElementsInteractions';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
@@ -9,8 +8,7 @@ import MizrahiScraper from '../../Scrapers/Mizrahi/MizrahiScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
 jest.mock('../../Common/ElementsInteractions', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -118,7 +116,7 @@ function createMizrahiPage(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMizrahiPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard',

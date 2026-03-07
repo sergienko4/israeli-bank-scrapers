@@ -1,5 +1,4 @@
-import { chromium } from 'playwright-extra';
-
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { SCRAPERS } from '../../Definitions';
 import AMEXScraper from '../../Scrapers/Amex/AmexScraper';
@@ -13,8 +12,7 @@ import {
   maybeTestCompanyAPI,
 } from '../TestsUtils';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
@@ -65,7 +63,7 @@ const testsConfig = getTestsConfig();
 describe('AMEX fetchData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (chromium.launch as jest.Mock).mockResolvedValue(mockAmexBrowser);
+    (launchCamoufox as jest.Mock).mockResolvedValue(mockAmexBrowser);
     mockAmexContext.newPage.mockResolvedValue(createMockPage());
   });
 

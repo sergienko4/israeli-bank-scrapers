@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-extra';
-
 import { buildContextOptions } from '../../Common/Browser';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { fetchGetWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
@@ -9,8 +8,7 @@ import DiscountScraper from '../../Scrapers/Discount/DiscountScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
 jest.mock('../../Common/Fetch', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
@@ -92,7 +90,7 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
