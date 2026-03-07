@@ -5,7 +5,7 @@ const config = {
   coverageDirectory: 'coverage',
   rootDir: './src',
   transform: {
-    '^.+\\.ts$': ['ts-jest'],
+    '^.+\\.ts$': ['ts-jest', { diagnostics: { ignoreDiagnostics: [151002] } }],
     '@faker-js.+\\.js$': [
       'ts-jest',
       { diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
