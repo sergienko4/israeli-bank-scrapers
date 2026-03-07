@@ -1,18 +1,19 @@
 import { type Frame, type Page } from 'playwright';
 
-import type { WaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
-import type { WaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
+import type { IWaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
+import type { IWaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
 import type { WaitUntilState } from '../Interfaces/Common/WaitUntilState';
 import { getDebug } from './Debug';
 import { waitUntil } from './Waiting';
 
-export type { WaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
-export type { WaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
+export type { IWaitForRedirectOptions } from '../Interfaces/Common/WaitForRedirectOptions';
+export type { IWaitForUrlOptions } from '../Interfaces/Common/WaitForUrlOptions';
 export type { WaitUntilState } from '../Interfaces/Common/WaitUntilState';
 
 const LOG = getDebug('navigation');
 
-interface WaitForOptions {
+interface IWaitForOptions {
   waitUntil?: WaitUntilState;
   timeout?: number;
 }
@@ -22,21 +23,25 @@ interface WaitForOptions {
  *
  * @param pageOrFrame - the Playwright Page or Frame to monitor
  * @param options - optional Playwright wait options including waitUntil state and timeout
+ * @returns a done result indicating navigation completed
  */
 export async function waitForNavigation(
   pageOrFrame: Page | Frame,
-  options?: WaitForOptions,
-): Promise<void> {
+  options?: IWaitForOptions,
+): Promise<IDoneResult> {
   await pageOrFrame.waitForURL('**', options);
+  return { done: true };
 }
 
 /**
  * Waits for a navigation event and ensures the DOM content is fully loaded before resolving.
  *
  * @param page - the Playwright Page to wait on
+ * @returns a done result indicating navigation and DOM load completed
  */
-export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
+export async function waitForNavigationAndDomLoad(page: Page): Promise<IDoneResult> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
+  return { done: true };
 }
 
 /**
@@ -83,12 +88,13 @@ async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Pro
  * @param opts.isClientSide - when true, reads URL via window.location.href in browser context
  * @param opts.ignoreList - URLs that should not count as a redirect destination
  * @param opts.timeout - maximum wait time in milliseconds before throwing
+ * @returns a done result indicating the redirect was detected
  */
 async function pollForRedirect(
   pageOrFrame: Page | Frame,
   initial: string,
   opts: { isClientSide: boolean; ignoreList: string[]; timeout: number },
-): Promise<void> {
+): Promise<IDoneResult> {
   await waitUntil(
     async () => {
       const current = await getCurrentUrl(pageOrFrame, opts.isClientSide);
@@ -97,6 +103,7 @@ async function pollForRedirect(
     `waiting for redirect from ${initial}`,
     { timeout: opts.timeout, interval: 1000 },
   );
+  return { done: true };
 }
 
 /**
@@ -105,11 +112,12 @@ async function pollForRedirect(
  *
  * @param pageOrFrame - the Playwright Page or Frame to monitor for navigation
  * @param opts - options including timeout, client-side URL mode, and list of URLs to skip
+ * @returns a done result indicating the redirect was detected
  */
 export async function waitForRedirect(
   pageOrFrame: Page | Frame,
-  opts: WaitForRedirectOptions = {},
-): Promise<void> {
+  opts: IWaitForRedirectOptions = {},
+): Promise<IDoneResult> {
   const { timeout = 20000, isClientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, isClientSide);
   LOG.info('waitForRedirect from %s', initial);
@@ -124,6 +132,7 @@ export async function waitForRedirect(
     throw e;
   }
   LOG.info('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
+  return { done: true };
 }
 
 /**
@@ -134,12 +143,13 @@ export async function waitForRedirect(
  * @param opts - polling options including timeout in ms and client-side URL mode flag
  * @param opts.timeout - maximum wait time in milliseconds before throwing
  * @param opts.isClientSide - when true, reads URL via window.location.href in browser context
+ * @returns a done result indicating the URL matched
  */
 async function pollForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
   opts: { timeout: number; isClientSide: boolean },
-): Promise<void> {
+): Promise<IDoneResult> {
   await waitUntil(
     async () => {
       const current = await getCurrentUrl(pageOrFrame, opts.isClientSide);
@@ -148,6 +158,7 @@ async function pollForUrl(
     `waiting for url to be ${String(url)}`,
     { timeout: opts.timeout, interval: 1000 },
   );
+  return { done: true };
 }
 
 /**
@@ -157,12 +168,13 @@ async function pollForUrl(
  * @param pageOrFrame - the Playwright Page or Frame to monitor
  * @param url - the expected URL as an exact string or a matching RegExp
  * @param opts - options including timeout in ms and client-side URL mode flag
+ * @returns a done result indicating the URL matched
  */
 export async function waitForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
-  opts: WaitForUrlOptions = {},
-): Promise<void> {
+  opts: IWaitForUrlOptions = {},
+): Promise<IDoneResult> {
   const { timeout = 20000, isClientSide = false } = opts;
   try {
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
@@ -171,4 +183,5 @@ export async function waitForUrl(
     LOG.info('waitForUrl TIMEOUT (%dms) pattern=%s at %s', timeout, url, stuck);
     throw e;
   }
+  return { done: true };
 }

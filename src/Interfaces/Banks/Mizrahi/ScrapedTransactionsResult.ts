@@ -1,6 +1,6 @@
-import type { ScrapedTransaction } from './ScrapedTransaction';
+import type { IScrapedTransaction } from './ScrapedTransaction';
 
-export interface ScrapedTransactionsResult {
+export interface IScrapedTransactionsResult {
   header: {
     success: boolean;
     messages: { text: string }[];
@@ -10,7 +10,7 @@ export interface ScrapedTransactionsResult {
       Yitra: string;
     };
     table: {
-      rows: ScrapedTransaction[];
+      rows: IScrapedTransaction[];
     };
   };
 }

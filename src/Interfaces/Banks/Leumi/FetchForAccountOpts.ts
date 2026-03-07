@@ -1,1 +1,1 @@
-export type { FetchForAccountOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { IFetchForAccountOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';

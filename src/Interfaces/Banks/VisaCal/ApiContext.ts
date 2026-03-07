@@ -1,10 +1,10 @@
 import type moment from 'moment';
 
-import type { FramesResponse } from './FramesResponse';
+import type { IFramesResponse } from './FramesResponse';
 
-export interface ApiContext {
+export interface IApiContext {
   startDate: Date;
   startMoment: moment.Moment;
   hdrs: Record<string, string>;
-  frames: FramesResponse;
+  frames: IFramesResponse;
 }

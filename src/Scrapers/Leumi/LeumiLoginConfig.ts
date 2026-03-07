@@ -3,7 +3,8 @@ import { type Page } from 'playwright';
 import { pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { waitForNavigation } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ILoginConfig } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
@@ -15,8 +16,9 @@ const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
  * Navigates to the Leumi login page and waits for the form fields to be visible.
  *
  * @param page - the Playwright page to navigate to the login form
+ * @returns a done result after the login form is ready
  */
-async function leumiCheckReadiness(page: Page): Promise<void> {
+async function leumiCheckReadiness(page: Page): Promise<IDoneResult> {
   await waitUntilElementFound(page, '.enter_account');
   const loginUrl = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
   await page.goto(loginUrl);
@@ -26,14 +28,16 @@ async function leumiCheckReadiness(page: Page): Promise<void> {
     waitUntilElementFound(page, 'input[placeholder="סיסמה"]', { visible: true }),
     waitUntilElementFound(page, 'button[type="submit"]', { visible: true }),
   ]);
+  return { done: true };
 }
 
 /**
  * Post-login action that waits for any of the known Leumi post-login indicators.
  *
  * @param page - the Playwright page after login form submission
+ * @returns a done result after a post-login indicator appears
  */
-async function leumiPostAction(page: Page): Promise<void> {
+async function leumiPostAction(page: Page): Promise<IDoneResult> {
   await Promise.race([
     waitUntilElementFound(page, 'a[title="דלג לחשבון"]', { visible: true, timeout: 60000 }),
     waitUntilElementFound(page, 'div.main-content', { visible: false, timeout: 60000 }),
@@ -43,9 +47,10 @@ async function leumiPostAction(page: Page): Promise<void> {
       timeout: 60000,
     }),
   ]);
+  return { done: true };
 }
 
-export const LEUMI_CONFIG: LoginConfig = {
+export const LEUMI_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'username', selectors: [] }, // wellKnown → placeholder שם משתמש

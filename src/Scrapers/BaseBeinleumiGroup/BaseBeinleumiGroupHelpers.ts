@@ -5,17 +5,18 @@ import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteract
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
-import type { ExtractTxnOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
-import type { ScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
-import type { TransactionsTr } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import type { IExtractTransactionOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
+import type { IScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
+import type { ITransactionTableRow } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
 
-export type { ExtractTxnOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
-export type { ScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
-export type { TransactionsTr } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
+export type { IExtractTransactionOpts } from '../../Interfaces/Banks/BeinleumiGroup/ExtractTxnOpts';
+export type { IScrapedTransaction } from '../../Interfaces/Banks/BeinleumiGroup/ScrapedTransaction';
+export type { ITransactionTableRow } from '../../Interfaces/Banks/BeinleumiGroup/TransactionsTr';
 export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
 
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
@@ -48,7 +49,7 @@ function getAmountData(amountStr: string): number {
  * @param txn - the scraped transaction with credit and debit string values
  * @returns the net amount (credit - debit) as a number
  */
-export function getTxnAmount(txn: ScrapedTransaction): number {
+export function getTxnAmount(txn: IScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
@@ -67,12 +68,12 @@ export function getCol(tds: TransactionsTrTds, cols: TransactionsColsTypes, key:
 }
 
 /**
- * Converts a scraped transaction into the normalized Transaction field set (without rawTransaction).
+ * Converts a scraped transaction into the normalized ITransaction field set (without rawTransaction).
  *
  * @param txn - the raw scraped transaction data
- * @returns a Transaction object without the rawTransaction field
+ * @returns a ITransaction object without the rawTransaction field
  */
-function makeTxnFields(txn: ScrapedTransaction): Omit<Transaction, 'rawTransaction'> {
+function makeTxnFields(txn: IScrapedTransaction): Omit<ITransaction, 'rawTransaction'> {
   const d = moment(txn.date, DATE_FORMAT).toISOString();
   const amount = getTxnAmount(txn);
   return {
@@ -90,48 +91,48 @@ function makeTxnFields(txn: ScrapedTransaction): Omit<Transaction, 'rawTransacti
 }
 
 /**
- * Builds a fully normalized Transaction from a scraped row, optionally including rawTransaction.
+ * Builds a fully normalized ITransaction from a scraped row, optionally including rawTransaction.
  *
  * @param txn - the raw scraped transaction data
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns a complete Transaction object
+ * @returns a complete ITransaction object
  */
 export function buildSingleTransaction(
-  txn: ScrapedTransaction,
+  txn: IScrapedTransaction,
   options?: ScraperOptions,
-): Transaction {
-  const result: Transaction = makeTxnFields(txn);
+): ITransaction {
+  const result: ITransaction = makeTxnFields(txn);
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
   return result;
 }
 
 /**
- * Converts an array of scraped transactions to normalized Transaction objects.
+ * Converts an array of scraped transactions to normalized ITransaction objects.
  *
  * @param txns - array of raw scraped transactions
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns array of normalized Transaction objects
+ * @returns array of normalized ITransaction objects
  */
 export function convertTransactions(
-  txns: ScrapedTransaction[],
+  txns: IScrapedTransaction[],
   options?: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   return txns.map(txn => buildSingleTransaction(txn, options));
 }
 
 /**
- * Extracts a ScrapedTransaction from a single table row using column class mappings.
+ * Extracts a IScrapedTransaction from a single table row using column class mappings.
  *
  * @param txnRow - the raw table row data with inner cell texts
  * @param status - whether this is a pending or completed transaction
  * @param cols - column class-to-index mappings for this table
- * @returns the extracted ScrapedTransaction object
+ * @returns the extracted IScrapedTransaction object
  */
 export function extractTransactionDetails(
-  txnRow: TransactionsTr,
+  txnRow: ITransactionTableRow,
   status: TransactionStatuses,
   cols: TransactionsColsTypes,
-): ScrapedTransaction {
+): IScrapedTransaction {
   const tds = txnRow.innerTds;
   const isCompleted = status === TransactionStatuses.Completed;
   return {
@@ -162,14 +163,17 @@ export async function getTransactionsColsTypeClasses(
   const result: TransactionsColsTypes = {};
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
-    defaultResult: [] as { colClass: string | null; index: number }[],
+    defaultResult: [] as { colClass: string; index: number }[],
     /**
      * Maps each header cell to its class name and column index.
      *
      * @param tds - the array of td elements from the first row of the table
      * @returns an array of objects with colClass and index for each cell
      */
-    callback: tds => tds.map((td, index) => ({ colClass: td.getAttribute('class'), index })),
+    callback: tds =>
+      tds
+        .map((td, index) => ({ colClass: td.getAttribute('class') ?? '', index }))
+        .filter(item => item.colClass !== ''),
   });
   for (const typeClassObj of typeClassesObjs) {
     if (typeClassObj.colClass) result[typeClassObj.colClass] = typeClassObj.index;
@@ -181,11 +185,13 @@ export async function getTransactionsColsTypeClasses(
  * Extracts a transaction from a table row and appends it to the accumulator if the date is present.
  *
  * @param opts - extraction options containing the accumulator, status, row data, and column mappings
+ * @returns a done result after extraction
  */
-export function extractTransaction(opts: ExtractTxnOpts): void {
+export function extractTransaction(opts: IExtractTransactionOpts): IDoneResult {
   const { txns, transactionStatus, txnRow, transactionsColsTypes } = opts;
   const txn = extractTransactionDetails(txnRow, transactionStatus, transactionsColsTypes);
   if (txn.date !== '') txns.push(txn);
+  return { done: true };
 }
 
 /**

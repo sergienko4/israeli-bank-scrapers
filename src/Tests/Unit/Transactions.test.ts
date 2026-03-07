@@ -7,15 +7,15 @@ import {
   getRawTransaction,
   sortTransactionsByDate,
 } from '../../Common/Transactions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 
 /**
- * Creates a mock Transaction for transaction utility unit tests.
+ * Creates a mock ITransaction for transaction utility unit tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a Transaction object with sensible defaults
+ * @returns a ITransaction object with sensible defaults
  */
-function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
+function createTransaction(overrides: Partial<ITransaction> = {}): ITransaction {
   return {
     type: TransactionTypes.Normal,
     date: '2024-01-15T00:00:00.000Z',
@@ -24,7 +24,7 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
     originalCurrency: 'ILS',
     chargedAmount: -100,
     chargedCurrency: 'ILS',
-    description: 'Test Transaction',
+    description: 'Test ITransaction',
     status: TransactionStatuses.Completed,
     ...overrides,
   };
@@ -166,13 +166,13 @@ describe('filterOldTransactions', () => {
 describe('getRawTransaction', () => {
   it('returns cleaned data when called with one argument', () => {
     const data = { key: 'value', empty: '', nil: null };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string | object>;
     expect(result).toEqual({ key: 'value' });
   });
 
   it('removes undefined and empty arrays from data', () => {
     const data = { key: 'value', undef: undefined, arr: [] };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string | object>;
     expect(result).toEqual({ key: 'value' });
   });
 
@@ -198,13 +198,13 @@ describe('getRawTransaction', () => {
 
   it('handles nested objects with empty values', () => {
     const data = { outer: { inner: 'value', empty: '' } };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string | object>;
     expect(result).toEqual({ outer: { inner: 'value' } });
   });
 
   it('handles arrays within data', () => {
     const data = { items: [{ a: 1, b: null }, { c: 2 }] };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string | object>;
     expect(result).toEqual({ items: [{ a: 1 }, { c: 2 }] });
   });
 

@@ -1,1 +1,1 @@
-export type { BankScraperConfig as default } from '../../Scrapers/Registry/ScraperConfig.types';
+export type { IBankScraperConfig as default } from '../../Scrapers/Registry/ScraperConfig.types';

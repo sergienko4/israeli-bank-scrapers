@@ -33,7 +33,7 @@ jest.mock('../../Common/SelectorResolver', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
 
-interface OtpMockPage {
+interface IOtpMockPage {
   evaluate: jest.Mock;
   frames: jest.Mock;
   mainFrame: jest.Mock;
@@ -48,7 +48,7 @@ interface OtpMockPage {
  * @param bodyText - the body text to return from page.evaluate
  * @returns a mock page object for OTP detection tests
  */
-function makePage(bodyText: string | undefined): OtpMockPage & Page {
+function makePage(bodyText?: string): IOtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test'),
@@ -66,7 +66,7 @@ function makePage(bodyText: string | undefined): OtpMockPage & Page {
         click: jest.fn(),
       }),
     }),
-  } as unknown as OtpMockPage & Page;
+  } as unknown as IOtpMockPage & Page;
 }
 
 /**
@@ -75,7 +75,7 @@ function makePage(bodyText: string | undefined): OtpMockPage & Page {
  * @param bodyText - the body text to return from page.evaluate
  * @returns a mock page with a child frame for testing iframe-based OTP detection
  */
-function makePageWithIframe(bodyText: string): OtpMockPage & Page {
+function makePageWithIframe(bodyText: string): IOtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test'),
@@ -97,7 +97,7 @@ function makePageWithIframe(bodyText: string): OtpMockPage & Page {
         click: jest.fn(),
       }),
     }),
-  } as unknown as OtpMockPage & Page;
+  } as unknown as IOtpMockPage & Page;
 }
 
 // ── detectOtpScreen ───────────────────────────────────────────────────────────
@@ -187,38 +187,49 @@ describe('findOtpSubmitSelector', () => {
   it('finds "אשר" button', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('xpath=//button[contains(.,"אשר")]');
-    expect(await findOtpSubmitSelector(page)).toBe('xpath=//button[contains(.,"אשר")]');
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe('xpath=//button[contains(.,"אשר")]');
   });
 
   it('finds "המשך" button when "אשר" is absent', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('xpath=//button[contains(.,"המשך")]');
-    expect(await findOtpSubmitSelector(page)).toBe('xpath=//button[contains(.,"המשך")]');
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe('xpath=//button[contains(.,"המשך")]');
   });
 
   it('finds [aria-label*="כניסה"] — Beinleumi input[type="button"] aria-label submit', async () => {
     // tryInContext is mocked as a unit — returns one value for the entire candidates list
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('[aria-label*="כניסה"]');
-    expect(await findOtpSubmitSelector(page)).toBe('[aria-label*="כניסה"]');
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe('[aria-label*="כניסה"]');
   });
 
   it('finds input[type="button"] as last-resort fallback for Beinleumi-style banks', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('input[type="button"]');
-    expect(await findOtpSubmitSelector(page)).toBe('input[type="button"]');
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe('input[type="button"]');
   });
 
   it('falls back to button[type="submit"]', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('button[type="submit"]');
-    expect(await findOtpSubmitSelector(page)).toBe('button[type="submit"]');
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe('button[type="submit"]');
   });
 
-  it('returns null when no submit button found', async () => {
+  it('returns isFound: false when no submit button found', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);
-    expect(await findOtpSubmitSelector(page)).toBeNull();
+    const result = await findOtpSubmitSelector(page);
+    expect(result.isFound).toBe(false);
   });
 });
 

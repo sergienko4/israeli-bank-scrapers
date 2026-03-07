@@ -38,12 +38,12 @@ query GetCustomer {
     }
     portfolios {
       __typename
-      ...Portfolio
+      ...IPortfolio
     }
     status
   }
 }
-fragment Portfolio on Portfolio {
+fragment IPortfolio on IPortfolio {
   __typename
   accounts {
     __typename
@@ -139,18 +139,18 @@ fragment BaseTransactionFragment on BaseTransaction {
   transactionType
   valueDate
 }
-fragment CategoryFragment on Category {
+fragment CategoryFragment on ICategory {
   __typename
   categoryId
   dataSource
   subCategoryId
 }
-fragment RecurrenceFragment on Recurrence {
+fragment RecurrenceFragment on IRecurrence {
   __typename
   dataSource
   isRecurrent
 }
-fragment TransactionEnrichmentFragment on TransactionEnrichment {
+fragment TransactionEnrichmentFragment on ITransactionEnrichment {
   __typename
   categories {
     __typename
@@ -204,13 +204,13 @@ fragment BankTransferDetailsData on BankTransferDetails {
     transferDescriptionKey
   }
 }
-fragment CategoryData on Category {
+fragment CategoryData on ICategory {
   __typename
   categoryId
   dataSource
   subCategoryId
 }
-fragment RecurrenceData on Recurrence {
+fragment RecurrenceData on IRecurrence {
   __typename
   dataSource
   isRecurrent

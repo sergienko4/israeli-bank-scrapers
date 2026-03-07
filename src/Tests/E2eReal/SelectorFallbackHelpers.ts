@@ -4,6 +4,7 @@
  */
 import { type Page } from 'playwright';
 
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 
@@ -34,8 +35,9 @@ export function selectorErrorFor(...keys: string[]): RegExp {
  *
  * @param page - the Playwright page whose form to inject into an iframe
  * @param inputSelector - CSS selector identifying an input inside the form to inject
+ * @returns a resolved IDoneResult after injection completes
  */
-export async function injectFormByInput(page: Page, inputSelector: string): Promise<void> {
+export async function injectFormByInput(page: Page, inputSelector: string): Promise<IDoneResult> {
   await page.evaluate(sel => {
     const form = document.querySelector<HTMLElement>(sel)?.closest('form');
     if (!form) return;
@@ -45,4 +47,5 @@ export async function injectFormByInput(page: Page, inputSelector: string): Prom
     form.remove();
   }, inputSelector);
   await page.waitForTimeout(1500);
+  return { done: true };
 }

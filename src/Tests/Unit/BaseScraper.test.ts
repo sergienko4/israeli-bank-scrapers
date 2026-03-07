@@ -1,19 +1,20 @@
 import { TimeoutError } from '../../Common/Waiting';
 import { ScraperProgressTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { BaseScraper } from '../../Scrapers/Base/BaseScraper';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import type {
+  IScraperLoginResult,
+  IScraperScrapingResult,
   ScraperCredentials,
-  ScraperLoginResult,
-  ScraperScrapingResult,
 } from '../../Scrapers/Base/Interface';
 import { createMockScraperOptions } from '../MockPage';
 
 /** Minimal concrete BaseScraper subclass used in unit tests with configurable responses. */
 class TestScraper extends BaseScraper<ScraperCredentials> {
-  public loginResult: ScraperLoginResult = { success: true };
+  public loginResult: IScraperLoginResult = { success: true };
 
-  public fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
+  public fetchResult: IScraperScrapingResult = { success: true, accounts: [] };
 
   public loginError: Error | null = null;
 
@@ -26,9 +27,9 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
   /**
    * Returns the configurable loginResult or throws loginError if set.
    *
-   * @returns the configured ScraperLoginResult
+   * @returns the configured IScraperLoginResult
    */
-  protected login(): Promise<ScraperLoginResult> {
+  protected login(): Promise<IScraperLoginResult> {
     if (this.loginError) throw this.loginError;
     return Promise.resolve(this.loginResult);
   }
@@ -36,9 +37,9 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
   /**
    * Returns the configurable fetchResult or throws fetchError if set.
    *
-   * @returns the configured ScraperScrapingResult
+   * @returns the configured IScraperScrapingResult
    */
-  protected fetchData(): Promise<ScraperScrapingResult> {
+  protected fetchData(): Promise<IScraperScrapingResult> {
     if (this.fetchError) throw this.fetchError;
     return Promise.resolve(this.fetchResult);
   }
@@ -47,11 +48,12 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
    * Records termination and optionally throws terminateError.
    *
    * @param success - whether the scraping was successful
+   * @returns a promise that resolves when termination is complete
    */
-  protected async terminate(success: boolean): Promise<void> {
+  protected async terminate(success: boolean): Promise<IDoneResult> {
     this.terminated = true;
     if (this.terminateError) throw this.terminateError;
-    await super.terminate(success);
+    return super.terminate(success);
   }
 }
 
@@ -146,6 +148,7 @@ describe('BaseScraper', () => {
       const events: ScraperProgressTypes[] = [];
       scraper.onProgress((_companyId, payload) => {
         events.push(payload.type);
+        return { done: true as const };
       });
       await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(events).toContain(ScraperProgressTypes.StartScraping);

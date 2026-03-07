@@ -1,4 +1,29 @@
-export type { ScrapedTransaction } from '../../Interfaces/Banks/Max/ScrapedTransaction';
+import type { Moment } from 'moment';
+
+import type { IScrapedTransaction } from '../../Interfaces/Banks/Max/ScrapedTransaction';
+import type { ITransaction } from '../../Transactions';
+
+export type { IScrapedTransaction } from '../../Interfaces/Banks/Max/ScrapedTransaction';
+
+export interface IFetchCategoryResult {
+  result?: {
+    id: number;
+    name: string;
+  }[];
+}
+
+export interface IScrapedTransactionsResult {
+  result?: {
+    transactions: IScrapedTransaction[];
+  };
+}
+
+export interface IPrepareOpts {
+  txns: ITransaction[];
+  startMoment: Moment;
+  shouldCombineInstallments: boolean;
+  isFilterByDateEnabled: boolean;
+}
 
 export enum MaxPlanName {
   Normal = 'רגילה',

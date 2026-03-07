@@ -1,3 +1,6 @@
+/** Allowed context value types for scraper error diagnostics. */
+export type ScraperErrorContext = Record<string, string | number | boolean>;
+
 /** Base class for all scraper-related runtime failures. */
 export abstract class ScraperError extends Error {
   /**
@@ -10,7 +13,7 @@ export abstract class ScraperError extends Error {
   constructor(
     public readonly code: string,
     message: string,
-    public readonly context?: Record<string, unknown>,
+    public readonly context?: ScraperErrorContext,
   ) {
     super(message);
     this.name = this.constructor.name;

@@ -13,7 +13,7 @@ import {
   filterValidTransactions,
   getInstallmentsInfo,
 } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTransactions';
-import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
+import type { IScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 
 jest.mock('../../Common/Fetch', () => ({
@@ -62,12 +62,12 @@ jest.mock('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch', () => ({
 }));
 
 /**
- * Creates a mock ScrapedTransaction with sensible defaults for IsracardAmex tests.
+ * Creates a mock IScrapedTransaction with sensible defaults for IsracardAmex tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a ScrapedTransaction object for testing
+ * @returns a IScrapedTransaction object for testing
  */
-function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
+function makeTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
   return {
     dealSumType: '0',
     voucherNumberRatz: '111111111',
@@ -118,28 +118,28 @@ describe('convertCurrency', () => {
 });
 
 describe('getInstallmentsInfo', () => {
-  it('returns undefined when no moreInfo', () => {
+  it('returns isFound:false when no moreInfo', () => {
     const t = makeTxn();
     const info = getInstallmentsInfo(t);
-    expect(info).toBeUndefined();
+    expect(info).toEqual({ isFound: false });
   });
 
-  it('returns undefined when moreInfo has no installments keyword', () => {
+  it('returns isFound:false when moreInfo has no installments keyword', () => {
     const t = makeTxn({ moreInfo: 'regular purchase' });
     const info = getInstallmentsInfo(t);
-    expect(info).toBeUndefined();
+    expect(info).toEqual({ isFound: false });
   });
 
   it('returns installments when keyword present', () => {
     const t = makeTxn({ moreInfo: 'תשלום 3 מתוך 12' });
     const result = getInstallmentsInfo(t);
-    expect(result).toEqual({ number: 3, total: 12 });
+    expect(result).toEqual({ isFound: true, value: { number: 3, total: 12 } });
   });
 
-  it('returns undefined when fewer than 2 numbers found', () => {
+  it('returns isFound:false when fewer than 2 numbers found', () => {
     const t = makeTxn({ moreInfo: 'תשלום 3' });
     const result = getInstallmentsInfo(t);
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ isFound: false });
   });
 });
 

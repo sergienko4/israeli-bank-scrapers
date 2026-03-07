@@ -4,7 +4,7 @@ import { type Page } from 'playwright';
 import { CompanyTypes } from '../Definitions';
 import { type ScraperOptions } from '../Scrapers/Base/Interface';
 
-export interface MockPage {
+export interface IMockPage {
   waitForSelector: jest.Mock;
   $eval: jest.Mock;
   $$eval: jest.Mock;
@@ -40,9 +40,9 @@ export interface MockPage {
  * Creates a mock Playwright Page with jest spies for all common page methods.
  *
  * @param overrides - optional mock overrides to customize specific page methods
- * @returns a mock Page object typed as both MockPage and Playwright Page
+ * @returns a mock Page object typed as both IMockPage and Playwright Page
  */
-export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Page {
+export function createMockPage(overrides: Partial<IMockPage> = {}): IMockPage & Page {
   /**
    * Mock browser version stub returned by the context.browser() method.
    *
@@ -97,7 +97,7 @@ export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Pa
     close: jest.fn().mockResolvedValue(undefined),
     focus: jest.fn().mockResolvedValue(undefined),
     ...overrides,
-  } as unknown as MockPage & Page;
+  } as unknown as IMockPage & Page;
 }
 
 /**
@@ -106,7 +106,7 @@ export function createMockPage(overrides: Partial<MockPage> = {}): MockPage & Pa
  * @param page - optional mock page to return from newPage; creates a new one if omitted
  * @returns a mock context object with newPage and close mocks
  */
-export function createMockContext(page?: MockPage & Page): {
+export function createMockContext(page?: IMockPage & Page): {
   newPage: jest.Mock;
   close: jest.Mock;
 } {

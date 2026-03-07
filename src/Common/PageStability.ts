@@ -1,5 +1,6 @@
 import { type Page } from 'playwright';
 
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
 import { getDebug } from './Debug';
 
 const LOG = getDebug('navigation');
@@ -21,8 +22,9 @@ const LOG = getDebug('navigation');
  * Call before any fillInput / clickButton sequence on a form.
  *
  * @param page - the Playwright Page to wait on
+ * @returns a done result indicating the page stability check completed
  */
-async function waitForPageStability(page: Page): Promise<void> {
+async function waitForPageStability(page: Page): Promise<IDoneResult> {
   // A: wait for network to settle
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => null);
 
@@ -43,6 +45,7 @@ async function waitForPageStability(page: Page): Promise<void> {
     )
     .catch(() => null);
   LOG.info('waitForPageStability: complete');
+  return { done: true };
 }
 
 export default waitForPageStability;

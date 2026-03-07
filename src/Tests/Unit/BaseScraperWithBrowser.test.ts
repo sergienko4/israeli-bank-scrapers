@@ -157,7 +157,7 @@ describe('initializePage', () => {
       executablePath: '/usr/bin/chromium',
     } as Partial<ScraperOptions>);
     const scrapePromise = scraper.scrape(TEST_CREDS);
-    await expect(scrapePromise).rejects.toThrow('Custom executablePath is not supported');
+    await expect(scrapePromise).rejects.toThrow('executablePath not supported');
   });
 });
 
@@ -285,7 +285,7 @@ describe('login', () => {
        *
        * @returns never — always throws
        */
-      checkReadiness: (): Promise<void> => {
+      checkReadiness: (): Promise<never> => {
         throw new ScraperAuthenticationError('test-bank', 'login failed unexpectedly');
       },
     };

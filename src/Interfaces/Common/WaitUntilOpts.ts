@@ -1,4 +1,4 @@
-export interface WaitUntilOpts {
+export interface IWaitUntilOpts {
   timeout?: number;
   interval?: number;
 }

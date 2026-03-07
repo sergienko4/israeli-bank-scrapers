@@ -1,7 +1,7 @@
-import type { Account } from './Account';
+import type { IAccount } from './Account';
 
-export interface Portfolio {
-  accounts: Account[];
+export interface IPortfolio {
+  accounts: IAccount[];
   portfolioId: string;
   portfolioNum: string;
 }

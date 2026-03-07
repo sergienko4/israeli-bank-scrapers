@@ -1,14 +1,16 @@
 import { type Frame, type Page } from 'playwright';
 
-import type { DashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
-import type { FieldContext } from '../Interfaces/Common/FieldContext';
-import type { ResolveAllOpts } from '../Interfaces/Common/ResolveAllOpts';
-import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
+import type { IDashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
+import type { IFieldContext } from '../Interfaces/Common/FieldContext';
+import type { FoundResult } from '../Interfaces/Common/FoundResult';
+import type { IResolveAllOpts } from '../Interfaces/Common/ResolveAllOpts';
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
+import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
 import { getDebug } from './Debug';
 
-export type { DashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
-export type { FieldContext } from '../Interfaces/Common/FieldContext';
+export type { IDashboardFieldOpts } from '../Interfaces/Common/DashboardFieldOpts';
+export type { IFieldContext } from '../Interfaces/Common/FieldContext';
 
 const LOG = getDebug('selector-resolver');
 
@@ -121,13 +123,15 @@ async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean
  * cross-origin or detached frame context error during resolution.
  *
  * @param candidate - the SelectorCandidate that could not be evaluated
+ * @returns a done result indicating the log entry was written
  */
-function debugCandidateSkipped(candidate: SelectorCandidate): void {
+function debugCandidateSkipped(candidate: SelectorCandidate): IDoneResult {
   LOG.info(
     'candidate %s "%s" → skipped (cross-origin / detached frame)',
     candidate.kind,
     candidate.value,
   );
+  return { done: true };
 }
 
 /**
@@ -136,19 +140,19 @@ function debugCandidateSkipped(candidate: SelectorCandidate): void {
  * This function is serialised and executed inside the browser context via page.evaluate().
  *
  * @param text - the label text content to search for
- * @returns a CSS selector string for the associated form control, or null when not found
+ * @returns a CSS selector string for the associated form control, or empty string when not found
  */
-function scanLabelForInput(text: string): string | null {
+function scanLabelForInput(text: string): string {
   const allLabels = document.querySelectorAll('label');
   const m = Array.from(allLabels).find(l => l.textContent.includes(text));
-  if (!m) return null;
+  if (!m) return '';
   const fid = m.getAttribute('for');
   if (fid && document.getElementById(fid)) return `#${fid}`;
   const ch = m.querySelector('input, textarea, select');
-  if (!(ch instanceof HTMLElement)) return null;
+  if (!(ch instanceof HTMLElement)) return '';
   if (ch.id) return `#${ch.id}`;
   const n = ch.getAttribute('name');
-  return n ? `[name="${n}"]` : null;
+  return n ? `[name="${n}"]` : '';
 }
 
 /**
@@ -157,9 +161,9 @@ function scanLabelForInput(text: string): string | null {
  *
  * @param ctx - the Playwright Page or Frame to evaluate in
  * @param labelText - the visible label text to search for
- * @returns a CSS selector for the labelled input, or null when not found or on context error
+ * @returns a CSS selector for the labelled input, or empty string when not found or on context error
  */
-async function probeLabelCandidate(ctx: Page | Frame, labelText: string): Promise<string | null> {
+async function probeLabelCandidate(ctx: Page | Frame, labelText: string): Promise<string> {
   try {
     const result = await ctx.evaluate(scanLabelForInput, labelText);
     if (result) LOG.info('resolved label "%s" → %s', labelText, result);
@@ -167,7 +171,7 @@ async function probeLabelCandidate(ctx: Page | Frame, labelText: string): Promis
     return result;
   } catch {
     debugCandidateSkipped({ kind: 'label', value: labelText });
-    return null;
+    return '';
   }
 }
 
@@ -177,12 +181,9 @@ async function probeLabelCandidate(ctx: Page | Frame, labelText: string): Promis
  *
  * @param ctx - the Playwright Page or Frame to test the candidate in
  * @param candidate - the SelectorCandidate descriptor to probe
- * @returns the resolved CSS selector string when found, or null when not found or on error
+ * @returns the resolved CSS selector string when found, or empty string when not found or on error
  */
-async function probeCandidate(
-  ctx: Page | Frame,
-  candidate: SelectorCandidate,
-): Promise<string | null> {
+async function probeCandidate(ctx: Page | Frame, candidate: SelectorCandidate): Promise<string> {
   if (candidate.kind === 'label') return probeLabelCandidate(ctx, candidate.value);
   const css = candidateToCss(candidate);
   try {
@@ -195,24 +196,24 @@ async function probeCandidate(
   } catch {
     debugCandidateSkipped(candidate);
   }
-  return null;
+  return '';
 }
 
 /**
  * Tries each SelectorCandidate on the given context sequentially with a per-candidate timeout.
- * Returns the first resolved CSS string, or null when no candidate matches.
+ * Returns the first resolved CSS string, or undefined when no candidate matches.
  *
  * @param ctx - the Playwright Page or Frame to search in
  * @param candidates - an ordered list of SelectorCandidates to probe in sequence
- * @returns the first CSS selector that resolves within CANDIDATE_TIMEOUT_MS, or null
+ * @returns the first CSS selector that resolves within CANDIDATE_TIMEOUT_MS, or empty string
  */
 export async function tryInContext(
   ctx: Page | Frame,
   candidates: SelectorCandidate[],
-): Promise<string | null> {
-  const initial = Promise.resolve<string | null>(null);
+): Promise<string> {
+  const initial = Promise.resolve('');
   return candidates.reduce(
-    async (acc, candidate) => (await acc) ?? probeCandidate(ctx, candidate),
+    async (acc, candidate) => (await acc) || probeCandidate(ctx, candidate),
     initial,
   );
 }
@@ -236,7 +237,7 @@ async function searchInChildFrames(
     found: await tryInContext(frame, allCandidates),
   }));
   const frameResults = await Promise.all(frameProbes);
-  const match = frameResults.find(r => r.found !== null);
+  const match = frameResults.find(r => r.found !== '');
   if (match?.found) {
     const matchedFrameUrl = match.frame.url();
     LOG.info('Round 1: resolved in iframe %s → %s', matchedFrameUrl, match.found);
@@ -309,13 +310,13 @@ async function resolveInMainContext(
 }
 
 /**
- * Builds a FieldContext representing a failed resolution, logging all tried candidates and
+ * Builds a IFieldContext representing a failed resolution, logging all tried candidates and
  * constructing a diagnostic message with page title and URL for error reporting.
  *
  * @param opts - the full resolution options including page, field config, URL, and candidates
- * @returns a FieldContext with isResolved=false and a diagnostic message
+ * @returns a IFieldContext with isResolved=false and a diagnostic message
  */
-async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext> {
+async function buildNotFoundContext(opts: IResolveAllOpts): Promise<IFieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   const tried = [...b, ...wk].map(c => `  ${c.kind} "${c.value}" → NOT found`);
   LOG.info('FAILED "%s" on %s (%d tried)', field.credentialKey, pageUrl, tried.length);
@@ -337,68 +338,89 @@ async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext>
 }
 
 /**
+ * Probes child iframes with a single candidate set and returns the first match as FoundResult.
+ *
+ * @param page - the Playwright Page whose child frames should be searched
+ * @param candidates - SelectorCandidates to probe in each iframe
+ * @param resolvedVia - whether these are bank-config or well-known candidates
+ * @returns a FoundResult wrapping a resolved IFieldContext, or isFound: false
+ */
+async function probeFrames(
+  page: Page,
+  candidates: SelectorCandidate[],
+  resolvedVia: 'bankConfig' | 'wellKnown',
+): Promise<FoundResult<IFieldContext>> {
+  if (candidates.length === 0) return { isFound: false };
+  const r = await searchInChildFrames(page, candidates);
+  if (!r.selector) return { isFound: false };
+  return { isFound: true, value: { isResolved: true, ...r, resolvedVia, round: 'iframe' } };
+}
+
+/**
  * Probes child iframes for the field, first with bank-specific candidates then well-known ones.
- * Returns a resolved FieldContext when found, or null when no iframe contains the element.
+ * Returns a FoundResult wrapping the resolved IFieldContext, or isFound: false when no iframe matches.
  *
  * @param page - the Playwright Page whose child frames should be searched
  * @param b - bank-specific SelectorCandidates to try first
  * @param wk - well-known fallback SelectorCandidates to try when bank candidates fail
- * @returns a resolved FieldContext or null when neither candidate set matched
+ * @returns a FoundResult wrapping a resolved IFieldContext, or isFound: false
  */
 async function probeIframes(
   page: Page,
   b: SelectorCandidate[],
   wk: SelectorCandidate[],
-): Promise<FieldContext | null> {
-  if (b.length > 0) {
-    const r = await searchInChildFrames(page, b);
-    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'iframe' };
-  }
-  if (wk.length > 0) {
-    const r = await searchInChildFrames(page, wk);
-    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'iframe' };
-  }
-  return null;
+): Promise<FoundResult<IFieldContext>> {
+  const bankResult = await probeFrames(page, b, 'bankConfig');
+  if (bankResult.isFound) return bankResult;
+  return probeFrames(page, wk, 'wellKnown');
 }
 
 /**
  * Probes the main page context for the field, first with bank-specific candidates then well-known ones.
- * Returns a resolved FieldContext when found, or null when neither candidate set matched.
+ * Returns a FoundResult wrapping the resolved IFieldContext, or isFound: false when nothing matched.
  *
  * @param opts - resolution options including page context, field config, URL, and both candidate sets
- * @returns a resolved FieldContext or null when the field was not found on the main page
+ * @returns a FoundResult wrapping a resolved IFieldContext, or isFound: false
  */
-async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null> {
+async function probeMainPage(opts: IResolveAllOpts): Promise<FoundResult<IFieldContext>> {
   const { pageOrFrame: ctx, bankCandidates: b, wellKnownCandidates: wk, field } = opts;
   if (b.length > 0) {
     const r = await resolveInMainContext(ctx, b, field.credentialKey);
-    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'mainPage' };
+    if (r.selector)
+      return {
+        isFound: true,
+        value: { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'mainPage' },
+      };
   }
   if (wk.length > 0) {
     const r = await resolveInMainContext(ctx, wk, field.credentialKey);
-    if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'mainPage' };
+    if (r.selector)
+      return {
+        isFound: true,
+        value: { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'mainPage' },
+      };
   }
-  return null;
+  return { isFound: false };
 }
 
 /**
  * Full two-round field resolution: main page first (Round 1), iframes fallback (Round 2).
  * Bank-specific candidates are tried before well-known fallbacks in each round.
- * Returns a FieldContext with isResolved=false and a diagnostic message when nothing is found.
+ * Returns a IFieldContext with isResolved=false and a diagnostic message when nothing is found.
  *
  * @param opts - resolution options including page context, field config, URL, and candidate sets
- * @returns a FieldContext describing where the field was found, or a not-found context
+ * @returns a IFieldContext describing where the field was found, or a not-found context
  */
-async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
+async function resolveAll(opts: IResolveAllOpts): Promise<IFieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   const bLen = String(b.length);
   const wkLen = String(wk.length);
   LOG.info(`resolving "${field.credentialKey}": ${bLen}b+${wkLen}wk on ${pageUrl}`);
   const main = await probeMainPage(opts); // main page first — avoids iframe false positives
-  if (main) return main;
+  if (main.isFound) return main.value;
   if (isPage(pageOrFrame)) {
     const r = await probeIframes(pageOrFrame, b, wk); // iframes fallback
-    if (r) return r;
+    if (r.isFound) return r.value;
   }
   return buildNotFoundContext(opts);
 }
@@ -409,15 +431,15 @@ async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
  * then delegates to resolveAll for the two-round main-page + iframe search.
  *
  * @param pageOrFrame - the Playwright Page or Frame on which to resolve the field
- * @param field - the FieldConfig describing the credential key and ordered selector candidates
+ * @param field - the IFieldConfig describing the credential key and ordered selector candidates
  * @param pageUrl - the current page URL, used for logging and error messages
- * @returns a FieldContext with the resolved selector and context, or a not-found context
+ * @returns a IFieldContext with the resolved selector and context, or a not-found context
  */
 export async function resolveFieldContext(
   pageOrFrame: Page | Frame,
-  field: FieldConfig,
+  field: IFieldConfig,
   pageUrl: string,
-): Promise<FieldContext> {
+): Promise<IFieldContext> {
   const bank = [...field.selectors];
   const wellKnown = [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])];
   return resolveAll({
@@ -434,13 +456,13 @@ export async function resolveFieldContext(
  *
  * @deprecated Prefer resolveFieldContext when the caller needs to know which frame the element lives in.
  * @param pageOrFrame - the Playwright Page or Frame to resolve the field on
- * @param field - the FieldConfig describing the credential key and selector candidates
+ * @param field - the IFieldConfig describing the credential key and selector candidates
  * @param pageUrl - the current page URL for logging and error messages
  * @returns the resolved CSS selector string, or an empty string when not found
  */
 export async function resolveSelector(
   pageOrFrame: Page | Frame,
-  field: FieldConfig,
+  field: IFieldConfig,
   pageUrl: string,
 ): Promise<string> {
   const { selector } = await resolveFieldContext(pageOrFrame, field, pageUrl);
@@ -462,12 +484,12 @@ export function toFirstCss(candidates: SelectorCandidate[]): string {
 /**
  * Resolves a dashboard data field using the same two-round strategy as login resolution:
  * main page first, then iframes; bank candidates before well-known fallbacks.
- * Returns a FieldContext — check `isResolved` before using `selector` and `context`.
+ * Returns a IFieldContext — check `isResolved` before using `selector` and `context`.
  *
  * @param opts - options including the page or frame, field key, bank candidates, and page URL
- * @returns a FieldContext describing where the field was found, or a not-found context
+ * @returns a IFieldContext describing where the field was found, or a not-found context
  */
-export async function resolveDashboardField(opts: DashboardFieldOpts): Promise<FieldContext> {
+export async function resolveDashboardField(opts: IDashboardFieldOpts): Promise<IFieldContext> {
   const { pageOrFrame, fieldKey, bankCandidates, pageUrl } = opts;
   const wellKnownCandidates = WELL_KNOWN_DASHBOARD_SELECTORS[fieldKey] ?? [];
   return resolveAll({

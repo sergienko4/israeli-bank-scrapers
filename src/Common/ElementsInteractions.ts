@@ -1,28 +1,31 @@
 import { type Frame, type Page } from 'playwright';
 
-import type { PageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
-import type { PageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
-import type { WaitOptions } from '../Interfaces/Common/WaitOptions';
+import type { FoundResult } from '../Interfaces/Common/FoundResult';
+import type { IPageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
+import type { IPageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
+import type { IWaitOptions } from '../Interfaces/Common/WaitOptions';
 import { ScraperWebsiteChangedError } from '../Scrapers/Base/ScraperWebsiteChangedError';
 import { getDebug } from './Debug';
 import { humanDelay, waitUntil } from './Waiting';
 
-export type { PageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
-export type { PageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
-export type { WaitOptions } from '../Interfaces/Common/WaitOptions';
+export type { IPageEvalAllOpts } from '../Interfaces/Common/PageEvalAllOpts';
+export type { IPageEvalOpts } from '../Interfaces/Common/PageEvalOpts';
+export type { IWaitOptions } from '../Interfaces/Common/WaitOptions';
 
 const LOG = getDebug('elements');
 
 /**
- * Extracts a short snippet of visible text from the page body for diagnostic logging.
+ * Extracts a snippet of visible text from the page body for diagnostic logging and
+ * wrong-credential pattern matching.
  * Returns a fallback string when the page context is unavailable (e.g. navigating away).
  *
  * @param pageOrFrame - the Playwright Page or Frame to extract text from
- * @returns up to 400 characters of whitespace-collapsed body text, or '(context unavailable)'
+ * @returns up to 2000 characters of whitespace-collapsed body text, or '(context unavailable)'
  */
 export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
   return pageOrFrame
-    .evaluate((): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400))
+    .evaluate((): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, 2000))
     .catch(() => '(context unavailable)');
 }
 
@@ -50,12 +53,13 @@ async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): 
  * @param page - the Playwright Page or Frame to query
  * @param elementSelector - a CSS selector for the element to wait for
  * @param opts - optional waiting configuration including timeout and visibility requirements
+ * @returns a done result indicating the element was found
  */
 async function waitUntilElementFound(
   page: Page | Frame,
   elementSelector: string,
-  opts: WaitOptions = {},
-): Promise<void> {
+  opts: IWaitOptions = {},
+): Promise<IDoneResult> {
   const state = opts.visible ? 'visible' : 'attached';
   const startMs = Date.now();
   try {
@@ -67,6 +71,7 @@ async function waitUntilElementFound(
     LOG.info('page text: %s', await capturePageText(page));
     throw e;
   }
+  return { done: true };
 }
 
 /**
@@ -75,13 +80,15 @@ async function waitUntilElementFound(
  * @param page - the Playwright Page to query
  * @param elementSelector - a CSS selector for the element to wait on
  * @param timeout - maximum time to wait in milliseconds; uses Playwright default when omitted
+ * @returns a done result indicating the element disappeared
  */
 async function waitUntilElementDisappear(
   page: Page,
   elementSelector: string,
   timeout?: number,
-): Promise<void> {
+): Promise<IDoneResult> {
   await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
+  return { done: true };
 }
 
 /**
@@ -90,23 +97,24 @@ async function waitUntilElementDisappear(
  * @param page - the Playwright Page whose child frames are searched
  * @param framePredicate - a function that returns true for the desired frame
  * @param timeout - maximum polling duration in milliseconds
- * @returns the matching Frame, or undefined when the timeout expires without a match
+ * @returns a FoundResult wrapping the matching Frame, or isFound: false when the timeout expires
  */
 async function waitForIframe(
   page: Page,
   framePredicate: (frame: Frame) => boolean,
   timeout: number,
-): Promise<Frame | undefined> {
-  let frame: Frame | undefined;
+): Promise<FoundResult<Frame>> {
+  let frameResult: FoundResult<Frame> = { isFound: false };
   await waitUntil(
     () => {
-      frame = page.frames().find(framePredicate);
-      return Promise.resolve(!!frame);
+      const found = page.frames().find(framePredicate);
+      if (found) frameResult = { isFound: true, value: found };
+      return Promise.resolve(!!found);
     },
     'waiting for iframe',
     { timeout, interval: 1000 },
   );
-  return frame;
+  return frameResult;
 }
 
 /**
@@ -121,19 +129,19 @@ async function waitForIframe(
 async function waitUntilIframeFound(
   page: Page,
   framePredicate: (frame: Frame) => boolean,
-  opts: WaitOptions & { description?: string } = {},
+  opts: IWaitOptions & { description?: string } = {},
 ): Promise<Frame> {
   const { timeout = 30000, description = '' } = opts;
-  const frame = await waitForIframe(page, framePredicate, timeout);
+  const frameResult = await waitForIframe(page, framePredicate, timeout);
 
-  if (!frame) {
+  if (!frameResult.isFound) {
     throw new ScraperWebsiteChangedError(
       'ElementsInteractions',
       `failed to find iframe: ${description}`,
     );
   }
 
-  return frame;
+  return frameResult.value;
 }
 
 /**
@@ -143,12 +151,13 @@ async function waitUntilIframeFound(
  * @param pageOrFrame - the Playwright Page or Frame containing the input element
  * @param inputSelector - a CSS selector identifying the input field
  * @param inputValue - the text to type into the field
+ * @returns a done result indicating the input was filled
  */
 async function fillInput(
   pageOrFrame: Page | Frame,
   inputSelector: string,
   inputValue: string,
-): Promise<void> {
+): Promise<IDoneResult> {
   LOG.info('fill %s', inputSelector);
   await humanDelay(200, 600);
   await pageOrFrame.$eval(inputSelector, (input: Element) => {
@@ -157,6 +166,7 @@ async function fillInput(
   await pageOrFrame
     .locator(inputSelector)
     .pressSequentially(inputValue, { delay: 50 + Math.random() * 100 });
+  return { done: true };
 }
 
 /**
@@ -167,12 +177,13 @@ async function fillInput(
  * @param pageOrFrame - the Playwright Page or Frame containing the input element
  * @param inputSelector - a CSS selector identifying the input field
  * @param inputValue - the value to assign directly to the element
+ * @returns a done result indicating the value was set
  */
 async function setValue(
   pageOrFrame: Page | Frame,
   inputSelector: string,
   inputValue: string,
-): Promise<void> {
+): Promise<IDoneResult> {
   await pageOrFrame.$eval(
     inputSelector,
     (input: Element, [value]: string[]) => {
@@ -180,6 +191,7 @@ async function setValue(
     },
     [inputValue],
   );
+  return { done: true };
 }
 
 /**
@@ -188,13 +200,15 @@ async function setValue(
  *
  * @param page - the Playwright Page or Frame containing the button
  * @param buttonSelector - a CSS selector identifying the button element
+ * @returns a done result indicating the button was clicked
  */
-async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
+async function clickButton(page: Page | Frame, buttonSelector: string): Promise<IDoneResult> {
   LOG.info('click %s', buttonSelector);
   await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => {
     (el as HTMLElement).click();
   });
+  return { done: true };
 }
 
 /**
@@ -202,11 +216,13 @@ async function clickButton(page: Page | Frame, buttonSelector: string): Promise<
  *
  * @param page - the Playwright Page containing the link element
  * @param aSelector - a CSS selector identifying the link element to click
+ * @returns a done result indicating the link was clicked
  */
-async function clickLink(page: Page, aSelector: string): Promise<void> {
+async function clickLink(page: Page, aSelector: string): Promise<IDoneResult> {
   await page.$eval(aSelector, (el: Element) => {
     (el as HTMLElement).click();
   });
+  return { done: true };
 }
 
 /**
@@ -220,7 +236,7 @@ async function clickLink(page: Page, aSelector: string): Promise<void> {
  */
 async function pageEvalAll<TResult>(
   page: Page | Frame,
-  opts: PageEvalAllOpts<TResult>,
+  opts: IPageEvalAllOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
@@ -248,7 +264,7 @@ async function pageEvalAll<TResult>(
  */
 async function pageEval<TResult>(
   page: Page | Frame,
-  opts: PageEvalOpts<TResult>,
+  opts: IPageEvalOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
@@ -282,9 +298,15 @@ async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string)
  * @param page - the Playwright Page containing the select element
  * @param selectSelector - a CSS selector identifying the select element
  * @param value - the option value to select
+ * @returns a done result indicating the option was selected
  */
-async function dropdownSelect(page: Page, selectSelector: string, value: string): Promise<void> {
+async function dropdownSelect(
+  page: Page,
+  selectSelector: string,
+  value: string,
+): Promise<IDoneResult> {
   await page.selectOption(selectSelector, value);
+  return { done: true };
 }
 
 /**

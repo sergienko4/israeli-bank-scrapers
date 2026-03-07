@@ -1,1 +1,1 @@
-export type { ScraperSpecificCredentials as default } from '../../../Scrapers/Discount/DiscountScraper';
+export type { IScraperSpecificCredentials as default } from '../../../Scrapers/Discount/DiscountScraper';

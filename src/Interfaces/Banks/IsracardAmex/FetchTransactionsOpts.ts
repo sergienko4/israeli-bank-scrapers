@@ -2,12 +2,12 @@ import type { Moment } from 'moment';
 import type { Page } from 'playwright';
 
 import type { ScraperOptions } from '../../../Scrapers/Base/Interface';
-import type { CompanyServiceOptions } from './CompanyServiceOptions';
+import type { ICompanyServiceOptions } from './CompanyServiceOptions';
 
-export interface FetchTransactionsOpts {
+export interface IFetchTransactionsOpts {
   page: Page;
   options: ScraperOptions;
-  companyServiceOptions: CompanyServiceOptions;
+  companyServiceOptions: ICompanyServiceOptions;
   startMoment: Moment;
   monthMoment: Moment;
 }

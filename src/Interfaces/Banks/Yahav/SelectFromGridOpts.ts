@@ -1,1 +1,1 @@
-export type { SelectFromGridOpts as default } from '../../../Scrapers/Yahav/YahavScraper';
+export type { ISelectFromGridOpts as default } from '../../../Scrapers/Yahav/YahavScraper';

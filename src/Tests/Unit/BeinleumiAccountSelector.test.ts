@@ -140,12 +140,12 @@ describe('selectAccountFromDropdown', () => {
 });
 
 describe('getTransactionsFrame', () => {
-  it('returns null after all attempts fail', async () => {
+  it('returns isFound:false after all attempts fail', async () => {
     mockPage.$.mockResolvedValue(null);
     mockPage.frames.mockReturnValue([]);
 
     const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBeNull();
+    expect(result.isFound).toBe(false);
   });
 
   it('returns frame found via iframe element contentFrame', async () => {
@@ -156,7 +156,8 @@ describe('getTransactionsFrame', () => {
     mockPage.$.mockResolvedValueOnce(mockIframeEl);
 
     const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe(mockFrame);
   });
 
   it('returns frame found via page.frames() by name', async () => {
@@ -165,7 +166,8 @@ describe('getTransactionsFrame', () => {
     mockPage.frames.mockReturnValueOnce([mockFrame]);
 
     const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe(mockFrame);
   });
 
   it('retries and returns frame on second attempt', async () => {
@@ -177,7 +179,8 @@ describe('getTransactionsFrame', () => {
     mockPage.frames.mockReturnValue([]);
 
     const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    expect(result.isFound).toBe(true);
+    if (result.isFound) expect(result.value).toBe(mockFrame);
   });
 
   it('handles stale iframe element (contentFrame throws)', async () => {
@@ -188,6 +191,6 @@ describe('getTransactionsFrame', () => {
     mockPage.frames.mockReturnValue([]);
 
     const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBeNull();
+    expect(result.isFound).toBe(false);
   });
 });

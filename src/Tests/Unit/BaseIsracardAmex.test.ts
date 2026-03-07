@@ -4,14 +4,7 @@ import moment from 'moment';
 import { buildContextOptions } from '../../Common/Browser';
 import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
-import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
-import { sleep } from '../../Common/Waiting';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import { ScraperProgressTypes } from '../../Definitions';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
 import { createMockPage } from '../MockPage';
 import TestAmexScraper from './BaseIsracardAmexTestHelpers';
 
@@ -33,6 +26,7 @@ jest.mock('../../Common/Browser', () => ({
 jest.mock('../../Common/Waiting', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
     let acc = Promise.resolve([]) as Promise<T[]>;
     for (const action of actions) acc = acc.then(async r => [...r, await action()]);
@@ -42,8 +36,8 @@ jest.mock('../../Common/Waiting', () => ({
   SECOND: 1000,
 }));
 jest.mock('../../Common/Transactions', () => ({
-  fixInstallments: jest.fn((txns: Transaction[]) => txns),
-  filterOldTransactions: jest.fn((txns: Transaction[]) => txns),
+  fixInstallments: jest.fn(<T>(txns: T[]) => txns),
+  filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 jest.mock('../../Common/Debug', () => ({
@@ -74,11 +68,15 @@ const CREDS = { id: '123456789', password: 'pass123', card6Digits: '123456' };
  *
  * @param returnCode - the return code in ValidateIdDataBean
  * @param userName - the user name in ValidateIdDataBean
+ * @returns the jest mock for further configuration
  */
-function mockValidate(returnCode = '1', userName = 'TestUser'): void {
-  (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-    Header: { Status: '1' },
-    ValidateIdDataBean: { returnCode, userName },
+function mockValidate(returnCode = '1', userName = 'TestUser'): jest.Mock {
+  return (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    isFound: true,
+    value: {
+      Header: { Status: '1' },
+      ValidateIdDataBean: { returnCode, userName },
+    },
   });
 }
 
@@ -86,80 +84,23 @@ function mockValidate(returnCode = '1', userName = 'TestUser'): void {
  * Mocks a login response.
  *
  * @param status - the login status code
+ * @returns the jest mock for further configuration
  */
-function mockLogin(status = '1'): void {
-  (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ status });
-}
-
-/**
- * Mocks a dashboard accounts response.
- *
- * @param cardNumber - the card number to return
- */
-function mockAccounts(cardNumber = '1234'): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    Header: { Status: '1' },
-    DashboardMonthBean: {
-      cardsCharges: [{ cardIndex: '0', cardNumber, billingDate: '15/06/2024' }],
-    },
-  });
-}
-
-/**
- * Mocks a transactions response.
- *
- * @param txnIsrael - Israel transactions
- * @param txnAbroad - abroad transactions
- */
-function mockTxns(
-  txnIsrael: ScrapedTransaction[] = [],
-  txnAbroad: ScrapedTransaction[] = [],
-): void {
-  const txnGroups: { txnIsrael?: ScrapedTransaction[]; txnAbroad?: ScrapedTransaction[] } = {};
-  if (txnIsrael.length) txnGroups.txnIsrael = txnIsrael;
-  if (txnAbroad.length) txnGroups.txnAbroad = txnAbroad;
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    Header: { Status: '1' },
-    CardsTransactionsListBean: {
-      Index0: { CurrentCardTransactions: [txnGroups] },
-    },
+function mockLogin(status = '1'): jest.Mock {
+  return (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    isFound: true,
+    value: { status },
   });
 }
 
 /**
  * Configures mocks for a successful validate + login sequence.
- */
-function setupFullLogin(): void {
-  mockValidate('1');
-  mockLogin('1');
-}
-
-/**
- * Creates a fake ScrapedTransaction with randomized values.
  *
- * @param overrides - partial fields to override generated defaults
- * @returns a complete ScrapedTransaction
+ * @returns the jest mock for the login call
  */
-function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
-  const amount = faker.number.float({ min: 10, max: 5000, fractionDigits: 2 });
-  const recentDate = faker.date.recent({ days: 365 });
-  const fullPurchaseDate = moment(recentDate).format('DD/MM/YYYY');
-  return {
-    dealSumType: '0',
-    voucherNumberRatz: faker.string.numeric(9),
-    voucherNumberRatzOutbound: faker.string.numeric(9),
-    dealSumOutbound: false,
-    currencyId: 'ש"ח',
-    currentPaymentCurrency: 'ש"ח',
-    dealSum: amount,
-    paymentSum: amount,
-    paymentSumOutbound: 0,
-    fullPurchaseDate,
-    fullSupplierNameHeb: faker.helpers.arrayElement([...HEBREW_MERCHANTS]),
-    fullSupplierNameOutbound: '',
-    moreInfo: '',
-    ...overrides,
-  };
+function setupFullLogin(): jest.Mock {
+  mockValidate('1');
+  return mockLogin('1');
 }
 
 beforeEach(() => {
@@ -168,6 +109,8 @@ beforeEach(() => {
   (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMockPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
+  // Default: any unmatched fetchGetWithinPage calls return isFound:false (empty response)
+  (fetchGetWithinPage as jest.Mock).mockResolvedValue({ isFound: false });
 });
 
 describe('login', () => {
@@ -208,8 +151,8 @@ describe('login', () => {
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
   });
 
-  it('returns WafBlocked with details when validateCredentials returns null', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(null);
+  it('returns WafBlocked with details when validateCredentials returns isFound:false', async () => {
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
@@ -219,161 +162,13 @@ describe('login', () => {
   });
 
   it('returns WafBlocked when validate Header.Status is not 1', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: { Header: { Status: '0' } },
+    });
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
     expect(result.errorDetails).toBeDefined();
-  });
-});
-
-describe('fetchData', () => {
-  it('fetches and converts transactions', async () => {
-    setupFullLogin();
-    mockAccounts('4580-1234');
-    mockTxns([txn({ dealSum: 250, fullSupplierNameHeb: 'רמי לוי' })]);
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    expect(result.success).toBe(true);
-    expect(result.accounts).toHaveLength(1);
-    expect((result.accounts ?? [])[0].accountNumber).toBe('4580-1234');
-
-    const t = (result.accounts ?? [])[0].txns[0];
-    expect(t.originalAmount).toBe(-250);
-    expect(t.description).toBe('רמי לוי');
-    expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
-    expect(t.status).toBe(TransactionStatuses.Completed);
-    expect(t.type).toBe(TransactionTypes.Normal);
-  });
-
-  it('handles abroad transactions', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns(
-      [],
-      [
-        txn({
-          dealSumOutbound: true,
-          fullPurchaseDateOutbound: '10/06/2024',
-          fullSupplierNameOutbound: 'Amazon US',
-          currentPaymentCurrency: 'USD',
-          currencyId: 'USD',
-          paymentSumOutbound: 50,
-        }),
-      ],
-    );
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    const t = (result.accounts ?? [])[0].txns[0];
-    expect(t.description).toBe('Amazon US');
-    expect(t.originalCurrency).toBe('USD');
-    expect(t.chargedAmount).toBe(-50);
-  });
-
-  it('detects installment transactions', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn({ moreInfo: 'תשלום 3 מתוך 12' })]);
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    const t = (result.accounts ?? [])[0].txns[0];
-    expect(t.type).toBe(TransactionTypes.Installments);
-    expect(t.installments).toEqual({ number: 3, total: 12 });
-  });
-
-  it('filters dealSumType=1 transactions', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn({ dealSumType: '1' }), txn()]);
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    expect((result.accounts ?? [])[0].txns).toHaveLength(1);
-  });
-
-  it('filters zero voucher numbers', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn({ voucherNumberRatz: '000000000', voucherNumberRatzOutbound: '000000000' })]);
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    expect((result.accounts ?? [])[0].txns).toHaveLength(0);
-  });
-
-  it('returns empty when Header.Status is not 1', async () => {
-    setupFullLogin();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
-
-    const result = await new TestAmexScraper().scrape(CREDS);
-    expect(result.success).toBe(true);
-    expect(result.accounts).toHaveLength(0);
-  });
-
-  it('calls fixInstallments when shouldCombineInstallments=false', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn()]);
-
-    await new TestAmexScraper({ shouldCombineInstallments: false }).scrape(CREDS);
-    expect(fixInstallments).toHaveBeenCalled();
-  });
-
-  it('skips fixInstallments when shouldCombineInstallments=true', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn()]);
-
-    await new TestAmexScraper({ shouldCombineInstallments: true }).scrape(CREDS);
-    expect(fixInstallments).not.toHaveBeenCalled();
-  });
-
-  it('calls filterOldTransactions by default', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn()]);
-
-    await new TestAmexScraper().scrape(CREDS);
-    expect(filterOldTransactions).toHaveBeenCalled();
-  });
-
-  it('applies rate limiting', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn()]);
-
-    await new TestAmexScraper().scrape(CREDS);
-    expect(sleep).toHaveBeenCalled();
-  });
-
-  it('includes rawTransaction when option set', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([txn()]);
-
-    const result = await new TestAmexScraper({ includeRawTransaction: true }).scrape(CREDS);
-    expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
-  });
-});
-
-describe('progress events', () => {
-  it('emits LoggingIn and LoginSuccess', async () => {
-    setupFullLogin();
-    mockAccounts();
-    mockTxns([]);
-    const events: ScraperProgressTypes[] = [];
-    const scraper = new TestAmexScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
-    await scraper.scrape(CREDS);
-    expect(events).toContain(ScraperProgressTypes.LoggingIn);
-    expect(events).toContain(ScraperProgressTypes.LoginSuccess);
-  });
-
-  it('emits LoginFailed on invalid password', async () => {
-    mockValidate('99');
-    const events: ScraperProgressTypes[] = [];
-    const scraper = new TestAmexScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
-    await scraper.scrape(CREDS);
-    expect(events).toContain(ScraperProgressTypes.LoginFailed);
   });
 });

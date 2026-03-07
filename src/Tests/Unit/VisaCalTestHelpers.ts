@@ -1,8 +1,8 @@
 import { getFromSessionStorage } from '../../Common/Storage';
 import { waitUntil, waitUntilWithReload } from '../../Common/Waiting';
 import {
-  type ScrapedPendingTransaction,
-  type ScrapedTransaction,
+  type IScrapedPendingTransaction,
+  type IScrapedTransaction,
   TrnTypeCode,
 } from '../../Scrapers/VisaCal/VisaCalTypes';
 import {
@@ -47,18 +47,18 @@ export const EMPTY_CARDS_INIT_RESPONSE = {
  * @returns a ScraperOptions object suitable for VisaCal tests
  */
 export function visaCalOptions(
-  overrides: Record<string, unknown> = {},
+  overrides: Record<string, number | string | boolean | object | Date> = {},
 ): ReturnType<typeof createMockScraperOptions> {
   return createMockScraperOptions({ startDate: new Date(), futureMonthsToScrape: 0, ...overrides });
 }
 
 /**
- * Creates a mock ScrapedTransaction with sensible defaults for VisaCal tests.
+ * Creates a mock IScrapedTransaction with sensible defaults for VisaCal tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a ScrapedTransaction object for use in VisaCal unit tests
+ * @returns a IScrapedTransaction object for use in VisaCal unit tests
  */
-export function scrapedTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
+export function scrapedTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
   return {
     amtBeforeConvAndIndex: 100,
     branchCodeDesc: 'מזון',
@@ -107,14 +107,14 @@ export function scrapedTxn(overrides: Partial<ScrapedTransaction> = {}): Scraped
 }
 
 /**
- * Creates a mock ScrapedPendingTransaction with defaults for VisaCal tests.
+ * Creates a mock IScrapedPendingTransaction with defaults for VisaCal tests.
  *
  * @param overrides - optional field overrides for the mock pending transaction
- * @returns a ScrapedPendingTransaction object for use in VisaCal unit tests
+ * @returns a IScrapedPendingTransaction object for use in VisaCal unit tests
  */
 export function pendingTxn(
-  overrides: Partial<ScrapedPendingTransaction> = {},
-): ScrapedPendingTransaction {
+  overrides: Partial<IScrapedPendingTransaction> = {},
+): IScrapedPendingTransaction {
   return {
     merchantID: 'M1',
     merchantName: 'Pending Shop',
@@ -142,7 +142,7 @@ export function pendingTxn(
  * @param txns - the pending transactions to include in the mock response
  * @returns a mock API response object with the given pending transactions
  */
-export function mockPendingResponse(txns: ScrapedPendingTransaction[] = [pendingTxn()]): object {
+export function mockPendingResponse(txns: IScrapedPendingTransaction[] = [pendingTxn()]): object {
   return {
     statusCode: 1,
     result: {
@@ -159,8 +159,8 @@ export function mockPendingResponse(txns: ScrapedPendingTransaction[] = [pending
  * @returns a mock API response object with the given transactions
  */
 export function mockCardTransactionDetails(
-  txns: ScrapedTransaction[] = [],
-  overrides: Record<string, unknown> = {},
+  txns: IScrapedTransaction[] = [],
+  overrides: Record<string, string | number | boolean | object> = {},
 ): object {
   return {
     statusCode: 1,
@@ -252,7 +252,7 @@ export function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
   });
 
   (getFromSessionStorage as jest.Mock).mockImplementation(
-    (_page: unknown, key: string): Promise<unknown> => {
+    (_page: object, key: string): Promise<object> => {
       if (key === 'init') {
         return Promise.resolve({
           result: { cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }] },
@@ -261,7 +261,7 @@ export function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
       if (key === 'auth-module') {
         return Promise.resolve({ auth: { calConnectToken: 'cal-auth-token' } });
       }
-      return Promise.resolve(null);
+      return Promise.resolve({});
     },
   );
 

@@ -4,7 +4,7 @@ import { discountConfig } from '../Discount/DiscountLoginConfig';
 import DiscountScraper from '../Discount/DiscountScraper';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-/** Scraper implementation for Mercantile Discount Bank (shares Discount Bank infrastructure). */
+/** IScraper implementation for Mercantile Discount Bank (shares Discount Bank infrastructure). */
 class MercantileScraper extends DiscountScraper {
   /**
    * Creates a MercantileScraper using the Mercantile bank login URL.

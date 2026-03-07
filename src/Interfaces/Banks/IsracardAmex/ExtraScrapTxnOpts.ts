@@ -1,13 +1,13 @@
 import type { Moment } from 'moment';
 import type { Page } from 'playwright';
 
-import type { Transaction } from '../../../Transactions';
-import type { CompanyServiceOptions } from './CompanyServiceOptions';
+import type { ITransaction } from '../../../Transactions';
+import type { ICompanyServiceOptions } from './CompanyServiceOptions';
 
-export interface ExtraScrapTxnOpts {
+export interface IExtraScrapeTransactionOpts {
   page: Page;
-  options: CompanyServiceOptions;
+  options: ICompanyServiceOptions;
   month: Moment;
   accountIndex: number;
-  transaction: Transaction;
+  transaction: ITransaction;
 }

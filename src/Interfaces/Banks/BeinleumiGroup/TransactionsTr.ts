@@ -1,5 +1,5 @@
 import type { TransactionsTrTds } from '../../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroupBaseTypes';
 
-export interface TransactionsTr {
+export interface ITransactionTableRow {
   innerTds: TransactionsTrTds;
 }

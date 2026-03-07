@@ -1,1 +1,1 @@
-export type { EnrichTxnOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IEnrichTransactionOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

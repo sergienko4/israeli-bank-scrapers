@@ -1,6 +1,6 @@
 import type { CurrencySymbol, TrnTypeCode } from '../../../Scrapers/VisaCal/VisaCalBaseTypes';
 
-export interface ScrapedPendingTransaction {
+export interface IScrapedPendingTransaction {
   merchantID: string;
   merchantName: string;
   trnPurchaseDate: string;

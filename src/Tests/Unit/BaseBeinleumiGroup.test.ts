@@ -4,6 +4,7 @@ import { clickButton, elementPresentOnPage, pageEvalAll } from '../../Common/Ele
 import { getCurrentUrl } from '../../Common/Navigation';
 import { sleep } from '../../Common/Waiting';
 import { SHEKEL_CURRENCY } from '../../Constants';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
@@ -57,7 +58,9 @@ jest.mock('../../Common/Debug', () => ({
 }));
 // OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
 // Return null here so login/fetchData tests are not affected by OTP detection.
-jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+jest.mock('../../Common/OtpHandler', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue({ isFound: false }),
+}));
 
 const MOCK_CONTEXT = {
   newPage: jest.fn(),
@@ -84,7 +87,7 @@ function createPageWithAccountFeatures(
       if (selector === 'div.fibi_account span.acc_num') return '12/345678';
       if (selector === '.main_balance') return '₪5,000.00';
       if (selector === '.NO_DATA') return 'לא נמצאו נתונים בנושא המבוקש';
-      return undefined;
+      return '';
     }),
     $$eval: jest.fn().mockResolvedValue([]),
     evaluate: jest.fn().mockResolvedValue([]),
@@ -113,13 +116,15 @@ const PENDING_COLUMN_TYPES = [
  * Configures pageEvalAll mocks to return the given rows as completed transactions.
  *
  * @param rows - transaction row data with innerTds cell values to return from the mock
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockTransactionTable(rows: { innerTds: string[] }[]): void {
+function mockTransactionTable(rows: { innerTds: string[] }[]): IDoneResult {
   (pageEvalAll as jest.Mock)
     .mockResolvedValueOnce([]) // pending column types
     .mockResolvedValueOnce([]) // pending rows
     .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
     .mockResolvedValueOnce(rows);
+  return { done: true };
 }
 
 beforeEach(() => {

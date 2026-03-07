@@ -9,9 +9,10 @@
 import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
@@ -93,15 +94,15 @@ const DASHBOARD_HTML = '<!DOCTYPE html><html><body><h1>Dashboard</h1></body></ht
 const ERROR_PAGE_HTML =
   '<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>';
 
-// ── Shared LoginConfig helpers ────────────────────────────────────────────────
+// ── Shared ILoginConfig helpers ────────────────────────────────────────────────
 
 /**
- * Builds a LoginConfig pointing to test-bank.local with optional overrides.
+ * Builds a ILoginConfig pointing to test-bank.local with optional overrides.
  *
- * @param overrides - partial LoginConfig fields to override defaults
- * @returns a complete LoginConfig for use in test scrapers
+ * @param overrides - partial ILoginConfig fields to override defaults
+ * @returns a complete ILoginConfig for use in test scrapers
  */
-function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
+function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://test-bank.local/login',
     fields: [
@@ -143,8 +144,9 @@ describe('OTP detection', () => {
            * Serves OTP code-entry page to trigger OTP detection with no retriever configured.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -157,6 +159,7 @@ describe('OTP detection', () => {
                 body: DASHBOARD_HTML,
               },
             ]);
+            return { done: true };
           },
         // No otpCodeRetriever provided
       },
@@ -188,8 +191,9 @@ describe('OTP detection', () => {
            * Serves OTP code-entry page so the retriever is invoked with the phone hint.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -202,6 +206,7 @@ describe('OTP detection', () => {
                 body: DASHBOARD_HTML,
               },
             ]);
+            return { done: true };
           },
         otpCodeRetriever: retrieverSpy,
       },
@@ -235,8 +240,9 @@ describe('OTP detection', () => {
            * Serves the OTP selection page for the two-screen flow test.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -249,6 +255,7 @@ describe('OTP detection', () => {
                 body: DASHBOARD_HTML,
               },
             ]);
+            return { done: true };
           },
         otpCodeRetriever: retrieverSpy,
       },
@@ -278,8 +285,9 @@ describe('OTP detection', () => {
            * Serves a normal login page with no OTP keywords for the no-OTP regression test.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -292,6 +300,7 @@ describe('OTP detection', () => {
                 body: DASHBOARD_HTML,
               },
             ]);
+            return { done: true };
           },
       },
       makeLoginConfig(),
@@ -321,8 +330,9 @@ describe('OTP detection', () => {
            * Serves the login error page to verify no OTP is triggered on wrong credentials.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -335,6 +345,7 @@ describe('OTP detection', () => {
                 body: ERROR_PAGE_HTML,
               },
             ]);
+            return { done: true };
           },
         otpCodeRetriever: retrieverSpy,
       },

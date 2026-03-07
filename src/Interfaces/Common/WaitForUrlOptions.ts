@@ -1,4 +1,4 @@
-export interface WaitForUrlOptions {
+export interface IWaitForUrlOptions {
   timeout?: number;
   isClientSide?: boolean;
 }

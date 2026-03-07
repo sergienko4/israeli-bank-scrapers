@@ -1,6 +1,6 @@
 import type { Frame } from 'playwright';
 
-export interface OtpFillOpts {
+export interface IOtpFillOpts {
   frame: Frame;
   sel: string;
   el: Awaited<ReturnType<Frame['$']>>;

@@ -2,12 +2,13 @@ import { type Page } from 'playwright';
 
 import { waitForRedirect } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ILoginConfig } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];
 
-export const HAPOALIM_CONFIG: LoginConfig = {
+export const HAPOALIM_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'userCode', selectors: [] }, // wellKnown → #userCode
@@ -21,9 +22,11 @@ export const HAPOALIM_CONFIG: LoginConfig = {
    * Post-login action that waits for Hapoalim's redirect after form submission.
    *
    * @param page - the Playwright page to monitor for redirection
+   * @returns a done result after the post-login redirect completes
    */
-  postAction: async (page: Page) => {
+  postAction: async (page: Page): Promise<IDoneResult> => {
     await waitForRedirect(page, {});
+    return { done: true };
   },
   possibleResults: {
     success: [

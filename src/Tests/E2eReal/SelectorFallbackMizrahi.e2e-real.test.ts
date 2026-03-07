@@ -1,14 +1,15 @@
 /** Selector-fallback: Mizrahi — Round 2 (wrong CSS id → fallback CSS id). */
 import { waitUntilElementDisappear } from '../../Common/ElementsInteractions';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const BASE_CFG: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.mizrahi-tefahot.co.il/login/index.html#/auth-page-he',
   fields: [
     {
@@ -35,18 +36,22 @@ const BASE_CFG: LoginConfig = {
      * Waits for the Mizrahi loading overlay to disappear before filling inputs.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the overlay disappears
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
+      return { done: true };
     },
   postAction:
     /**
      * Waits briefly after login submission to allow page navigation to complete.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the timeout elapses
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await page.waitForTimeout(5000);
+      return { done: true };
     },
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i],

@@ -1,1 +1,1 @@
-export type { ScrapedTransactionsResult as default } from '../../../Scrapers/Max/MaxScraper';
+export type { IScrapedTransactionsResult as default } from '../../../Scrapers/Max/MaxScraper';

@@ -6,11 +6,12 @@ import {
 } from '../../Common/ElementsInteractions';
 import { waitForNavigation } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ILoginConfig } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
-const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking Account';
+const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking IAccount';
 const MIZRAHI_INVALID_HREF = 'https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx';
 const MIZRAHI_INVALID_SELECTOR = `a[href*="${MIZRAHI_INVALID_HREF}"]`;
 
@@ -33,16 +34,18 @@ async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
  * Post-login action that waits for any known Mizrahi post-login indicators.
  *
  * @param page - the Playwright page after login form submission
+ * @returns a done result after a post-login indicator appears
  */
-async function mizrahiPostAction(page: Page): Promise<void> {
+async function mizrahiPostAction(page: Page): Promise<IDoneResult> {
   await Promise.race([
     waitUntilElementFound(page, '#dropdownBasic'),
     waitUntilElementFound(page, MIZRAHI_INVALID_SELECTOR),
     waitForNavigation(page),
   ]);
+  return { done: true };
 }
 
-export const MIZRAHI_CONFIG: LoginConfig = {
+export const MIZRAHI_CONFIG: ILoginConfig = {
   loginUrl: SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.base,
   fields: [
     { credentialKey: 'username', selectors: [{ kind: 'css', value: '#userNumberDesktopHeb' }] },
@@ -53,11 +56,13 @@ export const MIZRAHI_CONFIG: LoginConfig = {
    * Navigates to the Mizrahi login route and waits for the loading overlay to disappear.
    *
    * @param page - the Playwright page to navigate to the login form
+   * @returns a done result after the login form is ready
    */
-  checkReadiness: async (page: Page) => {
+  checkReadiness: async (page: Page): Promise<IDoneResult> => {
     const loginRoute = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.loginRoute;
     await page.goto(loginRoute, { waitUntil: 'domcontentloaded' });
     await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
+    return { done: true };
   },
   postAction: mizrahiPostAction,
   possibleResults: {

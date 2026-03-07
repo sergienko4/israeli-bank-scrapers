@@ -1,1 +1,1 @@
-export type { ScrapedTransaction as default } from '../../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper';
+export type { IScrapedTransaction as default } from '../../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper';

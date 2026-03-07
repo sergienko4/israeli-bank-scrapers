@@ -24,14 +24,14 @@ const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
 
 /**
  * Pino redaction censor function that replaces sensitive field values with masked strings.
- * Account numbers are partially masked showing only the last 4 digits; amounts are shown
+ * IAccount numbers are partially masked showing only the last 4 digits; amounts are shown
  * as +*** or -***, and all other sensitive fields are replaced with '[REDACTED]'.
  *
  * @param value - the original field value that is being redacted
  * @param path - the key path within the logged object leading to this value
- * @returns a safe replacement value to log instead of the original
+ * @returns a masked string replacing the original sensitive value
  */
-function censor(value: unknown, path: string[]): unknown {
+function censor(value: unknown, path: string[]): string {
   const key = path[path.length - 1];
   if (key === 'accountNumber' && value) {
     const str = typeof value === 'string' ? value : JSON.stringify(value);

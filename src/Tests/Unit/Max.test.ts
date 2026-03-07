@@ -7,8 +7,9 @@ import { fetchGetWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
 import { DOLLAR_CURRENCY, SHEKEL_CURRENCY } from '../../Constants';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import MaxScraper, { getMemo, type ScrapedTransaction } from '../../Scrapers/Max/MaxScraper';
+import MaxScraper, { getMemo, type IScrapedTransaction } from '../../Scrapers/Max/MaxScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { createMockPage, createMockScraperOptions } from '../MockPage';
 
@@ -75,31 +76,38 @@ const CREDS = { username: 'testuser', password: 'testpass' };
 
 /**
  * Sets up fetchGetWithinPage to return a mock Max categories response.
+ *
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockCategories(): void {
+function mockCategories(): IDoneResult {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    result: [{ id: 1, name: 'מזון' }],
+    isFound: true,
+    value: { result: [{ id: 1, name: 'מזון' }] },
   });
+  return { done: true };
 }
 
 /**
  * Sets up fetchGetWithinPage to return a mock Max transaction month response.
  *
  * @param txns - the transactions to include in the mock response
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockTxnMonth(txns: ScrapedTransaction[] = []): void {
+function mockTxnMonth(txns: IScrapedTransaction[] = []): IDoneResult {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    result: { transactions: txns },
+    isFound: true,
+    value: { result: { transactions: txns } },
   });
+  return { done: true };
 }
 
 /**
- * Creates a mock ScrapedTransaction for Max unit tests.
+ * Creates a mock IScrapedTransaction for Max unit tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a ScrapedTransaction object for testing
+ * @returns a IScrapedTransaction object for testing
  */
-function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
+function rawTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
   return {
     shortCardNumber: '4580',
     paymentDate: '2024-06-15',
@@ -251,7 +259,7 @@ describe('fetchData', () => {
 
   it('handles empty month response', async () => {
     mockCategories();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
 
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

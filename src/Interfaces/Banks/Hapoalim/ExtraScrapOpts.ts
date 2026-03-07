@@ -1,1 +1,1 @@
-export type { ExtraScrapOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IExtraScrapeOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

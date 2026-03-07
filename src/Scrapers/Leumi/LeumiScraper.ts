@@ -3,21 +3,22 @@ import { type Page } from 'playwright';
 
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import {
-  type DashboardFieldOpts,
+  type IDashboardFieldOpts,
   resolveDashboardField,
   toFirstCss,
 } from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import {
-  type Transaction,
-  type TransactionsAccount,
+  type ITransaction,
+  type ITransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
 } from '../../Transactions';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
+import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface';
 import { type SelectorCandidate } from '../Base/LoginConfig';
 import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
@@ -37,13 +38,13 @@ const KEYS = Object.fromEntries(KEYS_ENTRIES) as {
 };
 
 /**
- * Builds a DashboardFieldOpts for a Leumi selector key using the shared config.
+ * Builds a IDashboardFieldOpts for a Leumi selector key using the shared config.
  *
  * @param page - the Playwright page to resolve the selector in
  * @param key - the Leumi dashboard selector key
- * @returns a DashboardFieldOpts ready for resolveDashboardField()
+ * @returns a IDashboardFieldOpts ready for resolveDashboardField()
  */
-function dashOpts(page: Page, key: LeumiDashKey): DashboardFieldOpts {
+function dashOpts(page: Page, key: LeumiDashKey): IDashboardFieldOpts {
   return {
     pageOrFrame: page,
     fieldKey: key,
@@ -55,7 +56,7 @@ const LEUMI_TRXS_PATH =
   '/ChannelWCF/Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx';
 const FILTERED_TRANSACTIONS_URL = `${CFG.api.base}${LEUMI_TRXS_PATH}`;
 
-export interface LeumiRawTransaction {
+export interface ILeumiRawTransaction {
   DateUTC: string;
   Description?: string;
   ReferenceNumberLong?: number;
@@ -64,18 +65,18 @@ export interface LeumiRawTransaction {
 }
 
 /**
- * Builds the core Transaction fields from a raw Leumi transaction.
+ * Builds the core ITransaction fields from a raw Leumi transaction.
  *
  * @param rawTransaction - the raw transaction data from the Leumi API
  * @param status - the transaction status (pending or completed)
  * @param date - the ISO date string for this transaction
- * @returns a Transaction object without rawTransaction
+ * @returns a ITransaction object without rawTransaction
  */
 function buildTxnBase(
-  rawTransaction: LeumiRawTransaction,
+  rawTransaction: ILeumiRawTransaction,
   status: TransactionStatuses,
   date: string,
-): Transaction {
+): ITransaction {
   return {
     status,
     type: TransactionTypes.Normal,
@@ -91,18 +92,18 @@ function buildTxnBase(
 }
 
 /**
- * Maps a single raw Leumi transaction to a normalized Transaction, optionally with raw data.
+ * Maps a single raw Leumi transaction to a normalized ITransaction, optionally with raw data.
  *
  * @param rawTransaction - the raw transaction data from the Leumi API
  * @param status - the transaction status (pending or completed)
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns a normalized Transaction object
+ * @returns a normalized ITransaction object
  */
 function mapOneTxn(
-  rawTransaction: LeumiRawTransaction,
+  rawTransaction: ILeumiRawTransaction,
   status: TransactionStatuses,
   options?: ScraperOptions,
-): Transaction {
+): ITransaction {
   const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
   const tx = buildTxnBase(rawTransaction, status, date);
   if (options?.includeRawTransaction) tx.rawTransaction = getRawTransaction(rawTransaction);
@@ -110,19 +111,19 @@ function mapOneTxn(
 }
 
 /**
- * Maps an array of raw Leumi transactions to normalized Transaction objects.
+ * Maps an array of raw Leumi transactions to normalized ITransaction objects.
  *
  * @param transactions - the raw transactions from the API (may be null)
  * @param status - the transaction status (pending or completed)
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns an array of normalized Transaction objects, or empty if transactions is null
+ * @returns an array of normalized ITransaction objects, or empty if transactions is absent
  */
 function extractTransactionsFromPage(
-  transactions: LeumiRawTransaction[] | null,
+  transactions: ILeumiRawTransaction[],
   status: TransactionStatuses,
   options?: ScraperOptions,
-): Transaction[] {
-  if (!transactions || transactions.length === 0) return [];
+): ITransaction[] {
+  if (transactions.length === 0) return [];
   return transactions.map(rawTransaction => mapOneTxn(rawTransaction, status, options));
 }
 
@@ -130,12 +131,12 @@ function extractTransactionsFromPage(
  * Returns a promise that resolves after a given timeout, used as a deliberate delay.
  *
  * @param timeout - the delay duration in milliseconds
- * @returns a promise that resolves when the timeout elapses
+ * @returns a done result after the timeout elapses
  */
-function hangProcess(timeout: number): Promise<void> {
-  return new Promise<void>(resolve => {
+function hangProcess(timeout: number): Promise<IDoneResult> {
+  return new Promise<IDoneResult>(resolve => {
     setTimeout(() => {
-      resolve();
+      resolve({ done: true });
     }, timeout);
   });
 }
@@ -145,11 +146,13 @@ function hangProcess(timeout: number): Promise<void> {
  *
  * @param page - the Playwright page to search for the XPath element
  * @param xpath - the XPath selector string
+ * @returns a done result after clicking the element
  */
-async function clickByXPath(page: Page, xpath: string): Promise<void> {
+async function clickByXPath(page: Page, xpath: string): Promise<IDoneResult> {
   await page.waitForSelector(xpath, { timeout: 30000, state: 'visible' });
   const elm = await page.$$(xpath);
   await elm[0].click();
+  return { done: true };
 }
 
 /**
@@ -162,7 +165,7 @@ function removeSpecialCharacters(str: string): string {
   return str.replace(/[^0-9/-]/g, '');
 }
 
-export interface FetchForAccountOpts {
+export interface IFetchForAccountOpts {
   page: Page;
   startDate: Moment;
   accountId: string;
@@ -174,13 +177,15 @@ export interface FetchForAccountOpts {
  *
  * @param page - the Playwright page to search for the element
  * @param key - the Leumi dashboard selector key
+ * @returns a done result after clicking, or done immediately if the element is not found
  */
-async function resolveAndClick(page: Page, key: LeumiDashKey): Promise<void> {
+async function resolveAndClick(page: Page, key: LeumiDashKey): Promise<IDoneResult> {
   const fieldOpts = dashOpts(page, key);
   const r = await resolveDashboardField(fieldOpts);
-  if (!r.isResolved) return;
+  if (!r.isResolved) return { done: true };
   await waitUntilElementFound(r.context, r.selector, { visible: true });
   await clickButton(r.context, r.selector);
+  return { done: true };
 }
 
 /**
@@ -188,8 +193,9 @@ async function resolveAndClick(page: Page, key: LeumiDashKey): Promise<void> {
  *
  * @param page - the Playwright page showing the transaction search panel
  * @param startDate - the start date to apply to the date range filter
+ * @returns a done result after applying the filter
  */
-async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
+async function applyDateFilter(page: Page, startDate: Moment): Promise<IDoneResult> {
   await resolveAndClick(page, KEYS.advancedSearchBtn);
   await resolveAndClick(page, KEYS.dateRangeRadio);
   const dateFromInputOpts = dashOpts(page, KEYS.dateFromInput);
@@ -200,12 +206,15 @@ async function applyDateFilter(page: Page, startDate: Moment): Promise<void> {
     await fillInput(dateInput.context, dateInput.selector, formattedStartDate);
   }
   await resolveAndClick(page, KEYS.filterBtn);
+  return { done: true };
 }
 
-export interface LeumiAccountResponse {
+export interface ILeumiAccountResponse {
   BalanceDisplay?: string;
-  TodayTransactionsItems: LeumiRawTransaction[] | null;
-  HistoryTransactionsItems: LeumiRawTransaction[] | null;
+
+  TodayTransactionsItems: ILeumiRawTransaction[] | null;
+
+  HistoryTransactionsItems: ILeumiRawTransaction[] | null;
 }
 
 /**
@@ -213,10 +222,10 @@ export interface LeumiAccountResponse {
  *
  * @param responseJson - the raw API response wrapper
  * @param responseJson.jsonResp - the JSON string containing the actual response data
- * @returns the parsed LeumiAccountResponse
+ * @returns the parsed ILeumiAccountResponse
  */
-function parseAccountResponse(responseJson: { jsonResp: string }): LeumiAccountResponse {
-  return JSON.parse(responseJson.jsonResp) as LeumiAccountResponse;
+function parseAccountResponse(responseJson: { jsonResp: string }): ILeumiAccountResponse {
+  return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
 }
 
 /**
@@ -227,16 +236,16 @@ function parseAccountResponse(responseJson: { jsonResp: string }): LeumiAccountR
  * @returns combined pending and completed transactions
  */
 function buildTxnsFromResponse(
-  response: LeumiAccountResponse,
+  response: ILeumiAccountResponse,
   options: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   const pending = extractTransactionsFromPage(
-    response.TodayTransactionsItems,
+    response.TodayTransactionsItems ?? [],
     TransactionStatuses.Pending,
     options,
   );
   const completed = extractTransactionsFromPage(
-    response.HistoryTransactionsItems,
+    response.HistoryTransactionsItems ?? [],
     TransactionStatuses.Completed,
     options,
   );
@@ -249,7 +258,7 @@ function buildTxnsFromResponse(
  * @param page - the Playwright page with an active Leumi session
  * @returns the parsed account response from the intercepted API call
  */
-async function interceptFilteredResponse(page: Page): Promise<LeumiAccountResponse> {
+async function interceptFilteredResponse(page: Page): Promise<ILeumiAccountResponse> {
   const finalResponse = await page.waitForResponse(
     response =>
       response.url() === FILTERED_TRANSACTIONS_URL && response.request().method() === 'POST',
@@ -271,11 +280,11 @@ function sanitizeAccountId(accountId: string): string {
  * Applies the date filter and fetches transactions for a single account.
  *
  * @param opts - options with page, start date, account ID, and scraper options
- * @returns a TransactionsAccount with account number, balance, and transactions
+ * @returns a ITransactionsAccount with account number, balance, and transactions
  */
 async function fetchTransactionsForAccount(
-  opts: FetchForAccountOpts,
-): Promise<TransactionsAccount> {
+  opts: IFetchForAccountOpts,
+): Promise<ITransactionsAccount> {
   const { page, startDate, accountId, options } = opts;
   await hangProcess(4000);
   await applyDateFilter(page, startDate);
@@ -308,18 +317,20 @@ async function extractAccountIds(page: Page): Promise<string[]> {
  * @param page - the Playwright page showing the account dashboard
  * @param accountId - the account ID to switch to
  * @param totalAccounts - the total number of accounts (skip click if only one account)
+ * @returns a done result after switching (or immediately if only one account)
  */
 async function switchToAccount(
   page: Page,
   accountId: string,
   totalAccounts: number,
-): Promise<void> {
-  if (totalAccounts <= 1) return;
+): Promise<IDoneResult> {
+  if (totalAccounts <= 1) return { done: true };
   await clickByXPath(page, SEL.accountCombo);
   await clickByXPath(page, `xpath=//span[contains(text(), '${accountId}')]`);
+  return { done: true };
 }
 
-export interface FetchByIdOpts {
+export interface IFetchByIdOpts {
   page: Page;
   rawAccountId: string;
   totalAccounts: number;
@@ -331,9 +342,9 @@ export interface FetchByIdOpts {
  * Switches to an account and fetches its transactions.
  *
  * @param opts - options with page, account ID, total account count, start date, and scraper options
- * @returns a TransactionsAccount with account data and transactions
+ * @returns a ITransactionsAccount with account data and transactions
  */
-async function fetchAccountById(opts: FetchByIdOpts): Promise<TransactionsAccount> {
+async function fetchAccountById(opts: IFetchByIdOpts): Promise<ITransactionsAccount> {
   const { rawAccountId, totalAccounts, page, startDate, options } = opts;
   await switchToAccount(page, rawAccountId, totalAccounts);
   const accountId = removeSpecialCharacters(rawAccountId);
@@ -346,17 +357,17 @@ async function fetchAccountById(opts: FetchByIdOpts): Promise<TransactionsAccoun
  * @param page - the Playwright page with an active Leumi session
  * @param startDate - the earliest date to include in the transaction search
  * @param options - scraper options for rawTransaction inclusion
- * @returns an array of TransactionsAccount objects for all accounts
+ * @returns an array of ITransactionsAccount objects for all accounts
  */
 async function fetchTransactions(
   page: Page,
   startDate: Moment,
   options: ScraperOptions,
-): Promise<TransactionsAccount[]> {
+): Promise<ITransactionsAccount[]> {
   await hangProcess(4000);
   const accountsIds = await extractAccountIds(page);
   const totalAccounts = accountsIds.length;
-  const initialAccounts = Promise.resolve<TransactionsAccount[]>([]);
+  const initialAccounts = Promise.resolve<ITransactionsAccount[]>([]);
   return accountsIds.reduce(
     async (acc, rawAccountId) => [
       ...(await acc),
@@ -366,13 +377,13 @@ async function fetchTransactions(
   );
 }
 
-export interface ScraperSpecificCredentials {
+export interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
 
-/** Scraper implementation for Bank Leumi. */
-class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/** IScraper implementation for Bank Leumi. */
+class LeumiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   /**
    * Creates a LeumiScraper with the standard Leumi login configuration.
    *
@@ -387,7 +398,7 @@ class LeumiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
    *
    * @returns a successful scraping result with all account transactions
    */
-  public async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<IScraperScrapingResult> {
     const minimumStartMoment = moment().subtract(3, 'years').add(1, 'day');
     const optionsStartMoment = moment(this.options.startDate);
     const startMoment = moment.max(minimumStartMoment, optionsStartMoment);

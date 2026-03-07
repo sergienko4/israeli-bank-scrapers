@@ -1,1 +1,1 @@
-export type { Scraper as default } from '../../Scrapers/Base/Interface';
+export type { IScraper as default } from '../../Scrapers/Base/Interface';

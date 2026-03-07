@@ -1,4 +1,4 @@
-export interface WaitOptions {
+export interface IWaitOptions {
   visible?: boolean;
   timeout?: number;
 }

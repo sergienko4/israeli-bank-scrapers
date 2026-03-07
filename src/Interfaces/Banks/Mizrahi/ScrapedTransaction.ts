@@ -1,4 +1,4 @@
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   RecTypeSpecified: boolean;
   MC02PeulaTaaEZ: string;
   MC02SchumEZ: number;

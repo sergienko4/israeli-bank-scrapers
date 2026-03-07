@@ -1,6 +1,6 @@
-import type { ScrapedTransaction } from './ScrapedTransaction';
+import type { IScrapedTransaction } from './ScrapedTransaction';
 
-export interface ScrapedCurrentCardTransactions {
-  txnIsrael?: ScrapedTransaction[];
-  txnAbroad?: ScrapedTransaction[];
+export interface IScrapedCurrentCardTransactions {
+  txnIsrael?: IScrapedTransaction[];
+  txnAbroad?: IScrapedTransaction[];
 }

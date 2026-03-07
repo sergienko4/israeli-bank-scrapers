@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { type BrowserContextOptions } from 'playwright';
 
-interface PlaywrightBrowsersJson {
+interface IPlaywrightBrowsersJson {
   browsers: { name: string; browserVersion: string }[];
 }
 
@@ -18,7 +18,7 @@ function detectChromeVersion(): string {
     const playwrightCoreDir = dirname(pkgPath);
     const browsersPath = join(playwrightCoreDir, 'browsers.json');
     const fileContent = readFileSync(browsersPath, 'utf8');
-    const data = JSON.parse(fileContent) as PlaywrightBrowsersJson;
+    const data = JSON.parse(fileContent) as IPlaywrightBrowsersJson;
     const chromium = data.browsers.find(b => b.name === 'chromium');
     if (chromium) {
       const versionParts = chromium.browserVersion.split('.');

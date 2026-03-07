@@ -1,10 +1,10 @@
-import type { ScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions';
+import type { IScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions';
 
-export interface ScrapedTransactionData {
+export interface IScrapedTransactionData {
   Header?: { Status: string };
   PirteyIska_204Bean?: { sector: string };
   CardsTransactionsListBean?: Record<
     string,
-    { CurrentCardTransactions: ScrapedCurrentCardTransactions[] }
+    { CurrentCardTransactions: IScrapedCurrentCardTransactions[] }
   >;
 }

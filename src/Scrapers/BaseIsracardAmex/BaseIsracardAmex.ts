@@ -5,13 +5,14 @@ import { fetchPostWithinPage } from '../../Common/Fetch';
 import waitForPageStability from '../../Common/PageStability';
 import { humanDelay } from '../../Common/Waiting';
 import { CompanyTypes, ScraperProgressTypes } from '../../Definitions';
-import { type Transaction } from '../../Transactions';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import { type ITransaction } from '../../Transactions';
 import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes, WafBlockError } from '../Base/Errors';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
+import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { fetchAllTransactions } from './BaseIsracardAmexEnrich';
-import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
+import { type IScrapedLoginValidation } from './BaseIsracardAmexTypes';
 
 // Shared by both Amex and Isracard — identical values in both config entries
 const {
@@ -46,6 +47,25 @@ function buildLoginRequest(
     countryCode: COUNTRY_CODE,
     idType: ID_TYPE,
   };
+}
+
+/**
+ * Parses a raw ValidateIdData response into a FoundResult.
+ *
+ * @param raw - the scraped login validation response
+ * @returns FoundResult wrapping the ValidateIdDataBean, or isFound=false on failure
+ */
+function parseValidationResult(
+  raw: IScrapedLoginValidation,
+): FoundResult<NonNullable<IScrapedLoginValidation['ValidateIdDataBean']>> {
+  const resultSnippet = JSON.stringify(raw).substring(0, 300);
+  if (!raw.ValidateIdDataBean) {
+    LOG.info('validation failed (no bean): result=%s', resultSnippet);
+    return { isFound: false };
+  }
+  if (raw.Header.Status !== '1')
+    LOG.info('validation failed (auth error): result=%s', resultSnippet);
+  return { isFound: true, value: raw.ValidateIdDataBean };
 }
 
 /** Base scraper shared by Amex and Isracard — uses API login with card validation. */
@@ -87,16 +107,16 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
     id: string;
     password: string;
     card6Digits: string;
-  }): Promise<ScraperScrapingResult> {
+  }): Promise<IScraperScrapingResult> {
     this.setupResponseLogging();
     await this.navigateToLoginPage();
     await waitForPageStability(this.page);
-    const validatedData = await this.validateCredentials(credentials);
-    if (!validatedData) return await this.throwWafBlockError();
-    const validateReturnCode = validatedData.returnCode;
+    const validationResult = await this.validateCredentials(credentials);
+    if (!validationResult.isFound) return await this.throwWafBlockError();
+    const validateReturnCode = validationResult.value.returnCode;
     LOG.info(`user validate with return code '${validateReturnCode}'`);
     return validateReturnCode === '1'
-      ? this.performLogin(credentials, validatedData.userName ?? '')
+      ? this.performLogin(credentials, validationResult.value.userName ?? '')
       : this.handleValidateReturnCode(validateReturnCode);
   }
 
@@ -107,7 +127,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
    */
   public async fetchData(): Promise<{
     success: boolean;
-    accounts: { accountNumber: string; txns: Transaction[] }[];
+    accounts: { accountNumber: string; txns: ITransaction[] }[];
   }> {
     const defaultStartMoment = moment().subtract(1, 'years');
     const startDate = this.options.startDate;
@@ -166,35 +186,32 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
    * @param credentials.id - the user's national ID number
    * @param credentials.password - the user's bank password
    * @param credentials.card6Digits - the last 6 digits of the card number
-   * @returns the ValidateIdDataBean (on success or auth error), or null for WAF/network blocks
+   * @returns FoundResult wrapping the ValidateIdDataBean, or isFound=false for WAF/network blocks
    */
   private async validateCredentials(credentials: {
     id: string;
     password: string;
     card6Digits: string;
-  }): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
+  }): Promise<FoundResult<NonNullable<IScrapedLoginValidation['ValidateIdDataBean']>>> {
     const validateUrl = `${this._servicesUrl}?reqName=ValidateIdData`;
     LOG.info('validating credentials');
-    const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
+    const rawResult = await fetchPostWithinPage<IScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
     });
-    const resultSnippet = JSON.stringify(result).substring(0, 300);
-    if (!result?.ValidateIdDataBean) {
-      LOG.info('validation failed (no response): result=%s', resultSnippet);
-      return null;
+    if (!rawResult.isFound) {
+      LOG.info('validation failed (no response)');
+      return { isFound: false };
     }
-    if (result.Header.Status !== '1')
-      LOG.info('validation failed (auth error): result=%s', resultSnippet);
-    return result.ValidateIdDataBean;
+    return parseValidationResult(rawResult.value);
   }
 
   /**
-   * Maps the performLogonI status code to a ScraperScrapingResult.
+   * Maps the performLogonI status code to a IScraperScrapingResult.
    *
    * @param status - the login status string ('1'=success, '3'=change password, other=failed)
    * @returns the appropriate scraping result
    */
-  private interpretLoginStatus(status: string | undefined): ScraperScrapingResult {
+  private interpretLoginStatus(status: string | undefined): IScraperScrapingResult {
     if (status === '1') {
       this.emitProgress(ScraperProgressTypes.LoginSuccess);
       return { success: true };
@@ -224,14 +241,15 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
   private async performLogin(
     credentials: { id: string; password: string; card6Digits: string },
     userName: string,
-  ): Promise<ScraperScrapingResult> {
+  ): Promise<IScraperScrapingResult> {
     const loginUrl = `${this._servicesUrl}?reqName=performLogonI`;
     LOG.info('user login started');
-    const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
+    const loginRaw = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
       data: buildLoginRequest(credentials, userName),
     });
-    LOG.info(loginResult, `user login with status '${loginResult?.status ?? ''}'`);
-    return this.interpretLoginStatus(loginResult?.status);
+    const loginStatus = loginRaw.isFound ? loginRaw.value.status : undefined;
+    LOG.info(loginRaw, `user login with status '${loginStatus ?? ''}'`);
+    return this.interpretLoginStatus(loginStatus);
   }
 
   /**
@@ -240,7 +258,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<{
    * @param returnCode - the returnCode from ValidateIdDataBean ('4'=change password, other=invalid)
    * @returns the appropriate error scraping result
    */
-  private handleValidateReturnCode(returnCode: string): ScraperScrapingResult {
+  private handleValidateReturnCode(returnCode: string): IScraperScrapingResult {
     if (returnCode === '4') {
       this.emitProgress(ScraperProgressTypes.ChangePassword);
       return { success: false, errorType: ScraperErrorTypes.ChangePassword };

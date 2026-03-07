@@ -4,20 +4,20 @@ import { type Page } from 'playwright';
 
 import getAllMonthMoments from '../../Common/Dates';
 import { getDebug } from '../../Common/Debug';
-import { fetchGetWithinPage } from '../../Common/Fetch';
+import { fetchGetWithinPage, type PostBody } from '../../Common/Fetch';
 import { getRawTransaction } from '../../Common/Transactions';
 import { runSerial, sleep } from '../../Common/Waiting';
-import { type Transaction } from '../../Transactions';
+import { type ITransaction } from '../../Transactions';
 import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';
 import { buildAccountTxns, combineTxnsFromResults } from './BaseIsracardAmexTransactions';
 import {
-  type AdditionalInfoOpts,
-  type ExtraScrapAccountOpts,
-  type ExtraScrapTxnOpts,
-  type FetchAllOpts,
-  type FetchTransactionsOpts,
+  type IAdditionalInfoOpts,
+  type IExtraScrapeAccountOpts,
+  type IExtraScrapeTransactionOpts,
+  type IFetchAllTransactionsOpts,
+  type IFetchTransactionsOpts,
+  type IScrapedTransactionData,
   type ScrapedAccountsWithIndex,
-  type ScrapedTransactionData,
 } from './BaseIsracardAmexTypes';
 
 const RATE_LIMIT = { SLEEP_BETWEEN: 1000, TRANSACTIONS_BATCH_SIZE: 10 } as const;
@@ -30,16 +30,14 @@ const LOG = getDebug('base-isracard-amex');
  * @returns a map of account numbers to their transactions for the month
  */
 export async function fetchTransactionsForMonth(
-  opts: FetchTransactionsOpts,
+  opts: IFetchTransactionsOpts,
 ): Promise<ScrapedAccountsWithIndex> {
   const { page, companyServiceOptions, monthMoment } = opts;
   const accounts = await fetchAccounts(page, companyServiceOptions.servicesUrl, monthMoment);
-  const dataResult = await fetchTxnData(page, companyServiceOptions.servicesUrl, monthMoment);
-  if (
-    !dataResult ||
-    _.get(dataResult, 'Header.Status') !== '1' ||
-    !dataResult.CardsTransactionsListBean
-  )
+  const txnResult = await fetchTxnData(page, companyServiceOptions.servicesUrl, monthMoment);
+  if (!txnResult.isFound) return {};
+  const dataResult = txnResult.value;
+  if (_.get(dataResult, 'Header.Status') !== '1' || !dataResult.CardsTransactionsListBean)
     return {};
   return buildAccountTxns({
     accounts,
@@ -55,7 +53,7 @@ export async function fetchTransactionsForMonth(
  * @param opts - options with page, service options, month, account index, and the base transaction
  * @returns the transaction enriched with category and rawTransaction fields
  */
-interface ExtraScrapUrlOpts {
+interface IExtraScrapeUrlOpts {
   servicesUrl: string;
   accountIndex: number;
   txnId: number;
@@ -71,7 +69,7 @@ interface ExtraScrapUrlOpts {
  * @param opts.monthStr - billing month in MMYYYY format
  * @returns the full API URL string
  */
-function buildExtraScrapUrl(opts: ExtraScrapUrlOpts): string {
+function buildExtraScrapUrl(opts: IExtraScrapeUrlOpts): string {
   const { servicesUrl, accountIndex, txnId, monthStr } = opts;
   const url = new URL(servicesUrl);
   const cardIndexStr = accountIndex.toString();
@@ -84,11 +82,30 @@ function buildExtraScrapUrl(opts: ExtraScrapUrlOpts): string {
 }
 
 /**
+ * Applies the enrichment data from the API response to the transaction.
+ *
+ * @param transaction - the base transaction to enrich
+ * @param data - the enrichment data from the PirteyIska_204 API
+ * @returns the transaction enriched with category and rawTransaction fields
+ */
+function applyEnrichmentData(
+  transaction: ITransaction,
+  data: IScrapedTransactionData,
+): ITransaction {
+  const sectorRaw = data.PirteyIska_204Bean?.sector ?? '';
+  const enrichedTxn = { ...transaction, category: sectorRaw.trim() };
+  const txnForRaw = transaction as { rawTransaction?: PostBody };
+  return { ...enrichedTxn, rawTransaction: getRawTransaction(data, txnForRaw) };
+}
+
+/**
  * Fetches additional details (category, raw data) for a single transaction via PirteyIska_204.
  * @param opts - options with page, service options, month, account index, and the base transaction
  * @returns the transaction enriched with category and rawTransaction fields
  */
-export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise<Transaction> {
+export async function getExtraScrapTransaction(
+  opts: IExtraScrapeTransactionOpts,
+): Promise<ITransaction> {
   const { page, options, month, accountIndex, transaction } = opts;
   const txnId = Number(transaction.identifier ?? 0);
   const apiUrl = buildExtraScrapUrl({
@@ -99,18 +116,15 @@ export async function getExtraScrapTransaction(opts: ExtraScrapTxnOpts): Promise
   });
   const txnLabel = String(transaction.identifier ?? '');
   LOG.info(`fetching extra scrap for transaction ${txnLabel} for month ${month.format('YYYY-MM')}`);
-  const data = await fetchGetWithinPage<ScrapedTransactionData>(page, apiUrl);
-  if (!data) return transaction;
-  const rawCategory = _.get(data, 'PirteyIska_204Bean.sector') ?? '';
-  const enrichedTxn = { ...transaction, category: rawCategory.trim() };
-  return { ...enrichedTxn, rawTransaction: getRawTransaction(data, transaction) };
+  const dataResult = await fetchGetWithinPage<IScrapedTransactionData>(page, apiUrl);
+  return dataResult.isFound ? applyEnrichmentData(transaction, dataResult.value) : transaction;
 }
 
-interface EnrichChunkOpts {
+interface IEnrichChunkOpts {
   page: Page;
-  chunk: Transaction[];
+  chunk: ITransaction[];
   account: ScrapedAccountsWithIndex[string];
-  opts: Pick<ExtraScrapAccountOpts, 'options' | 'month'>;
+  opts: Pick<IExtraScrapeAccountOpts, 'options' | 'month'>;
 }
 
 /**
@@ -128,7 +142,7 @@ async function enrichTxnsChunk({
   chunk,
   account,
   opts,
-}: EnrichChunkOpts): Promise<Transaction[]> {
+}: IEnrichChunkOpts): Promise<ITransaction[]> {
   LOG.info('processing chunk of %d txns for account %s', chunk.length, account.accountNumber);
   const requests = chunk.map(t =>
     getExtraScrapTransaction({
@@ -155,9 +169,9 @@ async function enrichTxnsChunk({
 async function enrichAccountTxns(
   page: Page,
   account: ScrapedAccountsWithIndex[string],
-  opts: Pick<ExtraScrapAccountOpts, 'options' | 'month'>,
+  opts: Pick<IExtraScrapeAccountOpts, 'options' | 'month'>,
 ): Promise<ScrapedAccountsWithIndex[string]> {
-  const emptyTxns = Promise.resolve([] as Transaction[]);
+  const emptyTxns = Promise.resolve([] as ITransaction[]);
   const txns = await _.chunk(account.txns, RATE_LIMIT.TRANSACTIONS_BATCH_SIZE).reduce(
     async (prevPromise, txnsChunk) => {
       const acc = await prevPromise;
@@ -176,7 +190,7 @@ async function enrichAccountTxns(
  * @returns the enriched accounts map
  */
 export async function getExtraScrapAccount(
-  opts: ExtraScrapAccountOpts,
+  opts: IExtraScrapeAccountOpts,
 ): Promise<ScrapedAccountsWithIndex> {
   const { page, options, accountMap, month } = opts;
   const emptyAccountList = Promise.resolve<ScrapedAccountsWithIndex[string][]>([]);
@@ -198,7 +212,7 @@ export async function getExtraScrapAccount(
  * @returns the account results (enriched if shouldAddTransactionInformation is set)
  */
 export async function getAdditionalTransactionInformation(
-  opts: AdditionalInfoOpts,
+  opts: IAdditionalInfoOpts,
 ): Promise<ScrapedAccountsWithIndex[]> {
   const { scraperOptions, accountsWithIndex, page, options, allMonths } = opts;
   if (
@@ -223,7 +237,7 @@ export async function getAdditionalTransactionInformation(
  * @returns an array of per-month account transaction maps
  */
 function fetchMonthlyResults(
-  opts: FetchAllOpts,
+  opts: IFetchAllTransactionsOpts,
   allMonths: Moment[],
 ): Promise<ScrapedAccountsWithIndex[]> {
   const { page, options, companyServiceOptions, startMoment } = opts;
@@ -250,10 +264,10 @@ function fetchMonthlyResults(
  * @returns a merged map of account numbers to all their enriched transactions
  */
 async function enrichAndCombine(
-  opts: FetchAllOpts,
+  opts: IFetchAllTransactionsOpts,
   results: ScrapedAccountsWithIndex[],
   allMonths: Moment[],
-): Promise<Record<string, Transaction[]>> {
+): Promise<Record<string, ITransaction[]>> {
   const { page, options, companyServiceOptions } = opts;
   const finalResult = await getAdditionalTransactionInformation({
     scraperOptions: options,
@@ -272,8 +286,8 @@ async function enrichAndCombine(
  * @returns a successful scraping result with all account transactions across all months
  */
 export async function fetchAllTransactions(
-  opts: FetchAllOpts,
-): Promise<{ success: boolean; accounts: { accountNumber: string; txns: Transaction[] }[] }> {
+  opts: IFetchAllTransactionsOpts,
+): Promise<{ success: boolean; accounts: { accountNumber: string; txns: ITransaction[] }[] }> {
   const { options } = opts;
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
   const allMonths = getAllMonthMoments(opts.startMoment, futureMonthsToScrape);

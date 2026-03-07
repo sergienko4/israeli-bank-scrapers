@@ -1,1 +1,1 @@
-export type { PrepareOpts as default } from '../../../Scrapers/Max/MaxScraper';
+export type { IPrepareOpts as default } from '../../../Scrapers/Max/MaxScraper';

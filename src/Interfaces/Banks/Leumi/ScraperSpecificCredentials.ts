@@ -1,1 +1,1 @@
-export type { ScraperSpecificCredentials as default } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { IScraperSpecificCredentials as default } from '../../../Scrapers/Leumi/LeumiScraper';

@@ -14,7 +14,7 @@ import {
   buildTransaction,
   combineTxnsFromResults,
 } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTransactions';
-import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
+import type { IScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
 import { createMockPage } from '../MockPage';
 
 jest.mock('../../Common/Fetch', () => ({
@@ -63,12 +63,12 @@ jest.mock('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch', () => ({
 }));
 
 /**
- * Creates a mock ScrapedTransaction with sensible defaults.
+ * Creates a mock IScrapedTransaction with sensible defaults.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a ScrapedTransaction object for testing
+ * @returns a IScrapedTransaction object for testing
  */
-function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
+function makeTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
   return {
     dealSumType: '0',
     voucherNumberRatz: '111111111',
@@ -114,16 +114,19 @@ describe('fetchTransactionsForMonth', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns empty object when dataResult is null', async () => {
+  it('returns empty object when dataResult is not found', async () => {
     (fetchAccounts as jest.Mock).mockResolvedValueOnce([]);
-    (fetchTxnData as jest.Mock).mockResolvedValueOnce(null);
+    (fetchTxnData as jest.Mock).mockResolvedValueOnce({ isFound: false });
     const result = await fetchTransactionsForMonth(opts);
     expect(result).toEqual({});
   });
 
   it('returns empty object when Header.Status is not 1', async () => {
     (fetchAccounts as jest.Mock).mockResolvedValueOnce([]);
-    (fetchTxnData as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
+    (fetchTxnData as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: { Header: { Status: '0' } },
+    });
     const result = await fetchTransactionsForMonth(opts);
     expect(result).toEqual({});
   });
@@ -133,9 +136,12 @@ describe('fetchTransactionsForMonth', () => {
       { index: 0, accountNumber: '1234', processedDate: '2024-06-15T00:00:00.000Z' },
     ]);
     (fetchTxnData as jest.Mock).mockResolvedValueOnce({
-      Header: { Status: '1' },
-      CardsTransactionsListBean: {
-        Index0: { CurrentCardTransactions: [{ txnIsrael: [makeTxn()] }] },
+      isFound: true,
+      value: {
+        Header: { Status: '1' },
+        CardsTransactionsListBean: {
+          Index0: { CurrentCardTransactions: [{ txnIsrael: [makeTxn()] }] },
+        },
       },
     });
     const result = await fetchTransactionsForMonth(opts);
@@ -202,9 +208,12 @@ describe('fetchAllTransactions', () => {
       { index: 0, accountNumber: '1234', processedDate: '2024-06-15T00:00:00.000Z' },
     ]);
     (fetchTxnData as jest.Mock).mockResolvedValue({
-      Header: { Status: '1' },
-      CardsTransactionsListBean: {
-        Index0: { CurrentCardTransactions: [{ txnIsrael: [makeTxn()] }] },
+      isFound: true,
+      value: {
+        Header: { Status: '1' },
+        CardsTransactionsListBean: {
+          Index0: { CurrentCardTransactions: [{ txnIsrael: [makeTxn()] }] },
+        },
       },
     });
     const result = await fetchAllTransactions({
@@ -220,7 +229,7 @@ describe('fetchAllTransactions', () => {
 
   it('returns empty accounts when fetches fail', async () => {
     (fetchAccounts as jest.Mock).mockResolvedValue([]);
-    (fetchTxnData as jest.Mock).mockResolvedValue(null);
+    (fetchTxnData as jest.Mock).mockResolvedValue({ isFound: false });
     const result = await fetchAllTransactions({
       page: page as never,
       options: makeOptions(),
@@ -246,28 +255,32 @@ describe('getExtraScrapTransaction', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns original transaction when fetchGetWithinPage returns null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+  it('returns original transaction when fetchGetWithinPage returns isFound:false', async () => {
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
     const result = await getExtraScrapTransaction(opts);
     expect(result).toBe(baseTransaction);
   });
 
   it('enriches transaction with category when data is returned', async () => {
     (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-      PirteyIska_204Bean: { sector: '  מזון  ' },
+      isFound: true,
+      value: { PirteyIska_204Bean: { sector: '  מזון  ' } },
     });
     const result = await getExtraScrapTransaction(opts);
     expect(result.category).toBe('מזון');
   });
 
   it('sets empty category when sector is missing', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ PirteyIska_204Bean: {} });
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: { PirteyIska_204Bean: {} },
+    });
     const result = await getExtraScrapTransaction(opts);
     expect(result.category).toBe('');
   });
 
   it('calls URL with correct query params', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
     await getExtraScrapTransaction(opts);
     const calledUrl: string = (
       (fetchGetWithinPage as jest.Mock).mock.calls[0] as [unknown, string]
@@ -290,7 +303,8 @@ describe('getExtraScrapAccount', () => {
 
   it('returns enriched account map', async () => {
     (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-      PirteyIska_204Bean: { sector: 'קמעונאות' },
+      isFound: true,
+      value: { PirteyIska_204Bean: { sector: 'קמעונאות' } },
     });
     const result = await getExtraScrapAccount({
       page: page as never,
@@ -302,8 +316,8 @@ describe('getExtraScrapAccount', () => {
     expect(result['1234'].txns[0].category).toBe('קמעונאות');
   });
 
-  it('returns enriched account, original txn when fetch returns null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+  it('returns enriched account, original txn when fetch returns not found', async () => {
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
     const result = await getExtraScrapAccount({
       page: page as never,
       options: { servicesUrl: 'https://example.com/api', companyCode: '11' },

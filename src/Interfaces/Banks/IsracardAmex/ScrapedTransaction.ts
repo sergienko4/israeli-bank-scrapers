@@ -1,4 +1,4 @@
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   dealSumType: string;
   voucherNumberRatzOutbound: string;
   voucherNumberRatz: string;

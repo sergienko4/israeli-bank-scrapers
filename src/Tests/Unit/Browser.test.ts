@@ -3,7 +3,7 @@ import { dirname, join } from 'path';
 
 import { buildContextOptions } from '../../Common/Browser';
 
-interface BrowsersJson {
+interface IBrowsersJson {
   browsers: { name: string; browserVersion: string }[];
 }
 
@@ -14,7 +14,7 @@ const BROWSERS_JSON_DIR = dirname(PKG_PATH);
 const BROWSERS_JSON_PATH = join(BROWSERS_JSON_DIR, 'browsers.json');
 /** Raw content of playwright-core's browsers.json manifest file. */
 const BROWSERS_JSON_CONTENT = readFileSync(BROWSERS_JSON_PATH, 'utf8');
-const BROWSERS_JSON = JSON.parse(BROWSERS_JSON_CONTENT) as BrowsersJson;
+const BROWSERS_JSON = JSON.parse(BROWSERS_JSON_CONTENT) as IBrowsersJson;
 const EXPECTED_VERSION: string = (
   BROWSERS_JSON.browsers.find(b => b.name === 'chromium')?.browserVersion ?? ''
 ).split('.')[0];

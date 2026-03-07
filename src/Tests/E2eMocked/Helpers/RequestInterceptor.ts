@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { type Page, type Request, type Route } from 'playwright';
 
-interface MockRoute {
+import type { FoundResult } from '../../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../../Interfaces/Common/StepResult';
+
+interface IMockRoute {
   match: string | RegExp;
   method?: 'GET' | 'POST';
   abort?: boolean;
@@ -28,19 +31,20 @@ export function loadFixture(fixturePath: string): string {
  * @param url - the request URL to match against
  * @param method - the HTTP method of the request
  * @param routes - the list of mock routes to search
- * @returns the matched MockRoute or undefined if none matches
+ * @returns a FoundResult wrapping the matched IMockRoute, or isFound:false if none matches
  */
 function findMatchingRoute(
   url: string,
   method: string,
-  routes: MockRoute[],
-): MockRoute | undefined {
-  return routes.find(mockRoute => {
+  routes: IMockRoute[],
+): FoundResult<IMockRoute> {
+  const found = routes.find(mockRoute => {
     const isUrlMatch =
       mockRoute.match instanceof RegExp ? mockRoute.match.test(url) : url.includes(mockRoute.match);
     const isMethodMatch = !mockRoute.method || mockRoute.method === method;
     return isUrlMatch && isMethodMatch;
   });
+  return found ? { isFound: true, value: found } : { isFound: false };
 }
 
 /**
@@ -49,15 +53,16 @@ function findMatchingRoute(
  * @param route - the Playwright Route to respond to
  * @param request - the intercepted Request object
  * @param mockRoute - the mock configuration describing how to respond
+ * @returns a resolved IDoneResult after the route is handled
  */
 async function handleMockRoute(
   route: Route,
   request: Request,
-  mockRoute: MockRoute,
-): Promise<void> {
+  mockRoute: IMockRoute,
+): Promise<IDoneResult> {
   if (mockRoute.abort) {
     await route.abort('failed');
-    return;
+    return { done: true };
   }
   const body = typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
   await route.fulfill({
@@ -65,6 +70,7 @@ async function handleMockRoute(
     contentType: mockRoute.contentType ?? 'text/plain',
     body,
   });
+  return { done: true };
 }
 
 /**
@@ -72,8 +78,12 @@ async function handleMockRoute(
  *
  * @param page - the Playwright page to intercept requests on
  * @param routes - the list of mock routes to match against incoming requests
+ * @returns a resolved IDoneResult after route interception is attached
  */
-export async function setupRequestInterception(page: Page, routes: MockRoute[]): Promise<void> {
+export async function setupRequestInterception(
+  page: Page,
+  routes: IMockRoute[],
+): Promise<IDoneResult> {
   await page.route(
     '**/*',
     /**
@@ -87,12 +97,13 @@ export async function setupRequestInterception(page: Page, routes: MockRoute[]):
       const method = request.method();
       const matched = findMatchingRoute(url, method, routes);
 
-      if (matched) {
-        await handleMockRoute(route, request, matched);
+      if (matched.isFound) {
+        await handleMockRoute(route, request, matched.value);
         return;
       }
 
       await route.continue();
     },
   );
+  return { done: true };
 }

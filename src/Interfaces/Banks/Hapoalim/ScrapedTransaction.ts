@@ -1,1 +1,1 @@
-export type { ScrapedTransaction as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IScrapedTransaction as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

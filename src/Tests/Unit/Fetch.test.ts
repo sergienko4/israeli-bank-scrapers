@@ -19,6 +19,12 @@ afterAll(() => {
   global.fetch = ORIGINAL_FETCH;
 });
 
+interface IMockResponse {
+  status: number;
+  text: () => Promise<string>;
+  json: () => Promise<object>;
+}
+
 /**
  * Creates a mock fetch response object returning the given data as JSON.
  *
@@ -26,7 +32,7 @@ afterAll(() => {
  * @param status - the HTTP status code for the response (default: 200)
  * @returns a mock response object with status, text, and json methods
  */
-function mockJsonResponse(data: unknown, status = 200): Record<string, unknown> {
+function mockJsonResponse(data: object, status = 200): IMockResponse {
   const text = JSON.stringify(data);
   return {
     status,
@@ -126,7 +132,7 @@ describe('fetchGraphql', () => {
       variables: { id: '123' },
     });
     const rawBody = (MOCK_FETCH.mock.calls[0] as [string, { body: string }])[1].body;
-    const body = JSON.parse(rawBody) as { variables: Record<string, unknown>; query: string };
+    const body = JSON.parse(rawBody) as { variables: Record<string, string>; query: string };
     expect(body.variables).toEqual({ id: '123' });
     expect(body.query).toBe('{ accounts }');
   });
@@ -140,15 +146,15 @@ describe('fetchGetWithinPage', () => {
         .mockResolvedValue({ ok: true, text: JSON.stringify({ balance: 1000 }), status: 200 }),
     });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/balance');
-    expect(result).toEqual({ balance: 1000 });
+    expect(result).toEqual({ isFound: true, value: { balance: 1000 } });
   });
 
-  it('returns null for 204 status', async () => {
+  it('returns isFound:false for 204 status', async () => {
     const page = createMockPage({
       evaluate: jest.fn().mockResolvedValue({ ok: true, text: null, status: 204 }),
     });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/empty');
-    expect(result).toBeNull();
+    expect(result).toEqual({ isFound: false });
   });
 
   it('throws on invalid JSON when shouldIgnoreErrors is false', async () => {
@@ -159,12 +165,12 @@ describe('fetchGetWithinPage', () => {
     await expect(getPromise).rejects.toThrow('parse error');
   });
 
-  it('returns null on invalid JSON when shouldIgnoreErrors is true', async () => {
+  it('returns isFound:false on invalid JSON when shouldIgnoreErrors is true', async () => {
     const page = createMockPage({
       evaluate: jest.fn().mockResolvedValue({ ok: true, text: 'not json', status: 200 }),
     });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/bad', true);
-    expect(result).toBeNull();
+    expect(result).toEqual({ isFound: false });
   });
 
   it('throws when evaluate returns ok:false (fetch network error)', async () => {
@@ -186,15 +192,15 @@ describe('fetchPostWithinPage', () => {
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/action', {
       data: { key: 'value' },
     });
-    expect(result).toEqual({ result: 'ok' });
+    expect(result).toEqual({ isFound: true, value: { result: 'ok' } });
   });
 
-  it('returns null for 204 status', async () => {
+  it('returns isFound:false for 204 status', async () => {
     const page = createMockPage({
       evaluate: jest.fn().mockResolvedValue({ ok: true, text: null, status: 204 }),
     });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/empty', { data: {} });
-    expect(result).toBeNull();
+    expect(result).toEqual({ isFound: false });
   });
 
   it('throws on invalid JSON when shouldIgnoreErrors is false', async () => {
@@ -205,7 +211,7 @@ describe('fetchPostWithinPage', () => {
     await expect(postPromise).rejects.toThrow('parse error');
   });
 
-  it('returns null on invalid JSON when shouldIgnoreErrors is true', async () => {
+  it('returns isFound:false on invalid JSON when shouldIgnoreErrors is true', async () => {
     const page = createMockPage({
       evaluate: jest.fn().mockResolvedValue({ ok: true, text: 'invalid json', status: 200 }),
     });
@@ -213,7 +219,7 @@ describe('fetchPostWithinPage', () => {
       data: {},
       shouldIgnoreErrors: true,
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ isFound: false });
   });
 
   it('includes status in parse error message', async () => {
@@ -249,32 +255,32 @@ describe('fetchPostWithinPage', () => {
     });
     const anyFn = expect.any(Function) as unknown;
     expect(evaluate).toHaveBeenCalledWith(anyFn, {
-      u: 'https://bank.co.il/api',
-      d: {},
-      h: { 'X-Custom': 'val' },
+      url: 'https://bank.co.il/api',
+      body: '{}',
+      headers: { 'X-Custom': 'val' },
     });
   });
 });
 
 describe('detectWafBlock', () => {
   it('detects HTTP 403', () => {
-    const result = detectWafBlock(403, null);
+    const result = detectWafBlock(403, '');
     expect(result).toBe('HTTP 403');
   });
 
   it('detects HTTP 429', () => {
-    const result = detectWafBlock(429, null);
+    const result = detectWafBlock(429, '');
     expect(result).toBe('HTTP 429');
   });
 
   it('detects HTTP 503', () => {
-    const result = detectWafBlock(503, null);
+    const result = detectWafBlock(503, '');
     expect(result).toBe('HTTP 503');
   });
 
-  it('returns null for HTTP 200', () => {
-    const result = detectWafBlock(200, null);
-    expect(result).toBeNull();
+  it('returns empty string for HTTP 200', () => {
+    const result = detectWafBlock(200, '');
+    expect(result).toBe('');
   });
 
   it('detects "block automation" in body', () => {
@@ -292,8 +298,8 @@ describe('detectWafBlock', () => {
     expect(result).toBe('response contains "just a moment"');
   });
 
-  it('returns null for normal response body', () => {
+  it('returns empty string for normal response body', () => {
     const result = detectWafBlock(200, '{"Header":{"Status":"1"}}');
-    expect(result).toBeNull();
+    expect(result).toBe('');
   });
 });

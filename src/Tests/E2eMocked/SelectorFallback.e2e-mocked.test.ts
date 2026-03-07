@@ -12,8 +12,9 @@
 import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
 
@@ -35,7 +36,7 @@ const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
 //   1. configured CSS id → NOT FOUND (wrong id)
 //   2. WELL_KNOWN_SELECTORS → finds input[placeholder*="שם משתמש"] etc.
 // No iframes on this page → Round 1 (iframe search) skips immediately.
-const WRONG_ID_CONFIG: LoginConfig = {
+const WRONG_ID_CONFIG: ILoginConfig = {
   loginUrl: 'https://test-bank.local/login',
   fields: [
     {
@@ -81,8 +82,9 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
            * Serves a login page with Hebrew placeholders so WELL_KNOWN_SELECTORS can resolve.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               {
                 match: 'test-bank.local/login',
@@ -95,6 +97,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
                 body: HOME_HTML,
               },
             ]);
+            return { done: true };
           },
       },
       WRONG_ID_CONFIG,
@@ -112,7 +115,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
   }, 30000);
 
   it('returns failure when ALL rounds fail — isResolved:false causes login to report error', async () => {
-    const emptyPageConfig: LoginConfig = {
+    const emptyPageConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
       fields: [
         {
@@ -138,8 +141,9 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
            * Serves an empty page with no inputs so all selector resolution fails.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               // Page with no inputs — every selector attempt fails
               {
@@ -148,6 +152,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
                 body: '<html><body><p>no form here</p></body></html>',
               },
             ]);
+            return { done: true };
           },
       },
       emptyPageConfig,
@@ -188,7 +193,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
   it('finds login fields inside an iframe before checking the main page', async () => {
     // Config: only wrong CSS ids — no explicit display-name fallbacks.
     // Round 1 searches iframes first and finds the Hebrew placeholder inputs.
-    const iframeConfig: LoginConfig = {
+    const iframeConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/',
       fields: [
         {
@@ -222,8 +227,9 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
            * Serves the main page with iframe and the iframe login form for iframe round detection.
            *
            * @param page - the Playwright page to attach route interception to
+           * @returns a resolved IDoneResult after interception is set up
            */
-          async (page): Promise<void> => {
+          async (page): Promise<IDoneResult> => {
             await setupRequestInterception(page, [
               // More-specific paths must come before the catch-all root match.
               // 'test-bank.local' would match every URL; login-frame and home first.
@@ -243,6 +249,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
                 body: MAIN_PAGE_WITH_IFRAME,
               },
             ]);
+            return { done: true };
           },
       },
       iframeConfig,

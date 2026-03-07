@@ -3,7 +3,7 @@
  * Max has a complex preAction (popups, password tab navigation) before form fill.
  * This test proves the selector resolution still works correctly with that preAction.
  */
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
 
 import {
   clickButton,
@@ -12,14 +12,16 @@ import {
 } from '../../Common/ElementsInteractions';
 import { waitForRedirect } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const BASE_CFG: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
   fields: [
     {
@@ -47,20 +49,22 @@ const BASE_CFG: LoginConfig = {
      * Waits for the Max personal-area link to confirm the page is loaded.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the link is found
      */
-    async (page: Page) => {
+    async (page: Page): Promise<IDoneResult> => {
       await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', {
         visible: true,
       });
+      return { done: true };
     },
   preAction:
     /**
      * Closes any popup, navigates to the password login tab, and waits for the login form.
      *
      * @param page - the Playwright page to interact with
-     * @returns undefined after all navigation steps complete
+     * @returns a FoundResult indicating no iframe is needed
      */
-    async (page: Page) => {
+    async (page: Page): Promise<FoundResult<Frame>> => {
       if (await elementPresentOnPage(page, '#closePopup')) await clickButton(page, '#closePopup');
       await clickButton(page, '.personal-area > a.go-to-personal-area');
       if (await elementPresentOnPage(page, '.login-link#private'))
@@ -70,15 +74,16 @@ const BASE_CFG: LoginConfig = {
       await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
         visible: true,
       });
-      return undefined;
+      return { isFound: false };
     },
   postAction:
     /**
      * Waits for a redirect or an error popup after login submission, ignoring timeout errors.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the race completes
      */
-    async (page: Page) => {
+    async (page: Page): Promise<IDoneResult> => {
       await Promise.race([
         waitForRedirect(page, {
           timeout: 20000,
@@ -89,6 +94,7 @@ const BASE_CFG: LoginConfig = {
       ]).catch(() => {
         /* no-op */
       });
+      return { done: true };
     },
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],

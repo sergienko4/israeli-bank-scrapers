@@ -1,8 +1,9 @@
 import { launchWithEngine } from '../../Common/BrowserEngine';
 import { getCurrentUrl } from '../../Common/Navigation';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface';
-import type { LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import type { ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import {
   createMockBrowser,
   createMockContext,
@@ -66,12 +67,12 @@ jest.mock('../../Common/Waiting', () => ({
 const SUCCESS_URL = 'https://bank.example.com/dashboard';
 
 /**
- * Creates a minimal LoginConfig for ConcreteGenericScraper unit tests.
+ * Creates a minimal ILoginConfig for ConcreteGenericScraper unit tests.
  *
  * @param overrides - optional partial overrides for the login config
- * @returns a LoginConfig object for testing
+ * @returns a ILoginConfig object for testing
  */
-function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
+function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://bank.example.com/login',
     fields: [
@@ -112,7 +113,7 @@ describe('ConcreteGenericScraper', () => {
     });
   });
 
-  describe('login via LoginConfig', () => {
+  describe('login via ILoginConfig', () => {
     it('succeeds when navigated to success URL', async () => {
       const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
       const result = await scraper.scrape(CREDS);
@@ -151,13 +152,15 @@ describe('ConcreteGenericScraper', () => {
       const preAction = jest.fn().mockResolvedValue(undefined);
       const config = makeLoginConfig({
         /**
-         * Pre-action that invokes the spy and returns undefined.
+         * Pre-action that invokes the spy and signals no iframe is needed.
          *
-         * @returns a promise that resolves to undefined after invoking the spy
+         * @param page - the current Playwright page (unused in this stub)
+         * @returns a promise that resolves after invoking the spy
          */
-        preAction: async () => {
+        preAction: async page => {
+          void page;
           await preAction();
-          return undefined;
+          return undefined as unknown as never;
         },
       });
       const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);
@@ -170,9 +173,12 @@ describe('ConcreteGenericScraper', () => {
       const config = makeLoginConfig({
         /**
          * Post-action that invokes the spy after login.
+         *
+         * @returns a resolved IDoneResult after the spy is invoked
          */
-        postAction: async () => {
+        postAction: async (): Promise<IDoneResult> => {
           await postAction();
+          return { done: true };
         },
       });
       const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);

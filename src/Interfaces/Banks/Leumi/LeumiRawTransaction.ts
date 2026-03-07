@@ -1,1 +1,1 @@
-export type { LeumiRawTransaction as default } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { ILeumiRawTransaction as default } from '../../../Scrapers/Leumi/LeumiScraper';

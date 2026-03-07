@@ -1,4 +1,4 @@
-export interface ScrapedAccount {
+export interface IScrapedAccount {
   index: number;
   accountNumber: string;
   processedDate: string;

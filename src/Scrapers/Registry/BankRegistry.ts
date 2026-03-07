@@ -1,5 +1,5 @@
 import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import { type ILoginConfig } from '../Base/LoginConfig';
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { BEHATSDAA_CONFIG } from '../Behatsdaa/BehatsdaaLoginConfig';
 import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/BeyahadBishvilhaLoginConfig';
@@ -11,7 +11,7 @@ import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig';
 import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig';
 import { SCRAPER_CONFIGURATION } from './ScraperConfig';
 
-const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
+const BANK_REGISTRY: Partial<Record<CompanyTypes, ILoginConfig>> = {
   [CompanyTypes.Beinleumi]: beinleumiConfig(
     SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].urls.base,
   ),

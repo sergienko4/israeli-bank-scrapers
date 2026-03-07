@@ -1,6 +1,6 @@
 import { type BrowserEngineType, getGlobalEngineChain } from '../../Common/BrowserEngine';
 import { CompanyTypes } from '../../Definitions';
-import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
+import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
 import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { ScraperWithFallback } from '../Base/ScraperWithFallback';
 import {
@@ -23,7 +23,7 @@ import {
   YahavScraper,
 } from './AllScrapers';
 
-type ScraperFactory = (options: ScraperOptions) => Scraper<ScraperCredentials>;
+type ScraperFactory = (options: ScraperOptions) => IScraper<ScraperCredentials>;
 
 const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
   [CompanyTypes.Hapoalim]:
@@ -152,23 +152,23 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
  * Used internally by createScraper() and ScraperWithFallback.
  *
  * @param options - scraper options including the companyId
- * @returns the concrete Scraper instance for the bank
+ * @returns the concrete IScraper instance for the bank
  */
-export function createConcreteScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
+export function createConcreteScraper(options: ScraperOptions): IScraper<ScraperCredentials> {
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
   throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
 }
 
 /**
- * Creates a Scraper that automatically tries all engines in the global chain (Camoufox →
+ * Creates a IScraper that automatically tries all engines in the global chain (Camoufox →
  * PlaywrightStealth → Rebrowser → Patchright) on WafBlocked or Timeout, returning the first
  * successful result. Existing consumers call this exactly as before — no code changes needed.
  *
  * @param options - scraper options including the companyId that selects the implementation
  * @returns a ScraperWithFallback configured for the requested bank
  */
-export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
+export default function createScraper(options: ScraperOptions): IScraper<ScraperCredentials> {
   if (!SCRAPER_REGISTRY[options.companyId])
     throw new ScraperWebsiteChangedError('Factory', `unknown company id ${options.companyId}`);
   return createScraperWithFallback(options);

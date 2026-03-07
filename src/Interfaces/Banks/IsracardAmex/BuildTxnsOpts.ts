@@ -1,12 +1,12 @@
 import type { Moment } from 'moment';
 
 import type { ScraperOptions } from '../../../Scrapers/Base/Interface';
-import type { ScrapedAccount } from './ScrapedAccount';
-import type { ScrapedTransactionData } from './ScrapedTransactionData';
+import type { IScrapedAccount } from './ScrapedAccount';
+import type { IScrapedTransactionData } from './ScrapedTransactionData';
 
-export interface BuildTxnsOpts {
-  accounts: ScrapedAccount[];
-  dataResult: ScrapedTransactionData;
+export interface IBuildTransactionsOpts {
+  accounts: IScrapedAccount[];
+  dataResult: IScrapedTransactionData;
   options: ScraperOptions;
   startMoment: Moment;
 }

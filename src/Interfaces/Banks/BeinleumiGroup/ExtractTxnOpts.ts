@@ -1,11 +1,11 @@
 import type { TransactionsColsTypes } from '../../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroupBaseTypes';
 import type { TransactionStatuses } from '../../../Transactions';
-import type { ScrapedTransaction } from './ScrapedTransaction';
-import type { TransactionsTr } from './TransactionsTr';
+import type { IScrapedTransaction } from './ScrapedTransaction';
+import type { ITransactionTableRow } from './TransactionsTr';
 
-export interface ExtractTxnOpts {
-  txns: ScrapedTransaction[];
+export interface IExtractTransactionOpts {
+  txns: IScrapedTransaction[];
   transactionStatus: TransactionStatuses;
-  txnRow: TransactionsTr;
+  txnRow: ITransactionTableRow;
   transactionsColsTypes: TransactionsColsTypes;
 }

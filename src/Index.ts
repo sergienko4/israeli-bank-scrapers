@@ -7,19 +7,19 @@ export {
 export { CompanyTypes, SCRAPERS } from './Definitions';
 export {
   DEFAULT_ENGINE_CHAIN,
-  type ScraperEngineAttempt,
+  type IScraperEngineAttempt,
   ScraperWithFallback,
 } from './Scrapers/Base/ScraperWithFallback';
 export { default as createScraper, createScraperWithFallback } from './Scrapers/Registry/Factory';
 
-// Note: the typo ScaperScrapingResult & ScraperLoginResult (sic) are exported here for backward compatibility
+// Note: the typo ScaperScrapingResult & IScraperLoginResult (sic) are exported here for backward compatibility
 export {
-  ScraperLoginResult as ScaperLoginResult,
-  ScraperScrapingResult as ScaperScrapingResult,
-  Scraper,
+  IScraper,
+  IScraperLoginResult,
+  IScraperScrapingResult,
+  IScraperLoginResult as ScaperLoginResult,
+  IScraperScrapingResult as ScaperScrapingResult,
   ScraperCredentials,
-  ScraperLoginResult,
   ScraperOptions,
-  ScraperScrapingResult,
 } from './Scrapers/Base/Interface';
 export { default as OneZeroScraper } from './Scrapers/OneZero/OneZeroScraper';

@@ -1,17 +1,17 @@
 import {
   BaseScraperWithBrowser,
+  type ILoginOptions,
   LOGIN_RESULTS,
-  type LoginOptions,
 } from '../../Scrapers/Base/BaseScraperWithBrowser';
-import type { ScraperCredentials, ScraperScrapingResult } from '../../Scrapers/Base/Interface';
+import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface';
 import { createMockScraperOptions } from '../MockPage';
 
 /**
- * Returns a standard set of LoginOptions for use in browser scraper unit tests.
+ * Returns a standard set of ILoginOptions for use in browser scraper unit tests.
  *
- * @returns a LoginOptions object with mock bank URLs and credential fields
+ * @returns a ILoginOptions object with mock bank URLs and credential fields
  */
-export function defaultLoginOptions(): LoginOptions {
+export function defaultLoginOptions(): ILoginOptions {
   return {
     loginUrl: 'https://bank.co.il/login',
     fields: [
@@ -29,16 +29,16 @@ export function defaultLoginOptions(): LoginOptions {
 
 /** Concrete browser scraper subclass used in unit tests with configurable login options. */
 export default class TestBrowserScraper extends BaseScraperWithBrowser<ScraperCredentials> {
-  public loginOpts: LoginOptions = defaultLoginOptions();
+  public loginOpts: ILoginOptions = defaultLoginOptions();
 
-  public fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
+  public fetchResult: IScraperScrapingResult = { success: true, accounts: [] };
 
   /**
    * Returns the configurable login options for this test scraper.
    *
-   * @returns the current LoginOptions assigned to loginOpts
+   * @returns the current ILoginOptions assigned to loginOpts
    */
-  public getLoginOptions(): LoginOptions {
+  public getLoginOptions(): ILoginOptions {
     return this.loginOpts;
   }
 
@@ -47,7 +47,7 @@ export default class TestBrowserScraper extends BaseScraperWithBrowser<ScraperCr
    *
    * @returns a resolved promise with the current fetchResult
    */
-  public fetchData(): Promise<ScraperScrapingResult> {
+  public fetchData(): Promise<IScraperScrapingResult> {
     return Promise.resolve(this.fetchResult);
   }
 }

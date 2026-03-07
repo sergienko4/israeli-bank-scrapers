@@ -1,11 +1,12 @@
 import type { Page } from 'playwright';
 import type { Falsy } from 'utility-types';
 
-import type { ReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
-import type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
+import type { IReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
+import type { IWaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 
-export type { ReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
-export type { WaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
+export type { IReloadRetryResult } from '../Interfaces/Common/ReloadRetryResult';
+export type { IWaitUntilOpts } from '../Interfaces/Common/WaitUntilOpts';
 
 /** Error thrown when a polling operation exceeds its configured timeout. */
 export class TimeoutError extends Error {}
@@ -39,38 +40,6 @@ function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string)
 }
 
 /**
- * Creates a polling tick function that calls asyncTest repeatedly at the given interval.
- * Resolves via cbs.resolve when asyncTest returns a truthy value; rejects on error.
- *
- * @param asyncTest - the async predicate to poll; resolves when it returns a truthy value
- * @param interval - the polling interval in milliseconds between each test invocation
- * @param cbs - resolve/reject callbacks for the enclosing promise
- * @param cbs.resolve - callback to call with the truthy value when asyncTest succeeds
- * @param cbs.reject - callback to call when asyncTest throws an error
- * @returns a function that, when called, starts the polling loop
- */
-function makeWaitTick<T>(
-  asyncTest: () => Promise<T>,
-  interval: number,
-  cbs: { resolve: (v: NonNullable<T>) => void; reject: () => void },
-): () => void {
-  /**
-   * Inner polling loop: evaluates asyncTest and schedules the next tick or resolves.
-   */
-  function wait(): void {
-    asyncTest()
-      .then(value => {
-        if (value) cbs.resolve(value as unknown as NonNullable<T>);
-        else setTimeout(wait, interval);
-      })
-      .catch(() => {
-        cbs.reject();
-      });
-  }
-  return wait;
-}
-
-/**
  * Builds a promise that resolves when asyncTest returns a truthy value, polling at the given interval.
  *
  * @param asyncTest - the async predicate to poll; resolves the promise when it returns truthy
@@ -82,7 +51,23 @@ function buildWaitPromise<T>(
   interval: number,
 ): Promise<NonNullable<T>> {
   return new Promise<NonNullable<T>>((resolve, reject) => {
-    makeWaitTick(asyncTest, interval, { resolve, reject })();
+    /**
+     * Inner polling loop: evaluates asyncTest and schedules the next tick or resolves.
+     *
+     * @returns a done result indicating the polling tick was scheduled
+     */
+    function wait(): IDoneResult {
+      asyncTest()
+        .then(value => {
+          if (value) resolve(value as unknown as NonNullable<T>);
+          else setTimeout(wait, interval);
+        })
+        .catch(() => {
+          reject(new Error('asyncTest threw during polling'));
+        });
+      return { done: true };
+    }
+    wait();
   });
 }
 
@@ -114,7 +99,7 @@ function safeStringify(v: unknown): string {
 export function waitUntil<T>(
   asyncTest: () => Promise<T>,
   description = '',
-  opts: WaitUntilOpts = {},
+  opts: IWaitUntilOpts = {},
 ): WaitUntilReturn<T> {
   const { timeout = 10000, interval = 100 } = opts;
   let lastSeenValue: unknown;
@@ -148,20 +133,20 @@ export function waitUntil<T>(
  * @param opts.interval - polling interval in ms between asyncTest calls
  * @param opts.left - remaining reload attempts before giving up
  * @param opts.used - number of reloads already performed
- * @returns a ReloadRetryResult describing whether the value was found and how many reloads were used
+ * @returns a IReloadRetryResult describing whether the value was found and how many reloads were used
  */
 async function retryWithReload<T>(
   page: Page,
   asyncTest: () => Promise<T>,
   opts: { label: string; pollTimeout: number; interval: number; left: number; used: number },
-): Promise<ReloadRetryResult<T>> {
+): Promise<IReloadRetryResult<T>> {
   const { label, pollTimeout, interval, left, used } = opts;
   const result = await waitUntil(asyncTest, label, { timeout: pollTimeout, interval }).catch(
     () => null,
   );
   if (result !== null)
     return { found: true, value: result as NonNullable<T>, reloadsUsed: used, description: label };
-  if (left <= 0) return { found: false, value: null, reloadsUsed: used, description: label };
+  if (left <= 0) return { found: false, reloadsUsed: used, description: label };
   await page.reload({ waitUntil: 'networkidle' });
   return retryWithReload(page, asyncTest, { ...opts, left: left - 1, used: used + 1 });
 }
@@ -179,13 +164,13 @@ async function retryWithReload<T>(
  * @param opts.pollTimeout - maximum time in ms to wait at each attempt before reloading; defaults to 20000
  * @param opts.reloadAttempts - maximum number of page reloads before giving up; defaults to 2
  * @param opts.interval - polling interval in ms between each asyncTest call; defaults to 500
- * @returns a ReloadRetryResult with found=true and value, or found=false when all attempts fail
+ * @returns a IReloadRetryResult with found=true and value, or found=false when all attempts fail
  */
 export async function waitUntilWithReload<T>(
   page: Page,
   asyncTest: () => Promise<T>,
   opts: { description?: string; pollTimeout?: number; reloadAttempts?: number; interval?: number },
-): Promise<ReloadRetryResult<T>> {
+): Promise<IReloadRetryResult<T>> {
   const {
     description = 'waitUntilWithReload',
     pollTimeout = 20_000,
@@ -209,9 +194,10 @@ export async function waitUntilWithReload<T>(
  * @param promise - the promise to race against the timeout
  * @returns the promise result, or undefined when the timeout fires first
  */
-export function raceTimeout(ms: number, promise: Promise<unknown>): Promise<unknown> {
+export function raceTimeout<T>(ms: number, promise: Promise<T>): Promise<T | IDoneResult> {
   return timeoutPromise(ms, promise, 'timeout').catch((err: unknown) => {
     if (!(err instanceof TimeoutError)) throw err;
+    return { done: true } as IDoneResult;
   });
 }
 
@@ -232,10 +218,14 @@ export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
  * Pauses execution for the specified number of milliseconds.
  *
  * @param ms - the duration to sleep in milliseconds
- * @returns a promise that resolves after the delay
+ * @returns a done result indicating the sleep completed
  */
-export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+export function sleep(ms: number): Promise<IDoneResult> {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({ done: true });
+    }, ms);
+  });
 }
 
 /**
@@ -244,9 +234,9 @@ export function sleep(ms: number): Promise<void> {
  *
  * @param minMs - the minimum delay in milliseconds; defaults to 300
  * @param maxMs - the maximum delay in milliseconds; defaults to 1200
- * @returns a promise that resolves after the random delay
+ * @returns a done result indicating the delay completed
  */
-export function humanDelay(minMs = 300, maxMs = 1200): Promise<void> {
+export function humanDelay(minMs = 300, maxMs = 1200): Promise<IDoneResult> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return sleep(delay);
 }

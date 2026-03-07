@@ -1,7 +1,7 @@
-export interface TransactionsAccount {
+export interface ITransactionsAccount {
   accountNumber: string;
   balance?: number;
-  txns: Transaction[];
+  txns: ITransaction[];
 }
 
 export enum TransactionTypes {
@@ -14,7 +14,7 @@ export enum TransactionStatuses {
   Pending = 'pending',
 }
 
-export interface TransactionInstallments {
+export interface ITransactionInstallments {
   /**
    * the current installment number
    */
@@ -26,7 +26,7 @@ export interface TransactionInstallments {
   total: number;
 }
 
-export interface Transaction {
+export interface ITransaction {
   type: TransactionTypes;
   /**
    * sometimes called Asmachta
@@ -47,7 +47,7 @@ export interface Transaction {
   description: string;
   memo?: string;
   status: TransactionStatuses;
-  installments?: TransactionInstallments;
+  installments?: ITransactionInstallments;
   category?: string;
   rawTransaction?: unknown;
 }

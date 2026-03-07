@@ -1,4 +1,5 @@
 import { fetchGraphql, fetchPost } from '../../Common/Fetch';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import OneZeroScraper from '../../Scrapers/OneZero/OneZeroScraper';
 import { TransactionTypes } from '../../Transactions';
@@ -29,59 +30,73 @@ jest.mock('../../Common/Debug', () => ({
  * Sets up fetchPost to return a mock device token response.
  *
  * @param deviceToken - the device token to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockDeviceToken(deviceToken = 'device-123'): void {
+function mockDeviceToken(deviceToken = 'device-123'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPost to return a mock OTP preparation response.
  *
  * @param otpContext - the OTP context string to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockOtpPrepare(otpContext = 'otp-ctx-456'): void {
+function mockOtpPrepare(otpContext = 'otp-ctx-456'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpContext } });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPost to return a mock OTP verification response with a long-term token.
  *
  * @param otpToken - the long-term OTP token to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockOtpVerify(otpToken = 'otp-long-term-token'): void {
+function mockOtpVerify(otpToken = 'otp-long-term-token'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { otpToken } });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPost to return a mock ID token response.
  *
  * @param idToken - the ID token string to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockIdToken(idToken = 'id-token-789'): void {
+function mockIdToken(idToken = 'id-token-789'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPost to return a mock session token response.
  *
  * @param accessToken - the session access token to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockSessionToken(accessToken = 'access-token-abc'): void {
+function mockSessionToken(accessToken = 'access-token-abc'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
+  return { done: true };
 }
 
 /**
  * Sets up the standard ID token and session token mocks for a long-term token login test.
+ *
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function setupLongTermLogin(): void {
+function setupLongTermLogin(): IDoneResult {
   mockIdToken();
   mockSessionToken();
+  return { done: true };
 }
 
 /**
  * Sets up fetchGraphql to return a mock OneZero customer response.
  *
  * @param portfolios - the portfolios to include in the mock customer response
+ * @returns a resolved IDoneResult after mocks are configured
  */
 function mockCustomer(
   portfolios: {
@@ -89,10 +104,11 @@ function mockCustomer(
     portfolioNum: string;
     accounts: { accountId: string }[];
   }[] = [],
-): void {
+): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
   });
+  return { done: true };
 }
 
 /**
@@ -101,22 +117,29 @@ function mockCustomer(
  * @param movements - the movements to include in the mock response
  * @param hasMore - whether there are more pages to fetch
  * @param cursor - the pagination cursor for the next page
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockMovements(movements: OneZeroMovement[] = [], hasMore = false, cursor = 'next'): void {
+function mockMovements(
+  movements: IOneZeroMovement[] = [],
+  hasMore = false,
+  cursor = 'next',
+): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
       movements,
       pagination: { hasMore, cursor },
     },
   });
+  return { done: true };
 }
 
 /**
  * Sets up fetchGraphql to return a mock OneZero account balance response.
  *
  * @param currentAccountBalance - the balance amount to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockAccountBalance(currentAccountBalance = 5000): void {
+function mockAccountBalance(currentAccountBalance = 5000): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     balance: {
       currentAccountBalance,
@@ -125,6 +148,7 @@ function mockAccountBalance(currentAccountBalance = 5000): void {
       limitAmountStr: '0',
     },
   });
+  return { done: true };
 }
 
 /**
@@ -138,7 +162,7 @@ function recentDate(): string {
   return d.toISOString();
 }
 
-interface OneZeroMovement {
+interface IOneZeroMovement {
   movementId: string;
   valueDate: string;
   movementTimestamp: string;
@@ -162,12 +186,12 @@ interface OneZeroMovement {
 }
 
 /**
- * Creates a mock OneZeroMovement for unit tests.
+ * Creates a mock IOneZeroMovement for unit tests.
  *
  * @param overrides - optional field overrides for the mock movement
- * @returns a OneZeroMovement object for testing
+ * @returns a IOneZeroMovement object for testing
  */
-function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
+function movement(overrides: Partial<IOneZeroMovement> = {}): IOneZeroMovement {
   const ts = recentDate();
   return {
     movementId: 'mov-001',

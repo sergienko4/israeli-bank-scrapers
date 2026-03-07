@@ -1,8 +1,9 @@
 import type { Browser } from 'playwright';
 
 import type { BrowserEngineType } from '../../Common/BrowserEngine';
+import type { IDoneResult } from '../Common/StepResult';
 
-export interface DefaultBrowserOptions {
+export interface IDefaultBrowserOptions {
   /**
    * shows the browser while scraping, good for debugging (default false)
    */
@@ -32,7 +33,7 @@ export interface DefaultBrowserOptions {
    *
    * @param browser
    */
-  prepareBrowser?: (browser: Browser) => Promise<void>;
+  prepareBrowser?: (browser: Browser) => Promise<IDoneResult>;
 
   /**
    * The browser engine to use for scraping.

@@ -1,91 +1,92 @@
-import type { AuthModule } from '../../Interfaces/Banks/VisaCal/AuthModule';
-import type { CardApiStatus } from '../../Interfaces/Banks/VisaCal/CardApiStatus';
-import type { CardPendingTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardPendingTransactionDetails';
-import type { CardTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardTransactionDetails';
-import type { ScrapedPendingTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedPendingTransaction';
-import type { ScrapedTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedTransaction';
+import type { IAuthModule } from '../../Interfaces/Banks/VisaCal/AuthModule';
+import type { ICardApiStatus } from '../../Interfaces/Banks/VisaCal/CardApiStatus';
+import type { ICardPendingTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardPendingTransactionDetails';
+import type { ICardTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardTransactionDetails';
+import type { IScrapedPendingTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedPendingTransaction';
+import type { IScrapedTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedTransaction';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
 
-export type { ApiContext } from '../../Interfaces/Banks/VisaCal/ApiContext';
-export type { AuthModule } from '../../Interfaces/Banks/VisaCal/AuthModule';
-export type { CardApiStatus } from '../../Interfaces/Banks/VisaCal/CardApiStatus';
-export type { CardInfo } from '../../Interfaces/Banks/VisaCal/CardInfo';
-export type { CardLevelFrame } from '../../Interfaces/Banks/VisaCal/CardLevelFrame';
-export type { CardPendingTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardPendingTransactionDetails';
-export type { CardTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardTransactionDetails';
-export type { FramesResponse } from '../../Interfaces/Banks/VisaCal/FramesResponse';
+export type { IApiContext } from '../../Interfaces/Banks/VisaCal/ApiContext';
+export type { IAuthModule } from '../../Interfaces/Banks/VisaCal/AuthModule';
+export type { ICardApiStatus } from '../../Interfaces/Banks/VisaCal/CardApiStatus';
+export type { ICardInfo } from '../../Interfaces/Banks/VisaCal/CardInfo';
+export type { ICardLevelFrame } from '../../Interfaces/Banks/VisaCal/CardLevelFrame';
+export type { ICardPendingTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardPendingTransactionDetails';
+export type { ICardTransactionDetails } from '../../Interfaces/Banks/VisaCal/CardTransactionDetails';
+export type { IFramesResponse } from '../../Interfaces/Banks/VisaCal/FramesResponse';
 export type {
-  InitBankAccount,
-  InitCard,
-  InitResponse,
-  InitUser,
+  IInitBankAccount,
+  IInitCard,
+  IInitResponse,
+  IInitUser,
 } from '../../Interfaces/Banks/VisaCal/InitResponse';
-export type { LoginResponse } from '../../Interfaces/Banks/VisaCal/LoginResponse';
-export type { ScrapedPendingTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedPendingTransaction';
-export type { ScrapedTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedTransaction';
+export type { ILoginResponse } from '../../Interfaces/Banks/VisaCal/LoginResponse';
+export type { IScrapedPendingTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedPendingTransaction';
+export type { IScrapedTransaction } from '../../Interfaces/Banks/VisaCal/ScrapedTransaction';
 export type { CurrencySymbol } from './VisaCalBaseTypes';
 export { TrnTypeCode } from './VisaCalBaseTypes';
 
 /**
  * Error type from the card transaction details API.
  *
- * @deprecated use CardApiStatus
+ * @deprecated use ICardApiStatus
  */
-export type CardTransactionDetailsError = CardApiStatus;
+export type CardTransactionDetailsError = ICardApiStatus;
 
 /**
  * Checks whether the given result contains a valid VisaCal auth module.
  *
  * @param result - the unknown API response to test
- * @returns true if the result is an AuthModule with a valid calConnectToken
+ * @returns true if the result is an IAuthModule with a valid calConnectToken
  */
-export function isAuthModule(result: unknown): result is AuthModule {
+export function isAuthModule(result: unknown): result is IAuthModule {
   if (!result || typeof result !== 'object') return false;
-  const candidate = result as Partial<AuthModule>;
+  const candidate = result as Partial<IAuthModule>;
   return Boolean(candidate.auth?.calConnectToken?.trim());
 }
 
 /**
- * Returns the result as an AuthModule if valid, or undefined otherwise.
+ * Returns the result as a FoundResult<IAuthModule> if valid, or isFound=false otherwise.
  *
  * @param result - the unknown API response to check
- * @returns the AuthModule or undefined
+ * @returns FoundResult wrapping the IAuthModule, or isFound=false if invalid
  */
-export function authModuleOrUndefined(result: unknown): AuthModule | undefined {
-  return isAuthModule(result) ? result : undefined;
+export function authModuleOrUndefined(result: unknown): FoundResult<IAuthModule> {
+  return isAuthModule(result) ? { isFound: true, value: result } : { isFound: false };
 }
 
 /**
  * Type guard that returns true if the transaction is a pending (not yet settled) transaction.
  *
  * @param transaction - the scraped transaction to check
- * @returns true if the transaction is a ScrapedPendingTransaction
+ * @returns true if the transaction is a IScrapedPendingTransaction
  */
 export function isPending(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
-): transaction is ScrapedPendingTransaction {
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
+): transaction is IScrapedPendingTransaction {
   return !('debCrdDate' in transaction); // debCrdDate only appears in completed transactions
 }
 
 /**
- * Type guard that returns true if the result is a CardTransactionDetails (not an error status).
+ * Type guard that returns true if the result is a ICardTransactionDetails (not an error status).
  *
  * @param result - the API response to check
  * @returns true if the result contains transaction details
  */
 export function isCardTransactionDetails(
-  result: CardTransactionDetails | CardApiStatus,
-): result is CardTransactionDetails {
+  result: ICardTransactionDetails | ICardApiStatus,
+): result is ICardTransactionDetails {
   return 'result' in result;
 }
 
 /**
- * Type guard that returns true if the result is CardPendingTransactionDetails (not an error status).
+ * Type guard that returns true if the result is ICardPendingTransactionDetails (not an error status).
  *
  * @param result - the API response to check
  * @returns true if the result contains pending transaction details
  */
 export function isCardPendingTransactionDetails(
-  result: CardPendingTransactionDetails | CardApiStatus,
-): result is CardPendingTransactionDetails {
+  result: ICardPendingTransactionDetails | ICardApiStatus,
+): result is ICardPendingTransactionDetails {
   return 'result' in result;
 }

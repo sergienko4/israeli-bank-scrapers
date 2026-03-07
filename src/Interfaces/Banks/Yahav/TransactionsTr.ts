@@ -1,1 +1,1 @@
-export type { TransactionsTr as default } from '../../../Scrapers/Yahav/YahavScraper';
+export type { ITransactionTableRow as default } from '../../../Scrapers/Yahav/YahavScraper';

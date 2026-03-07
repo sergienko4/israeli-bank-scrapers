@@ -1,13 +1,14 @@
 import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ILoginConfig } from '../Base/LoginConfig';
 import { HISTBASED_FIELDS } from '../Behatsdaa/BehatsdaaLoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
 
-export const BEYAHAD_CONFIG: LoginConfig = {
+export const BEYAHAD_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: HISTBASED_FIELDS,
   submit: [
@@ -18,9 +19,11 @@ export const BEYAHAD_CONFIG: LoginConfig = {
    * Navigates to the BeyahadBishvilha login route before filling credentials.
    *
    * @param page - the Playwright page to navigate
+   * @returns a done result after navigating to the login page
    */
-  checkReadiness: async (page: Page) => {
+  checkReadiness: async (page: Page): Promise<IDoneResult> => {
     await page.goto(`${CFG.urls.base}/login`);
+    return { done: true };
   },
   possibleResults: { success: [`${CFG.urls.base}/`] },
 };

@@ -1,1 +1,1 @@
-export type { LoginOptions as default } from '../../Scrapers/Base/BaseScraperHelpers';
+export type { ILoginOptions as default } from '../../Scrapers/Base/BaseScraperHelpers';

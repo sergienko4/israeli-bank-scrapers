@@ -1,12 +1,18 @@
 import { type Frame, type Page } from 'playwright';
 
 import { getDebug } from '../../Common/Debug';
+import { capturePageText } from '../../Common/ElementsInteractions';
 import { type WaitUntilState } from '../../Common/Navigation';
 import { extractCredentialKey } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
+import { type CompanyTypes } from '../../Definitions';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { LoginStepResult } from '../../Interfaces/Common/LoginStepResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { getWafReturnUrls } from '../Registry/ScraperConfig';
 import { ScraperErrorTypes } from './Errors';
-import { type ScraperScrapingResult } from './Interface';
-import { type FieldConfig } from './LoginConfig';
+import { type IScraperScrapingResult } from './Interface';
+import { type IFieldConfig } from './LoginConfig';
 import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
 const LOG = getDebug('base-scraper-with-browser');
@@ -40,13 +46,13 @@ export type LoginResults =
 
 export type PossibleLoginResults = Partial<Record<LoginResults, LoginCondition[]>>;
 
-export interface LoginOptions {
+export interface ILoginOptions {
   loginUrl: string;
-  checkReadiness?: () => Promise<void>;
+  checkReadiness?: () => Promise<IDoneResult>;
   fields: { selector: string; value: string; credentialKey?: string }[];
-  submitButtonSelector: string | (() => Promise<void>);
-  preAction?: () => Promise<Frame | undefined>;
-  postAction?: () => Promise<void>;
+  submitButtonSelector: string | (() => Promise<IDoneResult>);
+  preAction?: () => Promise<FoundResult<Frame>>;
+  postAction?: () => Promise<IDoneResult>;
   possibleResults: PossibleLoginResults;
   waitUntil?: WaitUntilState;
 }
@@ -93,9 +99,9 @@ export async function matchesAnyCondition(
 /**
  * Creates a generic scraping error result.
  *
- * @returns a failed ScraperScrapingResult with a Generic error type
+ * @returns a failed IScraperScrapingResult with a Generic error type
  */
-export function createGeneralError(): ScraperScrapingResult {
+export function createGeneralError(): IScraperScrapingResult {
   return { success: false, errorType: ScraperErrorTypes.Generic };
 }
 
@@ -103,13 +109,43 @@ export function createGeneralError(): ScraperScrapingResult {
  * Runs a cleanup function and suppresses any thrown errors.
  *
  * @param cleanup - an async cleanup function to call safely
+ * @returns a promise that resolves when cleanup is complete or suppressed
  */
-export async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
+export async function safeCleanup(cleanup: () => Promise<IDoneResult>): Promise<IDoneResult> {
   try {
     await cleanup();
   } catch (e) {
     LOG.info(`Cleanup function failed: ${(e as Error).message}`);
   }
+  return { done: true };
+}
+
+/** Opts for a single reduce step in getKeyByValue. */
+interface IReduceStepOpts {
+  object: PossibleLoginResults;
+  value: string;
+  page: Page;
+  noMatch: LoginResults;
+}
+
+/**
+ * One step of the getKeyByValue reduce: returns the previous match or tests the current key.
+ *
+ * @param opts - reduce step options (lookup map, URL, page, sentinel value)
+ * @param prev - the result of the previous step
+ * @param key - the current LoginResults key to test
+ * @returns the matched key, or the noMatch sentinel
+ */
+async function reduceStep(
+  opts: IReduceStepOpts,
+  prev: LoginResults,
+  key: LoginResults,
+): Promise<LoginResults> {
+  if (prev !== opts.noMatch) return prev;
+  const conditions = opts.object[key];
+  if (!conditions) return opts.noMatch;
+  const isMatched = await matchesAnyCondition(conditions, opts.value, opts.page);
+  return isMatched ? key : opts.noMatch;
 }
 
 /**
@@ -126,18 +162,19 @@ export async function getKeyByValue(
   page: Page,
 ): Promise<LoginResults> {
   const keys = Object.keys(object) as LoginResults[];
-  const noMatchYet = Promise.resolve<LoginResults | null>(null);
-  const matched = await keys.reduce(async (acc, key) => {
-    const prev = await acc;
-    if (prev !== null) return prev;
-    const conditions = object[key];
-    if (!conditions) return null;
-    const isAnyConditionMatched = await matchesAnyCondition(conditions, value, page);
-    return isAnyConditionMatched ? key : null;
-  }, noMatchYet);
-  const currentUrl = page.url();
-  if (!matched) LOG.info('no login result matched — url: %s, value: %s', currentUrl, value);
-  return matched ?? LOGIN_RESULTS.UnknownError;
+  const noMatch: LoginResults = LOGIN_RESULTS.UnknownError;
+  const initialAcc: Promise<LoginResults> = Promise.resolve(noMatch);
+  const opts: IReduceStepOpts = { object, value, page, noMatch };
+  const result = await keys.reduce(
+    (acc: Promise<LoginResults>, key: LoginResults) =>
+      acc.then(prev => reduceStep(opts, prev, key)),
+    initialAcc,
+  );
+  if (result === noMatch) {
+    const currentUrl = page.url();
+    LOG.info('no login result matched — url: %s, value: %s', currentUrl, value);
+  }
+  return result;
 }
 
 /**
@@ -161,16 +198,25 @@ export async function alreadyAtResultUrl(
 }
 
 /**
- * Generic fallback: detects invalid credentials via aria-invalid on login inputs.
- * Called when possibleResults.invalidPassword didn't match (stale selector / changed site).
- * Works for any Angular/React/HTML5 form — no bank-specific config needed.
+ * Detects invalid credentials using two complementary methods:
+ * 1. aria-invalid="true" on login inputs (Angular/React/HTML5 forms — no config needed).
+ * 2. Page-text scan: checks whether any pattern from wrongCredentialTexts appears in
+ *    the first 2000 characters of body text (bank-specific Hebrew error messages).
  *
- * @param page - the Playwright page to inspect for aria-invalid inputs
- * @returns true if any login input has aria-invalid="true"
+ * @param page - the Playwright page to inspect
+ * @param wrongCredentialTexts - bank-specific Hebrew substrings that signal wrong credentials
+ * @returns true if aria-invalid is present or any text pattern matches
  */
-export async function detectGenericInvalidPassword(page: Page): Promise<boolean> {
+export async function detectGenericInvalidPassword(
+  page: Page,
+  wrongCredentialTexts: readonly string[] = [],
+): Promise<boolean> {
   try {
-    return (await page.locator('input[aria-invalid="true"]').count()) > 0;
+    const hasAriaInvalid = (await page.locator('input[aria-invalid="true"]').count()) > 0;
+    if (hasAriaInvalid) return true;
+    if (wrongCredentialTexts.length === 0) return false;
+    const pageText = await capturePageText(page);
+    return wrongCredentialTexts.some(pattern => pageText.includes(pattern));
   } catch {
     return false;
   }
@@ -178,7 +224,7 @@ export async function detectGenericInvalidPassword(page: Page): Promise<boolean>
 
 const MAX_403_RETRIES = 2;
 
-export interface RetryOn403Opts {
+export interface IRetryOn403Opts {
   page: Page;
   url: string;
   waitUntil: WaitUntilState | undefined;
@@ -191,7 +237,7 @@ export interface RetryOn403Opts {
  * @param attempt - the current retry attempt index (0-based)
  * @returns the HTTP status code of the navigation response
  */
-async function navigateWithDelay(opts: RetryOn403Opts, attempt: number): Promise<number> {
+async function navigateWithDelay(opts: IRetryOn403Opts, attempt: number): Promise<number> {
   const delayMs = 15_000;
   LOG.info(
     'WAF 403 on %s, retry %d/%d after %ds',
@@ -211,7 +257,7 @@ async function navigateWithDelay(opts: RetryOn403Opts, attempt: number): Promise
  * @param attempt - the current retry attempt (starts at 0)
  * @returns a promise that resolves when navigation succeeds or throws after max retries
  */
-export async function retryOn403(opts: RetryOn403Opts, attempt = 0): Promise<void> {
+export async function retryOn403(opts: IRetryOn403Opts, attempt = 0): Promise<IDoneResult> {
   if (attempt >= MAX_403_RETRIES)
     throw new ScraperWebsiteChangedError(
       'BaseScraperWithBrowser',
@@ -220,7 +266,7 @@ export async function retryOn403(opts: RetryOn403Opts, attempt = 0): Promise<voi
   const status = await navigateWithDelay(opts, attempt);
   if (status === 200 || (status >= 300 && status < 400)) {
     LOG.info('WAF 403 resolved after retry %d', attempt + 1);
-    return;
+    return { done: true };
   }
   return retryOn403(opts, attempt + 1);
 }
@@ -252,14 +298,39 @@ export function buildHeadlessArgs(isHeadless: boolean): string[] {
 }
 
 /**
- * Converts a raw field descriptor to a FieldConfig with a resolved credentialKey.
+ * Converts a raw field descriptor to a IFieldConfig with a resolved credentialKey.
  *
  * @param field - the raw field descriptor
  * @param field.selector - CSS selector for the input element
  * @param field.credentialKey - optional override; derived from selector if omitted
- * @returns a FieldConfig ready for use with the SelectorResolver
+ * @returns a IFieldConfig ready for use with the SelectorResolver
  */
-export function buildFieldConfig(field: { selector: string; credentialKey?: string }): FieldConfig {
+export function buildFieldConfig(field: {
+  selector: string;
+  credentialKey?: string;
+}): IFieldConfig {
   const key = field.credentialKey ?? extractCredentialKey(field.selector);
   return { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
+}
+
+/** Shared WafBlocked error result used by detectWafRedirect. */
+const WAF_BLOCKED_RESULT: IScraperScrapingResult = {
+  success: false,
+  errorType: ScraperErrorTypes.WafBlocked,
+  errorMessage: 'WAF redirect detected',
+};
+
+/**
+ * Checks if the page URL matches a bank-configured WAF return URL pattern.
+ * Returns WafBlocked immediately so the engine fallback chain can retry.
+ * Returns shouldContinue:true when no WAF pattern matches.
+ *
+ * @param submitUrl - the page URL captured after the post-submit sleep
+ * @param companyId - the bank company identifier
+ * @returns LoginStepResult — shouldContinue: false + WafBlocked when WAF detected
+ */
+export function detectWafRedirect(submitUrl: string, companyId: CompanyTypes): LoginStepResult {
+  const wafUrls = getWafReturnUrls(companyId);
+  if (!wafUrls.some(p => submitUrl.includes(p))) return { shouldContinue: true };
+  return { shouldContinue: false, result: WAF_BLOCKED_RESULT };
 }

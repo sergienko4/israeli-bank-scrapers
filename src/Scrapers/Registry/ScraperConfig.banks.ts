@@ -1,7 +1,7 @@
 import { CompanyTypes } from '../../Definitions';
 import { type SelectorCandidate } from '../Base/LoginConfig';
 import {
-  type BankScraperConfig,
+  type IBankScraperConfig,
   NULL_API,
   NULL_AUTH,
   NULL_FORMAT,
@@ -26,7 +26,7 @@ export const BEINLEUMI_DOM_SELECTORS: Record<string, SelectorCandidate[]> = {
   closeDatePickerBtn: [{ kind: 'css', value: 'button.ui-datepicker-close' }],
 };
 
-export const VISACAL_API: BankScraperConfig['api'] = {
+export const VISACAL_API: IBankScraperConfig['api'] = {
   base: null,
   purchaseHistory: null,
   card: null,
@@ -56,6 +56,7 @@ export const BANKS = {
     },
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Leumi]: {
     urls: {
@@ -81,6 +82,7 @@ export const BANKS = {
         },
       ],
     },
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Discount]: {
     urls: {
@@ -93,6 +95,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: ['פרטים שהזנת שגויים', 'תהליך הזיהוי נכשל'],
   },
   [CompanyTypes.Mercantile]: {
     urls: {
@@ -105,6 +108,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: ['פרטים שהזנת שגויים', 'תהליך הזיהוי נכשל'],
   },
   [CompanyTypes.Mizrahi]: {
     urls: {
@@ -126,6 +130,7 @@ export const BANKS = {
       transactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/root-main-osh-p428New"]' }],
       pendingTransactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-p420"]' }],
     },
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il', loginRoute: null, transactions: null },
@@ -134,6 +139,8 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: [], // 'שכחת את הפרטים' is a permanent link — not a reliable error signal
+    wafReturnUrls: ['login?ReturnURL='], // WAF redirects back to login with a ReturnURL param
   },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il', loginRoute: null, transactions: null },
@@ -142,6 +149,7 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
     selectors: {},
+    wrongCredentialTexts: ['הנתונים לא תואמים'],
   },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il', loginRoute: null, transactions: null },
@@ -150,6 +158,7 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
     selectors: {},
+    wrongCredentialTexts: ['הנתונים לא תואמים'],
   },
   [CompanyTypes.VisaCal]: {
     urls: { base: 'https://www.cal-online.co.il/', loginRoute: null, transactions: null },
@@ -158,6 +167,7 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: ['שם המשתמש או הסיסמה שהוזנו שגויים'],
   },
   [CompanyTypes.Beinleumi]: {
     urls: {
@@ -171,6 +181,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
     timing: { ...NULL_TIMING, elementRenderMs: 10000 },
     selectors: BEINLEUMI_DOM_SELECTORS,
+    wrongCredentialTexts: ['אחד הנתונים הוקש שגוי'],
   },
   [CompanyTypes.OtsarHahayal]: {
     urls: {
@@ -184,6 +195,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
     timing: { ...NULL_TIMING, elementRenderMs: 10000 },
     selectors: BEINLEUMI_DOM_SELECTORS,
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Massad]: {
     urls: {
@@ -197,6 +209,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
     timing: { ...NULL_TIMING, elementRenderMs: 10000 },
     selectors: BEINLEUMI_DOM_SELECTORS,
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Pagi]: {
     urls: {
@@ -210,6 +223,7 @@ export const BANKS = {
     format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
     timing: { ...NULL_TIMING, elementRenderMs: 10000 },
     selectors: BEINLEUMI_DOM_SELECTORS,
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Behatsdaa]: {
     urls: { base: 'https://www.behatsdaa.org.il', loginRoute: null, transactions: null },
@@ -221,6 +235,7 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.BeyahadBishvilha]: {
     urls: { base: 'https://www.hist.org.il', loginRoute: null, transactions: null },
@@ -237,6 +252,7 @@ export const BANKS = {
       balance: [{ kind: 'css', value: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)' }],
       loadingIndicator: [{ kind: 'css', value: '.react-loading.hide' }],
     },
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.Yahav]: {
     urls: { base: 'https://www.yahav.co.il', loginRoute: null, transactions: null },
@@ -272,6 +288,7 @@ export const BANKS = {
       pmuMonthsCell: [{ kind: 'css', value: '.pmu-months > div' }],
       statementOptionsTop: [{ kind: 'css', value: '.statement-options .selected-item-top' }],
     },
+    wrongCredentialTexts: [],
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezero.co.il', loginRoute: null, transactions: null },
@@ -280,5 +297,6 @@ export const BANKS = {
     format: NULL_FORMAT,
     timing: NULL_TIMING,
     selectors: {},
+    wrongCredentialTexts: [],
   },
-} satisfies Record<CompanyTypes, BankScraperConfig>;
+} satisfies Record<CompanyTypes, IBankScraperConfig>;

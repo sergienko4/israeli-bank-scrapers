@@ -1,1 +1,1 @@
-export type { TransactionInstallments as default } from '../../Transactions';
+export type { ITransactionInstallments as default } from '../../Transactions';

@@ -2,6 +2,7 @@ import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../Index';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import amexRoutes from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
@@ -34,9 +35,11 @@ describe('Amex: Mocked E2E', () => {
          * Intercepts all network requests and serves mock Amex API fixtures.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -62,8 +65,9 @@ describe('Amex: Mocked E2E', () => {
          * Intercepts requests and returns null for ValidateIdData to simulate a WAF block.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
-        async page => {
+        async (page): Promise<IDoneResult> => {
           await setupRequestInterception(page, [
             {
               match: '/personalarea/Login',
@@ -77,6 +81,7 @@ describe('Amex: Mocked E2E', () => {
               body: 'null',
             },
           ]);
+          return { done: true };
         },
     });
 
@@ -99,9 +104,11 @@ describe('Amex: Mocked E2E', () => {
          * Intercepts requests and returns login status 9 to trigger invalid-password detection.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -122,8 +129,9 @@ describe('Amex: Mocked E2E', () => {
          * Intercepts requests and returns returnCode 4 to trigger change-password detection.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
-        async page => {
+        async (page): Promise<IDoneResult> => {
           await setupRequestInterception(page, [
             {
               match: '/personalarea/Login',
@@ -140,6 +148,7 @@ describe('Amex: Mocked E2E', () => {
               }),
             },
           ]);
+          return { done: true };
         },
     });
 

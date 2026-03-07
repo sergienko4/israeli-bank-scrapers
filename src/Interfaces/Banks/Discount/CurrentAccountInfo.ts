@@ -1,1 +1,1 @@
-export type { CurrentAccountInfo as default } from '../../../Scrapers/Discount/DiscountScraper';
+export type { ICurrentAccountInfo as default } from '../../../Scrapers/Discount/DiscountScraper';

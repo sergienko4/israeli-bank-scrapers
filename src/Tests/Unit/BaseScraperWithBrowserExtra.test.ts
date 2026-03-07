@@ -109,7 +109,10 @@ describe('progress events', () => {
   it('emits Initializing and LoginSuccess on successful login', async () => {
     const events: ScraperProgressTypes[] = [];
     const scraper = createScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
+    scraper.onProgress((_id, payload) => {
+      events.push(payload.type);
+      return { done: true as const };
+    });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(events).toContain(ScraperProgressTypes.Initializing);
     expect(events).toContain(ScraperProgressTypes.LoginSuccess);
@@ -120,7 +123,10 @@ describe('progress events', () => {
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/login?error=1');
     const events: ScraperProgressTypes[] = [];
     const scraper = createScraper();
-    scraper.onProgress((_id, payload) => events.push(payload.type));
+    scraper.onProgress((_id, payload) => {
+      events.push(payload.type);
+      return { done: true as const };
+    });
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(events).toContain(ScraperProgressTypes.LoginFailed);
   });

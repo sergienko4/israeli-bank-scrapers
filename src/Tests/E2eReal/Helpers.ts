@@ -1,6 +1,7 @@
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type { ScraperScrapingResult } from '../../Scrapers/Base/Interface';
+import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface';
 
 // 240s to accommodate multi-engine fallback chain (playwright-stealth → rebrowser → patchright)
 export const SCRAPE_TIMEOUT = 240000;
@@ -21,8 +22,9 @@ const FAILED_LOGIN_TYPES: string[] = [
  * Asserts that a scrape result is successful and contains valid account data.
  *
  * @param result - the scraping result to validate
+ * @returns a resolved IDoneResult after all assertions pass
  */
-export function assertSuccessfulScrape(result: ScraperScrapingResult): void {
+export function assertSuccessfulScrape(result: IScraperScrapingResult): IDoneResult {
   const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
   expect(error).toBe('');
   expect(result.success).toBe(true);
@@ -33,16 +35,19 @@ export function assertSuccessfulScrape(result: ScraperScrapingResult): void {
     const isTxnsArray = Array.isArray(account.txns);
     expect(isTxnsArray).toBe(true);
   }
+  return { done: true };
 }
 
 /**
  * Asserts that a scrape result reflects a known login failure type.
  *
  * @param result - the scraping result to validate
+ * @returns a resolved IDoneResult after all assertions pass
  */
-export function assertFailedLogin(result: ScraperScrapingResult): void {
+export function assertFailedLogin(result: IScraperScrapingResult): IDoneResult {
   expect(result.success).toBe(false);
   expect(FAILED_LOGIN_TYPES).toContain(result.errorType);
+  return { done: true };
 }
 
 /**
@@ -71,10 +76,10 @@ function maskAccount(acct: string): string {
 /**
  * Returns a masked representation of a transaction amount for safe logging.
  *
- * @param amount - the amount value, may be undefined
+ * @param amount - the amount value, may be absent
  * @returns a masked string indicating sign without revealing the exact amount
  */
-function maskAmount(amount: number | undefined): string {
+function maskAmount(amount?: number): string {
   if (amount == null) return '  ***';
   return amount >= 0 ? ' +***' : ' -***';
 }
@@ -94,9 +99,10 @@ function maskDesc(desc: string): string {
  * Logs a masked preview of scraped transactions to the console for verification.
  *
  * @param result - the scraping result whose transactions to display
+ * @returns a resolved IDoneResult after logging completes
  */
-export function logScrapedTransactions(result: ScraperScrapingResult): void {
-  if (!result.accounts) return;
+export function logScrapedTransactions(result: IScraperScrapingResult): IDoneResult {
+  if (!result.accounts) return { done: true };
   for (const account of result.accounts) {
     const preview = account.txns.slice(0, MAX_TXN_LOG);
     const rows = preview.map(
@@ -115,7 +121,8 @@ export function logScrapedTransactions(result: ScraperScrapingResult): void {
     const more = account.txns.length > MAX_TXN_LOG ? `  ... +${String(remaining)} more` : '';
     const acct = maskAccount(account.accountNumber);
     console.log(
-      `\n--- Account ${acct} | ${String(account.txns.length)} txns ---\n${rows.join('\n')}${more ? `\n${more}` : ''}`,
+      `\n--- IAccount ${acct} | ${String(account.txns.length)} txns ---\n${rows.join('\n')}${more ? `\n${more}` : ''}`,
     );
   }
+  return { done: true };
 }

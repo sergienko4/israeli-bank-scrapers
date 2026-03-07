@@ -1,6 +1,7 @@
 import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { SCRAPERS } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import AMEXScraper from '../../Scrapers/Amex/AmexScraper';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface';
@@ -71,14 +72,20 @@ const MOCK_AMEX_BROWSER = {
 
 /**
  * Configures fetchPostWithinPage mocks for a successful Amex login sequence.
+ *
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockAmexLogin(): void {
+function mockAmexLogin(): IDoneResult {
   (fetchPostWithinPage as jest.Mock)
     .mockResolvedValueOnce({
-      Header: { Status: '1' },
-      ValidateIdDataBean: { returnCode: '1', userName: 'testuser' },
+      isFound: true,
+      value: {
+        Header: { Status: '1' },
+        ValidateIdDataBean: { returnCode: '1', userName: 'testuser' },
+      },
     })
-    .mockResolvedValueOnce({ status: '1' });
+    .mockResolvedValueOnce({ isFound: true, value: { status: '1' } });
+  return { done: true };
 }
 
 const COMPANY_ID = 'amex';
@@ -94,7 +101,7 @@ describe('AMEX fetchData', () => {
 
   it('handles empty month response — returns accounts[]', async () => {
     mockAmexLogin();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValue(null);
+    (fetchGetWithinPage as jest.Mock).mockResolvedValue({ isFound: false });
 
     const scraper = new AMEXScraper(createMockScraperOptions());
     const result = await scraper.scrape(AMEX_CREDS);
@@ -116,7 +123,7 @@ describe('AMEX legacy scraper', () => {
     expect(SCRAPERS.amex.loginFields).toContain('password');
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
+  maybeTestCompanyAPI(COMPANY_ID, config => Boolean(config.companyAPI.invalidPassword))(
     'should fail on invalid user/password"',
     async () => {
       const options = {

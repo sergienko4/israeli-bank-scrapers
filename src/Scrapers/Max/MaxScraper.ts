@@ -12,8 +12,10 @@ import {
 } from '../../Common/Transactions';
 import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import type { LoginOptions } from '../Base/BaseScraperWithBrowser';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import type { ILoginOptions } from '../Base/BaseScraperWithBrowser';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
@@ -21,8 +23,19 @@ import { MAX_CONFIG, maxHandleSecondLoginStep } from './MaxLoginConfig';
 
 const LOG = getDebug('max');
 
-export type { ScrapedTransaction } from './MaxTypes';
-import { MaxPlanName, type ScrapedTransaction } from './MaxTypes';
+export type {
+  IFetchCategoryResult,
+  IPrepareOpts,
+  IScrapedTransaction,
+  IScrapedTransactionsResult,
+} from './MaxTypes';
+import {
+  type IFetchCategoryResult,
+  type IPrepareOpts,
+  type IScrapedTransaction,
+  type IScrapedTransactionsResult,
+  MaxPlanName,
+} from './MaxTypes';
 
 const BASE_API_ACTIONS_URL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max].api.base;
 
@@ -56,28 +69,25 @@ function getTransactionsUrl(monthMoment: Moment): string {
   return url.toString();
 }
 
-export interface FetchCategoryResult {
-  result?: {
-    id: number;
-    name: string;
-  }[];
-}
-
 /**
  * Fetches and caches transaction category names from the Max API.
  *
  * @param page - the Playwright page with an active Max session
+ * @returns a done result after loading categories
  */
-async function loadCategories(page: Page): Promise<void> {
+async function loadCategories(page: Page): Promise<IDoneResult> {
   LOG.info('Loading categories');
-  const res = await fetchGetWithinPage<FetchCategoryResult>(
+  const res = await fetchGetWithinPage<IFetchCategoryResult>(
     page,
     `${BASE_API_ACTIONS_URL}/api/contents/getCategories`,
   );
-  if (res && Array.isArray(res.result)) {
-    LOG.info(`${String(res.result.length)} categories loaded`);
-    res.result.forEach(({ id, name }) => CATEGORIES.set(id, name));
+  if (res.isFound && Array.isArray(res.value.result)) {
+    LOG.info(`${String(res.value.result.length)} categories loaded`);
+    res.value.result.forEach(({ id, name }: { id: number; name: string }) =>
+      CATEGORIES.set(id, name),
+    );
   }
+  return { done: true };
 }
 
 const PLAN_TYPE_MAP: Partial<Record<MaxPlanName, TransactionTypes>> = {
@@ -131,20 +141,15 @@ function getTransactionType(planName: string, planTypeId: number): TransactionTy
  * Parses installment plan information from the Max transaction comments field.
  *
  * @param comments - the raw comments string from the API
- * @returns installment info (current number and total) if this is an installment, otherwise undefined
+ * @returns FoundResult wrapping installment info, or isFound=false if not an installment
  */
-function getInstallmentsInfo(comments: string): { number: number; total: number } | undefined {
-  if (!comments) {
-    return undefined;
-  }
+function getInstallmentsInfo(comments: string): FoundResult<{ number: number; total: number }> {
+  if (!comments) return { isFound: false };
   const matches = comments.match(/\d+/g);
-  if (!matches || matches.length < 2) {
-    return undefined;
-  }
-
+  if (!matches || matches.length < 2) return { isFound: false };
   return {
-    number: parseInt(matches[0], 10),
-    total: parseInt(matches[1], 10),
+    isFound: true,
+    value: { number: parseInt(matches[0], 10), total: parseInt(matches[1], 10) },
   };
 }
 
@@ -152,18 +157,18 @@ function getInstallmentsInfo(comments: string): { number: number; total: number 
  * Maps a Max API currency ID to the standard currency code string.
  *
  * @param currencyId - the numeric currency ID from the Max API
- * @returns the currency code (ILS, USD, EUR) or undefined if not recognized
+ * @returns FoundResult wrapping the currency code, or isFound=false if not recognized
  */
-function getChargedCurrency(currencyId: number | null): string | undefined {
+function getChargedCurrency(currencyId?: number): FoundResult<string> {
   switch (currencyId) {
     case 376:
-      return SHEKEL_CURRENCY;
+      return { isFound: true, value: SHEKEL_CURRENCY };
     case 840:
-      return DOLLAR_CURRENCY;
+      return { isFound: true, value: DOLLAR_CURRENCY };
     case 978:
-      return EURO_CURRENCY;
+      return { isFound: true, value: EURO_CURRENCY };
     default:
-      return undefined;
+      return { isFound: false };
   }
 }
 
@@ -181,7 +186,7 @@ export function getMemo({
   fundsTransferReceiverOrTransfer,
   fundsTransferComment,
 }: Pick<
-  ScrapedTransaction,
+  IScrapedTransaction,
   'comments' | 'fundsTransferReceiverOrTransfer' | 'fundsTransferComment'
 >): string {
   if (fundsTransferReceiverOrTransfer) {
@@ -198,16 +203,19 @@ export function getMemo({
  * Builds a unique transaction identifier from the ARN and installment number.
  *
  * @param rawTransaction - the raw scraped transaction
- * @param installments - the parsed installment info (if applicable)
- * @returns a unique identifier string or undefined if ARN is unavailable
+ * @param installments - the parsed installment info FoundResult (if applicable)
+ * @returns FoundResult wrapping the identifier, or isFound=false if ARN is unavailable
  */
 function getTxnIdentifier(
-  rawTransaction: ScrapedTransaction,
-  installments: ReturnType<typeof getInstallmentsInfo>,
-): string | undefined {
-  return installments
-    ? `${rawTransaction.dealData?.arn ?? ''}_${String(installments.number)}`
-    : rawTransaction.dealData?.arn;
+  rawTransaction: IScrapedTransaction,
+  installments: FoundResult<{ number: number; total: number }>,
+): FoundResult<string> {
+  if (installments.isFound) {
+    const arn = rawTransaction.dealData?.arn ?? '';
+    return { isFound: true, value: `${arn}_${String(installments.value.number)}` };
+  }
+  const arn = rawTransaction.dealData?.arn;
+  return arn ? { isFound: true, value: arn } : { isFound: false };
 }
 
 /**
@@ -216,7 +224,7 @@ function getTxnIdentifier(
  * @param raw - the raw scraped transaction
  * @returns ISO date strings for the transaction date and processed date
  */
-function buildTxnDates(raw: ScrapedTransaction): { date: string; processedDate: string } {
+function buildTxnDates(raw: IScrapedTransaction): { date: string; processedDate: string } {
   const isPending = raw.paymentDate === null;
   return {
     date: moment(raw.purchaseDate).toISOString(),
@@ -225,48 +233,47 @@ function buildTxnDates(raw: ScrapedTransaction): { date: string; processedDate: 
 }
 
 /**
- * Builds the core Transaction fields from a raw Max transaction (without rawTransaction).
+ * Builds the core ITransaction fields from a raw Max transaction (without rawTransaction).
  *
  * @param rawTransaction - the raw scraped transaction from the Max API
- * @returns a Transaction object without the rawTransaction field
+ * @returns a ITransaction object without the rawTransaction field
  */
-function buildTxnBase(rawTransaction: ScrapedTransaction): Omit<Transaction, 'rawTransaction'> {
+function buildTxnBase(rawTransaction: IScrapedTransaction): Omit<ITransaction, 'rawTransaction'> {
   const isPending = rawTransaction.paymentDate === null;
-  const installments = getInstallmentsInfo(rawTransaction.comments);
+  const installmentsResult = getInstallmentsInfo(rawTransaction.comments);
+  const chargedCurrencyResult = getChargedCurrency(rawTransaction.paymentCurrency ?? undefined);
+  const identifierResult = getTxnIdentifier(rawTransaction, installmentsResult);
   return {
     type: getTransactionType(rawTransaction.planName, rawTransaction.planTypeId),
     ...buildTxnDates(rawTransaction),
     originalAmount: -rawTransaction.originalAmount,
     originalCurrency: rawTransaction.originalCurrency,
     chargedAmount: -parseFloat(rawTransaction.actualPaymentAmount),
-    chargedCurrency: getChargedCurrency(rawTransaction.paymentCurrency),
+    chargedCurrency: chargedCurrencyResult.isFound ? chargedCurrencyResult.value : undefined,
     description: rawTransaction.merchantName.trim(),
     memo: getMemo(rawTransaction),
     category: CATEGORIES.get(rawTransaction.categoryId),
-    installments,
-    identifier: getTxnIdentifier(rawTransaction, installments),
+    installments: installmentsResult.isFound ? installmentsResult.value : undefined,
+    identifier: identifierResult.isFound ? identifierResult.value : undefined,
     status: isPending ? TransactionStatuses.Pending : TransactionStatuses.Completed,
   };
 }
 
 /**
- * Converts a raw Max transaction to a normalized Transaction, optionally including raw data.
+ * Converts a raw Max transaction to a normalized ITransaction, optionally including raw data.
  *
  * @param rawTransaction - the raw scraped transaction from the Max API
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns a complete Transaction object
+ * @returns a complete ITransaction object
  */
-function mapTransaction(rawTransaction: ScrapedTransaction, options?: ScraperOptions): Transaction {
-  const result: Transaction = buildTxnBase(rawTransaction);
+function mapTransaction(
+  rawTransaction: IScrapedTransaction,
+  options?: ScraperOptions,
+): ITransaction {
+  const result: ITransaction = buildTxnBase(rawTransaction);
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(rawTransaction);
   return result;
 }
-export interface ScrapedTransactionsResult {
-  result?: {
-    transactions: ScrapedTransaction[];
-  };
-}
-
 /**
  * Fetches and maps all transactions for a given billing month from the Max API.
  *
@@ -279,22 +286,18 @@ async function fetchTransactionsForMonth(
   page: Page,
   monthMoment: Moment,
   options?: ScraperOptions,
-): Promise<Record<string, Transaction[]>> {
+): Promise<Record<string, ITransaction[]>> {
   const url = getTransactionsUrl(monthMoment);
 
-  const data = await fetchGetWithinPage<ScrapedTransactionsResult>(page, url);
-  const transactionsByAccount: Record<string, Transaction[]> = {};
-
-  if (!data?.result) return transactionsByAccount;
-
-  data.result.transactions
-    // Filter out non-transactions without a plan type, e.g. summary rows
-    .filter(transaction => !!transaction.planName)
-    .forEach((transaction: ScrapedTransaction) => {
+  const dataResult = await fetchGetWithinPage<IScrapedTransactionsResult>(page, url);
+  const transactionsByAccount: Record<string, ITransaction[]> = {};
+  if (!dataResult.isFound || !dataResult.value.result) return transactionsByAccount;
+  dataResult.value.result.transactions
+    .filter((transaction: IScrapedTransaction) => Boolean(transaction.planName))
+    .forEach((transaction: IScrapedTransaction) => {
       const mappedTransaction = mapTransaction(transaction, options);
       (transactionsByAccount[transaction.shortCardNumber] ??= []).push(mappedTransaction);
     });
-
   return transactionsByAccount;
 }
 
@@ -306,21 +309,14 @@ async function fetchTransactionsForMonth(
  * @returns a new merged map with all transactions combined
  */
 function addResult(
-  allResults: Record<string, Transaction[]>,
-  result: Record<string, Transaction[]>,
-): Record<string, Transaction[]> {
-  const clonedResults: Record<string, Transaction[]> = { ...allResults };
+  allResults: Record<string, ITransaction[]>,
+  result: Record<string, ITransaction[]>,
+): Record<string, ITransaction[]> {
+  const clonedResults: Record<string, ITransaction[]> = { ...allResults };
   Object.keys(result).forEach(accountNumber => {
     (clonedResults[accountNumber] ??= []).push(...result[accountNumber]);
   });
   return clonedResults;
-}
-
-export interface PrepareOpts {
-  txns: Transaction[];
-  startMoment: moment.Moment;
-  shouldCombineInstallments: boolean;
-  isFilterByDateEnabled: boolean;
 }
 
 /**
@@ -329,7 +325,7 @@ export interface PrepareOpts {
  * @param opts - preparation options including transactions, start date, and filtering settings
  * @returns the prepared and filtered transaction list
  */
-function prepareTransactions(opts: PrepareOpts): Transaction[] {
+function prepareTransactions(opts: IPrepareOpts): ITransaction[] {
   const { txns, startMoment, shouldCombineInstallments, isFilterByDateEnabled } = opts;
   let clonedTxns = Array.from(txns);
   if (!shouldCombineInstallments) clonedTxns = fixInstallments(clonedTxns);
@@ -351,8 +347,8 @@ async function collectAllMonthResults(
   page: Page,
   allMonths: Moment[],
   options: ScraperOptions,
-): Promise<Record<string, Transaction[]>> {
-  const initialResults = Promise.resolve({} as Record<string, Transaction[]>);
+): Promise<Record<string, ITransaction[]>> {
+  const initialResults = Promise.resolve({} as Record<string, ITransaction[]>);
   return allMonths.reduce(async (prevPromise, month) => {
     const prev = await prevPromise;
     return addResult(prev, await fetchTransactionsForMonth(page, month, options));
@@ -365,12 +361,13 @@ async function collectAllMonthResults(
  * @param allResults - the map of card numbers to transaction arrays (mutated in-place)
  * @param startMoment - the earliest transaction date to retain
  * @param options - scraper options for shouldCombineInstallments and isFilterByDateEnabled
+ * @returns a done result after all accounts are prepared
  */
 function applyPrepareToAllAccounts(
-  allResults: Record<string, Transaction[]>,
+  allResults: Record<string, ITransaction[]>,
   startMoment: moment.Moment,
   options: ScraperOptions,
-): void {
+): IDoneResult {
   const shouldCombineInstallments = options.shouldCombineInstallments ?? false;
   const isFilterByDateEnabled = options.outputData?.isFilterByDateEnabled ?? true;
   Object.keys(allResults).forEach(accountNumber => {
@@ -381,6 +378,7 @@ function applyPrepareToAllAccounts(
       isFilterByDateEnabled,
     });
   });
+  return { done: true };
 }
 
 /**
@@ -393,7 +391,7 @@ function applyPrepareToAllAccounts(
 async function fetchTransactions(
   page: Page,
   options: ScraperOptions,
-): Promise<Record<string, Transaction[]>> {
+): Promise<Record<string, ITransaction[]>> {
   const futureMonthsToScrape = options.futureMonthsToScrape ?? 1;
   const defaultStartMoment = moment().subtract(4, 'years');
   const optionsStartMoment = moment(options.startDate);
@@ -411,14 +409,14 @@ async function fetchTransactions(
  *  - Flow B (occasional): home → username+password → 2nd form (username+password+id) → dashboard
  * Provide `id` (Israeli national ID / ת.ז.) so Flow B is handled automatically.
  */
-export interface ScraperSpecificCredentials {
+export interface IScraperSpecificCredentials {
   username: string;
   password: string;
   id?: string;
 }
 
-/** Scraper implementation for Max (מקס) credit card. */
-class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/** IScraper implementation for Max (מקס) credit card. */
+class MaxScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   /**
    * Creates a MaxScraper with the Max login configuration.
    *
@@ -434,15 +432,20 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
    * @param credentials - Max credentials including optional national ID for Flow B
    * @returns login options with an extended postAction for the second login step
    */
-  public override getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
+  public override getLoginOptions(credentials: IScraperSpecificCredentials): ILoginOptions {
     const opts = super.getLoginOptions(credentials);
     const original = opts.postAction;
     return {
       ...opts,
-      /** Handles the optional Flow B second-login step before the original postAction. */
-      postAction: async (): Promise<void> => {
+      /**
+       * Handles the optional Flow B second-login step before the original postAction.
+       *
+       * @returns a done result after the second step is handled
+       */
+      postAction: async (): Promise<IDoneResult> => {
         await maxHandleSecondLoginStep(this.page, credentials);
         if (original) await original();
+        return { done: true };
       },
     };
   }
@@ -454,7 +457,7 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
    */
   public async fetchData(): Promise<{
     success: boolean;
-    accounts: { accountNumber: string; txns: Transaction[] }[];
+    accounts: { accountNumber: string; txns: ITransaction[] }[];
   }> {
     const results = await fetchTransactions(this.page, this.options);
     const accounts = Object.keys(results).map(accountNumber => {
@@ -464,10 +467,7 @@ class MaxScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       };
     });
 
-    return {
-      success: true,
-      accounts,
-    };
+    return { success: true, accounts };
   }
 }
 

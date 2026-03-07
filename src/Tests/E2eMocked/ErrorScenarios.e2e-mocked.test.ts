@@ -32,6 +32,7 @@ describe('Error Scenarios: Mocked E2E', () => {
          * Serves a 500 error for the login page to simulate a server failure.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, [
@@ -42,6 +43,7 @@ describe('Error Scenarios: Mocked E2E', () => {
               status: 500,
             },
           ]);
+          return { done: true };
         },
     });
 
@@ -62,6 +64,7 @@ describe('Error Scenarios: Mocked E2E', () => {
          * Aborts the ValidateIdData request to simulate a network error inside page.evaluate.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, [
@@ -72,6 +75,7 @@ describe('Error Scenarios: Mocked E2E', () => {
             },
             { match: 'reqName=ValidateIdData', method: 'POST', abort: true },
           ]);
+          return { done: true };
         },
     });
 
@@ -93,6 +97,7 @@ describe('Error Scenarios: Mocked E2E', () => {
          * Returns a validate response with Status 0 to trigger WAF-blocked detection.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, [
@@ -108,6 +113,7 @@ describe('Error Scenarios: Mocked E2E', () => {
               body: JSON.stringify({ Header: { Status: '0' } }),
             },
           ]);
+          return { done: true };
         },
     });
 

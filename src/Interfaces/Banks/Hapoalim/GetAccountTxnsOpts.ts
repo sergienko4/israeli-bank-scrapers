@@ -1,1 +1,1 @@
-export type { GetAccountTxnsOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IGetAccountTransactionsOpts as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

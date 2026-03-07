@@ -4,15 +4,16 @@ import { type Page } from 'playwright';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { waitForRedirect } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('userCode', 'password');
 const BASE = 'https://login.bankhapoalim.co.il';
 
-const BASE_CFG: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: `${BASE}/cgi-bin/poalwwwc?reqName=getLogonPage`,
   fields: [
     {
@@ -39,20 +40,24 @@ const BASE_CFG: LoginConfig = {
      * Waits for the Hapoalim login user-code field to appear before filling inputs.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the element is found
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await waitUntilElementFound(page, '#userCode');
+      return { done: true };
     },
   postAction:
     /**
      * Waits for a redirect after login submission, ignoring timeout errors.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the redirect completes
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await waitForRedirect(page, { timeout: 20000 }).catch(() => {
         /* no-op */
       });
+      return { done: true };
     },
   possibleResults: {
     // Narrow patterns — /ng-portals/ alone is too broad and matches the auth redirect URL
@@ -89,28 +94,32 @@ describe('E2E: Selector fallback — Hapoalim', () => {
   });
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
-    const iframeCfg: LoginConfig = {
+    const iframeCfg: ILoginConfig = {
       ...BASE_CFG,
       checkReadiness:
         /**
          * Waits for the user-code field then injects it into an iframe for Round 1 testing.
          *
          * @param page - the Playwright page to interact with
+         * @returns a resolved IDoneResult after injection completes
          */
-        async (page: Page) => {
+        async (page: Page): Promise<IDoneResult> => {
           await waitUntilElementFound(page, '#userCode');
           await injectFormByInput(page, '#userCode');
+          return { done: true };
         },
       postAction:
         /**
          * Waits for a redirect after iframe form submission, ignoring timeout errors.
          *
          * @param page - the Playwright page to wait on
+         * @returns a resolved IDoneResult after the redirect completes
          */
-        async (page: Page) => {
+        async (page: Page): Promise<IDoneResult> => {
           await waitForRedirect(page, { timeout: 10000 }).catch(() => {
             /* no-op */
           });
+          return { done: true };
         },
     };
     const result = await new ConcreteGenericScraper(

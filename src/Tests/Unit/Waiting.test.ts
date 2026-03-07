@@ -57,14 +57,13 @@ describe('waitUntil', () => {
     await expect(neverTruePromise).rejects.toThrow(TimeoutError);
   });
 
-  // waitUntil's catch handler calls reject() with no value (undefined)
   it('rejects when async test throws', async () => {
     const failingPromise = waitUntil(
       () => Promise.reject(new Error('test error')),
       'failing test',
       { timeout: 5000, interval: 10 },
     );
-    await expect(failingPromise).rejects.toBeUndefined();
+    await expect(failingPromise).rejects.toThrow();
   });
 });
 
@@ -75,10 +74,10 @@ describe('raceTimeout', () => {
     expect(result).toBe('fast');
   });
 
-  it('returns undefined when promise times out', async () => {
+  it('returns done result when promise times out', async () => {
     const slowPromise = sleep(200).then(() => 'slow');
     const result: unknown = await raceTimeout(50, slowPromise);
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ done: true });
   });
 
   it('throws non-timeout errors from the promise', async () => {
@@ -125,7 +124,7 @@ describe('waitUntilWithReload', () => {
       interval: 10,
     });
     expect(result.found).toBe(true);
-    expect(result.value).toBe('auth-token');
+    if (result.found) expect(result.value).toBe('auth-token');
     expect(result.reloadsUsed).toBe(0);
   });
 

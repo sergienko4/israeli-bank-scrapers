@@ -1,1 +1,1 @@
-export type { ScrapedTransaction as default } from '../../../Scrapers/Discount/DiscountScraper';
+export type { IScrapedTransaction as default } from '../../../Scrapers/Discount/DiscountScraper';

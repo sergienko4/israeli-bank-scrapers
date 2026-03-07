@@ -1,13 +1,17 @@
 /** Selector-fallback: Massad (FIBI MATAF portal) — Round 2 (wrong CSS id → fallback CSS id). */
+import { type Frame } from 'playwright';
+
 import { CompanyTypes } from '../../Definitions';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const BASE_CFG: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl:
     'https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE',
   fields: [
@@ -35,25 +39,27 @@ const BASE_CFG: LoginConfig = {
      * Waits briefly before attempting to fill the login form.
      *
      * @param page - the Playwright page to wait on
-     * @returns undefined after the wait
+     * @returns a FoundResult indicating no iframe is needed
      */
-    async page => {
+    async (page): Promise<FoundResult<Frame>> => {
       await page.waitForTimeout(1000);
-      return undefined;
+      return { isFound: false };
     },
   postAction:
     /**
      * Waits for the card header or validation message after login submission.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the selector race completes
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await Promise.race([
         page.waitForSelector('#card-header', { timeout: 15000 }),
         page.waitForSelector('#validationMsg', { timeout: 15000 }),
       ]).catch(() => {
         /* no-op */
       });
+      return { done: true };
     },
   possibleResults: {
     success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/],

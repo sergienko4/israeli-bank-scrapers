@@ -5,7 +5,7 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
-/** Scraper implementation for American Express Israel. */
+/** IScraper implementation for American Express Israel. */
 class AmexScraper extends IsracardAmexBaseScraper {
   /**
    * Creates a new Amex scraper instance with bank-specific API base and company code.

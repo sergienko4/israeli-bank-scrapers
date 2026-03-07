@@ -66,7 +66,9 @@ const CREDS = { username: 'testuser', password: 'testpass' };
  * @param overrides - optional fields to merge into the mock jsonResp data
  * @returns a mock response with a json() method returning the Leumi API format
  */
-function createLeumiResponse(overrides: Record<string, unknown> = {}): { json: jest.Mock } {
+function createLeumiResponse(overrides: Record<string, object | string | number | boolean> = {}): {
+  json: jest.Mock;
+} {
   return {
     json: jest.fn().mockResolvedValue({
       jsonResp: JSON.stringify({
@@ -91,7 +93,7 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
       {
         DateUTC: '2025-06-15T00:00:00',
         Amount: -100,
-        Description: 'Test Transaction',
+        Description: 'Test ITransaction',
         ReferenceNumberLong: 12345,
         AdditionalData: 'memo text',
       },
@@ -174,7 +176,7 @@ describe('fetchData', () => {
     expect(t.originalCurrency).toBe(SHEKEL_CURRENCY);
     expect(t.type).toBe(TransactionTypes.Normal);
     expect(t.status).toBe(TransactionStatuses.Completed);
-    expect(t.description).toBe('Test Transaction');
+    expect(t.description).toBe('Test ITransaction');
     expect(t.memo).toBe('memo text');
     expect(t.identifier).toBe(12345);
   });

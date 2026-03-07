@@ -1,1 +1,1 @@
-export type { BalanceAndCreditLimit as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IBalanceAndCreditLimit as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

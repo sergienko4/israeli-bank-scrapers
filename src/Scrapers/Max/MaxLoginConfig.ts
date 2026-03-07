@@ -10,7 +10,9 @@ import { waitForRedirect } from '../../Common/Navigation';
 import { resolveFieldContext } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
 import { CompanyTypes } from '../../Definitions';
-import { type FieldConfig, type LoginConfig } from '../Base/LoginConfig';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import { type IFieldConfig, type ILoginConfig } from '../Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
@@ -18,14 +20,14 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 // All three FieldConfigs scope to #login-password.tab-pane.active to avoid iframe false
 // positives: wellKnown placeholder/ariaLabel candidates can match cross-origin iframes
 // before reaching the CSS ID; the scoped formcontrolname selector targets only the main page.
-const MAX_USERNAME_FIELD_CONFIG: FieldConfig = {
+const MAX_USERNAME_FIELD_CONFIG: IFieldConfig = {
   credentialKey: 'username',
   selectors: [
     { kind: 'css', value: '#login-password.tab-pane.active [formcontrolname="username"]' },
     { kind: 'css', value: '#user-name' }, // CSS ID fallback
   ],
 };
-const MAX_PASSWORD_FIELD_CONFIG: FieldConfig = {
+const MAX_PASSWORD_FIELD_CONFIG: IFieldConfig = {
   credentialKey: 'password',
   selectors: [
     { kind: 'css', value: '#login-password.tab-pane.active [formcontrolname="password"]' },
@@ -56,11 +58,12 @@ async function isMaxIdFieldVisible(page: Page): Promise<boolean> {
  * @param credentials.username - the Max username
  * @param credentials.password - the Max password
  * @param credentials.id - the user's national ID number (ת.ז.)
+ * @returns a done result after filling all fields
  */
 async function fillSecondStepFields(
   page: Page,
   credentials: { username: string; password: string; id: string },
-): Promise<void> {
+): Promise<IDoneResult> {
   const url = page.url();
   const userCtx = await resolveFieldContext(page, MAX_USERNAME_FIELD_CONFIG, url);
   const passCtx = await resolveFieldContext(page, MAX_PASSWORD_FIELD_CONFIG, url);
@@ -69,6 +72,7 @@ async function fillSecondStepFields(
   await fillInput(page, MAX_ID_SEL, credentials.id);
   await clickButton(page, 'app-user-login-form .general-button.send-me-code');
   await sleep(1000);
+  return { done: true };
 }
 
 /**
@@ -80,22 +84,25 @@ async function fillSecondStepFields(
  * @param credentials.username - the Max username
  * @param credentials.password - the Max password
  * @param credentials.id - optional national ID; required only when Flow B appears
+ * @returns a done result after handling the step
  */
 export async function maxHandleSecondLoginStep(
   page: Page,
   credentials: { username: string; password: string; id?: string },
-): Promise<void> {
-  if (!credentials.id) return;
-  if (!(await isMaxIdFieldVisible(page))) return;
+): Promise<IDoneResult> {
+  if (!credentials.id) return { done: true };
+  if (!(await isMaxIdFieldVisible(page))) return { done: true };
   await fillSecondStepFields(page, { ...credentials, id: credentials.id });
+  return { done: true };
 }
 
 /**
  * First pre-action step: dismisses any popup and clicks the personal area link.
  *
  * @param page - the Playwright page on the Max home page
+ * @returns a done result after clicking
  */
-async function maxPreActionStep1(page: Page): Promise<void> {
+async function maxPreActionStep1(page: Page): Promise<IDoneResult> {
   if (await elementPresentOnPage(page, '#closePopup'))
     await page.$eval('#closePopup', el => {
       (el as HTMLElement).click();
@@ -103,14 +110,16 @@ async function maxPreActionStep1(page: Page): Promise<void> {
   await page.$eval('.personal-area > a.go-to-personal-area', el => {
     (el as HTMLElement).click();
   });
+  return { done: true };
 }
 
 /**
  * Second pre-action step: clicks the private login link and waits for the password tab to activate.
  *
  * @param page - the Playwright page showing the Max login area
+ * @returns a done result after activating the password tab
  */
-async function maxPreActionStep2(page: Page): Promise<void> {
+async function maxPreActionStep2(page: Page): Promise<IDoneResult> {
   if (await elementPresentOnPage(page, '.login-link#private'))
     await page.$eval('.login-link#private', el => {
       (el as HTMLElement).click();
@@ -122,27 +131,30 @@ async function maxPreActionStep2(page: Page): Promise<void> {
   await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
     visible: true,
   });
+  return { done: true };
 }
 
 /**
  * Pre-login action that navigates from the Max home page to the password login form.
+ * Max login form is on the main page — no popup frame needed.
  *
  * @param page - the Playwright page on the Max home page
- * @returns undefined (login form is on the main page, not in a frame)
+ * @returns isFound: false — login form is on the main page for Max
  */
-async function maxPreAction(page: Page): Promise<Frame | undefined> {
+async function maxPreAction(page: Page): Promise<FoundResult<Frame>> {
   await maxPreActionStep1(page);
   await maxPreActionStep2(page);
-  return undefined;
+  return { isFound: false };
 }
 
 /**
  * Post-login action that waits for the Max homepage redirect or a login error popup.
  *
  * @param page - the Playwright page after form submission
+ * @returns a done result after the post-login state is reached
  */
-async function maxPostAction(page: Page): Promise<void> {
-  if (page.url().startsWith(`${CFG.urls.base}/homepage`)) return;
+async function maxPostAction(page: Page): Promise<IDoneResult> {
+  if (page.url().startsWith(`${CFG.urls.base}/homepage`)) return { done: true };
   await Promise.race([
     waitForRedirect(page, {
       timeout: 20000,
@@ -151,9 +163,10 @@ async function maxPostAction(page: Page): Promise<void> {
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
     waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
   ]);
+  return { done: true };
 }
 
-export const MAX_CONFIG: LoginConfig = {
+export const MAX_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'username', selectors: [] }, // wellKnown → #user-name
@@ -164,9 +177,11 @@ export const MAX_CONFIG: LoginConfig = {
    * Waits for the Max personal area link to appear before starting the login flow.
    *
    * @param page - the Playwright page on the Max home page
+   * @returns a done result after the personal area link is visible
    */
-  checkReadiness: async (page: Page) => {
+  checkReadiness: async (page: Page): Promise<IDoneResult> => {
     await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
+    return { done: true };
   },
   preAction: maxPreAction,
   postAction: maxPostAction,

@@ -1,1 +1,1 @@
-export type { FetchedAccountTransactionsData as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';
+export type { IFetchedAccountTransactionsData as default } from '../../../Scrapers/Hapoalim/HapoalimScraper';

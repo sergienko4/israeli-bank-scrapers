@@ -1,1 +1,1 @@
-export type { LeumiAccountResponse as default } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { ILeumiAccountResponse as default } from '../../../Scrapers/Leumi/LeumiScraper';

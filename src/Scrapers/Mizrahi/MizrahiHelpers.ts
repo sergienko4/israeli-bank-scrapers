@@ -4,17 +4,19 @@ import { type Page, type Request } from 'playwright';
 import { getDebug } from '../../Common/Debug';
 import { fetchPostWithinPage } from '../../Common/Fetch';
 import { CompanyTypes } from '../../Definitions';
-import type { MizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
-import type { MoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
-import type { ScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
+import type { IMizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
+import type { ITransactionMoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
+import type { IScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import { ScraperWebsiteChangedError } from '../Base/ScraperWebsiteChangedError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-export type { ConvertOneRowOpts } from '../../Interfaces/Banks/Mizrahi/ConvertOneRowOpts';
-export type { ConvertTxnsOpts } from '../../Interfaces/Banks/Mizrahi/ConvertTxnsOpts';
-export type { MizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
-export type { MoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
-export type { ScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
-export type { ScrapedTransactionsResult } from '../../Interfaces/Banks/Mizrahi/ScrapedTransactionsResult';
+export type { IConvertTransactionRowOpts } from '../../Interfaces/Banks/Mizrahi/ConvertOneRowOpts';
+export type { IConvertTransactionsOpts } from '../../Interfaces/Banks/Mizrahi/ConvertTxnsOpts';
+export type { IMizrahiRequestData } from '../../Interfaces/Banks/Mizrahi/MizrahiRequestData';
+export type { ITransactionMoreDetails } from '../../Interfaces/Banks/Mizrahi/MoreDetails';
+export type { IScrapedTransaction } from '../../Interfaces/Banks/Mizrahi/ScrapedTransaction';
+export type { IScrapedTransactionsResult } from '../../Interfaces/Banks/Mizrahi/ScrapedTransactionsResult';
 
 const LOG = getDebug('mizrahi');
 
@@ -43,7 +45,7 @@ export function getStartMoment(optionsStartDate: Date): moment.Moment {
   return moment.max(defaultStartMoment, startMoment);
 }
 
-interface MoreDetailsResponse {
+interface IMoreDetailsResponse {
   body: {
     fields: [
       [
@@ -68,7 +70,7 @@ interface MoreDetailsResponse {
  * @param item - the scraped transaction to build extra detail parameters for
  * @returns a key-value map for the API POST body
  */
-function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
+function buildExtraDetailsParams(item: IScrapedTransaction): Record<string, string | number> {
   const tarPeula = moment(item.MC02PeulaTaaEZ);
   const tarErech = moment(item.MC02ErehTaaEZ);
   return {
@@ -87,12 +89,12 @@ function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, strin
 }
 
 /**
- * Parses the detail fields from the Mizrahi more-details API response into a MoreDetails object.
+ * Parses the detail fields from the Mizrahi more-details API response into a ITransactionMoreDetails object.
  *
  * @param fields - the array of Label/Value pairs from the API response
- * @returns a MoreDetails object with an entries map and a formatted memo string
+ * @returns a ITransactionMoreDetails object with an entries map and a formatted memo string
  */
-function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDetails {
+function parseDetailsFields(fields: { Label: string; Value: string }[]): ITransactionMoreDetails {
   const entries: [string, string][] = fields.map(record => [
     record.Label.trim(),
     record.Value.trim(),
@@ -112,23 +114,24 @@ function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDet
  * @param page - the Playwright page with an active Mizrahi session
  * @param item - the transaction to fetch details for
  * @param apiHeaders - the XSRF and Content-Type headers for the API request
- * @returns parsed MoreDetails or null if details are unavailable
+ * @returns FoundResult wrapping the parsed ITransactionMoreDetails, or isFound=false if details are unavailable
  */
 async function fetchMoreDetails(
   page: Page,
-  item: ScrapedTransaction,
+  item: IScrapedTransaction,
   apiHeaders: Record<string, string>,
-): Promise<MoreDetails | null> {
-  if (item.MC02ShowDetailsEZ !== '1') return null;
+): Promise<FoundResult<ITransactionMoreDetails>> {
+  if (item.MC02ShowDetailsEZ !== '1') return { isFound: false };
   const params = buildExtraDetailsParams(item);
-  const response = await fetchPostWithinPage<MoreDetailsResponse>(page, MORE_DETAILS_URL, {
+  const rawResponse = await fetchPostWithinPage<IMoreDetailsResponse>(page, MORE_DETAILS_URL, {
     data: params,
     extraHeaders: apiHeaders,
   });
-  const details = response?.body.fields[0][0].Records[0].Fields;
+  const details = rawResponse.isFound ? rawResponse.value.body.fields[0][0].Records[0].Fields : [];
   LOG.info({ params, details }, 'fetch details');
-  if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
-  return null;
+  if (Array.isArray(details) && details.length > 0)
+    return { isFound: true, value: parseDetailsFields(details) };
+  return { isFound: false };
 }
 
 /**
@@ -137,17 +140,17 @@ async function fetchMoreDetails(
  * @param page - the Playwright page with an active Mizrahi session
  * @param item - the transaction to fetch details for
  * @param apiHeaders - the XSRF and Content-Type headers for the API request
- * @returns the MoreDetails or an empty result if the fetch fails
+ * @returns the ITransactionMoreDetails or an empty result if the fetch fails
  */
 export async function getExtraTransactionDetails(
   page: Page,
-  item: ScrapedTransaction,
+  item: IScrapedTransaction,
   apiHeaders: Record<string, string>,
-): Promise<MoreDetails> {
+): Promise<ITransactionMoreDetails> {
   try {
     LOG.info(item, 'getExtraTransactionDetails for item');
     const result = await fetchMoreDetails(page, item, apiHeaders);
-    if (result) return result;
+    if (result.isFound) return result.value;
   } catch (error) {
     LOG.info(error, 'Error fetching extra transaction details');
   }
@@ -159,13 +162,13 @@ export async function getExtraTransactionDetails(
  *
  * @param request - the intercepted Playwright request containing the original POST data
  * @param optionsStartDate - the user-specified start date for transactions
- * @returns the modified MizrahiRequestData with corrected date range
+ * @returns the modified IMizrahiRequestData with corrected date range
  */
 export function createDataFromRequest(
   request: Request,
   optionsStartDate: Date,
-): MizrahiRequestData {
-  const data = JSON.parse(request.postData() ?? '{}') as MizrahiRequestData;
+): IMizrahiRequestData {
+  const data = JSON.parse(request.postData() ?? '{}') as IMizrahiRequestData;
   data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
   data.inToDate = moment().format(DATE_FORMAT);
   data.table.maxRow = MAX_ROWS_PER_REQUEST;
@@ -189,14 +192,31 @@ export function createHeadersFromRequest(request: Request): Record<string, strin
  * Builds a unique transaction identifier from the Mizrahi transaction data.
  *
  * @param row - the scraped transaction row from the Mizrahi API
- * @returns a unique identifier string/number or undefined if no reference is available
+ * @returns a unique identifier string or number, or throws if no reference is available
  */
-export function getTransactionIdentifier(row: ScrapedTransaction): string | number | undefined {
+export function getTransactionIdentifier(row: IScrapedTransaction): string | number {
   if (!row.MC02AsmahtaMekoritEZ) {
-    return undefined;
+    throw new ScraperWebsiteChangedError(
+      'Mizrahi',
+      `transaction has no reference: ${JSON.stringify(row)}`,
+    );
   }
   if (row.TransactionNumber && String(row.TransactionNumber) !== '1') {
     return `${row.MC02AsmahtaMekoritEZ}-${String(row.TransactionNumber)}`;
   }
   return parseInt(row.MC02AsmahtaMekoritEZ, 10);
+}
+
+/** Credentials specific to Mizrahi-Tefahot Bank login. */
+export interface IScraperSpecificCredentials {
+  username: string;
+  password: string;
+}
+
+/** Options for building a single Mizrahi transaction row. */
+export interface IBuildTransactionRowOpts {
+  row: IScrapedTransaction;
+  txnDate: string;
+  moreDetails: ITransactionMoreDetails;
+  isPendingIfTodayTransaction: boolean;
 }

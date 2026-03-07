@@ -1,1 +1,1 @@
-export type { ScraperSpecificCredentials as default } from '../../../Scrapers/VisaCal/VisaCalScraper';
+export type { IScraperSpecificCredentials as default } from '../../../Scrapers/VisaCal/VisaCalScraper';

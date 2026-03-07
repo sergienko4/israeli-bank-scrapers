@@ -6,7 +6,7 @@ import type { Frame, Page } from 'playwright';
  * - `resolvedVia`: 'bankConfig' (bank's own selector) | 'wellKnown' (global fallback) | 'notResolved'
  * - `round`: 'iframe' (found in child frame) | 'mainPage' (found in main context) | 'notResolved'
  */
-export interface FieldContext {
+export interface IFieldContext {
   isResolved: boolean;
   selector: string;
   context: Page | Frame;

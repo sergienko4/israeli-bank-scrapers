@@ -1,7 +1,9 @@
+import { type CompanyTypes } from '../../Definitions';
 import { type SelectorCandidate } from '../Base/LoginConfig';
 import { BANKS } from './ScraperConfig.banks';
+import { type IBankScraperConfig } from './ScraperConfig.types';
 
-export type { BankScraperConfig } from './ScraperConfig.types';
+export type { IBankScraperConfig } from './ScraperConfig.types';
 
 // ─── Central scraper configuration ───────────────────────────────────────────
 
@@ -201,3 +203,26 @@ export const SCRAPER_CONFIGURATION = {
     ] satisfies SelectorCandidate[],
   },
 } as const;
+
+/**
+ * Returns the wrong-credential text patterns configured for the given bank.
+ * Used by the base scraper layer to detect wrong credentials by reading page text.
+ *
+ * @param companyId - the bank company type to look up
+ * @returns ordered list of Hebrew text substrings that appear when credentials are wrong
+ */
+export function getWrongCredentialTexts(companyId: CompanyTypes): readonly string[] {
+  return SCRAPER_CONFIGURATION.banks[companyId].wrongCredentialTexts;
+}
+
+/**
+ * Returns WAF-indicator URL substrings for a bank — URL patterns that signal a WAF redirect
+ * when present in the page URL after the post-submit sleep (1.5s).
+ *
+ * @param companyId - the bank identifier to look up
+ * @returns the ordered list of URL substrings that indicate a WAF/session redirect
+ */
+export function getWafReturnUrls(companyId: CompanyTypes): readonly string[] {
+  const bank = SCRAPER_CONFIGURATION.banks[companyId] as IBankScraperConfig;
+  return bank.wafReturnUrls ?? [];
+}

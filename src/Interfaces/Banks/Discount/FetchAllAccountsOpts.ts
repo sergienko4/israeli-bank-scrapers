@@ -1,1 +1,1 @@
-export type { FetchAllAccountsOpts as default } from '../../../Scrapers/Discount/DiscountScraper';
+export type { IFetchAllAccountsOpts as default } from '../../../Scrapers/Discount/DiscountScraper';

@@ -1,9 +1,9 @@
 import type { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes';
-import type { WafErrorDetails } from './WafErrorDetails';
+import type { IWafErrorDetails } from './WafErrorDetails';
 
-export interface ErrorResult {
+export interface IErrorResult {
   success: false;
   errorType: ScraperErrorTypes;
   errorMessage: string;
-  errorDetails?: WafErrorDetails;
+  errorDetails?: IWafErrorDetails;
 }

@@ -2,7 +2,7 @@ import {
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
-  type ErrorResult,
+  type IErrorResult,
   ScraperErrorTypes,
   WafBlockError,
 } from '../../Scrapers/Base/Errors';
@@ -22,7 +22,7 @@ describe('ScraperErrorTypes', () => {
 
 describe('createTimeoutError', () => {
   it('returns error result with Timeout type', () => {
-    const result: ErrorResult = createTimeoutError('operation timed out');
+    const result: IErrorResult = createTimeoutError('operation timed out');
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
     expect(result.errorMessage).toBe('operation timed out');
@@ -31,7 +31,7 @@ describe('createTimeoutError', () => {
 
 describe('createGenericError', () => {
   it('returns error result with Generic type', () => {
-    const result: ErrorResult = createGenericError('something went wrong');
+    const result: IErrorResult = createGenericError('something went wrong');
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Generic);
     expect(result.errorMessage).toBe('something went wrong');

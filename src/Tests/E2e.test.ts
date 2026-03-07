@@ -1,6 +1,6 @@
 import { CompanyTypes, createScraper, SCRAPERS } from '../Index';
 
-describe('E2E: Scraper Factory', () => {
+describe('E2E: IScraper Factory', () => {
   const allCompanyTypes = Object.values(CompanyTypes);
 
   test.each(allCompanyTypes)('createScraper(%s) returns a valid scraper instance', companyId => {
@@ -22,7 +22,7 @@ describe('E2E: Scraper Factory', () => {
   });
 });
 
-describe('E2E: Scraper error handling', () => {
+describe('E2E: IScraper error handling', () => {
   test('scraper throws on invalid executable path', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,

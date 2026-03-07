@@ -1,10 +1,10 @@
 import type { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes';
-import type { WafErrorDetails } from '../Error/WafErrorDetails';
+import type { IWafErrorDetails } from '../Error/WafErrorDetails';
 
-export interface ScraperLoginResult {
+export interface IScraperLoginResult {
   success: boolean;
   errorType?: ScraperErrorTypes;
   errorMessage?: string; // only on success=false
-  errorDetails?: WafErrorDetails; // only on errorType=WAF_BLOCKED
+  errorDetails?: IWafErrorDetails; // only on errorType=WAF_BLOCKED
   persistentOtpToken?: string;
 }

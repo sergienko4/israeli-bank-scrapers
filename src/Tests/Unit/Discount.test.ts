@@ -3,6 +3,7 @@ import { launchWithEngine } from '../../Common/BrowserEngine';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { fetchGetWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import DiscountScraper from '../../Scrapers/Discount/DiscountScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
@@ -67,19 +68,24 @@ const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
  * Sets up the fetchGetWithinPage mock to return account data for Discount tests.
  *
  * @param accounts - the accounts to include in the mock response
+ * @returns a resolved IDoneResult after mocks are configured
  */
 function mockAccountsData(
   accounts: { AccountID: string }[] = [{ AccountID: '12-345-67890' }],
-): void {
+): IDoneResult {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    UserAccountsData: {
-      DefaultAccountNumber: accounts[0].AccountID,
-      UserAccounts: accounts.map(a => ({ NewAccountInfo: a })),
+    isFound: true,
+    value: {
+      UserAccountsData: {
+        DefaultAccountNumber: accounts[0].AccountID,
+        UserAccounts: accounts.map(a => ({ NewAccountInfo: a })),
+      },
     },
   });
+  return { done: true };
 }
 
-interface DiscountTxn {
+interface IDiscountTransaction {
   OperationNumber: number;
   OperationDate: string;
   ValueDate: string;
@@ -93,28 +99,33 @@ interface DiscountTxn {
  * @param txns - completed transactions to include in the response
  * @param futureTxns - pending/future transactions to include
  * @param balance - the account balance to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
 function mockTransactions(
-  txns: DiscountTxn[] = [],
-  futureTxns: DiscountTxn[] = [],
+  txns: IDiscountTransaction[] = [],
+  futureTxns: IDiscountTransaction[] = [],
   balance = 5000,
-): void {
+): IDoneResult {
   (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    CurrentAccountLastTransactions: {
-      OperationEntry: txns,
-      CurrentAccountInfo: { AccountBalance: balance },
-      FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
+    isFound: true,
+    value: {
+      CurrentAccountLastTransactions: {
+        OperationEntry: txns,
+        ICurrentAccountInfo: { AccountBalance: balance },
+        FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
+      },
     },
   });
+  return { done: true };
 }
 
 /**
- * Creates a mock DiscountTxn for unit tests.
+ * Creates a mock IDiscountTransaction for unit tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a DiscountTxn object for testing
+ * @returns a IDiscountTransaction object for testing
  */
-function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
+function txn(overrides: Partial<IDiscountTransaction> = {}): IDiscountTransaction {
   return {
     OperationNumber: 1001,
     OperationDate: '20240615',
@@ -201,7 +212,7 @@ describe('fetchData', () => {
   });
 
   it('returns error when accountInfo is null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: false });
 
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -214,7 +225,8 @@ describe('fetchData', () => {
   it('returns error when transaction response has Error field', async () => {
     mockAccountsData();
     (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-      Error: { MsgText: 'שגיאה בשרת' },
+      isFound: true,
+      value: { Error: { MsgText: 'שגיאה בשרת' } },
     });
 
     const scraper = new DiscountScraper(createMockScraperOptions());
@@ -226,7 +238,7 @@ describe('fetchData', () => {
 
   it('returns success with 0 transactions when CurrentAccountLastTransactions is absent', async () => {
     mockAccountsData();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({});
+    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: {} });
 
     const scraper = new DiscountScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -256,10 +268,13 @@ describe('fetchData', () => {
   it('returns empty when transactions array is null', async () => {
     mockAccountsData();
     (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-      CurrentAccountLastTransactions: {
-        OperationEntry: null,
-        CurrentAccountInfo: { AccountBalance: 0 },
-        FutureTransactionsBlock: { FutureTransactionEntry: null },
+      isFound: true,
+      value: {
+        CurrentAccountLastTransactions: {
+          OperationEntry: null,
+          ICurrentAccountInfo: { AccountBalance: 0 },
+          FutureTransactionsBlock: { FutureTransactionEntry: null },
+        },
       },
     });
 

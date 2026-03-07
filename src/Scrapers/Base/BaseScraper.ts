@@ -3,26 +3,27 @@ import moment from 'moment-timezone';
 
 import { TimeoutError } from '../../Common/Waiting';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import {
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
-  type ErrorResult,
+  type IErrorResult,
   WafBlockError,
 } from './Errors';
 import {
-  type Scraper,
+  type IScraper,
+  type IScraperDiagnostics,
+  type IScraperLoginResult,
+  type IScraperScrapingResult,
   type ScraperCredentials,
-  type ScraperDiagnostics,
   type ScraperGetLongTermTwoFactorTokenResult,
-  type ScraperLoginResult,
   type ScraperOptions,
-  type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from './Interface';
 import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
-interface DiagnosticsState {
+interface IDiagnosticsState {
   loginUrl: string;
   finalUrl?: string;
   loginStartMs: number;
@@ -40,19 +41,19 @@ const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
  * @param e - the caught exception (Error, string, or other)
  * @returns a string error message
  */
-function extractErrorMessage(e: unknown): string {
+function extractErrorMessage(e: Error | string): string {
   if (e instanceof Error) return e.message;
   if (typeof e === 'string') return e;
   return String(e);
 }
 
 /**
- * Maps a caught exception to the appropriate ErrorResult type.
+ * Maps a caught exception to the appropriate IErrorResult type.
  *
  * @param e - the caught exception
- * @returns a typed ErrorResult with an appropriate errorType
+ * @returns a typed IErrorResult with an appropriate errorType
  */
-function categorizeError(e: unknown): ErrorResult {
+function categorizeError(e: Error | string): IErrorResult {
   if (e instanceof TimeoutError) return createTimeoutError(e.message);
   if (e instanceof WafBlockError) return createWafBlockedError(e.message, e.details);
   const errorMessage = extractErrorMessage(e);
@@ -63,8 +64,10 @@ function categorizeError(e: unknown): ErrorResult {
  * Abstract base class for all bank scrapers.
  * Implements the core scrape lifecycle: initialize → login → fetchData → terminate.
  */
-export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {
-  protected readonly diagState: DiagnosticsState = {
+export class BaseScraper<
+  TCredentials extends ScraperCredentials,
+> implements IScraper<TCredentials> {
+  protected readonly diagState: IDiagnosticsState = {
     loginUrl: '',
     loginStartMs: 0,
     lastAction: 'start',
@@ -85,10 +88,10 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    *
    * @returns a promise that resolves when initialization is complete
    */
-  public initialize(): Promise<void> {
+  public initialize(): Promise<IDoneResult> {
     this.emitProgress(ScraperProgressTypes.Initializing);
     moment.tz.setDefault('Asia/Jerusalem');
-    return Promise.resolve();
+    return Promise.resolve({ done: true });
   }
 
   /**
@@ -97,7 +100,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @param credentials - bank login credentials
    * @returns the scraping result with transactions or an error description
    */
-  public async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
+  public async scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
     this.emitProgress(ScraperProgressTypes.StartScraping);
     await this.initialize();
     const loginResult = await this.executeLogin(credentials);
@@ -138,11 +141,13 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * Registers a progress callback invoked on each lifecycle stage.
    *
    * @param func - callback receiving the companyId and progress type payload
+   * @returns a done result
    */
   public onProgress(
-    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
-  ): void {
+    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => IDoneResult,
+  ): IDoneResult {
     this._eventEmitter.on(SCRAPE_PROGRESS, func);
+    return { done: true };
   }
 
   /**
@@ -151,7 +156,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @param credentials - bank login credentials
    * @returns a promise resolving with the login result
    */
-  protected login(credentials: TCredentials): Promise<ScraperLoginResult> {
+  protected login(credentials: TCredentials): Promise<IScraperLoginResult> {
     void credentials;
     throw new ScraperWebsiteChangedError(this.options.companyId, 'login() not implemented');
   }
@@ -161,7 +166,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    *
    * @returns a promise resolving with the scraping result containing accounts and transactions
    */
-  protected fetchData(): Promise<ScraperScrapingResult> {
+  protected fetchData(): Promise<IScraperScrapingResult> {
     throw new ScraperWebsiteChangedError(this.options.companyId, 'fetchData() not implemented');
   }
 
@@ -171,10 +176,10 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @param success - whether the scraping was successful
    * @returns a promise that resolves when cleanup is complete
    */
-  protected terminate(success: boolean): Promise<void> {
+  protected terminate(success: boolean): Promise<IDoneResult> {
     void success;
     this.emitProgress(ScraperProgressTypes.Terminating);
-    return Promise.resolve();
+    return Promise.resolve({ done: true });
   }
 
   /**
@@ -192,7 +197,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @param eventName - the event name to emit
    * @param payload - data attached to the event
    */
-  protected emit(eventName: string, payload: Record<string, unknown>): void {
+  protected emit(eventName: string, payload: Record<string, ScraperProgressTypes>): void {
     this._eventEmitter.emit(eventName, this.options.companyId, payload);
   }
 
@@ -201,7 +206,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    *
    * @returns a diagnostics object with timing and URL info
    */
-  protected buildDiagnostics(): ScraperDiagnostics {
+  protected buildDiagnostics(): IScraperDiagnostics {
     const { loginUrl, finalUrl, loginStartMs, fetchStartMs, lastAction, pageTitle, warnings } =
       this.diagState;
     return {
@@ -221,13 +226,13 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @param credentials - bank login credentials
    * @returns the login result or an error result if login threw
    */
-  private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
+  private async executeLogin(credentials: TCredentials): Promise<IScraperScrapingResult> {
     this.diagState.loginStartMs = Date.now();
     this.diagState.lastAction = 'logging in';
     try {
       return await this.login(credentials);
     } catch (e) {
-      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
+      return { ...categorizeError(e as Error), diagnostics: this.buildDiagnostics() };
     }
   }
 
@@ -238,8 +243,8 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @returns the scraping result from fetchData, or the original login error
    */
   private async executeFetchData(
-    loginResult: ScraperScrapingResult,
-  ): Promise<ScraperScrapingResult> {
+    loginResult: IScraperScrapingResult,
+  ): Promise<IScraperScrapingResult> {
     if (!loginResult.success) return loginResult;
     this.diagState.fetchStartMs = Date.now();
     this.diagState.lastAction = 'fetching data';
@@ -254,7 +259,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       }
       return scrapeResult;
     } catch (e) {
-      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
+      return { ...categorizeError(e as Error), diagnostics: this.buildDiagnostics() };
     }
   }
 
@@ -265,8 +270,8 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
    * @returns the original scrape result, or an error result if termination failed
    */
   private async handleTermination(
-    scrapeResult: ScraperScrapingResult,
-  ): Promise<ScraperScrapingResult> {
+    scrapeResult: IScraperScrapingResult,
+  ): Promise<IScraperScrapingResult> {
     try {
       await this.terminate(scrapeResult.success);
     } catch (e) {

@@ -1,6 +1,6 @@
-import type { Portfolio } from './Portfolio';
+import type { IPortfolio } from './Portfolio';
 
-export interface Customer {
+export interface ICustomer {
   customerId: string;
-  portfolios?: Portfolio[] | null;
+  portfolios?: IPortfolio[] | null;
 }

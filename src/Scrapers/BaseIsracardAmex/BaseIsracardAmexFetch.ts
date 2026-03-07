@@ -5,10 +5,11 @@ import { type Page } from 'playwright';
 import { getDebug } from '../../Common/Debug';
 import { fetchGetWithinPage } from '../../Common/Fetch';
 import { sleep } from '../../Common/Waiting';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
 import {
-  type ScrapedAccount,
-  type ScrapedAccountsWithinPageResponse,
-  type ScrapedTransactionData,
+  type IScrapedAccount,
+  type IScrapedAccountsWithinPageResponse,
+  type IScrapedTransactionData,
 } from './BaseIsracardAmexTypes';
 
 const DATE_FORMAT = 'DD/MM/YYYY';
@@ -44,20 +45,28 @@ export async function fetchAccounts(
   page: Page,
   servicesUrl: string,
   monthMoment: Moment,
-): Promise<ScrapedAccount[]> {
+): Promise<IScrapedAccount[]> {
   const dataUrl = getAccountsUrl(servicesUrl, monthMoment);
   LOG.info(`fetching accounts from ${dataUrl}`);
-  const dataResult = await fetchGetWithinPage<ScrapedAccountsWithinPageResponse>(page, dataUrl);
-  if (dataResult && _.get(dataResult, 'Header.Status') === '1' && dataResult.DashboardMonthBean) {
-    const { cardsCharges } = dataResult.DashboardMonthBean;
-    if (!cardsCharges) return [];
-    return cardsCharges.map(cardCharge => ({
-      index: parseInt(cardCharge.cardIndex, 10),
-      accountNumber: cardCharge.cardNumber,
-      processedDate: moment(cardCharge.billingDate, DATE_FORMAT).toISOString(),
-    }));
-  }
-  return [];
+  const dataResult = await fetchGetWithinPage<IScrapedAccountsWithinPageResponse>(page, dataUrl);
+  return dataResult.isFound ? parseAccountsFromResponse(dataResult.value) : [];
+}
+
+/**
+ * Parses the raw API response into an array of scraped account objects.
+ *
+ * @param parsed - the raw API response from the DashboardMonth endpoint
+ * @returns an array of scraped account objects, or an empty array when data is missing
+ */
+function parseAccountsFromResponse(parsed: IScrapedAccountsWithinPageResponse): IScrapedAccount[] {
+  if (_.get(parsed, 'Header.Status') !== '1' || !parsed.DashboardMonthBean) return [];
+  const { cardsCharges } = parsed.DashboardMonthBean;
+  if (!cardsCharges) return [];
+  return cardsCharges.map(cardCharge => ({
+    index: parseInt(cardCharge.cardIndex, 10),
+    accountNumber: cardCharge.cardNumber,
+    processedDate: moment(cardCharge.billingDate, DATE_FORMAT).toISOString(),
+  }));
 }
 
 /**
@@ -86,15 +95,15 @@ function getTransactionsUrl(servicesUrl: string, monthMoment: Moment): string {
  * @param page - the Playwright page used to make the API request
  * @param servicesUrl - the base services URL for the bank's API
  * @param monthMoment - the billing month to fetch transactions for
- * @returns the raw transaction data, or null if the request failed
+ * @returns FoundResult wrapping the raw transaction data, or isFound=false if the request failed
  */
 export async function fetchTxnData(
   page: Page,
   servicesUrl: string,
   monthMoment: Moment,
-): Promise<ScrapedTransactionData | null> {
+): Promise<FoundResult<IScrapedTransactionData>> {
   const dataUrl = getTransactionsUrl(servicesUrl, monthMoment);
   await sleep(RATE_LIMIT_SLEEP_BETWEEN);
   LOG.info(`fetching transactions from ${dataUrl} for month ${monthMoment.format('YYYY-MM')}`);
-  return fetchGetWithinPage<ScrapedTransactionData>(page, dataUrl);
+  return fetchGetWithinPage<IScrapedTransactionData>(page, dataUrl);
 }

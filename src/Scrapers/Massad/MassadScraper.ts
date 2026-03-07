@@ -4,7 +4,7 @@ import BeinleumiGroupBaseScraper from '../BaseBeinleumiGroup/BaseBeinleumiGroup'
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-/** Scraper implementation for Bank Massad (Beinleumi group). */
+/** IScraper implementation for Bank Massad (Beinleumi group). */
 class MassadScraper extends BeinleumiGroupBaseScraper {
   /**
    * Creates a MassadScraper with the bank-specific login URL.

@@ -5,8 +5,9 @@ import { type Page } from 'playwright';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { waitForNavigation } from '../../Common/Navigation';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
@@ -21,7 +22,7 @@ const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
 const ERR = selectorErrorFor('id', 'password', 'num');
 
-const BASE_CFG: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://start.telebank.co.il/login/#/LOGIN_PAGE',
   fields: [
     {
@@ -55,22 +56,26 @@ const BASE_CFG: LoginConfig = {
      * Waits for the Discount login form ID field to appear before filling inputs.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the element is found
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       await waitUntilElementFound(page, '#tzId');
+      return { done: true };
     },
   postAction:
     /**
      * Waits for navigation after login or falls back to checking for a general error element.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after navigation completes
      */
-    async page => {
+    async (page): Promise<IDoneResult> => {
       try {
         await waitForNavigation(page);
       } catch {
         await page.waitForSelector('#general-error');
       }
+      return { done: true };
     },
   possibleResults: {
     success: [
@@ -108,30 +113,34 @@ DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
   });
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
-    const iframeCfg: LoginConfig = {
+    const iframeCfg: ILoginConfig = {
       ...BASE_CFG,
       checkReadiness:
         /**
          * Waits for the form then injects it into a srcdoc iframe to simulate iframe detection.
          *
          * @param page - the Playwright page to interact with
+         * @returns a resolved IDoneResult after injection completes
          */
-        async (page: Page) => {
+        async (page: Page): Promise<IDoneResult> => {
           await waitUntilElementFound(page, '#tzId');
           await injectFormByInput(page, '#tzId');
+          return { done: true };
         },
       postAction:
         /**
          * Waits for navigation after iframe form submission, ignoring React handler errors.
          *
          * @param page - the Playwright page to wait on
+         * @returns a resolved IDoneResult after navigation completes
          */
-        async (page: Page) => {
+        async (page: Page): Promise<IDoneResult> => {
           try {
             await waitForNavigation(page, { timeout: 15000 });
           } catch {
             /* form lacks React handlers */
           }
+          return { done: true };
         },
     };
     const result = await new ConcreteGenericScraper(

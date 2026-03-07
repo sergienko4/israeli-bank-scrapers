@@ -5,6 +5,7 @@ import { launchWithEngine } from '../../Common/BrowserEngine';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl } from '../../Common/Navigation';
 import { waitUntil } from '../../Common/Waiting';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import HapoalimScraper from '../../Scrapers/Hapoalim/HapoalimScraper';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions';
@@ -63,7 +64,9 @@ jest.mock('../../Common/Debug', () => ({
   }),
 }));
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
-jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+jest.mock('../../Common/OtpHandler', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue({ isFound: false }),
+}));
 
 const MOCK_CONTEXT = {
   newPage: jest.fn(),
@@ -76,7 +79,7 @@ const MOCK_BROWSER = {
 
 const CREDS = { userCode: 'user123', password: 'pass456' };
 
-interface HapoalimScrapedTxn {
+interface IHapoalimScrapedTransaction {
   serialNumber: number;
   activityDescription?: string;
   eventAmount: number;
@@ -108,6 +111,7 @@ function createHapoalimPage(): ReturnType<typeof createMockPage> {
  * Sets up fetchGetWithinPage to return account list data for Hapoalim tests.
  *
  * @param accounts - the list of accounts to return in the mock response
+ * @returns a resolved IDoneResult after mocks are configured
  */
 function mockAccounts(
   accounts: {
@@ -116,35 +120,48 @@ function mockAccounts(
     accountNumber: string;
     accountClosingReasonCode: number;
   }[] = [],
-): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
+): IDoneResult {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: accounts });
+  return { done: true };
 }
 
 /**
  * Sets up fetchGetWithinPage to return a balance for Hapoalim tests.
  *
  * @param balance - the current balance to return in the mock response
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockBalance(balance = 10000): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ currentBalance: balance });
+function mockBalance(balance = 10000): IDoneResult {
+  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    isFound: true,
+    value: { currentBalance: balance },
+  });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPostWithinPage to return transaction data for Hapoalim tests.
  *
  * @param txns - the transactions to include in the mock response
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
-  (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ transactions: txns });
+function mockTransactions(txns: IHapoalimScrapedTransaction[] = []): IDoneResult {
+  (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    isFound: true,
+    value: { transactions: txns },
+  });
+  return { done: true };
 }
 
 /**
- * Creates a mock HapoalimScrapedTxn with randomized defaults.
+ * Creates a mock IHapoalimScrapedTransaction with randomized defaults.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a HapoalimScrapedTxn for testing
+ * @returns a IHapoalimScrapedTransaction for testing
  */
-function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
+function scrapedTxn(
+  overrides: Partial<IHapoalimScrapedTransaction> = {},
+): IHapoalimScrapedTransaction {
   return {
     serialNumber: faker.number.int({ min: 1, max: 9999 }),
     activityDescription: faker.helpers.arrayElement([...HEBREW_TRANSACTION_TYPES]),

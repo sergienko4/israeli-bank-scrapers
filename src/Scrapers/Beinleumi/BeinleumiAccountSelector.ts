@@ -3,6 +3,8 @@ import { type Frame, type Page } from 'playwright';
 import { getDebug } from '../../Common/Debug';
 import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { sleep } from '../../Common/Waiting';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 
 const LOG = getDebug('beinleumi-account-selector');
 
@@ -35,9 +37,10 @@ async function isDropdownOpen(page: Page): Promise<boolean> {
  * Opens the account selector dropdown if it is not already open.
  *
  * @param page - the Playwright page containing the account selector
+ * @returns a done result when the dropdown is open
  */
-async function ensureDropdownOpen(page: Page): Promise<void> {
-  if (await isDropdownOpen(page)) return;
+async function ensureDropdownOpen(page: Page): Promise<IDoneResult> {
+  if (await isDropdownOpen(page)) return { done: true };
   await waitUntilElementFound(page, ACCOUNT_SELECTOR, {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
@@ -47,6 +50,7 @@ async function ensureDropdownOpen(page: Page): Promise<void> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
+  return { done: true };
 }
 
 /**
@@ -140,44 +144,44 @@ export async function selectAccountFromDropdown(
  *
  * @param page - the Playwright page to search for the iframe
  * @param attempt - the current attempt index (0-based) for logging
- * @returns the iframe Frame if found, or null
+ * @returns FoundResult wrapping the iframe Frame, or isFound=false when not located
  */
-async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | null> {
+async function tryGetFrameAttempt(page: Page, attempt: number): Promise<FoundResult<Frame>> {
   await sleep(TRANSACTIONS_FRAME_WAIT_MS);
   const iframeEl = await page.$(`#${IFRAME_NAME}`).catch(() => null);
   if (iframeEl) {
     try {
       const frame = await iframeEl.contentFrame();
-      if (frame) return frame;
+      if (frame) return { isFound: true, value: frame };
     } catch (e: unknown) {
       LOG.info(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
     }
   }
   const byName = page.frames().find(f => f.name() === IFRAME_NAME);
-  if (byName) return byName;
+  if (byName) return { isFound: true, value: byName };
   LOG.info(
     'attempt %d/%d: transactions frame not found, retrying...',
     attempt + 1,
     TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
   );
-  return null;
+  return { isFound: false };
 }
 
 /**
  * Retries finding the transactions iframe up to TRANSACTIONS_FRAME_LOAD_ATTEMPTS times.
  *
  * @param page - the Playwright page containing the iframe
- * @returns the transactions iframe Frame, or null if not found after all attempts
+ * @returns FoundResult wrapping the transactions iframe Frame, or isFound=false after all attempts
  */
-export async function getTransactionsFrame(page: Page): Promise<Frame | null> {
+export async function getTransactionsFrame(page: Page): Promise<FoundResult<Frame>> {
   const attempts = Array.from({ length: TRANSACTIONS_FRAME_LOAD_ATTEMPTS }, (_, i) => i);
-  const initialFrame = Promise.resolve<Frame | null>(null);
+  const initial = Promise.resolve<FoundResult<Frame>>({ isFound: false });
   const result = await attempts.reduce(async (prevPromise, attempt) => {
     const found = await prevPromise;
-    if (found) return found;
+    if (found.isFound) return found;
     return tryGetFrameAttempt(page, attempt);
-  }, initialFrame);
-  if (!result)
+  }, initial);
+  if (!result.isFound)
     LOG.info(
       'getTransactionsFrame: failed to find frame after %d attempts',
       TRANSACTIONS_FRAME_LOAD_ATTEMPTS,

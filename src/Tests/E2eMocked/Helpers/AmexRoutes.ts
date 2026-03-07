@@ -1,6 +1,6 @@
 import { loadFixture } from './RequestInterceptor';
 
-interface AmexRouteOverrides {
+interface IAmexRouteOverrides {
   validate?: string;
   login?: string;
   accounts?: string;
@@ -11,10 +11,10 @@ interface AmexRouteOverrides {
  * Builds the default Amex mock route array with optional per-endpoint overrides.
  *
  * @param overrides - optional body overrides for validate, login, accounts, or transactions
- * @returns array of MockRoute objects for use with setupRequestInterception
+ * @returns array of IMockRoute objects for use with setupRequestInterception
  */
 export default function amexRoutes(
-  overrides: AmexRouteOverrides = {},
+  overrides: IAmexRouteOverrides = {},
 ): { match: string; method?: 'POST'; contentType: string; body: string }[] {
   return [
     {

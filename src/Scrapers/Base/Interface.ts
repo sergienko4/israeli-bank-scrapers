@@ -1,19 +1,20 @@
 import { type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions';
-import type { DefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
-import type { OutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
-import type { ScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
-import { type ErrorResult } from './Errors';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import type { IDefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
+import type { IOutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
+import type { IScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
+import { type IErrorResult } from './Errors';
 
-export type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
-export type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
-export type { DefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
-export type { OutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
-export type { ScraperDiagnostics } from '../../Interfaces/Scraper/ScraperDiagnostics';
-export type { ScraperLoginResult } from '../../Interfaces/Scraper/ScraperLoginResult';
-export type { ScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
-export type { FutureDebit } from '../../Interfaces/Transaction/FutureDebit';
+export type { IErrorResult } from '../../Interfaces/Error/ErrorResult';
+export type { IWafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
+export type { IDefaultBrowserOptions } from '../../Interfaces/Scraper/DefaultBrowserOptions';
+export type { IOutputDataOptions } from '../../Interfaces/Scraper/OutputDataOptions';
+export type { IScraperDiagnostics } from '../../Interfaces/Scraper/ScraperDiagnostics';
+export type { IScraperLoginResult } from '../../Interfaces/Scraper/ScraperLoginResult';
+export type { IScraperScrapingResult } from '../../Interfaces/Scraper/ScraperScrapingResult';
+export type { IFutureDebit } from '../../Interfaces/Transaction/FutureDebit';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
@@ -41,7 +42,7 @@ export type OptInFeatures =
   | 'mizrahi:pendingIfHasGenericDescription'
   | 'mizrahi:isPendingIfTodayTransaction';
 
-export interface ExternalBrowserOptions {
+export interface IExternalBrowserOptions {
   /**
    * An externally created browser instance.
    * you can get a browser directly from playwright via `chromium.launch()`
@@ -57,9 +58,9 @@ export interface ExternalBrowserOptions {
 }
 
 export type ScraperOptions = (
-  | ExternalBrowserOptions
+  | IExternalBrowserOptions
   | { browserContext: BrowserContext }
-  | DefaultBrowserOptions
+  | IDefaultBrowserOptions
 ) & {
   /**
    * The company you want to scrape
@@ -91,7 +92,7 @@ export type ScraperOptions = (
    *
    * @param page
    */
-  preparePage?: (page: Page) => Promise<void>;
+  preparePage?: (page: Page) => Promise<IDoneResult>;
 
   /**
    * if set, store a screenshot if failed to scrape. Used for debug purposes
@@ -106,7 +107,7 @@ export type ScraperOptions = (
   /**
    * Options for manipulation of output data
    */
-  outputData?: OutputDataOptions;
+  outputData?: IOutputDataOptions;
 
   /**
    * Perform additional operation for each transaction to get more information (Like category) about it.
@@ -147,23 +148,23 @@ export type ScraperOptions = (
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 };
 
-export interface Scraper<TCredentials extends ScraperCredentials> {
-  scrape(credentials: TCredentials): Promise<ScraperScrapingResult>;
+export interface IScraper<TCredentials extends ScraperCredentials> {
+  scrape(credentials: TCredentials): Promise<IScraperScrapingResult>;
   onProgress(
-    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
-  ): void;
+    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => IDoneResult,
+  ): IDoneResult;
   triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult>;
   getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult>;
 }
 
 export type ScraperTwoFactorAuthTriggerResult =
-  | ErrorResult
+  | IErrorResult
   | {
       success: true;
     };
 
 export type ScraperGetLongTermTwoFactorTokenResult =
-  | ErrorResult
+  | IErrorResult
   | {
       success: true;
       longTermTwoFactorAuthToken: string;

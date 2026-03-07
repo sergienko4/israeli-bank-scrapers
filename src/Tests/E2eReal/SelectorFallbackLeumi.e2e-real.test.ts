@@ -10,14 +10,15 @@ import { type Page } from 'playwright';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const LEUMI_WELL_KNOWN_CFG: LoginConfig = {
+const LEUMI_WELL_KNOWN_CFG: ILoginConfig = {
   loginUrl: 'https://www.leumi.co.il/he',
   fields: [
     // NO fallback — relies entirely on WELL_KNOWN_SELECTORS.username + .password
@@ -37,21 +38,25 @@ const LEUMI_WELL_KNOWN_CFG: LoginConfig = {
      * Navigates from the Leumi home page to the login form and waits for the username input.
      *
      * @param page - the Playwright page to navigate on
+     * @returns a resolved IDoneResult after the username input is visible
      */
-    async (page: Page) => {
+    async (page: Page): Promise<IDoneResult> => {
       await waitUntilElementFound(page, '.enter_account');
       const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
       await page.goto(href, { waitUntil: 'networkidle' });
       await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
+      return { done: true };
     },
   postAction:
     /**
      * Waits briefly after login submission to allow navigation to settle.
      *
      * @param page - the Playwright page to wait on
+     * @returns a resolved IDoneResult after the timeout elapses
      */
-    async (page: Page) => {
+    async (page: Page): Promise<IDoneResult> => {
       await page.waitForTimeout(3000);
+      return { done: true };
     },
   possibleResults: {
     success: [/eBanking\/SO\/SPA\.aspx/i],

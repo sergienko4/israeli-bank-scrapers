@@ -1,4 +1,5 @@
 import { fetchGraphql, fetchPost } from '../../Common/Fetch';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import OneZeroScraper from '../../Scrapers/OneZero/OneZeroScraper';
 import { TransactionStatuses } from '../../Transactions';
@@ -25,7 +26,7 @@ jest.mock('../../Common/Debug', () => ({
   }),
 }));
 
-interface OneZeroMovement {
+interface IOneZeroMovement {
   movementId: string;
   valueDate: string;
   movementTimestamp: string;
@@ -49,12 +50,12 @@ function recentDate(): string {
 }
 
 /**
- * Creates a mock OneZeroMovement for extra OneZero unit tests.
+ * Creates a mock IOneZeroMovement for extra OneZero unit tests.
  *
  * @param overrides - optional field overrides for the mock movement
- * @returns a OneZeroMovement object for testing
+ * @returns a IOneZeroMovement object for testing
  */
-function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
+function movement(overrides: Partial<IOneZeroMovement> = {}): IOneZeroMovement {
   const ts = recentDate();
   return {
     movementId: 'mov-001',
@@ -74,32 +75,40 @@ function movement(overrides: Partial<OneZeroMovement> = {}): OneZeroMovement {
  * Sets up fetchPost to return a mock ID token response.
  *
  * @param idToken - the ID token string to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockIdToken(idToken = 'id-token-789'): void {
+function mockIdToken(idToken = 'id-token-789'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { idToken } });
+  return { done: true };
 }
 
 /**
  * Sets up fetchPost to return a mock session token response.
  *
  * @param accessToken - the session access token to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockSessionToken(accessToken = 'access-token-abc'): void {
+function mockSessionToken(accessToken = 'access-token-abc'): IDoneResult {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { accessToken } });
+  return { done: true };
 }
 
 /**
  * Sets up ID token and session token mocks for long-term login tests.
+ *
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function setupLongTermLogin(): void {
+function setupLongTermLogin(): IDoneResult {
   mockIdToken();
   mockSessionToken();
+  return { done: true };
 }
 
 /**
  * Sets up fetchGraphql to return a mock OneZero customer response.
  *
  * @param portfolios - the portfolios to include in the mock customer response
+ * @returns a resolved IDoneResult after mocks are configured
  */
 function mockCustomer(
   portfolios: {
@@ -107,10 +116,11 @@ function mockCustomer(
     portfolioNum: string;
     accounts: { accountId: string }[];
   }[] = [],
-): void {
+): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     customer: [{ customerId: 'cust-1', portfolios }],
   });
+  return { done: true };
 }
 
 /**
@@ -118,22 +128,25 @@ function mockCustomer(
  *
  * @param movements - the movements to include in the mock response
  * @param hasMore - whether there are more pages to fetch
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockMovements(movements: OneZeroMovement[] = [], hasMore = false): void {
+function mockMovements(movements: IOneZeroMovement[] = [], hasMore = false): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     movements: {
       movements,
       pagination: { hasMore, cursor: 'next' },
     },
   });
+  return { done: true };
 }
 
 /**
  * Sets up fetchGraphql to return a mock OneZero account balance response.
  *
  * @param currentAccountBalance - the balance amount to return
+ * @returns a resolved IDoneResult after mocks are configured
  */
-function mockAccountBalance(currentAccountBalance = 5000): void {
+function mockAccountBalance(currentAccountBalance = 5000): IDoneResult {
   (fetchGraphql as jest.Mock).mockResolvedValueOnce({
     balance: {
       currentAccountBalance,
@@ -142,6 +155,7 @@ function mockAccountBalance(currentAccountBalance = 5000): void {
       limitAmountStr: '0',
     },
   });
+  return { done: true };
 }
 
 const LONG_TERM_CREDS = {

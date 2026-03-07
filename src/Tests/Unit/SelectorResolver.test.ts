@@ -8,7 +8,7 @@ import {
   toFirstCss,
   tryInContext,
 } from '../../Common/SelectorResolver';
-import { type FieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
+import { type IFieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
 
 jest.mock('../../Common/Debug', () => ({
   /**
@@ -106,14 +106,14 @@ describe('tryInContext', () => {
     expect(result).toBe('#userCode');
   });
 
-  it('returns null when no candidate resolves', async () => {
+  it('returns empty string when no candidate resolves', async () => {
     const ctx = makeFrame({ $: jest.fn().mockResolvedValue(null) });
     const candidates: SelectorCandidate[] = [
       { kind: 'css', value: '#missing' },
       { kind: 'name', value: 'also-missing' },
     ];
     const result = await tryInContext(ctx, candidates);
-    expect(result).toBeNull();
+    expect(result).toBe('');
   });
 
   it('skips a candidate that throws (cross-origin frame) and continues', async () => {
@@ -135,7 +135,7 @@ describe('tryInContext', () => {
 // ── resolveFieldContext ───────────────────────────────────────────────────────
 
 describe('resolveFieldContext', () => {
-  const field: FieldConfig = {
+  const field: IFieldConfig = {
     credentialKey: 'username',
     selectors: [{ kind: 'css', value: '#userCode' }],
   };
@@ -168,7 +168,7 @@ describe('resolveFieldContext', () => {
   it('empty bank selectors resolved via wellKnown — resolvedVia:wellKnown', async () => {
     const element = {};
     const page = makePage({ $: jest.fn().mockResolvedValue(element) });
-    const emptyField: FieldConfig = { credentialKey: 'username', selectors: [] };
+    const emptyField: IFieldConfig = { credentialKey: 'username', selectors: [] };
     const result = await resolveFieldContext(page, emptyField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('input[placeholder*="שם משתמש"]');
@@ -248,7 +248,7 @@ describe('resolveFieldContext label candidate', () => {
     const page = makePage({
       evaluate: jest.fn().mockRejectedValue(new Error('page closed')),
     });
-    const field: FieldConfig = {
+    const field: IFieldConfig = {
       credentialKey: 'test',
       selectors: [{ kind: 'label', value: 'שם משתמש' }],
     };

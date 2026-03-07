@@ -1,11 +1,11 @@
-import type { CardApiStatus } from './CardApiStatus';
-import type { ScrapedPendingTransaction } from './ScrapedPendingTransaction';
+import type { ICardApiStatus } from './CardApiStatus';
+import type { IScrapedPendingTransaction } from './ScrapedPendingTransaction';
 
-export interface CardPendingTransactionDetails extends CardApiStatus {
+export interface ICardPendingTransactionDetails extends ICardApiStatus {
   result: {
     cardsList: {
       cardUniqueID: string;
-      authDetalisList: ScrapedPendingTransaction[];
+      authDetalisList: IScrapedPendingTransaction[];
     }[];
   };
   statusCode: 1;

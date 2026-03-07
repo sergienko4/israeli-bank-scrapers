@@ -1,6 +1,7 @@
 import { type Page } from 'playwright';
 
 import waitForPageStability from '../../Common/PageStability';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { createMockPage } from '../MockPage';
 
 jest.mock('../../Common/Debug', () => ({
@@ -17,7 +18,7 @@ jest.mock('../../Common/Debug', () => ({
   }),
 }));
 
-type DomCallback = () => boolean | null;
+type DomCallback = () => boolean;
 
 /**
  * Captures the callback passed to waitForFunction so it can be invoked in Node.js tests.
@@ -27,14 +28,14 @@ type DomCallback = () => boolean | null;
  */
 function captureCallback(page: ReturnType<typeof createMockPage>): { invoke: () => DomCallback } {
   /**
-   * Placeholder callback that returns null before waitForFunction captures the real one.
+   * Placeholder callback that returns false before waitForFunction captures the real one.
    *
-   * @returns null as a placeholder return value
+   * @returns false as a placeholder return value
    */
-  let captured: DomCallback = () => null;
+  let captured: DomCallback = () => false;
   (page.waitForFunction as jest.Mock).mockImplementation((fn: unknown) => {
     captured = fn as DomCallback;
-    return Promise.resolve(null);
+    return Promise.resolve(false);
   });
   return {
     /**
@@ -55,6 +56,7 @@ function captureCallback(page: ReturnType<typeof createMockPage>): { invoke: () 
  * @param opts.hasNgStarInserted - whether a .ng-star-inserted element is present
  * @param opts.hasForm - whether a form element is present
  * @param opts.formClasses - CSS classes to apply to the form element
+ * @returns a resolved IDoneResult after the mock document is installed
  */
 function setupDocument(opts: {
   readyState?: string;
@@ -62,7 +64,7 @@ function setupDocument(opts: {
   hasNgStarInserted?: boolean;
   hasForm?: boolean;
   formClasses?: string[];
-}): void {
+}): IDoneResult {
   const {
     readyState = 'complete',
     hasNgVersion = false,
@@ -82,7 +84,7 @@ function setupDocument(opts: {
           contains: (c: string): boolean => formClasses.includes(c),
         },
       }
-    : null;
+    : false;
   Object.defineProperty(global, 'document', {
     value: {
       readyState,
@@ -90,18 +92,19 @@ function setupDocument(opts: {
        * Returns mock DOM elements for Angular-related selectors.
        *
        * @param sel - the CSS selector to query
-       * @returns a mock element or null depending on the configured flags
+       * @returns a mock element or false depending on the configured flags
        */
-      querySelector: (sel: string): unknown => {
-        if (sel === '[ng-version]') return hasNgVersion ? {} : null;
-        if (sel === '.ng-star-inserted') return hasNgStarInserted ? {} : null;
+      querySelector: (sel: string): object | false => {
+        if (sel === '[ng-version]') return hasNgVersion ? {} : false;
+        if (sel === '.ng-star-inserted') return hasNgStarInserted ? {} : false;
         if (sel === 'form') return form;
-        return null;
+        return false;
       },
     },
     writable: true,
     configurable: true,
   });
+  return { done: true };
 }
 
 describe('waitForPageStability', () => {

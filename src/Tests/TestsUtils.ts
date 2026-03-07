@@ -4,22 +4,23 @@ import { createRequire } from 'module';
 import moment from 'moment';
 import path from 'path';
 
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
 import { ScraperWebsiteChangedError } from '../Scrapers/Base/ScraperWebsiteChangedError';
-import { type TransactionsAccount } from '../Transactions';
+import { type ITransactionsAccount } from '../Transactions';
 
-export interface TestsConfig {
+export interface ITestsConfig {
   companyAPI: {
     enabled: boolean;
     excelFilesDist?: string;
     invalidPassword?: boolean;
-    [key: string]: unknown;
+    [key: string]: string | boolean | undefined;
   };
-  credentials: Record<string, unknown>;
-  options?: Record<string, unknown>;
+  credentials: Record<string, string | Record<string, string>>;
+  options?: Record<string, string | number | boolean>;
   [key: string]: unknown;
 }
 
-let testsConfig: TestsConfig | undefined;
+let testsConfig: ITestsConfig | undefined;
 let isConfigurationLoaded = false;
 
 const MISSING_ERROR_MESSAGE =
@@ -28,9 +29,9 @@ const MISSING_ERROR_MESSAGE =
 /**
  * Returns the loaded tests configuration, reading it from environment or file on first call.
  *
- * @returns the TestsConfig object for the current test environment
+ * @returns the ITestsConfig object for the current test environment
  */
-export function getTestsConfig(): TestsConfig {
+export function getTestsConfig(): ITestsConfig {
   if (isConfigurationLoaded) {
     if (!testsConfig) {
       throw new ScraperWebsiteChangedError('TestContext', MISSING_ERROR_MESSAGE);
@@ -44,7 +45,7 @@ export function getTestsConfig(): TestsConfig {
   try {
     const environmentConfig = process.env.TESTS_CONFIG;
     if (environmentConfig) {
-      testsConfig = JSON.parse(environmentConfig) as TestsConfig;
+      testsConfig = JSON.parse(environmentConfig) as ITestsConfig;
       return testsConfig;
     }
   } catch (e) {
@@ -57,7 +58,7 @@ export function getTestsConfig(): TestsConfig {
   try {
     const configPath = path.join(__dirname, '.tests-config.js');
     const loadConfig = createRequire(__filename);
-    testsConfig = loadConfig(configPath) as TestsConfig;
+    testsConfig = loadConfig(configPath) as ITestsConfig;
     return testsConfig;
   } catch (e) {
     console.error(e);
@@ -74,7 +75,7 @@ export function getTestsConfig(): TestsConfig {
  */
 export function maybeTestCompanyAPI(
   scraperId: string,
-  filter?: (_config: TestsConfig) => boolean | undefined,
+  filter?: (config: ITestsConfig) => boolean,
 ): jest.It {
   if (!isConfigurationLoaded) {
     getTestsConfig();
@@ -91,9 +92,11 @@ export function maybeTestCompanyAPI(
  * Extends the Jest test timeout to allow for long async scraping operations.
  *
  * @param timeout - the timeout in milliseconds; defaults to 120000 (2 minutes)
+ * @returns a done result
  */
-export function extendAsyncTimeout(timeout = 120000): void {
+export function extendAsyncTimeout(timeout = 120000): IDoneResult {
   jest.setTimeout(timeout);
+  return { done: true };
 }
 
 /**
@@ -101,8 +104,12 @@ export function extendAsyncTimeout(timeout = 120000): void {
  *
  * @param fileName - the base file name (without extension) for the CSV output
  * @param accounts - the list of transaction accounts to serialize
+ * @returns a done result
  */
-export function exportTransactions(fileName: string, accounts: TransactionsAccount[]): void {
+export function exportTransactions(
+  fileName: string,
+  accounts: ITransactionsAccount[],
+): IDoneResult {
   const config = getTestsConfig();
 
   if (
@@ -110,7 +117,7 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
     !config.companyAPI.excelFilesDist ||
     !fs.existsSync(config.companyAPI.excelFilesDist)
   ) {
-    return;
+    return { done: true };
   }
 
   let data: {
@@ -150,6 +157,8 @@ export function exportTransactions(fileName: string, accounts: TransactionsAccou
 
   const parser = new Parser({ withBOM: true });
   const csv = parser.parse(data);
-  const filePath = `${path.join(config.companyAPI.excelFilesDist, fileName)}.csv`;
+  const distPath = config.companyAPI.excelFilesDist ?? '';
+  const filePath = `${path.join(distPath, fileName)}.csv`;
   fs.writeFileSync(filePath, csv);
+  return { done: true };
 }

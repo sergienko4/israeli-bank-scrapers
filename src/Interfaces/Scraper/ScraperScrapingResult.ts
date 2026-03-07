@@ -1,18 +1,18 @@
 import type { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes';
-import type { TransactionsAccount } from '../../Transactions';
-import type { WafErrorDetails } from '../Error/WafErrorDetails';
-import type { FutureDebit } from '../Transaction/FutureDebit';
-import type { ScraperDiagnostics } from './ScraperDiagnostics';
+import type { ITransactionsAccount } from '../../Transactions';
+import type { IWafErrorDetails } from '../Error/WafErrorDetails';
+import type { IFutureDebit } from '../Transaction/FutureDebit';
+import type { IScraperDiagnostics } from './ScraperDiagnostics';
 
-export interface ScraperScrapingResult {
+export interface IScraperScrapingResult {
   success: boolean;
-  accounts?: TransactionsAccount[];
-  futureDebits?: FutureDebit[];
+  accounts?: ITransactionsAccount[];
+  futureDebits?: IFutureDebit[];
   errorType?: ScraperErrorTypes;
   errorMessage?: string; // only on success=false
-  errorDetails?: WafErrorDetails; // only on errorType=WAF_BLOCKED
+  errorDetails?: IWafErrorDetails; // only on errorType=WAF_BLOCKED
   /** Long-term OTP token returned by banks that support it (e.g. OneZero).
    *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
   persistentOtpToken?: string;
-  diagnostics?: ScraperDiagnostics;
+  diagnostics?: IScraperDiagnostics;
 }

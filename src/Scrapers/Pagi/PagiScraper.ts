@@ -4,7 +4,7 @@ import BeinleumiGroupBaseScraper from '../BaseBeinleumiGroup/BaseBeinleumiGroup'
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-/** Scraper implementation for Pagi (Beinleumi group). */
+/** IScraper implementation for Pagi (Beinleumi group). */
 class PagiScraper extends BeinleumiGroupBaseScraper {
   /**
    * Creates a PagiScraper with the bank-specific login URL.

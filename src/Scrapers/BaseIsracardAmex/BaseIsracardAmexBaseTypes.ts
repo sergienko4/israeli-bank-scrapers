@@ -1,3 +1,3 @@
-import type { TransactionsAccount } from '../../Transactions';
+import type { ITransactionsAccount } from '../../Transactions';
 
-export type ScrapedAccountsWithIndex = Record<string, TransactionsAccount & { index: number }>;
+export type ScrapedAccountsWithIndex = Record<string, ITransactionsAccount & { index: number }>;

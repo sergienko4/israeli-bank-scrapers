@@ -80,43 +80,81 @@ export default tseslint.config(
         }
       ],
 
-      // ── Structural & Bypass Protection (AST Level) ───────────────────────
+      // ── Restricted Syntax (Security, Structure & Zero-Skip Policy) ───────
       'no-restricted-syntax': [
         'error',
-        // Block: /* istanbul ignore next */
+        // 1. Coverage Bypasses
         {
-          selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'])",
+          selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'], [value*='v8 ignore'])",
           message: "🚫 COVERAGE SKIP: Write a test instead of ignoring coverage.",
         },
-        // Block: // eslint-disable-next-line
+
+        // 2. Lint Bypasses
         {
           selector: "Line:matches([value*='eslint-disable'])",
           message: "🚫 LINT SKIP: Do not disable ESLint rules. Fix the underlying issue.",
         },
-        // Block: ! (Non-null assertion) - The "Code Skip"
+
+        // 3. Type Bypasses (Non-null assertions)
         {
           selector: "TSNonNullExpression",
           message: "🚫 TYPE SKIP: Do not use non-null assertions (!). Use optional chaining (?.) or a proper null check.",
         },
-        // ── Your existing security selectors ────────────────────────────────
+
+        // 4. Return Value Integrity (Blocking null & undefined returns)
         {
-          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
-          message: 'SECURITY: Do not log sensitive data keys.',
+          // Blocks 'null' or 'undefined' in Type Annotations for functions/methods
+          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+          message: "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
         },
         {
-          selector: "ThrowStatement > NewExpression[callee.name='Error']",
-          message: "Do not use 'throw new Error()'. Use a custom Error class.",
+          // Blocks 'void' as a return type (Forces every function to return data)
+          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
+          message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
+        },
+        {
+          // Blocks 'return null;', 'return undefined;', and empty 'return;'
+          selector: "ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
+          message: "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+        },
+
+        // 5. Nested Logic & Readability
+        {
+          // Targets: print(cal(2,3)) - Nested function calls
+          selector: "CallExpression > .arguments[type='CallExpression']",
+          message: "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
         },
         {
           selector: "CallExpression[callee.property.name='isStuckOnLoginPage']",
           message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
         },
-        {
-          // Targets: any function call that has another function call as an argument
-          selector: "CallExpression > .arguments[type='CallExpression']",
-          message: "🚫 FORBIDDEN NESTED CALL: Do not pass a function call as an argument. Assign the result to a descriptive variable first for better readability and debugging.",
-        },
 
+        // 6. Security & Logging
+        {
+          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
+          message: "SECURITY: Do not log sensitive data keys.",
+        },
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
+        },
+        // ── Type Integrity (Blocking 'unknown' bypasses) ─────────────────────
+        {
+          // 1. Blocks 'unknown' in function return types
+          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) > TSTypeAnnotation TSUnknownKeyword",
+          message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a specific Interface or Type.",
+        },
+        {
+          // 2. Blocks 'unknown' in function parameters (Arguments)
+          selector: "TSParameterProperty TSUnknownKeyword, FunctionDeclaration TSParameterProperty TSUnknownKeyword, TSTypeReference TSUnknownKeyword",
+          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Use a Discriminated Union or a base Interface.",
+        },
+        {
+          // 3. Blocks 'unknown' in variable type annotations
+          selector: "VariableDeclarator > TSTypeAnnotation TSUnknownKeyword",
+          message: "🚫 TYPE SKIP: Do not declare variables as 'unknown'. Cast them to a concrete type immediately after receiving external data.",
+        },
+        // Block: for-in loops (can be used to bypass iterators and cause prototype pollution)
         'ForInStatement',
         'LabeledStatement',
         'WithStatement',
@@ -190,7 +228,7 @@ export default tseslint.config(
         {
           selector: 'interface',
           format: ['PascalCase'],
-          custom: { regex: '^I[A-Z]', match: false },
+          custom: { regex: '^I[A-Z]', match: true },
         },
         { selector: ['variable', 'function', 'method'], format: ['camelCase'] },
         {

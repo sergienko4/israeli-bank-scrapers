@@ -14,7 +14,7 @@ import {
   SHEKEL_CURRENCY_SYMBOL,
 } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
 import { GenericBankScraper } from '../Base/GenericBankScraper';
 import { type ScraperOptions } from '../Base/Interface';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
@@ -27,7 +27,7 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
 const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
 
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   date: string;
   description: string;
   type: string;
@@ -71,16 +71,16 @@ function getAmountData(amountStr: string): { amount: number; currency: string } 
 }
 
 /**
- * Converts a single scraped transaction to a normalized Transaction object.
+ * Converts a single scraped transaction to a normalized ITransaction object.
  *
  * @param txn - the raw scraped transaction
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns a normalized Transaction
+ * @returns a normalized ITransaction
  */
-function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
+function convertOneTxn(txn: IScrapedTransaction, options?: ScraperOptions): ITransaction {
   const chargedAmountTuple = getAmountData(txn.chargedAmount || '');
   const txnProcessedDate = moment(txn.date, CFG.format.date);
-  const result: Transaction = {
+  const result: ITransaction = {
     type: TransactionTypes.Normal,
     status: TransactionStatuses.Completed,
     date: txnProcessedDate.toISOString(),
@@ -98,14 +98,17 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
 }
 
 /**
- * Converts an array of scraped transactions to normalized Transaction objects.
+ * Converts an array of scraped transactions to normalized ITransaction objects.
  *
  * @param txns - the raw scraped transactions
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns an array of normalized Transaction objects
+ * @returns an array of normalized ITransaction objects
  */
-function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
-  LOG.info(`convert ${String(txns.length)} raw transactions to official Transaction structure`);
+function convertTransactions(
+  txns: IScrapedTransaction[],
+  options?: ScraperOptions,
+): ITransaction[] {
+  LOG.info(`convert ${String(txns.length)} raw transactions to official ITransaction structure`);
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
@@ -113,22 +116,22 @@ function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOption
  * Extracts raw transaction rows from the page's transaction container.
  *
  * @param page - the Playwright page showing the transactions table
- * @returns an array of ScrapedTransaction objects (null for rows with unexpected structure)
+ * @returns an array of valid IScrapedTransaction objects
  */
-async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | null)[]> {
-  return pageEvalAll<(ScrapedTransaction | null)[]>(page, {
+async function scrapeRawTransactions(page: Page): Promise<IScrapedTransaction[]> {
+  const allRows = await pageEvalAll<(IScrapedTransaction | { _skip: true })[]>(page, {
     selector: SEL.transactionContainer,
     defaultResult: [],
     /**
      * Maps transaction container elements to raw transaction objects.
      *
      * @param items - the list of transaction container elements
-     * @returns an array of ScrapedTransaction or null for malformed rows
+     * @returns an array of IScrapedTransaction or skip sentinel for malformed rows
      */
     callback: items =>
       items.map(el => {
         const columns: NodeListOf<HTMLSpanElement> = el.querySelectorAll(SEL.transactionColumns);
-        if (columns.length !== 7) return null;
+        if (columns.length !== 7) return { _skip: true as const };
         return {
           date: columns[0].innerText,
           identifier: columns[1].innerText,
@@ -138,6 +141,7 @@ async function scrapeRawTransactions(page: Page): Promise<(ScrapedTransaction | 
         };
       }),
   });
+  return allRows.filter((r): r is IScrapedTransaction => !('_skip' in r));
 }
 
 /**
@@ -181,10 +185,10 @@ async function scrapeAccountInfo(page: Page): Promise<{ accountNumber: string; b
  * @returns the filtered list of transactions
  */
 function applyDateFilter(
-  txns: Transaction[],
+  txns: ITransaction[],
   options: ScraperOptions,
   startMoment: moment.Moment,
-): Transaction[] {
+): ITransaction[] {
   return (options.outputData?.isFilterByDateEnabled ?? true)
     ? filterOldTransactions(txns, startMoment, false)
     : txns;
@@ -202,12 +206,11 @@ async function getFilteredTxns(
   page: Page,
   options: ScraperOptions,
   startMoment: moment.Moment,
-): Promise<{ accountTransactions: Transaction[]; txns: Transaction[] }> {
+): Promise<{ accountTransactions: ITransaction[]; txns: ITransaction[] }> {
   LOG.info('fetch raw transactions from page');
   const rawTransactions = await scrapeRawTransactions(page);
   LOG.info(`fetched ${String(rawTransactions.length)} raw transactions from page`);
-  const validRawTransactions = rawTransactions.filter(item => !!item);
-  const accountTransactions = convertTransactions(validRawTransactions, options);
+  const accountTransactions = convertTransactions(rawTransactions, options);
   return { accountTransactions, txns: applyDateFilter(accountTransactions, options, startMoment) };
 }
 
@@ -221,7 +224,7 @@ async function getFilteredTxns(
 async function fetchTransactions(
   page: Page,
   options: ScraperOptions,
-): Promise<{ accountNumber: string; balance: number; txns: Transaction[] }> {
+): Promise<{ accountNumber: string; balance: number; txns: ITransaction[] }> {
   await page.goto(CFG.api.card);
   await waitUntilElementFound(page, SEL.loadingIndicator, { visible: false });
   const defaultStartMoment = moment().subtract(1, 'years');
@@ -238,7 +241,7 @@ async function fetchTransactions(
   return { accountNumber, balance: balanceData.amount, txns };
 }
 
-/** Scraper for the BeyahadBishvilha (Together For You) benefits card portal. */
+/** IScraper for the BeyahadBishvilha (Together For You) benefits card portal. */
 class BeyahadBishvilhaScraper extends GenericBankScraper<{ id: string; password: string }> {
   /**
    * Creates a BeyahadBishvilhaScraper with the shared benefits portal login configuration.
@@ -256,7 +259,7 @@ class BeyahadBishvilhaScraper extends GenericBankScraper<{ id: string; password:
    */
   public async fetchData(): Promise<{
     success: boolean;
-    accounts: { accountNumber: string; balance: number; txns: Transaction[] }[];
+    accounts: { accountNumber: string; balance: number; txns: ITransaction[] }[];
   }> {
     const account = await fetchTransactions(this.page, this.options);
     return {

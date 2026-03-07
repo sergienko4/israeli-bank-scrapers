@@ -1,11 +1,11 @@
-import type { Category } from './Category';
-import type { Recurrence } from './Recurrence';
+import type { ICategory } from './Category';
+import type { IRecurrence } from './Recurrence';
 
-interface TransactionEnrichment {
-  categories?: Category[] | null;
-  recurrences?: Recurrence[] | null;
+interface ITransactionEnrichment {
+  categories?: ICategory[] | null;
+  recurrences?: IRecurrence[] | null;
 }
 
-export interface OneZeroTransaction {
-  enrichment?: TransactionEnrichment | null;
+export interface IOneZeroTransaction {
+  enrichment?: ITransactionEnrichment | null;
 }

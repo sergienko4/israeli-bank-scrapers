@@ -5,7 +5,7 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Isracard];
 
-/** Scraper implementation for Isracard credit card. */
+/** IScraper implementation for Isracard credit card. */
 class IsracardScraper extends IsracardAmexBaseScraper {
   /**
    * Creates an IsracardScraper with the bank-specific API base and company code.

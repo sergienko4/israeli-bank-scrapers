@@ -1,5 +1,7 @@
 import type { Browser } from 'playwright';
 
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
+
 /** Selects which browser driver is used for scraping. */
 export enum BrowserEngineType {
   /** donutbrowser-camoufox-js — Firefox with C++-level stealth; addInitScript runs in isolated world (Engine 1, default). */
@@ -13,7 +15,7 @@ export enum BrowserEngineType {
 }
 
 /** Options forwarded to the underlying browser launch call. */
-export interface LaunchEngineOptions {
+export interface ILaunchEngineOptions {
   headless?: boolean;
   args?: string[];
   timeout?: number;
@@ -28,7 +30,7 @@ export interface LaunchEngineOptions {
  * @param opts - browser launch options forwarded to Camoufox()
  * @returns a launched Browser instance compatible with the Playwright Browser API
  */
-async function launchCamoufox(opts: LaunchEngineOptions): Promise<Browser> {
+async function launchCamoufox(opts: ILaunchEngineOptions): Promise<Browser> {
   const { Camoufox } = await import('donutbrowser-camoufox-js');
   return Camoufox({ headless: opts.headless }) as unknown as Browser;
 }
@@ -39,7 +41,7 @@ async function launchCamoufox(opts: LaunchEngineOptions): Promise<Browser> {
  * @param opts - browser launch options forwarded to chromium.launch()
  * @returns a launched Browser instance
  */
-async function launchPlaywrightStealth(opts: LaunchEngineOptions): Promise<Browser> {
+async function launchPlaywrightStealth(opts: ILaunchEngineOptions): Promise<Browser> {
   const { chromium } = await import('playwright-extra');
   const stealthPluginFactory = (await import('puppeteer-extra-plugin-stealth')).default;
   const stealthPlugin = stealthPluginFactory();
@@ -53,7 +55,7 @@ async function launchPlaywrightStealth(opts: LaunchEngineOptions): Promise<Brows
  * @param opts - browser launch options forwarded to chromium.launch()
  * @returns a launched Browser instance
  */
-async function launchRebrowser(opts: LaunchEngineOptions): Promise<Browser> {
+async function launchRebrowser(opts: ILaunchEngineOptions): Promise<Browser> {
   const { chromium } = await import('rebrowser-playwright');
   return (await chromium.launch(opts)) as unknown as Browser;
 }
@@ -64,19 +66,20 @@ async function launchRebrowser(opts: LaunchEngineOptions): Promise<Browser> {
  * @param opts - browser launch options forwarded to chromium.launch()
  * @returns a launched Browser instance
  */
-async function launchPatchright(opts: LaunchEngineOptions): Promise<Browser> {
+async function launchPatchright(opts: ILaunchEngineOptions): Promise<Browser> {
   const { chromium } = await import('patchright');
   return (await chromium.launch(opts)) as unknown as Browser;
 }
 
+type Enginelauncher = (opts: ILaunchEngineOptions) => Promise<Browser>;
+
 /** Maps each engine type to its launch implementation. */
-const ENGINE_LAUNCHERS: Record<BrowserEngineType, (opts: LaunchEngineOptions) => Promise<Browser>> =
-  {
-    [BrowserEngineType.Camoufox]: launchCamoufox,
-    [BrowserEngineType.PlaywrightStealth]: launchPlaywrightStealth,
-    [BrowserEngineType.Rebrowser]: launchRebrowser,
-    [BrowserEngineType.Patchright]: launchPatchright,
-  };
+const ENGINE_LAUNCHERS: Record<BrowserEngineType, Enginelauncher> = {
+  [BrowserEngineType.Camoufox]: launchCamoufox,
+  [BrowserEngineType.PlaywrightStealth]: launchPlaywrightStealth,
+  [BrowserEngineType.Rebrowser]: launchRebrowser,
+  [BrowserEngineType.Patchright]: launchPatchright,
+};
 
 /**
  * Returns true when the engine supports context.addInitScript() in the main world.
@@ -115,9 +118,11 @@ export function getGlobalEngineChain(): BrowserEngineType[] {
  * All subsequent ScraperWithFallback instances (using the default) will use this chain.
  *
  * @param engines - the new ordered list of engine types
+ * @returns a done result indicating the chain was updated
  */
-export function setGlobalEngineChain(engines: BrowserEngineType[]): void {
+export function setGlobalEngineChain(engines: BrowserEngineType[]): IDoneResult {
   globalEngineChain = engines;
+  return { done: true };
 }
 
 /**
@@ -125,9 +130,11 @@ export function setGlobalEngineChain(engines: BrowserEngineType[]): void {
  * Equivalent to setGlobalEngineChain([engine]).
  *
  * @param engine - the single engine type to use
+ * @returns a done result indicating the chain was updated
  */
-export function setGlobalDefaultEngine(engine: BrowserEngineType): void {
+export function setGlobalDefaultEngine(engine: BrowserEngineType): IDoneResult {
   globalEngineChain = [engine];
+  return { done: true };
 }
 
 /**
@@ -140,7 +147,7 @@ export function setGlobalDefaultEngine(engine: BrowserEngineType): void {
  */
 export async function launchWithEngine(
   type: BrowserEngineType,
-  opts: LaunchEngineOptions,
+  opts: ILaunchEngineOptions,
 ): Promise<Browser> {
   const launcher = ENGINE_LAUNCHERS[type];
   return launcher(opts);

@@ -34,7 +34,9 @@ jest.mock('../../Common/Waiting', () => ({
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+jest.mock('../../Common/OtpHandler', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue({ isFound: false }),
+}));
 jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
@@ -63,7 +65,7 @@ const MOCK_BROWSER = {
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
-interface BehatsdaaVariant {
+interface IBehatsdaaVariant {
   name: string;
   variantName: string;
   customerPrice: number;
@@ -72,12 +74,12 @@ interface BehatsdaaVariant {
 }
 
 /**
- * Creates a mock BehatsdaaVariant for unit tests.
+ * Creates a mock IBehatsdaaVariant for unit tests.
  *
  * @param overrides - optional field overrides for the mock variant
- * @returns a BehatsdaaVariant object for testing
+ * @returns a IBehatsdaaVariant object for testing
  */
-function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
+function variant(overrides: Partial<IBehatsdaaVariant> = {}): IBehatsdaaVariant {
   return {
     name: 'Test Product',
     variantName: 'Size L',
@@ -94,9 +96,7 @@ function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
  * @param token - the mock token to return from localStorage.getItem evaluation
  * @returns a mock page configured for Behatsdaa tests
  */
-function createBehatsdaaPage(
-  token: string | null = 'mock-token',
-): ReturnType<typeof createMockPage> {
+function createBehatsdaaPage(token = 'mock-token'): ReturnType<typeof createMockPage> {
   return createMockPage({
     evaluate: jest.fn().mockResolvedValue(token),
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
@@ -114,7 +114,8 @@ beforeEach(() => {
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-      data: { memberId: 'M001', variants: [] },
+      isFound: true,
+      value: { data: { memberId: 'M001', variants: [] } },
     });
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
@@ -127,7 +128,7 @@ describe('login', () => {
 
 describe('fetchData', () => {
   it('returns error when token not in localStorage', async () => {
-    const nullTokenPage = createBehatsdaaPage(null);
+    const nullTokenPage = createBehatsdaaPage('');
     MOCK_CONTEXT.newPage.mockResolvedValue(nullTokenPage);
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
@@ -139,7 +140,8 @@ describe('fetchData', () => {
 
   it('returns error when API response has errorDescription', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-      errorDescription: 'Service unavailable',
+      isFound: true,
+      value: { errorDescription: 'Service unavailable' },
     });
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
@@ -150,7 +152,7 @@ describe('fetchData', () => {
   });
 
   it('returns error when API response has no data', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({});
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: {} });
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -161,9 +163,12 @@ describe('fetchData', () => {
 
   it('converts variants to transactions', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-      data: {
-        memberId: 'M001',
-        variants: [variant({ customerPrice: 250, name: 'Gift Card', variantName: 'Premium' })],
+      isFound: true,
+      value: {
+        data: {
+          memberId: 'M001',
+          variants: [variant({ customerPrice: 250, name: 'Gift Card', variantName: 'Premium' })],
+        },
       },
     });
 
@@ -185,7 +190,8 @@ describe('fetchData', () => {
 
   it('includes rawTransaction when option set', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-      data: { memberId: 'M001', variants: [variant()] },
+      isFound: true,
+      value: { data: { memberId: 'M001', variants: [variant()] } },
     });
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions({ includeRawTransaction: true }));
@@ -196,7 +202,8 @@ describe('fetchData', () => {
 
   it('sends Bearer token in authorization header', async () => {
     (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
-      data: { memberId: 'M001', variants: [] },
+      isFound: true,
+      value: { data: { memberId: 'M001', variants: [] } },
     });
 
     const scraper = new BehatsdaaScraper(createMockScraperOptions());

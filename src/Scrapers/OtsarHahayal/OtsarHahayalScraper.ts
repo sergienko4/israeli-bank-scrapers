@@ -4,7 +4,7 @@ import BeinleumiGroupBaseScraper from '../BaseBeinleumiGroup/BaseBeinleumiGroup'
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-/** Scraper implementation for Otsar HaHayal Bank (Beinleumi group). */
+/** IScraper implementation for Otsar HaHayal Bank (Beinleumi group). */
 class OtsarHahayalScraper extends BeinleumiGroupBaseScraper {
   /**
    * Creates an OtsarHahayalScraper with the bank-specific login URL.

@@ -13,9 +13,11 @@ import { getFromSessionStorage } from '../../Common/Storage';
 import { filterOldTransactions } from '../../Common/Transactions';
 import { waitUntilWithReload } from '../../Common/Waiting';
 import { CompanyTypes } from '../../Definitions';
-import type { TransactionsAccount } from '../../Transactions';
-import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
-import type { ScraperScrapingResult } from '../Base/Interface';
+import type { FoundResult } from '../../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
+import type { ITransactionsAccount } from '../../Transactions';
+import { BaseScraperWithBrowser, type ILoginOptions } from '../Base/BaseScraperWithBrowser';
+import type { IScraperScrapingResult } from '../Base/Interface';
 import { ScraperAuthenticationError } from '../Base/ScraperAuthenticationError';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import {
@@ -25,20 +27,20 @@ import {
   findCardFrame,
   getPossibleLoginResults,
   isConnectFrame,
+  parsePendingData,
   validateMonthDataResponse,
 } from './VisaCalHelpers';
 import {
-  type ApiContext,
-  type AuthModule,
-  authModuleOrUndefined,
-  type CardApiStatus,
-  type CardInfo,
-  type CardPendingTransactionDetails,
-  type CardTransactionDetails,
-  type FramesResponse,
-  type InitResponse,
-  isCardPendingTransactionDetails,
-  type LoginResponse,
+  type IApiContext,
+  type IAuthModule,
+  type ICardApiStatus,
+  type ICardInfo,
+  type ICardPendingTransactionDetails,
+  type ICardTransactionDetails,
+  type IFramesResponse,
+  type IInitResponse,
+  type ILoginResponse,
+  isAuthModule,
 } from './VisaCalTypes';
 
 const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
@@ -86,14 +88,14 @@ function buildApiHeaders(authorization: string, xSiteId: string): Record<string,
  * @param card - the card info for the request
  * @param month - the billing month to fetch
  * @param hdrs - the API headers with authorization
- * @returns the validated CardTransactionDetails for the month
+ * @returns the validated ICardTransactionDetails for the month
  */
 async function fetchMonthData(
-  card: CardInfo,
+  card: ICardInfo,
   month: moment.Moment,
   hdrs: Record<string, string>,
-): Promise<CardTransactionDetails> {
-  const monthData = await fetchPost<CardTransactionDetails | CardApiStatus>(
+): Promise<ICardTransactionDetails> {
+  const monthData = await fetchPost<ICardTransactionDetails | ICardApiStatus>(
     TRANSACTIONS_REQUEST_ENDPOINT,
     { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
     hdrs,
@@ -108,14 +110,14 @@ async function fetchMonthData(
  * @param card - the card info for the requests
  * @param allMonths - the list of billing months to fetch
  * @param hdrs - the API headers with authorization
- * @returns an array of CardTransactionDetails for each month
+ * @returns an array of ICardTransactionDetails for each month
  */
 async function fetchCardDataMonths(
-  card: CardInfo,
+  card: ICardInfo,
   allMonths: moment.Moment[],
   hdrs: Record<string, string>,
-): Promise<CardTransactionDetails[]> {
-  const initialMonthsData = Promise.resolve([] as CardTransactionDetails[]);
+): Promise<ICardTransactionDetails[]> {
+  const initialMonthsData = Promise.resolve([] as ICardTransactionDetails[]);
   return allMonths.reduce(async (prevPromise, month) => {
     const acc = await prevPromise;
     acc.push(await fetchMonthData(card, month, hdrs));
@@ -131,12 +133,12 @@ async function fetchCardDataMonths(
  * @param opts.startMoment - the earliest billing month to include
  * @param opts.futureMonthsToScrape - the number of future billing months to include
  * @param opts.hdrs - the API headers with authorization
- * @returns an array of CardTransactionDetails for all relevant months
+ * @returns an array of ICardTransactionDetails for all relevant months
  */
 async function fetchCardData(
-  card: CardInfo,
+  card: ICardInfo,
   opts: { startMoment: moment.Moment; futureMonthsToScrape: number; hdrs: Record<string, string> },
-): Promise<CardTransactionDetails[]> {
+): Promise<ICardTransactionDetails[]> {
   const { startMoment, futureMonthsToScrape, hdrs } = opts;
   const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
   const months = finalMonthToFetchMoment.diff(startMoment, 'months');
@@ -152,45 +154,38 @@ async function fetchCardData(
  *
  * @param card - the card info for the request
  * @param hdrs - the API headers with authorization
- * @returns the pending transaction details or null if unavailable
+ * @returns FoundResult with pending transaction details, or isFound=false if unavailable
  */
 async function fetchPendingData(
-  card: CardInfo,
+  card: ICardInfo,
   hdrs: Record<string, string>,
-): Promise<CardPendingTransactionDetails | null> {
+): Promise<FoundResult<ICardPendingTransactionDetails>> {
   LOG.info(`fetch pending transactions for card ${card.cardUniqueId}`);
-  let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
-    CardPendingTransactionDetails | CardApiStatus
-  >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
-  if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
-    LOG.info(
-      `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title ?? ''}`,
-    );
-    pendingData = null;
-  } else if (!isCardPendingTransactionDetails(pendingData)) {
-    LOG.info('pendingData is not of type CardTransactionDetails');
-    pendingData = null;
-  }
-  return pendingData;
+  const rawData = await fetchPost<ICardPendingTransactionDetails | ICardApiStatus>(
+    PENDING_TRANSACTIONS_REQUEST_ENDPOINT,
+    { cardUniqueIDArray: [card.cardUniqueId] },
+    hdrs,
+  );
+  return parsePendingData(rawData, card);
 }
 
-export interface ScraperSpecificCredentials {
+export interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
 
-/** Scraper implementation for VisaCal (Visa Cal) credit cards. */
-class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
+/** IScraper implementation for VisaCal (Visa Cal) credit cards. */
+class VisaCalScraper extends BaseScraperWithBrowser<IScraperSpecificCredentials> {
   private _authorization: string | undefined = undefined;
 
-  private _authTokenPromise: Promise<string | undefined> | undefined;
+  private _authTokenPromise: Promise<string> | undefined;
 
   /**
    * Opens the VisaCal login popup and navigates to the password login tab.
    *
-   * @returns the login iframe Frame ready for credential input
+   * @returns a FoundResult wrapping the login iframe ready for credential input
    */
-  public openLoginPopup = async (): Promise<Frame> => {
+  public openLoginPopup = async (): Promise<FoundResult<Frame>> => {
     LOG.info('open login popup');
     await waitUntilElementFound(this.page, '#ccLoginDesktopBtn', { visible: true });
     await clickButton(this.page, '#ccLoginDesktopBtn');
@@ -199,19 +194,19 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     LOG.info('navigating to password login tab');
     await clickButton(frame, '#regular-login');
     await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 45000 });
-    return frame;
+    return { isFound: true, value: frame };
   };
 
   /**
    * Fetches all cards associated with the logged-in VisaCal account.
    *
-   * @returns an array of CardInfo objects with card ID and last 4 digits
+   * @returns an array of ICardInfo objects with card ID and last 4 digits
    */
-  public async getCards(): Promise<CardInfo[]> {
+  public async getCards(): Promise<ICardInfo[]> {
     LOG.info('fetch cards via init API (bypasses sessionStorage race)');
     const authorization = await this.getAuthorizationHeader();
     const hdrs = buildApiHeaders(authorization, X_SITE_ID);
-    const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
+    const initData = await fetchPost<IInitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
     if (initData.statusCode !== 1)
       throw new ScraperAuthenticationError('VisaCal', initData.statusDescription ?? 'init failed');
     const { cards: rawCards } = initData.result;
@@ -237,9 +232,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    * Builds login options for VisaCal, including the login popup pre-action.
    *
    * @param credentials - VisaCal username and password
-   * @returns LoginOptions with the popup pre-action and post-login handler
+   * @returns ILoginOptions with the popup pre-action and post-login handler
    */
-  public getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
+  public getLoginOptions(credentials: IScraperSpecificCredentials): ILoginOptions {
     this._authTokenPromise = this.interceptLoginToken();
     return {
       loginUrl: LOGIN_URL,
@@ -267,7 +262,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    *
    * @returns a successful scraping result with all card account transactions
    */
-  public async fetchData(): Promise<ScraperScrapingResult> {
+  public async fetchData(): Promise<IScraperScrapingResult> {
     const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
     const startDate = this.options.startDate;
     const startDateMoment = moment(startDate);
@@ -281,31 +276,45 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
   }
 
   /**
+   * Polls sessionStorage for the VisaCal auth module. Returns false (falsy) when not found yet,
+   * which causes waitUntilWithReload to keep polling. Returns IAuthModule when ready.
+   *
+   * @returns the IAuthModule when populated, or false when not yet available
+   */
+  private async pollAuthModule(): Promise<IAuthModule | false> {
+    const stored = await getFromSessionStorage<IAuthModule>(this.page, 'auth-module');
+    if (!stored.hasValue) return false;
+    return isAuthModule(stored.value) ? stored.value : false;
+  }
+
+  /**
    * Resolves the auth token from sessionStorage, retrying with page reload if needed.
    *
    * @returns the CALAuthScheme token string
    */
   private async resolveAuthToken(): Promise<string> {
     const startMs = Date.now();
-    const retry = await waitUntilWithReload<AuthModule | undefined>(
-      this.page,
-      async () =>
-        authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
-      { description: 'VisaCal auth-module', pollTimeout: 20_000, reloadAttempts: 2, interval: 500 },
-    );
-    if (!retry.found || !retry.value)
+    const retry = await waitUntilWithReload(this.page, () => this.pollAuthModule(), {
+      description: 'VisaCal auth-module',
+      pollTimeout: 20_000,
+      reloadAttempts: 2,
+      interval: 500,
+    });
+    if (!retry.found)
       throw new ScraperAuthenticationError(
         'VisaCal',
         'auth token unavailable after reload retries',
       );
     LOG.info('sessionStorage auth-module populated after %dms', Date.now() - startMs);
-    return `CALAuthScheme ${retry.value.auth.calConnectToken ?? ''}`;
+    return `CALAuthScheme ${(retry.value as IAuthModule).auth.calConnectToken ?? ''}`;
   }
 
   /**
    * Handles post-login state: captures the auth token and waits for the dashboard URL.
+   *
+   * @returns a done result after post-login state is captured
    */
-  private async handlePostLogin(): Promise<void> {
+  private async handlePostLogin(): Promise<IDoneResult> {
     const currentUrl = await getCurrentUrl(this.page);
     const isAlreadyLoggedIn = currentUrl.includes('cal-online.co.il/#');
     if (!isAlreadyLoggedIn) {
@@ -320,12 +329,15 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       this._authorization = '';
     }
     LOG.info('post-login URL: %s', await getCurrentUrl(this.page));
+    return { done: true };
   }
 
   /**
    * Waits for the page to redirect to a post-login URL, with a timeout fallback.
+   *
+   * @returns a done result after the redirect completes or times out
    */
-  private async waitForPostLoginRedirect(): Promise<void> {
+  private async waitForPostLoginRedirect(): Promise<IDoneResult> {
     try {
       // Old flow: redirect to digital-web; new flow: stay on cal-online.co.il/#
       const isPostLogin = /digital-web\.cal-online\.co\.il|cal-online\.co\.il\/#|dashboard/;
@@ -335,6 +347,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
     } catch {
       LOG.info('post-login redirect timeout — checking if already on dashboard');
     }
+    return { done: true };
   }
 
   /**
@@ -342,7 +355,7 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    *
    * @returns a promise resolving with the token string or undefined if not captured
    */
-  private interceptLoginToken(): Promise<string | undefined> {
+  private interceptLoginToken(): Promise<string> {
     /**
      * Checks whether a network response is the login token POST response.
      *
@@ -355,10 +368,10 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
       r.url().includes(LOGIN_RESPONSE_URL) && r.request().method() === 'POST';
     return this.page
       .waitForResponse(isLogin, { timeout: 15_000 })
-      .then(async response => ((await response.json()) as LoginResponse).token)
+      .then(async response => ((await response.json()) as ILoginResponse).token)
       .catch((e: unknown) => {
         LOG.info({ err: e }, 'interceptLoginToken: no POST response within 15s');
-        return undefined;
+        return '';
       });
   }
 
@@ -387,48 +400,50 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    *
    * @param card - the card to fetch transactions for
    * @param ctx - the API context with headers and date range
-   * @returns converted Transaction objects for the card
+   * @returns converted ITransaction objects for the card
    */
   private async buildCardTransactions(
-    card: CardInfo,
-    ctx: ApiContext,
+    card: ICardInfo,
+    ctx: IApiContext,
   ): Promise<ReturnType<typeof convertParsedDataToTransactions>> {
     const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
     const { startMoment, hdrs } = ctx;
-    const pendingData = await fetchPendingData(card, hdrs);
+    const pendingResult = await fetchPendingData(card, hdrs);
+    const pendingData = pendingResult.isFound ? pendingResult.value : undefined;
     const allMonthsData = await fetchCardData(card, { startMoment, futureMonthsToScrape, hdrs });
     return convertParsedDataToTransactions(allMonthsData, pendingData, this.options);
   }
 
   /**
-   * Fetches and builds a TransactionsAccount for a single card.
+   * Fetches and builds a ITransactionsAccount for a single card.
    *
    * @param card - the card info
    * @param ctx - the API context with headers, date range, and frame data
-   * @returns a TransactionsAccount with balance and transactions
+   * @returns a ITransactionsAccount with balance and transactions
    */
-  private async fetchOneCardAccount(card: CardInfo, ctx: ApiContext): Promise<TransactionsAccount> {
-    const frame = findCardFrame(ctx.frames, card.cardUniqueId);
+  private async fetchOneCardAccount(
+    card: ICardInfo,
+    ctx: IApiContext,
+  ): Promise<ITransactionsAccount> {
+    const frameResult = findCardFrame(ctx.frames, card.cardUniqueId);
     const transactions = await this.buildCardTransactions(card, ctx);
     const txns = this.filterCardTxns(transactions, ctx.startDate);
-    return {
-      txns,
-      balance: frame?.nextTotalDebit != null ? -frame.nextTotalDebit : undefined,
-      accountNumber: card.last4Digits,
-    } as TransactionsAccount;
+    const debit = frameResult.isFound ? frameResult.value.nextTotalDebit : undefined;
+    const balance = debit != null ? -debit : undefined;
+    return { txns, balance, accountNumber: card.last4Digits } as ITransactionsAccount;
   }
 
   /**
-   * Fetches TransactionsAccount data for all cards in parallel.
+   * Fetches ITransactionsAccount data for all cards in parallel.
    *
    * @param cards - the list of cards to fetch
    * @param ctx - the API context with headers, date range, and frame data
-   * @returns an array of TransactionsAccount objects
+   * @returns an array of ITransactionsAccount objects
    */
   private async fetchAllCardAccounts(
-    cards: CardInfo[],
-    ctx: ApiContext,
-  ): Promise<TransactionsAccount[]> {
+    cards: ICardInfo[],
+    ctx: IApiContext,
+  ): Promise<ITransactionsAccount[]> {
     const cardPromises = cards.map(card => this.fetchOneCardAccount(card, ctx));
     return Promise.all(cardPromises);
   }
@@ -439,10 +454,10 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    * @param hdrs - the API headers with authorization
    * @returns the frames response with card billing data
    */
-  private async fetchFrames(hdrs: Record<string, string>): Promise<FramesResponse> {
+  private async fetchFrames(hdrs: Record<string, string>): Promise<IFramesResponse> {
     LOG.info('fetch frames (misgarot) of cards');
     const cards = await this.getCards();
-    return fetchPost<FramesResponse>(
+    return fetchPost<IFramesResponse>(
       FRAMES_REQUEST_ENDPOINT,
       { cardsForFrameData: cards.map(({ cardUniqueId }) => ({ cardUniqueId })) },
       hdrs,
@@ -454,9 +469,9 @@ class VisaCalScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> 
    *
    * @param startDate - the earliest date for transaction fetching
    * @param startMoment - the start moment for transaction filtering
-   * @returns a fully initialized ApiContext for all card data requests
+   * @returns a fully initialized IApiContext for all card data requests
    */
-  private async buildApiContext(startDate: Date, startMoment: moment.Moment): Promise<ApiContext> {
+  private async buildApiContext(startDate: Date, startMoment: moment.Moment): Promise<IApiContext> {
     const authorization = await this.getAuthorizationHeader();
     const hdrs = buildApiHeaders(authorization, X_SITE_ID);
     const frames = await this.fetchFrames(hdrs);

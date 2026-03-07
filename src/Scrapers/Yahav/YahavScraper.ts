@@ -8,16 +8,17 @@ import {
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
 import {
-  type DashboardFieldOpts,
+  type IDashboardFieldOpts,
   resolveDashboardField,
   toFirstCss,
 } from '../../Common/SelectorResolver';
 import { getRawTransaction } from '../../Common/Transactions';
 import { SHEKEL_CURRENCY } from '../../Constants';
 import { CompanyTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import {
-  type Transaction,
-  type TransactionsAccount,
+  type ITransaction,
+  type ITransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
 } from '../../Transactions';
@@ -41,13 +42,13 @@ const KEYS = Object.fromEntries(KEYS_ENTRIES) as {
 };
 
 /**
- * Builds a DashboardFieldOpts for a Yahav selector key.
+ * Builds a IDashboardFieldOpts for a Yahav selector key.
  *
  * @param page - the Playwright page to resolve the selector in
  * @param key - the Yahav dashboard selector key
- * @returns a DashboardFieldOpts ready for resolveDashboardField()
+ * @returns a IDashboardFieldOpts ready for resolveDashboardField()
  */
-function dashOpts(page: Page, key: YahavDashKey): DashboardFieldOpts {
+function dashOpts(page: Page, key: YahavDashKey): IDashboardFieldOpts {
   return {
     pageOrFrame: page,
     fieldKey: key,
@@ -56,7 +57,7 @@ function dashOpts(page: Page, key: YahavDashKey): DashboardFieldOpts {
   };
 }
 
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   credit: string;
   debit: string;
   date: string;
@@ -103,28 +104,28 @@ function getAmountData(amountStr: string): number {
  * @param txn - the scraped transaction with credit and debit string values
  * @returns the net amount (credit - debit) as a number
  */
-function getTxnAmount(txn: ScrapedTransaction): number {
+function getTxnAmount(txn: IScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
 }
 
-export interface TransactionsTr {
+export interface ITransactionTableRow {
   id: string;
   innerDivs: string[];
 }
 
 /**
- * Converts a single scraped Yahav transaction to a normalized Transaction.
+ * Converts a single scraped Yahav transaction to a normalized ITransaction.
  *
  * @param txn - the raw scraped Yahav transaction
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns a normalized Transaction object
+ * @returns a normalized ITransaction object
  */
-function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Transaction {
+function convertOneTxn(txn: IScrapedTransaction, options?: ScraperOptions): ITransaction {
   const convertedDate = moment(txn.date, CFG.format.date).toISOString();
   const convertedAmount = getTxnAmount(txn);
-  const result: Transaction = {
+  const result: ITransaction = {
     type: TransactionTypes.Normal,
     identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
     date: convertedDate,
@@ -141,29 +142,36 @@ function convertOneTxn(txn: ScrapedTransaction, options?: ScraperOptions): Trans
 }
 
 /**
- * Converts an array of scraped Yahav transactions to normalized Transaction objects.
+ * Converts an array of scraped Yahav transactions to normalized ITransaction objects.
  *
  * @param txns - the raw scraped transactions
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns an array of normalized Transaction objects
+ * @returns an array of normalized ITransaction objects
  */
-function convertTransactions(txns: ScrapedTransaction[], options?: ScraperOptions): Transaction[] {
+function convertTransactions(
+  txns: IScrapedTransaction[],
+  options?: ScraperOptions,
+): ITransaction[] {
   return txns.map(txn => convertOneTxn(txn, options));
 }
 
 /**
- * Parses a single transaction row div into a ScrapedTransaction and appends to the accumulator.
+ * Parses a single transaction row div into a IScrapedTransaction and appends to the accumulator.
  *
  * @param txns - the accumulator array to append the parsed transaction to
  * @param txnRow - the raw transaction row with div contents
+ * @returns a done result after appending the parsed transaction
  */
-function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr): void {
+function handleTransactionRow(
+  txns: IScrapedTransaction[],
+  txnRow: ITransactionTableRow,
+): IDoneResult {
   const div = txnRow.innerDivs;
 
   // Remove anything except digits.
   const regex = /\D+/gm;
 
-  const tx: ScrapedTransaction = {
+  const tx: IScrapedTransaction = {
     date: div[1],
     reference: div[2].replace(regex, ''),
     memo: '',
@@ -174,23 +182,24 @@ function handleTransactionRow(txns: ScrapedTransaction[], txnRow: TransactionsTr
   };
 
   txns.push(tx);
+  return { done: true };
 }
 
 /**
  * Extracts all transaction div elements from the Yahav transactions table.
  *
  * @param page - the Playwright page showing the transactions table
- * @returns an array of TransactionsTr objects with div text contents
+ * @returns an array of ITransactionTableRow objects with div text contents
  */
-async function scrapeTransactionDivs(page: Page): Promise<TransactionsTr[]> {
-  return pageEvalAll<TransactionsTr[]>(page, {
+async function scrapeTransactionDivs(page: Page): Promise<ITransactionTableRow[]> {
+  return pageEvalAll<ITransactionTableRow[]>(page, {
     selector: SEL.transactionRows,
     defaultResult: [],
     /**
-     * Maps each transaction div to a TransactionsTr with ID and inner div texts.
+     * Maps each transaction div to a ITransactionTableRow with ID and inner div texts.
      *
      * @param divs - the list of transaction div elements
-     * @returns an array of TransactionsTr objects
+     * @returns an array of ITransactionTableRow objects
      */
     callback: divs =>
       (divs as HTMLElement[]).map(div => {
@@ -208,14 +217,14 @@ async function scrapeTransactionDivs(page: Page): Promise<TransactionsTr[]> {
  *
  * @param page - the Playwright page showing the transactions table
  * @param options - scraper options controlling rawTransaction inclusion
- * @returns an array of normalized Transaction objects
+ * @returns an array of normalized ITransaction objects
  */
 async function getAccountTransactions(
   page: Page,
   options?: ScraperOptions,
-): Promise<Transaction[]> {
+): Promise<ITransaction[]> {
   await waitUntilElementFound(page, SEL.transactionTableHeader, { visible: true });
-  const txns: ScrapedTransaction[] = [];
+  const txns: IScrapedTransaction[] = [];
   const transactionsDivs = await scrapeTransactionDivs(page);
   for (const txnRow of transactionsDivs) {
     handleTransactionRow(txns, txnRow);
@@ -223,7 +232,7 @@ async function getAccountTransactions(
   return convertTransactions(txns, options);
 }
 
-export interface SelectFromGridOpts {
+export interface ISelectFromGridOpts {
   page: Page;
   baseSelector: string;
   count: number;
@@ -234,8 +243,9 @@ export interface SelectFromGridOpts {
  * Clicks the grid item that matches the target text.
  *
  * @param opts - options with page, base selector, item count, and target text
+ * @returns a done result after the matching item is clicked
  */
-async function selectFromGrid(opts: SelectFromGridOpts): Promise<void> {
+async function selectFromGrid(opts: ISelectFromGridOpts): Promise<IDoneResult> {
   const { page, baseSelector, count, target } = opts;
   const indices = Array.from({ length: count }, (_, i) => i + 1);
   const textPromises = indices.map(i =>
@@ -244,6 +254,7 @@ async function selectFromGrid(opts: SelectFromGridOpts): Promise<void> {
   const texts = await Promise.all(textPromises);
   const matchIdx = texts.findIndex(t => t === target);
   if (matchIdx >= 0) await clickButton(page, `${baseSelector}:nth-child(${String(matchIdx + 1)})`);
+  return { done: true };
 }
 
 /**
@@ -251,9 +262,10 @@ async function selectFromGrid(opts: SelectFromGridOpts): Promise<void> {
  *
  * @param page - the Playwright page with the date picker open
  * @param targetYear - the year string to select (e.g. '2024')
+ * @returns a done result after the year is selected
  */
-async function selectYearFromGrid(page: Page, targetYear: string): Promise<void> {
-  await selectFromGrid({ page, baseSelector: SEL.pmuYearsCell, count: 12, target: targetYear });
+async function selectYearFromGrid(page: Page, targetYear: string): Promise<IDoneResult> {
+  return selectFromGrid({ page, baseSelector: SEL.pmuYearsCell, count: 12, target: targetYear });
 }
 
 /**
@@ -261,9 +273,10 @@ async function selectYearFromGrid(page: Page, targetYear: string): Promise<void>
  *
  * @param page - the Playwright page with the date picker open
  * @param targetDay - the day string to select (e.g. '15')
+ * @returns a done result after the day is selected
  */
-async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
-  await selectFromGrid({ page, baseSelector: SEL.pmuDaysCell, count: 41, target: targetDay });
+async function selectDayFromGrid(page: Page, targetDay: string): Promise<IDoneResult> {
+  return selectFromGrid({ page, baseSelector: SEL.pmuDaysCell, count: 41, target: targetDay });
 }
 
 /**
@@ -271,11 +284,13 @@ async function selectDayFromGrid(page: Page, targetDay: string): Promise<void> {
  *
  * @param page - the Playwright page to search for the element
  * @param key - the Yahav dashboard selector key
+ * @returns a done result after waiting
  */
-async function resolveAndWait(page: Page, key: YahavDashKey): Promise<void> {
+async function resolveAndWait(page: Page, key: YahavDashKey): Promise<IDoneResult> {
   const fieldOpts = dashOpts(page, key);
   const r = await resolveDashboardField(fieldOpts);
   if (r.isResolved) await waitUntilElementFound(r.context, r.selector, { visible: true });
+  return { done: true };
 }
 
 /**
@@ -283,11 +298,13 @@ async function resolveAndWait(page: Page, key: YahavDashKey): Promise<void> {
  *
  * @param page - the Playwright page to search for the element
  * @param key - the Yahav dashboard selector key
+ * @returns a done result after the element disappears
  */
-async function resolveAndDisappear(page: Page, key: YahavDashKey): Promise<void> {
+async function resolveAndDisappear(page: Page, key: YahavDashKey): Promise<IDoneResult> {
   const fieldOpts = dashOpts(page, key);
   const r = await resolveDashboardField(fieldOpts);
   if (r.isResolved) await waitUntilElementDisappear(page, r.selector);
+  return { done: true };
 }
 
 /**
@@ -295,23 +312,27 @@ async function resolveAndDisappear(page: Page, key: YahavDashKey): Promise<void>
  *
  * @param page - the Playwright page to search for the element
  * @param key - the Yahav dashboard selector key
+ * @returns a done result after clicking
  */
-async function resolveAndClick(page: Page, key: YahavDashKey): Promise<void> {
+async function resolveAndClick(page: Page, key: YahavDashKey): Promise<IDoneResult> {
   const fieldOpts = dashOpts(page, key);
   const r = await resolveDashboardField(fieldOpts);
-  if (!r.isResolved) return;
+  if (!r.isResolved) return { done: true };
   await waitUntilElementFound(r.context, r.selector, { visible: true });
   await clickButton(r.context, r.selector);
+  return { done: true };
 }
 
 /**
  * Opens the Yahav date picker by clicking the opener and waiting for the day grid.
  *
  * @param page - the Playwright page with the date picker controls
+ * @returns a done result after the date picker is open
  */
-async function openDatePicker(page: Page): Promise<void> {
+async function openDatePicker(page: Page): Promise<IDoneResult> {
   await resolveAndClick(page, KEYS.datePickerOpener);
   await resolveAndWait(page, KEYS.pmuDaysFirstCell);
+  return { done: true };
 }
 
 /**
@@ -319,8 +340,9 @@ async function openDatePicker(page: Page): Promise<void> {
  *
  * @param page - the Playwright page with the date filter controls
  * @param startDate - the start date to set in the date picker
+ * @returns a done result after setting the date
  */
-async function searchByDates(page: Page, startDate: Moment): Promise<void> {
+async function searchByDates(page: Page, startDate: Moment): Promise<IDoneResult> {
   const startDateDay = startDate.format('D');
   const startDateMonth = startDate.format('M');
   const startDateYear = startDate.format('Y');
@@ -333,9 +355,10 @@ async function searchByDates(page: Page, startDate: Moment): Promise<void> {
   await resolveAndWait(page, KEYS.monthsGridCheck);
   await clickButton(page, `${SEL.pmuMonthsCell}:nth-child(${startDateMonth})`);
   await selectDayFromGrid(page, startDateDay);
+  return { done: true };
 }
 
-export interface FetchAccDataOpts {
+export interface IFetchAccountDataOpts {
   page: Page;
   startDate: Moment;
   accountID: string;
@@ -346,9 +369,9 @@ export interface FetchAccDataOpts {
  * Applies date filter and fetches transactions for the current Yahav account.
  *
  * @param opts - options with page, start date, account ID, and scraper options
- * @returns a TransactionsAccount with account number and transactions
+ * @returns a ITransactionsAccount with account number and transactions
  */
-async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAccount> {
+async function fetchAccountData(opts: IFetchAccountDataOpts): Promise<ITransactionsAccount> {
   const { page, startDate, accountID, options } = opts;
   await resolveAndDisappear(page, KEYS.loadingSpinner);
   await searchByDates(page, startDate);
@@ -363,14 +386,14 @@ async function fetchAccountData(opts: FetchAccDataOpts): Promise<TransactionsAcc
  * @param page - the Playwright page with an active Yahav session
  * @param startDate - the earliest date to include in the transaction search
  * @param options - scraper options for rawTransaction inclusion
- * @returns an array of TransactionsAccount objects
+ * @returns an array of ITransactionsAccount objects
  */
 async function fetchAccounts(
   page: Page,
   startDate: Moment,
   options?: ScraperOptions,
-): Promise<TransactionsAccount[]> {
-  const accounts: TransactionsAccount[] = [];
+): Promise<ITransactionsAccount[]> {
+  const accounts: ITransactionsAccount[] = [];
 
   // Only one account fetched — multi-account not confirmed as supported by Yahav API.
   const accountID = await getAccountID(page);
@@ -380,14 +403,14 @@ async function fetchAccounts(
   return accounts;
 }
 
-export interface ScraperSpecificCredentials {
+export interface IScraperSpecificCredentials {
   username: string;
   password: string;
   nationalID: string;
 }
 
-/** Scraper implementation for Yahav Bank. */
-class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/** IScraper implementation for Yahav Bank. */
+class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   /**
    * Creates a YahavScraper with the Yahav login configuration.
    *
@@ -402,7 +425,7 @@ class YahavScraper extends GenericBankScraper<ScraperSpecificCredentials> {
    *
    * @returns a successful scraping result with all Yahav account transactions
    */
-  public async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
+  public async fetchData(): Promise<{ success: boolean; accounts: ITransactionsAccount[] }> {
     // Goto statements page
     await resolveAndClick(this.page, KEYS.accountDetails);
     await resolveAndWait(this.page, KEYS.statementOptionsTop);

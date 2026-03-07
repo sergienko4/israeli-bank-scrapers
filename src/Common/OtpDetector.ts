@@ -1,5 +1,7 @@
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
 
+import type { FoundResult } from '../Interfaces/Common/FoundResult';
+import type { IDoneResult } from '../Interfaces/Common/StepResult';
 import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
 import { getDebug } from './Debug';
@@ -18,18 +20,19 @@ type TextCheckResult = 'otp' | 'clear' | 'unknown';
 
 /**
  * Extracts the visible inner text of the page body for OTP keyword detection.
- * Returns null when the page context is inaccessible due to navigation.
+ * Returns a FoundResult with isFound: false when the page context is inaccessible.
  *
  * @param page - the Playwright Page to extract text from
- * @returns the body innerText string, or null on evaluation failure
+ * @returns a FoundResult wrapping the body innerText string, or isFound: false on evaluation failure
  */
-async function getBodyText(page: Page): Promise<string | null> {
+async function getBodyText(page: Page): Promise<FoundResult<string>> {
   try {
     const text = await page.evaluate(() => document.body.innerText);
-    return typeof text === 'string' ? text : null;
+    if (typeof text === 'string') return { isFound: true, value: text };
+    return { isFound: false };
   } catch (e: unknown) {
     LOG.info(e, 'getBodyText failed (page context inaccessible)');
-    return null;
+    return { isFound: false };
   }
 }
 
@@ -41,9 +44,9 @@ async function getBodyText(page: Page): Promise<string | null> {
  * @returns 'otp' if an OTP pattern is found, 'clear' if not, or 'unknown' on context failure
  */
 async function detectByText(page: Page): Promise<TextCheckResult> {
-  const bodyText = await getBodyText(page);
-  if (bodyText === null) return 'unknown';
-  return CFG.textPatterns.some(p => bodyText.includes(p)) ? 'otp' : 'clear';
+  const bodyTextResult = await getBodyText(page);
+  if (!bodyTextResult.isFound) return 'unknown';
+  return CFG.textPatterns.some(p => bodyTextResult.value.includes(p)) ? 'otp' : 'clear';
 }
 
 /**
@@ -58,7 +61,7 @@ async function detectByInputField(page: Page): Promise<boolean> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   const frameContextChecks = childFrames.map(f => tryInContext(f, OTP_INPUT_CANDIDATES));
   const frameResults = await Promise.all(frameContextChecks);
-  return frameResults.some(r => r !== null);
+  return frameResults.some(r => r !== '');
 }
 
 /**
@@ -91,23 +94,26 @@ export async function detectOtpScreen(page: Page): Promise<boolean> {
  * @returns the first phone number pattern match found in the body text, or an empty string
  */
 export async function extractPhoneHint(page: Page): Promise<string> {
-  const bodyText = await getBodyText(page);
-  return bodyText?.match(CFG.phonePattern)?.[0] ?? '';
+  const bodyTextResult = await getBodyText(page);
+  if (!bodyTextResult.isFound) return '';
+  return bodyTextResult.value.match(CFG.phonePattern)?.[0] ?? '';
 }
 
 /**
  * Searches the main page and all child iframes for a submit button matching the OTP submit candidates.
  *
  * @param page - the Playwright Page to search for an OTP submit button
- * @returns the CSS selector string for the first matching submit button, or null if none is found
+ * @returns a FoundResult wrapping the CSS selector string, or isFound: false when none is found
  */
-export async function findOtpSubmitSelector(page: Page): Promise<string | null> {
+export async function findOtpSubmitSelector(page: Page): Promise<FoundResult<string>> {
   const main = await tryInContext(page, OTP_SUBMIT_CANDIDATES);
-  if (main) return main;
+  if (main) return { isFound: true, value: main };
   const submitFrames = page.frames().filter(f => f !== page.mainFrame());
   const submitFrameChecks = submitFrames.map(f => tryInContext(f, OTP_SUBMIT_CANDIDATES));
   const frameResults = await Promise.all(submitFrameChecks);
-  return frameResults.find(r => r !== null) ?? null;
+  const found = frameResults.find(r => r !== '');
+  if (found) return { isFound: true, value: found };
+  return { isFound: false };
 }
 
 /**
@@ -148,16 +154,11 @@ async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<bo
 /**
  * Clicks the given selector inside an arbitrary child frame, logging the frame URL for diagnostics.
  *
- * @param frame - a minimal frame-like object with `click` and `url` methods
- * @param frame.click - the click method to invoke with the selector
- * @param frame.url - returns the frame's current URL for log messages
+ * @param frame - the Playwright Frame to click within
  * @param sel - the CSS selector of the element to click within the frame
  * @returns always true — indicates the click was attempted
  */
-async function tryClickInFrame(
-  frame: { click: (sel: string) => Promise<void>; url: () => string },
-  sel: string,
-): Promise<boolean> {
+async function tryClickInFrame(frame: Frame, sel: string): Promise<boolean> {
   const frameUrl = frame.url();
   LOG.info('clicking SMS trigger in iframe %s: %s', frameUrl, sel);
   await frame.click(sel);
@@ -175,7 +176,7 @@ async function tryFramesTriggers(page: Page): Promise<boolean> {
   const childFrames = page.frames().filter(f => f !== page.mainFrame());
   const frameSelectorChecks = childFrames.map(f => tryInContext(f, SMS_TRIGGER_CANDIDATES));
   const selectorResults = await Promise.all(frameSelectorChecks);
-  const firstIdx = selectorResults.findIndex(s => s !== null);
+  const firstIdx = selectorResults.findIndex(s => s !== '');
   const firstSel = selectorResults[firstIdx];
   if (!firstSel) return false;
   await tryClickInFrame(childFrames[firstIdx], firstSel);
@@ -187,19 +188,21 @@ async function tryFramesTriggers(page: Page): Promise<boolean> {
  * Logs a diagnostic message when no trigger is found (SMS may be sent automatically).
  *
  * @param page - the Playwright Page to search for an SMS trigger button
+ * @returns a done result indicating the trigger attempt completed
  */
-async function tryGenericFrameTriggers(page: Page): Promise<void> {
+async function tryGenericFrameTriggers(page: Page): Promise<IDoneResult> {
   const mainSelector = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
   if (mainSelector) {
     LOG.info('clicking SMS trigger on main page: %s', mainSelector);
     await page.click(mainSelector);
-    return;
+    return { done: true };
   }
   const isFound = await tryFramesTriggers(page);
   if (!isFound)
     LOG.info(
       'No SMS trigger button found — SMS may be auto-sent or page is already on entry screen',
     );
+  return { done: true };
 }
 
 /**
@@ -208,8 +211,9 @@ async function tryGenericFrameTriggers(page: Page): Promise<void> {
  * Does nothing when no trigger button is found (some banks send SMS automatically).
  *
  * @param page - the Playwright Page to search for an SMS trigger button
+ * @returns a done result indicating the trigger attempt completed
  */
-export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {
+export async function clickOtpTriggerIfPresent(page: Page): Promise<IDoneResult> {
   const loginFrameTriggers = [
     '#sendSms',
     'xpath=//button[contains(.,"שלח")]',
@@ -219,4 +223,5 @@ export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {
   if (!isClicked) {
     await tryGenericFrameTriggers(page);
   }
+  return { done: true };
 }

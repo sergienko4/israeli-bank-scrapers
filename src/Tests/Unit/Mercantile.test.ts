@@ -1,6 +1,7 @@
 import { SCRAPERS } from '../../Definitions';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface';
+import type { IScraperSpecificCredentials } from '../../Scrapers/Discount/DiscountScraper';
 import MercantileScraper from '../../Scrapers/Mercantile/MercantileScraper';
 import {
   exportTransactions,
@@ -24,7 +25,7 @@ describe('Mercantile legacy scraper', () => {
     expect(SCRAPERS.mercantile.loginFields).toContain('num');
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
+  maybeTestCompanyAPI(COMPANY_ID, config => Boolean(config.companyAPI.invalidPassword))(
     'should fail on invalid user/password"',
     async () => {
       const options = {
@@ -35,7 +36,7 @@ describe('Mercantile legacy scraper', () => {
       const scraper = new MercantileScraper(options as unknown as ScraperOptions);
 
       const result = await scraper.scrape(
-        TESTS_CONFIG.credentials.mercantile as Parameters<typeof scraper.scrape>[0],
+        TESTS_CONFIG.credentials.mercantile as unknown as IScraperSpecificCredentials,
       );
 
       expect(result).toBeDefined();
@@ -52,7 +53,7 @@ describe('Mercantile legacy scraper', () => {
 
     const scraper = new MercantileScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      TESTS_CONFIG.credentials.mercantile as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.mercantile as unknown as IScraperSpecificCredentials,
     );
     expect(result).toBeDefined();
     const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();

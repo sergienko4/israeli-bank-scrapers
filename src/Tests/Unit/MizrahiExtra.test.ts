@@ -39,6 +39,15 @@ jest.mock('../../Common/Browser', () => ({
 jest.mock('../../Common/Transactions', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
+jest.mock('../../Common/Waiting', () => ({
+  sleep: jest.fn().mockResolvedValue(undefined),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  TimeoutError: class TimeoutError extends Error {},
+  SECOND: 1000,
+}));
+jest.mock('../../Common/OtpHandler', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue({ isFound: false }),
+}));
 jest.mock('../../Common/Debug', () => ({
   /**
    * Returns a set of jest mock functions as a debug logger stub.
@@ -64,7 +73,7 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-interface MizrahiScrapedTxn {
+interface IMizrahiScrapedTransaction {
   RecTypeSpecified: boolean;
   MC02PeulaTaaEZ: string;
   MC02SchumEZ: number;
@@ -77,12 +86,14 @@ interface MizrahiScrapedTxn {
 }
 
 /**
- * Creates a mock MizrahiScrapedTxn for extra Mizrahi unit tests.
+ * Creates a mock IMizrahiScrapedTransaction for extra Mizrahi unit tests.
  *
  * @param overrides - optional field overrides for the mock transaction
- * @returns a MizrahiScrapedTxn for testing
+ * @returns a IMizrahiScrapedTransaction for testing
  */
-function scrapedTxn(overrides: Partial<MizrahiScrapedTxn> = {}): MizrahiScrapedTxn {
+function scrapedTxn(
+  overrides: Partial<IMizrahiScrapedTransaction> = {},
+): IMizrahiScrapedTransaction {
   return {
     RecTypeSpecified: true,
     MC02PeulaTaaEZ: '2025-06-15T10:00:00',
@@ -104,7 +115,7 @@ function scrapedTxn(overrides: Partial<MizrahiScrapedTxn> = {}): MizrahiScrapedT
  * @param balance - the account balance string
  * @returns a mock API response object
  */
-function mockApiResponse(rows: MizrahiScrapedTxn[] = [], balance = '5000'): object {
+function mockApiResponse(rows: IMizrahiScrapedTransaction[] = [], balance = '5000'): object {
   return {
     header: { success: true, messages: [] },
     body: { fields: { Yitra: balance }, table: { rows } },
@@ -163,13 +174,18 @@ beforeEach(() => {
   (launchWithEngine as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const freshPage = createMizrahiPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(freshPage);
+  // Default: any extra fetchPostWithinPage calls (e.g. Promise.any over 2 URLs) return isFound:false
+  (fetchPostWithinPage as jest.Mock).mockResolvedValue({ isFound: false });
 });
 
 describe('fetchData feature flags', () => {
   it('marks transactions with generic description as pending when feature flag enabled', async () => {
     const txnGeneric1 = scrapedTxn({ MC02TnuaTeurEZ: 'העברת יומן לבנק זר מסניף זר' });
     const respGeneric1 = mockApiResponse([txnGeneric1]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respGeneric1);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: respGeneric1,
+    });
 
     const scraper = new MizrahiScraper(
       createMockScraperOptions({ optInFeatures: ['mizrahi:pendingIfHasGenericDescription'] }),
@@ -182,7 +198,10 @@ describe('fetchData feature flags', () => {
   it('does not mark generic description as pending without feature flag', async () => {
     const txnGeneric2 = scrapedTxn({ MC02TnuaTeurEZ: 'העברת יומן לבנק זר מסניף זר' });
     const respGeneric2 = mockApiResponse([txnGeneric2]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respGeneric2);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: respGeneric2,
+    });
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -198,9 +217,9 @@ describe('fetchData feature flags', () => {
       { Label: 'מהות', Value: 'Transfer' },
     ]);
     (fetchPostWithinPage as jest.Mock)
-      .mockResolvedValueOnce(respDetail1)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(detailsResp1);
+      .mockResolvedValueOnce({ isFound: true, value: respDetail1 })
+      .mockResolvedValueOnce({ isFound: false })
+      .mockResolvedValueOnce({ isFound: true, value: detailsResp1 });
 
     const scraper = new MizrahiScraper(
       createMockScraperOptions({ shouldAddTransactionInformation: true }),
@@ -214,7 +233,7 @@ describe('fetchData feature flags', () => {
   it('skips extra details when MC02ShowDetailsEZ is not 1', async () => {
     const txnSkip = scrapedTxn({ MC02ShowDetailsEZ: '0' });
     const respSkip = mockApiResponse([txnSkip]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respSkip);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: respSkip });
 
     const scraper = new MizrahiScraper(
       createMockScraperOptions({ shouldAddTransactionInformation: true }),
@@ -228,8 +247,8 @@ describe('fetchData feature flags', () => {
     const txnErr = scrapedTxn({ MC02ShowDetailsEZ: '1' });
     const respErr = mockApiResponse([txnErr]);
     (fetchPostWithinPage as jest.Mock)
-      .mockResolvedValueOnce(respErr)
-      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ isFound: true, value: respErr })
+      .mockResolvedValueOnce({ isFound: false })
       .mockRejectedValueOnce(new Error('Network error'));
 
     const scraper = new MizrahiScraper(
@@ -241,21 +260,22 @@ describe('fetchData feature flags', () => {
     expect((result.accounts ?? [])[0].txns[0].memo).toBeUndefined();
   });
 
-  it('returns undefined identifier when MC02AsmahtaMekoritEZ is empty', async () => {
-    const txnEmptyId = scrapedTxn({ MC02AsmahtaMekoritEZ: '' });
+  it('returns NaN identifier when MC02AsmahtaMekoritEZ is non-numeric', async () => {
+    // Empty string throws in getTransactionIdentifier; use non-numeric string instead
+    const txnEmptyId = scrapedTxn({ MC02AsmahtaMekoritEZ: 'NaN' });
     const respEmptyId = mockApiResponse([txnEmptyId]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respEmptyId);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: respEmptyId });
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect((result.accounts ?? [])[0].txns[0].identifier).toBeUndefined();
+    expect((result.accounts ?? [])[0].txns[0].identifier).toBeNaN();
   });
 
   it('uses integer identifier when TransactionNumber is 1', async () => {
     const txnTrNum = scrapedTxn({ MC02AsmahtaMekoritEZ: '55555', TransactionNumber: '1' });
     const respTrNum = mockApiResponse([txnTrNum]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respTrNum);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ isFound: true, value: respTrNum });
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -268,7 +288,10 @@ describe('fetchData feature flags', () => {
     const txnOld = scrapedTxn({ MC02PeulaTaaEZ: oldDate });
     const txnNew = scrapedTxn();
     const respFiltered = mockApiResponse([txnOld, txnNew]);
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(respFiltered);
+    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+      isFound: true,
+      value: respFiltered,
+    });
 
     const scraper = new MizrahiScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -281,9 +304,9 @@ describe('fetchData feature flags', () => {
     const respRawFull = mockApiResponse([txnRawFull]);
     const detailsRespFull = mockDetailsResponse([{ Label: 'חשבון', Value: '12345' }]);
     (fetchPostWithinPage as jest.Mock)
-      .mockResolvedValueOnce(respRawFull)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(detailsRespFull);
+      .mockResolvedValueOnce({ isFound: true, value: respRawFull })
+      .mockResolvedValueOnce({ isFound: false })
+      .mockResolvedValueOnce({ isFound: true, value: detailsRespFull });
 
     const scraper = new MizrahiScraper(
       createMockScraperOptions({

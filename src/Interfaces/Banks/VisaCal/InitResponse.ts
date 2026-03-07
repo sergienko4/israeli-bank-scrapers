@@ -1,4 +1,4 @@
-export interface InitUser {
+export interface IInitUser {
   firstName: string;
   lastName: string;
   custFullName: string;
@@ -11,7 +11,7 @@ export interface InitUser {
   accountLastEntryDate: string | null;
 }
 
-export interface InitCard {
+export interface IInitCard {
   cardUniqueId: string;
   last4Digits: string;
   cardNumType: number;
@@ -29,7 +29,7 @@ export interface InitCard {
   isGoodCard: boolean;
 }
 
-export interface InitBankAccount {
+export interface IInitBankAccount {
   bankAccountUniqueId: string;
   bankBranchNum: string;
   bankAccountNum: string;
@@ -39,14 +39,14 @@ export interface InitBankAccount {
   isDefault: boolean;
 }
 
-export interface InitResponse {
+export interface IInitResponse {
   statusCode: number; // 1 = success
   statusDescription: string | null;
   statusTitle: string | null;
   groupPid: string | null;
   result: {
-    user: InitUser;
-    cards: InitCard[];
-    bankAccounts: InitBankAccount[];
+    user: IInitUser;
+    cards: IInitCard[];
+    bankAccounts: IInitBankAccount[];
   };
 }

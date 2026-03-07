@@ -47,6 +47,15 @@ jest.mock('../../Common/Debug', () => ({
     error: jest.fn(),
   }),
 }));
+jest.mock('../../Common/OtpHandler', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue({ isFound: false }),
+}));
+jest.mock('../../Common/Waiting', () => ({
+  sleep: jest.fn().mockResolvedValue(undefined),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  TimeoutError: class TimeoutError extends Error {},
+  SECOND: 1000,
+}));
 
 const MOCK_CONTEXT = {
   newPage: jest.fn(),
@@ -185,7 +194,7 @@ describe('fetchData', () => {
     expect((result.accounts ?? [])[0].txns[0].originalAmount).toBe(200);
   });
 
-  it('filters null transactions from DOM extraction', async () => {
+  it('filters skip-sentinel transactions from DOM extraction', async () => {
     (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
     (pageEvalAll as jest.Mock).mockResolvedValueOnce([
@@ -196,7 +205,7 @@ describe('fetchData', () => {
         type: 'רכישה',
         chargedAmount: '₪100.00',
       },
-      null,
+      { _skip: true },
     ]);
 
     const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());

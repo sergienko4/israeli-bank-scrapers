@@ -1,1 +1,1 @@
-export type { ScrapedAccountData as default } from '../../../Scrapers/Discount/DiscountScraper';
+export type { IScrapedAccountData as default } from '../../../Scrapers/Discount/DiscountScraper';

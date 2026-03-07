@@ -34,9 +34,11 @@ describe('Isracard: Mocked E2E', () => {
          * Intercepts all network requests and serves mock Amex/Isracard API fixtures.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -63,9 +65,11 @@ describe('Isracard: Mocked E2E', () => {
          * Intercepts requests with login status 9 to trigger invalid-password detection.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -88,6 +92,7 @@ describe('Isracard: Mocked E2E', () => {
          * Returns null for ValidateIdData to simulate a WAF block.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, [
@@ -103,6 +108,7 @@ describe('Isracard: Mocked E2E', () => {
               body: 'null',
             },
           ]);
+          return { done: true };
         },
     });
 

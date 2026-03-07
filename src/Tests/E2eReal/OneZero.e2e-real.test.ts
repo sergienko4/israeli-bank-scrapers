@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { CompanyTypes, createScraper } from '../../Index';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import {
   assertFailedLogin,
@@ -24,8 +25,9 @@ const IT_IF_TOKEN = process.env.ONEZERO_OTP_LONG_TERM_TOKEN ? it : it.skip;
  * Saves the long-term token back to .env so the next run can reuse it.
  *
  * @param token - the new long-term OTP token to persist
+ * @returns a resolved IDoneResult after saving completes
  */
-function persistLongTermToken(token: string): void {
+function persistLongTermToken(token: string): IDoneResult {
   const cwd = process.cwd();
   const envPath = path.resolve(cwd, '.env');
   // Read atomically (no existsSync check) to eliminate TOCTOU race condition.
@@ -33,7 +35,7 @@ function persistLongTermToken(token: string): void {
   try {
     envContent = fs.readFileSync(envPath, 'utf8');
   } catch {
-    return; // .env does not exist — nothing to update
+    return { done: true }; // .env does not exist — nothing to update
   }
   const newEntry = `ONEZERO_OTP_LONG_TERM_TOKEN=${token}`;
   // Use a replacement function to avoid '$' special-character interpretation.
@@ -41,6 +43,7 @@ function persistLongTermToken(token: string): void {
     ? envContent.replace(/ONEZERO_OTP_LONG_TERM_TOKEN=[^\r\n]*/u, () => newEntry)
     : `${envContent}\n${newEntry}`;
   fs.writeFileSync(envPath, updated, 'utf8');
+  return { done: true };
 }
 
 DESCRIBE_IF('E2E: OneZero (real credentials)', () => {

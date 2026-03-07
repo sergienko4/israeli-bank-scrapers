@@ -5,9 +5,9 @@ import {
 } from '../../Common/BrowserEngine';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
 import type {
+  IScraperScrapingResult,
   ScraperCredentials,
   ScraperOptions,
-  ScraperScrapingResult,
 } from '../../Scrapers/Base/Interface';
 import { DEFAULT_ENGINE_CHAIN, ScraperWithFallback } from '../../Scrapers/Base/ScraperWithFallback';
 
@@ -32,12 +32,12 @@ const BASE_OPTIONS: ScraperOptions = {
 };
 
 /**
- * Creates a mock Scraper that returns the given result.
+ * Creates a mock IScraper that returns the given result.
  *
- * @param result - the ScraperScrapingResult to return from scrape()
- * @returns a mock Scraper instance
+ * @param result - the IScraperScrapingResult to return from scrape()
+ * @returns a mock IScraper instance
  */
-function mockScraper(result: ScraperScrapingResult): { scrape: jest.Mock; onProgress: jest.Mock } {
+function mockScraper(result: IScraperScrapingResult): { scrape: jest.Mock; onProgress: jest.Mock } {
   return { scrape: jest.fn().mockResolvedValue(result), onProgress: jest.fn() };
 }
 
@@ -53,7 +53,7 @@ describe('DEFAULT_ENGINE_CHAIN', () => {
 
 describe('ScraperWithFallback', () => {
   it('returns success result without trying other engines', async () => {
-    const success: ScraperScrapingResult = { success: true };
+    const success: IScraperScrapingResult = { success: true };
     const scraperMock = mockScraper(success);
     const createFn = jest.fn().mockReturnValue(scraperMock);
     const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
@@ -66,11 +66,11 @@ describe('ScraperWithFallback', () => {
   });
 
   it('falls back on WafBlocked and returns next engine result', async () => {
-    const wafResult: ScraperScrapingResult = {
+    const wafResult: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
     };
-    const successResult: ScraperScrapingResult = { success: true };
+    const successResult: IScraperScrapingResult = { success: true };
     const wafScraper = mockScraper(wafResult);
     const successScraper = mockScraper(successResult);
     const createFn = jest.fn().mockReturnValueOnce(wafScraper).mockReturnValueOnce(successScraper);
@@ -83,12 +83,12 @@ describe('ScraperWithFallback', () => {
     expect(createFn).toHaveBeenCalledTimes(2);
   });
 
-  it('does NOT fall back on Timeout — returns immediately (login failure, not WAF)', async () => {
-    const timeoutResult: ScraperScrapingResult = {
+  it('falls back on Timeout — tries next engine (Timeout can indicate WAF/IP block)', async () => {
+    const timeoutResult: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.Timeout,
     };
-    const successResult: ScraperScrapingResult = { success: true };
+    const successResult: IScraperScrapingResult = { success: true };
     const timeoutScraper = mockScraper(timeoutResult);
     const successScraper = mockScraper(successResult);
     const createFn = jest
@@ -100,13 +100,12 @@ describe('ScraperWithFallback', () => {
       BrowserEngineType.Rebrowser,
     ]);
     const result = await fallback.scrape(CREDS);
-    expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
-    expect(createFn).toHaveBeenCalledTimes(1);
+    expect(result.success).toBe(true);
+    expect(createFn).toHaveBeenCalledTimes(2);
   });
 
   it('does NOT fall back on InvalidPassword — returns immediately', async () => {
-    const invalidPwd: ScraperScrapingResult = {
+    const invalidPwd: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.InvalidPassword,
     };
@@ -122,7 +121,7 @@ describe('ScraperWithFallback', () => {
   });
 
   it('returns rich error when all engines fail with WafBlocked', async () => {
-    const wafResult: ScraperScrapingResult = {
+    const wafResult: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'blocked',
@@ -143,12 +142,12 @@ describe('ScraperWithFallback', () => {
   });
 
   it('rich error message includes engine name and error for each attempt', async () => {
-    const wafResult1: ScraperScrapingResult = {
+    const wafResult1: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'waf on engine 1',
     };
-    const wafResult2: ScraperScrapingResult = {
+    const wafResult2: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
       errorMessage: 'waf on engine 2',
@@ -183,37 +182,35 @@ describe('ScraperWithFallback', () => {
   });
 
   it('injects engineType into options for each attempt', async () => {
-    const success: ScraperScrapingResult = { success: true };
+    const success: IScraperScrapingResult = { success: true };
     const successScraper = mockScraper(success);
     const createFn = jest.fn().mockReturnValue(successScraper);
     const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [BrowserEngineType.Rebrowser]);
     await fallback.scrape(CREDS);
     const calls = createFn.mock.calls as [ScraperOptions][];
-    const passedOpts = calls[0][0];
-    expect((passedOpts as Record<string, unknown>).engineType).toBe(BrowserEngineType.Rebrowser);
+    const passedOpts = calls[0][0] as ScraperOptions & { engineType: string };
+    expect(passedOpts.engineType).toBe(BrowserEngineType.Rebrowser);
   });
 
   it('uses getGlobalEngineChain() when no engines provided — first engine is PlaywrightStealth', async () => {
-    const success: ScraperScrapingResult = { success: true };
+    const success: IScraperScrapingResult = { success: true };
     const successScraper = mockScraper(success);
     const createFn = jest.fn().mockReturnValue(successScraper);
     const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn);
     await fallback.scrape(CREDS);
     const calls = createFn.mock.calls as [ScraperOptions][];
-    const passedOpts = calls[0][0];
-    expect((passedOpts as Record<string, unknown>).engineType).toBe(
-      BrowserEngineType.PlaywrightStealth,
-    );
+    const passedOpts = calls[0][0] as ScraperOptions & { engineType: string };
+    expect(passedOpts.engineType).toBe(BrowserEngineType.PlaywrightStealth);
   });
 
   it('onProgress is forwarded to each engine scraper', async () => {
-    const success: ScraperScrapingResult = { success: true };
+    const success: IScraperScrapingResult = { success: true };
     const scraperMock = mockScraper(success);
     const createFn = jest.fn().mockReturnValue(scraperMock);
     const fallback = new ScraperWithFallback(BASE_OPTIONS, createFn, [
       BrowserEngineType.PlaywrightStealth,
     ]);
-    const cb = jest.fn();
+    const cb = jest.fn().mockReturnValue({ done: true });
     fallback.onProgress(cb);
     await fallback.scrape(CREDS);
     expect(scraperMock.onProgress).toHaveBeenCalledWith(cb);
@@ -240,7 +237,7 @@ describe('ScraperWithFallback', () => {
   });
 
   it('formatAttempt uses (no message) when errorMessage is absent in attempt', async () => {
-    const noMsgResult: ScraperScrapingResult = {
+    const noMsgResult: IScraperScrapingResult = {
       success: false,
       errorType: ScraperErrorTypes.WafBlocked,
     };

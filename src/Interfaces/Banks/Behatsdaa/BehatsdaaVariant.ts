@@ -1,1 +1,1 @@
-export type { BehatsdaaVariant as default } from '../../../Scrapers/Behatsdaa/BehatsdaaScraper';
+export type { IBehatsdaaVariant as default } from '../../../Scrapers/Behatsdaa/BehatsdaaScraper';

@@ -1,4 +1,4 @@
-export interface CardLevelFrame {
+export interface ICardLevelFrame {
   cardUniqueId: string;
   nextTotalDebit?: number;
 }

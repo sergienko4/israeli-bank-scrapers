@@ -1,1 +1,1 @@
-export type { FetchByIdOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';
+export type { IFetchByIdOpts as default } from '../../../Scrapers/Leumi/LeumiScraper';

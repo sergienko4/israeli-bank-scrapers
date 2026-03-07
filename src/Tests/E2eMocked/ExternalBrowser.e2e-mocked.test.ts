@@ -2,6 +2,7 @@ import { type Browser, type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions';
 import { createScraper } from '../../Index';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import amexRoutes from './Helpers/AmexRoutes';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
 import { setupRequestInterception } from './Helpers/RequestInterceptor';
@@ -33,9 +34,11 @@ describe('External Browser: Mocked E2E', () => {
          * Sets up request interception with mock Amex routes.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -62,9 +65,11 @@ describe('External Browser: Mocked E2E', () => {
          * Sets up request interception with mock Amex routes for the browser context test.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
         async page => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     });
 
@@ -92,9 +97,11 @@ describe('External Browser: Mocked E2E', () => {
          * Sets up request interception for each sequential scrape run.
          *
          * @param page - the Playwright page to attach route interception to
+         * @returns a resolved IDoneResult after interception is set up
          */
-        async (page: Page): Promise<void> => {
+        async (page: Page): Promise<IDoneResult> => {
           await setupRequestInterception(page, routes);
+          return { done: true };
         },
     };
 

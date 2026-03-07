@@ -1,27 +1,37 @@
 import { BrowserEngineType, getGlobalEngineChain } from '../../Common/BrowserEngine';
 import { getDebug } from '../../Common/Debug';
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions';
+import type { IDoneResult } from '../../Interfaces/Common/StepResult';
 import { ScraperErrorTypes } from './ErrorTypes';
 import type {
-  Scraper,
+  IScraper,
+  IScraperScrapingResult,
   ScraperCredentials,
   ScraperGetLongTermTwoFactorTokenResult,
   ScraperOptions,
-  ScraperScrapingResult,
   ScraperTwoFactorAuthTriggerResult,
 } from './Interface';
 import { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
-/** Callback type matching the Scraper.onProgress signature. */
-type ProgressCallback = (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void;
+/** Callback type matching the IScraper.onProgress signature. */
+type ProgressCallback = (
+  companyId: CompanyTypes,
+  payload: { type: ScraperProgressTypes },
+) => IDoneResult;
 
 const LOG = getDebug('scraper-with-fallback');
 
 /**
  * Error types that trigger a fallback to the next engine.
- * Only WAF blocks — timeouts could be login failures (wrong credentials) and must not retry.
+ * WafBlocked: bank API returned a block/challenge page.
+ * Timeout: login redirect timed out (bank redirected back to login = IP/WAF block).
+ * Wrong credentials produce InvalidPassword (not Timeout) after the validateCredentials fix,
+ * so adding Timeout here does NOT cause wrong-credential retries.
  */
-const FALLBACK_ERRORS = new Set<ScraperErrorTypes>([ScraperErrorTypes.WafBlocked]);
+const FALLBACK_ERRORS = new Set<ScraperErrorTypes>([
+  ScraperErrorTypes.WafBlocked,
+  ScraperErrorTypes.Timeout,
+]);
 
 /** Default fallback chain: stealth → rebrowser → patchright (kept for backward compat). */
 export const DEFAULT_ENGINE_CHAIN: BrowserEngineType[] = [
@@ -31,9 +41,9 @@ export const DEFAULT_ENGINE_CHAIN: BrowserEngineType[] = [
 ];
 
 /** Records the engine used and the result it produced in a full-queue attempt run. */
-export interface ScraperEngineAttempt {
+export interface IScraperEngineAttempt {
   engine: BrowserEngineType;
-  result: ScraperScrapingResult;
+  result: IScraperScrapingResult;
 }
 
 /**
@@ -42,7 +52,7 @@ export interface ScraperEngineAttempt {
  * @param result - the scraping result to inspect
  * @returns true for WafBlocked or Timeout errors; false otherwise
  */
-function shouldFallback(result: ScraperScrapingResult): boolean {
+function shouldFallback(result: IScraperScrapingResult): boolean {
   return !result.success && result.errorType != null && FALLBACK_ERRORS.has(result.errorType);
 }
 
@@ -63,7 +73,7 @@ function optionsWithEngine(base: ScraperOptions, engineType: BrowserEngineType):
  * @param attempt - the engine attempt to summarise
  * @returns a string like "[camoufox] WafBlocked: blocked"
  */
-function formatAttempt(attempt: ScraperEngineAttempt): string {
+function formatAttempt(attempt: IScraperEngineAttempt): string {
   const { engine, result } = attempt;
   const errType = result.errorType ?? 'unknown';
   const errMsg = result.errorMessage ?? '(no message)';
@@ -74,13 +84,13 @@ function formatAttempt(attempt: ScraperEngineAttempt): string {
  * Builds a combined failure result when every engine in the chain triggered a fallback.
  *
  * @param attempts - all engine attempts collected during the run
- * @returns a failed ScraperScrapingResult with a rich errorMessage listing all engines
+ * @returns a failed IScraperScrapingResult with a rich errorMessage listing all engines
  */
-function buildAllFailedResult(attempts: ScraperEngineAttempt[]): ScraperScrapingResult {
+function buildAllFailedResult(attempts: IScraperEngineAttempt[]): IScraperScrapingResult {
   const summary = attempts.map(formatAttempt).join(' | ');
   const lastResult = attempts.at(-1)?.result;
   const errorType = lastResult?.errorType ?? ScraperErrorTypes.WafBlocked;
-  const base: ScraperScrapingResult = {
+  const base: IScraperScrapingResult = {
     success: false,
     errorType,
     errorMessage: `All engines failed — ${summary}`,
@@ -100,25 +110,25 @@ function buildAllFailedResult(attempts: ScraperEngineAttempt[]): ScraperScraping
  * );
  * const result = await scraper.scrape(credentials);
  */
-export class ScraperWithFallback implements Scraper<ScraperCredentials> {
+export class ScraperWithFallback implements IScraper<ScraperCredentials> {
   private readonly _options: ScraperOptions;
 
-  private readonly _createFn: (opts: ScraperOptions) => Scraper<ScraperCredentials>;
+  private readonly _createFn: (opts: ScraperOptions) => IScraper<ScraperCredentials>;
 
   private readonly _engines: BrowserEngineType[];
 
-  private _progressCallback: ProgressCallback | null = null;
+  private _progressCallback?: ProgressCallback;
 
   /**
    * Creates a new ScraperWithFallback.
    *
    * @param options - base scraper options (companyId, startDate, etc.)
-   * @param createFn - factory function that constructs a concrete Scraper for given options
+   * @param createFn - factory function that constructs a concrete IScraper for given options
    * @param engines - ordered list of engine types to try; defaults to getGlobalEngineChain()
    */
   constructor(
     options: ScraperOptions,
-    createFn: (opts: ScraperOptions) => Scraper<ScraperCredentials>,
+    createFn: (opts: ScraperOptions) => IScraper<ScraperCredentials>,
     engines: BrowserEngineType[] = getGlobalEngineChain(),
   ) {
     this._options = options;
@@ -128,12 +138,14 @@ export class ScraperWithFallback implements Scraper<ScraperCredentials> {
 
   /**
    * Registers a progress callback forwarded to each engine's scraper during its run.
-   * Matches the Scraper interface so ScraperWithFallback is a transparent drop-in.
+   * Matches the IScraper interface so ScraperWithFallback is a transparent drop-in.
    *
    * @param func - callback receiving companyId and progress type on each state change
+   * @returns a done result
    */
-  public onProgress(func: ProgressCallback): void {
+  public onProgress(func: ProgressCallback): IDoneResult {
     this._progressCallback = func;
+    return { done: true };
   }
 
   /**
@@ -161,15 +173,15 @@ export class ScraperWithFallback implements Scraper<ScraperCredentials> {
   }
 
   /**
-   * Scrapes bank transactions, trying each engine in order on WafBlocked only.
+   * Scrapes bank transactions, trying each engine in order on WafBlocked or Timeout.
    * Collects all attempts; returns the first non-fallback result immediately.
    * If every engine triggers a fallback, returns a rich error listing all attempts.
    *
    * @param credentials - bank login credentials
    * @returns the scraping result (success, non-WAF error, or all-engines-failed rich error)
    */
-  public async scrape(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
-    const seed: Promise<ScraperEngineAttempt[]> = Promise.resolve([]);
+  public async scrape(credentials: ScraperCredentials): Promise<IScraperScrapingResult> {
+    const seed: Promise<IScraperEngineAttempt[]> = Promise.resolve([]);
     const attempts = await this._engines.reduce(async (prevPromise, engine) => {
       const prev = await prevPromise;
       const last = prev.at(-1);
@@ -193,7 +205,7 @@ export class ScraperWithFallback implements Scraper<ScraperCredentials> {
   private async tryEngine(
     engine: BrowserEngineType,
     credentials: ScraperCredentials,
-  ): Promise<ScraperScrapingResult> {
+  ): Promise<IScraperScrapingResult> {
     try {
       LOG.info('trying engine %s', engine);
       const engineOpts = optionsWithEngine(this._options, engine);

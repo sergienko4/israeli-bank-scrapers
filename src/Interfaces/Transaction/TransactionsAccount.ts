@@ -1,1 +1,1 @@
-export type { TransactionsAccount as default } from '../../Transactions';
+export type { ITransactionsAccount as default } from '../../Transactions';

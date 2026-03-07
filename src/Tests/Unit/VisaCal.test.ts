@@ -93,9 +93,10 @@ beforeEach(() => {
  * Sets up the standard 5-call fetchPost mock chain for a VisaCal scrape cycle.
  *
  * @param txnDetails - the card transaction details response for the 5th mock call
+ * @returns the jest Mock for further chaining if needed
  */
-function mockFetchPostChain(txnDetails: object): void {
-  (fetchPost as jest.Mock)
+function mockFetchPostChain(txnDetails: object): jest.Mock {
+  return (fetchPost as jest.Mock)
     .mockResolvedValueOnce(INIT_RESPONSE)
     .mockResolvedValueOnce(INIT_RESPONSE)
     .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })

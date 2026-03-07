@@ -1,21 +1,21 @@
-import type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
-import type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
+import type { IErrorResult } from '../../Interfaces/Error/ErrorResult';
+import type { IWafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 
-export type { ErrorResult } from '../../Interfaces/Error/ErrorResult';
-export type { WafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
+export type { IErrorResult } from '../../Interfaces/Error/ErrorResult';
+export type { IWafErrorDetails } from '../../Interfaces/Error/WafErrorDetails';
 export { ScraperErrorTypes } from './ErrorTypes';
 export { ScraperWebsiteChangedError } from './ScraperWebsiteChangedError';
 
 import { ScraperErrorTypes } from './ErrorTypes';
 
 /**
- * Builds a base ErrorResult object with a given error type and message.
+ * Builds a base IErrorResult object with a given error type and message.
  *
  * @param errorType - the classified error type
  * @param errorMessage - human-readable description of the error
- * @returns a failed ErrorResult with success=false
+ * @returns a failed IErrorResult with success=false
  */
-function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): ErrorResult {
+function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): IErrorResult {
   return {
     success: false,
     errorType,
@@ -27,9 +27,9 @@ function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): 
  * Creates a Timeout error result.
  *
  * @param errorMessage - description of which operation timed out
- * @returns a failed ErrorResult with Timeout error type
+ * @returns a failed IErrorResult with Timeout error type
  */
-export function createTimeoutError(errorMessage: string): ErrorResult {
+export function createTimeoutError(errorMessage: string): IErrorResult {
   return createErrorResult(ScraperErrorTypes.Timeout, errorMessage);
 }
 
@@ -37,9 +37,9 @@ export function createTimeoutError(errorMessage: string): ErrorResult {
  * Creates a Generic error result.
  *
  * @param errorMessage - description of the unexpected error
- * @returns a failed ErrorResult with Generic error type
+ * @returns a failed IErrorResult with Generic error type
  */
-export function createGenericError(errorMessage: string): ErrorResult {
+export function createGenericError(errorMessage: string): IErrorResult {
   return createErrorResult(ScraperErrorTypes.Generic, errorMessage);
 }
 
@@ -48,9 +48,9 @@ export function createGenericError(errorMessage: string): ErrorResult {
  *
  * @param message - human-readable WAF block description
  * @param details - optional structured WAF error details (provider, status, suggestions)
- * @returns a failed ErrorResult with WafBlocked error type
+ * @returns a failed IErrorResult with WafBlocked error type
  */
-export function createWafBlockedError(message: string, details?: WafErrorDetails): ErrorResult {
+export function createWafBlockedError(message: string, details?: IWafErrorDetails): IErrorResult {
   return {
     success: false,
     errorType: ScraperErrorTypes.WafBlocked,
@@ -69,14 +69,14 @@ const WAF_SUGGESTIONS = {
 
 /** Error thrown when a WAF (e.g. Cloudflare) blocks an API or page request. */
 export class WafBlockError extends Error {
-  public readonly details: WafErrorDetails;
+  public readonly details: IWafErrorDetails;
 
   /**
    * Creates a WafBlockError with structured details about the block.
    *
    * @param details - structured WAF block information including provider, status, and suggestions
    */
-  constructor(details: WafErrorDetails) {
+  constructor(details: IWafErrorDetails) {
     const httpStatus = String(details.httpStatus);
     const msg =
       `WAF blocked by ${details.provider} (HTTP ${httpStatus}, ` +

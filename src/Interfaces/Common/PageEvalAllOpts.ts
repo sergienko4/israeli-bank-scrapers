@@ -1,5 +1,5 @@
-export interface PageEvalAllOpts<TResult> {
+export interface IPageEvalAllOpts<TResult> {
   selector: string;
   defaultResult: TResult;
-  callback: (elements: Element[], ...args: unknown[]) => TResult;
+  callback: (elements: Element[]) => TResult;
 }

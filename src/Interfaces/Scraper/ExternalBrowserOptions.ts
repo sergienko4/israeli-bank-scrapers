@@ -1,1 +1,1 @@
-export type { ExternalBrowserOptions as default } from '../../Scrapers/Base/Interface';
+export type { IExternalBrowserOptions as default } from '../../Scrapers/Base/Interface';

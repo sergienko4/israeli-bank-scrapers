@@ -4,7 +4,7 @@ import BeinleumiGroupBaseScraper from '../BaseBeinleumiGroup/BaseBeinleumiGroup'
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 
-/** Scraper implementation for Bank Beinleumi (First International Bank of Israel). */
+/** IScraper implementation for Bank Beinleumi (First International Bank of Israel). */
 class BeinleumiScraper extends BeinleumiGroupBaseScraper {
   /**
    * Creates a BeinleumiScraper with the bank-specific login URL.
