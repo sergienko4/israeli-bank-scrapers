@@ -93,6 +93,20 @@ function debugCandidateSkipped(candidate: SelectorCandidate): void {
   );
 }
 
+async function findInputByForAttr(
+  ctx: Page | Frame,
+  forAttr: string,
+  labelValue: string,
+): Promise<string | null> {
+  const inputSelector = `#${forAttr}`;
+  if (!(await ctx.$(inputSelector))) {
+    LOG.info('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    return null;
+  }
+  LOG.info('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
+  return inputSelector;
+}
+
 async function resolveLabelText(
   ctx: Page | Frame,
   labelXpath: string,
@@ -105,14 +119,7 @@ async function resolveLabelText(
     LOG.info('labelText "%s" found but no for= attribute', labelValue);
     return null;
   }
-  const inputSelector = `#${forAttr}`;
-  const input = await ctx.$(inputSelector);
-  if (!input) {
-    LOG.info('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
-    return null;
-  }
-  LOG.info('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
-  return inputSelector;
+  return findInputByForAttr(ctx, forAttr, labelValue);
 }
 
 async function probeCandidate(
@@ -296,16 +303,6 @@ async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null>
   return null;
 }
 
-function splitCandidates(field: FieldConfig): {
-  bank: SelectorCandidate[];
-  wellKnown: SelectorCandidate[];
-} {
-  return {
-    bank: [...field.selectors],
-    wellKnown: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
-  };
-}
-
 async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
@@ -323,27 +320,13 @@ export async function resolveFieldContext(
   field: FieldConfig,
   pageUrl: string,
 ): Promise<FieldContext> {
-  const { bank, wellKnown } = splitCandidates(field);
   return resolveAll({
     pageOrFrame,
     field,
     pageUrl,
-    bankCandidates: bank,
-    wellKnownCandidates: wellKnown,
+    bankCandidates: [...field.selectors],
+    wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
   });
-}
-
-/**
- * Convenience wrapper: resolve a field and return only the CSS selector string.
- * @deprecated Prefer resolveFieldContext when the caller needs to know which frame the element lives in.
- */
-export async function resolveSelector(
-  pageOrFrame: Page | Frame,
-  field: FieldConfig,
-  pageUrl: string,
-): Promise<string> {
-  const { selector } = await resolveFieldContext(pageOrFrame, field, pageUrl);
-  return selector;
 }
 
 /**

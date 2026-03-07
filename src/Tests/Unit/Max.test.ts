@@ -134,14 +134,15 @@ describe('login', () => {
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {
-    mockContext.newPage.mockResolvedValue(createMockPage({
-      url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-    }));
+    mockContext.newPage.mockResolvedValue(
+      createMockPage({
+        url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
+        waitForURL: jest.fn().mockResolvedValue(undefined),
+      }),
+    );
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
     (elementPresentOnPage as jest.Mock)
       .mockResolvedValueOnce(false) // #closePopup
-      .mockResolvedValueOnce(false) // לקוחות פרטיים
       .mockResolvedValueOnce(true) // #popupWrongDetails
       .mockResolvedValueOnce(false); // #popupCardHoldersLoginError
 
@@ -152,10 +153,12 @@ describe('login', () => {
   });
 
   it('returns ChangePassword for renewal URL', async () => {
-    mockContext.newPage.mockResolvedValue(createMockPage({
-      url: jest.fn().mockReturnValue('https://www.max.co.il/renew-password'),
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-    }));
+    mockContext.newPage.mockResolvedValue(
+      createMockPage({
+        url: jest.fn().mockReturnValue('https://www.max.co.il/renew-password'),
+        waitForURL: jest.fn().mockResolvedValue(undefined),
+      }),
+    );
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/renew-password');
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

@@ -25,5 +25,6 @@ export type OtpConfig =
       kind: 'api'; // handled entirely in the scraper class (e.g. OneZero)
     };
 
-/** A single login result condition: URL string, regex, or async page predicate */
-export type ResultCondition = string | RegExp | ((opts?: { page?: Page }) => Promise<boolean>);
+/** A single login result condition: URL string, regex, or sync/async page predicate */
+type ResultConditionFn = (opts?: { page?: Page }) => boolean | Promise<boolean>;
+export type ResultCondition = string | RegExp | ResultConditionFn;

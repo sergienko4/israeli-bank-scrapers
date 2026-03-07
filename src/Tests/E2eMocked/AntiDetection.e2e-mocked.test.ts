@@ -14,7 +14,7 @@ afterAll(async () => {
 });
 
 describe('Browser context options (Camoufox)', () => {
-  it('sets Hebrew locale and Israel timezone', async () => {
+  it('sets Hebrew locale and Israel timezone', () => {
     const opts = buildContextOptions();
     expect(opts.locale).toBe('he-IL');
     expect(opts.timezoneId).toBe('Asia/Jerusalem');

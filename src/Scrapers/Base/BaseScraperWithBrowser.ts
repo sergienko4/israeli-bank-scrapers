@@ -12,7 +12,7 @@ import {
   type StepResult,
   stopWithResult,
 } from '../../Common/LoginMiddleware';
-import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
+import { waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
 import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler';
 import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
@@ -20,17 +20,17 @@ import { ScraperProgressTypes } from '../../Definitions';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { BaseScraper } from './BaseScraper';
 import {
-  detectGenericInvalidPassword,
+  buildLoginResult,
   getKeyByValue,
   LOGIN_RESULTS,
   type LoginOptions,
+  type LoginResultContext,
   type LoginResults,
   type PossibleLoginResults,
+  resolveAndBuildLoginResult,
   safeCleanup,
 } from './BaseScraperHelpers';
-import { ScraperErrorTypes } from './Errors';
 import type { DefaultBrowserOptions, ScraperCredentials, ScraperScrapingResult } from './Interface';
-import type { FieldConfig } from './LoginConfig';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
@@ -46,6 +46,8 @@ class BaseScraperWithBrowser<
   protected page!: Page;
 
   private cleanups: (() => Promise<void>)[] = [];
+
+  private otpPhoneHint = '';
 
   public async initialize(): Promise<void> {
     await super.initialize();
@@ -99,7 +101,32 @@ class BaseScraperWithBrowser<
     const steps = this.buildLoginChain(loginOptions, ctx);
     const chainResult = await runLoginChain(steps, ctx);
     if (chainResult !== null) return chainResult;
-    return this.resolveLoginResult(loginOptions);
+    return resolveAndBuildLoginResult(this.loginResultCtx(), loginOptions.possibleResults);
+  }
+
+  public async terminate(_success: boolean): Promise<void> {
+    LOG.info(`terminating browser with success = ${_success}`);
+    this.emitProgress(ScraperProgressTypes.Terminating);
+    if (!_success && !!this.options.storeFailureScreenShotPath) {
+      LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+      await this.page
+        .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
+        .catch((e: unknown) => {
+          LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
+        });
+    }
+    await Promise.all(this.cleanups.reverse().map(safeCleanup));
+    this.cleanups = [];
+  }
+
+  private loginResultCtx(): LoginResultContext {
+    return {
+      page: this.page,
+      diagState: this.diagState,
+      emitProgress: (t): void => {
+        this.emitProgress(t);
+      },
+    };
   }
 
   private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): LoginStep[] {
@@ -121,31 +148,12 @@ class BaseScraperWithBrowser<
     return steps;
   }
 
-  public async terminate(_success: boolean): Promise<void> {
-    LOG.info(`terminating browser with success = ${_success}`);
-    this.emitProgress(ScraperProgressTypes.Terminating);
-    if (!_success && !!this.options.storeFailureScreenShotPath) {
-      LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
-      await this.page
-        .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-        .catch((e: unknown) => {
-          LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
-        });
-    }
-    await Promise.all(this.cleanups.reverse().map(safeCleanup));
-    this.cleanups = [];
-  }
-
-  private buildFieldConfig(field: { selector: string; credentialKey?: string }): FieldConfig {
-    const key = field.credentialKey ?? extractCredentialKey(field.selector);
-    return { credentialKey: key, selectors: [{ kind: 'css', value: field.selector }] };
-  }
-
   private async fillOneInput(
     pageOrFrame: Page | Frame,
     field: { selector: string; value: string; credentialKey?: string },
   ): Promise<void> {
-    const fc = this.buildFieldConfig(field);
+    const key = field.credentialKey ?? extractCredentialKey(field.selector);
+    const fc = { credentialKey: key, selectors: [{ kind: 'css' as const, value: field.selector }] };
     const result = await resolveFieldContext(
       this.activeLoginContext ?? pageOrFrame,
       fc,
@@ -181,19 +189,15 @@ class BaseScraperWithBrowser<
     return context.newPage();
   }
 
-  private registerBrowserCleanup(browser: Browser): void {
-    this.cleanups.push(async () => {
-      LOG.info('closing the browser');
-      await browser.close();
-    });
-  }
-
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
     const { shouldShowBrowser } = opts;
     LOG.info('launch Camoufox browser headless=%s', !shouldShowBrowser);
     const browser = await launchCamoufox(!shouldShowBrowser);
-    this.registerBrowserCleanup(browser);
+    this.cleanups.push(async () => {
+      LOG.info('closing the browser');
+      await browser.close();
+    });
     if (opts.prepareBrowser) await opts.prepareBrowser(browser);
     return this.createContextAndPage(browser, false);
   }
@@ -207,14 +211,15 @@ class BaseScraperWithBrowser<
     if ('browser' in this.options) {
       LOG.info('Using the browser instance provided in options');
       const { browser } = this.options;
-      if (!this.options.skipCloseBrowser) this.registerBrowserCleanup(browser);
+      if (!this.options.skipCloseBrowser) {
+        this.cleanups.push(async () => {
+          LOG.info('closing the browser');
+          await browser.close();
+        });
+      }
       return this.createContextAndPage(browser);
     }
     return this.launchNewBrowser();
-  }
-
-  private isSuccessStatus(status: number): boolean {
-    return status === 200 || (status >= 300 && status < 400);
   }
 
   private async navigateAfterDelay(
@@ -239,8 +244,8 @@ class BaseScraperWithBrowser<
       throw new Error(
         `Failed to navigate to url ${url}, status code: 403 (after ${maxRetries} retries)`,
       );
-    const currentStatus = await this.navigateAfterDelay(url, waitUntil, attempt);
-    if (this.isSuccessStatus(currentStatus)) {
+    const status = await this.navigateAfterDelay(url, waitUntil, attempt);
+    if (status === 200 || (status >= 300 && status < 400)) {
       LOG.info('WAF 403 resolved after retry %d', attempt + 1);
       return;
     }
@@ -261,7 +266,10 @@ class BaseScraperWithBrowser<
     return CONTINUE;
   }
 
-  private async stepFillAndSubmit(loginOptions: LoginOptions, ctx: LoginContext): Promise<StepResult> {
+  private async stepFillAndSubmit(
+    loginOptions: LoginOptions,
+    ctx: LoginContext,
+  ): Promise<StepResult> {
     let loginFrameOrPage: Page | Frame = this.page;
     if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
     ctx.activeFrame = loginFrameOrPage;
@@ -286,14 +294,13 @@ class BaseScraperWithBrowser<
   private async stepCheckEarlyResult(loginOptions: LoginOptions): Promise<StepResult> {
     try {
       const r = await getKeyByValue(loginOptions.possibleResults, this.page.url(), this.page);
-      if (r !== LOGIN_RESULTS.UnknownError) return stopWithResult(this.handleLoginResult(r));
+      if (r !== LOGIN_RESULTS.UnknownError)
+        return stopWithResult(buildLoginResult(this.loginResultCtx(), r));
     } catch {
       // page.url() may throw — continue chain
     }
     return CONTINUE;
   }
-
-  private otpPhoneHint = '';
 
   private async stepOtpConfirm(): Promise<StepResult> {
     LOG.info('login[5a] OTP confirm — send SMS');
@@ -323,49 +330,6 @@ class BaseScraperWithBrowser<
       await waitForNavigation(this.page);
     }
     return CONTINUE;
-  }
-
-  private async resolveLoginResult(loginOptions: LoginOptions): Promise<ScraperScrapingResult> {
-    const current = await getCurrentUrl(this.page, true);
-    this.diagState.finalUrl = current;
-    this.diagState.pageTitle = await this.page.title().catch(() => '');
-    let loginResult = await getKeyByValue(loginOptions.possibleResults, current, this.page);
-    if (
-      loginResult === LOGIN_RESULTS.UnknownError &&
-      (await detectGenericInvalidPassword(this.page))
-    )
-      loginResult = LOGIN_RESULTS.InvalidPassword;
-    return this.handleLoginResult(loginResult);
-  }
-
-  private handleFailedLogin(loginResult: LoginResults): ScraperScrapingResult {
-    this.emitProgress(ScraperProgressTypes.LoginFailed);
-    const errorType =
-      loginResult === LOGIN_RESULTS.InvalidPassword
-        ? ScraperErrorTypes.InvalidPassword
-        : ScraperErrorTypes.Generic;
-    return {
-      success: false,
-      errorType,
-      errorMessage: `Login failed with ${loginResult} error — url: ${this.page.url()}`,
-    };
-  }
-
-  private handleLoginResult(loginResult: LoginResults): ScraperScrapingResult {
-    this.diagState.lastAction = `login result: ${loginResult}`;
-    LOG.info('login[5/5] result=%s url=%s', loginResult, this.diagState.finalUrl ?? '?');
-    LOG.info('login[5/5] title=%s', this.diagState.pageTitle ?? '');
-    if (loginResult === LOGIN_RESULTS.Success) {
-      this.emitProgress(ScraperProgressTypes.LoginSuccess);
-      return { success: true };
-    }
-    if (loginResult === LOGIN_RESULTS.ChangePassword) {
-      this.emitProgress(ScraperProgressTypes.ChangePassword);
-      return { success: false, errorType: ScraperErrorTypes.ChangePassword };
-    }
-    if (loginResult === LOGIN_RESULTS.InvalidPassword || loginResult === LOGIN_RESULTS.UnknownError)
-      return this.handleFailedLogin(loginResult);
-    throw new Error(`unexpected login result "${loginResult}"`);
   }
 }
 

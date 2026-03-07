@@ -68,7 +68,13 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     focus: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
     locator: jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({ fill: jest.fn().mockResolvedValue(undefined) }),
+      first: jest.fn().mockReturnValue({
+        fill: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+        isVisible: jest.fn().mockResolvedValue(true),
+        count: jest.fn().mockResolvedValue(1),
+      }),
+      count: jest.fn().mockResolvedValue(0),
     }),
     ...overrides,
   } as unknown as MockPage & Page;

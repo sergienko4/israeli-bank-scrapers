@@ -37,17 +37,39 @@ export async function maxHandleSecondLoginStep(
   await sleep(1000);
 }
 
+async function clickFirstVisible(page: Page, texts: string[]): Promise<void> {
+  for (const text of texts) {
+    const loc = page.locator(`text=${text}`).first();
+    if (await loc.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await loc.click();
+      return;
+    }
+  }
+  // fallback: force-click the first candidate that exists in DOM
+  for (const text of texts) {
+    const loc = page.locator(`text=${text}`).first();
+    if ((await loc.count()) > 0) {
+      await loc.click({ force: true });
+      return;
+    }
+  }
+}
+
 async function maxPreAction(page: Page): Promise<Frame | undefined> {
   if (await elementPresentOnPage(page, '#closePopup'))
-    await page.$eval('#closePopup', (el: HTMLElement) => { el.click(); });
+    await page.$eval('#closePopup', (el: HTMLElement) => {
+      el.click();
+    });
   // Navigate: "כניסה לאיזור האישי" → "לקוחות פרטיים" → "כניסה עם סיסמה"
-  await page.click('text=כניסה לאיזור האישי');
-  await sleep(1000);
-  if (await elementPresentOnPage(page, 'text=לקוחות פרטיים'))
-    await page.click('text=לקוחות פרטיים');
-  await page.waitForSelector('text=כניסה עם סיסמה', { state: 'visible', timeout: 15000 });
-  await page.click('text=כניסה עם סיסמה');
-  await page.waitForSelector('input[placeholder*="שם משתמש"]', { state: 'visible', timeout: 10000 });
+  await clickFirstVisible(page, ['כניסה לאיזור האישי']);
+  await sleep(1500);
+  await clickFirstVisible(page, ['לקוחות פרטיים']);
+  await sleep(500);
+  await clickFirstVisible(page, ['כניסה עם סיסמה']);
+  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
+    state: 'visible',
+    timeout: 15000,
+  });
   return undefined;
 }
 
@@ -78,7 +100,7 @@ export const MAX_CONFIG: LoginConfig = {
   waitUntil: 'domcontentloaded',
   possibleResults: {
     success: [
-      async (opts): Promise<boolean> => {
+      (opts): boolean => {
         const url = opts?.page?.url() ?? '';
         return url.startsWith('https://www.max.co.il/homepage');
       },

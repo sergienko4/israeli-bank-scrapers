@@ -105,7 +105,8 @@
   },
   "files": ["lib/**/*"],
   "overrides": {
-    "test-exclude": "^7.0.2"
+    "test-exclude": "^7.0.2",
+    "ua-parser-js": "1.0.41"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0", "prettier --write"],
