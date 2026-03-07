@@ -127,7 +127,7 @@ describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
@@ -166,7 +166,7 @@ describe('OTP detection', () => {
 
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
@@ -206,7 +206,7 @@ describe('OTP detection', () => {
 
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,

@@ -42,9 +42,10 @@ function makeFrame(overrides: MockPageOverrides = {}): Frame {
 
 describe('candidateToCss', () => {
   it.each<[SelectorCandidate, string]>([
+    [{ kind: 'labelText', value: 'סיסמה' }, 'xpath=//label[contains(., "סיסמה")]'],
     [{ kind: 'css', value: '#userCode' }, '#userCode'],
     [{ kind: 'placeholder', value: 'שם משתמש' }, 'input[placeholder*="שם משתמש"]'],
-    [{ kind: 'ariaLabel', value: 'סיסמה' }, '[aria-label*="סיסמה"]'],
+    [{ kind: 'ariaLabel', value: 'סיסמה' }, 'input[aria-label*="סיסמה"]'],
     [{ kind: 'name', value: 'password' }, '[name="password"]'],
     [
       { kind: 'xpath', value: '//button[contains(., "כניסה")]' },

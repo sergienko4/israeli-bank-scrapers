@@ -6,7 +6,6 @@ import {
   fillInput,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions';
-import { waitForRedirect } from '../../Common/Navigation';
 import { resolveFieldContext } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
 import { CompanyTypes } from '../../Definitions';
@@ -38,43 +37,24 @@ export async function maxHandleSecondLoginStep(
   await sleep(1000);
 }
 
-async function maxPreActionStep1(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '#closePopup'))
-    await page.$eval('#closePopup', el => {
-      (el as HTMLElement).click();
-    });
-  await page.$eval('.personal-area > a.go-to-personal-area', el => {
-    (el as HTMLElement).click();
-  });
-}
-
-async function maxPreActionStep2(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '.login-link#private'))
-    await page.$eval('.login-link#private', el => {
-      (el as HTMLElement).click();
-    });
-  await waitUntilElementFound(page, '#login-password-link', { visible: true });
-  await page.$eval('#login-password-link', el => {
-    (el as HTMLElement).click();
-  });
-  await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
-    visible: true,
-  });
-}
-
 async function maxPreAction(page: Page): Promise<Frame | undefined> {
-  await maxPreActionStep1(page);
-  await maxPreActionStep2(page);
+  if (await elementPresentOnPage(page, '#closePopup'))
+    await page.$eval('#closePopup', (el: HTMLElement) => { el.click(); });
+  // Navigate: "כניסה לאיזור האישי" → "לקוחות פרטיים" → "כניסה עם סיסמה"
+  await page.click('text=כניסה לאיזור האישי');
+  await sleep(1000);
+  if (await elementPresentOnPage(page, 'text=לקוחות פרטיים'))
+    await page.click('text=לקוחות פרטיים');
+  await page.waitForSelector('text=כניסה עם סיסמה', { state: 'visible', timeout: 15000 });
+  await page.click('text=כניסה עם סיסמה');
+  await page.waitForSelector('input[placeholder*="שם משתמש"]', { state: 'visible', timeout: 10000 });
   return undefined;
 }
 
 async function maxPostAction(page: Page): Promise<void> {
-  if (page.url().includes('/homepage/personal')) return;
+  if (page.url().startsWith('https://www.max.co.il/homepage')) return;
   await Promise.race([
-    waitForRedirect(page, {
-      timeout: 20000,
-      ignoreList: [CFG.urls.base, `${CFG.urls.base}/`],
-    }),
+    page.waitForURL('**/homepage/**', { timeout: 20000 }),
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
     waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
   ]);
@@ -86,15 +66,23 @@ export const MAX_CONFIG: LoginConfig = {
     { credentialKey: 'username', selectors: [] }, // wellKnown → #user-name
     { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
-  submit: [{ kind: 'css', value: 'app-user-login-form .general-button.send-me-code' }],
+  submit: [
+    { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
+    { kind: 'css', value: 'app-user-login-form .general-button.send-me-code' },
+  ],
   checkReadiness: async (page: Page) => {
-    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
+    await page.waitForSelector('text=כניסה לאיזור האישי', { state: 'visible', timeout: 15000 });
   },
   preAction: maxPreAction,
   postAction: maxPostAction,
   waitUntil: 'domcontentloaded',
   possibleResults: {
-    success: [`${CFG.urls.base}/homepage/personal`],
+    success: [
+      async (opts): Promise<boolean> => {
+        const url = opts?.page?.url() ?? '';
+        return url.startsWith('https://www.max.co.il/homepage');
+      },
+    ],
     changePassword: [`${CFG.urls.base}/renew-password`],
     invalidPassword: [
       async (opts): Promise<boolean> =>

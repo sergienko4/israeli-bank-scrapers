@@ -86,8 +86,15 @@ function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction
 
 beforeEach(() => {
   jest.clearAllMocks();
+  const page = createMockPage({
+    url: jest.fn().mockReturnValue('https://www.max.co.il/homepage/personal'),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+  });
+  mockContext.newPage.mockResolvedValue(page);
+  mockContext.close.mockResolvedValue(undefined);
+  mockBrowser.newContext.mockResolvedValue(mockContext);
+  mockBrowser.close.mockResolvedValue(undefined);
   (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -127,12 +134,16 @@ describe('login', () => {
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {
+    mockContext.newPage.mockResolvedValue(createMockPage({
+      url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
+      waitForURL: jest.fn().mockResolvedValue(undefined),
+    }));
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
     (elementPresentOnPage as jest.Mock)
-      .mockResolvedValueOnce(false) // #closePopup check in preAction
-      .mockResolvedValueOnce(false) // .login-link#private check in preAction
-      .mockResolvedValueOnce(true) // #popupWrongDetails check (InvalidPassword)
-      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError check
+      .mockResolvedValueOnce(false) // #closePopup
+      .mockResolvedValueOnce(false) // לקוחות פרטיים
+      .mockResolvedValueOnce(true) // #popupWrongDetails
+      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError
 
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -141,6 +152,10 @@ describe('login', () => {
   });
 
   it('returns ChangePassword for renewal URL', async () => {
+    mockContext.newPage.mockResolvedValue(createMockPage({
+      url: jest.fn().mockReturnValue('https://www.max.co.il/renew-password'),
+      waitForURL: jest.fn().mockResolvedValue(undefined),
+    }));
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/renew-password');
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

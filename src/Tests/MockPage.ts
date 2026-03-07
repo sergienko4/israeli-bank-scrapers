@@ -29,7 +29,8 @@ export interface MockPage {
   screenshot: jest.Mock;
   close: jest.Mock;
   focus: jest.Mock;
-  locator?: jest.Mock;
+  click: jest.Mock;
+  locator: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
 }
@@ -65,6 +66,10 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
     focus: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({
+      first: jest.fn().mockReturnValue({ fill: jest.fn().mockResolvedValue(undefined) }),
+    }),
     ...overrides,
   } as unknown as MockPage & Page;
 }

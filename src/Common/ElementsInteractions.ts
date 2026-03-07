@@ -102,14 +102,7 @@ async function fillInput(
 ): Promise<void> {
   LOG.info('fill %s', inputSelector);
   await humanDelay(200, 600);
-  await pageOrFrame.$eval(inputSelector, (input: Element) => {
-    const inputElement = input;
-    // @ts-ignore
-    inputElement.value = '';
-  });
-  await pageOrFrame
-    .locator(inputSelector)
-    .pressSequentially(inputValue, { delay: 50 + Math.random() * 100 });
+  await pageOrFrame.locator(inputSelector).first().fill(inputValue);
 }
 
 async function setValue(

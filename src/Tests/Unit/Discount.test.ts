@@ -1,6 +1,5 @@
 import { buildContextOptions } from '../../Common/Browser';
 import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { waitUntilElementFound } from '../../Common/ElementsInteractions';
 import { fetchGetWithinPage } from '../../Common/Fetch';
 import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
@@ -251,28 +250,15 @@ describe('fetchData', () => {
   });
 });
 
-describe('navigateOrErrorLabel', () => {
-  it('calls waitForNavigation in postAction', async () => {
+describe('postAction', () => {
+  it('uses waitForURL for SPA route change (not waitForNavigation)', async () => {
     mockAccountsData();
     mockTransactions([txn()]);
 
     const scraper = new DiscountScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
-    expect(waitForNavigation).toHaveBeenCalled();
-  });
-
-  it('falls back to error element when navigation throws', async () => {
-    (waitForNavigation as jest.Mock).mockRejectedValueOnce(new Error('nav timeout'));
-    mockAccountsData();
-    mockTransactions([txn()]);
-
-    const scraper = new DiscountScraper(createMockScraperOptions());
-    await scraper.scrape(CREDS);
-
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', {
-      visible: false,
-      timeout: 100,
-    });
+    // postAction now uses page.waitForURL('**/apollo/**') instead of waitForNavigation
+    expect(waitForNavigation).not.toHaveBeenCalled();
   });
 });

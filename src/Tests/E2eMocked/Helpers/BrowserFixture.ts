@@ -1,12 +1,16 @@
-import { type Browser } from 'playwright';
-
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher';
+import { type Browser, chromium } from 'playwright';
 
 let sharedBrowser: Browser | null = null;
 
+const BROWSER_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'];
+
+/**
+ * E2eMocked tests use Chromium (CJS-compatible with Jest).
+ * Real scraping uses Camoufox via CamoufoxLauncher.
+ */
 export async function getSharedBrowser(): Promise<Browser> {
   if (!sharedBrowser) {
-    sharedBrowser = await launchCamoufox(true);
+    sharedBrowser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
   }
   return sharedBrowser;
 }

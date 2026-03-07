@@ -21,12 +21,14 @@ const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardS
 /** Convert a SelectorCandidate to a Playwright-compatible selector string */
 export function candidateToCss(c: SelectorCandidate): string {
   switch (c.kind) {
+    case 'labelText':
+      return `xpath=//label[contains(., "${c.value}")]`;
     case 'css':
       return c.value;
     case 'placeholder':
       return `input[placeholder*="${c.value}"]`;
     case 'ariaLabel':
-      return `[aria-label*="${c.value}"]`;
+      return `input[aria-label*="${c.value}"]`;
     case 'name':
       return `[name="${c.value}"]`;
     case 'xpath':
@@ -91,12 +93,37 @@ function debugCandidateSkipped(candidate: SelectorCandidate): void {
   );
 }
 
+async function resolveLabelText(
+  ctx: Page | Frame,
+  labelXpath: string,
+  labelValue: string,
+): Promise<string | null> {
+  const label = await ctx.$(labelXpath);
+  if (!label) return null;
+  const forAttr = await label.getAttribute('for');
+  if (!forAttr) {
+    LOG.info('labelText "%s" found but no for= attribute', labelValue);
+    return null;
+  }
+  const inputSelector = `#${forAttr}`;
+  const input = await ctx.$(inputSelector);
+  if (!input) {
+    LOG.info('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    return null;
+  }
+  LOG.info('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
+  return inputSelector;
+}
+
 async function probeCandidate(
   ctx: Page | Frame,
   candidate: SelectorCandidate,
 ): Promise<string | null> {
   const css = candidateToCss(candidate);
   try {
+    if (candidate.kind === 'labelText') {
+      return await resolveLabelText(ctx, css, candidate.value);
+    }
     const isFound = await queryWithTimeout(ctx, css);
     if (isFound) {
       LOG.info('resolved %s "%s" → %s', candidate.kind, candidate.value, css);

@@ -4,11 +4,20 @@ import { buildContextOptions } from '../../Common/Browser';
 import { launchCamoufox } from '../../Common/CamoufoxLauncher';
 import { getDebug } from '../../Common/Debug';
 import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
+import {
+  CONTINUE,
+  type LoginContext,
+  type LoginStep,
+  runLoginChain,
+  type StepResult,
+  stopWithResult,
+} from '../../Common/LoginMiddleware';
 import { getCurrentUrl, waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
-import { handleOtpStep } from '../../Common/OtpHandler';
+import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler';
 import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver';
 import { sleep } from '../../Common/Waiting';
 import { ScraperProgressTypes } from '../../Definitions';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
 import { BaseScraper } from './BaseScraper';
 import {
   detectGenericInvalidPassword,
@@ -85,22 +94,31 @@ class BaseScraperWithBrowser<
   public async login(credentials: ScraperCredentials): Promise<ScraperScrapingResult> {
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
-    await this.prepareLoginPage(loginOptions);
-    let loginFrameOrPage: Page | Frame | null = this.page;
-    if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
-    await this.submitLoginForm(loginOptions, loginFrameOrPage);
-    const earlyResult = await this.checkOtpAndNavigate(loginOptions);
-    if (earlyResult !== null) return earlyResult;
-    const current = await getCurrentUrl(this.page, true);
-    this.diagState.finalUrl = current;
-    this.diagState.pageTitle = await this.page.title().catch(() => '');
-    let loginResult = await getKeyByValue(loginOptions.possibleResults, current, this.page);
-    if (
-      loginResult === LOGIN_RESULTS.UnknownError &&
-      (await detectGenericInvalidPassword(this.page))
-    )
-      loginResult = LOGIN_RESULTS.InvalidPassword;
-    return this.handleLoginResult(loginResult);
+    const { loginSetup } = SCRAPER_CONFIGURATION.banks[this.options.companyId];
+    const ctx: LoginContext = { page: this.page, activeFrame: this.page, loginSetup };
+    const steps = this.buildLoginChain(loginOptions, ctx);
+    const chainResult = await runLoginChain(steps, ctx);
+    if (chainResult !== null) return chainResult;
+    return this.resolveLoginResult(loginOptions);
+  }
+
+  private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): LoginStep[] {
+    const steps: LoginStep[] = [];
+    steps.push(() => this.stepNavigate(loginOptions));
+    steps.push(() => this.stepFillAndSubmit(loginOptions, ctx));
+    steps.push(() => this.stepWaitAfterSubmit());
+    steps.push(() => this.stepCheckEarlyResult(loginOptions));
+    if (ctx.loginSetup.hasOtpConfirm) {
+      steps.push(() => this.stepOtpConfirm());
+    }
+    if (ctx.loginSetup.hasOtpCode) {
+      steps.push(() => this.stepOtpCode());
+    }
+    if (ctx.loginSetup.hasSecondLoginStep) {
+      steps.push(() => this.stepSecondLogin(loginOptions));
+    }
+    steps.push(() => this.stepPostAction(loginOptions));
+    return steps;
   }
 
   public async terminate(_success: boolean): Promise<void> {
@@ -229,7 +247,9 @@ class BaseScraperWithBrowser<
     return this.retryOn403(url, waitUntil, attempt + 1);
   }
 
-  private async prepareLoginPage(loginOptions: LoginOptions): Promise<void> {
+  // ─── Login chain steps ────────────────────────────────────────────────────
+
+  private async stepNavigate(loginOptions: LoginOptions): Promise<StepResult> {
     this.diagState.loginUrl = loginOptions.loginUrl;
     await this.navigateTo(loginOptions.loginUrl, loginOptions.waitUntil);
     if (loginOptions.checkReadiness) {
@@ -237,14 +257,15 @@ class BaseScraperWithBrowser<
     } else if (typeof loginOptions.submitButtonSelector === 'string') {
       await waitUntilElementFound(this.page, loginOptions.submitButtonSelector);
     }
-    LOG.info('login[2/5] checkReadiness passed url=%s', this.page.url());
+    LOG.info('login[1] navigate + checkReadiness passed url=%s', this.page.url());
+    return CONTINUE;
   }
 
-  private async submitLoginForm(
-    loginOptions: LoginOptions,
-    loginFrameOrPage: Page | Frame,
-  ): Promise<void> {
-    LOG.info('login[3/5] fill %d fields', loginOptions.fields.length);
+  private async stepFillAndSubmit(loginOptions: LoginOptions, ctx: LoginContext): Promise<StepResult> {
+    let loginFrameOrPage: Page | Frame = this.page;
+    if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
+    ctx.activeFrame = loginFrameOrPage;
+    LOG.info('login[2] fill %d fields', loginOptions.fields.length);
     await this.fillInputs(loginFrameOrPage, loginOptions.fields);
     const submitCtx = this.activeLoginContext ?? loginFrameOrPage;
     if (typeof loginOptions.submitButtonSelector === 'string') {
@@ -253,28 +274,68 @@ class BaseScraperWithBrowser<
       await loginOptions.submitButtonSelector();
     }
     this.emitProgress(ScraperProgressTypes.LoggingIn);
+    return CONTINUE;
   }
 
-  private async checkOtpAndNavigate(
-    loginOptions: LoginOptions,
-  ): Promise<ScraperScrapingResult | null> {
+  private async stepWaitAfterSubmit(): Promise<StepResult> {
     await sleep(1500);
-    LOG.info('login[4/5] submit url-after=%s', this.page.url());
-    const otpResult = await handleOtpStep(this.page, this.options);
-    if (otpResult !== null) return otpResult;
-    // Skip postAction if submit already landed on a known result (avoids waitForRedirect TIMEOUT).
+    LOG.info('login[3] post-submit url=%s', this.page.url());
+    return CONTINUE;
+  }
+
+  private async stepCheckEarlyResult(loginOptions: LoginOptions): Promise<StepResult> {
     try {
       const r = await getKeyByValue(loginOptions.possibleResults, this.page.url(), this.page);
-      if (r !== LOGIN_RESULTS.UnknownError) return this.handleLoginResult(r);
+      if (r !== LOGIN_RESULTS.UnknownError) return stopWithResult(this.handleLoginResult(r));
     } catch {
-      // page.url() may throw when page is closed — fall through to postAction
+      // page.url() may throw — continue chain
     }
+    return CONTINUE;
+  }
+
+  private otpPhoneHint = '';
+
+  private async stepOtpConfirm(): Promise<StepResult> {
+    LOG.info('login[5a] OTP confirm — send SMS');
+    this.otpPhoneHint = await handleOtpConfirm(this.page);
+    return CONTINUE;
+  }
+
+  private async stepOtpCode(): Promise<StepResult> {
+    LOG.info('login[5b] OTP code entry');
+    const otpResult = await handleOtpCode(this.page, this.options, this.otpPhoneHint);
+    if (otpResult !== null) return stopWithResult(otpResult);
+    return CONTINUE;
+  }
+
+  private async stepSecondLogin(loginOptions: LoginOptions): Promise<StepResult> {
+    LOG.info('login[6] second login step (Max Flow B)');
+    if (loginOptions.postAction) {
+      await loginOptions.postAction();
+    }
+    return CONTINUE;
+  }
+
+  private async stepPostAction(loginOptions: LoginOptions): Promise<StepResult> {
     if (loginOptions.postAction) {
       await loginOptions.postAction();
     } else {
       await waitForNavigation(this.page);
     }
-    return null;
+    return CONTINUE;
+  }
+
+  private async resolveLoginResult(loginOptions: LoginOptions): Promise<ScraperScrapingResult> {
+    const current = await getCurrentUrl(this.page, true);
+    this.diagState.finalUrl = current;
+    this.diagState.pageTitle = await this.page.title().catch(() => '');
+    let loginResult = await getKeyByValue(loginOptions.possibleResults, current, this.page);
+    if (
+      loginResult === LOGIN_RESULTS.UnknownError &&
+      (await detectGenericInvalidPassword(this.page))
+    )
+      loginResult = LOGIN_RESULTS.InvalidPassword;
+    return this.handleLoginResult(loginResult);
   }
 
   private handleFailedLogin(loginResult: LoginResults): ScraperScrapingResult {

@@ -1,15 +1,12 @@
 import { type Page } from 'playwright';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { waitForNavigation } from '../../Common/Navigation';
 import { type LoginConfig } from '../Base/LoginConfig';
 
+const LOGIN_PORTAL = 'https://start.telebank.co.il/login/?multilang=he&bank=d&t=p';
+
 async function discountPostAction(page: Page): Promise<void> {
-  try {
-    await waitForNavigation(page);
-  } catch {
-    await waitUntilElementFound(page, '#general-error', { visible: false, timeout: 100 });
-  }
+  await page.waitForURL('**/apollo/**', { timeout: 30000 });
 }
 
 const DISCOUNT_FIELDS: LoginConfig['fields'] = [
@@ -38,6 +35,7 @@ export function discountConfig(loginUrl: string): LoginConfig {
     fields: DISCOUNT_FIELDS,
     submit: [{ kind: 'css', value: '.sendBtn' }],
     checkReadiness: async (page: Page): Promise<void> => {
+      await page.goto(LOGIN_PORTAL);
       await waitUntilElementFound(page, '#tzId');
     },
     postAction: discountPostAction,
