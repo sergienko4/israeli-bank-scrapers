@@ -13,13 +13,19 @@ import {
   CONTINUE,
   type LoginContext,
   type LoginStep,
+  type ParsedLoginPage,
   runLoginChain,
   type StepResult,
   stopWithResult,
 } from '../../Common/LoginMiddleware.js';
 import { waitForNavigation, type WaitUntilState } from '../../Common/Navigation.js';
 import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler.js';
-import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver.js';
+import {
+  extractCredentialKey,
+  type FieldContext,
+  resolveFieldContext,
+  resolveFieldWithCache,
+} from '../../Common/SelectorResolver.js';
 import { sleep } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
@@ -40,6 +46,7 @@ import type {
   ScraperCredentials,
   ScraperScrapingResult,
 } from './Interface.js';
+import type { FieldConfig } from './LoginConfig.js';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 
@@ -57,6 +64,8 @@ class BaseScraperWithBrowser<
   private cleanups: (() => Promise<void>)[] = [];
 
   private otpPhoneHint = '';
+
+  private currentParsedPage?: ParsedLoginPage;
 
   public async initialize(): Promise<void> {
     await super.initialize();
@@ -141,6 +150,7 @@ class BaseScraperWithBrowser<
   private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): LoginStep[] {
     const steps: LoginStep[] = [];
     steps.push(() => this.stepNavigate(loginOptions));
+    steps.push(() => this.stepParseLoginPage(ctx));
     steps.push(() => this.stepFillAndSubmit(loginOptions, ctx));
     steps.push(() => this.stepWaitAfterSubmit());
     steps.push(() => this.stepCheckEarlyResult(loginOptions));
@@ -157,17 +167,24 @@ class BaseScraperWithBrowser<
     return steps;
   }
 
+  private async resolveField(ctx: Page | Frame, fc: FieldConfig): Promise<FieldContext> {
+    const url = this.page.url();
+    if (!this.currentParsedPage) return resolveFieldContext(ctx, fc, url);
+    return resolveFieldWithCache({
+      pageOrFrame: ctx,
+      field: fc,
+      pageUrl: url,
+      cachedFrames: this.currentParsedPage.childFrames,
+    });
+  }
+
   private async fillOneInput(
     pageOrFrame: Page | Frame,
     field: { selector: string; value: string; credentialKey?: string },
   ): Promise<void> {
     const key = field.credentialKey ?? extractCredentialKey(field.selector);
     const fc = { credentialKey: key, selectors: [{ kind: 'css' as const, value: field.selector }] };
-    const result = await resolveFieldContext(
-      this.activeLoginContext ?? pageOrFrame,
-      fc,
-      this.page.url(),
-    );
+    const result = await this.resolveField(this.activeLoginContext ?? pageOrFrame, fc);
     if (result.isResolved) {
       this.activeLoginContext = result.context;
       await fillInput(result.context, result.selector, field.value);
@@ -275,6 +292,28 @@ class BaseScraperWithBrowser<
     return CONTINUE;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
+  private async stepParseLoginPage(ctx: LoginContext): Promise<StepResult> {
+    const childFrames = this.collectAccessibleFrames();
+    ctx.parsedPage = {
+      childFrames,
+      loginFormContext: null,
+      pageUrl: this.page.url(),
+      bodyText: '', // lazy — captured on demand by OTP detection, not eagerly
+    };
+    this.currentParsedPage = ctx.parsedPage;
+    LOG.info('login[1b] parsed: %d child frames', childFrames.length);
+    return CONTINUE;
+  }
+
+  private collectAccessibleFrames(): Frame[] {
+    try {
+      return this.page.frames().filter(f => f !== this.page.mainFrame());
+    } catch {
+      return [];
+    }
+  }
+
   private async stepFillAndSubmit(
     loginOptions: LoginOptions,
     ctx: LoginContext,
@@ -313,7 +352,7 @@ class BaseScraperWithBrowser<
 
   private async stepOtpConfirm(): Promise<StepResult> {
     LOG.info('login[5a] OTP confirm — send SMS');
-    this.otpPhoneHint = await handleOtpConfirm(this.page);
+    this.otpPhoneHint = await handleOtpConfirm(this.page, this.currentParsedPage);
     return CONTINUE;
   }
 

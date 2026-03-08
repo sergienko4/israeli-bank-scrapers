@@ -10,6 +10,11 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   tryInContext: (...args: unknown[]): unknown => mockTryInContext(...args),
   candidateToCss: jest.fn((c: { value: string }) => c.value),
+  resolveFieldContext: jest.fn().mockResolvedValue(null),
+  resolveFieldWithCache: jest.fn().mockResolvedValue(null),
+  extractCredentialKey: jest.fn((s: string) => s),
+  toFirstCss: jest.fn(() => ''),
+  resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
 const { clickOtpTriggerIfPresent, detectOtpScreen, extractPhoneHint, findOtpSubmitSelector } =

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- ParsedLoginPage integration adds resolver cache plumbing */
 import { type Frame, type Page } from 'playwright';
 
 import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
@@ -184,8 +185,9 @@ interface FieldMatch {
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
+  cachedFrames?: Frame[],
 ): Promise<FieldMatch> {
-  const childFrames = page.frames().filter(f => f !== page.mainFrame());
+  const childFrames = cachedFrames ?? page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
@@ -246,6 +248,8 @@ interface ResolveAllOpts {
   pageUrl: string;
   bankCandidates: SelectorCandidate[];
   wellKnownCandidates: SelectorCandidate[];
+  /** Pre-cached child frames from stepParseLoginPage — skips page.frames() call. */
+  cachedFrames?: Frame[];
 }
 
 function logTriedCandidates(key: string, url: string, tried: string[]): void {
@@ -274,17 +278,14 @@ async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext>
   };
 }
 
-async function probeIframes(
-  page: Page,
-  b: SelectorCandidate[],
-  wk: SelectorCandidate[],
-): Promise<FieldContext | null> {
+async function probeIframes(page: Page, opts: ResolveAllOpts): Promise<FieldContext | null> {
+  const { bankCandidates: b, wellKnownCandidates: wk, cachedFrames } = opts;
   if (b.length > 0) {
-    const r = await searchInChildFrames(page, b);
+    const r = await searchInChildFrames(page, b, cachedFrames);
     if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'iframe' };
   }
   if (wk.length > 0) {
-    const r = await searchInChildFrames(page, wk);
+    const r = await searchInChildFrames(page, wk, cachedFrames);
     if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'iframe' };
   }
   return null;
@@ -307,7 +308,7 @@ async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
   if (isPage(pageOrFrame)) {
-    const r = await probeIframes(pageOrFrame, b, wk);
+    const r = await probeIframes(pageOrFrame, opts);
     if (r) return r;
   }
   const main = await probeMainPage(opts);
@@ -326,6 +327,23 @@ export async function resolveFieldContext(
     pageUrl,
     bankCandidates: [...field.selectors],
     wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
+  });
+}
+
+/** Options for resolving with pre-cached frames from stepParseLoginPage. */
+export interface CachedResolveOpts {
+  pageOrFrame: Page | Frame;
+  field: FieldConfig;
+  pageUrl: string;
+  cachedFrames: Frame[];
+}
+
+/** Resolve with pre-cached frames from stepParseLoginPage. */
+export async function resolveFieldWithCache(opts: CachedResolveOpts): Promise<FieldContext> {
+  return resolveAll({
+    ...opts,
+    bankCandidates: [...opts.field.selectors],
+    wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[opts.field.credentialKey] ?? [])],
   });
 }
 

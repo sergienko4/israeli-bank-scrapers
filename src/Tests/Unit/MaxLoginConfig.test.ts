@@ -30,6 +30,9 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+  resolveFieldWithCache: jest
+    .fn()
+    .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: mockResolveFieldContext,
   candidateToCss: jest.fn((c: { value: string }) => c.value),
   extractCredentialKey: jest.fn((s: string) => s),

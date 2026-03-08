@@ -3,11 +3,25 @@ import type { Frame, Page } from 'playwright';
 import type { ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import type { BankScraperConfig } from '../Scrapers/Registry/ScraperConfig.js';
 
+/** Cached result of the HTML structure parse — populated once by stepParseLoginPage. */
+export interface ParsedLoginPage {
+  /** All accessible child frames (excludes mainFrame, cross-origin failures). */
+  childFrames: Frame[];
+  /** The frame (or main page) where the first login input was found — null if not yet detected. */
+  loginFormContext: Page | Frame | null;
+  /** Main page URL at time of parse. */
+  pageUrl: string;
+  /** Page body text (for OTP text detection). */
+  bodyText: string;
+}
+
 /** Context passed through the middleware chain. */
 export interface LoginContext {
   page: Page;
   activeFrame: Page | Frame;
   loginSetup: BankScraperConfig['loginSetup'];
+  /** Cached page structure — set by stepParseLoginPage, consumed by downstream steps. */
+  parsedPage?: ParsedLoginPage;
 }
 
 /** Result from a middleware step. */

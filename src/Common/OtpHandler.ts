@@ -5,6 +5,7 @@ import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
+import type { ParsedLoginPage } from './LoginMiddleware.js';
 import {
   clickOtpTriggerIfPresent,
   detectOtpScreen,
@@ -141,10 +142,10 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
 }
 
 /** Confirm OTP delivery — extract phone hint, then click "Send SMS". */
-export async function handleOtpConfirm(page: Page): Promise<string> {
+export async function handleOtpConfirm(page: Page, parsedPage?: ParsedLoginPage): Promise<string> {
   const phoneHint = await extractPhoneHint(page);
   LOG.info('OTP confirm — phone hint: %s, clicking SMS trigger', phoneHint);
-  await clickOtpTriggerIfPresent(page);
+  await clickOtpTriggerIfPresent(page, parsedPage?.childFrames);
   await sleep(2000);
   return phoneHint;
 }

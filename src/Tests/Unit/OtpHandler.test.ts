@@ -44,6 +44,9 @@ jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
 
 jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   tryInContext: mockTryInContext,
+  resolveFieldWithCache: jest
+    .fn()
+    .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: mockResolveFieldContext,
   candidateToCss: jest.fn((c: { value: string }) => c.value),
   extractCredentialKey: jest.fn((s: string) => s),
@@ -100,7 +103,7 @@ describe('handleOtpConfirm', () => {
 
     expect(hint).toBe('******5100');
     expect(mockExtractPhoneHint).toHaveBeenCalledWith(page);
-    expect(mockClickOtpTriggerIfPresent).toHaveBeenCalledWith(page);
+    expect(mockClickOtpTriggerIfPresent).toHaveBeenCalledWith(page, undefined);
   });
 
   it('returns empty string when no phone hint found', async () => {

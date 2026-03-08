@@ -49,6 +49,7 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     selectOption: jest.fn().mockResolvedValue(undefined),
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
+    mainFrame: jest.fn().mockReturnValue(null),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     waitForURL: jest.fn().mockResolvedValue(undefined),
     waitForResponse: jest.fn().mockResolvedValue(undefined),

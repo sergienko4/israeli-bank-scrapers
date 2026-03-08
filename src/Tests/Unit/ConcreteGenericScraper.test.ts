@@ -35,6 +35,9 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+  resolveFieldWithCache: jest
+    .fn()
+    .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((c: { kind: string; value: string }) => c.value),
   tryInContext: jest.fn().mockResolvedValue(null),
