@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.10.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.9.0...v7.10.0) (2026-03-08)
+
+
+### Features
+
+* add login chain logging with PII-safe result summary ([#110](https://github.com/sergienko4/israeli-bank-scrapers/issues/110)) ([2ef55ba](https://github.com/sergienko4/israeli-bank-scrapers/commit/2ef55ba34c106c67a017338a7d10beb230c4fab4))
+* enhance SelectorResolver with label-text-first field resolution ([#113](https://github.com/sergienko4/israeli-bank-scrapers/issues/113)) ([7ad2ccd](https://github.com/sergienko4/israeli-bank-scrapers/commit/7ad2ccd2010ec1e5b133a557dc3f34dc73588877))
+* remove all CSS selectors from login fields — visible text first ([#115](https://github.com/sergienko4/israeli-bank-scrapers/issues/115)) ([476cf8e](https://github.com/sergienko4/israeli-bank-scrapers/commit/476cf8e87f8a2cee58dfffab0832b932a7fe56c3))
+
+
+### Bug Fixes
+
+* pre-commit hook runs full lint (same as CI) ([#112](https://github.com/sergienko4/israeli-bank-scrapers/issues/112)) ([4397af7](https://github.com/sergienko4/israeli-bank-scrapers/commit/4397af7e5feb8f3d74b8cc99a64a61877fff8d9a))
+
 ## [7.9.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.8.1...v7.9.0) (2026-03-08)
 
 
