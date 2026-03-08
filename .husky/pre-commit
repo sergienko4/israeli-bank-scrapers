@@ -21,7 +21,7 @@ run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🧪  [2/8] Unit tests..." | tee -a "$LOG_FILE"
-run_gate npm run test:unit || exit 1
+run_gate npm run test:unit -- --coverage || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🎭  [3/8] Mocked E2E tests..." | tee -a "$LOG_FILE"

@@ -132,7 +132,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -171,7 +171,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -211,7 +211,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -248,7 +248,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -285,7 +285,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
