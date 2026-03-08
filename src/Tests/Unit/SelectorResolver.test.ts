@@ -4,7 +4,13 @@ import type { Frame, Page } from 'playwright';
 import type { FieldConfig, SelectorCandidate } from '../../Scrapers/Base/LoginConfig.js';
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: () => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 const {

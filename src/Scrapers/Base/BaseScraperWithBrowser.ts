@@ -3,6 +3,7 @@ import type { Browser, Frame, Page } from 'playwright';
 
 import { buildContextOptions } from '../../Common/Browser.js';
 import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
+import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
@@ -12,9 +13,8 @@ import {
 import {
   CONTINUE,
   type LoginContext,
-  type LoginStep,
+  type NamedLoginStep,
   type ParsedLoginPage,
-  runLoginChain,
   type StepResult,
   stopWithResult,
 } from '../../Common/LoginMiddleware.js';
@@ -117,7 +117,7 @@ class BaseScraperWithBrowser<
     const { loginSetup } = SCRAPER_CONFIGURATION.banks[this.options.companyId];
     const ctx: LoginContext = { page: this.page, activeFrame: this.page, loginSetup };
     const steps = this.buildLoginChain(loginOptions, ctx);
-    const chainResult = await runLoginChain(steps, ctx);
+    const chainResult = await runLoggedChain(steps, ctx, LOG);
     if (chainResult !== null) return chainResult;
     return resolveAndBuildLoginResult(this.loginResultCtx(), loginOptions.possibleResults);
   }
@@ -147,23 +147,23 @@ class BaseScraperWithBrowser<
     };
   }
 
-  private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): LoginStep[] {
-    const steps: LoginStep[] = [];
-    steps.push(() => this.stepNavigate(loginOptions));
-    steps.push(() => this.stepParseLoginPage(ctx));
-    steps.push(() => this.stepFillAndSubmit(loginOptions, ctx));
-    steps.push(() => this.stepWaitAfterSubmit());
-    steps.push(() => this.stepCheckEarlyResult(loginOptions));
+  private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): NamedLoginStep[] {
+    const steps: NamedLoginStep[] = [];
+    steps.push({ name: 'navigate', execute: () => this.stepNavigate(loginOptions) });
+    steps.push({ name: 'parse-page', execute: () => this.stepParseLoginPage(ctx) });
+    steps.push({ name: 'fill', execute: () => this.stepFillAndSubmit(loginOptions, ctx) });
+    steps.push({ name: 'wait', execute: () => this.stepWaitAfterSubmit() });
+    steps.push({ name: 'check-result', execute: () => this.stepCheckEarlyResult(loginOptions) });
     if (ctx.loginSetup.hasOtpConfirm) {
-      steps.push(() => this.stepOtpConfirm());
+      steps.push({ name: 'otp-confirm', execute: () => this.stepOtpConfirm() });
     }
     if (ctx.loginSetup.hasOtpCode) {
-      steps.push(() => this.stepOtpCode());
+      steps.push({ name: 'otp-code', execute: () => this.stepOtpCode() });
     }
     if (ctx.loginSetup.hasSecondLoginStep) {
-      steps.push(() => this.stepSecondLogin(loginOptions));
+      steps.push({ name: 'second-login', execute: () => this.stepSecondLogin(loginOptions) });
     }
-    steps.push(() => this.stepPostAction(loginOptions));
+    steps.push({ name: 'post-action', execute: () => this.stepPostAction(loginOptions) });
     return steps;
   }
 

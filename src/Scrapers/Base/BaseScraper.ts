@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
 
+import { getDebug } from '../../Common/Debug.js';
+import { formatResultSummary } from '../../Common/ResultFormatter.js';
 import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
 import {
@@ -32,6 +34,7 @@ interface DiagnosticsState {
 }
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
+const LOG = getDebug('base-scraper');
 
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -68,6 +71,7 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     await this.initialize();
     const loginResult = await this.executeLogin(credentials);
     const scrapeResult = await this.executeFetchData(loginResult);
+    this.logResultSummary(scrapeResult);
     const finalResult = await this.handleTermination(scrapeResult);
     this.emitProgress(ScraperProgressTypes.EndScraping);
     return finalResult;
@@ -154,6 +158,13 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       return scrapeResult;
     } catch (e) {
       return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
+    }
+  }
+
+  private logResultSummary(result: ScraperScrapingResult): void {
+    const lines = formatResultSummary(this.options.companyId, result);
+    for (const line of lines) {
+      LOG.info(line);
     }
   }
 
