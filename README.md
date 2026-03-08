@@ -46,6 +46,8 @@
     <li><a href="#usage">Usage</a></li>
     <li><a href="#waf-troubleshooting">WAF Troubleshooting</a></li>
     <li><a href="#advanced-options">Advanced Options</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#version-timeline">Version Timeline</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#known-projects">Known Projects</a></li>
@@ -58,25 +60,26 @@
 
 ## About
 
-**Maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with anti-detection that bypasses Cloudflare Bot Management — the main blocker for Amex and Isracard scraping since early 2026.
+**Maintained fork** of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with **Camoufox** (Firefox anti-detect browser with C++-level stealth) — bypasses Cloudflare Bot Management, the main blocker for Amex and Isracard scraping since early 2026.
 
 ### What's different from upstream?
 
-| Feature               | Upstream (Puppeteer)                 | This Fork (Playwright)                                                   |
-| --------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
-| Browser engine        | Puppeteer (CDP fingerprint detected) | Playwright (bypasses WAF natively)                                       |
-| Cloudflare WAF bypass | No                                   | First-attempt pass — no stealth or retry needed                          |
-| WAF error reporting   | "Unknown error"                      | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions         |
-| Human-like timing     | Partial                              | Full (1.5-3s delay before API calls, randomized form input)              |
-| OTP auto-detection    | Manual                               | Automatic — detects OTP screen, fills code, no browser changes needed    |
-| Architecture          | Per-bank scrapers                    | `GenericBankScraper` + `BANK_REGISTRY` — add a bank in one config object |
-| E2E test coverage     | 3 banks                              | All 18 institutions                                                      |
+| Feature               | Upstream (Puppeteer)                 | This Fork (Camoufox + Playwright)                                     |
+| --------------------- | ------------------------------------ | --------------------------------------------------------------------- |
+| Browser engine        | Puppeteer (CDP fingerprint detected) | Camoufox — Firefox anti-detect with C++-level stealth                 |
+| Cloudflare WAF bypass | No                                   | First-attempt pass — native anti-detect, no plugins needed            |
+| Module format         | CommonJS only                        | Full ESM (`"type": "module"`) with dual CJS/ESM output                |
+| WAF error reporting   | "Unknown error"                      | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions      |
+| Login field detection | Hardcoded CSS selectors              | WellKnown system — finds fields by visible text, label, placeholder   |
+| OTP auto-detection    | Manual                               | Automatic — detects OTP screen, fills code, no browser changes needed |
+| Architecture          | Per-bank scrapers                    | Login middleware chain with HTML parser + cached frame resolution     |
+| E2E test coverage     | 3 banks                              | All 18 institutions                                                   |
 
-Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
+Camoufox integration, middleware architecture, and ESM migration by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
 
 ### Built With
 
-[![TypeScript][ts-shield]][ts-url] [![Node.js][node-shield]][node-url] [![Playwright][pw-shield]][pw-url] [![Jest][jest-shield]][jest-url] [![ESLint][eslint-shield]][eslint-url]
+[![npm][npm-shield]][npm-url] [![TypeScript][ts-shield]][ts-url] [![Node.js][node-shield]][node-url] [![Camoufox][camoufox-shield]][camoufox-url] [![Playwright][pw-shield]][pw-url] [![Jest][jest-shield]][jest-url] [![ESLint][eslint-shield]][eslint-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -86,26 +89,26 @@ Playwright migration and WAF bypass by [@sergienko4](https://github.com/sergienk
   <summary>All 18 Israeli banks and credit card companies:</summary>
   <ol>
 
-| Institution        | Type        | Credentials                          | Contributors                                                                           |
-| ------------------ | ----------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| Bank Hapoalim      | Bank        | `userCode`, `password`               | [@sebikaplun](https://github.com/sebikaplun)                                           |
-| Bank Leumi         | Bank        | `username`, `password`               | [@esakal](https://github.com/esakal)                                                   |
-| Discount Bank      | Bank        | `id`, `password`, `num`              |                                                                                        |
-| Mercantile Bank    | Bank        | `id`, `password`, `num`              | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad)         |
-| Mizrahi Tefahot    | Bank        | `username`, `password`               | [@baruchiro](https://github.com/baruchiro)                                             |
-| Bank Otsar Hahayal | Bank        | `username`, `password`               | [@matanelgabsi](https://github.com/matanelgabsi)                                       |
-| Union Bank         | Bank        | `username`, `password`               | [@dratler](https://github.com/dratler), [@dudiventura](https://github.com/dudiventura) |
-| Bank Yahav         | Bank        | `username`, `nationalID`, `password` | [@gczobel](https://github.com/gczobel)                                                 |
-| Bank Massad        | Bank        | `username`, `password`               |                                                                                        |
-| Pagi Bank          | Bank        | `username`, `password`               |                                                                                        |
-| One Zero           | Bank        | `email`, `password`, OTP             | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
-| Beinleumi          | Bank        | `username`, `password`, OTP          | [@sergienko4](https://github.com/sergienko4)                                           |
-| Beyahad Bishvilha  | Bank        | `id`, `password`                     | [@esakal](https://github.com/esakal)                                                   |
-| Behatsdaa          | Bank        | `id`, `password`                     | [@daniel-hauser](https://github.com/daniel-hauser)                                     |
-| Amex               | Credit Card | `id`, `card6Digits`, `password`      | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4)       |
-| Isracard           | Credit Card | `id`, `card6Digits`, `password`      | [@sergienko4](https://github.com/sergienko4)                                           |
-| Visa Cal           | Credit Card | `username`, `password`               | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal)           |
-| Max                | Credit Card | `username`, `password`               |                                                                                        |
+| Institution        | Type        | Credentials                           | Contributors                                                                           |
+| ------------------ | ----------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| Bank Hapoalim      | Bank        | `userCode`, `password`                | [@sebikaplun](https://github.com/sebikaplun)                                           |
+| Bank Leumi         | Bank        | `username`, `password`                | [@esakal](https://github.com/esakal)                                                   |
+| Discount Bank      | Bank        | `id`, `password`, `num`               |                                                                                        |
+| Mercantile Bank    | Bank        | `id`, `password`, `num`               | [@ezzatq](https://github.com/ezzatq), [@kfirarad](https://github.com/kfirarad)         |
+| Mizrahi Tefahot    | Bank        | `username`, `password`                | [@baruchiro](https://github.com/baruchiro)                                             |
+| Bank Otsar Hahayal | Bank        | `username`, `password`                | [@matanelgabsi](https://github.com/matanelgabsi)                                       |
+| Union Bank         | Bank        | `username`, `password`                | [@dratler](https://github.com/dratler), [@dudiventura](https://github.com/dudiventura) |
+| Bank Yahav         | Bank        | `username`, `nationalID`, `password`  | [@gczobel](https://github.com/gczobel)                                                 |
+| Bank Massad        | Bank        | `username`, `password`                |                                                                                        |
+| Pagi Bank          | Bank        | `username`, `password`                |                                                                                        |
+| One Zero           | Bank        | `email`, `password`, OTP              | [@orzarchi](https://github.com/orzarchi), [@sergienko4](https://github.com/sergienko4) |
+| Beinleumi          | Bank        | `username`, `password`, OTP           | [@sergienko4](https://github.com/sergienko4)                                           |
+| Beyahad Bishvilha  | Bank        | `id`, `password`                      | [@esakal](https://github.com/esakal)                                                   |
+| Behatsdaa          | Bank        | `id`, `password`                      | [@daniel-hauser](https://github.com/daniel-hauser)                                     |
+| Amex               | Credit Card | `id`, `card6Digits`, `password`       | [@erezd](https://github.com/erezd), [@sergienko4](https://github.com/sergienko4)       |
+| Isracard           | Credit Card | `id`, `card6Digits`, `password`       | [@sergienko4](https://github.com/sergienko4)                                           |
+| Visa Cal           | Credit Card | `username`, `password`                | [@erikash](https://github.com/erikash), [@esakal](https://github.com/esakal)           |
+| Max                | Credit Card | `username`, `password`, `id` (Flow B) | [@sergienko4](https://github.com/sergienko4)                                           |
 
  </ol>
 </details>
@@ -209,7 +212,7 @@ import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
 
 ## WAF Troubleshooting
 
-Playwright bypasses most Cloudflare challenges automatically. If you still get `errorType: 'WAF_BLOCKED'`:
+Camoufox bypasses most Cloudflare challenges automatically via C++-level Firefox anti-detect. If you still get `errorType: 'WAF_BLOCKED'`:
 
 | Scenario            | What happens                         | Fix                                     |
 | ------------------- | ------------------------------------ | --------------------------------------- |
@@ -217,7 +220,7 @@ Playwright bypasses most Cloudflare challenges automatically. If you still get `
 | Datacenter IP block | Cloud provider IPs rate-limited      | Use residential proxy or Azure          |
 | Turnstile CAPTCHA   | Interactive challenge on login page  | Use a trusted IP provider               |
 
-> **Tip:** Playwright passes WAF on first attempt from most IPs. No stealth or retry needed.
+> **Tip:** Camoufox passes WAF on first attempt from most IPs. No stealth plugins or retry logic needed — anti-detection is built into the browser binary.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -225,12 +228,12 @@ Playwright bypasses most Cloudflare challenges automatically. If you still get `
 
 ### External Browser
 
-Pass your own Playwright browser instance:
+Pass your own Camoufox browser instance (launched via Playwright's `firefox.launch` with the Camoufox binary):
 
 ```typescript
-import { chromium } from 'playwright';
+import { Camoufox } from '@hieutran094/camoufox-js';
 
-const browser = await chromium.launch();
+const browser = await Camoufox({ headless: true });
 const scraper = createScraper({
   companyId: CompanyTypes.leumi,
   startDate: new Date('2024-01-01'),
@@ -246,7 +249,7 @@ await browser.close();
 Use isolated browser contexts for parallel scraping:
 
 ```typescript
-const browser = await chromium.launch();
+const browser = await Camoufox({ headless: true });
 const browserContext = await browser.newContext();
 const scraper = createScraper({
   companyId: CompanyTypes.leumi,
@@ -320,6 +323,62 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 
 ---
 
+## Architecture
+
+### Login Middleware Chain
+
+The login flow uses a middleware pattern — each step receives a shared `LoginContext` and can stop the chain or pass results to the next step:
+
+```
+stepNavigate → stepParseLoginPage → stepFillAndSubmit → stepCheckResult → stepOtpConfirm → stepOtpCode → stepPostAction
+```
+
+| Step                 | Purpose                                                                |
+| -------------------- | ---------------------------------------------------------------------- |
+| `stepNavigate`       | Go to bank home page, wait for readiness                               |
+| `stepParseLoginPage` | **Parse HTML structure once** — cache child frames for all later steps |
+| `stepFillAndSubmit`  | Resolve fields by visible text/label/placeholder, fill, click submit   |
+| `stepCheckResult`    | Check URL/page for success or error                                    |
+| `stepOtpConfirm`     | Detect OTP screen, click "Send SMS" trigger                            |
+| `stepOtpCode`        | Get code from `otpCodeRetriever`, fill, submit, verify                 |
+| `stepPostAction`     | Wait for dashboard navigation                                          |
+
+**Key design principle:** No hardcoded CSS selectors for login fields. The `SelectorResolver` finds inputs by visible Hebrew text (`placeholder`, `label`, `ariaLabel`) using the `wellKnownSelectors` dictionary. The HTML is parsed once in `stepParseLoginPage` — all child frames are cached and reused by every downstream step.
+
+### Module Format
+
+Full ESM (`"type": "module"`) with dual output:
+
+```jsonc
+// package.json exports
+"exports": {
+  ".": {
+    "import": "./lib/index.mjs",   // ESM
+    "require": "./lib/index.cjs"   // CJS (backwards compatible)
+  }
+}
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Version Timeline
+
+| Version | Date     | Milestone                                                                       |
+| ------- | -------- | ------------------------------------------------------------------------------- |
+| v6.7.2  | Sep 2025 | Initial fork from eshaham/israeli-bank-scrapers                                 |
+| v6.9.2  | Oct 2025 | Native `fetch()`, unit tests for all scrapers, WAF retry for 403                |
+| v7.0.0  | Nov 2025 | **Breaking:** Puppeteer → Playwright migration                                  |
+| v7.1.0  | Nov 2025 | OTP auto-detection, `INVALID_OTP` error type, `persistentOtpToken`              |
+| v7.3.0  | Dec 2025 | Mocked E2E tests, GenericBankScraper + BANK_REGISTRY                            |
+| v7.5.0  | Jan 2026 | tsup build (Babel+TSC → esbuild), strict TypeScript, PascalCase convention      |
+| v7.6.0  | Feb 2026 | 4-round selector fallback, resilient login field detection                      |
+| v7.8.0  | Mar 2026 | ESLint strict + SelectorResolver dashboard, VisaCal & Beinleumi fixes           |
+| v7.8.1  | Mar 2026 | Login middleware chain, ScraperConfig central bank configuration                |
+| v7.9.0  | Mar 2026 | **Camoufox** replaces playwright-extra+stealth (Firefox anti-detect, C++ level) |
+| v7.10.0 | Mar 2026 | Full ESM migration, `stepParseLoginPage` HTML parser middleware                 |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Migration Notes
 
 ### v7.0.x → v7.1.x
@@ -346,21 +405,42 @@ WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet });
 
 This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers who only check `result.errorType === 'WAF_BLOCKED'` are unaffected.
 
+### v7.8.x → v7.9.x
+
+**Browser engine change (non-breaking for consumers):**
+
+- `playwright-extra` + `puppeteer-extra-plugin-stealth` replaced by `@hieutran094/camoufox-js` (Firefox anti-detect browser)
+- The scraper API is unchanged — `createScraper()` works identically
+- If you pass your own `browser` instance, use `Camoufox()` instead of `chromium.launch()`
+
+### v7.9.x → v7.10.x
+
+**Full ESM migration (potentially breaking for test consumers):**
+
+- `package.json` now has `"type": "module"`
+- Dual CJS/ESM output: `lib/index.mjs` (ESM) + `lib/index.cjs` (CJS)
+- If you import this library, `import` and `require()` both work — no changes needed
+- If you extend scraper classes in tests: `jest` is no longer a global in ESM — use `import { jest } from '@jest/globals'`
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Roadmap
 
-- [x] Cloudflare WAF bypass (Playwright — no stealth or retry needed)
+- [x] Cloudflare WAF bypass — Camoufox Firefox anti-detect (C++-level stealth, no plugins)
 - [x] Structured `WAF_BLOCKED` error type with actionable suggestions
-- [x] Playwright migration — bypasses WAF natively, no CDP fingerprint
+- [x] Puppeteer → Playwright migration (v7.0) → Camoufox anti-detect (v7.9)
+- [x] Full ESM migration — `"type": "module"`, dual CJS/ESM output
+- [x] Login middleware chain — `stepParseLoginPage` HTML parser caches frames for all steps
+- [x] WellKnown selector system — finds login fields by visible text, label, placeholder (no CSS IDs)
 - [x] Automatic OTP handling for DOM banks (Beinleumi, Discount) — no manual steps
 - [x] `INVALID_OTP` error type — fast fail (5s) with clear message when code is wrong/expired
-- [x] OneZero real-time balance via `balance(portfolioId, accountId)` GraphQL query
 - [x] `persistentOtpToken` surfaced in scrape result for session reuse
 - [x] Zero-Compromise ESLint gate: `no-any`, `no-unsafe-*`, explicit return types, 20-line/300-line limits
-- [x] `GenericBankScraper` + `BANK_REGISTRY` — add a new DOM bank in one config object (no boilerplate)
+- [x] `GenericBankScraper` + `BANK_REGISTRY` — add a new DOM bank in one config object
 - [x] 4-round selector fallback — scraper auto-discovers login fields even if IDs change
 - [x] TypeDoc API reference auto-published at [sergienko4.github.io/israeli-bank-scrapers](https://sergienko4.github.io/israeli-bank-scrapers/)
+- [ ] Remove ALL hardcoded CSS selectors — use only visible text, labels, placeholders, aria attributes
+- [ ] Replace `playwright` dependency with `playwright-core` (Camoufox provides the browser binary)
 - [ ] Configurable proxy support for residential IP routing
 
 See the [open issues](https://github.com/sergienko4/israeli-bank-scrapers/issues) for a full list of proposed features and known issues.
@@ -427,6 +507,8 @@ Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/s
 [ts-url]: https://www.typescriptlang.org
 [node-shield]: https://img.shields.io/badge/Node.js-%3E%3D22.14-339933?style=for-the-badge&logo=node.js&logoColor=white
 [node-url]: https://nodejs.org
+[camoufox-shield]: https://img.shields.io/badge/Camoufox-0.6-FF6600?style=for-the-badge&logo=firefox&logoColor=white
+[camoufox-url]: https://github.com/niceboyatcomputers/camoufox
 [pw-shield]: https://img.shields.io/badge/Playwright-1.58-2EAD33?style=for-the-badge&logo=playwright&logoColor=white
 [pw-url]: https://playwright.dev
 [jest-shield]: https://img.shields.io/badge/Jest-30-C21325?style=for-the-badge&logo=jest&logoColor=white
