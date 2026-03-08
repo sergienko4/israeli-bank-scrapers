@@ -4,23 +4,23 @@ import {
   filterOldTransactions,
   fixInstallments,
   getRawTransaction,
-} from '../../Common/Transactions';
-import { ALT_SHEKEL_CURRENCY, SHEKEL_CURRENCY, SHEKEL_CURRENCY_KEYWORD } from '../../Constants';
+} from '../../Common/Transactions.js';
+import { ALT_SHEKEL_CURRENCY, SHEKEL_CURRENCY, SHEKEL_CURRENCY_KEYWORD } from '../../Constants.js';
 import {
   type Transaction,
   type TransactionInstallments,
   TransactionStatuses,
   TransactionTypes,
-} from '../../Transactions';
-import { type ScraperOptions } from '../Base/Interface';
+} from '../../Transactions.js';
+import { type ScraperOptions } from '../Base/Interface.js';
 import {
   type BuildTxnsOpts,
   type CollectTxnsOpts,
   type ScrapedAccountsWithIndex,
   type ScrapedTransaction,
-} from './BaseIsracardAmexTypes';
+} from './BaseIsracardAmexTypes.js';
 
-export { fetchAccounts } from './BaseIsracardAmexFetch';
+export { fetchAccounts } from './BaseIsracardAmexFetch.js';
 
 const INSTALLMENTS_KEYWORD = 'תשלום';
 const DATE_FORMAT = 'DD/MM/YYYY';

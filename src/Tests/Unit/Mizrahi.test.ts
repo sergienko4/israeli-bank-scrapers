@@ -1,18 +1,9 @@
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-import { buildContextOptions } from '../../Common/Browser';
-import { elementPresentOnPage } from '../../Common/ElementsInteractions';
-import { fetchPostWithinPage } from '../../Common/Fetch';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import MizrahiScraper from '../../Scrapers/Mizrahi/MizrahiScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({ fetchPostWithinPage: jest.fn() }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
@@ -23,22 +14,40 @@ jest.mock('../../Common/ElementsInteractions', () => ({
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest
     .fn()
     .mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForUrl: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { elementPresentOnPage } = await import('../../Common/ElementsInteractions.js');
+const { fetchPostWithinPage } = await import('../../Common/Fetch.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { SHEKEL_CURRENCY } = await import('../../Constants.js');
+const { default: MizrahiScraper } = await import('../../Scrapers/Mizrahi/MizrahiScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),
@@ -118,7 +127,7 @@ function createMizrahiPage(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMizrahiPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard',

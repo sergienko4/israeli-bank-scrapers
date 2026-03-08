@@ -1,31 +1,21 @@
-import { faker } from '@faker-js/faker';
-import moment from 'moment';
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
 
-import { buildContextOptions } from '../../Common/Browser';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
-import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
-import { sleep } from '../../Common/Waiting';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import { ScraperProgressTypes } from '../../Definitions';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type { ScraperOptions } from '../../Scrapers/Base/Interface';
-import IsracardAmexBaseScraper from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmex';
-import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { HEBREW_MERCHANTS } from '../HebrewBankingFixtures';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
+import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes.js';
+import type { Transaction } from '../../Transactions.js';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Waiting', () => ({
+
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
@@ -34,20 +24,41 @@ jest.mock('../../Common/Waiting', () => ({
       Promise.resolve([] as T[]),
     );
   }),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  raceTimeout: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   fixInstallments: jest.fn((txns: Transaction[]) => txns),
   filterOldTransactions: jest.fn((txns: Transaction[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
-jest.mock('../../Common/Dates', () => {
-  return jest.fn(() => [moment('2024-06-01')]);
-});
+
+jest.unstable_mockModule('../../Common/Dates.js', () => ({
+  default: jest.fn(() => [moment('2024-06-01')]),
+}));
+
+const { faker } = await import('@faker-js/faker');
+const { default: moment } = await import('moment');
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { fetchGetWithinPage, fetchPostWithinPage } = await import('../../Common/Fetch.js');
+const { filterOldTransactions, fixInstallments } = await import('../../Common/Transactions.js');
+const { sleep } = await import('../../Common/Waiting.js');
+const { SHEKEL_CURRENCY } = await import('../../Constants.js');
+const { ScraperProgressTypes } = await import('../../Definitions.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: IsracardAmexBaseScraper } =
+  await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmex.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { HEBREW_MERCHANTS } = await import('../HebrewBankingFixtures.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const BASE_URL = 'https://americanexpress.co.il';
 
@@ -131,7 +142,7 @@ function txn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());
 });
 
@@ -327,7 +338,7 @@ describe('progress events', () => {
     setupFullLogin();
     mockAccounts();
     mockTxns([]);
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = new TestAmexScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape(CREDS);
@@ -337,7 +348,7 @@ describe('progress events', () => {
 
   it('emits LoginFailed on invalid password', async () => {
     mockValidate('99');
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = new TestAmexScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape(CREDS);

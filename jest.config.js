@@ -1,32 +1,26 @@
-// For a detailed explanation regarding each configuration property, visit:
-// https://jestjs.io/docs/en/configuration.html
 /** @type {import('jest').Config} */
-const config = {
-  preset: 'ts-jest',
+export default {
+  preset: 'ts-jest/presets/default-esm',
   clearMocks: true,
   coverageDirectory: 'coverage',
   rootDir: './src',
+  extensionsToTreatAsEsm: ['.ts'],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@hieutran094/camoufox-js$': '<rootDir>/Tests/Mocks/CamoufoxJsMock.js',
+  },
   transform: {
-    '^.+\\.ts$': ['ts-jest'],
-    '@faker-js.+\\.js$': ['ts-jest', { diagnostics: false, tsconfig: { allowJs: true, checkJs: false } }],
+    '^.+\\.ts$': ['ts-jest', { useESM: true }],
+    '@faker-js.+\\.js$': [
+      'ts-jest',
+      { useESM: true, diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
+    ],
   },
   transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
-  setupFilesAfterEnv: [
-    './Tests/JestSetup.ts',
-  ],
+  setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', 'E2eReal/', 'E2eMocked/'],
-  collectCoverageFrom: [
-    '**/*.ts',
-    '!Tests/**',
-    '!**/*.test.ts',
-    // Extracted helper/type/fragment files — covered via scraper integration tests,
-    // not unit-tested directly. Excluded to avoid false coverage drops on refactoring.
-    '!Scrapers/**/*Types.ts',
-    '!Scrapers/**/*Fragments.ts',
-    '!Scrapers/**/*Extra.ts',
-    '!Scrapers/**/*Helpers.ts',
-  ],
+  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/'],
+  collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
   coverageThreshold: {
     global: {
       branches: 76,
@@ -36,5 +30,3 @@ const config = {
     },
   },
 };
-
-module.exports = config;

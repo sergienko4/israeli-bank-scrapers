@@ -1,6 +1,6 @@
 import * as SourceMap from 'source-map-support';
 
-import { extendAsyncTimeout, getTestsConfig } from './TestsUtils';
+import { extendAsyncTimeout, getTestsConfig } from './TestsUtils.js';
 
 SourceMap.install();
 // Try to get test configuration object, no need to do anything beside that

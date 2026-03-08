@@ -1,13 +1,15 @@
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { type WaitUntilState } from '../../Common/Navigation';
-import { ScraperErrorTypes } from './Errors';
-import { type ScraperScrapingResult } from './Interface';
+import { getDebug } from '../../Common/Debug.js';
+import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
+import { ScraperErrorTypes } from './Errors.js';
+import { type ScraperScrapingResult } from './Interface.js';
 
 const LOG = getDebug('base-scraper-with-browser');
 
-export type LoginCondition = string | RegExp | ((options?: { page?: Page }) => Promise<boolean>);
+type LoginConditionFn = (options?: { page?: Page }) => boolean | Promise<boolean>;
+export type LoginCondition = string | RegExp | LoginConditionFn;
 
 enum LoginBaseResults {
   Success = 'SUCCESS',
@@ -117,4 +119,53 @@ export async function detectGenericInvalidPassword(page: Page): Promise<boolean>
   } catch {
     return false;
   }
+}
+
+export interface LoginResultContext {
+  page: Page;
+  diagState: { lastAction: string; finalUrl?: string; pageTitle?: string };
+  emitProgress: (type: ScraperProgressTypes) => void;
+}
+
+function buildFailedResult(
+  ctx: LoginResultContext,
+  loginResult: LoginResults,
+): ScraperScrapingResult {
+  ctx.emitProgress(ScraperProgressTypes.LoginFailed);
+  const errorType =
+    loginResult === LOGIN_RESULTS.InvalidPassword
+      ? ScraperErrorTypes.InvalidPassword
+      : ScraperErrorTypes.Generic;
+  const errorMessage = `Login failed with ${loginResult} error — url: ${ctx.page.url()}`;
+  return { success: false, errorType, errorMessage };
+}
+
+export function buildLoginResult(
+  ctx: LoginResultContext,
+  loginResult: LoginResults,
+): ScraperScrapingResult {
+  ctx.diagState.lastAction = `login result: ${loginResult}`;
+  LOG.info('login result=%s url=%s', loginResult, ctx.diagState.finalUrl ?? '?');
+  if (loginResult === LOGIN_RESULTS.Success) {
+    ctx.emitProgress(ScraperProgressTypes.LoginSuccess);
+    return { success: true };
+  }
+  if (loginResult === LOGIN_RESULTS.ChangePassword) {
+    ctx.emitProgress(ScraperProgressTypes.ChangePassword);
+    return { success: false, errorType: ScraperErrorTypes.ChangePassword };
+  }
+  return buildFailedResult(ctx, loginResult);
+}
+
+export async function resolveAndBuildLoginResult(
+  ctx: LoginResultContext,
+  possibleResults: PossibleLoginResults,
+): Promise<ScraperScrapingResult> {
+  const current = await getCurrentUrl(ctx.page, true);
+  ctx.diagState.finalUrl = current;
+  ctx.diagState.pageTitle = await ctx.page.title().catch(() => '');
+  let result = await getKeyByValue(possibleResults, current, ctx.page);
+  if (result === LOGIN_RESULTS.UnknownError && (await detectGenericInvalidPassword(ctx.page)))
+    result = LOGIN_RESULTS.InvalidPassword;
+  return buildLoginResult(ctx, result);
 }

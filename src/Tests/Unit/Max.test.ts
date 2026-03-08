@@ -1,48 +1,63 @@
-import moment from 'moment';
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
 
-import { buildContextOptions } from '../../Common/Browser';
-import { elementPresentOnPage } from '../../Common/ElementsInteractions';
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
-import { DOLLAR_CURRENCY, SHEKEL_CURRENCY } from '../../Constants';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import MaxScraper, { getMemo, type ScrapedTransaction } from '../../Scrapers/Max/MaxScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import type { ScrapedTransaction } from '../../Scrapers/Max/MaxScraper.js';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il/homepage/personal'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   fixInstallments: jest.fn(<T>(txns: T[]) => txns),
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
-jest.mock('../../Common/Dates', () => {
-  return jest.fn(() => [moment('2024-06-01')]);
-});
+
+jest.unstable_mockModule('../../Common/Dates.js', () => ({
+  default: jest.fn(() => [moment('2024-06-01')]),
+}));
+
+const { default: moment } = await import('moment');
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { elementPresentOnPage } = await import('../../Common/ElementsInteractions.js');
+const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { filterOldTransactions, fixInstallments } = await import('../../Common/Transactions.js');
+const { DOLLAR_CURRENCY, SHEKEL_CURRENCY } = await import('../../Constants.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: MaxScraper, getMemo } = await import('../../Scrapers/Max/MaxScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),
@@ -87,8 +102,15 @@ function rawTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
+  const page = createMockPage({
+    url: jest.fn().mockReturnValue('https://www.max.co.il/homepage/personal'),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+  });
+  mockContext.newPage.mockResolvedValue(page);
+  mockContext.close.mockResolvedValue(undefined);
+  mockBrowser.newContext.mockResolvedValue(mockContext);
+  mockBrowser.close.mockResolvedValue(undefined);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });
@@ -128,12 +150,17 @@ describe('login', () => {
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {
+    mockContext.newPage.mockResolvedValue(
+      createMockPage({
+        url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
+        waitForURL: jest.fn().mockResolvedValue(undefined),
+      }),
+    );
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
     (elementPresentOnPage as jest.Mock)
-      .mockResolvedValueOnce(false) // #closePopup check in preAction
-      .mockResolvedValueOnce(false) // .login-link#private check in preAction
-      .mockResolvedValueOnce(true) // #popupWrongDetails check (InvalidPassword)
-      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError check
+      .mockResolvedValueOnce(false) // #closePopup
+      .mockResolvedValueOnce(true) // #popupWrongDetails
+      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError
 
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
@@ -142,6 +169,12 @@ describe('login', () => {
   });
 
   it('returns ChangePassword for renewal URL', async () => {
+    mockContext.newPage.mockResolvedValue(
+      createMockPage({
+        url: jest.fn().mockReturnValue('https://www.max.co.il/renew-password'),
+        waitForURL: jest.fn().mockResolvedValue(undefined),
+      }),
+    );
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.max.co.il/renew-password');
     const scraper = new MaxScraper(createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

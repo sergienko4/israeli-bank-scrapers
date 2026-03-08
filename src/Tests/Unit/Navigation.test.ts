@@ -1,11 +1,13 @@
+import { jest } from '@jest/globals';
+
 import {
   getCurrentUrl,
   waitForNavigation,
   waitForNavigationAndDomLoad,
   waitForRedirect,
   waitForUrl,
-} from '../../Common/Navigation';
-import { createMockPage } from '../MockPage';
+} from '../../Common/Navigation.js';
+import { createMockPage } from '../MockPage.js';
 
 function createNavMockPage(
   currentUrl = 'https://bank.co.il/login',

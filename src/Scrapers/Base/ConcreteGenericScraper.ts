@@ -1,5 +1,5 @@
-import { GenericBankScraper } from './GenericBankScraper';
-import { type ScraperCredentials, type ScraperScrapingResult } from './Interface';
+import { GenericBankScraper } from './GenericBankScraper.js';
+import { type ScraperCredentials, type ScraperScrapingResult } from './Interface.js';
 
 /**
  * Concrete subclass of GenericBankScraper for testing or one-off use.

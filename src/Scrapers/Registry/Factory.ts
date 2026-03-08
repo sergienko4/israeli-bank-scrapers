@@ -1,23 +1,23 @@
 /* eslint-disable import-x/max-dependencies */
-import { CompanyTypes } from '../../Definitions';
-import AmexScraper from '../Amex/AmexScraper';
-import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface';
-import BehatsdaaScraper from '../Behatsdaa/BehatsdaaScraper';
-import BeinleumiScraper from '../Beinleumi/BeinleumiScraper';
-import BeyahadBishvilhaScraper from '../BeyahadBishvilha/BeyahadBishvilhaScraper';
-import DiscountScraper from '../Discount/DiscountScraper';
-import HapoalimScraper from '../Hapoalim/HapoalimScraper';
-import IsracardScraper from '../Isracard/IsracardScraper';
-import LeumiScraper from '../Leumi/LeumiScraper';
-import MassadScraper from '../Massad/MassadScraper';
-import MaxScraper from '../Max/MaxScraper';
-import MercantileScraper from '../Mercantile/MercantileScraper';
-import MizrahiScraper from '../Mizrahi/MizrahiScraper';
-import OneZeroScraper from '../OneZero/OneZeroScraper';
-import OtsarHahayalScraper from '../OtsarHahayal/OtsarHahayalScraper';
-import PagiScraper from '../Pagi/PagiScraper';
-import VisaCalScraper from '../VisaCal/VisaCalScraper';
-import YahavScraper from '../Yahav/YahavScraper';
+import { CompanyTypes } from '../../Definitions.js';
+import AmexScraper from '../Amex/AmexScraper.js';
+import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
+import BehatsdaaScraper from '../Behatsdaa/BehatsdaaScraper.js';
+import BeinleumiScraper from '../Beinleumi/BeinleumiScraper.js';
+import BeyahadBishvilhaScraper from '../BeyahadBishvilha/BeyahadBishvilhaScraper.js';
+import DiscountScraper from '../Discount/DiscountScraper.js';
+import HapoalimScraper from '../Hapoalim/HapoalimScraper.js';
+import IsracardScraper from '../Isracard/IsracardScraper.js';
+import LeumiScraper from '../Leumi/LeumiScraper.js';
+import MassadScraper from '../Massad/MassadScraper.js';
+import MaxScraper from '../Max/MaxScraper.js';
+import MercantileScraper from '../Mercantile/MercantileScraper.js';
+import MizrahiScraper from '../Mizrahi/MizrahiScraper.js';
+import OneZeroScraper from '../OneZero/OneZeroScraper.js';
+import OtsarHahayalScraper from '../OtsarHahayal/OtsarHahayalScraper.js';
+import PagiScraper from '../Pagi/PagiScraper.js';
+import VisaCalScraper from '../VisaCal/VisaCalScraper.js';
+import YahavScraper from '../Yahav/YahavScraper.js';
 
 type ScraperFactory = (options: ScraperOptions) => Scraper<ScraperCredentials>;
 

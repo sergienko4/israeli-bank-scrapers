@@ -1,22 +1,22 @@
 import moment from 'moment';
 import type { Frame } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
+import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
   waitUntilElementFound,
   waitUntilIframeFound,
-} from '../../Common/ElementsInteractions';
-import { fetchPost } from '../../Common/Fetch';
-import { getCurrentUrl, waitForUrl } from '../../Common/Navigation';
-import { getFromSessionStorage } from '../../Common/Storage';
-import { filterOldTransactions } from '../../Common/Transactions';
-import { waitUntil } from '../../Common/Waiting';
-import { CompanyTypes } from '../../Definitions';
-import type { TransactionsAccount } from '../../Transactions';
-import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser';
-import type { ScraperScrapingResult } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+} from '../../Common/ElementsInteractions.js';
+import { fetchPost } from '../../Common/Fetch.js';
+import { getCurrentUrl, waitForUrl } from '../../Common/Navigation.js';
+import { getFromSessionStorage } from '../../Common/Storage.js';
+import { filterOldTransactions } from '../../Common/Transactions.js';
+import { waitUntil } from '../../Common/Waiting.js';
+import { CompanyTypes } from '../../Definitions.js';
+import type { TransactionsAccount } from '../../Transactions.js';
+import { BaseScraperWithBrowser, type LoginOptions } from '../Base/BaseScraperWithBrowser.js';
+import type { ScraperScrapingResult } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import {
   CONNECT_IFRAME_OPTS,
   convertParsedDataToTransactions,
@@ -24,7 +24,7 @@ import {
   findCardFrame,
   getPossibleLoginResults,
   isConnectFrame,
-} from './VisaCalHelpers';
+} from './VisaCalHelpers.js';
 import {
   type ApiContext,
   type AuthModule,
@@ -38,7 +38,7 @@ import {
   isCardPendingTransactionDetails,
   isCardTransactionDetails,
   type LoginResponse,
-} from './VisaCalTypes';
+} from './VisaCalTypes.js';
 
 const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 const API_HEADERS = {

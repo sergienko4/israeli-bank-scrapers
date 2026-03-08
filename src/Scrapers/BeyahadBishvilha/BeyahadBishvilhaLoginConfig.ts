@@ -1,9 +1,9 @@
 import { type Page } from 'playwright';
 
-import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
-import { HISTBASED_FIELDS } from '../Behatsdaa/BehatsdaaLoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import { CompanyTypes } from '../../Definitions.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
+import { HISTBASED_FIELDS } from '../Behatsdaa/BehatsdaaLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
 

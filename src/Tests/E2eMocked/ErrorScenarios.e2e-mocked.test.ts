@@ -1,10 +1,10 @@
 import { type Browser } from 'playwright';
 
-import { CompanyTypes } from '../../Definitions';
-import { createScraper } from '../../index';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
-import { setupRequestInterception } from './Helpers/RequestInterceptor';
+import { CompanyTypes } from '../../Definitions.js';
+import { createScraper } from '../../index.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };
 

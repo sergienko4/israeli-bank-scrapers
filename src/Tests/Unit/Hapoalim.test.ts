@@ -1,51 +1,73 @@
-import { faker } from '@faker-js/faker';
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-import { buildContextOptions } from '../../Common/Browser';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { waitUntil } from '../../Common/Waiting';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import HapoalimScraper from '../../Scrapers/Hapoalim/HapoalimScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { HEBREW_TRANSACTION_TYPES } from '../HebrewBankingFixtures';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
-
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest
     .fn()
     .mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Waiting', () => ({
+
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   waitUntil: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
-jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
-jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
+
+jest.unstable_mockModule('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
+
+jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue(null),
+
+  handleOtpCode: jest.fn().mockResolvedValue(undefined),
+
+  handleOtpConfirm: jest.fn().mockResolvedValue(undefined),
+}));
+
+const { faker } = await import('@faker-js/faker');
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { fetchGetWithinPage, fetchPostWithinPage } = await import('../../Common/Fetch.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { waitUntil } = await import('../../Common/Waiting.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: HapoalimScraper } = await import('../../Scrapers/Hapoalim/HapoalimScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { HEBREW_TRANSACTION_TYPES } = await import('../HebrewBankingFixtures.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),
@@ -137,7 +159,7 @@ function setupLoginAndAccounts(
 beforeEach(() => {
   faker.seed(42);
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createHapoalimPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://login.bankhapoalim.co.il/portalserver/HomePage',

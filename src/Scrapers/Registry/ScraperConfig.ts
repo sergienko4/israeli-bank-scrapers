@@ -1,6 +1,6 @@
 /* eslint-disable max-lines */
-import { CompanyTypes } from '../../Definitions';
-import { type SelectorCandidate } from '../Base/LoginConfig';
+import { CompanyTypes } from '../../Definitions.js';
+import { type SelectorCandidate } from '../Base/LoginConfig.js';
 
 // ─── Config shape ────────────────────────────────────────────────────────────
 
@@ -31,6 +31,13 @@ export interface BankScraperConfig {
     idType: string | null;
     checkLevel: string | null;
     organizationId: string | null; // Behatsdaa: '20'
+  };
+  /** Login flow capabilities — drives pre/post-login behavior in BaseScraperWithBrowser. */
+  loginSetup: {
+    isApiOnly: boolean; // No browser login form (Amex, Isracard — API calls)
+    hasOtpConfirm: boolean; // "Send me SMS" button before code entry (Beinleumi)
+    hasOtpCode: boolean; // OTP code entry screen (Beinleumi, OneZero)
+    hasSecondLoginStep: boolean; // Optional 2nd login form (Max Flow B)
   };
   /** Data format and pagination */
   format: {
@@ -70,6 +77,12 @@ const NULL_AUTH: BankScraperConfig['auth'] = {
   idType: null,
   checkLevel: null,
   organizationId: null,
+};
+const SIMPLE_LOGIN: BankScraperConfig['loginSetup'] = {
+  isApiOnly: false,
+  hasOtpConfirm: false,
+  hasOtpCode: false,
+  hasSecondLoginStep: false,
 };
 const NULL_FORMAT: BankScraperConfig['format'] = {
   date: null,
@@ -124,6 +137,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.bankhapoalim.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://login.bankhapoalim.co.il' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: {
         ...NULL_FORMAT,
         date: 'YYYYMMDD',
@@ -143,6 +157,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: { ...NULL_API, base: 'https://hb2.bankleumi.co.il' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD.MM.YY' },
       timing: NULL_TIMING,
       selectors: {
@@ -165,6 +180,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.discountbank.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://start.telebank.co.il' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
       timing: NULL_TIMING,
       selectors: {},
@@ -173,6 +189,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.mercantile.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://start.telebank.co.il' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
       timing: NULL_TIMING,
       selectors: {},
@@ -185,6 +202,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: { ...NULL_API, base: 'https://mto.mizrahi-tefahot.co.il' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY', maxRowsPerRequest: 10000000000 },
       timing: NULL_TIMING,
       selectors: {
@@ -202,6 +220,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.max.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://onlinelcapi.max.co.il' },
       auth: NULL_AUTH,
+      loginSetup: { ...SIMPLE_LOGIN, hasSecondLoginStep: true },
       format: NULL_FORMAT,
       timing: NULL_TIMING,
       selectors: {},
@@ -210,6 +229,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://americanexpress.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://he.americanexpress.co.il' },
       auth: { ...NULL_AUTH, companyCode: '77', countryCode: '212', idType: '1', checkLevel: '1' },
+      loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
       format: NULL_FORMAT,
       timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
       selectors: {},
@@ -218,6 +238,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.isracard.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://digital.isracard.co.il' },
       auth: { ...NULL_AUTH, companyCode: '11', countryCode: '212', idType: '1', checkLevel: '1' },
+      loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
       format: NULL_FORMAT,
       timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
       selectors: {},
@@ -226,6 +247,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.cal-online.co.il/', loginRoute: null, transactions: null },
       api: VISACAL_API,
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: NULL_FORMAT,
       timing: NULL_TIMING,
       selectors: {},
@@ -239,6 +261,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: { ...SIMPLE_LOGIN, hasOtpConfirm: true, hasOtpCode: true },
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
       selectors: BEINLEUMI_DOM_SELECTORS,
@@ -252,6 +275,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
       selectors: BEINLEUMI_DOM_SELECTORS,
@@ -265,6 +289,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
       selectors: BEINLEUMI_DOM_SELECTORS,
@@ -278,6 +303,7 @@ export const SCRAPER_CONFIGURATION = {
       },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: { ...NULL_TIMING, elementRenderMs: 10000 },
       selectors: BEINLEUMI_DOM_SELECTORS,
@@ -289,6 +315,7 @@ export const SCRAPER_CONFIGURATION = {
         purchaseHistory: 'https://back.behatsdaa.org.il/api/purchases/purchaseHistory',
       },
       auth: { ...NULL_AUTH, organizationId: '20' },
+      loginSetup: SIMPLE_LOGIN,
       format: NULL_FORMAT,
       timing: NULL_TIMING,
       selectors: {},
@@ -297,6 +324,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.hist.org.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, card: 'https://www.hist.org.il/card/balanceAndUses' },
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YY' },
       timing: NULL_TIMING,
       selectors: {
@@ -315,6 +343,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.yahav.co.il', loginRoute: null, transactions: null },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: SIMPLE_LOGIN,
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: NULL_TIMING,
       selectors: {
@@ -344,6 +373,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.onezero.co.il', loginRoute: null, transactions: null },
       api: NULL_API,
       auth: NULL_AUTH,
+      loginSetup: { ...SIMPLE_LOGIN, hasOtpCode: true },
       format: NULL_FORMAT,
       timing: NULL_TIMING,
       selectors: {},
@@ -353,68 +383,85 @@ export const SCRAPER_CONFIGURATION = {
   /** Global login-field fallback dictionary used by SelectorResolver on every bank */
   wellKnownSelectors: {
     username: [
+      { kind: 'labelText', value: 'שם משתמש' },
+      { kind: 'labelText', value: 'קוד משתמש' },
+      { kind: 'labelText', value: 'מספר לקוח' },
       { kind: 'placeholder', value: 'שם משתמש' },
       { kind: 'placeholder', value: 'קוד משתמש' },
       { kind: 'placeholder', value: 'מספר לקוח' },
       { kind: 'placeholder', value: 'תז' },
+      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
+      { kind: 'css', value: '#user-name' }, // Max
+      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal (Angular Material)
       { kind: 'ariaLabel', value: 'שם משתמש' },
       { kind: 'ariaLabel', value: 'קוד משתמש' },
       { kind: 'name', value: 'username' },
       { kind: 'name', value: 'userCode' },
-      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
-      { kind: 'css', value: '#user-name' }, // Max
-      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal (Angular Material)
     ],
     userCode: [
+      { kind: 'labelText', value: 'קוד משתמש' },
+      { kind: 'labelText', value: 'שם משתמש' },
       { kind: 'placeholder', value: 'קוד משתמש' },
       { kind: 'placeholder', value: 'שם משתמש' },
       { kind: 'placeholder', value: 'מספר לקוח' },
+      { kind: 'css', value: '#userCode' }, // Hapoalim
       { kind: 'ariaLabel', value: 'קוד משתמש' },
       { kind: 'name', value: 'userCode' },
       { kind: 'name', value: 'username' },
-      { kind: 'css', value: '#userCode' }, // Hapoalim
     ],
     password: [
+      { kind: 'labelText', value: 'סיסמה' },
+      { kind: 'labelText', value: 'סיסמא' },
+      { kind: 'labelText', value: 'קוד סודי' },
       { kind: 'placeholder', value: 'סיסמה' },
       { kind: 'placeholder', value: 'סיסמא' },
       { kind: 'placeholder', value: 'קוד סודי' },
-      { kind: 'ariaLabel', value: 'סיסמה' },
-      { kind: 'name', value: 'password' },
       { kind: 'css', value: 'input[type="password"]' },
       { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
       { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzPassword' }, // Discount
       { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal (Angular Material)
+      { kind: 'ariaLabel', value: 'סיסמה' },
+      { kind: 'name', value: 'password' },
     ],
     id: [
+      { kind: 'labelText', value: 'תעודת זהות' },
+      { kind: 'labelText', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'תעודת זהות' },
       { kind: 'placeholder', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'ת.ז' },
-      { kind: 'ariaLabel', value: 'תעודת זהות' },
-      { kind: 'name', value: 'id' },
       { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzId' }, // Discount
+      { kind: 'ariaLabel', value: 'תעודת זהות' },
+      { kind: 'name', value: 'id' },
     ],
     nationalID: [
+      { kind: 'labelText', value: 'תעודת זהות' },
+      { kind: 'labelText', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'תעודת זהות' },
       { kind: 'placeholder', value: 'מספר זהות' },
+      { kind: 'css', value: '#pinno' }, // Yahav
       { kind: 'ariaLabel', value: 'תעודת זהות' },
       { kind: 'name', value: 'nationalID' },
       { kind: 'name', value: 'id' },
-      { kind: 'css', value: '#pinno' }, // Yahav
     ],
     card6Digits: [
+      { kind: 'labelText', value: 'ספרות' },
       { kind: 'placeholder', value: '6 ספרות' },
       { kind: 'placeholder', value: 'ספרות הכרטיס' },
       { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
     ],
     num: [
+      { kind: 'labelText', value: 'קוד מזהה' },
+      { kind: 'labelText', value: 'מספר חשבון' },
       { kind: 'placeholder', value: 'מספר חשבון' },
+      { kind: 'css', value: '#aidnum' }, // Discount
       { kind: 'ariaLabel', value: 'מספר חשבון' },
       { kind: 'name', value: 'num' },
-      { kind: 'css', value: '#aidnum' }, // Discount
     ],
     otpCode: [
+      { kind: 'labelText', value: 'קוד חד פעמי' },
+      { kind: 'labelText', value: 'קוד אימות' },
       { kind: 'placeholder', value: 'קוד חד פעמי' },
       { kind: 'placeholder', value: 'קוד SMS' },
       { kind: 'placeholder', value: 'קוד אימות' },

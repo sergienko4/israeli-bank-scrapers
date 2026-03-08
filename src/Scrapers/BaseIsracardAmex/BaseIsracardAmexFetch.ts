@@ -2,14 +2,14 @@ import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { sleep } from '../../Common/Waiting';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchGetWithinPage } from '../../Common/Fetch.js';
+import { sleep } from '../../Common/Waiting.js';
 import {
   type ScrapedAccount,
   type ScrapedAccountsWithinPageResponse,
   type ScrapedTransactionData,
-} from './BaseIsracardAmexTypes';
+} from './BaseIsracardAmexTypes.js';
 
 const DATE_FORMAT = 'DD/MM/YYYY';
 const RATE_LIMIT_SLEEP_BETWEEN = 1000;

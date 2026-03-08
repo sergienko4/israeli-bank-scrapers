@@ -2,14 +2,14 @@ import _ from 'lodash';
 import { type Moment } from 'moment';
 import { type Page } from 'playwright';
 
-import getAllMonthMoments from '../../Common/Dates';
-import { getDebug } from '../../Common/Debug';
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { getRawTransaction } from '../../Common/Transactions';
-import { runSerial, sleep } from '../../Common/Waiting';
-import { type Transaction } from '../../Transactions';
-import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch';
-import { buildAccountTxns, combineTxnsFromResults } from './BaseIsracardAmexTransactions';
+import getAllMonthMoments from '../../Common/Dates.js';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchGetWithinPage } from '../../Common/Fetch.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { runSerial, sleep } from '../../Common/Waiting.js';
+import { type Transaction } from '../../Transactions.js';
+import { fetchAccounts, fetchTxnData } from './BaseIsracardAmexFetch.js';
+import { buildAccountTxns, combineTxnsFromResults } from './BaseIsracardAmexTransactions.js';
 import {
   type AdditionalInfoOpts,
   type ExtraScrapAccountOpts,
@@ -18,7 +18,7 @@ import {
   type FetchTransactionsOpts,
   type ScrapedAccountsWithIndex,
   type ScrapedTransactionData,
-} from './BaseIsracardAmexTypes';
+} from './BaseIsracardAmexTypes.js';
 
 const RATE_LIMIT = { SLEEP_BETWEEN: 1000, TRANSACTIONS_BATCH_SIZE: 10 } as const;
 const LOG = getDebug('base-isracard-amex');

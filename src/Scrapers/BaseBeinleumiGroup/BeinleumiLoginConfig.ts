@@ -1,8 +1,8 @@
 import { type Frame, type Page } from 'playwright';
 
-import { elementPresentOnPage } from '../../Common/ElementsInteractions';
-import { sleep } from '../../Common/Waiting';
-import { type LoginConfig } from '../Base/LoginConfig';
+import { elementPresentOnPage } from '../../Common/ElementsInteractions.js';
+import { sleep } from '../../Common/Waiting.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
 
 async function beinleumiPostAction(page: Page): Promise<void> {
   await Promise.race([

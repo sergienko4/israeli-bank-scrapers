@@ -5,13 +5,12 @@ import {
   elementPresentOnPage,
   fillInput,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions';
-import { waitForRedirect } from '../../Common/Navigation';
-import { resolveFieldContext } from '../../Common/SelectorResolver';
-import { sleep } from '../../Common/Waiting';
-import { CompanyTypes } from '../../Definitions';
-import { type FieldConfig, type LoginConfig } from '../Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+} from '../../Common/ElementsInteractions.js';
+import { resolveFieldContext } from '../../Common/SelectorResolver.js';
+import { sleep } from '../../Common/Waiting.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type FieldConfig, type LoginConfig } from '../Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 
@@ -38,43 +37,46 @@ export async function maxHandleSecondLoginStep(
   await sleep(1000);
 }
 
-async function maxPreActionStep1(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '#closePopup'))
-    await page.$eval('#closePopup', el => {
-      (el as HTMLElement).click();
-    });
-  await page.$eval('.personal-area > a.go-to-personal-area', el => {
-    (el as HTMLElement).click();
-  });
-}
-
-async function maxPreActionStep2(page: Page): Promise<void> {
-  if (await elementPresentOnPage(page, '.login-link#private'))
-    await page.$eval('.login-link#private', el => {
-      (el as HTMLElement).click();
-    });
-  await waitUntilElementFound(page, '#login-password-link', { visible: true });
-  await page.$eval('#login-password-link', el => {
-    (el as HTMLElement).click();
-  });
-  await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
-    visible: true,
-  });
+async function clickFirstVisible(page: Page, texts: string[]): Promise<void> {
+  for (const text of texts) {
+    const loc = page.locator(`text=${text}`).first();
+    if (await loc.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await loc.click();
+      return;
+    }
+  }
+  // fallback: force-click the first candidate that exists in DOM
+  for (const text of texts) {
+    const loc = page.locator(`text=${text}`).first();
+    if ((await loc.count()) > 0) {
+      await loc.click({ force: true });
+      return;
+    }
+  }
 }
 
 async function maxPreAction(page: Page): Promise<Frame | undefined> {
-  await maxPreActionStep1(page);
-  await maxPreActionStep2(page);
+  if (await elementPresentOnPage(page, '#closePopup'))
+    await page.$eval('#closePopup', (el: HTMLElement) => {
+      el.click();
+    });
+  // Navigate: "כניסה לאיזור האישי" → "לקוחות פרטיים" → "כניסה עם סיסמה"
+  await clickFirstVisible(page, ['כניסה לאיזור האישי']);
+  await sleep(1500);
+  await clickFirstVisible(page, ['לקוחות פרטיים']);
+  await sleep(500);
+  await clickFirstVisible(page, ['כניסה עם סיסמה']);
+  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
+    state: 'visible',
+    timeout: 15000,
+  });
   return undefined;
 }
 
 async function maxPostAction(page: Page): Promise<void> {
-  if (page.url().includes('/homepage/personal')) return;
+  if (page.url().startsWith('https://www.max.co.il/homepage')) return;
   await Promise.race([
-    waitForRedirect(page, {
-      timeout: 20000,
-      ignoreList: [CFG.urls.base, `${CFG.urls.base}/`],
-    }),
+    page.waitForURL('**/homepage/**', { timeout: 20000 }),
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
     waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
   ]);
@@ -86,15 +88,23 @@ export const MAX_CONFIG: LoginConfig = {
     { credentialKey: 'username', selectors: [] }, // wellKnown → #user-name
     { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
-  submit: [{ kind: 'css', value: 'app-user-login-form .general-button.send-me-code' }],
+  submit: [
+    { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
+    { kind: 'css', value: 'app-user-login-form .general-button.send-me-code' },
+  ],
   checkReadiness: async (page: Page) => {
-    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
+    await page.waitForSelector('text=כניסה לאיזור האישי', { state: 'visible', timeout: 15000 });
   },
   preAction: maxPreAction,
   postAction: maxPostAction,
   waitUntil: 'domcontentloaded',
   possibleResults: {
-    success: [`${CFG.urls.base}/homepage/personal`],
+    success: [
+      (opts): boolean => {
+        const url = opts?.page?.url() ?? '';
+        return url.startsWith('https://www.max.co.il/homepage');
+      },
+    ],
     changePassword: [`${CFG.urls.base}/renew-password`],
     invalidPassword: [
       async (opts): Promise<boolean> =>

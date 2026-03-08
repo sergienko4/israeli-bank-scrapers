@@ -32,16 +32,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
-      - name: Cache Playwright browsers
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: Cache Camoufox browser
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+          path: ~/.cache/camoufox
+          key: camoufox-${{ hashFiles('package-lock.json') }}
+      - name: Install Camoufox browser
+        run: npx @hieutran094/camoufox-js fetch
       - name: Run E2E smoke tests
-        run: npx jest --ci --testPathPatterns='tests/e2e\.test' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose
 
   e2e-mocked:
     name: E2E Mocked Tests
@@ -54,16 +54,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
-      - name: Cache Playwright browsers
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: Cache Camoufox browser
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+          path: ~/.cache/camoufox
+          key: camoufox-${{ hashFiles('package-lock.json') }}
+      - name: Install Camoufox browser
+        run: npx @hieutran094/camoufox-js fetch
       - name: Run mocked E2E tests
-        run: npx jest --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
   e2e-real:
     name: E2E Real Bank Tests
@@ -77,16 +77,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
-      - name: Cache Playwright browsers
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: Cache Camoufox browser
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
+          path: ~/.cache/camoufox
+          key: camoufox-${{ hashFiles('package-lock.json') }}
+      - name: Install Camoufox browser
+        run: npx @hieutran094/camoufox-js fetch
       - name: Run real E2E tests
-        run: npx jest --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}

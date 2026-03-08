@@ -1,4 +1,4 @@
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 
 export enum MaxPlanName {
   Normal = 'רגילה',

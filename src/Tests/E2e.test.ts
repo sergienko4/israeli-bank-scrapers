@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { CompanyTypes, createScraper, SCRAPERS } from '../index';
+import { CompanyTypes, createScraper, SCRAPERS } from '../index.js';
 
 describe('E2E: Scraper Factory', () => {
   const allCompanyTypes = Object.values(CompanyTypes);
@@ -24,14 +24,13 @@ describe('E2E: Scraper Factory', () => {
 });
 
 describe('E2E: Scraper error handling', () => {
-  test('scraper throws on invalid executable path', async () => {
+  test('scraper rejects with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,
       startDate: new Date(),
-      executablePath: '/nonexistent/chrome',
       shouldShowBrowser: false,
     });
-
-    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow();
-  }, 30000);
+    const result = await scraper.scrape({ userCode: 'invalid', password: 'invalid' });
+    expect(result.success).toBe(false);
+  }, 60000);
 });

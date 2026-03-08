@@ -1,18 +1,19 @@
 import path from 'path';
 import { type Frame, type Page } from 'playwright';
 
-import { ScraperErrorTypes } from '../Scrapers/Base/Errors';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface';
-import { getDebug } from './Debug';
-import { clickButton, fillInput } from './ElementsInteractions';
+import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import { getDebug } from './Debug.js';
+import { clickButton, fillInput } from './ElementsInteractions.js';
+import type { ParsedLoginPage } from './LoginMiddleware.js';
 import {
   clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
   OTP_SUBMIT_CANDIDATES,
-} from './OtpDetector';
-import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
-import { sleep } from './Waiting';
+} from './OtpDetector.js';
+import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
+import { sleep } from './Waiting.js';
 
 const LOG = getDebug('otp-handler');
 
@@ -140,6 +141,33 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
   return null;
 }
 
+/** Confirm OTP delivery — extract phone hint, then click "Send SMS". */
+export async function handleOtpConfirm(page: Page, parsedPage?: ParsedLoginPage): Promise<string> {
+  const phoneHint = await extractPhoneHint(page);
+  LOG.info('OTP confirm — phone hint: %s, clicking SMS trigger', phoneHint);
+  await clickOtpTriggerIfPresent(page, parsedPage?.childFrames);
+  await sleep(2000);
+  return phoneHint;
+}
+
+/** Enter OTP code — get code from user, fill, submit, verify. */
+export async function handleOtpCode(
+  page: Page,
+  options: ScraperOptions,
+  phoneHint = '',
+): Promise<ScraperScrapingResult | null> {
+  const { otpCodeRetriever } = options;
+  if (!otpCodeRetriever)
+    return buildMissingRetrieverResult(page, options.storeFailureScreenShotPath);
+
+  const hint = phoneHint || (await extractPhoneHint(page));
+  LOG.info('OTP code — requesting from retriever (phone: %s)', hint);
+  const code = await otpCodeRetriever(hint);
+  await fillAndSubmitOtpCode(page, code);
+  return verifyOtpAccepted(page);
+}
+
+/** Legacy combined handler — uses both confirm + code. */
 export async function handleOtpStep(
   page: Page,
   options: ScraperOptions,
@@ -150,14 +178,6 @@ export async function handleOtpStep(
     return null;
   }
   LOG.info('OTP screen detected');
-
-  const { otpCodeRetriever } = options;
-  if (!otpCodeRetriever)
-    return buildMissingRetrieverResult(page, options.storeFailureScreenShotPath);
-
-  const phoneHint = await extractPhoneHint(page);
-  await clickOtpTriggerIfPresent(page);
-  const code = await otpCodeRetriever(phoneHint);
-  await fillAndSubmitOtpCode(page, code);
-  return verifyOtpAccepted(page);
+  const phoneHint = await handleOtpConfirm(page);
+  return handleOtpCode(page, options, phoneHint);
 }

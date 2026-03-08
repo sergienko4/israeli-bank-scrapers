@@ -1,26 +1,17 @@
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
 
-import { buildContextOptions } from '../../Common/Browser';
-import { elementPresentOnPage } from '../../Common/ElementsInteractions';
-import { fetchPost } from '../../Common/Fetch';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { getFromSessionStorage } from '../../Common/Storage';
-import { filterOldTransactions } from '../../Common/Transactions';
-import { waitUntil } from '../../Common/Waiting';
-import VisaCalScraper from '../../Scrapers/VisaCal/VisaCalScraper';
-import {
-  type ScrapedPendingTransaction,
-  type ScrapedTransaction,
-  TrnTypeCode,
-} from '../../Scrapers/VisaCal/VisaCalTypes';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import type {
+  ScrapedPendingTransaction,
+  ScrapedTransaction,
+} from '../../Scrapers/VisaCal/VisaCalTypes.js';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({ fetchPost: jest.fn() }));
-jest.mock('../../Common/Storage', () => ({ getFromSessionStorage: jest.fn() }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPost: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Storage.js', () => ({ getFromSessionStorage: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
@@ -30,26 +21,50 @@ jest.mock('../../Common/ElementsInteractions', () => ({
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEval: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://digital-web.cal-online.co.il/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Waiting', () => ({
+
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   waitUntil: jest.fn(async <T>(fn: () => Promise<T>) => fn()),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
   sleep: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { elementPresentOnPage } = await import('../../Common/ElementsInteractions.js');
+const { fetchPost } = await import('../../Common/Fetch.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { getFromSessionStorage } = await import('../../Common/Storage.js');
+const { filterOldTransactions } = await import('../../Common/Transactions.js');
+const { waitUntil } = await import('../../Common/Waiting.js');
+const { default: VisaCalScraper } = await import('../../Scrapers/VisaCal/VisaCalScraper.js');
+const { TrnTypeCode } = await import('../../Scrapers/VisaCal/VisaCalTypes.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 function visaCalOptions(
   overrides: Record<string, unknown> = {},
@@ -237,7 +252,7 @@ function setupVisaCalMocks(): ReturnType<typeof createMockPage> {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   (getCurrentUrl as jest.Mock).mockResolvedValue('https://digital-web.cal-online.co.il/dashboard');
   (elementPresentOnPage as jest.Mock).mockResolvedValue(false);
 });

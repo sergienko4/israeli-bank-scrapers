@@ -1,16 +1,16 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
+import { getDebug } from '../../Common/Debug.js';
 import {
   elementPresentOnPage,
   pageEval,
   waitUntilIframeFound,
-} from '../../Common/ElementsInteractions';
-import { getRawTransaction } from '../../Common/Transactions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { LOGIN_RESULTS } from '../Base/BaseScraperWithBrowser';
-import { type ScraperOptions } from '../Base/Interface';
+} from '../../Common/ElementsInteractions.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { LOGIN_RESULTS } from '../Base/BaseScraperWithBrowser.js';
+import { type ScraperOptions } from '../Base/Interface.js';
 import {
   type CardLevelFrame,
   type CardPendingTransactionDetails,
@@ -20,7 +20,7 @@ import {
   type ScrapedPendingTransaction,
   type ScrapedTransaction,
   TrnTypeCode,
-} from './VisaCalTypes';
+} from './VisaCalTypes.js';
 
 const LOG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';

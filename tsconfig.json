@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "commonjs",
+    "module": "NodeNext",
     "allowJs": false,
     "skipLibCheck": true,
     "declaration": true,
@@ -16,13 +16,14 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "allowUnreachableCode": false,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
     "inlineSourceMap": true,
     "inlineSources": true
   },
-  "include": ["src/**/*","jest.config.js"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }

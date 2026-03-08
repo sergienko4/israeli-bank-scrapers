@@ -1,8 +1,9 @@
+/* eslint-disable max-lines -- ParsedLoginPage integration adds resolver cache plumbing */
 import { type Frame, type Page } from 'playwright';
 
-import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
-import { getDebug } from './Debug';
+import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig.js';
+import { getDebug } from './Debug.js';
 
 const LOG = getDebug('selector-resolver');
 
@@ -21,12 +22,14 @@ const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardS
 /** Convert a SelectorCandidate to a Playwright-compatible selector string */
 export function candidateToCss(c: SelectorCandidate): string {
   switch (c.kind) {
+    case 'labelText':
+      return `xpath=//label[contains(., "${c.value}")]`;
     case 'css':
       return c.value;
     case 'placeholder':
       return `input[placeholder*="${c.value}"]`;
     case 'ariaLabel':
-      return `[aria-label*="${c.value}"]`;
+      return `input[aria-label*="${c.value}"]`;
     case 'name':
       return `[name="${c.value}"]`;
     case 'xpath':
@@ -91,12 +94,44 @@ function debugCandidateSkipped(candidate: SelectorCandidate): void {
   );
 }
 
+async function findInputByForAttr(
+  ctx: Page | Frame,
+  forAttr: string,
+  labelValue: string,
+): Promise<string | null> {
+  const inputSelector = `#${forAttr}`;
+  if (!(await ctx.$(inputSelector))) {
+    LOG.info('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    return null;
+  }
+  LOG.info('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
+  return inputSelector;
+}
+
+async function resolveLabelText(
+  ctx: Page | Frame,
+  labelXpath: string,
+  labelValue: string,
+): Promise<string | null> {
+  const label = await ctx.$(labelXpath);
+  if (!label) return null;
+  const forAttr = await label.getAttribute('for');
+  if (!forAttr) {
+    LOG.info('labelText "%s" found but no for= attribute', labelValue);
+    return null;
+  }
+  return findInputByForAttr(ctx, forAttr, labelValue);
+}
+
 async function probeCandidate(
   ctx: Page | Frame,
   candidate: SelectorCandidate,
 ): Promise<string | null> {
   const css = candidateToCss(candidate);
   try {
+    if (candidate.kind === 'labelText') {
+      return await resolveLabelText(ctx, css, candidate.value);
+    }
     const isFound = await queryWithTimeout(ctx, css);
     if (isFound) {
       LOG.info('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
@@ -150,8 +185,9 @@ interface FieldMatch {
 async function searchInChildFrames(
   page: Page,
   allCandidates: SelectorCandidate[],
+  cachedFrames?: Frame[],
 ): Promise<FieldMatch> {
-  const childFrames = page.frames().filter(f => f !== page.mainFrame());
+  const childFrames = cachedFrames ?? page.frames().filter(f => f !== page.mainFrame());
   if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
@@ -212,6 +248,8 @@ interface ResolveAllOpts {
   pageUrl: string;
   bankCandidates: SelectorCandidate[];
   wellKnownCandidates: SelectorCandidate[];
+  /** Pre-cached child frames from stepParseLoginPage — skips page.frames() call. */
+  cachedFrames?: Frame[];
 }
 
 function logTriedCandidates(key: string, url: string, tried: string[]): void {
@@ -240,17 +278,14 @@ async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext>
   };
 }
 
-async function probeIframes(
-  page: Page,
-  b: SelectorCandidate[],
-  wk: SelectorCandidate[],
-): Promise<FieldContext | null> {
+async function probeIframes(page: Page, opts: ResolveAllOpts): Promise<FieldContext | null> {
+  const { bankCandidates: b, wellKnownCandidates: wk, cachedFrames } = opts;
   if (b.length > 0) {
-    const r = await searchInChildFrames(page, b);
+    const r = await searchInChildFrames(page, b, cachedFrames);
     if (r.selector) return { isResolved: true, ...r, resolvedVia: 'bankConfig', round: 'iframe' };
   }
   if (wk.length > 0) {
-    const r = await searchInChildFrames(page, wk);
+    const r = await searchInChildFrames(page, wk, cachedFrames);
     if (r.selector) return { isResolved: true, ...r, resolvedVia: 'wellKnown', round: 'iframe' };
   }
   return null;
@@ -269,21 +304,11 @@ async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null>
   return null;
 }
 
-function splitCandidates(field: FieldConfig): {
-  bank: SelectorCandidate[];
-  wellKnown: SelectorCandidate[];
-} {
-  return {
-    bank: [...field.selectors],
-    wellKnown: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
-  };
-}
-
 async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
   LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
   if (isPage(pageOrFrame)) {
-    const r = await probeIframes(pageOrFrame, b, wk);
+    const r = await probeIframes(pageOrFrame, opts);
     if (r) return r;
   }
   const main = await probeMainPage(opts);
@@ -296,27 +321,30 @@ export async function resolveFieldContext(
   field: FieldConfig,
   pageUrl: string,
 ): Promise<FieldContext> {
-  const { bank, wellKnown } = splitCandidates(field);
   return resolveAll({
     pageOrFrame,
     field,
     pageUrl,
-    bankCandidates: bank,
-    wellKnownCandidates: wellKnown,
+    bankCandidates: [...field.selectors],
+    wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[field.credentialKey] ?? [])],
   });
 }
 
-/**
- * Convenience wrapper: resolve a field and return only the CSS selector string.
- * @deprecated Prefer resolveFieldContext when the caller needs to know which frame the element lives in.
- */
-export async function resolveSelector(
-  pageOrFrame: Page | Frame,
-  field: FieldConfig,
-  pageUrl: string,
-): Promise<string> {
-  const { selector } = await resolveFieldContext(pageOrFrame, field, pageUrl);
-  return selector;
+/** Options for resolving with pre-cached frames from stepParseLoginPage. */
+export interface CachedResolveOpts {
+  pageOrFrame: Page | Frame;
+  field: FieldConfig;
+  pageUrl: string;
+  cachedFrames: Frame[];
+}
+
+/** Resolve with pre-cached frames from stepParseLoginPage. */
+export async function resolveFieldWithCache(opts: CachedResolveOpts): Promise<FieldContext> {
+  return resolveAll({
+    ...opts,
+    bankCandidates: [...opts.field.selectors],
+    wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[opts.field.credentialKey] ?? [])],
+  });
 }
 
 /**

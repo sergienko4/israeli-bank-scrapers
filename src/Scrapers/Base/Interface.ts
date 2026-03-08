@@ -1,19 +1,19 @@
 import { type Browser, type BrowserContext, type Page } from 'playwright';
 
-import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions';
-import { type ErrorResult } from './Errors';
-import type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
-import type { OutputDataOptions } from './Interfaces/OutputDataOptions';
-import type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
+import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions.js';
+import { type ErrorResult } from './Errors.js';
+import type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
+import type { OutputDataOptions } from './Interfaces/OutputDataOptions.js';
+import type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 
-export type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions';
-export type { ErrorResult } from './Interfaces/ErrorResult';
-export type { FutureDebit } from './Interfaces/FutureDebit';
-export type { OutputDataOptions } from './Interfaces/OutputDataOptions';
-export type { ScraperDiagnostics } from './Interfaces/ScraperDiagnostics';
-export type { ScraperLoginResult } from './Interfaces/ScraperLoginResult';
-export type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
+export type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
+export type { ErrorResult } from './Interfaces/ErrorResult.js';
+export type { FutureDebit } from './Interfaces/FutureDebit.js';
+export type { OutputDataOptions } from './Interfaces/OutputDataOptions.js';
+export type { ScraperDiagnostics } from './Interfaces/ScraperDiagnostics.js';
+export type { ScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
+export type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
+export type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.

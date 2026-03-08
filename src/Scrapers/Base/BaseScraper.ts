@@ -1,15 +1,15 @@
 import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
 
-import { TimeoutError } from '../../Common/Waiting';
-import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions';
+import { TimeoutError } from '../../Common/Waiting.js';
+import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
 import {
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
   type ErrorResult,
   WafBlockError,
-} from './Errors';
+} from './Errors.js';
 import {
   type Scraper,
   type ScraperCredentials,
@@ -19,7 +19,7 @@ import {
   type ScraperOptions,
   type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
-} from './Interface';
+} from './Interface.js';
 
 interface DiagnosticsState {
   loginUrl: string;

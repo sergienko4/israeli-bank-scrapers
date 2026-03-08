@@ -4,11 +4,11 @@ import {
   elementPresentOnPage,
   waitUntilElementDisappear,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions';
-import { waitForNavigation } from '../../Common/Navigation';
-import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+} from '../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../Common/Navigation.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 

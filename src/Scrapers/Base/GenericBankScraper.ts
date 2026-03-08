@@ -1,19 +1,19 @@
 import { type Frame, type Page } from 'playwright';
 
-import { clickButton, fillInput } from '../../Common/ElementsInteractions';
+import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
 import {
   candidateToCss,
   type FieldContext,
   resolveFieldContext,
-} from '../../Common/SelectorResolver';
+} from '../../Common/SelectorResolver.js';
 import {
   BaseScraperWithBrowser,
   LOGIN_RESULTS,
   type LoginOptions,
   type PossibleLoginResults,
-} from './BaseScraperWithBrowser';
-import { type ScraperCredentials, type ScraperOptions } from './Interface';
-import { type FieldConfig, type LoginConfig, type SelectorCandidate } from './LoginConfig';
+} from './BaseScraperWithBrowser.js';
+import { type ScraperCredentials, type ScraperOptions } from './Interface.js';
+import { type FieldConfig, type LoginConfig, type SelectorCandidate } from './LoginConfig.js';
 
 function submitCandidates(submit: SelectorCandidate | SelectorCandidate[]): SelectorCandidate[] {
   return Array.isArray(submit) ? submit : [submit];

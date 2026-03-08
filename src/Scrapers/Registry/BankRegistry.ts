@@ -1,15 +1,15 @@
-import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
-import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig';
-import { BEHATSDAA_CONFIG } from '../Behatsdaa/BehatsdaaLoginConfig';
-import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/BeyahadBishvilhaLoginConfig';
-import { discountConfig } from '../Discount/DiscountLoginConfig';
-import { HAPOALIM_CONFIG } from '../Hapoalim/HapoalimLoginConfig';
-import { LEUMI_CONFIG } from '../Leumi/LeumiLoginConfig';
-import { MAX_CONFIG } from '../Max/MaxLoginConfig';
-import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig';
-import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig';
-import { SCRAPER_CONFIGURATION } from './ScraperConfig';
+import { CompanyTypes } from '../../Definitions.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
+import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig.js';
+import { BEHATSDAA_CONFIG } from '../Behatsdaa/BehatsdaaLoginConfig.js';
+import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/BeyahadBishvilhaLoginConfig.js';
+import { discountConfig } from '../Discount/DiscountLoginConfig.js';
+import { HAPOALIM_CONFIG } from '../Hapoalim/HapoalimLoginConfig.js';
+import { LEUMI_CONFIG } from '../Leumi/LeumiLoginConfig.js';
+import { MAX_CONFIG } from '../Max/MaxLoginConfig.js';
+import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig.js';
+import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from './ScraperConfig.js';
 
 export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.Beinleumi]: beinleumiConfig(

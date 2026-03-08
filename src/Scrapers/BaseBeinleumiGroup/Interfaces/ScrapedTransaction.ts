@@ -1,4 +1,4 @@
-import type { TransactionStatuses } from '../../../Transactions';
+import type { TransactionStatuses } from '../../../Transactions.js';
 
 export interface ScrapedTransaction {
   reference: string;

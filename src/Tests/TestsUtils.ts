@@ -1,9 +1,16 @@
+import { jest } from '@jest/globals';
 import { Parser } from '@json2csv/plainjs';
 import fs from 'fs';
+import { createRequire } from 'module';
 import moment from 'moment';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-import { type TransactionsAccount } from '../Transactions';
+import { type TransactionsAccount } from '../Transactions.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const esmRequire = createRequire(import.meta.url);
 
 interface TestsCompanyAPI {
   enabled: boolean;
@@ -50,8 +57,8 @@ export function getTestsConfig(): TestsConfig {
   }
 
   try {
-    const configPath = path.join(__dirname, '.tests-config.js');
-    testsConfig = require(configPath) as TestsConfig;
+    const configPath = path.join(__dirname, '.tests-config.cjs');
+    testsConfig = esmRequire(configPath) as TestsConfig;
     return testsConfig;
   } catch (e) {
     console.error(e);
@@ -62,7 +69,7 @@ export function getTestsConfig(): TestsConfig {
 export function maybeTestCompanyAPI(
   scraperId: string,
   filter?: (config: TestsConfig) => boolean | undefined,
-): jest.It {
+): typeof test {
   if (!configurationLoaded) {
     getTestsConfig();
   }

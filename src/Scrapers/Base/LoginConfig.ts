@@ -1,4 +1,4 @@
-export type { FieldConfig } from './Interfaces/FieldConfig';
-export type { LoginConfig } from './Interfaces/LoginConfig';
-export type { LoginPossibleResults } from './Interfaces/LoginPossibleResults';
-export type { OtpConfig, SelectorCandidate } from './LoginConfigTypes';
+export type { FieldConfig } from './Interfaces/FieldConfig.js';
+export type { LoginConfig } from './Interfaces/LoginConfig.js';
+export type { LoginPossibleResults } from './Interfaces/LoginPossibleResults.js';
+export type { OtpConfig, SelectorCandidate } from './LoginConfigTypes.js';

@@ -1,7 +1,8 @@
+import { jest } from '@jest/globals';
 import { type Page } from 'playwright';
 
-import { CompanyTypes } from '../Definitions';
-import { type ScraperOptions } from '../Scrapers/Base/Interface';
+import { CompanyTypes } from '../Definitions.js';
+import { type ScraperOptions } from '../Scrapers/Base/Interface.js';
 
 export interface MockPage {
   waitForSelector: jest.Mock;
@@ -29,7 +30,8 @@ export interface MockPage {
   screenshot: jest.Mock;
   close: jest.Mock;
   focus: jest.Mock;
-  locator?: jest.Mock;
+  click: jest.Mock;
+  locator: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
 }
@@ -47,6 +49,7 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     selectOption: jest.fn().mockResolvedValue(undefined),
     waitForFunction: jest.fn().mockResolvedValue(undefined),
     frames: jest.fn().mockReturnValue([]),
+    mainFrame: jest.fn().mockReturnValue(null),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     waitForURL: jest.fn().mockResolvedValue(undefined),
     waitForResponse: jest.fn().mockResolvedValue(undefined),
@@ -65,6 +68,16 @@ export function createMockPage(overrides: MockOverrides = {}): MockPage & Page {
     screenshot: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
     focus: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({
+      first: jest.fn().mockReturnValue({
+        fill: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+        isVisible: jest.fn().mockResolvedValue(true),
+        count: jest.fn().mockResolvedValue(1),
+      }),
+      count: jest.fn().mockResolvedValue(0),
+    }),
     ...overrides,
   } as unknown as MockPage & Page;
 }

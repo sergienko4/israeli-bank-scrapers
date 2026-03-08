@@ -1,49 +1,56 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-import { type Browser, type BrowserContext } from 'playwright';
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
+import type { Browser, BrowserContext } from 'playwright';
 
-import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
-import { ScraperProgressTypes } from '../../Definitions';
-import {
-  BaseScraperWithBrowser,
-  LOGIN_RESULTS,
-  type LoginOptions,
-} from '../../Scrapers/Base/BaseScraperWithBrowser';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
+import type { LoginOptions } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import type {
   ScraperCredentials,
   ScraperOptions,
   ScraperScrapingResult,
-} from '../../Scrapers/Base/Interface';
-import {
-  createMockBrowser,
-  createMockContext,
-  createMockPage,
-  createMockScraperOptions,
-} from '../MockPage';
+} from '../../Scrapers/Base/Interface.js';
 
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.mock('../../Common/Navigation', () => ({
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://bank.co.il/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-jest.mock('../../Common/Browser', () => ({
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
+
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { clickButton, fillInput, waitUntilElementFound } =
+  await import('../../Common/ElementsInteractions.js');
+const { getCurrentUrl, waitForNavigation } = await import('../../Common/Navigation.js');
+const { ScraperProgressTypes } = await import('../../Definitions.js');
+const { BaseScraperWithBrowser, LOGIN_RESULTS } =
+  await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { createMockBrowser, createMockContext, createMockPage, createMockScraperOptions } =
+  await import('../MockPage.js');
+
+/* eslint-disable @typescript-eslint/unbound-method */
 
 const mockPage = createMockPage();
 const mockContext = createMockContext(mockPage);
@@ -86,7 +93,7 @@ function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScra
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   const freshPage = createMockPage();
   const freshContext = createMockContext(freshPage);
   mockBrowser.newContext.mockResolvedValue(freshContext);
@@ -97,7 +104,7 @@ describe('initialize', () => {
   it('launches browser and creates context + page', async () => {
     const scraper = createScraper();
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(chromium.launch).toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).toHaveBeenCalled();
     expect(mockBrowser.newContext).toHaveBeenCalled();
   });
 
@@ -127,7 +134,7 @@ describe('initializePage', () => {
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browserContext }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browserContext.newPage).toHaveBeenCalled();
-    expect(chromium.launch).not.toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).not.toHaveBeenCalled();
   });
 
   it('uses external browser and creates context', async () => {
@@ -140,7 +147,7 @@ describe('initializePage', () => {
     const scraper = new TestBrowserScraper(createMockScraperOptions({ browser }));
     await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(browser.newContext).toHaveBeenCalled();
-    expect(chromium.launch).not.toHaveBeenCalled();
+    expect(launchCamoufox as jest.Mock).not.toHaveBeenCalled();
   });
 
   it('skips browser close cleanup when skipCloseBrowser is true', async () => {
@@ -160,7 +167,7 @@ describe('initializePage', () => {
   it('launches new browser with headless mode', async () => {
     const scraper = createScraper({ shouldShowBrowser: false });
     await scraper.scrape({ userCode: 'test', password: 'test' });
-    expect(chromium.launch).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
+    expect(launchCamoufox).toHaveBeenCalledWith(true);
   });
 
   it('calls prepareBrowser hook when provided', async () => {
@@ -170,22 +177,11 @@ describe('initializePage', () => {
     expect(prepareBrowser).toHaveBeenCalledWith(mockBrowser);
   });
 
-  it('launches successfully without executablePath (uses Playwright bundled Chromium)', async () => {
+  it('launches Camoufox successfully', async () => {
     const scraper = createScraper();
     const result = await scraper.scrape({ userCode: 'test', password: 'test' });
     expect(result.success).toBe(true);
-    expect(chromium.launch).toHaveBeenCalledWith(
-      expect.not.objectContaining({ executablePath: expect.any(String) as string }),
-    );
-  });
-
-  it('rejects custom executablePath to prevent system Chromium usage', async () => {
-    const scraper = createScraper({
-      executablePath: '/usr/bin/chromium',
-    } as Partial<ScraperOptions>);
-    await expect(scraper.scrape({ userCode: 'test', password: 'test' })).rejects.toThrow(
-      'Custom executablePath "/usr/bin/chromium" is not supported',
-    );
+    expect(launchCamoufox).toHaveBeenCalled();
   });
 });
 
@@ -385,7 +381,7 @@ describe('terminate', () => {
 
 describe('progress events', () => {
   it('emits Initializing and LoginSuccess on successful login', async () => {
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = createScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape({ userCode: 'test', password: 'test' });
@@ -396,7 +392,7 @@ describe('progress events', () => {
 
   it('emits LoginFailed on invalid password', async () => {
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/login?error=1');
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = createScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape({ userCode: 'test', password: 'test' });

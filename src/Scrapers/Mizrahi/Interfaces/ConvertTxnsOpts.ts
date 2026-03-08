@@ -1,6 +1,6 @@
-import type { ScraperOptions } from '../../Base/Interface';
-import type { MoreDetails } from './MoreDetails';
-import type { ScrapedTransaction } from './ScrapedTransaction';
+import type { ScraperOptions } from '../../Base/Interface.js';
+import type { MoreDetails } from './MoreDetails.js';
+import type { ScrapedTransaction } from './ScrapedTransaction.js';
 
 export interface ConvertTxnsOpts {
   txns: ScrapedTransaction[];

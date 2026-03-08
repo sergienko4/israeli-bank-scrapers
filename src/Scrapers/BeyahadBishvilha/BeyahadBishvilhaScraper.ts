@@ -1,10 +1,10 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { toFirstCss } from '../../Common/SelectorResolver';
-import { filterOldTransactions, getRawTransaction } from '../../Common/Transactions';
+import { getDebug } from '../../Common/Debug.js';
+import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import { toFirstCss } from '../../Common/SelectorResolver.js';
+import { filterOldTransactions, getRawTransaction } from '../../Common/Transactions.js';
 import {
   DOLLAR_CURRENCY,
   DOLLAR_CURRENCY_SYMBOL,
@@ -12,13 +12,13 @@ import {
   EURO_CURRENCY_SYMBOL,
   SHEKEL_CURRENCY,
   SHEKEL_CURRENCY_SYMBOL,
-} from '../../Constants';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { BEYAHAD_CONFIG } from './BeyahadBishvilhaLoginConfig';
+} from '../../Constants.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { BEYAHAD_CONFIG } from './BeyahadBishvilhaLoginConfig.js';
 
 const LOG = getDebug('beyahadBishvilha');
 

@@ -1,8 +1,8 @@
-import { CompanyTypes } from '../../Definitions';
-import { type ScraperOptions } from '../Base/Interface';
-import { discountConfig } from '../Discount/DiscountLoginConfig';
-import DiscountScraper from '../Discount/DiscountScraper';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import { CompanyTypes } from '../../Definitions.js';
+import { type ScraperOptions } from '../Base/Interface.js';
+import { discountConfig } from '../Discount/DiscountLoginConfig.js';
+import DiscountScraper from '../Discount/DiscountScraper.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 class MercantileScraper extends DiscountScraper {
   constructor(options: ScraperOptions) {

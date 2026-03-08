@@ -1,5 +1,5 @@
-import type { Category } from './Category';
-import type { Recurrence } from './Recurrence';
+import type { Category } from './Category.js';
+import type { Recurrence } from './Recurrence.js';
 
 interface TransactionEnrichment {
   categories?: Category[] | null;

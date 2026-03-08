@@ -1,4 +1,4 @@
-import { loadFixture } from './RequestInterceptor';
+import { loadFixture } from './RequestInterceptor.js';
 
 interface AmexRouteOverrides {
   validate?: string;

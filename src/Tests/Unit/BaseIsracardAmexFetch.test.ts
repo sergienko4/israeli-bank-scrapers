@@ -1,24 +1,27 @@
-import moment from 'moment';
-
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { fetchAccounts, fetchTxnData } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch';
-import { createMockPage } from '../MockPage';
-
-jest.mock('../../Common/Fetch', () => ({
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
 
-jest.mock('../../Common/Waiting', () => ({
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  raceTimeout: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { default: moment } = await import('moment');
+const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
+const { fetchAccounts, fetchTxnData } =
+  await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch.js');
+const { createMockPage } = await import('../MockPage.js');
 
 const SERVICES_URL = 'https://digital.example.co.il/ServerServices/services/ProxyService';
 

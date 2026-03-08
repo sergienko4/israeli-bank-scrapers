@@ -1,23 +1,23 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchGraphql, fetchPost } from '../../Common/Fetch';
-import { getRawTransaction } from '../../Common/Transactions';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchGraphql, fetchPost } from '../../Common/Fetch.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
 import {
   type Transaction as ScrapingTransaction,
   type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-} from '../../Transactions';
-import { BaseScraper } from '../Base/BaseScraper';
-import { createGenericError, ScraperErrorTypes } from '../Base/Errors';
+} from '../../Transactions.js';
+import { BaseScraper } from '../Base/BaseScraper.js';
+import { createGenericError, ScraperErrorTypes } from '../Base/Errors.js';
 import {
   type ScraperGetLongTermTwoFactorTokenResult,
   type ScraperLoginResult,
   type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
-} from '../Base/Interface';
-import { GET_ACCOUNT_BALANCE, GET_CUSTOMER, GET_MOVEMENTS } from './OneZeroQueries';
+} from '../Base/Interface.js';
+import { GET_ACCOUNT_BALANCE, GET_CUSTOMER, GET_MOVEMENTS } from './OneZeroQueries.js';
 import {
   type Category,
   type Customer,
@@ -26,7 +26,7 @@ import {
   type QueryPagination,
   type Recurrence,
   type ScraperSpecificCredentials,
-} from './OneZeroTypes';
+} from './OneZeroTypes.js';
 
 export type { Category, Recurrence };
 

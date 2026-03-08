@@ -9,33 +9,33 @@
     "access": "public",
     "provenance": true
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.cjs",
   "module": "lib/index.mjs",
   "types": "lib/index.d.ts",
   "exports": {
     ".": {
       "import": {
-        "types": "./lib/index.d.mts",
+        "types": "./lib/index.d.ts",
         "default": "./lib/index.mjs"
       },
       "require": {
-        "types": "./lib/index.d.ts",
+        "types": "./lib/index.d.cts",
         "default": "./lib/index.cjs"
       }
     }
   },
   "scripts": {
     "clean": "rimraf lib",
-    "test": "jest",
-    "test:unit": "jest --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked",
-    "test:e2e:mock": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked",
-    "test:e2e:real": "jest --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
-    "test:ci": "ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js && jest --ci --coverage",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked",
+    "test:e2e:mock": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked",
+    "test:e2e:real": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
+    "test:ci": "ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs && node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage",
     "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "check-exports": "publint",
-    "lint": "eslint src --max-warnings 0 && npm run format:check",
-    "lint:fix": "eslint src --fix && npm run format",
+    "lint": "eslint src --max-warnings 0 --ignore-pattern '**/*.cjs' && npm run format:check",
+    "lint:fix": "eslint src --fix --ignore-pattern '**/*.cjs' && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "type-check": "tsc --noEmit",
@@ -51,11 +51,7 @@
     "type": "git",
     "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
-  "keywords": [
-    "israel",
-    "israeli bank",
-    "israeli bank scraper"
-  ],
+  "keywords": ["israel", "israeli bank", "israeli bank scraper"],
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
@@ -98,32 +94,23 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
+    "@hieutran094/camoufox-js": "^0.6.8",
     "lodash": "^4.17.23",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
     "pino": "^10.3.1",
     "playwright": "^1.58.2",
-    "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "utility-types": "^3.11.0",
     "uuid": "^11.1.0"
   },
-  "files": [
-    "lib/**/*"
-  ],
+  "files": ["lib/**/*"],
   "overrides": {
-    "test-exclude": "^7.0.2"
+    "test-exclude": "^7.0.2",
+    "ua-parser-js": "1.0.41"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ],
-    "*.json": [
-      "prettier --parser json --write"
-    ],
-    "*.md": [
-      "prettier --parser markdown --write"
-    ]
+    "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0", "prettier --write"],
+    "*.json": ["prettier --parser json --write"],
+    "*.md": ["prettier --parser markdown --write"]
   }
 }

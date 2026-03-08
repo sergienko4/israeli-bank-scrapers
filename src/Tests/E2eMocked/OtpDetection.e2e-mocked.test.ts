@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 /**
  * OTP detection — mocked e2e tests.
  *
@@ -8,12 +9,12 @@
  */
 import { type Browser } from 'playwright';
 
-import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
-import { setupRequestInterception } from './Helpers/RequestInterceptor';
+import { CompanyTypes } from '../../Definitions.js';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 // ── Shared HTML fixtures ──────────────────────────────────────────────────────
 
@@ -127,11 +128,11 @@ describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -166,11 +167,11 @@ describe('OTP detection', () => {
 
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -206,11 +207,11 @@ describe('OTP detection', () => {
 
     const scraper = new ConcreteGenericScraper(
       {
-        companyId: CompanyTypes.Discount,
+        companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -247,7 +248,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {
@@ -284,7 +285,7 @@ describe('OTP detection', () => {
         startDate: new Date('2026-01-01'),
         browser,
         skipCloseBrowser: true,
-        defaultTimeout: 15000,
+        defaultTimeout: 3000,
         preparePage: async page => {
           await setupRequestInterception(page, [
             {

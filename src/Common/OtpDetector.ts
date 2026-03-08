@@ -1,8 +1,8 @@
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
 
-import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
-import { getDebug } from './Debug';
-import { tryInContext } from './SelectorResolver';
+import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
+import { getDebug } from './Debug.js';
+import { tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-detector');
 
@@ -70,10 +70,11 @@ async function detectByText(page: Page): Promise<TextCheckResult> {
   return OTP_TEXT_PATTERNS.some(pattern => bodyText.includes(pattern)) ? 'otp' : 'clear';
 }
 
-async function detectByInputField(page: Page): Promise<boolean> {
+async function detectByInputField(page: Page, cachedFrames?: Frame[]): Promise<boolean> {
   const found = await tryInContext(page, OTP_INPUT_CANDIDATES);
   if (found) return true;
-  for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
+  const frames = cachedFrames ?? page.frames().filter(f => f !== page.mainFrame());
+  for (const frame of frames) {
     const inFrame = await tryInContext(frame, OTP_INPUT_CANDIDATES);
     if (inFrame) return true;
   }
@@ -110,52 +111,26 @@ export async function findOtpSubmitSelector(page: Page): Promise<string | null> 
   return null;
 }
 
-async function tryLoginFrameTriggers(page: Page, triggers: string[]): Promise<boolean> {
-  for (const sel of triggers) {
-    try {
-      const locator = page.frameLocator('#loginFrame').locator(sel);
-      await locator.waitFor({ state: 'attached', timeout: 5000 });
-      await locator.hover();
-      await locator.click();
-      LOG.info('isClicked SMS trigger in #loginFrame: %s', sel);
-      return true;
-    } catch (e: unknown) {
-      LOG.info(
-        'SMS trigger failed for %s: %s',
-        sel,
-        e instanceof Error ? e.message.slice(0, 80) : e,
-      );
-    }
-  }
-  return false;
-}
-
-async function tryGenericFrameTriggers(page: Page): Promise<void> {
-  const mainSelector = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
-  if (mainSelector) {
-    LOG.info('clicking SMS trigger on main page: %s', mainSelector);
-    await page.click(mainSelector);
-    return;
-  }
-  for (const frame of page.frames().filter(f => f !== page.mainFrame())) {
+async function findSmsTriggerInFrames(
+  page: Page,
+  cachedFrames?: Frame[],
+): Promise<{ selector: string; context: Page | Frame } | null> {
+  const mainSel = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
+  if (mainSel) return { selector: mainSel, context: page };
+  const frames = cachedFrames ?? page.frames().filter(f => f !== page.mainFrame());
+  for (const frame of frames) {
     const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
-    if (sel) {
-      LOG.info('clicking SMS trigger in iframe %s: %s', frame.url(), sel);
-      await frame.click(sel);
-      return;
-    }
+    if (sel) return { selector: sel, context: frame };
   }
-  LOG.info('No SMS trigger button found — SMS may be auto-sent or page is already on entry screen');
+  return null;
 }
 
-export async function clickOtpTriggerIfPresent(page: Page): Promise<void> {
-  const loginFrameTriggers = [
-    '#sendSms',
-    'xpath=//button[contains(.,"שלח")]',
-    'xpath=//button[contains(.,"SMS")]',
-  ];
-  const isClicked = await tryLoginFrameTriggers(page, loginFrameTriggers);
-  if (!isClicked) {
-    await tryGenericFrameTriggers(page);
+export async function clickOtpTriggerIfPresent(page: Page, cachedFrames?: Frame[]): Promise<void> {
+  const trigger = await findSmsTriggerInFrames(page, cachedFrames);
+  if (trigger) {
+    LOG.info('clicking SMS trigger: %s', trigger.selector);
+    await trigger.context.click(trigger.selector);
+  } else {
+    LOG.info('No SMS trigger found — SMS may be auto-sent');
   }
 }

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 /**
  * Selector-fallback: Leumi — Round 3 (WELL_KNOWN_SELECTORS dictionary).
  *
@@ -8,12 +9,12 @@
  */
 import { type Page } from 'playwright';
 
-import { waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
-import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
+import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 

@@ -1,4 +1,4 @@
-import type { CurrencySymbol, TrnTypeCode } from '../VisaCalBaseTypes';
+import type { CurrencySymbol, TrnTypeCode } from '../VisaCalBaseTypes.js';
 
 export interface ScrapedTransaction {
   amtBeforeConvAndIndex: number;

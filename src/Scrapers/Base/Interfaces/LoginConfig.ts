@@ -1,9 +1,9 @@
 import type { Frame, Page } from 'playwright';
 
-import type { WaitUntilState } from '../../../Common/Navigation';
-import type { OtpConfig, SelectorCandidate } from '../LoginConfigTypes';
-import type { FieldConfig } from './FieldConfig';
-import type { LoginPossibleResults } from './LoginPossibleResults';
+import type { WaitUntilState } from '../../../Common/Navigation.js';
+import type { OtpConfig, SelectorCandidate } from '../LoginConfigTypes.js';
+import type { FieldConfig } from './FieldConfig.js';
+import type { LoginPossibleResults } from './LoginPossibleResults.js';
 
 /**
  * Declarative login configuration — the "input" format.

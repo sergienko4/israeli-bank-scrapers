@@ -1,39 +1,53 @@
-import { chromium } from 'playwright-extra';
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-import { buildContextOptions } from '../../Common/Browser';
-import { waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import DiscountScraper from '../../Scrapers/Discount/DiscountScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
-
-jest.mock('playwright-extra', () => ({ chromium: { launch: jest.fn(), use: jest.fn() } }));
-jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn());
-jest.mock('../../Common/Fetch', () => ({
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   getCurrentUrl: jest
     .fn()
     .mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE'),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
+const { getCurrentUrl, waitForNavigation } = await import('../../Common/Navigation.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: DiscountScraper } = await import('../../Scrapers/Discount/DiscountScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),
@@ -92,7 +106,7 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   mockContext.newPage.mockResolvedValue(createMockPage());
   (getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
@@ -253,28 +267,15 @@ describe('fetchData', () => {
   });
 });
 
-describe('navigateOrErrorLabel', () => {
-  it('calls waitForNavigation in postAction', async () => {
+describe('postAction', () => {
+  it('uses waitForURL for SPA route change (not waitForNavigation)', async () => {
     mockAccountsData();
     mockTransactions([txn()]);
 
     const scraper = new DiscountScraper(createMockScraperOptions());
     await scraper.scrape(CREDS);
 
-    expect(waitForNavigation).toHaveBeenCalled();
-  });
-
-  it('falls back to error element when navigation throws', async () => {
-    (waitForNavigation as jest.Mock).mockRejectedValueOnce(new Error('nav timeout'));
-    mockAccountsData();
-    mockTransactions([txn()]);
-
-    const scraper = new DiscountScraper(createMockScraperOptions());
-    await scraper.scrape(CREDS);
-
-    expect(waitUntilElementFound).toHaveBeenCalledWith(expect.anything(), '#general-error', {
-      visible: false,
-      timeout: 100,
-    });
+    // postAction now uses page.waitForURL('**/apollo/**') instead of waitForNavigation
+    expect(waitForNavigation).not.toHaveBeenCalled();
   });
 });

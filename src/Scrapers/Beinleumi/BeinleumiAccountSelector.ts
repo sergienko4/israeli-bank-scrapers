@@ -1,8 +1,8 @@
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { sleep } from '../../Common/Waiting';
+import { getDebug } from '../../Common/Debug.js';
+import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import { sleep } from '../../Common/Waiting.js';
 
 const LOG = getDebug('beinleumi-account-selector');
 

@@ -1,7 +1,7 @@
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from './Debug';
-import { waitUntil } from './Waiting';
+import { getDebug } from './Debug.js';
+import { waitUntil } from './Waiting.js';
 
 const LOG = getDebug('navigation');
 

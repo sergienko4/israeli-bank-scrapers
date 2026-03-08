@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { type Page, type Request, type Route } from 'playwright';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 interface MockRoute {
   match: string | RegExp;
