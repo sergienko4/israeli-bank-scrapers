@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.9.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.8.1...v7.9.0) (2026-03-08)
+
+
+### Features
+
+* replace playwright-extra+stealth with @hieutran094/camoufox-js ([#107](https://github.com/sergienko4/israeli-bank-scrapers/issues/107)) ([f5a340c](https://github.com/sergienko4/israeli-bank-scrapers/commit/f5a340cce03eebc79a9acd70698b03e82dbbf51a))
+
 ## [7.8.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.8.0...v7.8.1) (2026-03-04)
 
 
