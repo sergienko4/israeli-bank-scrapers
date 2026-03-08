@@ -87,7 +87,7 @@ async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean
 }
 
 function debugCandidateSkipped(candidate: SelectorCandidate): void {
-  LOG.info(
+  LOG.debug(
     'candidate %s "%s" → skipped (cross-origin / detached frame)',
     candidate.kind,
     candidate.value,
@@ -101,10 +101,10 @@ async function findInputByForAttr(
 ): Promise<string | null> {
   const inputSelector = `#${forAttr}`;
   if (!(await ctx.$(inputSelector))) {
-    LOG.info('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    LOG.debug('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
     return null;
   }
-  LOG.info('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
+  LOG.debug('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
   return inputSelector;
 }
 
@@ -117,7 +117,7 @@ async function resolveLabelText(
   if (!label) return null;
   const forAttr = await label.getAttribute('for');
   if (!forAttr) {
-    LOG.info('labelText "%s" found but no for= attribute', labelValue);
+    LOG.debug('labelText "%s" found but no for= attribute', labelValue);
     return null;
   }
   return findInputByForAttr(ctx, forAttr, labelValue);
@@ -134,10 +134,10 @@ async function probeCandidate(
     }
     const isFound = await queryWithTimeout(ctx, css);
     if (isFound) {
-      LOG.info('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+      LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
       return css;
     }
-    LOG.info('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
+    LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
   } catch {
     debugCandidateSkipped(candidate);
   }
@@ -188,11 +188,11 @@ async function searchInChildFrames(
   cachedFrames?: Frame[],
 ): Promise<FieldMatch> {
   const childFrames = cachedFrames ?? page.frames().filter(f => f !== page.mainFrame());
-  if (childFrames.length > 0) LOG.info('Round 1: searching %d iframe(s)', childFrames.length);
+  if (childFrames.length > 0) LOG.debug('Round 1: searching %d iframe(s)', childFrames.length);
   for (const frame of childFrames) {
     const found = await tryInContext(frame, allCandidates);
     if (found) {
-      LOG.info('Round 1: resolved in iframe %s → %s', frame.url(), found);
+      LOG.debug('Round 1: resolved in iframe %s → %s', frame.url(), found);
       return { selector: found, context: frame };
     }
   }
@@ -234,10 +234,10 @@ async function resolveInMainContext(
   allCandidates: SelectorCandidate[],
   credentialKey: string,
 ): Promise<FieldMatch> {
-  LOG.info('Round 2: searching main page');
+  LOG.debug('Round 2: searching main page');
   const main = await tryInContext(pageOrFrame, allCandidates);
   if (!main) return { selector: '', context: pageOrFrame }; // not found
-  LOG.info('Round 2: resolved "%s" → %s', credentialKey, main);
+  LOG.debug('Round 2: resolved "%s" → %s', credentialKey, main);
   return { selector: main, context: pageOrFrame };
 }
 
@@ -253,8 +253,8 @@ interface ResolveAllOpts {
 }
 
 function logTriedCandidates(key: string, url: string, tried: string[]): void {
-  LOG.info('FAILED "%s" on %s (%d tried)', key, url, tried.length);
-  for (const line of tried) LOG.info(line);
+  LOG.debug('FAILED "%s" on %s (%d tried)', key, url, tried.length);
+  for (const line of tried) LOG.debug(line);
 }
 
 async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext> {
@@ -267,7 +267,7 @@ async function buildNotFoundContext(opts: ResolveAllOpts): Promise<FieldContext>
     tried,
     pageTitle: await getPageTitle(pageOrFrame),
   });
-  LOG.info(msg);
+  LOG.debug(msg);
   return {
     isResolved: false,
     selector: '',
@@ -306,7 +306,7 @@ async function probeMainPage(opts: ResolveAllOpts): Promise<FieldContext | null>
 
 async function resolveAll(opts: ResolveAllOpts): Promise<FieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates: b, wellKnownCandidates: wk } = opts;
-  LOG.info(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
+  LOG.debug(`resolving "${field.credentialKey}": ${b.length}b+${wk.length}wk on ${pageUrl}`);
   if (isPage(pageOrFrame)) {
     const r = await probeIframes(pageOrFrame, opts);
     if (r) return r;

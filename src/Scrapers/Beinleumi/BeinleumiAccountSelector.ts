@@ -100,12 +100,12 @@ async function tryGetFrameAttempt(page: Page, attempt: number): Promise<Frame | 
       const frame = await iframeEl.contentFrame();
       if (frame) return frame;
     } catch (e: unknown) {
-      LOG.info(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
+      LOG.debug(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
     }
   }
   const byName = page.frames().find(f => f.name() === IFRAME_NAME);
   if (byName) return byName;
-  LOG.info(
+  LOG.debug(
     'attempt %d/%d: transactions frame not found, retrying...',
     attempt + 1,
     TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
@@ -118,7 +118,7 @@ export async function getTransactionsFrame(page: Page): Promise<Frame | null> {
     const frame = await tryGetFrameAttempt(page, attempt);
     if (frame) return frame;
   }
-  LOG.info(
+  LOG.debug(
     'getTransactionsFrame: failed to find frame after %d attempts',
     TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
   );

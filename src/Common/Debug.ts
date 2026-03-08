@@ -29,7 +29,7 @@ function censor(value: unknown, path: string[]): unknown {
 const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
 
 const ROOT_LOGGER = pino({
-  level: process.env.LOG_LEVEL ?? 'debug',
+  level: process.env.LOG_LEVEL ?? 'info',
   transport: isDevMode ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
   redact: { paths: SENSITIVE_PATHS, censor },
 });

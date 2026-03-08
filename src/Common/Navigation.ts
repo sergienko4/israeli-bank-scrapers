@@ -75,18 +75,18 @@ export async function waitForRedirect(
 ): Promise<void> {
   const { timeout = 20000, isClientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, isClientSide);
-  LOG.info('waitForRedirect from %s', initial);
+  LOG.debug('waitForRedirect from %s', initial);
   try {
     await pollForRedirect(pageOrFrame, initial, { isClientSide, ignoreList, timeout });
   } catch (e) {
-    LOG.info(
+    LOG.debug(
       'waitForRedirect TIMEOUT (%dms) — still at %s',
       timeout,
       await safeGetUrl(pageOrFrame, isClientSide),
     );
     throw e;
   }
-  LOG.info('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
+  LOG.debug('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
 }
 
 export interface WaitForUrlOptions {
@@ -124,7 +124,7 @@ export async function waitForUrl(
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
   } catch (e) {
     const stuck = await safeGetUrl(pageOrFrame, isClientSide);
-    LOG.info('waitForUrl TIMEOUT (%dms) pattern=%s at %s', timeout, url, stuck);
+    LOG.debug('waitForUrl TIMEOUT (%dms) pattern=%s at %s', timeout, url, stuck);
     throw e;
   }
 }

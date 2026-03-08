@@ -46,11 +46,11 @@ async function waitUntilElementFound(
   const startMs = Date.now();
   try {
     await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
-    LOG.info('waitForSelector %s → found (%dms)', elementSelector, Date.now() - startMs);
-    LOG.info('element html: %s', await captureElementHtml(page, elementSelector));
+    LOG.debug('waitForSelector %s → found (%dms)', elementSelector, Date.now() - startMs);
+    LOG.debug('element html: %s', await captureElementHtml(page, elementSelector));
   } catch (e) {
-    LOG.info('waitForSelector %s → TIMEOUT (%dms)', elementSelector, Date.now() - startMs);
-    LOG.info('page text: %s', await capturePageText(page));
+    LOG.debug('waitForSelector %s → TIMEOUT (%dms)', elementSelector, Date.now() - startMs);
+    LOG.debug('page text: %s', await capturePageText(page));
     throw e;
   }
 }
@@ -100,7 +100,7 @@ async function fillInput(
   inputSelector: string,
   inputValue: string,
 ): Promise<void> {
-  LOG.info('fill %s', inputSelector);
+  LOG.debug('fill %s', inputSelector);
   await humanDelay(200, 600);
   await pageOrFrame.locator(inputSelector).first().fill(inputValue);
 }
@@ -122,7 +122,7 @@ async function setValue(
 }
 
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
-  LOG.info('click %s', buttonSelector);
+  LOG.debug('click %s', buttonSelector);
   await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => {
     (el as HTMLElement).click();

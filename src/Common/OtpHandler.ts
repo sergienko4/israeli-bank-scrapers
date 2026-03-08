@@ -37,7 +37,7 @@ async function buildMissingRetrieverResult(
       const screenshotPath = await saveScreenshot(page, screenshotDir);
       errorMessage += ` Screenshot saved to ${screenshotPath}`;
     } catch (e: unknown) {
-      LOG.info(e, 'screenshot failed');
+      LOG.debug(e, 'screenshot failed');
     }
   }
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
@@ -60,7 +60,7 @@ async function findOtpFillFrame(page: Page): Promise<Frame | null> {
     for (const sel of OTP_FILL_INPUT_SELECTORS) {
       const el = await frame.$(sel).catch(() => null);
       if (el) {
-        LOG.info('OTP input found in frame %s via selector %s', frame.url().slice(-60), sel);
+        LOG.debug('OTP input found in frame %s via selector %s', frame.url().slice(-60), sel);
         return frame;
       }
     }
@@ -75,9 +75,9 @@ async function typeOtpCode(frame: Frame, code: string): Promise<void> {
     await sleep(OTP_ANIMATION_DELAY_MS);
     try {
       await frame.locator(sel).first().pressSequentially(code, { delay: 80 });
-      LOG.info('typed OTP code via locator.type() selector: %s', sel);
+      LOG.debug('typed OTP code via locator.type() selector: %s', sel);
     } catch (e: unknown) {
-      LOG.info(e, 'locator.type() failed, falling back to evaluate injection');
+      LOG.debug(e, 'locator.type() failed, falling back to evaluate injection');
       await el.evaluate((input: HTMLInputElement, val: string) => {
         input.focus();
         input.value = val;
@@ -100,21 +100,21 @@ async function submitOtpInFrame(frame: Frame): Promise<void> {
       if (win.$ && btn.id) win.$(`#${btn.id}`).trigger('click');
       else btn.click();
     });
-    LOG.info('clicked OTP submit button via evaluate: %s', sel);
+    LOG.debug('clicked OTP submit button via evaluate: %s', sel);
     return;
   }
-  LOG.info('no OTP submit button found in frame %s', frame.url().slice(-60));
+  LOG.debug('no OTP submit button found in frame %s', frame.url().slice(-60));
 }
 
 async function fillAndSubmitOtpCode(page: Page, code: string): Promise<void> {
   const frame = await findOtpFillFrame(page);
   if (frame) {
-    LOG.info('filling OTP in frame: %s', frame.url().slice(-60));
+    LOG.debug('filling OTP in frame: %s', frame.url().slice(-60));
     await typeOtpCode(frame, code);
     await submitOtpInFrame(frame);
     return;
   }
-  LOG.info('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
+  LOG.debug('fillAndSubmitOtpCode: frame scan found nothing, falling back to resolveFieldContext');
   const { selector: inputSelector, context } = await resolveFieldContext(
     page,
     { credentialKey: 'otpCode', selectors: [{ kind: 'name', value: 'otpCode' }] },
@@ -129,7 +129,7 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
   await sleep(5000);
   const isStillOnOtp = await detectOtpScreen(page);
   if (isStillOnOtp) {
-    LOG.info('OTP screen still visible after submission — code was rejected');
+    LOG.debug('OTP screen still visible after submission — code was rejected');
     return {
       success: false,
       errorType: ScraperErrorTypes.InvalidOtp,
@@ -137,14 +137,14 @@ async function verifyOtpAccepted(page: Page): Promise<ScraperScrapingResult | nu
         'OTP code was rejected by the bank. The code may have expired or been entered incorrectly.',
     };
   }
-  LOG.info('OTP accepted — proceeding with login');
+  LOG.debug('OTP accepted — proceeding with login');
   return null;
 }
 
 /** Confirm OTP delivery — extract phone hint, then click "Send SMS". */
 export async function handleOtpConfirm(page: Page, parsedPage?: ParsedLoginPage): Promise<string> {
   const phoneHint = await extractPhoneHint(page);
-  LOG.info('OTP confirm — phone hint: %s, clicking SMS trigger', phoneHint);
+  LOG.debug('OTP confirm — phone hint: %s, clicking SMS trigger', phoneHint);
   await clickOtpTriggerIfPresent(page, parsedPage?.childFrames);
   await sleep(2000);
   return phoneHint;
@@ -161,7 +161,7 @@ export async function handleOtpCode(
     return buildMissingRetrieverResult(page, options.storeFailureScreenShotPath);
 
   const hint = phoneHint || (await extractPhoneHint(page));
-  LOG.info('OTP code — requesting from retriever (phone: %s)', hint);
+  LOG.debug('OTP code — requesting from retriever (phone: %s)', hint);
   const code = await otpCodeRetriever(hint);
   await fillAndSubmitOtpCode(page, code);
   return verifyOtpAccepted(page);
@@ -174,10 +174,10 @@ export async function handleOtpStep(
 ): Promise<ScraperScrapingResult | null> {
   const isOtpDetected = await detectOtpScreen(page);
   if (!isOtpDetected) {
-    LOG.info('No OTP screen detected — proceeding normally');
+    LOG.debug('No OTP screen detected — proceeding normally');
     return null;
   }
-  LOG.info('OTP screen detected');
+  LOG.debug('OTP screen detected');
   const phoneHint = await handleOtpConfirm(page);
   return handleOtpCode(page, options, phoneHint);
 }

@@ -69,7 +69,7 @@ export function getPossibleLoginResults(): Record<
   string,
   (string | RegExp | ((options?: { page?: Page }) => Promise<boolean>))[]
 > {
-  LOG.info('return possible login results');
+  LOG.debug('return possible login results');
   return {
     [LOGIN_RESULTS.Success]: [/dashboard/i, /cal-online\.co\.il\/#/],
     [LOGIN_RESULTS.InvalidPassword]: [
@@ -87,7 +87,7 @@ export function createLoginFields(credentials: {
   username: string;
   password: string;
 }): { selector: string; value: string }[] {
-  LOG.info('create login fields for username and password');
+  LOG.debug('create login fields for username and password');
   return [
     { selector: '[formcontrolname="userName"]', value: credentials.username },
     { selector: '[formcontrolname="password"]', value: credentials.password },
