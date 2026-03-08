@@ -1,6 +1,6 @@
 import { type Browser } from 'playwright';
 
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher';
+import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 
 let sharedBrowser: Browser | null = null;
 

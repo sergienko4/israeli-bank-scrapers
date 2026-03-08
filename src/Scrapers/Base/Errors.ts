@@ -1,11 +1,11 @@
-import type { ErrorResult } from './Interfaces/ErrorResult';
-import type { WafErrorDetails } from './Interfaces/WafErrorDetails';
+import type { ErrorResult } from './Interfaces/ErrorResult.js';
+import type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
-export { ScraperErrorTypes } from './ErrorTypes';
-export type { ErrorResult } from './Interfaces/ErrorResult';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails';
+export { ScraperErrorTypes } from './ErrorTypes.js';
+export type { ErrorResult } from './Interfaces/ErrorResult.js';
+export type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
-import { ScraperErrorTypes } from './ErrorTypes';
+import { ScraperErrorTypes } from './ErrorTypes.js';
 
 function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): ErrorResult {
   return {

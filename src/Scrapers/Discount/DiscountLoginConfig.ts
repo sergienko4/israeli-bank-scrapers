@@ -1,7 +1,7 @@
 import { type Page } from 'playwright';
 
-import { waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { type LoginConfig } from '../Base/LoginConfig';
+import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
 
 const LOGIN_PORTAL = 'https://start.telebank.co.il/login/?multilang=he&bank=d&t=p';
 

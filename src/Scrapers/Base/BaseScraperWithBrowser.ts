@@ -1,9 +1,14 @@
+/* eslint-disable max-lines -- ESM .js import paths cause Prettier line-wrapping beyond 300 */
 import type { Browser, Frame, Page } from 'playwright';
 
-import { buildContextOptions } from '../../Common/Browser';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { getDebug } from '../../Common/Debug';
-import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
+import { buildContextOptions } from '../../Common/Browser.js';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
+import { getDebug } from '../../Common/Debug.js';
+import {
+  clickButton,
+  fillInput,
+  waitUntilElementFound,
+} from '../../Common/ElementsInteractions.js';
 import {
   CONTINUE,
   type LoginContext,
@@ -11,14 +16,14 @@ import {
   runLoginChain,
   type StepResult,
   stopWithResult,
-} from '../../Common/LoginMiddleware';
-import { waitForNavigation, type WaitUntilState } from '../../Common/Navigation';
-import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler';
-import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver';
-import { sleep } from '../../Common/Waiting';
-import { ScraperProgressTypes } from '../../Definitions';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { BaseScraper } from './BaseScraper';
+} from '../../Common/LoginMiddleware.js';
+import { waitForNavigation, type WaitUntilState } from '../../Common/Navigation.js';
+import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler.js';
+import { extractCredentialKey, resolveFieldContext } from '../../Common/SelectorResolver.js';
+import { sleep } from '../../Common/Waiting.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { BaseScraper } from './BaseScraper.js';
 import {
   buildLoginResult,
   getKeyByValue,
@@ -29,8 +34,12 @@ import {
   type PossibleLoginResults,
   resolveAndBuildLoginResult,
   safeCleanup,
-} from './BaseScraperHelpers';
-import type { DefaultBrowserOptions, ScraperCredentials, ScraperScrapingResult } from './Interface';
+} from './BaseScraperHelpers.js';
+import type {
+  DefaultBrowserOptions,
+  ScraperCredentials,
+  ScraperScrapingResult,
+} from './Interface.js';
 
 export { LOGIN_RESULTS, type LoginOptions, type LoginResults, type PossibleLoginResults };
 

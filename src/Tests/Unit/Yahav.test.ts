@@ -1,37 +1,51 @@
-import { buildContextOptions } from '../../Common/Browser';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import YahavScraper from '../../Scrapers/Yahav/YahavScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   waitUntilElementDisappear: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest
     .fn()
     .mockResolvedValue('https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { elementPresentOnPage, pageEvalAll } = await import('../../Common/ElementsInteractions.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { SHEKEL_CURRENCY } = await import('../../Constants.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: YahavScraper } = await import('../../Scrapers/Yahav/YahavScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),

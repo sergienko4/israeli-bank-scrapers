@@ -1,48 +1,56 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-import { type Browser, type BrowserContext } from 'playwright';
+import { jest } from '@jest/globals';
+import type { Browser, BrowserContext } from 'playwright';
 
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { clickButton, fillInput, waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { getCurrentUrl, waitForNavigation } from '../../Common/Navigation';
-import { ScraperProgressTypes } from '../../Definitions';
-import {
-  BaseScraperWithBrowser,
-  LOGIN_RESULTS,
-  type LoginOptions,
-} from '../../Scrapers/Base/BaseScraperWithBrowser';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
+import type { LoginOptions } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import type {
   ScraperCredentials,
   ScraperOptions,
   ScraperScrapingResult,
-} from '../../Scrapers/Base/Interface';
-import {
-  createMockBrowser,
-  createMockContext,
-  createMockPage,
-  createMockScraperOptions,
-} from '../MockPage';
+} from '../../Scrapers/Base/Interface.js';
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.mock('../../Common/Navigation', () => ({
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://bank.co.il/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-jest.mock('../../Common/Browser', () => ({
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
+
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { clickButton, fillInput, waitUntilElementFound } =
+  await import('../../Common/ElementsInteractions.js');
+const { getCurrentUrl, waitForNavigation } = await import('../../Common/Navigation.js');
+const { ScraperProgressTypes } = await import('../../Definitions.js');
+const { BaseScraperWithBrowser, LOGIN_RESULTS } =
+  await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { createMockBrowser, createMockContext, createMockPage, createMockScraperOptions } =
+  await import('../MockPage.js');
+
+/* eslint-disable @typescript-eslint/unbound-method */
 
 const mockPage = createMockPage();
 const mockContext = createMockContext(mockPage);
@@ -373,7 +381,7 @@ describe('terminate', () => {
 
 describe('progress events', () => {
   it('emits Initializing and LoginSuccess on successful login', async () => {
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = createScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape({ userCode: 'test', password: 'test' });
@@ -384,7 +392,7 @@ describe('progress events', () => {
 
   it('emits LoginFailed on invalid password', async () => {
     (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.co.il/login?error=1');
-    const events: ScraperProgressTypes[] = [];
+    const events: string[] = [];
     const scraper = createScraper();
     scraper.onProgress((_id, payload) => events.push(payload.type));
     await scraper.scrape({ userCode: 'test', password: 'test' });

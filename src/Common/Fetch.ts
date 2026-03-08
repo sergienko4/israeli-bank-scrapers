@@ -1,6 +1,6 @@
 import { type Page } from 'playwright';
 
-import { getDebug } from './Debug';
+import { getDebug } from './Debug.js';
 
 const LOG = getDebug('fetch');
 

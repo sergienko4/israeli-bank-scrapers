@@ -1,47 +1,23 @@
-import moment from 'moment';
+import { jest } from '@jest/globals';
 
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { filterOldTransactions, fixInstallments } from '../../Common/Transactions';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import type { ScraperOptions } from '../../Scrapers/Base/Interface';
-import {
-  fetchAllTransactions,
-  fetchTransactionsForMonth,
-  getAdditionalTransactionInformation,
-  getExtraScrapAccount,
-  getExtraScrapTransaction,
-} from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexEnrich';
-import { fetchAccounts, fetchTxnData } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch';
-import {
-  buildAccountTxns,
-  buildTransaction,
-  buildTransactionBase,
-  collectAccountTxns,
-  combineTxnsFromResults,
-  convertCurrency,
-  convertTransactions,
-  filterValidTransactions,
-  getInstallmentsInfo,
-} from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTransactions';
-import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage } from '../MockPage';
+import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
+import type { ScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes.js';
 
-jest.mock('../../Common/Fetch', () => ({
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
 
-jest.mock('../../Common/Transactions', () => ({
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   fixInstallments: jest.fn((txns: unknown[]) => txns),
   filterOldTransactions: jest.fn((txns: unknown[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-jest.mock('../../Common/Waiting', () => ({
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(
@@ -51,16 +27,47 @@ jest.mock('../../Common/Waiting', () => ({
         Promise.resolve([] as T[]),
       ),
   ),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  raceTimeout: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
 
-jest.mock('../../Common/Dates', () => jest.fn(() => [moment('2024-06-01')]));
+jest.unstable_mockModule('../../Common/Dates.js', () => ({
+  default: jest.fn(() => [moment('2024-06-01')]),
+}));
 
-jest.mock('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch', () => ({
+jest.unstable_mockModule('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch.js', () => ({
   fetchAccounts: jest.fn(),
   fetchTxnData: jest.fn(),
 }));
+
+const { default: moment } = await import('moment');
+const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
+const { filterOldTransactions, fixInstallments } = await import('../../Common/Transactions.js');
+const { SHEKEL_CURRENCY } = await import('../../Constants.js');
+const {
+  fetchAllTransactions,
+  fetchTransactionsForMonth,
+  getAdditionalTransactionInformation,
+  getExtraScrapAccount,
+  getExtraScrapTransaction,
+} = await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexEnrich.js');
+const { fetchAccounts, fetchTxnData } =
+  await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch.js');
+const {
+  buildAccountTxns,
+  buildTransaction,
+  buildTransactionBase,
+  collectAccountTxns,
+  combineTxnsFromResults,
+  convertCurrency,
+  convertTransactions,
+  filterValidTransactions,
+  getInstallmentsInfo,
+} = await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTransactions.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage } = await import('../MockPage.js');
 
 function makeTxn(overrides: Partial<ScrapedTransaction> = {}): ScrapedTransaction {
   return {

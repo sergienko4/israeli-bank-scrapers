@@ -1,14 +1,19 @@
 /** Selector-fallback: Discount Bank — Round 2 (main page fallback CSS id) + Round 1 (iframe-first detection). */
+import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 import { type Page } from 'playwright';
 
-import { waitUntilElementFound } from '../../Common/ElementsInteractions';
-import { waitForNavigation } from '../../Common/Navigation';
-import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
-import { injectFormByInput, selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
+import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../Common/Navigation.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import {
+  injectFormByInput,
+  selectorErrorFor,
+  VALID_REACHED_BANK,
+} from './SelectorFallbackHelpers.js';
 
 dotenv.config();
 

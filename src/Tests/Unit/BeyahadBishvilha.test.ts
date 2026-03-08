@@ -1,33 +1,50 @@
-import { buildContextOptions } from '../../Common/Browser';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { pageEval, pageEvalAll } from '../../Common/ElementsInteractions';
-import { filterOldTransactions } from '../../Common/Transactions';
-import BeyahadBishvilhaScraper from '../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   pageEval: jest.fn().mockResolvedValue(null),
   pageEvalAll: jest.fn().mockResolvedValue([]),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.hist.org.il/'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { pageEval, pageEvalAll } = await import('../../Common/ElementsInteractions.js');
+const { filterOldTransactions } = await import('../../Common/Transactions.js');
+const { default: BeyahadBishvilhaScraper } =
+  await import('../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
 
 const mockContext = {
   newPage: jest.fn(),

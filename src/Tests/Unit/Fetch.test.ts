@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+
 import {
   detectWafBlock,
   fetchGet,
@@ -5,8 +7,8 @@ import {
   fetchGraphql,
   fetchPost,
   fetchPostWithinPage,
-} from '../../Common/Fetch';
-import { createMockPage } from '../MockPage';
+} from '../../Common/Fetch.js';
+import { createMockPage } from '../MockPage.js';
 
 const mockFetch = jest.fn();
 const originalFetch = global.fetch;

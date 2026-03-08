@@ -1,28 +1,28 @@
 import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright';
 
-import getAllMonthMoments from '../../Common/Dates';
-import { getDebug } from '../../Common/Debug';
-import { fetchGetWithinPage } from '../../Common/Fetch';
+import getAllMonthMoments from '../../Common/Dates.js';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchGetWithinPage } from '../../Common/Fetch.js';
 import {
   filterOldTransactions,
   fixInstallments,
   getRawTransaction,
   sortTransactionsByDate,
-} from '../../Common/Transactions';
-import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../../Constants';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import type { LoginOptions } from '../Base/BaseScraperWithBrowser';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { MAX_CONFIG, maxHandleSecondLoginStep } from './MaxLoginConfig';
+} from '../../Common/Transactions.js';
+import { DOLLAR_CURRENCY, EURO_CURRENCY, SHEKEL_CURRENCY } from '../../Constants.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import type { LoginOptions } from '../Base/BaseScraperWithBrowser.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { MAX_CONFIG, maxHandleSecondLoginStep } from './MaxLoginConfig.js';
 
 const LOG = getDebug('max');
 
-export type { ScrapedTransaction } from './MaxTypes';
-import { MaxPlanName, type ScrapedTransaction } from './MaxTypes';
+export type { ScrapedTransaction } from './MaxTypes.js';
+import { MaxPlanName, type ScrapedTransaction } from './MaxTypes.js';
 
 const BASE_API_ACTIONS_URL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max].api.base;
 

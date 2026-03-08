@@ -1,10 +1,10 @@
-// Jest CJS shim for @hieutran094/camoufox-js (ESM-only, uses import.meta).
+// Jest ESM shim for @hieutran094/camoufox-js (ESM-only, uses import.meta).
 // Launches the real Camoufox binary via playwright-core firefox.launch().
 // Production code uses the ESM module directly via dynamic import().
-const { firefox } = require('playwright-core');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { firefox } from 'playwright-core';
 
 function findCamoufoxBinary() {
   const home = os.homedir();
@@ -24,15 +24,15 @@ function findCamoufoxBinary() {
   return null;
 }
 
-module.exports = {
-  async Camoufox(opts = {}) {
-    const executablePath = findCamoufoxBinary();
-    if (!executablePath) {
-      throw new Error('Camoufox binary not found — run: npx camoufox fetch');
-    }
-    return firefox.launch({
-      executablePath,
-      headless: opts.headless ?? true,
-    });
-  },
-};
+export async function Camoufox(opts = {}) {
+  const executablePath = findCamoufoxBinary();
+  if (!executablePath) {
+    throw new Error('Camoufox binary not found — run: npx camoufox fetch');
+  }
+  return firefox.launch({
+    executablePath,
+    headless: opts.headless ?? true,
+  });
+}
+
+export default { Camoufox };

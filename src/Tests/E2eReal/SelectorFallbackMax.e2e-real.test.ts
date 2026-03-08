@@ -1,4 +1,5 @@
 /**
+import { jest } from '@jest/globals';
  * Selector-fallback: Max — Round 2 (wrong CSS id → fallback CSS id on same page).
  * Max has a complex preAction (popups, password tab navigation) before form fill.
  * This test proves the selector resolution still works correctly with that preAction.
@@ -9,13 +10,13 @@ import {
   clickButton,
   elementPresentOnPage,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions';
-import { waitForRedirect } from '../../Common/Navigation';
-import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
-import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
+} from '../../Common/ElementsInteractions.js';
+import { waitForRedirect } from '../../Common/Navigation.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 

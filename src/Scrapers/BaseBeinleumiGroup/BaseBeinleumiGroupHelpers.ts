@@ -1,22 +1,22 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
 
-import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions';
-import { getRawTransaction } from '../../Common/Transactions';
-import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { type ScraperOptions } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
-import type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-import type { TransactionsTr } from './Interfaces/TransactionsTr';
+import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ScraperOptions } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
+import type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
+import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+import type { TransactionsTr } from './Interfaces/TransactionsTr.js';
 
-export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes';
-export type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-export type { TransactionsTr } from './Interfaces/TransactionsTr';
+export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
+export type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+export type { TransactionsTr } from './Interfaces/TransactionsTr.js';
 
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';

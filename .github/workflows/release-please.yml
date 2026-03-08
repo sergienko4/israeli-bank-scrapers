@@ -49,15 +49,15 @@ jobs:
       - name: Install Camoufox browser
         run: npx @hieutran094/camoufox-js fetch
       - name: Lint (warnings as errors)
-        run: npx eslint src --max-warnings 0
+        run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Format check
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Type check
         run: npx tsc --noEmit
       - name: Unit tests with coverage
         run: |
-          npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
-          npx jest --ci --coverage --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
+          npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+          node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
       - name: Audit production dependencies
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)

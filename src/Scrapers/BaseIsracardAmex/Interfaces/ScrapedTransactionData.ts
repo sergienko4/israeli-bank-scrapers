@@ -1,4 +1,4 @@
-import type { ScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions';
+import type { ScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions.js';
 
 export interface ScrapedTransactionData {
   Header?: { Status: string };

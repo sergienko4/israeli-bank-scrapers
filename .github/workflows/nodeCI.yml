@@ -20,7 +20,7 @@ on:
       - 'tsup.config.ts'
       - 'jest.config.js'
       - 'eslint.config.mjs'
-      - '.prettierrc.js'
+      - '.prettierrc.cjs'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -43,7 +43,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: ESLint (warnings as errors)
-        run: npx eslint src --max-warnings 0
+        run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
@@ -74,9 +74,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: Run tests with coverage
-        run: npx jest --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -110,7 +110,7 @@ jobs:
           test -f lib/index.cjs || (echo "ERROR: lib/index.cjs not found" && exit 1)
           test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
           test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
-          test -f lib/index.d.mts || (echo "ERROR: lib/index.d.mts not found" && exit 1)
+          test -f lib/index.d.cts || (echo "ERROR: lib/index.d.cts not found" && exit 1)
       - name: Validate package exports
         run: npm run check-exports
 

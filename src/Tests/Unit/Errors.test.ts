@@ -5,7 +5,7 @@ import {
   type ErrorResult,
   ScraperErrorTypes,
   WafBlockError,
-} from '../../Scrapers/Base/Errors';
+} from '../../Scrapers/Base/Errors.js';
 
 describe('ScraperErrorTypes', () => {
   it('has all expected error types', () => {

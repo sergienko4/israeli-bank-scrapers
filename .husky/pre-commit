@@ -21,11 +21,11 @@ run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🧪  [2/8] Unit tests..." | tee -a "$LOG_FILE"
-run_gate npm run test:unit -- --no-coverage || exit 1
+run_gate npm run test:unit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🎭  [3/8] Mocked E2E tests..." | tee -a "$LOG_FILE"
-run_gate npm run test:e2e:mock -- --no-coverage || exit 1
+run_gate npm run test:e2e:mock || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🧹  [4/8] Lint + format (changed files only)..." | tee -a "$LOG_FILE"
@@ -35,7 +35,7 @@ echo "" | tee -a "$LOG_FILE"
 echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
 run_gate npx tsup || exit 1
 npx rimraf lib/Common lib/Scrapers lib/Tests
-test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.mts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
+test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.cts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
 echo "" | tee -a "$LOG_FILE"
@@ -45,8 +45,8 @@ run_gate npm audit --audit-level=high --omit=dev || exit 1
 echo "" | tee -a "$LOG_FILE"
 echo "🏦  [7/8] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount)..." | tee -a "$LOG_FILE"
 if [ -f .env ]; then
-  npx ncp src/Tests/.tests-config.tpl.js src/Tests/.tests-config.js 2>/dev/null
-  run_gate npx jest --no-coverage --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
+  npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs 2>/dev/null
+  run_gate node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
     --testPathPatterns='E2eReal/Amex|E2eReal/Isracard|E2eReal/Max|E2eReal/Discount' \
     --verbose || exit 1
 else

@@ -1,24 +1,24 @@
-import type { AuthModule } from './Interfaces/AuthModule';
-import type { CardApiStatus } from './Interfaces/CardApiStatus';
-import type { CardPendingTransactionDetails } from './Interfaces/CardPendingTransactionDetails';
-import type { CardTransactionDetails } from './Interfaces/CardTransactionDetails';
-import type { ScrapedPendingTransaction } from './Interfaces/ScrapedPendingTransaction';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+import type { AuthModule } from './Interfaces/AuthModule.js';
+import type { CardApiStatus } from './Interfaces/CardApiStatus.js';
+import type { CardPendingTransactionDetails } from './Interfaces/CardPendingTransactionDetails.js';
+import type { CardTransactionDetails } from './Interfaces/CardTransactionDetails.js';
+import type { ScrapedPendingTransaction } from './Interfaces/ScrapedPendingTransaction.js';
+import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 
-export type { ApiContext } from './Interfaces/ApiContext';
-export type { AuthModule } from './Interfaces/AuthModule';
-export type { CardApiStatus } from './Interfaces/CardApiStatus';
-export type { CardInfo } from './Interfaces/CardInfo';
-export type { CardLevelFrame } from './Interfaces/CardLevelFrame';
-export type { CardPendingTransactionDetails } from './Interfaces/CardPendingTransactionDetails';
-export type { CardTransactionDetails } from './Interfaces/CardTransactionDetails';
-export type { FramesResponse } from './Interfaces/FramesResponse';
-export type { InitResponse } from './Interfaces/InitResponse';
-export type { LoginResponse } from './Interfaces/LoginResponse';
-export type { ScrapedPendingTransaction } from './Interfaces/ScrapedPendingTransaction';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-export type { CurrencySymbol } from './VisaCalBaseTypes';
-export { TrnTypeCode } from './VisaCalBaseTypes';
+export type { ApiContext } from './Interfaces/ApiContext.js';
+export type { AuthModule } from './Interfaces/AuthModule.js';
+export type { CardApiStatus } from './Interfaces/CardApiStatus.js';
+export type { CardInfo } from './Interfaces/CardInfo.js';
+export type { CardLevelFrame } from './Interfaces/CardLevelFrame.js';
+export type { CardPendingTransactionDetails } from './Interfaces/CardPendingTransactionDetails.js';
+export type { CardTransactionDetails } from './Interfaces/CardTransactionDetails.js';
+export type { FramesResponse } from './Interfaces/FramesResponse.js';
+export type { InitResponse } from './Interfaces/InitResponse.js';
+export type { LoginResponse } from './Interfaces/LoginResponse.js';
+export type { ScrapedPendingTransaction } from './Interfaces/ScrapedPendingTransaction.js';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+export type { CurrencySymbol } from './VisaCalBaseTypes.js';
+export { TrnTypeCode } from './VisaCalBaseTypes.js';
 
 /** @deprecated use CardApiStatus */
 export type CardTransactionDetailsError = CardApiStatus;

@@ -1,6 +1,7 @@
+import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
-import { CompanyTypes, createScraper } from '../../index';
+import { CompanyTypes, createScraper } from '../../index.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -8,7 +9,7 @@ import {
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
-} from './Helpers';
+} from './Helpers.js';
 
 dotenv.config();
 

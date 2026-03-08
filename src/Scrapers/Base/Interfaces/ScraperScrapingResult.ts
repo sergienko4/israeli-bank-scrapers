@@ -1,8 +1,8 @@
-import type { TransactionsAccount } from '../../../Transactions';
-import type { ScraperErrorTypes } from '../ErrorTypes';
-import type { FutureDebit } from './FutureDebit';
-import type { ScraperDiagnostics } from './ScraperDiagnostics';
-import type { WafErrorDetails } from './WafErrorDetails';
+import type { TransactionsAccount } from '../../../Transactions.js';
+import type { ScraperErrorTypes } from '../ErrorTypes.js';
+import type { FutureDebit } from './FutureDebit.js';
+import type { ScraperDiagnostics } from './ScraperDiagnostics.js';
+import type { WafErrorDetails } from './WafErrorDetails.js';
 
 export interface ScraperScrapingResult {
   success: boolean;

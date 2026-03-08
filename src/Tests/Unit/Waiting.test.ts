@@ -6,7 +6,7 @@ import {
   sleep,
   TimeoutError,
   waitUntil,
-} from '../../Common/Waiting';
+} from '../../Common/Waiting.js';
 
 describe('SECOND', () => {
   it('equals 1000', () => {

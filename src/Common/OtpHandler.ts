@@ -1,18 +1,18 @@
 import path from 'path';
 import { type Frame, type Page } from 'playwright';
 
-import { ScraperErrorTypes } from '../Scrapers/Base/Errors';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface';
-import { getDebug } from './Debug';
-import { clickButton, fillInput } from './ElementsInteractions';
+import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import { getDebug } from './Debug.js';
+import { clickButton, fillInput } from './ElementsInteractions.js';
 import {
   clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
   OTP_SUBMIT_CANDIDATES,
-} from './OtpDetector';
-import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver';
-import { sleep } from './Waiting';
+} from './OtpDetector.js';
+import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
+import { sleep } from './Waiting.js';
 
 const LOG = getDebug('otp-handler');
 

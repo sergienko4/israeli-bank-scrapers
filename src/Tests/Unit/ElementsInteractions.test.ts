@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { type Frame } from 'playwright';
 
 import {
@@ -13,8 +14,8 @@ import {
   waitUntilElementDisappear,
   waitUntilElementFound,
   waitUntilIframeFound,
-} from '../../Common/ElementsInteractions';
-import { createMockPage } from '../MockPage';
+} from '../../Common/ElementsInteractions.js';
+import { createMockPage } from '../MockPage.js';
 
 describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {

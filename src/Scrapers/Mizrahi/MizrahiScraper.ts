@@ -1,27 +1,27 @@
 import moment from 'moment';
 import type { Frame } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
+import { getDebug } from '../../Common/Debug.js';
 import {
   pageEvalAll,
   waitUntilElementFound,
   waitUntilIframeFound,
-} from '../../Common/ElementsInteractions';
-import { fetchPostWithinPage } from '../../Common/Fetch';
-import { toFirstCss } from '../../Common/SelectorResolver';
-import { getRawTransaction } from '../../Common/Transactions';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import { CompanyTypes } from '../../Definitions';
+} from '../../Common/ElementsInteractions.js';
+import { fetchPostWithinPage } from '../../Common/Fetch.js';
+import { toFirstCss } from '../../Common/SelectorResolver.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { SHEKEL_CURRENCY } from '../../Constants.js';
+import { CompanyTypes } from '../../Definitions.js';
 import {
   type Transaction,
   type TransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
-} from '../../Transactions';
-import { ScraperErrorTypes } from '../Base/Errors';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+} from '../../Transactions.js';
+import { ScraperErrorTypes } from '../Base/Errors.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import {
   type ConvertOneRowOpts,
   type ConvertTxnsOpts,
@@ -36,8 +36,8 @@ import {
   type ScrapedTransaction,
   type ScrapedTransactionsResult,
   TRANSACTIONS_REQUEST_URLS,
-} from './MizrahiHelpers';
-import { MIZRAHI_CONFIG } from './MizrahiLoginConfig';
+} from './MizrahiHelpers.js';
+import { MIZRAHI_CONFIG } from './MizrahiLoginConfig.js';
 
 const LOG = getDebug('mizrahi');
 // Phase-1 compat: extract first CSS candidate — full resolveDashboardField() migration in Phase 2

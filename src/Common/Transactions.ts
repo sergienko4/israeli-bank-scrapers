@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 
-import { type Transaction, TransactionTypes } from '../Transactions';
+import { type Transaction, TransactionTypes } from '../Transactions.js';
 
 function isNormalTransaction(txn: Transaction): boolean {
   return txn.type === TransactionTypes.Normal;

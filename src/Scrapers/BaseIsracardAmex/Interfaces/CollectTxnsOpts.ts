@@ -1,8 +1,8 @@
 import type { Moment } from 'moment';
 
-import type { ScraperOptions } from '../../Base/Interface';
-import type { ScrapedAccount } from './ScrapedAccount';
-import type { ScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions';
+import type { ScraperOptions } from '../../Base/Interface.js';
+import type { ScrapedAccount } from './ScrapedAccount.js';
+import type { ScrapedCurrentCardTransactions } from './ScrapedCurrentCardTransactions.js';
 
 export interface CollectTxnsOpts {
   txnGroups: ScrapedCurrentCardTransactions[];

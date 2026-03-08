@@ -1,4 +1,4 @@
-import type { Account } from './Account';
+import type { Account } from './Account.js';
 
 export interface Portfolio {
   accounts: Account[];

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { CompanyTypes } from '../../Definitions';
-import createScraper from '../../Scrapers/Registry/Factory';
+import { CompanyTypes } from '../../Definitions.js';
+import createScraper from '../../Scrapers/Registry/Factory.js';
 
 describe('Factory', () => {
   test('should return a scraper instance', () => {

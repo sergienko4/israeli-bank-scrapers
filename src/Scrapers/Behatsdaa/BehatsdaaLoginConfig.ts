@@ -1,9 +1,9 @@
 import { type Page } from 'playwright';
 
-import { elementPresentOnPage } from '../../Common/ElementsInteractions';
-import { CompanyTypes } from '../../Definitions';
-import { type LoginConfig } from '../Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+import { elementPresentOnPage } from '../../Common/ElementsInteractions.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 

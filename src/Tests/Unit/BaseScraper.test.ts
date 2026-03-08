@@ -1,13 +1,13 @@
-import { TimeoutError } from '../../Common/Waiting';
-import { ScraperProgressTypes } from '../../Definitions';
-import { BaseScraper } from '../../Scrapers/Base/BaseScraper';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
+import { TimeoutError } from '../../Common/Waiting.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
+import { BaseScraper } from '../../Scrapers/Base/BaseScraper.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type {
   ScraperCredentials,
   ScraperLoginResult,
   ScraperScrapingResult,
-} from '../../Scrapers/Base/Interface';
-import { createMockScraperOptions } from '../MockPage';
+} from '../../Scrapers/Base/Interface.js';
+import { createMockScraperOptions } from '../MockPage.js';
 
 class TestScraper extends BaseScraper<ScraperCredentials> {
   loginResult: ScraperLoginResult = { success: true };
@@ -129,7 +129,7 @@ describe('BaseScraper', () => {
   describe('progress events', () => {
     it('emits StartScraping and EndScraping events', async () => {
       const scraper = new TestScraper(createMockScraperOptions());
-      const events: ScraperProgressTypes[] = [];
+      const events: string[] = [];
       scraper.onProgress((_companyId, payload) => {
         events.push(payload.type);
       });

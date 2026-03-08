@@ -1,7 +1,8 @@
+import { jest } from '@jest/globals';
 import { type Page } from 'playwright';
 
-import { CompanyTypes } from '../Definitions';
-import { type ScraperOptions } from '../Scrapers/Base/Interface';
+import { CompanyTypes } from '../Definitions.js';
+import { type ScraperOptions } from '../Scrapers/Base/Interface.js';
 
 export interface MockPage {
   waitForSelector: jest.Mock;

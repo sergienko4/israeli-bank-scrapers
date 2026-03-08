@@ -1,6 +1,6 @@
-import type { CurrencySymbol } from '../VisaCalBaseTypes';
-import type { CardApiStatus } from './CardApiStatus';
-import type { ScrapedTransaction } from './ScrapedTransaction';
+import type { CurrencySymbol } from '../VisaCalBaseTypes.js';
+import type { CardApiStatus } from './CardApiStatus.js';
+import type { ScrapedTransaction } from './ScrapedTransaction.js';
 
 export interface CardTransactionDetails extends CardApiStatus {
   result: {

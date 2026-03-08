@@ -1,19 +1,18 @@
-import { type Page } from 'playwright';
+import { jest } from '@jest/globals';
+import type { Page } from 'playwright';
 
-import {
-  clickAccountSelectorGetAccountIds,
-  getAccountIdsBothUIs,
-  getTransactionsFrame,
-  selectAccountFromDropdown,
-} from '../../Scrapers/Beinleumi/BeinleumiAccountSelector';
-import { createMockPage } from '../MockPage';
-
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+
+  fillInput: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.mock('../../Common/Waiting', () => ({
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(),
@@ -21,9 +20,17 @@ jest.mock('../../Common/Waiting', () => ({
   SECOND: 1000,
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const {
+  clickAccountSelectorGetAccountIds,
+  getAccountIdsBothUIs,
+  getTransactionsFrame,
+  selectAccountFromDropdown,
+} = await import('../../Scrapers/Beinleumi/BeinleumiAccountSelector.js');
+const { createMockPage } = await import('../MockPage.js');
 
 let mockPage: ReturnType<typeof createMockPage>;
 

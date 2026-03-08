@@ -1,22 +1,19 @@
-import { type Frame, type Page } from 'playwright';
+import { jest } from '@jest/globals';
+import type { Frame, Page } from 'playwright';
 
-import {
-  clickOtpTriggerIfPresent,
-  detectOtpScreen,
-  extractPhoneHint,
-  findOtpSubmitSelector,
-} from '../../Common/OtpDetector';
+const mockTryInContext = jest.fn();
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-const mockTryInContext = jest.fn();
-jest.mock('../../Common/SelectorResolver', () => ({
+jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   tryInContext: (...args: unknown[]): unknown => mockTryInContext(...args),
   candidateToCss: jest.fn((c: { value: string }) => c.value),
 }));
 
+const { clickOtpTriggerIfPresent, detectOtpScreen, extractPhoneHint, findOtpSubmitSelector } =
+  await import('../../Common/OtpDetector.js');
 interface OtpMockPage {
   evaluate: jest.Mock;
   frames: jest.Mock;

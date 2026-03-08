@@ -1,7 +1,7 @@
 import type { Frame, Page } from 'playwright';
 
-import type { ScraperScrapingResult } from '../Scrapers/Base/Interface';
-import type { BankScraperConfig } from '../Scrapers/Registry/ScraperConfig';
+import type { ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import type { BankScraperConfig } from '../Scrapers/Registry/ScraperConfig.js';
 
 /** Context passed through the middleware chain. */
 export interface LoginContext {

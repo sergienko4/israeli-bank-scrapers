@@ -1,6 +1,6 @@
-import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import type { ScraperScrapingResult } from '../../Scrapers/Base/Interface';
+import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
+import type { ScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 
 export const SCRAPE_TIMEOUT = 120000;
 export const IS_CI = !!process.env.CI;

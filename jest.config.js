@@ -1,20 +1,22 @@
 /** @type {import('jest').Config} */
-const config = {
-  preset: 'ts-jest',
+export default {
+  preset: 'ts-jest/presets/default-esm',
   clearMocks: true,
   coverageDirectory: 'coverage',
   rootDir: './src',
+  extensionsToTreatAsEsm: ['.ts'],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@hieutran094/camoufox-js$': '<rootDir>/Tests/Mocks/CamoufoxJsMock.js',
+  },
   transform: {
-    '^.+\\.ts$': ['ts-jest', { diagnostics: { ignoreDiagnostics: [151002] } }],
+    '^.+\\.ts$': ['ts-jest', { useESM: true }],
     '@faker-js.+\\.js$': [
       'ts-jest',
-      { diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
+      { useESM: true, diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
     ],
   },
   transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
-  moduleNameMapper: {
-    '^@hieutran094/camoufox-js$': '<rootDir>/Tests/Mocks/CamoufoxJsMock.js',
-  },
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
   testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/'],
@@ -28,5 +30,3 @@ const config = {
     },
   },
 };
-
-module.exports = config;

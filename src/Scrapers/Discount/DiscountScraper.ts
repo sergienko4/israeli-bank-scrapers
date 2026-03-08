@@ -1,16 +1,16 @@
 import moment from 'moment';
 import { type Page } from 'playwright';
 
-import { fetchGetWithinPage } from '../../Common/Fetch';
-import { getRawTransaction } from '../../Common/Transactions';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { ScraperErrorTypes } from '../Base/Errors';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
-import { type LoginConfig } from '../Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { discountConfig } from './DiscountLoginConfig';
+import { fetchGetWithinPage } from '../../Common/Fetch.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { ScraperErrorTypes } from '../Base/Errors.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
+import { type LoginConfig } from '../Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { discountConfig } from './DiscountLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 

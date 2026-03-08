@@ -1,16 +1,16 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchPostWithinPage } from '../../Common/Fetch';
-import { humanDelay } from '../../Common/Waiting';
-import { CompanyTypes, ScraperProgressTypes } from '../../Definitions';
-import { type Transaction } from '../../Transactions';
-import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser';
-import { ScraperErrorTypes, WafBlockError } from '../Base/Errors';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { fetchAllTransactions } from './BaseIsracardAmexEnrich';
-import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchPostWithinPage } from '../../Common/Fetch.js';
+import { humanDelay } from '../../Common/Waiting.js';
+import { CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
+import { type Transaction } from '../../Transactions.js';
+import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser.js';
+import { ScraperErrorTypes, WafBlockError } from '../Base/Errors.js';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { fetchAllTransactions } from './BaseIsracardAmexEnrich.js';
+import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes.js';
 
 // Shared by both Amex and Isracard — identical values in both config entries
 const {

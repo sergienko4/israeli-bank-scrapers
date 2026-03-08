@@ -1,48 +1,61 @@
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import type { ScraperCredentials } from '../../Scrapers/Base/Interface';
-import type { LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import {
-  createMockBrowser,
-  createMockContext,
-  createMockPage,
-  createMockScraperOptions,
-} from '../MockPage';
+import { jest } from '@jest/globals';
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
+import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import type { LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 
-jest.mock('../../Common/Browser', () => ({
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
 
-jest.mock('../../Common/Navigation', () => ({
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://bank.example.com/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../../Common/ElementsInteractions', () => ({
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.mock('../../Common/Debug', () => ({
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
-jest.mock('../../Common/SelectorResolver', () => ({
+jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((c: { kind: string; value: string }) => c.value),
+  tryInContext: jest.fn().mockResolvedValue(null),
+  extractCredentialKey: jest.fn((s: string) => s),
+  toFirstCss: jest.fn(() => ''),
+  resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
-jest.mock('../../Common/Waiting', () => ({
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
+
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { ConcreteGenericScraper } = await import('../../Scrapers/Base/ConcreteGenericScraper.js');
+const { createMockBrowser, createMockContext, createMockPage, createMockScraperOptions } =
+  await import('../MockPage.js');
 
 const SUCCESS_URL = 'https://bank.example.com/dashboard';
 

@@ -1,19 +1,22 @@
-import { fetchGraphql, fetchPost } from '../../Common/Fetch';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import OneZeroScraper from '../../Scrapers/OneZero/OneZeroScraper';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockScraperOptions } from '../MockPage';
-
-jest.mock('../../Common/Fetch', () => ({
+import { jest } from '@jest/globals';
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchPost: jest.fn(),
   fetchGraphql: jest.fn(),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+const { fetchGraphql, fetchPost } = await import('../../Common/Fetch.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: OneZeroScraper } = await import('../../Scrapers/OneZero/OneZeroScraper.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockScraperOptions } = await import('../MockPage.js');
 
 function mockDeviceToken(deviceToken = 'device-123'): void {
   (fetchPost as jest.Mock).mockResolvedValueOnce({ resultData: { deviceToken } });

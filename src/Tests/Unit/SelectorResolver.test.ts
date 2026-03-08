@@ -1,18 +1,20 @@
-import { type Frame, type Page } from 'playwright';
+import { jest } from '@jest/globals';
+import type { Frame, Page } from 'playwright';
 
-import {
+import type { FieldConfig, SelectorCandidate } from '../../Scrapers/Base/LoginConfig.js';
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
+  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+}));
+
+const {
   candidateToCss,
   extractCredentialKey,
   resolveDashboardField,
   resolveFieldContext,
   toFirstCss,
   tryInContext,
-} from '../../Common/SelectorResolver';
-import { type FieldConfig, type SelectorCandidate } from '../../Scrapers/Base/LoginConfig';
-
-jest.mock('../../Common/Debug', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
-}));
+} = await import('../../Common/SelectorResolver.js');
 
 // ── Minimal Page/Frame mocks ─────────────────────────────────────────────────
 

@@ -1,47 +1,74 @@
-import { buildContextOptions } from '../../Common/Browser';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { clickButton, elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions';
-import { getCurrentUrl } from '../../Common/Navigation';
-import { sleep } from '../../Common/Waiting';
-import { SHEKEL_CURRENCY } from '../../Constants';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors';
-import { type ScraperOptions } from '../../Scrapers/Base/Interface';
-import BeinleumiGroupBaseScraper from '../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroup';
-import { beinleumiConfig } from '../../Scrapers/BaseBeinleumiGroup/BeinleumiLoginConfig';
-import { TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
+import { jest } from '@jest/globals';
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
-jest.mock('../../Common/ElementsInteractions', () => ({
+import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
+
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
   pageEval: jest.fn().mockResolvedValue(null),
+
+  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.mock('../../Common/Navigation', () => ({
+
+jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   getCurrentUrl: jest.fn().mockResolvedValue('https://test.fibi.co.il/Resources/PortalNG/shell'),
+
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock('../../Common/Browser', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
-jest.mock('../../Common/Waiting', () => ({
+
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
+
+jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
+  handleOtpStep: jest.fn().mockResolvedValue(null),
+
+  handleOtpCode: jest.fn().mockResolvedValue(undefined),
+
+  handleOtpConfirm: jest.fn().mockResolvedValue(undefined),
+}));
+
+const { buildContextOptions } = await import('../../Common/Browser.js');
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { clickButton, elementPresentOnPage, pageEvalAll } =
+  await import('../../Common/ElementsInteractions.js');
+const { getCurrentUrl } = await import('../../Common/Navigation.js');
+const { sleep } = await import('../../Common/Waiting.js');
+const { SHEKEL_CURRENCY } = await import('../../Constants.js');
+const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
+const { default: BeinleumiGroupBaseScraper } =
+  await import('../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroup.js');
+const { beinleumiConfig } =
+  await import('../../Scrapers/BaseBeinleumiGroup/BeinleumiLoginConfig.js');
+const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
+
 // OTP handling is tested separately in otp-detection.e2e-mocked.test.ts.
 // Return null here so login/fetchData tests are not affected by OTP detection.
-jest.mock('../../Common/OtpHandler', () => ({ handleOtpStep: jest.fn().mockResolvedValue(null) }));
-
 class TestBeinleumiScraper extends BeinleumiGroupBaseScraper {
   BASE_URL = 'https://test.fibi.co.il';
 

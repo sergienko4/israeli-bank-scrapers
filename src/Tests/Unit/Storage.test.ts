@@ -1,5 +1,7 @@
-import { getFromSessionStorage } from '../../Common/Storage';
-import { createMockPage } from '../MockPage';
+import { jest } from '@jest/globals';
+
+import { getFromSessionStorage } from '../../Common/Storage.js';
+import { createMockPage } from '../MockPage.js';
 
 function createSessionMockPage(
   sessionData: Record<string, string | null>,

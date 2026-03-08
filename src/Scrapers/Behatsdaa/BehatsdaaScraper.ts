@@ -1,14 +1,14 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchPostWithinPage } from '../../Common/Fetch';
-import { getRawTransaction } from '../../Common/Transactions';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { BEHATSDAA_CONFIG } from './BehatsdaaLoginConfig';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchPostWithinPage } from '../../Common/Fetch.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { BEHATSDAA_CONFIG } from './BehatsdaaLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 

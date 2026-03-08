@@ -1,4 +1,4 @@
-import { MOVEMENTS_FRAGMENTS_2 } from './OneZeroFragments';
+import { MOVEMENTS_FRAGMENTS_2 } from './OneZeroFragments.js';
 
 export const GET_ACCOUNT_BALANCE = `
 query GetAccountBalance($portfolioId: String!, $accountId: String!) {

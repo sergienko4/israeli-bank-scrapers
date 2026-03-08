@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { CompanyTypes, createScraper, SCRAPERS } from '../index';
+import { CompanyTypes, createScraper, SCRAPERS } from '../index.js';
 
 describe('E2E: Scraper Factory', () => {
   const allCompanyTypes = Object.values(CompanyTypes);

@@ -1,5 +1,5 @@
-import type { CardApiStatus } from './CardApiStatus';
-import type { ScrapedPendingTransaction } from './ScrapedPendingTransaction';
+import type { CardApiStatus } from './CardApiStatus.js';
+import type { ScrapedPendingTransaction } from './ScrapedPendingTransaction.js';
 
 export interface CardPendingTransactionDetails extends CardApiStatus {
   result: {

@@ -1,10 +1,13 @@
 /** Selector-fallback: Mizrahi — Round 2 (wrong CSS id → fallback CSS id). */
-import { waitUntilElementDisappear } from '../../Common/ElementsInteractions';
-import { CompanyTypes } from '../../Definitions';
-import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers';
-import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers';
+
+import { jest } from '@jest/globals';
+
+import { waitUntilElementDisappear } from '../../Common/ElementsInteractions.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 

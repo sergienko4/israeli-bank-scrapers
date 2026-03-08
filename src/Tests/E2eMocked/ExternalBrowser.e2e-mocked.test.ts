@@ -1,10 +1,10 @@
 import { type Browser, type Page } from 'playwright';
 
-import { CompanyTypes } from '../../Definitions';
-import { createScraper } from '../../index';
-import { amexRoutes } from './Helpers/AmexRoutes';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture';
-import { setupRequestInterception } from './Helpers/RequestInterceptor';
+import { CompanyTypes } from '../../Definitions.js';
+import { createScraper } from '../../index.js';
+import { amexRoutes } from './Helpers/AmexRoutes.js';
+import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };
 

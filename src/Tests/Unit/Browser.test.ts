@@ -1,4 +1,4 @@
-import { buildContextOptions } from '../../Common/Browser';
+import { buildContextOptions } from '../../Common/Browser.js';
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {

@@ -2,17 +2,17 @@ import moment from 'moment';
 import { type Page } from 'playwright';
 import { v4 as uuid4 } from 'uuid';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
-import {} from '../../Common/Navigation';
-import { getRawTransaction } from '../../Common/Transactions';
-import { waitUntil } from '../../Common/Waiting';
-import { CompanyTypes } from '../../Definitions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions } from '../Base/Interface';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import { HAPOALIM_CONFIG } from './HapoalimLoginConfig';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch.js';
+import {} from '../../Common/Navigation.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
+import { waitUntil } from '../../Common/Waiting.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { HAPOALIM_CONFIG } from './HapoalimLoginConfig.js';
 
 const LOG = getDebug('hapoalim');
 

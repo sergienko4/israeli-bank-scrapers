@@ -1,6 +1,6 @@
 /* eslint-disable max-lines */
-import { CompanyTypes } from '../../Definitions';
-import { type SelectorCandidate } from '../Base/LoginConfig';
+import { CompanyTypes } from '../../Definitions.js';
+import { type SelectorCandidate } from '../Base/LoginConfig.js';
 
 // ─── Config shape ────────────────────────────────────────────────────────────
 

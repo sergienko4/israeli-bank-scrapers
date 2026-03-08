@@ -1,20 +1,20 @@
 import moment from 'moment';
 import { type Page, type Request } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { fetchPostWithinPage } from '../../Common/Fetch';
-import { CompanyTypes } from '../../Definitions';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
-import type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
-import type { MoreDetails } from './Interfaces/MoreDetails';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
+import { getDebug } from '../../Common/Debug.js';
+import { fetchPostWithinPage } from '../../Common/Fetch.js';
+import { CompanyTypes } from '../../Definitions.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import type { MizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
+import type { MoreDetails } from './Interfaces/MoreDetails.js';
+import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 
-export type { ConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts';
-export type { ConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts';
-export type { MizrahiRequestData } from './Interfaces/MizrahiRequestData';
-export type { MoreDetails } from './Interfaces/MoreDetails';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction';
-export type { ScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult';
+export type { ConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts.js';
+export type { ConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts.js';
+export type { MizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
+export type { MoreDetails } from './Interfaces/MoreDetails.js';
+export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+export type { ScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult.js';
 
 const LOG = getDebug('mizrahi');
 

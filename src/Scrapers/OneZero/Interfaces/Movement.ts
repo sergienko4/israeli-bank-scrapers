@@ -1,4 +1,4 @@
-import type { OneZeroTransaction } from './OneZeroTransaction';
+import type { OneZeroTransaction } from './OneZeroTransaction.js';
 
 export interface Movement {
   accountId: string;

@@ -1,24 +1,19 @@
-import { launchCamoufox } from '../../Common/CamoufoxLauncher';
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch';
-import { SCRAPERS } from '../../Definitions';
-import AMEXScraper from '../../Scrapers/Amex/AmexScraper';
-import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser';
-import type { ScraperOptions } from '../../Scrapers/Base/Interface';
-import { createMockPage, createMockScraperOptions } from '../MockPage';
-import {
-  exportTransactions,
-  extendAsyncTimeout,
-  getTestsConfig,
-  maybeTestCompanyAPI,
-} from '../TestsUtils';
+import { jest } from '@jest/globals';
 
-jest.mock('../../Common/CamoufoxLauncher', () => ({ launchCamoufox: jest.fn() }));
-jest.mock('../../Common/Fetch', () => ({
+import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
+
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+
+jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
 }));
-jest.mock('../../Common/Browser', () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }));
-jest.mock('../../Common/Waiting', () => ({
+
+jest.unstable_mockModule('../../Common/Browser.js', () => ({
+  buildContextOptions: jest.fn().mockReturnValue({}),
+}));
+
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn(async (fns: (() => Promise<unknown>)[]) => {
@@ -26,16 +21,32 @@ jest.mock('../../Common/Waiting', () => ({
     for (const fn of fns) results.push(await fn());
     return results;
   }),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  raceTimeout: jest.fn().mockResolvedValue(undefined),
+  TimeoutError: class TimeoutError extends Error {},
+  SECOND: 1000,
 }));
-jest.mock('../../Common/Debug', () => ({
+
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
-jest.mock('../../Common/Dates', () => jest.fn(() => []));
-jest.mock('../../Common/Transactions', () => ({
+
+jest.unstable_mockModule('../../Common/Dates.js', () => ({ default: jest.fn(() => []) }));
+
+jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   fixInstallments: jest.fn((txns: unknown[]) => txns),
   filterOldTransactions: jest.fn((txns: unknown[]) => txns),
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
+
+const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
+const { fetchGetWithinPage, fetchPostWithinPage } = await import('../../Common/Fetch.js');
+const { SCRAPERS } = await import('../../Definitions.js');
+const { default: AMEXScraper } = await import('../../Scrapers/Amex/AmexScraper.js');
+const { LOGIN_RESULTS } = await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
+const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
+const { exportTransactions, extendAsyncTimeout, getTestsConfig, maybeTestCompanyAPI } =
+  await import('../TestsUtils.js');
 
 const AMEX_CREDS = { id: '123456789', card6Digits: '123456', password: 'pass' };
 

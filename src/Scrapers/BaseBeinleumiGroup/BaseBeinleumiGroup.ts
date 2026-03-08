@@ -7,32 +7,32 @@ import {
   fillInput,
   pageEvalAll,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions';
-import { waitForNavigation } from '../../Common/Navigation';
+} from '../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../Common/Navigation.js';
 import {
   type DashboardFieldOpts,
   type FieldContext,
   resolveDashboardField,
   toFirstCss,
-} from '../../Common/SelectorResolver';
-import { CompanyTypes } from '../../Definitions';
+} from '../../Common/SelectorResolver.js';
+import { CompanyTypes } from '../../Definitions.js';
 import {
   type Transaction,
   type TransactionsAccount,
   TransactionStatuses,
-} from '../../Transactions';
-import { GenericBankScraper } from '../Base/GenericBankScraper';
-import { type ScraperOptions } from '../Base/Interface';
+} from '../../Transactions.js';
+import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import { type ScraperOptions } from '../Base/Interface.js';
 import {
   getAccountIdsBothUIs,
   getTransactionsFrame,
   selectAccountFromDropdown,
-} from '../Beinleumi/BeinleumiAccountSelector';
+} from '../Beinleumi/BeinleumiAccountSelector.js';
 export {
   clickAccountSelectorGetAccountIds,
   selectAccountFromDropdown,
-} from '../Beinleumi/BeinleumiAccountSelector';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig';
+} from '../Beinleumi/BeinleumiAccountSelector.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import {
   convertTransactions,
   ERROR_MESSAGE_CLASS,
@@ -41,7 +41,7 @@ import {
   isNoTransactionInDateRangeError,
   type ScrapedTransaction,
   type TransactionsTr,
-} from './BaseBeinleumiGroupHelpers';
+} from './BaseBeinleumiGroupHelpers.js';
 
 // All Beinleumi group banks share the same selectors and timing
 const BEINLEUMI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi];

@@ -1,8 +1,8 @@
 import { type Frame, type Page } from 'playwright';
 
-import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig';
-import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig';
-import { getDebug } from './Debug';
+import { type FieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig.js';
+import { getDebug } from './Debug.js';
 
 const LOG = getDebug('selector-resolver');
 

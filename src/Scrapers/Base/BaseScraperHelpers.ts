@@ -1,10 +1,10 @@
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug';
-import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation';
-import { ScraperProgressTypes } from '../../Definitions';
-import { ScraperErrorTypes } from './Errors';
-import { type ScraperScrapingResult } from './Interface';
+import { getDebug } from '../../Common/Debug.js';
+import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
+import { ScraperErrorTypes } from './Errors.js';
+import { type ScraperScrapingResult } from './Interface.js';
 
 const LOG = getDebug('base-scraper-with-browser');
 

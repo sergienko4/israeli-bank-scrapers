@@ -6,8 +6,8 @@ import {
   fixInstallments,
   getRawTransaction,
   sortTransactionsByDate,
-} from '../../Common/Transactions';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions';
+} from '../../Common/Transactions.js';
+import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
