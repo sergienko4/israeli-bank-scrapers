@@ -351,23 +351,23 @@ describe('ResultFormatter — PII masking', () => {
     it('false positive: info level does not accidentally print debug messages', () => {
       const { stream, output } = createCapture();
       const logger = pino({ level: 'info' }, stream);
-      logger.debug('password=secret123');
-      logger.debug('token=eyJhbGciOiJIUzI1NiJ9');
-      logger.debug('credentials: { id: 314076571 }');
+      logger.debug('navigateTo https://bank.com/personal-area → 200');
+      logger.debug('fill input#userCode with value');
+      logger.debug('response: 200 https://api.bank.com/login');
       expect(output()).toBe('');
     });
 
-    it('false positive: sensitive data in debug calls never leaks at info', () => {
+    it('false positive: verbose debug data never leaks at info', () => {
       const { stream, output } = createCapture();
       const logger = pino({ level: 'info' }, stream);
-      logger.debug({ password: 'secret', token: 'abc123' }, 'auth data');
-      logger.debug('fill input#password with value s3cr3t!');
+      logger.debug({ url: 'https://bank.com', status: 200 }, 'navigation');
+      logger.debug('selector resolved: #userCode → input[name="code"]');
       logger.info('login step completed');
       const logged = output();
       expect(logged).toContain('login step completed');
-      expect(logged).not.toContain('secret');
-      expect(logged).not.toContain('abc123');
-      expect(logged).not.toContain('s3cr3t');
+      expect(logged).not.toContain('bank.com');
+      expect(logged).not.toContain('userCode');
+      expect(logged).not.toContain('selector resolved');
     });
   });
 });
