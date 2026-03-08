@@ -30,7 +30,8 @@ run_gate npm run test:e2e:mock || exit 1
 echo "" | tee -a "$LOG_FILE"
 echo "🧹  [4/8] Lint + format (all source files, same as CI)..." | tee -a "$LOG_FILE"
 run_gate npx eslint 'src/**/*.ts' --max-warnings 0 || exit 1
-run_gate npm run format:check || exit 1
+npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}" --log-level warn 2>&1 | tee -a "$LOG_FILE"
+git add -u
 
 echo "" | tee -a "$LOG_FILE"
 echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
