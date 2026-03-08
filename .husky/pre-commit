@@ -28,8 +28,9 @@ echo "🎭  [3/8] Mocked E2E tests..." | tee -a "$LOG_FILE"
 run_gate npm run test:e2e:mock || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧹  [4/8] Lint + format (changed files only)..." | tee -a "$LOG_FILE"
-run_gate npx lint-staged || exit 1
+echo "🧹  [4/8] Lint + format (all source files, same as CI)..." | tee -a "$LOG_FILE"
+run_gate npx eslint 'src/**/*.ts' --max-warnings 0 || exit 1
+run_gate npm run format:check || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
