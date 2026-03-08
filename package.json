@@ -1,6 +1,6 @@
 {
   "name": "@sergienko4/israeli-bank-scrapers",
-  "version": "7.8.1",
+  "version": "7.9.0",
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
     "node": ">= 22.14.0"
@@ -51,7 +51,11 @@
     "type": "git",
     "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
-  "keywords": ["israel", "israeli bank", "israeli bank scraper"],
+  "keywords": [
+    "israel",
+    "israeli bank",
+    "israeli bank scraper"
+  ],
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
@@ -103,14 +107,23 @@
     "utility-types": "^3.11.0",
     "uuid": "^11.1.0"
   },
-  "files": ["lib/**/*"],
+  "files": [
+    "lib/**/*"
+  ],
   "overrides": {
     "test-exclude": "^7.0.2",
     "ua-parser-js": "1.0.41"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": ["eslint --fix --max-warnings 0", "prettier --write"],
-    "*.json": ["prettier --parser json --write"],
-    "*.md": ["prettier --parser markdown --write"]
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --parser json --write"
+    ],
+    "*.md": [
+      "prettier --parser markdown --write"
+    ]
   }
 }
