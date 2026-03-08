@@ -103,22 +103,83 @@ describe('maxHandleSecondLoginStep', () => {
 
   it('fills username, password, and ID when ID field is found (Flow B)', async () => {
     const mockContext = {} as Page;
-    mockResolveFieldContext.mockResolvedValue({
-      isResolved: true,
-      selector: '#id-field',
-      context: mockContext,
-    });
     const page = makeMockPage();
+    mockResolveFieldContext
+      .mockResolvedValueOnce({ isResolved: true, selector: '#id-field', context: mockContext })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#user-name', context: page })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page });
     await maxHandleSecondLoginStep(page, {
       username: 'testuser',
       password: 'testpass',
       id: '123456789',
     });
+    expect(mockResolveFieldContext).toHaveBeenCalledTimes(3);
     expect(mockFillInput).toHaveBeenCalledTimes(3);
-    expect(mockFillInput).toHaveBeenCalledWith(page, '#user-name', 'testuser');
-    expect(mockFillInput).toHaveBeenCalledWith(page, '#password', 'testpass');
-    expect(mockFillInput).toHaveBeenCalledWith(mockContext, '#id-field', '123456789');
     expect(mockClickButton).toHaveBeenCalled();
+  });
+
+  it('skips username fill when username resolution fails in Flow B', async () => {
+    const mockContext = {} as Page;
+    const page = makeMockPage();
+    mockResolveFieldContext
+      .mockResolvedValueOnce({ isResolved: true, selector: '#id-field', context: mockContext })
+      .mockResolvedValueOnce({ isResolved: false })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page });
+    await maxHandleSecondLoginStep(page, { username: 'u', password: 'p', id: '123' });
+    expect(mockFillInput).toHaveBeenCalledTimes(2);
+    expect(mockClickButton).toHaveBeenCalled();
+  });
+
+  it('skips password fill when password resolution fails in Flow B', async () => {
+    const mockContext = {} as Page;
+    const page = makeMockPage();
+    mockResolveFieldContext
+      .mockResolvedValueOnce({ isResolved: true, selector: '#id-field', context: mockContext })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#user-name', context: page })
+      .mockResolvedValueOnce({ isResolved: false });
+    await maxHandleSecondLoginStep(page, { username: 'u', password: 'p', id: '123' });
+    expect(mockFillInput).toHaveBeenCalledTimes(2);
+    expect(mockClickButton).toHaveBeenCalled();
+  });
+
+  it('fills only ID when both username and password resolution fail', async () => {
+    const mockContext = {} as Page;
+    const page = makeMockPage();
+    mockResolveFieldContext
+      .mockResolvedValueOnce({ isResolved: true, selector: '#id-field', context: mockContext })
+      .mockResolvedValueOnce({ isResolved: false })
+      .mockResolvedValueOnce({ isResolved: false });
+    await maxHandleSecondLoginStep(page, { username: 'u', password: 'p', id: '123' });
+    expect(mockFillInput).toHaveBeenCalledTimes(1);
+    expect(mockClickButton).toHaveBeenCalled();
+  });
+
+  it('passes correct FieldConfig to resolveFieldContext for each field', async () => {
+    const mockContext = {} as Page;
+    const page = makeMockPage();
+    mockResolveFieldContext
+      .mockResolvedValueOnce({ isResolved: true, selector: '#id', context: mockContext })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#u', context: page })
+      .mockResolvedValueOnce({ isResolved: true, selector: '#p', context: page });
+    await maxHandleSecondLoginStep(page, { username: 'u', password: 'p', id: '123' });
+    expect(mockResolveFieldContext).toHaveBeenNthCalledWith(
+      1,
+      page,
+      expect.objectContaining({ credentialKey: 'id', selectors: [] }),
+      expect.any(String),
+    );
+    expect(mockResolveFieldContext).toHaveBeenNthCalledWith(
+      2,
+      page,
+      expect.objectContaining({ credentialKey: 'username', selectors: [] }),
+      expect.any(String),
+    );
+    expect(mockResolveFieldContext).toHaveBeenNthCalledWith(
+      3,
+      page,
+      expect.objectContaining({ credentialKey: 'password', selectors: [] }),
+      expect.any(String),
+    );
   });
 });
 

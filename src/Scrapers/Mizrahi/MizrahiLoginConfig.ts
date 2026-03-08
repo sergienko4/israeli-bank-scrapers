@@ -31,8 +31,8 @@ async function mizrahiPostAction(page: Page): Promise<void> {
 export const MIZRAHI_CONFIG: LoginConfig = {
   loginUrl: SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.base,
   fields: [
-    { credentialKey: 'username', selectors: [{ kind: 'css', value: '#userNumberDesktopHeb' }] },
-    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#passwordDesktopHeb' }] },
+    { credentialKey: 'username', selectors: [] },
+    { credentialKey: 'password', selectors: [] },
   ],
   submit: [{ kind: 'css', value: 'button.btn.btn-primary' }],
   checkReadiness: async (page: Page) => {

@@ -380,9 +380,13 @@ export const SCRAPER_CONFIGURATION = {
     },
   } satisfies Record<CompanyTypes, BankScraperConfig>,
 
-  /** Global login-field fallback dictionary used by SelectorResolver on every bank */
+  /**
+   * Global login-field fallback dictionary used by SelectorResolver on every bank.
+   * Order = middleware priority: visible text first → CSS last resort.
+   */
   wellKnownSelectors: {
     username: [
+      // --- visible text (what the user sees) ---
       { kind: 'labelText', value: 'שם משתמש' },
       { kind: 'labelText', value: 'קוד משתמש' },
       { kind: 'labelText', value: 'מספר לקוח' },
@@ -390,93 +394,117 @@ export const SCRAPER_CONFIGURATION = {
       { kind: 'placeholder', value: 'קוד משתמש' },
       { kind: 'placeholder', value: 'מספר לקוח' },
       { kind: 'placeholder', value: 'תז' },
-      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
-      { kind: 'css', value: '#user-name' }, // Max
-      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal (Angular Material)
       { kind: 'ariaLabel', value: 'שם משתמש' },
       { kind: 'ariaLabel', value: 'קוד משתמש' },
+      // --- semantic HTML ---
       { kind: 'name', value: 'username' },
       { kind: 'name', value: 'userCode' },
+      // --- CSS last resort ---
+      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
+      { kind: 'css', value: '#user-name' }, // Max
+      { kind: 'css', value: '#userNumberDesktopHeb' }, // Mizrahi
+      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal
     ],
     userCode: [
+      // --- visible text ---
       { kind: 'labelText', value: 'קוד משתמש' },
       { kind: 'labelText', value: 'שם משתמש' },
       { kind: 'placeholder', value: 'קוד משתמש' },
       { kind: 'placeholder', value: 'שם משתמש' },
       { kind: 'placeholder', value: 'מספר לקוח' },
-      { kind: 'css', value: '#userCode' }, // Hapoalim
       { kind: 'ariaLabel', value: 'קוד משתמש' },
+      // --- semantic HTML ---
       { kind: 'name', value: 'userCode' },
       { kind: 'name', value: 'username' },
+      // --- CSS last resort ---
+      { kind: 'css', value: '#userCode' }, // Hapoalim
     ],
     password: [
+      // --- visible text ---
       { kind: 'labelText', value: 'סיסמה' },
       { kind: 'labelText', value: 'סיסמא' },
       { kind: 'labelText', value: 'קוד סודי' },
       { kind: 'placeholder', value: 'סיסמה' },
       { kind: 'placeholder', value: 'סיסמא' },
       { kind: 'placeholder', value: 'קוד סודי' },
+      { kind: 'ariaLabel', value: 'סיסמה' },
+      // --- semantic HTML ---
+      { kind: 'name', value: 'password' },
+      // --- CSS last resort ---
       { kind: 'css', value: 'input[type="password"]' },
       { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
       { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzPassword' }, // Discount
-      { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal (Angular Material)
-      { kind: 'ariaLabel', value: 'סיסמה' },
-      { kind: 'name', value: 'password' },
+      { kind: 'css', value: '#passwordDesktopHeb' }, // Mizrahi
+      { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
     ],
     id: [
+      // --- visible text ---
       { kind: 'labelText', value: 'תעודת זהות' },
       { kind: 'labelText', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'תעודת זהות' },
       { kind: 'placeholder', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'ת.ז' },
+      { kind: 'ariaLabel', value: 'תעודת זהות' },
+      // --- semantic HTML ---
+      { kind: 'name', value: 'id' },
+      // --- CSS last resort ---
       { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
       { kind: 'css', value: '#tzId' }, // Discount
-      { kind: 'ariaLabel', value: 'תעודת זהות' },
-      { kind: 'name', value: 'id' },
     ],
     nationalID: [
+      // --- visible text ---
       { kind: 'labelText', value: 'תעודת זהות' },
       { kind: 'labelText', value: 'מספר זהות' },
       { kind: 'placeholder', value: 'תעודת זהות' },
       { kind: 'placeholder', value: 'מספר זהות' },
-      { kind: 'css', value: '#pinno' }, // Yahav
       { kind: 'ariaLabel', value: 'תעודת זהות' },
+      // --- semantic HTML ---
       { kind: 'name', value: 'nationalID' },
       { kind: 'name', value: 'id' },
+      // --- CSS last resort ---
+      { kind: 'css', value: '#pinno' }, // Yahav
     ],
     card6Digits: [
+      // --- visible text ---
       { kind: 'labelText', value: 'ספרות' },
       { kind: 'placeholder', value: '6 ספרות' },
       { kind: 'placeholder', value: 'ספרות הכרטיס' },
       { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
     ],
     num: [
+      // --- visible text ---
       { kind: 'labelText', value: 'קוד מזהה' },
       { kind: 'labelText', value: 'מספר חשבון' },
       { kind: 'placeholder', value: 'מספר חשבון' },
-      { kind: 'css', value: '#aidnum' }, // Discount
       { kind: 'ariaLabel', value: 'מספר חשבון' },
+      // --- semantic HTML ---
       { kind: 'name', value: 'num' },
+      // --- CSS last resort ---
+      { kind: 'css', value: '#aidnum' }, // Discount
     ],
     otpCode: [
+      // --- visible text ---
       { kind: 'labelText', value: 'קוד חד פעמי' },
       { kind: 'labelText', value: 'קוד אימות' },
       { kind: 'placeholder', value: 'קוד חד פעמי' },
       { kind: 'placeholder', value: 'קוד SMS' },
       { kind: 'placeholder', value: 'קוד אימות' },
       { kind: 'placeholder', value: 'הזן קוד' },
+      // --- semantic HTML ---
       { kind: 'name', value: 'otpCode' },
     ],
-    /** Universal submit-button fallback — tried after every bank's explicit submit candidate */
+    /** Universal submit-button fallback — visible text first, CSS last */
     __submit__: [
-      { kind: 'css', value: 'button[type="submit"]' },
+      // --- visible text ---
       { kind: 'ariaLabel', value: 'כניסה' },
       { kind: 'ariaLabel', value: 'התחברות' },
       { kind: 'ariaLabel', value: 'התחבר' },
       { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
       { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
       { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
+      // --- CSS last resort ---
+      { kind: 'css', value: 'button[type="submit"]' },
     ],
   } satisfies Record<string, SelectorCandidate[]>,
 
