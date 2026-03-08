@@ -8,6 +8,7 @@ import { HAPOALIM_CONFIG } from '../Hapoalim/HapoalimLoginConfig.js';
 import { LEUMI_CONFIG } from '../Leumi/LeumiLoginConfig.js';
 import { MAX_CONFIG } from '../Max/MaxLoginConfig.js';
 import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig.js';
+import { VISACAL_LOGIN_CONFIG } from '../VisaCal/VisaCalLoginConfig.js';
 import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig.js';
 import { SCRAPER_CONFIGURATION } from './ScraperConfig.js';
 
@@ -34,5 +35,6 @@ export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.Max]: MAX_CONFIG,
   [CompanyTypes.Behatsdaa]: BEHATSDAA_CONFIG,
   [CompanyTypes.BeyahadBishvilha]: BEYAHAD_CONFIG,
+  [CompanyTypes.VisaCal]: VISACAL_LOGIN_CONFIG,
   [CompanyTypes.Yahav]: YAHAV_CONFIG,
 };

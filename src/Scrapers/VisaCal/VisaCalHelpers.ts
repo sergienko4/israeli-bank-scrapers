@@ -1,7 +1,6 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug.js';
 import {
   elementPresentOnPage,
   pageEval,
@@ -9,7 +8,6 @@ import {
 } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
-import { LOGIN_RESULTS } from '../Base/BaseScraperWithBrowser.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import {
   type CardLevelFrame,
@@ -22,7 +20,6 @@ import {
   TrnTypeCode,
 } from './VisaCalTypes.js';
 
-const LOG = getDebug('visa-cal');
 const INVALID_PASSWORD_MESSAGE = 'שם המשתמש או הסיסמה שהוזנו שגויים';
 export const CONNECT_IFRAME_OPTS = {
   timeout: 45000,
@@ -63,35 +60,6 @@ export async function hasChangePasswordForm(page: Page): Promise<boolean> {
   } catch {
     return false; // iframe gone = page navigated away = no change-password form
   }
-}
-
-export function getPossibleLoginResults(): Record<
-  string,
-  (string | RegExp | ((options?: { page?: Page }) => Promise<boolean>))[]
-> {
-  LOG.debug('return possible login results');
-  return {
-    [LOGIN_RESULTS.Success]: [/dashboard/i, /cal-online\.co\.il\/#/],
-    [LOGIN_RESULTS.InvalidPassword]: [
-      async (opts?: { page?: Page }): Promise<boolean> =>
-        opts?.page ? hasInvalidPasswordError(opts.page) : false,
-    ],
-    [LOGIN_RESULTS.ChangePassword]: [
-      async (opts?: { page?: Page }): Promise<boolean> =>
-        opts?.page ? hasChangePasswordForm(opts.page) : false,
-    ],
-  };
-}
-
-export function createLoginFields(credentials: {
-  username: string;
-  password: string;
-}): { selector: string; value: string }[] {
-  LOG.debug('create login fields for username and password');
-  return [
-    { selector: '[formcontrolname="userName"]', value: credentials.username },
-    { selector: '[formcontrolname="password"]', value: credentials.password },
-  ];
 }
 
 export function getInstallments(

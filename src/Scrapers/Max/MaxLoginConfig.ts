@@ -14,13 +14,21 @@ import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 
-// FieldConfig for the ID field — selectors empty so SelectorResolver falls back to wellKnownSelectors.id
-const MAX_ID_FIELD_CONFIG: FieldConfig = { credentialKey: 'id', selectors: [] };
+// FieldConfig constants — selectors empty so SelectorResolver falls back to wellKnownSelectors
+const MAX_USERNAME_FIELD: FieldConfig = { credentialKey: 'username', selectors: [] };
+const MAX_PASSWORD_FIELD: FieldConfig = { credentialKey: 'password', selectors: [] };
+const MAX_ID_FIELD: FieldConfig = { credentialKey: 'id', selectors: [] };
+
+async function resolveAndFill(page: Page, field: FieldConfig, value: string): Promise<void> {
+  const ctx = await resolveFieldContext(page, field, page.url());
+  if (!ctx.isResolved) return;
+  await fillInput(ctx.context, ctx.selector, value);
+}
 
 /**
  * Handles the optional second-login step in Max's Flow B:
  *   home → username+password → 2nd form (username+password+ID) → dashboard
- * Uses wellKnownSelectors.id from ScraperConfig to detect the field.
+ * Uses wellKnownSelectors to detect all fields via SelectorResolver.
  * If the ID form is not present (Flow A), this function is a no-op.
  */
 export async function maxHandleSecondLoginStep(
@@ -28,10 +36,10 @@ export async function maxHandleSecondLoginStep(
   credentials: { username: string; password: string; id?: string },
 ): Promise<void> {
   if (!credentials.id) return;
-  const idCtx = await resolveFieldContext(page, MAX_ID_FIELD_CONFIG, page.url());
+  const idCtx = await resolveFieldContext(page, MAX_ID_FIELD, page.url());
   if (!idCtx.isResolved) return;
-  await fillInput(page, '#user-name', credentials.username);
-  await fillInput(page, '#password', credentials.password);
+  await resolveAndFill(page, MAX_USERNAME_FIELD, credentials.username);
+  await resolveAndFill(page, MAX_PASSWORD_FIELD, credentials.password);
   await fillInput(idCtx.context, idCtx.selector, credentials.id);
   await clickButton(page, 'app-user-login-form .general-button.send-me-code');
   await sleep(1000);
