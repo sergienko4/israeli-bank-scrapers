@@ -1,5 +1,5 @@
-/** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
 import { jest } from '@jest/globals';
+/** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
 import { type Page } from 'playwright';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';

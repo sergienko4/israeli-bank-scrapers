@@ -1,5 +1,5 @@
-/**
 import { jest } from '@jest/globals';
+/**
  * Selector-fallback: Max — Round 2 (wrong CSS id → fallback CSS id on same page).
  * Max has a complex preAction (popups, password tab navigation) before form fill.
  * This test proves the selector resolution still works correctly with that preAction.

@@ -1,5 +1,5 @@
-/**
 import { jest } from '@jest/globals';
+/**
  * Selector-fallback: Leumi — Round 3 (WELL_KNOWN_SELECTORS dictionary).
  *
  * Leumi's own scraper uses input[placeholder="שם משתמש"] as its primary selector,
