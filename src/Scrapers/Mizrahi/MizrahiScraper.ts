@@ -280,7 +280,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private shouldMarkAsPending(txn: Transaction): boolean {
     if (this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier') && !txn.identifier) {
-      LOG.info(`Marking transaction '${txn.description}' as pending due to no identifier.`);
+      LOG.debug(`Marking transaction '${txn.description}' as pending due to no identifier.`);
       return true;
     }
 
@@ -288,7 +288,7 @@ class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription') &&
       GENERIC_DESCRIPTIONS.includes(txn.description)
     ) {
-      LOG.info(`Marking transaction '${txn.description}' as pending due to generic description.`);
+      LOG.debug(`Marking transaction '${txn.description}' as pending due to generic description.`);
       return true;
     }
 

@@ -153,6 +153,14 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
    */
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;
+
+  /**
+   * Login chain log verbosity.
+   * - 'info' (default): chain plan, step pass/fail with timing, masked result summary.
+   * - 'trace': all of info plus per-step context (URL, frames, selectors).
+   * Falls back to LOG_LEVEL env var when not set.
+   */
+  loginLogLevel?: 'info' | 'trace';
 };
 
 export interface Scraper<TCredentials extends ScraperCredentials> {

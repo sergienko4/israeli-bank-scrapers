@@ -36,7 +36,13 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  getDebug: () => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
 }));
 
 const { buildContextOptions } = await import('../../Common/Browser.js');

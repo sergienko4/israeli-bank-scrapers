@@ -1,3 +1,4 @@
+import { maskAccount, maskAmount, maskDesc } from '../../Common/ResultFormatter.js';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { ScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
@@ -42,20 +43,6 @@ export function lastMonthStartDate(): Date {
 }
 
 const MAX_TXN_LOG = 10;
-
-function maskAccount(acct: string): string {
-  return acct.length <= 4 ? '****' : '****' + acct.slice(-4);
-}
-
-function maskAmount(amount: number | undefined): string {
-  if (amount == null) return '  ***';
-  return amount >= 0 ? ' +***' : ' -***';
-}
-
-function maskDesc(desc: string): string {
-  if (!desc) return '***';
-  return desc.slice(0, 3) + '***';
-}
 
 export function logScrapedTransactions(result: ScraperScrapingResult): void {
   if (!result.accounts) return;

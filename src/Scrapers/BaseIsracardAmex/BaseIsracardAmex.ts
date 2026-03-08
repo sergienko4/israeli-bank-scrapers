@@ -54,7 +54,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       });
     }
     const validateReturnCode = validatedData.returnCode;
-    LOG.info(`user validate with return code '${validateReturnCode}'`);
+    LOG.debug(`user validate with return code '${validateReturnCode}'`);
     return validateReturnCode === '1'
       ? this.performLogin(credentials, validatedData.userName ?? '')
       : this.handleValidateReturnCode(validateReturnCode);
@@ -90,12 +90,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     credentials: ScraperSpecificCredentials,
   ): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
     const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
-    LOG.info('validating credentials');
+    LOG.debug('validating credentials');
     const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
       data: this.buildValidateRequest(credentials),
     });
     if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      LOG.info('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
+      LOG.debug('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
       return null;
     }
     return result.ValidateIdDataBean;
@@ -137,11 +137,11 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     userName: string,
   ): Promise<ScraperScrapingResult> {
     const loginUrl = `${this.servicesUrl}?reqName=performLogonI`;
-    LOG.info('user login started');
+    LOG.debug('user login started');
     const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
       data: this.buildLoginRequest(credentials, userName),
     });
-    LOG.info(loginResult, `user login with status '${loginResult?.status}'`);
+    LOG.debug(loginResult, `user login with status '${loginResult?.status}'`);
     return this.interpretLoginStatus(loginResult?.status);
   }
 
@@ -162,12 +162,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     this.page.on('response', response => {
       const url = response.url();
       if (url.includes('ProxyRequestHandler') || url.includes('personalarea'))
-        LOG.info('response: %d %s', response.status(), url.substring(0, 120));
+        LOG.debug('response: %d %s', response.status(), url.substring(0, 120));
     });
   }
 
   private async navigateToLoginPage(): Promise<void> {
-    LOG.info(`navigating to ${this.baseUrl}/personalarea/Login`);
+    LOG.debug(`navigating to ${this.baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
     await humanDelay(LOGIN_DELAY_MIN, LOGIN_DELAY_MAX);

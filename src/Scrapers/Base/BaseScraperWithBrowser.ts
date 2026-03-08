@@ -3,6 +3,7 @@ import type { Browser, Frame, Page } from 'playwright';
 
 import { buildContextOptions } from '../../Common/Browser.js';
 import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
+import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
@@ -12,9 +13,8 @@ import {
 import {
   CONTINUE,
   type LoginContext,
-  type LoginStep,
+  type NamedLoginStep,
   type ParsedLoginPage,
-  runLoginChain,
   type StepResult,
   stopWithResult,
 } from '../../Common/LoginMiddleware.js';
@@ -72,7 +72,7 @@ class BaseScraperWithBrowser<
     this.emitProgress(ScraperProgressTypes.Initializing);
     const page = await this.initializePage();
     if (!page) {
-      LOG.info('failed to initiate a browser page, exit');
+      LOG.debug('failed to initiate a browser page, exit');
       return;
     }
     await this.setupPage(page);
@@ -87,12 +87,12 @@ class BaseScraperWithBrowser<
     const response = await this.page.goto(url, { waitUntil });
     if (response === null) return;
     const status = response.status();
-    LOG.info('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
+    LOG.debug('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
     if (response.ok()) return;
 
     if (status === 403) return this.retryOn403(url, waitUntil);
     if (retries > 0) {
-      LOG.info('navigateTo %s → %d, retrying (%d left)', url, status, retries);
+      LOG.debug('navigateTo %s → %d, retrying (%d left)', url, status, retries);
       return this.navigateTo(url, waitUntil, retries - 1);
     }
     throw new Error(`Failed to navigate to url ${url}, status code: ${status}`);
@@ -117,20 +117,20 @@ class BaseScraperWithBrowser<
     const { loginSetup } = SCRAPER_CONFIGURATION.banks[this.options.companyId];
     const ctx: LoginContext = { page: this.page, activeFrame: this.page, loginSetup };
     const steps = this.buildLoginChain(loginOptions, ctx);
-    const chainResult = await runLoginChain(steps, ctx);
+    const chainResult = await runLoggedChain(steps, ctx, LOG);
     if (chainResult !== null) return chainResult;
     return resolveAndBuildLoginResult(this.loginResultCtx(), loginOptions.possibleResults);
   }
 
   public async terminate(_success: boolean): Promise<void> {
-    LOG.info(`terminating browser with success = ${_success}`);
+    LOG.debug(`terminating browser with success = ${_success}`);
     this.emitProgress(ScraperProgressTypes.Terminating);
     if (!_success && !!this.options.storeFailureScreenShotPath) {
-      LOG.info('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+      LOG.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
       await this.page
         .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
         .catch((e: unknown) => {
-          LOG.info('screenshot failed: %s', (e as Error).message.slice(0, 80));
+          LOG.debug('screenshot failed: %s', (e as Error).message.slice(0, 80));
         });
     }
     await Promise.all(this.cleanups.reverse().map(safeCleanup));
@@ -147,23 +147,23 @@ class BaseScraperWithBrowser<
     };
   }
 
-  private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): LoginStep[] {
-    const steps: LoginStep[] = [];
-    steps.push(() => this.stepNavigate(loginOptions));
-    steps.push(() => this.stepParseLoginPage(ctx));
-    steps.push(() => this.stepFillAndSubmit(loginOptions, ctx));
-    steps.push(() => this.stepWaitAfterSubmit());
-    steps.push(() => this.stepCheckEarlyResult(loginOptions));
+  private buildLoginChain(loginOptions: LoginOptions, ctx: LoginContext): NamedLoginStep[] {
+    const steps: NamedLoginStep[] = [];
+    steps.push({ name: 'navigate', execute: () => this.stepNavigate(loginOptions) });
+    steps.push({ name: 'parse-page', execute: () => this.stepParseLoginPage(ctx) });
+    steps.push({ name: 'fill', execute: () => this.stepFillAndSubmit(loginOptions, ctx) });
+    steps.push({ name: 'wait', execute: () => this.stepWaitAfterSubmit() });
+    steps.push({ name: 'check-result', execute: () => this.stepCheckEarlyResult(loginOptions) });
     if (ctx.loginSetup.hasOtpConfirm) {
-      steps.push(() => this.stepOtpConfirm());
+      steps.push({ name: 'otp-confirm', execute: () => this.stepOtpConfirm() });
     }
     if (ctx.loginSetup.hasOtpCode) {
-      steps.push(() => this.stepOtpCode());
+      steps.push({ name: 'otp-code', execute: () => this.stepOtpCode() });
     }
     if (ctx.loginSetup.hasSecondLoginStep) {
-      steps.push(() => this.stepSecondLogin(loginOptions));
+      steps.push({ name: 'second-login', execute: () => this.stepSecondLogin(loginOptions) });
     }
-    steps.push(() => this.stepPostAction(loginOptions));
+    steps.push({ name: 'post-action', execute: () => this.stepPostAction(loginOptions) });
     return steps;
   }
 
@@ -198,11 +198,11 @@ class BaseScraperWithBrowser<
     this.cleanups.push(() => page.close());
     if (this.options.defaultTimeout) this.page.setDefaultTimeout(this.options.defaultTimeout);
     if (this.options.preparePage) {
-      LOG.info("execute 'preparePage' interceptor provided in options");
+      LOG.debug("execute 'preparePage' interceptor provided in options");
       await this.options.preparePage(this.page);
     }
     this.page.on('requestfailed', request => {
-      LOG.info('Request failed: %s %s', request.failure()?.errorText, request.url());
+      LOG.debug('Request failed: %s %s', request.failure()?.errorText, request.url());
     });
   }
 
@@ -218,10 +218,10 @@ class BaseScraperWithBrowser<
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as DefaultBrowserOptions;
     const { shouldShowBrowser } = opts;
-    LOG.info('launch Camoufox browser headless=%s', !shouldShowBrowser);
+    LOG.debug('launch Camoufox browser headless=%s', !shouldShowBrowser);
     const browser = await launchCamoufox(!shouldShowBrowser);
     this.cleanups.push(async () => {
-      LOG.info('closing the browser');
+      LOG.debug('closing the browser');
       await browser.close();
     });
     if (opts.prepareBrowser) await opts.prepareBrowser(browser);
@@ -229,17 +229,17 @@ class BaseScraperWithBrowser<
   }
 
   private async initializePage(): Promise<Page | undefined> {
-    LOG.info('initialize browser page');
+    LOG.debug('initialize browser page');
     if ('browserContext' in this.options) {
-      LOG.info('Using the browser context provided in options');
+      LOG.debug('Using the browser context provided in options');
       return this.options.browserContext.newPage();
     }
     if ('browser' in this.options) {
-      LOG.info('Using the browser instance provided in options');
+      LOG.debug('Using the browser instance provided in options');
       const { browser } = this.options;
       if (!this.options.skipCloseBrowser) {
         this.cleanups.push(async () => {
-          LOG.info('closing the browser');
+          LOG.debug('closing the browser');
           await browser.close();
         });
       }
@@ -255,7 +255,7 @@ class BaseScraperWithBrowser<
   ): Promise<number> {
     const delayMs = 15_000;
     const max = BaseScraperWithBrowser.MAX_403_RETRIES;
-    LOG.info('WAF 403 on %s, retry %d/%d after %ds', url, attempt + 1, max, delayMs / 1000);
+    LOG.debug('WAF 403 on %s, retry %d/%d after %ds', url, attempt + 1, max, delayMs / 1000);
     await sleep(delayMs);
     return (await this.page.goto(url, { waitUntil }))?.status() ?? 0;
   }
@@ -272,7 +272,7 @@ class BaseScraperWithBrowser<
       );
     const status = await this.navigateAfterDelay(url, waitUntil, attempt);
     if (status === 200 || (status >= 300 && status < 400)) {
-      LOG.info('WAF 403 resolved after retry %d', attempt + 1);
+      LOG.debug('WAF 403 resolved after retry %d', attempt + 1);
       return;
     }
     return this.retryOn403(url, waitUntil, attempt + 1);
@@ -288,7 +288,7 @@ class BaseScraperWithBrowser<
     } else if (typeof loginOptions.submitButtonSelector === 'string') {
       await waitUntilElementFound(this.page, loginOptions.submitButtonSelector);
     }
-    LOG.info('login[1] navigate + checkReadiness passed url=%s', this.page.url());
+    LOG.debug('login[1] navigate + checkReadiness passed url=%s', this.page.url());
     return CONTINUE;
   }
 
@@ -302,7 +302,7 @@ class BaseScraperWithBrowser<
       bodyText: '', // lazy — captured on demand by OTP detection, not eagerly
     };
     this.currentParsedPage = ctx.parsedPage;
-    LOG.info('login[1b] parsed: %d child frames', childFrames.length);
+    LOG.debug('login[1b] parsed: %d child frames', childFrames.length);
     return CONTINUE;
   }
 
@@ -321,7 +321,7 @@ class BaseScraperWithBrowser<
     let loginFrameOrPage: Page | Frame = this.page;
     if (loginOptions.preAction) loginFrameOrPage = (await loginOptions.preAction()) ?? this.page;
     ctx.activeFrame = loginFrameOrPage;
-    LOG.info('login[2] fill %d fields', loginOptions.fields.length);
+    LOG.debug('login[2] fill %d fields', loginOptions.fields.length);
     await this.fillInputs(loginFrameOrPage, loginOptions.fields);
     const submitCtx = this.activeLoginContext ?? loginFrameOrPage;
     if (typeof loginOptions.submitButtonSelector === 'string') {
@@ -335,7 +335,7 @@ class BaseScraperWithBrowser<
 
   private async stepWaitAfterSubmit(): Promise<StepResult> {
     await sleep(1500);
-    LOG.info('login[3] post-submit url=%s', this.page.url());
+    LOG.debug('login[3] post-submit url=%s', this.page.url());
     return CONTINUE;
   }
 
@@ -351,20 +351,20 @@ class BaseScraperWithBrowser<
   }
 
   private async stepOtpConfirm(): Promise<StepResult> {
-    LOG.info('login[5a] OTP confirm — send SMS');
+    LOG.debug('login[5a] OTP confirm — send SMS');
     this.otpPhoneHint = await handleOtpConfirm(this.page, this.currentParsedPage);
     return CONTINUE;
   }
 
   private async stepOtpCode(): Promise<StepResult> {
-    LOG.info('login[5b] OTP code entry');
+    LOG.debug('login[5b] OTP code entry');
     const otpResult = await handleOtpCode(this.page, this.options, this.otpPhoneHint);
     if (otpResult !== null) return stopWithResult(otpResult);
     return CONTINUE;
   }
 
   private async stepSecondLogin(loginOptions: LoginOptions): Promise<StepResult> {
-    LOG.info('login[6] second login step (Max Flow B)');
+    LOG.debug('login[6] second login step (Max Flow B)');
     if (loginOptions.postAction) {
       await loginOptions.postAction();
     }

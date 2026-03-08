@@ -68,11 +68,11 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
   public async fetchData(): Promise<ScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
-      LOG.info('Token not found in local storage');
+      LOG.debug('Token not found in local storage');
       return { success: false, errorMessage: 'TokenNotFound' };
     }
     const res = await this.fetchWithToken(token);
-    LOG.info('Data fetched');
+    LOG.debug('Data fetched');
     return this.buildAccountResult(res ?? {});
   }
 
@@ -82,7 +82,7 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
-    LOG.info('Fetching data');
+    LOG.debug('Fetching data');
     return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
       data: body,
       extraHeaders: {
@@ -95,14 +95,14 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
 
   private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
     if (res.errorDescription || res.data?.errorDescription) {
-      LOG.info('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
+      LOG.debug('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };
     }
     if (!res.data) {
-      LOG.info('No data found');
+      LOG.debug('No data found');
       return { success: false, errorMessage: 'NoData' };
     }
-    LOG.info('Data fetched successfully');
+    LOG.debug('Data fetched successfully');
     return {
       success: true,
       accounts: [

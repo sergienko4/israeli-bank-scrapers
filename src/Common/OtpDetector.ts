@@ -59,7 +59,7 @@ async function getBodyText(page: Page): Promise<string | null> {
     const text = await page.evaluate(() => document.body.innerText);
     return typeof text === 'string' ? text : null;
   } catch (e: unknown) {
-    LOG.info(e, 'getBodyText failed (page context inaccessible)');
+    LOG.debug(e, 'getBodyText failed (page context inaccessible)');
     return null;
   }
 }
@@ -84,15 +84,15 @@ async function detectByInputField(page: Page, cachedFrames?: Frame[]): Promise<b
 export async function detectOtpScreen(page: Page): Promise<boolean> {
   const textResult = await detectByText(page);
   if (textResult === 'otp') {
-    LOG.info('OTP detected by text pattern');
+    LOG.debug('OTP detected by text pattern');
     return true;
   }
   if (textResult === 'unknown') {
-    LOG.info('Page context inaccessible — skipping OTP input check');
+    LOG.debug('Page context inaccessible — skipping OTP input check');
     return false;
   }
   const isByInput = await detectByInputField(page);
-  if (isByInput) LOG.info('OTP detected by input field');
+  if (isByInput) LOG.debug('OTP detected by input field');
   return isByInput;
 }
 
@@ -128,9 +128,9 @@ async function findSmsTriggerInFrames(
 export async function clickOtpTriggerIfPresent(page: Page, cachedFrames?: Frame[]): Promise<void> {
   const trigger = await findSmsTriggerInFrames(page, cachedFrames);
   if (trigger) {
-    LOG.info('clicking SMS trigger: %s', trigger.selector);
+    LOG.debug('clicking SMS trigger: %s', trigger.selector);
     await trigger.context.click(trigger.selector);
   } else {
-    LOG.info('No SMS trigger found — SMS may be auto-sent');
+    LOG.debug('No SMS trigger found — SMS may be auto-sent');
   }
 }

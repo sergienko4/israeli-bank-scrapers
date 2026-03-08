@@ -35,6 +35,14 @@ export interface StepResult {
 /** A single step in the login chain. */
 export type LoginStep = (ctx: LoginContext) => Promise<StepResult>;
 
+/** A login step with a human-readable name for logging. */
+export interface NamedLoginStep {
+  /** Short name for logs, e.g. 'navigate', 'fill', 'otp-confirm'. */
+  readonly name: string;
+  /** The step function to execute. */
+  readonly execute: LoginStep;
+}
+
 const CONTINUE: StepResult = { shouldContinue: true };
 
 export function stopWithResult(result: ScraperScrapingResult): StepResult {

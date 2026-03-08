@@ -30,17 +30,17 @@ export function detectWafBlock(status: number, body: string | null): string | nu
 }
 
 function logApiCall(tag: string, status: number, durationMs: number): void {
-  LOG.info('%s → %d (%dms)', tag, status, durationMs);
+  LOG.debug('%s → %d (%dms)', tag, status, durationMs);
 }
 
 function logResponseIssues(status: number, text: string | null, url: string): void {
-  if (text !== null) LOG.info('response body: %s', text.substring(0, 300));
+  if (text !== null) LOG.debug('response body: %s', text.substring(0, 300));
   if (status !== 200 && status !== 204) {
-    LOG.info('non-200: status=%d url=%s', status, url);
+    LOG.debug('non-200: status=%d url=%s', status, url);
   }
   const wafReason = detectWafBlock(status, text);
   if (wafReason) {
-    LOG.info('WAF block: %s url=%s', wafReason, url);
+    LOG.debug('WAF block: %s url=%s', wafReason, url);
   }
 }
 
@@ -53,7 +53,7 @@ export async function fetchGet<TResult>(
   const fetchResult = await fetch(url, { method: 'GET', headers });
   logApiCall(`GET ${url.slice(-100)}`, fetchResult.status, Date.now() - startMs);
   const text = await fetchResult.text();
-  LOG.info('response body: %s', text.substring(0, 300));
+  LOG.debug('response body: %s', text.substring(0, 300));
   if (fetchResult.status !== 200) {
     throw new Error(
       `sending a request to the institute server returned with status code ${fetchResult.status}`,
@@ -76,7 +76,7 @@ export async function fetchPost<TResult = unknown>(
   const result = await fetch(url, request);
   logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
   const text = await result.text();
-  LOG.info('response body: %s', text.substring(0, 300));
+  LOG.debug('response body: %s', text.substring(0, 300));
   return JSON.parse(text) as TResult;
 }
 

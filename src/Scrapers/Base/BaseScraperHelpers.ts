@@ -77,7 +77,7 @@ export async function safeCleanup(cleanup: () => Promise<void>): Promise<void> {
   try {
     await cleanup();
   } catch (e) {
-    LOG.info(`Cleanup function failed: ${(e as Error).message}`);
+    LOG.debug(`Cleanup function failed: ${(e as Error).message}`);
   }
 }
 
@@ -92,7 +92,7 @@ export async function getKeyByValue(
     if (!conditions) continue;
     if (await matchesAnyCondition(conditions, value, page)) return key;
   }
-  LOG.info('no login result matched — url: %s, value: %s', page.url(), value);
+  LOG.debug('no login result matched — url: %s, value: %s', page.url(), value);
   return LOGIN_RESULTS.UnknownError;
 }
 
@@ -145,7 +145,7 @@ export function buildLoginResult(
   loginResult: LoginResults,
 ): ScraperScrapingResult {
   ctx.diagState.lastAction = `login result: ${loginResult}`;
-  LOG.info('login result=%s url=%s', loginResult, ctx.diagState.finalUrl ?? '?');
+  LOG.debug('login result=%s url=%s', loginResult, ctx.diagState.finalUrl ?? '?');
   if (loginResult === LOGIN_RESULTS.Success) {
     ctx.emitProgress(ScraperProgressTypes.LoginSuccess);
     return { success: true };
