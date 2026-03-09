@@ -14,9 +14,9 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(process.env.VISACAL_USERNAME && process.env.VISACAL_PASSWORD);
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: VisaCal (real credentials)', () => {
+DESCRIBE_IF('E2E: VisaCal (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -28,10 +28,9 @@ describeIf('E2E: VisaCal (real credentials)', () => {
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({
-      username: process.env.VISACAL_USERNAME!,
-      password: process.env.VISACAL_PASSWORD!,
-    });
+    const username = process.env.VISACAL_USERNAME ?? '';
+    const password = process.env.VISACAL_PASSWORD ?? '';
+    const result = await scraper.scrape({ username, password });
 
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);

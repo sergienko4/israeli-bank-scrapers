@@ -1,11 +1,15 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright';
 
-const mockWaitUntilElementFound = jest.fn().mockResolvedValue(undefined);
-const mockWaitUntilElementDisappear = jest.fn().mockResolvedValue(undefined);
+const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
+const MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR = jest.fn().mockResolvedValue(undefined);
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a stub logger for the Debug module mock.
+   * @returns stub logger with jest.fn() methods
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -15,8 +19,8 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  waitUntilElementFound: mockWaitUntilElementFound,
-  waitUntilElementDisappear: mockWaitUntilElementDisappear,
+  waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
+  waitUntilElementDisappear: MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR,
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
@@ -35,19 +39,24 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
 
 const { MIZRAHI_CONFIG } = await import('../../Scrapers/Mizrahi/MizrahiLoginConfig.js');
 
-const mockGoto = jest.fn().mockResolvedValue(undefined);
-const mockQuery = jest.fn().mockResolvedValue(null);
-const mockQueryAll = jest.fn().mockResolvedValue([]);
+const MOCK_GOTO = jest.fn().mockResolvedValue(undefined);
+const MOCK_QUERY = jest.fn().mockResolvedValue(null);
+const MOCK_QUERY_ALL = jest.fn().mockResolvedValue([]);
 
+/**
+ * Creates a mock Playwright Page for Mizrahi login config tests.
+ * @param url - the URL that page.url() returns
+ * @returns a mock Page with goto/query stubs
+ */
 function makeMockPage(url = 'https://mto.mizrahi-tefahot.co.il/OnlineApp/'): Page {
-  mockGoto.mockClear();
-  mockQuery.mockClear();
-  mockQueryAll.mockClear();
+  MOCK_GOTO.mockClear();
+  MOCK_QUERY.mockClear();
+  MOCK_QUERY_ALL.mockClear();
   return {
     url: jest.fn().mockReturnValue(url),
-    goto: mockGoto,
-    $: mockQuery,
-    $$: mockQueryAll,
+    goto: MOCK_GOTO,
+    $: MOCK_QUERY,
+    $$: MOCK_QUERY_ALL,
   } as unknown as Page;
 }
 
@@ -89,14 +98,19 @@ describe('MIZRAHI_CONFIG', () => {
   describe('checkReadiness', () => {
     it('navigates to loginRoute', async () => {
       const page = makeMockPage();
-      await MIZRAHI_CONFIG.checkReadiness!(page);
-      expect(mockGoto).toHaveBeenCalledWith(expect.stringContaining('mizrahi'), expect.any(Object));
+      const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
+      expect(checkReadiness).toBeDefined();
+      await checkReadiness?.(page);
+      const mizrahiSubstring: string = expect.stringContaining('mizrahi') as string;
+      const anyObject: object = expect.any(Object) as object;
+      expect(MOCK_GOTO).toHaveBeenCalledWith(mizrahiSubstring, anyObject);
     });
 
     it('waits for overlay to disappear', async () => {
       const page = makeMockPage();
-      await MIZRAHI_CONFIG.checkReadiness!(page);
-      expect(mockWaitUntilElementDisappear).toHaveBeenCalledWith(
+      const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
+      await checkReadiness?.(page);
+      expect(MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR).toHaveBeenCalledWith(
         page,
         'div.ngx-overlay.loading-foreground',
       );
@@ -106,20 +120,23 @@ describe('MIZRAHI_CONFIG', () => {
   describe('postAction', () => {
     it('waits for dropdownBasic or invalid selector', async () => {
       const page = makeMockPage();
-      await MIZRAHI_CONFIG.postAction!(page);
-      expect(mockWaitUntilElementFound).toHaveBeenCalledWith(page, '#dropdownBasic');
+      const postAction = MIZRAHI_CONFIG.postAction;
+      await postAction?.(page);
+      expect(MOCK_WAIT_UNTIL_ELEMENT_FOUND).toHaveBeenCalledWith(page, '#dropdownBasic');
     });
   });
 
   describe('possibleResults.success', () => {
     it('regex matches Mizrahi online app URL', () => {
       const regex = MIZRAHI_CONFIG.possibleResults.success[0] as RegExp;
-      expect(regex.test('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard')).toBe(true);
+      const isMatch = regex.test('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
+      expect(isMatch).toBe(true);
     });
 
     it('regex rejects non-Mizrahi URL', () => {
       const regex = MIZRAHI_CONFIG.possibleResults.success[0] as RegExp;
-      expect(regex.test('https://other-bank.co.il/dashboard')).toBe(false);
+      const isMatch = regex.test('https://other-bank.co.il/dashboard');
+      expect(isMatch).toBe(false);
     });
 
     it('mizrahiIsLoggedIn returns true when element exists', async () => {
@@ -127,7 +144,7 @@ describe('MIZRAHI_CONFIG', () => {
         page: Page;
       }) => Promise<boolean>;
       const page = makeMockPage();
-      mockQueryAll.mockResolvedValue([{}]);
+      MOCK_QUERY_ALL.mockResolvedValue([{}]);
       expect(await fn({ page })).toBe(true);
     });
 
@@ -144,27 +161,25 @@ describe('MIZRAHI_CONFIG', () => {
         page: Page;
       }) => Promise<boolean>;
       const page = makeMockPage();
-      mockQueryAll.mockResolvedValue([]);
+      MOCK_QUERY_ALL.mockResolvedValue([]);
       expect(await fn({ page })).toBe(false);
     });
   });
 
   describe('possibleResults.invalidPassword', () => {
     it('returns true when element present', async () => {
-      const fn = MIZRAHI_CONFIG.possibleResults.invalidPassword![0] as (opts: {
-        page: Page;
-      }) => Promise<boolean>;
+      const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
+      const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
       const page = makeMockPage();
-      mockQuery.mockResolvedValue({});
+      MOCK_QUERY.mockResolvedValue({});
       expect(await fn({ page })).toBe(true);
     });
 
     it('returns false when element absent', async () => {
-      const fn = MIZRAHI_CONFIG.possibleResults.invalidPassword![0] as (opts: {
-        page: Page;
-      }) => Promise<boolean>;
+      const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
+      const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
       const page = makeMockPage();
-      mockQuery.mockResolvedValue(null);
+      MOCK_QUERY.mockResolvedValue(null);
       expect(await fn({ page })).toBe(false);
     });
   });

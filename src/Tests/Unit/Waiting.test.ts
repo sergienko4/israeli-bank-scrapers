@@ -1,9 +1,10 @@
 import {
   humanDelay,
+  RACE_TIMED_OUT,
   raceTimeout,
   runSerial,
   SECOND,
-  sleep,
+  sleep as waitForMs,
   TimeoutError,
   waitUntil,
 } from '../../Common/Waiting.js';
@@ -23,10 +24,10 @@ describe('TimeoutError', () => {
   });
 });
 
-describe('sleep', () => {
+describe('sleep (async delay)', () => {
   it('resolves after specified time', async () => {
     const start = Date.now();
-    await sleep(50);
+    await waitForMs(50);
     expect(Date.now() - start).toBeGreaterThanOrEqual(30);
   });
 });
@@ -47,47 +48,48 @@ describe('waitUntil', () => {
   });
 
   it('rejects with TimeoutError when condition is never met', async () => {
-    await expect(
-      waitUntil(() => Promise.resolve(false), 'never true', { timeout: 100, interval: 10 }),
-    ).rejects.toThrow(TimeoutError);
+    const neverTruePromise = waitUntil(() => Promise.resolve(false), 'never true', {
+      timeout: 100,
+      interval: 10,
+    });
+    await expect(neverTruePromise).rejects.toThrow(TimeoutError);
   });
 
-  // waitUntil's catch handler calls reject() with no value (undefined)
+  // waitUntil's catch handler now wraps rejection in a TimeoutError
   it('rejects when async test throws', async () => {
-    await expect(
-      waitUntil(() => Promise.reject(new Error('test error')), 'failing test', {
-        timeout: 5000,
-        interval: 10,
-      }),
-    ).rejects.toBeUndefined();
+    const failingPromise = waitUntil(
+      () => Promise.reject(new Error('test error')),
+      'failing test',
+      { timeout: 5000, interval: 10 },
+    );
+    await expect(failingPromise).rejects.toThrow('waitUntil polling rejected');
   });
 });
 
 describe('raceTimeout', () => {
   it('returns promise result when it resolves before timeout', async () => {
-    const result: unknown = await raceTimeout(5000, Promise.resolve('fast'));
+    const fastPromise = Promise.resolve('fast');
+    const result: string | typeof RACE_TIMED_OUT = await raceTimeout(5000, fastPromise);
     expect(result).toBe('fast');
   });
 
-  it('returns undefined when promise times out', async () => {
-    const result: unknown = await raceTimeout(
-      50,
-      sleep(200).then(() => 'slow'),
-    );
-    expect(result).toBeUndefined();
+  it('returns RACE_TIMED_OUT sentinel when promise times out', async () => {
+    const slowPromise = waitForMs(200).then((): string => 'slow');
+    const result: string | typeof RACE_TIMED_OUT = await raceTimeout(50, slowPromise);
+    expect(result).toBe(RACE_TIMED_OUT);
   });
 
   it('throws non-timeout errors from the promise', async () => {
-    await expect(raceTimeout(5000, Promise.reject(new Error('real error')))).rejects.toThrow(
-      'real error',
-    );
+    const rejectedPromise = Promise.reject(new Error('real error'));
+    const failingPromise = raceTimeout(5000, rejectedPromise);
+    await expect(failingPromise).rejects.toThrow('real error');
   });
 });
 
-describe('runSerial', () => {
+describe('Sequential Action Executor (runSerial)', () => {
   it('executes actions sequentially and returns results', async () => {
     const order: number[] = [];
-    const actions = [1, 2, 3].map(n => () => {
+    const actions = [1, 2, 3].map((n): (() => Promise<number>) => () => {
       order.push(n);
       return Promise.resolve(n * 10);
     });
@@ -102,8 +104,12 @@ describe('runSerial', () => {
   });
 
   it('propagates errors from actions', async () => {
-    const actions = [() => Promise.resolve(1), () => Promise.reject(new Error('fail'))];
-    await expect(runSerial(actions)).rejects.toThrow('fail');
+    const actions = [
+      (): Promise<number> => Promise.resolve(1),
+      (): Promise<number> => Promise.reject(new Error('fail')),
+    ];
+    const serialPromise = runSerial(actions);
+    await expect(serialPromise).rejects.toThrow('fail');
   });
 });
 

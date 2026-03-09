@@ -1,4 +1,4 @@
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   shortCardNumber: string;
   paymentDate?: string | null;
   purchaseDate: string;

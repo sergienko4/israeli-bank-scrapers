@@ -3,7 +3,8 @@ import { type Page } from 'playwright';
 import { pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
@@ -11,7 +12,12 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 
-async function leumiCheckReadiness(page: Page): Promise<void> {
+/**
+ * Navigate to the Leumi login form and wait for all input fields to render.
+ * @param page - The Playwright page to check readiness on.
+ * @returns True after the login form is ready.
+ */
+async function leumiCheckReadiness(page: Page): LifecyclePromise {
   await waitUntilElementFound(page, '.enter_account');
   const loginUrl = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
   await page.goto(loginUrl);
@@ -23,7 +29,12 @@ async function leumiCheckReadiness(page: Page): Promise<void> {
   ]);
 }
 
-async function leumiPostAction(page: Page): Promise<void> {
+/**
+ * Wait for the Leumi post-login page to resolve to a known outcome.
+ * @param page - The Playwright page to observe after login submission.
+ * @returns True after a post-login indicator is detected.
+ */
+async function leumiPostAction(page: Page): LifecyclePromise {
   await Promise.race([
     waitUntilElementFound(page, 'a[title="דלג לחשבון"]', { visible: true, timeout: 60000 }),
     waitUntilElementFound(page, 'div.main-content', { visible: false, timeout: 60000 }),
@@ -35,39 +46,83 @@ async function leumiPostAction(page: Page): Promise<void> {
   ]);
 }
 
-export const LEUMI_CONFIG: LoginConfig = {
+/**
+ * Extract inner text from the first element matching a selector.
+ * @param elements - Array of matched DOM elements.
+ * @returns The inner text of the first element.
+ */
+function extractFirstInnerText(elements: Element[]): string {
+  return (elements[0] as HTMLElement).innerText;
+}
+
+/**
+ * Extract the error or blocked message text from the Leumi page.
+ * @param page - The Playwright page to evaluate.
+ * @param selector - The CSS selector to find the message element.
+ * @param prefix - The expected message prefix to match against.
+ * @returns True if the page contains text starting with the given prefix.
+ */
+async function checkLeumiMessage(page: Page, selector: string, prefix: string): Promise<boolean> {
+  const msg = await pageEvalAll(page, {
+    selector,
+    defaultResult: '',
+    callback: extractFirstInnerText,
+  });
+  return msg.startsWith(prefix);
+}
+
+/**
+ * Extract the sibling text of the Capa SVG icon for password error detection.
+ * @param elements - Array of matched SVG elements.
+ * @returns The inner text of the sibling element next to the icon.
+ */
+function extractCapaSiblingText(elements: Element[]): string {
+  return (elements[0]?.parentElement?.children[1] as HTMLDivElement).innerText;
+}
+
+/**
+ * Check whether the invalid-password SVG icon and message are visible.
+ * @param opts - The possible-result check options with page reference.
+ * @param opts.page - The Playwright page to inspect for the error icon.
+ * @returns True if the invalid password message is present.
+ */
+async function checkInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
+  if (!opts?.page) return false;
+  const parentText = await pageEvalAll(opts.page, {
+    selector: 'svg#Capa_1',
+    defaultResult: '',
+    callback: extractCapaSiblingText,
+  });
+  return parentText.startsWith(LEUMI_INVALID_PASSWORD_MSG);
+}
+
+/**
+ * Check whether the account-blocked error header is present.
+ * @param opts - The possible-result check options with page reference.
+ * @param opts.page - The Playwright page to inspect for the blocked header.
+ * @returns True if the account blocked message is present.
+ */
+async function checkAccountBlocked(opts?: { page?: Page }): Promise<boolean> {
+  if (!opts?.page) return false;
+  return checkLeumiMessage(opts.page, '.errHeader', LEUMI_ACCOUNT_BLOCKED_MSG);
+}
+
+/** Leumi bank login configuration with field selectors and result detection. */
+const LEUMI_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
-    { credentialKey: 'username', selectors: [] }, // wellKnown → placeholder שם משתמש
-    { credentialKey: 'password', selectors: [] }, // wellKnown → placeholder סיסמה
+    { credentialKey: 'username', selectors: [] },
+    { credentialKey: 'password', selectors: [] },
   ],
   submit: [{ kind: 'css', value: "button[type='submit']" }],
   checkReadiness: leumiCheckReadiness,
   postAction: leumiPostAction,
   possibleResults: {
     success: [/ebanking\/SO\/SPA.aspx/i],
-    invalidPassword: [
-      async (opts): Promise<boolean> => {
-        if (!opts?.page) return false;
-        const msg = await pageEvalAll(opts.page, {
-          selector: 'svg#Capa_1',
-          defaultResult: '',
-          callback: el => (el[0]?.parentElement?.children[1] as HTMLDivElement).innerText,
-        });
-        return msg.startsWith(LEUMI_INVALID_PASSWORD_MSG);
-      },
-    ],
-    accountBlocked: [
-      async (opts): Promise<boolean> => {
-        if (!opts?.page) return false;
-        const msg = await pageEvalAll(opts.page, {
-          selector: '.errHeader',
-          defaultResult: '',
-          callback: el => (el[0] as HTMLElement).innerText,
-        });
-        return msg.startsWith(LEUMI_ACCOUNT_BLOCKED_MSG);
-      },
-    ],
+    invalidPassword: [checkInvalidPassword],
+    accountBlocked: [checkAccountBlocked],
     changePassword: ['https://hb2.bankleumi.co.il/authenticate'],
   },
 };
+
+export default LEUMI_CONFIG;

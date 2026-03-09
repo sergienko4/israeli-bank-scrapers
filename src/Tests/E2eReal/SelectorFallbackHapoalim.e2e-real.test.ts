@@ -6,7 +6,7 @@ import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import {
   injectFormByInput,
@@ -17,7 +17,7 @@ import {
 const ERR = selectorErrorFor('userCode', 'password');
 const BASE = 'https://login.bankhapoalim.co.il';
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: `${BASE}/cgi-bin/poalwwwc?reqName=getLogonPage`,
   fields: [
     {
@@ -39,11 +39,23 @@ const baseCfg: LoginConfig = {
     { kind: 'css', value: '#WRONG_loginBtn' },
     { kind: 'css', value: '.login-btn' },
   ],
-  checkReadiness: async page => {
+  /**
+   * Waits for userCode field to appear on the page.
+   * @param page - Playwright page to wait for readiness.
+   * @returns True when userCode field is visible.
+   */
+  checkReadiness: async (page: Page): Promise<void> => {
     await waitUntilElementFound(page, '#userCode');
   },
-  postAction: async page => {
-    await waitForRedirect(page, { timeout: 20000 }).catch(() => {});
+  /**
+   * Waits for redirect after login form submission.
+   * @param page - Playwright page to wait for post-login redirect.
+   * @returns True when post-login navigation completes.
+   */
+  postAction: async (page: Page): Promise<void> => {
+    await waitForRedirect(page, { timeout: 20000 }).catch(() => {
+      // Expected: redirect may not happen within timeout for invalid credentials
+    });
   },
   possibleResults: {
     // Narrow patterns — /ng-portals/ alone is too broad and matches the auth redirect URL
@@ -67,7 +79,7 @@ describe('E2E: Selector fallback — Hapoalim', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ userCode: 'INVALID_USER', password: 'FallbackTestHPO' } as {
       userCode: string;
       password: string;
@@ -80,14 +92,26 @@ describe('E2E: Selector fallback — Hapoalim', () => {
   });
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
-    const iframeCfg: LoginConfig = {
-      ...baseCfg,
-      checkReadiness: async (page: Page) => {
+    const iframeCfg: ILoginConfig = {
+      ...BASE_CFG,
+      /**
+       * Waits for userCode field and injects iframe form for testing.
+       * @param page - Playwright page to wait for readiness and inject iframe form.
+       * @returns True when readiness check and iframe injection complete.
+       */
+      checkReadiness: async (page: Page): Promise<void> => {
         await waitUntilElementFound(page, '#userCode');
         await injectFormByInput(page, '#userCode');
       },
-      postAction: async (page: Page) => {
-        await waitForRedirect(page, { timeout: 10000 }).catch(() => {});
+      /**
+       * Waits for redirect after iframe form submission.
+       * @param page - Playwright page to wait for post-login redirect.
+       * @returns True when post-login navigation completes.
+       */
+      postAction: async (page: Page): Promise<void> => {
+        await waitForRedirect(page, { timeout: 10000 }).catch(() => {
+          // Expected: redirect may not happen within timeout for invalid credentials
+        });
       },
     };
     const result = await new ConcreteGenericScraper(

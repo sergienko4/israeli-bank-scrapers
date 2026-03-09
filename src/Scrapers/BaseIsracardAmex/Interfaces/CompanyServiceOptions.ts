@@ -1,4 +1,4 @@
-export interface CompanyServiceOptions {
+export interface ICompanyServiceOptions {
   servicesUrl: string;
   companyCode: string;
 }

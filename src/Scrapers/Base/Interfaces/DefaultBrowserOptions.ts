@@ -1,6 +1,8 @@
 import type { Browser } from 'playwright';
 
-export interface DefaultBrowserOptions {
+import type { LifecyclePromise } from './CallbackTypes.js';
+
+export interface IDefaultBrowserOptions {
   /**
    * shows the browser while scraping, good for debugging (default false)
    */
@@ -26,9 +28,8 @@ export interface DefaultBrowserOptions {
   timeout?: number;
 
   /**
-   * adjust the browser instance before it is being used
-   *
-   * @param browser
+   * Adjust the browser instance before it is being used.
+   * @param browser - The Playwright Browser instance to configure.
    */
-  prepareBrowser?: (browser: Browser) => Promise<void>;
+  prepareBrowser?: (browser: Browser) => LifecyclePromise;
 }

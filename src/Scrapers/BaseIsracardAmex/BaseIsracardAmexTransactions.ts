@@ -7,17 +7,17 @@ import {
 } from '../../Common/Transactions.js';
 import { ALT_SHEKEL_CURRENCY, SHEKEL_CURRENCY, SHEKEL_CURRENCY_KEYWORD } from '../../Constants.js';
 import {
-  type Transaction,
-  type TransactionInstallments,
+  type ITransaction,
+  type ITransactionInstallments,
   TransactionStatuses,
   TransactionTypes,
 } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import {
-  type BuildTxnsOpts,
-  type CollectTxnsOpts,
+  type IBuildTxnsOpts,
+  type ICollectTxnsOpts,
+  type IScrapedTransaction,
   type ScrapedAccountsWithIndex,
-  type ScrapedTransaction,
 } from './BaseIsracardAmexTypes.js';
 
 export { fetchAccounts } from './BaseIsracardAmexFetch.js';
@@ -25,26 +25,49 @@ export { fetchAccounts } from './BaseIsracardAmexFetch.js';
 const INSTALLMENTS_KEYWORD = 'תשלום';
 const DATE_FORMAT = 'DD/MM/YYYY';
 
+type TxnAmounts = Pick<
+  ITransaction,
+  'originalAmount' | 'originalCurrency' | 'chargedAmount' | 'chargedCurrency'
+>;
+
+/**
+ * Convert portal currency strings to the standard shekel symbol or pass through.
+ * @param currencyStr - raw currency string from the portal
+ * @returns normalized currency code
+ */
 export function convertCurrency(currencyStr: string): string {
   return currencyStr === SHEKEL_CURRENCY_KEYWORD || currencyStr === ALT_SHEKEL_CURRENCY
     ? SHEKEL_CURRENCY
     : currencyStr;
 }
 
-export function getInstallmentsInfo(txn: ScrapedTransaction): TransactionInstallments | undefined {
-  if (!txn.moreInfo?.includes(INSTALLMENTS_KEYWORD)) return undefined;
+/**
+ * Extract installment info (number/total) from the transaction moreInfo field.
+ * @param txn - scraped transaction with possible installment data
+ * @returns parsed installment info or false when not an installment
+ */
+export function getInstallmentsInfo(txn: IScrapedTransaction): ITransactionInstallments | false {
+  if (!txn.moreInfo?.includes(INSTALLMENTS_KEYWORD)) return false;
   const matches = txn.moreInfo.match(/\d+/g);
-  if (!matches || matches.length < 2) return undefined;
+  if (!matches || matches.length < 2) return false;
   return { number: parseInt(matches[0], 10), total: parseInt(matches[1], 10) };
 }
 
-function getTransactionType(txn: ScrapedTransaction): TransactionTypes {
+/**
+ * Determine whether a transaction is Normal or Installments.
+ * @param txn - scraped transaction to classify
+ * @returns transaction type enum value
+ */
+function getTransactionType(txn: IScrapedTransaction): TransactionTypes {
   return getInstallmentsInfo(txn) ? TransactionTypes.Installments : TransactionTypes.Normal;
 }
 
-function buildTxnAmounts(
-  txn: ScrapedTransaction,
-): Pick<Transaction, 'originalAmount' | 'originalCurrency' | 'chargedAmount' | 'chargedCurrency'> {
+/**
+ * Compute original and charged amounts with currency conversion.
+ * @param txn - scraped transaction with amount fields
+ * @returns amount and currency fields for the standard transaction
+ */
+function buildTxnAmounts(txn: IScrapedTransaction): TxnAmounts {
   const isOutbound = txn.dealSumOutbound;
   return {
     originalAmount: isOutbound ? -txn.dealSumOutbound : -txn.dealSum,
@@ -54,38 +77,74 @@ function buildTxnAmounts(
   };
 }
 
-export function buildTransactionBase(
-  txn: ScrapedTransaction,
+/**
+ * Resolve the transaction date and processed date strings.
+ * @param txn - scraped transaction
+ * @param processedDate - fallback processed date ISO string
+ * @returns date and processedDate ISO strings
+ */
+function resolveTxnDates(
+  txn: IScrapedTransaction,
   processedDate: string,
-): Omit<Transaction, 'rawTransaction'> {
+): { date: string; processedDate: string } {
   const isOutbound = txn.dealSumOutbound;
   const txnDateStr = isOutbound ? txn.fullPurchaseDateOutbound : txn.fullPurchaseDate;
+  const resolvedProcessedDate = txn.fullPaymentDate
+    ? moment(txn.fullPaymentDate, DATE_FORMAT).toISOString()
+    : processedDate;
+  const date = moment(txnDateStr, DATE_FORMAT).toISOString();
+  return { date, processedDate: resolvedProcessedDate };
+}
+
+/**
+ * Build the base transaction object (without rawTransaction) from scraped data.
+ * @param txn - scraped transaction to convert
+ * @param processedDate - fallback processed date ISO string
+ * @returns standard transaction object without rawTransaction
+ */
+export function buildTransactionBase(
+  txn: IScrapedTransaction,
+  processedDate: string,
+): Omit<ITransaction, 'rawTransaction'> {
+  const isOutbound = txn.dealSumOutbound;
+  const installments = getInstallmentsInfo(txn);
+  const voucherNum = isOutbound ? txn.voucherNumberRatzOutbound : txn.voucherNumberRatz;
+  const dates = resolveTxnDates(txn, processedDate);
   return {
     type: getTransactionType(txn),
-    identifier: parseInt(isOutbound ? txn.voucherNumberRatzOutbound : txn.voucherNumberRatz, 10),
-    date: moment(txnDateStr, DATE_FORMAT).toISOString(),
-    processedDate: txn.fullPaymentDate
-      ? moment(txn.fullPaymentDate, DATE_FORMAT).toISOString()
-      : processedDate,
+    identifier: parseInt(voucherNum, 10),
+    ...dates,
     ...buildTxnAmounts(txn),
     description: isOutbound ? txn.fullSupplierNameOutbound : txn.fullSupplierNameHeb,
     memo: txn.moreInfo ?? '',
-    installments: getInstallmentsInfo(txn) ?? undefined,
+    ...(installments ? { installments } : {}),
     status: TransactionStatuses.Completed,
   };
 }
 
+/**
+ * Build a complete transaction, optionally including raw data.
+ * @param txn - scraped transaction to convert
+ * @param processedDate - fallback processed date ISO string
+ * @param options - scraper options controlling raw data inclusion
+ * @returns fully built standard transaction
+ */
 export function buildTransaction(
-  txn: ScrapedTransaction,
+  txn: IScrapedTransaction,
   processedDate: string,
   options?: ScraperOptions,
-): Transaction {
-  const result: Transaction = buildTransactionBase(txn, processedDate);
+): ITransaction {
+  const result: ITransaction = buildTransactionBase(txn, processedDate);
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
   return result;
 }
 
-export function filterValidTransactions(txns: ScrapedTransaction[]): ScrapedTransaction[] {
+/**
+ * Filter out voided and zero-voucher transactions.
+ * @param txns - scraped transactions to filter
+ * @returns valid transactions only
+ */
+export function filterValidTransactions(txns: IScrapedTransaction[]): IScrapedTransaction[] {
   return txns.filter(
     txn =>
       txn.dealSumType !== '1' &&
@@ -94,23 +153,51 @@ export function filterValidTransactions(txns: ScrapedTransaction[]): ScrapedTran
   );
 }
 
+/**
+ * Convert scraped transactions to the standard ITransaction format.
+ * @param txns - scraped transactions to convert
+ * @param processedDate - fallback processed date ISO string
+ * @param options - scraper options
+ * @returns array of standard transactions
+ */
 export function convertTransactions(
-  txns: ScrapedTransaction[],
+  txns: IScrapedTransaction[],
   processedDate: string,
   options?: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   return filterValidTransactions(txns).map(txn => buildTransaction(txn, processedDate, options));
 }
 
-export function collectAccountTxns(opts: CollectTxnsOpts): Transaction[] {
-  const { txnGroups, account, options, startMoment } = opts;
-  let allTxns: Transaction[] = [];
+/**
+ * Flatten Israel and abroad transaction groups into a single array.
+ * @param txnGroups - grouped scraped transactions
+ * @param processedDate - fallback processed date
+ * @param options - scraper options
+ * @returns flat array of converted transactions
+ */
+function flattenTxnGroups(
+  txnGroups: ICollectTxnsOpts['txnGroups'],
+  processedDate: string,
+  options: ScraperOptions,
+): ITransaction[] {
+  const allTxns: ITransaction[] = [];
   txnGroups.forEach(txnGroup => {
     if (txnGroup.txnIsrael)
-      allTxns.push(...convertTransactions(txnGroup.txnIsrael, account.processedDate, options));
+      allTxns.push(...convertTransactions(txnGroup.txnIsrael, processedDate, options));
     if (txnGroup.txnAbroad)
-      allTxns.push(...convertTransactions(txnGroup.txnAbroad, account.processedDate, options));
+      allTxns.push(...convertTransactions(txnGroup.txnAbroad, processedDate, options));
   });
+  return allTxns;
+}
+
+/**
+ * Collect and post-process all transactions for a single account.
+ * @param opts - collection options with transaction groups and filters
+ * @returns processed and filtered transactions
+ */
+export function collectAccountTxns(opts: ICollectTxnsOpts): ITransaction[] {
+  const { txnGroups, account, options, startMoment } = opts;
+  let allTxns = flattenTxnGroups(txnGroups, account.processedDate, options);
   if (!options.shouldCombineInstallments) allTxns = fixInstallments(allTxns);
   if (options.outputData?.isFilterByDateEnabled ?? true)
     allTxns = filterOldTransactions(
@@ -121,12 +208,17 @@ export function collectAccountTxns(opts: CollectTxnsOpts): Transaction[] {
   return allTxns;
 }
 
-export function buildAccountTxns(bOpts: BuildTxnsOpts): ScrapedAccountsWithIndex {
+/**
+ * Build per-account transaction maps from the portal response.
+ * @param bOpts - build options with accounts, data, and filters
+ * @returns per-account transaction map keyed by account number
+ */
+export function buildAccountTxns(bOpts: IBuildTxnsOpts): ScrapedAccountsWithIndex {
   const { accounts, dataResult, options, startMoment } = bOpts;
   const accountTxns: ScrapedAccountsWithIndex = {};
   accounts.forEach(account => {
-    const txnGroups =
-      dataResult.CardsTransactionsListBean?.[`Index${account.index}`]?.CurrentCardTransactions;
+    const indexKey = `Index${String(account.index)}`;
+    const txnGroups = dataResult.CardsTransactionsListBean?.[indexKey]?.CurrentCardTransactions;
     if (!txnGroups) return;
     accountTxns[account.accountNumber] = {
       accountNumber: account.accountNumber,
@@ -137,14 +229,18 @@ export function buildAccountTxns(bOpts: BuildTxnsOpts): ScrapedAccountsWithIndex
   return accountTxns;
 }
 
+/**
+ * Merge per-month per-account results into a single account-to-transactions map.
+ * @param finalResult - array of monthly per-account transaction maps
+ * @returns combined account-to-transactions map
+ */
 export function combineTxnsFromResults(
   finalResult: ScrapedAccountsWithIndex[],
-): Record<string, Transaction[]> {
-  const combinedTxns: Record<string, Transaction[]> = {};
+): Record<string, ITransaction[]> {
+  const combinedTxns: Record<string, ITransaction[]> = {};
   finalResult.forEach(result => {
     Object.keys(result).forEach(accountNumber => {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive guard for API responses
-      if (!combinedTxns[accountNumber]) combinedTxns[accountNumber] = [];
+      combinedTxns[accountNumber] ??= [];
       combinedTxns[accountNumber].push(...result[accountNumber].txns);
     });
   });

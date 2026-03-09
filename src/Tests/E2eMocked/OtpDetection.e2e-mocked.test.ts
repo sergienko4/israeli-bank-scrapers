@@ -7,12 +7,12 @@ import { jest } from '@jest/globals';
  *
  * All pages are served via Playwright route interception; no real network calls.
  */
-import { type Browser } from 'playwright';
+import { type Browser, type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
@@ -94,9 +94,14 @@ const DASHBOARD_HTML = '<!DOCTYPE html><html><body><h1>Dashboard</h1></body></ht
 const ERROR_PAGE_HTML =
   '<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>';
 
-// ── Shared LoginConfig helpers ────────────────────────────────────────────────
+// ── Shared ILoginConfig helpers ────────────────────────────────────────────────
 
-function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
+/**
+ * Creates a login config with sensible defaults and optional overrides.
+ * @param overrides - partial config to merge with defaults.
+ * @returns complete login config for tests.
+ */
+function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://test-bank.local/login',
     fields: [
@@ -126,6 +131,26 @@ afterAll(async () => {
 
 describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
+    /**
+     * Intercept requests with test HTML fixtures.
+     * @param page - Playwright page to configure with route interception.
+     * @returns True when interception is configured.
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      await setupRequestInterception(page, [
+        {
+          match: 'test-bank.local/login',
+          contentType: 'text/html; charset=utf-8',
+          body: OTP_CODE_ENTRY_HTML,
+        },
+        {
+          match: 'test-bank.local/dashboard',
+          contentType: 'text/html; charset=utf-8',
+          body: DASHBOARD_HTML,
+        },
+      ]);
+    };
+
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Beinleumi,
@@ -133,20 +158,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage: async page => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_CODE_ENTRY_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage,
         // No otpCodeRetriever provided
       },
       makeLoginConfig(),
@@ -165,6 +177,26 @@ describe('OTP detection', () => {
   it('Test 2: OTP code-entry screen, retriever provided → code filled → login succeeds', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('123456');
 
+    /**
+     * Intercept requests with test HTML fixtures.
+     * @param page - Playwright page to configure with route interception.
+     * @returns True when interception is configured.
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      await setupRequestInterception(page, [
+        {
+          match: 'test-bank.local/login',
+          contentType: 'text/html; charset=utf-8',
+          body: OTP_CODE_ENTRY_HTML,
+        },
+        {
+          match: 'test-bank.local/dashboard',
+          contentType: 'text/html; charset=utf-8',
+          body: DASHBOARD_HTML,
+        },
+      ]);
+    };
+
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Beinleumi,
@@ -172,20 +204,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage: async page => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_CODE_ENTRY_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage,
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
@@ -199,11 +218,32 @@ describe('OTP detection', () => {
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
     // phoneHint is empty string — page has no masked phone pattern
-    expect(retrieverSpy).toHaveBeenCalledWith(expect.any(String));
+    const anyStringMatcher: string = expect.any(String) as string;
+    expect(retrieverSpy).toHaveBeenCalledWith(anyStringMatcher);
   }, 30000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
+
+    /**
+     * Intercept requests with test HTML fixtures.
+     * @param page - Playwright page to configure with route interception.
+     * @returns True when interception is configured.
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      await setupRequestInterception(page, [
+        {
+          match: 'test-bank.local/login',
+          contentType: 'text/html; charset=utf-8',
+          body: OTP_SELECTION_HTML,
+        },
+        {
+          match: 'test-bank.local/dashboard',
+          contentType: 'text/html; charset=utf-8',
+          body: DASHBOARD_HTML,
+        },
+      ]);
+    };
 
     const scraper = new ConcreteGenericScraper(
       {
@@ -212,20 +252,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage: async page => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: OTP_SELECTION_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage,
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
@@ -238,10 +265,32 @@ describe('OTP detection', () => {
 
     expect(result.success).toBe(true);
     // Retriever called with phone hint extracted from the page
-    expect(retrieverSpy).toHaveBeenCalledWith('*****5100');
+    const firstCall = retrieverSpy.mock.calls[0] as string[];
+    const retrievedHint = firstCall[0];
+    expect(retrievedHint).toBe('*****5100');
   }, 30000);
 
   it('Test 4: Normal login (no OTP) — zero regression, login succeeds', async () => {
+    /**
+     * Intercept requests with test HTML fixtures.
+     * @param page - Playwright page to configure with route interception.
+     * @returns True when interception is configured.
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      await setupRequestInterception(page, [
+        {
+          match: 'test-bank.local/login',
+          contentType: 'text/html; charset=utf-8',
+          body: NORMAL_LOGIN_HTML,
+        },
+        {
+          match: 'test-bank.local/dashboard',
+          contentType: 'text/html; charset=utf-8',
+          body: DASHBOARD_HTML,
+        },
+      ]);
+    };
+
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
@@ -249,20 +298,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage: async page => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: NORMAL_LOGIN_HTML,
-            },
-            {
-              match: 'test-bank.local/dashboard',
-              contentType: 'text/html; charset=utf-8',
-              body: DASHBOARD_HTML,
-            },
-          ]);
-        },
+        preparePage,
       },
       makeLoginConfig(),
     );
@@ -279,6 +315,26 @@ describe('OTP detection', () => {
   it('Test 5: Login error page — false-positive guard, no OTP triggered', async () => {
     const retrieverSpy = jest.fn();
 
+    /**
+     * Intercept requests with test HTML fixtures.
+     * @param page - Playwright page to configure with route interception.
+     * @returns True when interception is configured.
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      await setupRequestInterception(page, [
+        {
+          match: 'test-bank.local/login',
+          contentType: 'text/html; charset=utf-8',
+          body: LOGIN_ERROR_HTML,
+        },
+        {
+          match: 'test-bank.local/error',
+          contentType: 'text/html; charset=utf-8',
+          body: ERROR_PAGE_HTML,
+        },
+      ]);
+    };
+
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
@@ -286,20 +342,7 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage: async page => {
-          await setupRequestInterception(page, [
-            {
-              match: 'test-bank.local/login',
-              contentType: 'text/html; charset=utf-8',
-              body: LOGIN_ERROR_HTML,
-            },
-            {
-              match: 'test-bank.local/error',
-              contentType: 'text/html; charset=utf-8',
-              body: ERROR_PAGE_HTML,
-            },
-          ]);
-        },
+        preparePage,
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),

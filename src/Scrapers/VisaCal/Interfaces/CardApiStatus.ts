@@ -1,4 +1,4 @@
-export interface CardApiStatus {
+export interface ICardApiStatus {
   title: string;
   statusCode: number;
 }

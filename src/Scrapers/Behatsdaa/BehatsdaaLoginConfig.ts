@@ -2,26 +2,31 @@ import { type Page } from 'playwright';
 
 import { elementPresentOnPage } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 
 // Behatsdaa and BeyahadBishvilha share the same login form selectors
 // (selectors: [] — wellKnown finds #loginId and #loginPassword)
-export const HISTBASED_FIELDS: LoginConfig['fields'] = [
+export const HISTBASED_FIELDS: ILoginConfig['fields'] = [
   { credentialKey: 'id', selectors: [] }, // wellKnown → #loginId
   { credentialKey: 'password', selectors: [] }, // wellKnown → #loginPassword
 ];
 
-export const BEHATSDAA_CONFIG: LoginConfig = {
+export const BEHATSDAA_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: HISTBASED_FIELDS,
   submit: [
     { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
     // ariaLabel 'התחברות' fallback is now in wellKnownSelectors.__submit__
   ],
-  checkReadiness: async (page: Page) => {
+  /**
+   * Navigate to the Behatsdaa login page.
+   * @param page - The Playwright page instance.
+   * @returns True when the login page is ready.
+   */
+  checkReadiness: async (page: Page): Promise<void> => {
     await page.goto(`${CFG.urls.base}/login`);
   },
   possibleResults: {

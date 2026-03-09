@@ -1,285 +1,254 @@
 import moment from 'moment';
 
 import { getDebug } from '../../Common/Debug.js';
-import { fetchPost } from '../../Common/Fetch.js';
 import { getCurrentUrl } from '../../Common/Navigation.js';
 import { getFromSessionStorage } from '../../Common/Storage.js';
 import { filterOldTransactions } from '../../Common/Transactions.js';
 import { waitUntil } from '../../Common/Waiting.js';
-import { CompanyTypes } from '../../Definitions.js';
-import type { TransactionsAccount } from '../../Transactions.js';
-import type { LoginOptions } from '../Base/BaseScraperWithBrowser.js';
-import { GenericBankScraper } from '../Base/GenericBankScraper.js';
-import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import type { ITransactionsAccount } from '../../Transactions.js';
+import type { ILoginOptions } from '../Base/BaseScraperWithBrowser.js';
+import GenericBankScraper from '../Base/GenericBankScraper.js';
+import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
+import {
+  buildApiHeaders,
+  buildMonthRange,
+  fetchCardDataMonths,
+  fetchCards,
+  fetchFrames,
+  fetchPendingData,
+  LOGIN_RESPONSE_URL,
+  X_SITE_ID,
+} from './VisaCalFetch.js';
 import { convertParsedDataToTransactions, findCardFrame } from './VisaCalHelpers.js';
 import { VISACAL_LOGIN_CONFIG } from './VisaCalLoginConfig.js';
 import {
-  type ApiContext,
-  type AuthModule,
   authModuleOrUndefined,
-  type CardApiStatus,
-  type CardInfo,
-  type CardPendingTransactionDetails,
-  type CardTransactionDetails,
-  type FramesResponse,
-  type InitResponse,
+  type IApiContext,
+  type IAuthModule,
+  type ICardInfo,
+  type ILoginResponse,
   isCardPendingTransactionDetails,
-  isCardTransactionDetails,
-  type LoginResponse,
 } from './VisaCalTypes.js';
-
-const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
-const API_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-  Origin: VISCAL_CFG.api.calOrigin!,
-  Referer: VISCAL_CFG.api.calOrigin!,
-  'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Sec-Fetch-Site': 'same-site',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Dest': 'empty',
-};
-const TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calTransactions!;
-const FRAMES_REQUEST_ENDPOINT = VISCAL_CFG.api.calFrames!;
-const PENDING_TRANSACTIONS_REQUEST_ENDPOINT = VISCAL_CFG.api.calPending!;
-const LOGIN_RESPONSE_URL = VISCAL_CFG.api.calLoginResponse!;
-const INIT_ENDPOINT = VISCAL_CFG.api.calInit!;
 
 const LOG = getDebug('visa-cal');
 
-interface ScraperSpecificCredentials {
+/** Credentials specific to VisaCal login. */
+interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
 
-class VisaCalScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  private authorization: string | undefined = undefined;
+/** Scraper for VisaCal (CAL Online) credit card portal. */
+class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+  private _authorization = '';
 
-  private authTokenPromise: Promise<string | undefined> | undefined;
+  private _authTokenPromise: Promise<string> | undefined;
 
+  /**
+   * Create a VisaCal scraper instance.
+   * @param options - Scraper configuration options.
+   */
   constructor(options: ScraperOptions) {
     super(options, VISACAL_LOGIN_CONFIG);
   }
 
-  public override getLoginOptions(credentials: ScraperSpecificCredentials): LoginOptions {
-    this.authTokenPromise = this.interceptLoginToken();
+  /**
+   * Override login options to intercept auth token.
+   * @param credentials - VisaCal username and password.
+   * @returns Login options with auth token interception.
+   */
+  public override getLoginOptions(credentials: IScraperSpecificCredentials): ILoginOptions {
+    this._authTokenPromise = this.interceptLoginToken();
     const opts = super.getLoginOptions(credentials);
-    const originalPostAction = opts.postAction;
+    const originalPost = opts.postAction;
     return {
       ...opts,
-      postAction: async (): Promise<void> => {
-        if (originalPostAction) await originalPostAction();
+      /**
+       * Post-login: capture auth token.
+       * @returns True after capturing.
+       */
+      postAction: async (): Promise<boolean> => {
+        if (originalPost) await originalPost();
         await this.captureAuthToken();
+        return true;
       },
     };
   }
 
-  public async fetchData(): Promise<ScraperScrapingResult> {
-    const defaultStartMoment = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
-    const startDate = this.options.startDate;
-    const startMoment = moment.max(defaultStartMoment, moment(startDate));
+  /**
+   * Fetch all transaction data from VisaCal API.
+   * @returns Scraping result with transaction accounts.
+   */
+  public async fetchData(): Promise<IScraperScrapingResult> {
+    const startMoment = this.computeStartMoment();
     LOG.debug(`fetch transactions starting ${startMoment.format()}`);
-    const cards = await this.getCards();
-    const ctx = await this.buildApiContext(startDate, startMoment);
+    const hdrs = await this.buildHeaders();
+    const cards = await fetchCards(hdrs);
+    const frames = await fetchFrames(hdrs, cards);
+    const ctx: IApiContext = { startDate: this.options.startDate, startMoment, hdrs, frames };
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
-    LOG.debug(`return ${accounts.length} scraped accounts`);
+    LOG.debug(`return ${String(accounts.length)} scraped accounts`);
     return { success: true, accounts };
   }
 
-  public async getCards(): Promise<CardInfo[]> {
-    LOG.debug('fetch cards via init API (bypasses sessionStorage race)');
-    const authorization = await this.getAuthorizationHeader();
-    const hdrs = this.buildApiHeaders(authorization, await this.getXSiteId());
-    const initData = await fetchPost<InitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
-    return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
-      cardUniqueId,
-      last4Digits,
-    }));
-  }
-
+  /**
+   * Get the authorization header, falling back to sessionStorage.
+   * @returns The CALAuthScheme authorization string.
+   */
   public async getAuthorizationHeader(): Promise<string> {
-    if (!this.authorization) {
-      LOG.debug('token not captured from POST response — falling back to sessionStorage (60s)');
-      const startMs = Date.now();
-      const authModule = await waitUntil(
-        async () =>
-          authModuleOrUndefined(await getFromSessionStorage<AuthModule>(this.page, 'auth-module')),
-        'get authorization header with valid token in session storage',
-        { timeout: 60_000, interval: 500 },
-      );
-      LOG.debug('sessionStorage auth-module populated after %dms', Date.now() - startMs);
-      this.authorization = `CALAuthScheme ${authModule.auth.calConnectToken}`;
-    }
-    return this.authorization;
+    if (this._authorization) return this._authorization;
+    LOG.debug('token not captured — falling back to sessionStorage');
+    const authModule = await this.waitForAuthModule();
+    const token = authModule.auth.calConnectToken ?? '';
+    this._authorization = `CALAuthScheme ${token}`;
+    return this._authorization;
   }
 
-  public async getXSiteId(): Promise<string> {
-    return Promise.resolve(VISCAL_CFG.api.calXSiteId!);
+  /**
+   * Get the X-Site-Id header value from config.
+   * @returns The X-Site-Id string.
+   */
+  public static getXSiteId(): string {
+    return X_SITE_ID;
   }
 
-  private async captureAuthToken(): Promise<void> {
-    const token = await this.authTokenPromise;
+  /**
+   * Compute the effective start moment for scraping.
+   * @returns The start moment capped at 18 months ago.
+   */
+  private computeStartMoment(): moment.Moment {
+    const defaultStart = moment().subtract(1, 'years').subtract(6, 'months').add(1, 'day');
+    const optStart = moment(this.options.startDate);
+    return moment.max(defaultStart, optStart);
+  }
+
+  /**
+   * Wait for the auth module to appear in sessionStorage.
+   * @returns The resolved auth module.
+   */
+  private async waitForAuthModule(): Promise<IAuthModule> {
+    const startMs = Date.now();
+    const authModule = await waitUntil(
+      async () => {
+        const raw = await getFromSessionStorage<IAuthModule>(this.page, 'auth-module');
+        return authModuleOrUndefined(raw);
+      },
+      'get authorization header with valid token',
+      { timeout: 60_000, interval: 500 },
+    );
+    const elapsed = String(Date.now() - startMs);
+    LOG.debug('sessionStorage populated after %sms', elapsed);
+    return authModule;
+  }
+
+  /**
+   * Build API headers with current authorization.
+   * @returns The API headers.
+   */
+  private async buildHeaders(): Promise<Record<string, string>> {
+    const authorization = await this.getAuthorizationHeader();
+    return buildApiHeaders(authorization, X_SITE_ID);
+  }
+
+  /**
+   * Capture auth token from intercepted login response.
+   * @returns True after capturing.
+   */
+  private async captureAuthToken(): Promise<boolean> {
+    const token = await this._authTokenPromise;
     if (token) {
       LOG.debug('login token intercepted from POST response');
-      this.authorization = `CALAuthScheme ${token}`;
+      this._authorization = `CALAuthScheme ${token}`;
     } else {
-      LOG.debug('login token NOT intercepted — will fall back to sessionStorage on first API call');
-      this.authorization = '';
+      LOG.debug('login token NOT intercepted — fallback later');
     }
-    LOG.debug('post-login URL: %s', await getCurrentUrl(this.page));
+    const currentUrl = await getCurrentUrl(this.page);
+    LOG.debug('post-login URL: %s', currentUrl);
+    return true;
   }
 
-  private interceptLoginToken(): Promise<string | undefined> {
-    const isLogin = (r: { url(): string; request(): { method(): string } }): boolean =>
-      r.url().includes(LOGIN_RESPONSE_URL) && r.request().method() === 'POST';
+  /**
+   * Intercept the login POST response to extract the auth token.
+   * @returns The token string, or empty on timeout.
+   */
+  private interceptLoginToken(): Promise<string> {
     return this.page
-      .waitForResponse(isLogin, { timeout: 15_000 })
-      .then(async response => ((await response.json()) as LoginResponse).token)
-      .catch((e: unknown) => {
-        LOG.debug({ err: e }, 'interceptLoginToken: no POST response within 15s');
-        return undefined;
+      .waitForResponse(
+        resp => resp.url().includes(LOGIN_RESPONSE_URL) && resp.request().method() === 'POST',
+        { timeout: 15_000 },
+      )
+      .then(async resp => ((await resp.json()) as ILoginResponse).token)
+      .catch((caught: unknown) => {
+        LOG.debug({ err: caught }, 'interceptLoginToken: no POST response within 15s');
+        return '';
       });
   }
 
-  private buildApiHeaders(authorization: string, xSiteId: string): Record<string, string> {
-    return {
-      authorization,
-      'X-Site-Id': xSiteId,
-      'Content-Type': 'application/json',
-      ...API_HEADERS,
-    };
-  }
-
-  private async fetchMonthData(
-    card: CardInfo,
-    month: moment.Moment,
-    hdrs: Record<string, string>,
-  ): Promise<CardTransactionDetails> {
-    const monthData = await fetchPost<CardTransactionDetails | CardApiStatus>(
-      TRANSACTIONS_REQUEST_ENDPOINT,
-      { cardUniqueId: card.cardUniqueId, month: month.format('M'), year: month.format('YYYY') },
-      hdrs,
-    );
-    if (monthData.statusCode !== 1)
-      throw new Error(
-        `failed to fetch transactions for card ${card.last4Digits}. Message: ${monthData.title || ''}`,
-      );
-    if (!isCardTransactionDetails(monthData))
-      throw new Error('monthData is not of type CardTransactionDetails');
-    return monthData;
-  }
-
-  private async fetchPendingData(
-    card: CardInfo,
-    hdrs: Record<string, string>,
-  ): Promise<CardPendingTransactionDetails | null> {
-    LOG.debug(`fetch pending transactions for card ${card.cardUniqueId}`);
-    let pendingData: CardPendingTransactionDetails | CardApiStatus | null = await fetchPost<
-      CardPendingTransactionDetails | CardApiStatus
-    >(PENDING_TRANSACTIONS_REQUEST_ENDPOINT, { cardUniqueIDArray: [card.cardUniqueId] }, hdrs);
-    if (pendingData.statusCode !== 1 && pendingData.statusCode !== 96) {
-      LOG.debug(
-        `failed to fetch pending transactions for card ${card.last4Digits}. Message: ${pendingData.title || ''}`,
-      );
-      pendingData = null;
-    } else if (!isCardPendingTransactionDetails(pendingData)) {
-      LOG.debug('pendingData is not of type CardTransactionDetails');
-      pendingData = null;
-    }
-    return pendingData;
-  }
-
-  private async fetchCardDataMonths(
-    card: CardInfo,
-    allMonths: moment.Moment[],
-    hdrs: Record<string, string>,
-  ): Promise<CardTransactionDetails[]> {
-    const allMonthsData: CardTransactionDetails[] = [];
-    for (const month of allMonths) allMonthsData.push(await this.fetchMonthData(card, month, hdrs));
-    return allMonthsData;
-  }
-
-  private async fetchCardData(
-    card: CardInfo,
-    opts: {
-      startMoment: moment.Moment;
-      futureMonthsToScrape: number;
-      hdrs: Record<string, string>;
-    },
-  ): Promise<CardTransactionDetails[]> {
-    const { startMoment, futureMonthsToScrape, hdrs } = opts;
-    const finalMonthToFetchMoment = moment().add(futureMonthsToScrape, 'month');
-    const months = finalMonthToFetchMoment.diff(startMoment, 'months');
-    const allMonths = Array.from({ length: months + 1 }, (_, i) =>
-      finalMonthToFetchMoment.clone().subtract(i, 'months'),
-    );
+  /**
+   * Build transactions for a single card.
+   * @param card - The card to build transactions for.
+   * @param ctx - The API context with headers and dates.
+   * @returns Parsed and converted transactions.
+   */
+  private async buildCardTransactions(
+    card: ICardInfo,
+    ctx: IApiContext,
+  ): Promise<ReturnType<typeof convertParsedDataToTransactions>> {
+    const futureMonths = this.options.futureMonthsToScrape ?? 1;
+    const allMonths = buildMonthRange(ctx.startMoment, futureMonths);
     LOG.debug(`fetch completed transactions for card ${card.cardUniqueId}`);
-    return this.fetchCardDataMonths(card, allMonths, hdrs);
+    const monthsData = await fetchCardDataMonths(card, allMonths, ctx.hdrs);
+    const pendingResult = await fetchPendingData(card, ctx.hdrs);
+    const pending = isCardPendingTransactionDetails(pendingResult) ? pendingResult : undefined;
+    return convertParsedDataToTransactions(monthsData, pending, this.options);
   }
 
+  /**
+   * Filter transactions by date if enabled.
+   * @param transactions - Parsed transactions to filter.
+   * @param startDate - The start date cutoff.
+   * @returns Filtered transactions.
+   */
   private filterCardTxns(
     transactions: ReturnType<typeof convertParsedDataToTransactions>,
     startDate: Date,
   ): ReturnType<typeof convertParsedDataToTransactions> {
-    if (!(this.options.outputData?.isFilterByDateEnabled ?? true)) return transactions;
-    return filterOldTransactions(
-      transactions,
-      moment(startDate),
-      this.options.shouldCombineInstallments ?? false,
-    );
+    const isFilter = this.options.outputData?.isFilterByDateEnabled ?? true;
+    if (!isFilter) return transactions;
+    const shouldCombine = this.options.shouldCombineInstallments ?? false;
+    const startMoment = moment(startDate);
+    return filterOldTransactions(transactions, startMoment, shouldCombine);
   }
 
-  private async buildCardTransactions(
-    card: CardInfo,
-    ctx: ApiContext,
-  ): Promise<ReturnType<typeof convertParsedDataToTransactions>> {
-    const futureMonthsToScrape = this.options.futureMonthsToScrape ?? 1;
-    const pendingData = await this.fetchPendingData(card, ctx.hdrs);
-    const allMonthsData = await this.fetchCardData(card, {
-      startMoment: ctx.startMoment,
-      futureMonthsToScrape,
-      hdrs: ctx.hdrs,
-    });
-    return convertParsedDataToTransactions(allMonthsData, pendingData, this.options);
-  }
-
-  private async fetchOneCardAccount(card: CardInfo, ctx: ApiContext): Promise<TransactionsAccount> {
+  /**
+   * Fetch account data for a single card.
+   * @param card - The card to fetch account for.
+   * @param ctx - The API context.
+   * @returns A transactions account for the card.
+   */
+  private async fetchOneCardAccount(
+    card: ICardInfo,
+    ctx: IApiContext,
+  ): Promise<ITransactionsAccount> {
     const frame = findCardFrame(ctx.frames, card.cardUniqueId);
-    const transactions = await this.buildCardTransactions(card, ctx);
-    const txns = this.filterCardTxns(transactions, ctx.startDate);
-    return {
-      txns,
-      balance: frame?.nextTotalDebit != null ? -frame.nextTotalDebit : undefined,
-      accountNumber: card.last4Digits,
-    } as TransactionsAccount;
+    const txnsRaw = await this.buildCardTransactions(card, ctx);
+    const txns = this.filterCardTxns(txnsRaw, ctx.startDate);
+    const balance = frame?.nextTotalDebit != null ? -frame.nextTotalDebit : undefined;
+    return { txns, balance, accountNumber: card.last4Digits } as ITransactionsAccount;
   }
 
+  /**
+   * Fetch account data for all cards in parallel.
+   * @param cards - The cards to fetch accounts for.
+   * @param ctx - The API context.
+   * @returns Array of transaction accounts.
+   */
   private async fetchAllCardAccounts(
-    cards: CardInfo[],
-    ctx: ApiContext,
-  ): Promise<TransactionsAccount[]> {
-    return Promise.all(cards.map(card => this.fetchOneCardAccount(card, ctx)));
-  }
-
-  private async fetchFrames(hdrs: Record<string, string>): Promise<FramesResponse> {
-    LOG.debug('fetch frames (misgarot) of cards');
-    const cards = await this.getCards();
-    return fetchPost<FramesResponse>(
-      FRAMES_REQUEST_ENDPOINT,
-      { cardsForFrameData: cards.map(({ cardUniqueId }) => ({ cardUniqueId })) },
-      hdrs,
-    );
-  }
-
-  private async buildApiContext(startDate: Date, startMoment: moment.Moment): Promise<ApiContext> {
-    const [xSiteId, authorization] = await Promise.all([
-      this.getXSiteId(),
-      this.getAuthorizationHeader(),
-    ]);
-    const hdrs = this.buildApiHeaders(authorization, xSiteId);
-    const frames = await this.fetchFrames(hdrs);
-    return { startDate, startMoment, hdrs, frames };
+    cards: ICardInfo[],
+    ctx: IApiContext,
+  ): Promise<ITransactionsAccount[]> {
+    const promises = cards.map(card => this.fetchOneCardAccount(card, ctx));
+    return Promise.all(promises);
   }
 }
 

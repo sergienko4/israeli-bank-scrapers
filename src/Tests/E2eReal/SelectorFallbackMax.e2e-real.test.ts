@@ -1,10 +1,9 @@
 import { jest } from '@jest/globals';
-/**
- * Selector-fallback: Max — Round 2 (wrong CSS id → fallback CSS id on same page).
+/** Selector-fallback: Max — Round 2 (wrong CSS id → fallback CSS id on same page).
  * Max has a complex preAction (popups, password tab navigation) before form fill.
  * This test proves the selector resolution still works correctly with that preAction.
  */
-import { type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright';
 
 import {
   clickButton,
@@ -14,13 +13,13 @@ import {
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
   fields: [
     {
@@ -43,22 +42,39 @@ const baseCfg: LoginConfig = {
     { kind: 'css', value: 'app-user-login-form .general-button.send-me-code' },
   ],
   waitUntil: 'domcontentloaded',
-  checkReadiness: async (page: Page) => {
+  /**
+   * Waits for personal area link to appear.
+   * @param page - Playwright page to wait for readiness indicator.
+   * @returns True when readiness indicator is visible.
+   */
+  checkReadiness: async (page: Page): Promise<void> => {
     await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
   },
-  preAction: async (page: Page) => {
-    if (await elementPresentOnPage(page, '#closePopup')) await clickButton(page, '#closePopup');
+  /**
+   * Navigates to password login tab via popup dismissal and tab clicks.
+   * @param page - Playwright page to execute pre-login actions on.
+   * @returns Resolved promise after pre-login navigation completes (no frame override).
+   */
+  preAction: async (page: Page): Promise<Frame | undefined> => {
+    const isPopupPresent = await elementPresentOnPage(page, '#closePopup');
+    if (isPopupPresent) await clickButton(page, '#closePopup');
     await clickButton(page, '.personal-area > a.go-to-personal-area');
-    if (await elementPresentOnPage(page, '.login-link#private'))
-      await clickButton(page, '.login-link#private');
+    const isPrivateLinkPresent = await elementPresentOnPage(page, '.login-link#private');
+    if (isPrivateLinkPresent) await clickButton(page, '.login-link#private');
     await waitUntilElementFound(page, '#login-password-link', { visible: true });
     await clickButton(page, '#login-password-link');
     await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
       visible: true,
     });
-    return undefined;
+    const noFrame = page.frames().at(-999);
+    return noFrame;
   },
-  postAction: async (page: Page) => {
+  /**
+   * Waits for redirect or error popup after login submission.
+   * @param page - Playwright page to wait for post-login navigation.
+   * @returns True when post-login condition is detected.
+   */
+  postAction: async (page: Page): Promise<void> => {
     await Promise.race([
       waitForRedirect(page, {
         timeout: 20000,
@@ -66,14 +82,19 @@ const baseCfg: LoginConfig = {
       }),
       page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
       page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
-    ]).catch(() => {});
+    ]).catch(() => {
+      // Expected: race may reject when none of the conditions match within timeout
+    });
   },
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
-    invalidPassword: [async opts => !!(opts?.page && (await opts.page.$('#popupWrongDetails')))],
+    invalidPassword: [
+      async (opts): Promise<boolean> => !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
+    ],
     unknownError: [
-      async opts => !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
+      async (opts): Promise<boolean> =>
+        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
     ],
   },
 };
@@ -92,7 +113,7 @@ describe('E2E: Selector fallback — Max', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMAX' } as {
       username: string;
       password: string;

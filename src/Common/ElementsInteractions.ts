@@ -1,16 +1,28 @@
 import { type Frame, type Page } from 'playwright';
 
+import ScraperError from '../Scrapers/Base/ScraperError.js';
 import { getDebug } from './Debug.js';
 import { humanDelay, waitUntil } from './Waiting.js';
 
 const LOG = getDebug('elements');
 
+/**
+ * Capture visible text from the page body for diagnostic logging.
+ * @param pageOrFrame - The Playwright page or frame to capture text from.
+ * @returns The first 400 characters of visible body text.
+ */
 export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
   return pageOrFrame
     .evaluate((): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400))
     .catch(() => '(context unavailable)');
 }
 
+/**
+ * Capture outer HTML of a matched element for diagnostic logging.
+ * @param pageOrFrame - The Playwright page or frame to search.
+ * @param selector - The CSS selector for the target element.
+ * @returns The first 300 characters of the element's outer HTML.
+ */
 async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): Promise<string> {
   return pageOrFrame
     .evaluate(
@@ -20,59 +32,87 @@ async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): 
     .catch(() => '(context unavailable)');
 }
 
-export interface WaitOptions {
+/** Options for waiting on element visibility or attachment. */
+export interface IWaitOptions {
   visible?: boolean;
   timeout?: number;
 }
 
-export interface PageEvalOpts<R> {
+/** Options for evaluating a single element in a page context. */
+export interface IPageEvalOpts<TResult> {
   selector: string;
-  defaultResult: R;
-  callback: (element: Element, ...args: unknown[]) => R;
+  defaultResult: TResult;
+  callback: (element: Element, ...args: unknown[]) => TResult;
 }
 
-export interface PageEvalAllOpts<R> {
+/** Options for evaluating multiple elements in a page context. */
+export interface IPageEvalAllOpts<TResult> {
   selector: string;
-  defaultResult: R;
-  callback: (elements: Element[], ...args: unknown[]) => R;
+  defaultResult: TResult;
+  callback: (elements: Element[], ...args: unknown[]) => TResult;
 }
 
+/**
+ * Wait until a selector is present (or visible) on the page.
+ * @param page - The Playwright page or frame to wait in.
+ * @param elementSelector - The CSS selector to wait for.
+ * @param opts - Visibility and timeout options.
+ * @returns True after the element is found.
+ */
 async function waitUntilElementFound(
   page: Page | Frame,
   elementSelector: string,
-  opts: WaitOptions = {},
-): Promise<void> {
+  opts: IWaitOptions = {},
+): Promise<boolean> {
   const state = opts.visible ? 'visible' : 'attached';
   const startMs = Date.now();
   try {
     await page.waitForSelector(elementSelector, { state, timeout: opts.timeout });
     LOG.debug('waitForSelector %s → found (%dms)', elementSelector, Date.now() - startMs);
-    LOG.debug('element html: %s', await captureElementHtml(page, elementSelector));
+    const html = await captureElementHtml(page, elementSelector);
+    LOG.debug('element html: %s', html);
   } catch (e) {
     LOG.debug('waitForSelector %s → TIMEOUT (%dms)', elementSelector, Date.now() - startMs);
-    LOG.debug('page text: %s', await capturePageText(page));
+    const text = await capturePageText(page);
+    LOG.debug('page text: %s', text);
     throw e;
   }
+  return true;
 }
 
+/**
+ * Wait until a selector disappears (becomes hidden) from the page.
+ * @param page - The Playwright page to wait in.
+ * @param elementSelector - The CSS selector to wait for disappearance.
+ * @param timeout - Optional timeout in milliseconds.
+ * @returns True after the element disappears.
+ */
 async function waitUntilElementDisappear(
   page: Page,
   elementSelector: string,
   timeout?: number,
-): Promise<void> {
+): Promise<boolean> {
   await page.waitForSelector(elementSelector, { state: 'hidden', timeout });
+  return true;
 }
 
+/**
+ * Wait for a matching iframe to appear on the page.
+ * @param page - The Playwright page to search frames within.
+ * @param framePredicate - A function that returns true for the target frame.
+ * @param timeout - Maximum time to wait in milliseconds.
+ * @returns The matched frame, or false if not found within timeout.
+ */
 async function waitForIframe(
   page: Page,
   framePredicate: (frame: Frame) => boolean,
   timeout: number,
-): Promise<Frame | undefined> {
-  let frame: Frame | undefined;
+): Promise<Frame | false> {
+  let frame: Frame | false = false;
   await waitUntil(
     () => {
-      frame = page.frames().find(framePredicate);
-      return Promise.resolve(!!frame);
+      frame = page.frames().find(framePredicate) ?? false;
+      return Promise.resolve(frame !== false);
     },
     'waiting for iframe',
     { timeout, interval: 1000 },
@@ -80,62 +120,107 @@ async function waitForIframe(
   return frame;
 }
 
+/**
+ * Wait for a matching iframe and throw if not found.
+ * @param page - The Playwright page to search frames within.
+ * @param framePredicate - A function that returns true for the target frame.
+ * @param opts - Timeout, visibility, and description options.
+ * @returns The matched frame.
+ */
 async function waitUntilIframeFound(
   page: Page,
   framePredicate: (frame: Frame) => boolean,
-  opts: WaitOptions & { description?: string } = {},
+  opts: IWaitOptions & { description?: string } = {},
 ): Promise<Frame> {
   const { timeout = 30000, description = '' } = opts;
   const frame = await waitForIframe(page, framePredicate, timeout);
 
-  if (!frame) {
-    throw new Error(`failed to find iframe: ${description}`);
+  if (frame === false) {
+    throw new ScraperError(`failed to find iframe: ${description}`);
   }
 
   return frame;
 }
 
+/**
+ * Fill a form input field with a human-like delay.
+ * @param pageOrFrame - The Playwright page or frame containing the input.
+ * @param inputSelector - CSS selector for the input element.
+ * @param inputValue - The value to fill into the input.
+ * @returns True after the input is filled.
+ */
 async function fillInput(
   pageOrFrame: Page | Frame,
   inputSelector: string,
   inputValue: string,
-): Promise<void> {
+): Promise<boolean> {
   LOG.debug('fill %s', inputSelector);
   await humanDelay(200, 600);
   await pageOrFrame.locator(inputSelector).first().fill(inputValue);
+  return true;
 }
 
+/**
+ * Set a form input value directly via DOM evaluation.
+ * @param pageOrFrame - The Playwright page or frame containing the input.
+ * @param inputSelector - CSS selector for the input element.
+ * @param inputValue - The value to set on the input.
+ * @returns True after the value is set.
+ */
 async function setValue(
   pageOrFrame: Page | Frame,
   inputSelector: string,
   inputValue: string,
-): Promise<void> {
+): Promise<boolean> {
   await pageOrFrame.$eval(
     inputSelector,
     (input: Element, value) => {
       const inputElement = input;
-      // @ts-ignore
-      inputElement.value = value;
+      (inputElement as unknown as HTMLInputElement).value = value as unknown as string;
     },
     [inputValue],
   );
+  return true;
 }
 
-async function clickButton(page: Page | Frame, buttonSelector: string): Promise<void> {
+/**
+ * Click a button element with a human-like delay.
+ * @param page - The Playwright page or frame containing the button.
+ * @param buttonSelector - CSS selector for the button element.
+ * @returns True after the button is clicked.
+ */
+async function clickButton(page: Page | Frame, buttonSelector: string): Promise<boolean> {
   LOG.debug('click %s', buttonSelector);
   await humanDelay(200, 800);
   await page.$eval(buttonSelector, el => {
     (el as HTMLElement).click();
   });
+  return true;
 }
 
-async function clickLink(page: Page, aSelector: string): Promise<void> {
+/**
+ * Click a link element via DOM evaluation.
+ * @param page - The Playwright page containing the link.
+ * @param aSelector - CSS selector for the anchor element.
+ * @returns True after the link is clicked.
+ */
+async function clickLink(page: Page, aSelector: string): Promise<boolean> {
   await page.$eval(aSelector, (el: Element) => {
     (el as HTMLElement).click();
   });
+  return true;
 }
 
-async function pageEvalAll<R>(page: Page | Frame, opts: PageEvalAllOpts<R>): Promise<R> {
+/**
+ * Evaluate a callback on all matching elements, with a default fallback.
+ * @param page - The Playwright page or frame to evaluate within.
+ * @param opts - Selector, default result, and callback options.
+ * @returns The callback result, or the default if no elements found.
+ */
+async function pageEvalAll<TResult>(
+  page: Page | Frame,
+  opts: IPageEvalAllOpts<TResult>,
+): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {
@@ -151,7 +236,16 @@ async function pageEvalAll<R>(page: Page | Frame, opts: PageEvalAllOpts<R>): Pro
   return result;
 }
 
-async function pageEval<R>(page: Page | Frame, opts: PageEvalOpts<R>): Promise<R> {
+/**
+ * Evaluate a callback on a single matching element, with a default fallback.
+ * @param page - The Playwright page or frame to evaluate within.
+ * @param opts - Selector, default result, and callback options.
+ * @returns The callback result, or the default if no element found.
+ */
+async function pageEval<TResult>(
+  page: Page | Frame,
+  opts: IPageEvalOpts<TResult>,
+): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
   let result = defaultResult;
   try {
@@ -167,20 +261,42 @@ async function pageEval<R>(page: Page | Frame, opts: PageEvalOpts<R>): Promise<R
   return result;
 }
 
+/**
+ * Check whether an element matching the selector exists on the page.
+ * @param pageOrFrame - The Playwright page or frame to search.
+ * @param selector - The CSS selector to check for.
+ * @returns True if the element exists, false otherwise.
+ */
 async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string): Promise<boolean> {
   return (await pageOrFrame.$(selector)) !== null;
 }
 
-async function dropdownSelect(page: Page, selectSelector: string, value: string): Promise<void> {
+/**
+ * Select a value from a dropdown element.
+ * @param page - The Playwright page containing the dropdown.
+ * @param selectSelector - CSS selector for the select element.
+ * @param value - The option value to select.
+ * @returns True after the selection is made.
+ */
+async function dropdownSelect(page: Page, selectSelector: string, value: string): Promise<boolean> {
   await page.selectOption(selectSelector, value);
+  return true;
 }
 
+/**
+ * Extract all option elements from a dropdown as name/value pairs.
+ * @param page - The Playwright page containing the dropdown.
+ * @param selector - CSS selector for the select element.
+ * @returns Array of objects with name and value properties.
+ */
 async function dropdownElements(
   page: Page,
   selector: string,
 ): Promise<{ name: string; value: string }[]> {
-  const options = await page.evaluate(optionSelector => {
-    return Array.from(document.querySelectorAll<HTMLOptionElement>(optionSelector))
+  const optionSelector = `${selector} > option`;
+  const options = await page.evaluate((optSel: string) => {
+    const elements = document.querySelectorAll<HTMLOptionElement>(optSel);
+    return Array.from(elements)
       .filter(o => o.value)
       .map(o => {
         return {
@@ -188,7 +304,7 @@ async function dropdownElements(
           value: o.value,
         };
       });
-  }, `${selector} > option`);
+  }, optionSelector);
   return options;
 }
 

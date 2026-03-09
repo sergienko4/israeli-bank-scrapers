@@ -2,7 +2,7 @@ import {
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
-  type ErrorResult,
+  type IErrorResult,
   ScraperErrorTypes,
   WafBlockError,
 } from '../../Scrapers/Base/Errors.js';
@@ -15,14 +15,13 @@ describe('ScraperErrorTypes', () => {
     expect(ScraperErrorTypes.Timeout).toBe('TIMEOUT');
     expect(ScraperErrorTypes.AccountBlocked).toBe('ACCOUNT_BLOCKED');
     expect(ScraperErrorTypes.Generic).toBe('GENERIC');
-    expect(ScraperErrorTypes.General).toBe('GENERAL_ERROR');
     expect(ScraperErrorTypes.WafBlocked).toBe('WAF_BLOCKED');
   });
 });
 
 describe('createTimeoutError', () => {
   it('returns error result with Timeout type', () => {
-    const result: ErrorResult = createTimeoutError('operation timed out');
+    const result: IErrorResult = createTimeoutError('operation timed out');
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
     expect(result.errorMessage).toBe('operation timed out');
@@ -31,7 +30,7 @@ describe('createTimeoutError', () => {
 
 describe('createGenericError', () => {
   it('returns error result with Generic type', () => {
-    const result: ErrorResult = createGenericError('something went wrong');
+    const result: IErrorResult = createGenericError('something went wrong');
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Generic);
     expect(result.errorMessage).toBe('something went wrong');
@@ -74,9 +73,9 @@ describe('WafBlockError', () => {
     const error = WafBlockError.cloudflareTurnstile('Just a moment...', 'https://amex.co.il/login');
     expect(error.details.provider).toBe('cloudflare');
     expect(error.details.httpStatus).toBe(403);
-    expect(error.details.suggestions).toEqual(
-      expect.arrayContaining([expect.stringContaining('Turnstile')]),
-    );
+    const turnstileMatcher = expect.stringContaining('Turnstile') as string;
+    const arrayMatcher = expect.arrayContaining([turnstileMatcher]) as string[];
+    expect(error.details.suggestions).toEqual(arrayMatcher);
   });
 
   it('apiBlock includes pageTitle and responseSnippet separately', () => {

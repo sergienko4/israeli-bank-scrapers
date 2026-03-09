@@ -19,9 +19,9 @@ const hasCredentials = !!(
   process.env.DISCOUNT_PASSWORD &&
   process.env.DISCOUNT_NUM
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Discount Bank (real credentials)', () => {
+DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -34,9 +34,9 @@ describeIf('E2E: Discount Bank (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      id: process.env.DISCOUNT_ID!,
-      password: process.env.DISCOUNT_PASSWORD!,
-      num: process.env.DISCOUNT_NUM!,
+      id: process.env.DISCOUNT_ID ?? '',
+      password: process.env.DISCOUNT_PASSWORD ?? '',
+      num: process.env.DISCOUNT_NUM ?? '',
     });
 
     if (result.errorType === ScraperErrorTypes.Generic) {

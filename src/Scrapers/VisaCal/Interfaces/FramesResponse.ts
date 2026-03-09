@@ -1,9 +1,9 @@
-import type { CardLevelFrame } from './CardLevelFrame.js';
+import type { ICardLevelFrame } from './CardLevelFrame.js';
 
-export interface FramesResponse {
+export interface IFramesResponse {
   result?: {
     bankIssuedCards?: {
-      cardLevelFrames?: CardLevelFrame[];
+      cardLevelFrames?: ICardLevelFrame[];
     };
   };
 }

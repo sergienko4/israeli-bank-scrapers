@@ -1,4 +1,4 @@
-export interface AuthModule {
+export interface IAuthModule {
   auth: {
     calConnectToken: string | null;
   };

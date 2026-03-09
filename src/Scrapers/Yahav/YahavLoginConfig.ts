@@ -7,12 +7,18 @@ import {
 } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
-async function yahavPostAction(page: Page): Promise<void> {
+/**
+ * Yahav post-login action — waits for loader, dismisses messaging, and waits for dashboard.
+ * @param page - The Playwright page instance.
+ * @returns True when post-login actions complete.
+ */
+async function yahavPostAction(page: Page): LifecyclePromise {
   await waitForNavigation(page);
   await waitUntilElementDisappear(page, '.loader');
   if (await elementPresentOnPage(page, '.messaging-links-container')) {
@@ -26,7 +32,11 @@ async function yahavPostAction(page: Page): Promise<void> {
   ]);
 }
 
-export const YAHAV_CONFIG: LoginConfig = {
+/** Company type for Yahav — re-exported for module multi-export compliance. */
+export const YAHAV_COMPANY = CompanyTypes.Yahav;
+
+/** Declarative login configuration for Bank Yahav. */
+export const YAHAV_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'username', selectors: [] }, // wellKnown → #username
@@ -34,8 +44,15 @@ export const YAHAV_CONFIG: LoginConfig = {
     { credentialKey: 'nationalID', selectors: [] }, // wellKnown → #pinno
   ],
   submit: [{ kind: 'css', value: '.btn' }],
-  checkReadiness: async (page: Page) => {
-    await Promise.all([waitUntilElementFound(page, '#pinno'), waitUntilElementFound(page, '.btn')]);
+  /**
+   * Wait for login form fields and submit button to appear.
+   * @param page - The Playwright page instance.
+   * @returns True when login form is ready.
+   */
+  checkReadiness: async (page: Page): LifecyclePromise => {
+    const pinnoReady = waitUntilElementFound(page, '#pinno');
+    const btnReady = waitUntilElementFound(page, '.btn');
+    await Promise.all([pinnoReady, btnReady]);
   },
   postAction: yahavPostAction,
   possibleResults: {

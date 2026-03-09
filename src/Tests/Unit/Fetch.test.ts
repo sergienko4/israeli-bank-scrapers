@@ -10,67 +10,99 @@ import {
 } from '../../Common/Fetch.js';
 import { createMockPage } from '../MockPage.js';
 
-const mockFetch = jest.fn();
-const originalFetch = global.fetch;
+const MOCK_FETCH = jest.fn();
+const ORIGINAL_FETCH = global.fetch;
 
 beforeAll(() => {
-  global.fetch = mockFetch;
+  global.fetch = MOCK_FETCH;
 });
 
 afterAll(() => {
-  global.fetch = originalFetch;
+  global.fetch = ORIGINAL_FETCH;
 });
 
-function mockJsonResponse(data: unknown, status = 200): Record<string, unknown> {
+interface IMockResponse {
+  status: number;
+  text: () => Promise<string>;
+  json: () => Promise<Record<string, string | number | boolean | object>>;
+}
+
+/**
+ * Creates a mock JSON response for fetch.
+ * @param data - The response data payload.
+ * @param status - The HTTP status code.
+ * @returns A mock response object with text and json methods.
+ */
+function mockJsonResponse(
+  data: Record<string, string | number | boolean | object>,
+  status = 200,
+): IMockResponse {
   const text = JSON.stringify(data);
-  return { status, text: () => Promise.resolve(text), json: () => Promise.resolve(data) };
+  /**
+   * Resolves with the stringified response text.
+   * @returns The text promise.
+   */
+  const textFn = (): Promise<string> => Promise.resolve(text);
+  /**
+   * Resolves with the parsed response data.
+   * @returns The data promise.
+   */
+  const jsonFn = (): Promise<Record<string, string | number | boolean | object>> =>
+    Promise.resolve(data);
+  return { status, text: textFn, json: jsonFn };
 }
 
 describe('fetchGet', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends GET request with JSON headers', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: 'test' }));
+    const response = mockJsonResponse({ data: 'test' });
+    MOCK_FETCH.mockResolvedValue(response);
     const result = await fetchGet('https://api.bank.co.il/data', {});
     expect(result).toEqual({ data: 'test' });
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://api.bank.co.il/data',
-      expect.objectContaining({ method: 'GET' }),
-    );
+    const firstCallArgs = MOCK_FETCH.mock.calls[0] as [string, { method: string }];
+    expect(firstCallArgs[0]).toBe('https://api.bank.co.il/data');
+    expect(firstCallArgs[1].method).toBe('GET');
   });
 
   it('merges extra headers', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({}));
+    const emptyResponse = mockJsonResponse({});
+    MOCK_FETCH.mockResolvedValue(emptyResponse);
     await fetchGet('https://api.bank.co.il/data', { Authorization: 'Bearer token' });
-    const callArgs = (mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }])[1];
+    const callArgs = (MOCK_FETCH.mock.calls[0] as [string, { headers: Record<string, string> }])[1];
     expect(callArgs.headers.Authorization).toBe('Bearer token');
     expect(callArgs.headers.Accept).toBe('application/json');
   });
 
   it('throws when status is not 200', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({}, 500));
-    await expect(fetchGet('https://api.bank.co.il/data', {})).rejects.toThrow('status code 500');
+    const errorResponse = mockJsonResponse({}, 500);
+    MOCK_FETCH.mockResolvedValue(errorResponse);
+    const fetchPromise = fetchGet('https://api.bank.co.il/data', {});
+    await expect(fetchPromise).rejects.toThrow('status 500');
   });
 });
 
 describe('fetchPost', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends POST request with JSON body', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ success: true }));
+    const successResponse = mockJsonResponse({ success: true });
+    MOCK_FETCH.mockResolvedValue(successResponse);
     const result = await fetchPost('https://api.bank.co.il/login', { user: 'test' });
     expect(result).toEqual({ success: true });
-    const callArgs = (mockFetch.mock.calls[0] as [string, { method: string; body: string }])[1];
+    const callArgs = (MOCK_FETCH.mock.calls[0] as [string, { method: string; body: string }])[1];
     expect(callArgs.method).toBe('POST');
-    expect(callArgs.body).toBe(JSON.stringify({ user: 'test' }));
+    const expectedBody = JSON.stringify({ user: 'test' });
+    expect(callArgs.body).toBe(expectedBody);
   });
 
   it('returns JSON even on non-200 status', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ error: true }, 500));
+    const errorStatusResponse = mockJsonResponse({ error: true }, 500);
+    MOCK_FETCH.mockResolvedValue(errorStatusResponse);
     const result = await fetchPost('https://api.bank.co.il/fail', {});
     expect(result).toEqual({ error: true });
   });
@@ -78,29 +110,31 @@ describe('fetchPost', () => {
 
 describe('fetchGraphql', () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    MOCK_FETCH.mockReset();
   });
 
   it('sends GraphQL query and returns data', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: { accounts: [] } }));
+    const graphqlResponse = mockJsonResponse({ data: { accounts: [] } });
+    MOCK_FETCH.mockResolvedValue(graphqlResponse);
     const result = await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts { id } }');
     expect(result).toEqual({ accounts: [] });
   });
 
   it('throws when GraphQL response has errors', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ errors: [{ message: 'Unauthorized' }] }));
-    await expect(fetchGraphql('https://api.bank.co.il/graphql', 'query')).rejects.toThrow(
-      'Unauthorized',
-    );
+    const errorResponse = mockJsonResponse({ errors: [{ message: 'Unauthorized' }] });
+    MOCK_FETCH.mockResolvedValue(errorResponse);
+    const graphqlPromise = fetchGraphql('https://api.bank.co.il/graphql', 'query');
+    await expect(graphqlPromise).rejects.toThrow('Unauthorized');
   });
 
   it('sends variables in the request body', async () => {
-    mockFetch.mockResolvedValue(mockJsonResponse({ data: {} }));
+    const emptyDataResponse = mockJsonResponse({ data: {} });
+    MOCK_FETCH.mockResolvedValue(emptyDataResponse);
     await fetchGraphql('https://api.bank.co.il/graphql', '{ accounts }', {
       variables: { id: '123' },
     });
-    const rawBody = (mockFetch.mock.calls[0] as [string, { body: string }])[1].body;
-    const body = JSON.parse(rawBody) as { variables: Record<string, unknown>; query: string };
+    const rawBody = (MOCK_FETCH.mock.calls[0] as [string, { body: string }])[1].body;
+    const body = JSON.parse(rawBody) as { variables: Record<string, string>; query: string };
     expect(body.variables).toEqual({ id: '123' });
     expect(body.query).toBe('{ accounts }');
   });
@@ -108,24 +142,24 @@ describe('fetchGraphql', () => {
 
 describe('fetchGetWithinPage', () => {
   it('returns parsed JSON on success', async () => {
+    const serializedBalance = JSON.stringify({ balance: 1000 });
     const page = createMockPage({
-      evaluate: jest.fn().mockResolvedValue([JSON.stringify({ balance: 1000 }), 200]),
+      evaluate: jest.fn().mockResolvedValue([serializedBalance, 200]),
     });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/balance');
     expect(result).toEqual({ balance: 1000 });
   });
 
-  it('returns null for 204 status', async () => {
-    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue([null, 204]) });
+  it('returns empty object for 204 status', async () => {
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['', 204]) });
     const result = await fetchGetWithinPage(page, 'https://bank.co.il/api/empty');
-    expect(result).toBeNull();
+    expect(result).toEqual({});
   });
 
   it('throws on invalid JSON when shouldIgnoreErrors is false', async () => {
     const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['not json', 200]) });
-    await expect(fetchGetWithinPage(page, 'https://bank.co.il/api/bad')).rejects.toThrow(
-      'parse error',
-    );
+    const fetchPromise = fetchGetWithinPage(page, 'https://bank.co.il/api/bad');
+    await expect(fetchPromise).rejects.toThrow('parse error');
   });
 
   it('returns null on invalid JSON when shouldIgnoreErrors is true', async () => {
@@ -137,8 +171,9 @@ describe('fetchGetWithinPage', () => {
 
 describe('fetchPostWithinPage', () => {
   it('returns parsed JSON on success', async () => {
+    const serializedResult = JSON.stringify({ result: 'ok' });
     const page = createMockPage({
-      evaluate: jest.fn().mockResolvedValue([JSON.stringify({ result: 'ok' }), 200]),
+      evaluate: jest.fn().mockResolvedValue([serializedResult, 200]),
     });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/action', {
       data: { key: 'value' },
@@ -146,17 +181,16 @@ describe('fetchPostWithinPage', () => {
     expect(result).toEqual({ result: 'ok' });
   });
 
-  it('returns null for 204 status', async () => {
-    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue([null, 204]) });
+  it('returns empty object for 204 status', async () => {
+    const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['', 204]) });
     const result = await fetchPostWithinPage(page, 'https://bank.co.il/api/empty', { data: {} });
-    expect(result).toBeNull();
+    expect(result).toEqual({});
   });
 
   it('throws on invalid JSON when shouldIgnoreErrors is false', async () => {
     const page = createMockPage({ evaluate: jest.fn().mockResolvedValue(['invalid json', 200]) });
-    await expect(
-      fetchPostWithinPage(page, 'https://bank.co.il/api/bad', { data: {} }),
-    ).rejects.toThrow('parse error');
+    const fetchPromise = fetchPostWithinPage(page, 'https://bank.co.il/api/bad', { data: {} });
+    await expect(fetchPromise).rejects.toThrow('parse');
   });
 
   it('returns null on invalid JSON when shouldIgnoreErrors is true', async () => {
@@ -172,21 +206,26 @@ describe('fetchPostWithinPage', () => {
     const page = createMockPage({
       evaluate: jest.fn().mockResolvedValue(['<html>blocked</html>', 403]),
     });
-    await expect(
-      fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', { data: {} }),
-    ).rejects.toThrow('status: 403');
+    const fetchPromise = fetchPostWithinPage(page, 'https://bank.co.il/api/blocked', { data: {} });
+    await expect(fetchPromise).rejects.toThrow('status: 403');
   });
 
   it('passes extraHeaders to page.evaluate as single arg', async () => {
-    const evaluate = jest.fn().mockResolvedValue([JSON.stringify({ ok: true }), 200]);
+    const serializedOk = JSON.stringify({ ok: true });
+    const evaluate = jest.fn().mockResolvedValue([serializedOk, 200]);
     const page = createMockPage({ evaluate });
     await fetchPostWithinPage(page, 'https://bank.co.il/api', {
       data: {},
       extraHeaders: { 'X-Custom': 'val' },
     });
-    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), {
+    const evaluateCall = evaluate.mock.calls[0] as [
+      (...args: never[]) => string,
+      Record<string, string | object>,
+    ];
+    expect(typeof evaluateCall[0]).toBe('function');
+    expect(evaluateCall[1]).toEqual({
       innerUrl: 'https://bank.co.il/api',
-      innerData: {},
+      innerDataJson: '{}',
       innerExtraHeaders: { 'X-Custom': 'val' },
     });
   });
@@ -194,40 +233,42 @@ describe('fetchPostWithinPage', () => {
 
 describe('detectWafBlock', () => {
   it('detects HTTP 403', () => {
-    expect(detectWafBlock(403, null)).toBe('HTTP 403');
+    const result403 = detectWafBlock(403, '');
+    expect(result403).toBe('HTTP 403');
   });
 
   it('detects HTTP 429', () => {
-    expect(detectWafBlock(429, null)).toBe('HTTP 429');
+    const result429 = detectWafBlock(429, '');
+    expect(result429).toBe('HTTP 429');
   });
 
   it('detects HTTP 503', () => {
-    expect(detectWafBlock(503, null)).toBe('HTTP 503');
+    const result503 = detectWafBlock(503, '');
+    expect(result503).toBe('HTTP 503');
   });
 
-  it('returns null for HTTP 200', () => {
-    expect(detectWafBlock(200, null)).toBeNull();
+  it('returns empty string for HTTP 200', () => {
+    const result200 = detectWafBlock(200, '');
+    expect(result200).toBe('');
   });
 
   it('detects "block automation" in body', () => {
-    expect(detectWafBlock(200, 'Response: Block Automation detected')).toBe(
-      'response contains "block automation"',
-    );
+    const resultBlockAuto = detectWafBlock(200, 'Response: Block Automation detected');
+    expect(resultBlockAuto).toBe('response contains "block automation"');
   });
 
   it('detects "attention required" in body', () => {
-    expect(detectWafBlock(200, '<title>Attention Required! | Cloudflare</title>')).toBe(
-      'response contains "attention required"',
-    );
+    const resultAttention = detectWafBlock(200, '<title>Attention Required! | Cloudflare</title>');
+    expect(resultAttention).toBe('response contains "attention required"');
   });
 
   it('detects "just a moment" in body', () => {
-    expect(detectWafBlock(200, '<title>Just a moment...</title>')).toBe(
-      'response contains "just a moment"',
-    );
+    const resultJustAMoment = detectWafBlock(200, '<title>Just a moment...</title>');
+    expect(resultJustAMoment).toBe('response contains "just a moment"');
   });
 
-  it('returns null for normal response body', () => {
-    expect(detectWafBlock(200, '{"Header":{"Status":"1"}}')).toBeNull();
+  it('returns empty string for normal response body', () => {
+    const resultNormal = detectWafBlock(200, '{"Header":{"Status":"1"}}');
+    expect(resultNormal).toBe('');
   });
 });

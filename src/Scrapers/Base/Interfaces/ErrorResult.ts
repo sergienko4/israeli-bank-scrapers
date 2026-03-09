@@ -1,9 +1,9 @@
 import type { ScraperErrorTypes } from '../ErrorTypes.js';
-import type { WafErrorDetails } from './WafErrorDetails.js';
+import type { IWafErrorDetails } from './WafErrorDetails.js';
 
-export interface ErrorResult {
+export interface IErrorResult {
   success: false;
   errorType: ScraperErrorTypes;
   errorMessage: string;
-  errorDetails?: WafErrorDetails;
+  errorDetails?: IWafErrorDetails;
 }

@@ -15,9 +15,9 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(process.env.MAX_USERNAME && process.env.MAX_PASSWORD);
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-describeIf('E2E: Max (real credentials)', () => {
+DESCRIBE_IF('E2E: Max (real credentials)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -29,9 +29,11 @@ describeIf('E2E: Max (real credentials)', () => {
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
+    const username = process.env.MAX_USERNAME ?? '';
+    const password = process.env.MAX_PASSWORD ?? '';
     const result = await scraper.scrape({
-      username: process.env.MAX_USERNAME!,
-      password: process.env.MAX_PASSWORD!,
+      username,
+      password,
       id: process.env.MAX_ID,
     });
 

@@ -5,13 +5,13 @@ import { jest } from '@jest/globals';
 import { waitUntilElementDisappear } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.mizrahi-tefahot.co.il/login/index.html#/auth-page-he',
   fields: [
     {
@@ -33,9 +33,19 @@ const baseCfg: LoginConfig = {
     { kind: 'css', value: '#WRONG_btnPrimary' },
     { kind: 'css', value: 'button.btn.btn-primary' },
   ],
+  /**
+   * Wait for the loading overlay to disappear.
+   * @param page - page to check readiness
+   * @returns true when ready
+   */
   checkReadiness: async page => {
     await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
   },
+  /**
+   * Wait after form submission.
+   * @param page - page for post-action
+   * @returns true when done
+   */
   postAction: async page => {
     await page.waitForTimeout(5000);
   },
@@ -60,7 +70,7 @@ describe('E2E: Selector fallback — Mizrahi', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMZR' } as {
       username: string;
       password: string;

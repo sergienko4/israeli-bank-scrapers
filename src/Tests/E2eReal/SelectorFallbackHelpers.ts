@@ -18,7 +18,11 @@ export const VALID_REACHED_BANK: string[] = [
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
 
-/** Regex matching "Could not find '<key>' field" for the given credential keys. */
+/**
+ * Regex matching "Could not find '<key>' field" for the given credential keys.
+ * @param keys - credential key names to match
+ * @returns regex pattern matching any of the given keys
+ */
 export function selectorErrorFor(...keys: string[]): RegExp {
   return new RegExp(`Could not find '(${keys.join('|')})' field`);
 }
@@ -27,8 +31,11 @@ export function selectorErrorFor(...keys: string[]): RegExp {
  * Inject the login form (identified by a visible input inside it) into a
  * same-origin srcdoc iframe, then remove the form from the main page.
  * Simulates a bank that moved its login form into an iframe.
+ * @param page - The Playwright page.
+ * @param inputSelector - CSS selector for an input inside the form.
+ * @returns True after the form has been injected.
  */
-export async function injectFormByInput(page: Page, inputSelector: string): Promise<void> {
+export async function injectFormByInput(page: Page, inputSelector: string): Promise<boolean> {
   await page.evaluate(sel => {
     const form = document.querySelector<HTMLElement>(sel)?.closest('form');
     if (!form) return;
@@ -38,4 +45,5 @@ export async function injectFormByInput(page: Page, inputSelector: string): Prom
     form.remove();
   }, inputSelector);
   await page.waitForTimeout(1500);
+  return true;
 }

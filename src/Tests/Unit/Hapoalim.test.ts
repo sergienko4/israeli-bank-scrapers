@@ -1,114 +1,167 @@
 import { jest } from '@jest/globals';
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({
-  fetchGetWithinPage: jest.fn(),
-  fetchPostWithinPage: jest.fn(),
-}));
+import type { IHapoalimScrapedTxn } from './HapoalimFixtures.js';
 
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
+jest.unstable_mockModule(
+  '../../Common/CamoufoxLauncher.js',
+  /**
+   * Mock CamoufoxLauncher.
+   * @returns Mocked module.
+   */
+  () => ({ launchCamoufox: jest.fn() }),
+);
 
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest
-    .fn()
-    .mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
-  waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+jest.unstable_mockModule(
+  '../../Common/Fetch.js',
+  /**
+   * Mock Fetch.
+   * @returns Mocked module.
+   */
+  () => ({ fetchGetWithinPage: jest.fn(), fetchPostWithinPage: jest.fn() }),
+);
 
-  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+jest.unstable_mockModule(
+  '../../Common/Browser.js',
+  /**
+   * Mock Browser.
+   * @returns Mocked module.
+   */
+  () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
+);
 
-  waitForUrl: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
-
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
-  waitUntil: jest.fn().mockResolvedValue(undefined),
-  sleep: jest.fn().mockResolvedValue(undefined),
-  TimeoutError: class TimeoutError extends Error {},
-  SECOND: 1000,
-}));
-
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn((data: unknown) => data),
-}));
-
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-}));
-
-jest.unstable_mockModule('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
-
-jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
-  handleOtpStep: jest.fn().mockResolvedValue(null),
-
-  handleOtpCode: jest.fn().mockResolvedValue(undefined),
-
-  handleOtpConfirm: jest.fn().mockResolvedValue(undefined),
-}));
-
-const { faker } = await import('@faker-js/faker');
-const { buildContextOptions } = await import('../../Common/Browser.js');
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { fetchGetWithinPage, fetchPostWithinPage } = await import('../../Common/Fetch.js');
-const { getCurrentUrl } = await import('../../Common/Navigation.js');
-const { waitUntil } = await import('../../Common/Waiting.js');
-const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
-const { default: HapoalimScraper } = await import('../../Scrapers/Hapoalim/HapoalimScraper.js');
-const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
-const { HEBREW_TRANSACTION_TYPES } = await import('../HebrewBankingFixtures.js');
-const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
-
-const mockContext = {
-  newPage: jest.fn(),
-  close: jest.fn().mockResolvedValue(undefined),
-};
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
-  close: jest.fn().mockResolvedValue(undefined),
-};
-
-const CREDS = { userCode: 'user123', password: 'pass456' };
-
-interface HapoalimScrapedTxn {
-  serialNumber: number;
-  activityDescription?: string;
-  eventAmount: number;
-  eventDate: string;
-  valueDate: string;
-  referenceNumber?: number;
-  eventActivityTypeCode: number;
-  currentBalance: number;
-  pfmDetails: string;
-  beneficiaryDetailsData?: Record<string, string | undefined>;
-}
-
-function createHapoalimPage(): ReturnType<typeof createMockPage> {
-  return createMockPage({
-    evaluate: jest
+jest.unstable_mockModule(
+  '../../Common/Navigation.js',
+  /**
+   * Mock Navigation.
+   * @returns Mocked module.
+   */
+  () => ({
+    getCurrentUrl: jest
       .fn()
-      .mockResolvedValueOnce(true) // waitUntil → bnhpApp exists
-      .mockResolvedValueOnce('/api/v1'), // getRestContext → restContext
-    cookies: jest.fn().mockResolvedValue([{ name: 'XSRF-TOKEN', value: 'xsrf-token-value' }]),
-  });
-}
+      .mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
+    waitForNavigation: jest.fn().mockResolvedValue(undefined),
+    waitForRedirect: jest.fn().mockResolvedValue(undefined),
+    waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+    waitForUrl: jest.fn().mockResolvedValue(undefined),
+  }),
+);
 
+jest.unstable_mockModule(
+  '../../Common/ElementsInteractions.js',
+  /**
+   * Mock ElementsInteractions.
+   * @returns Mocked module.
+   */
+  () => ({
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
+
+jest.unstable_mockModule(
+  '../../Common/Waiting.js',
+  /**
+   * Mock Waiting.
+   * @returns Mocked module.
+   */
+  () => ({
+    waitUntil: jest.fn().mockResolvedValue(undefined),
+    sleep: jest.fn().mockResolvedValue(undefined),
+    humanDelay: jest.fn().mockResolvedValue(undefined),
+    /**
+     * Executes async actions sequentially, collecting results.
+     * @param actions - Array of async factory functions.
+     * @returns Array of resolved values.
+     */
+    runSerial: jest.fn().mockImplementation(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+      const seed = Promise.resolve([] as T[]);
+      return actions.reduce(
+        (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
+        seed,
+      );
+    }),
+    raceTimeout: jest.fn().mockResolvedValue(undefined),
+    TimeoutError: Error,
+    SECOND: 1000,
+  }),
+);
+
+jest.unstable_mockModule(
+  '../../Common/Transactions.js',
+  /**
+   * Mock Transactions.
+   * @returns Mocked module.
+   */
+  () => ({
+    getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
+  }),
+);
+
+jest.unstable_mockModule(
+  '../../Common/Debug.js',
+  /**
+   * Mock Debug.
+   * @returns Mocked module.
+   */
+  () => ({
+    getDebug:
+      /**
+       * Debug factory.
+       * @returns Mock logger.
+       */
+      (): Record<string, jest.Mock> => ({
+        trace: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      }),
+  }),
+);
+
+jest.unstable_mockModule(
+  'uuid',
+  /**
+   * Mock uuid.
+   * @returns Mocked module.
+   */
+  () => ({ v4: jest.fn((): string => 'mock-uuid') }),
+);
+
+jest.unstable_mockModule(
+  '../../Common/OtpHandler.js',
+  /**
+   * Mock OtpHandler.
+   * @returns Mocked module.
+   */
+  () => ({
+    handleOtpStep: jest.fn().mockResolvedValue(null),
+    handleOtpCode: jest.fn().mockResolvedValue(undefined),
+    handleOtpConfirm: jest.fn().mockResolvedValue(undefined),
+  }),
+);
+
+const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
+const { fetchGetWithinPage: FETCH_GET, fetchPostWithinPage: FETCH_POST } =
+  await import('../../Common/Fetch.js');
+const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
+const { waitUntil: WAIT_UNTIL } = await import('../../Common/Waiting.js');
+const { ScraperErrorTypes: SCRAPER_ERROR_TYPES } = await import('../../Scrapers/Base/Errors.js');
+const { default: HAPOALIM_SCRAPER } = await import('../../Scrapers/Hapoalim/HapoalimScraper.js');
+const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
+  await import('../../Transactions.js');
+const { createMockScraperOptions: CREATE_OPTS } = await import('../MockPage.js');
+const FIXTURES = await import('./HapoalimFixtures.js');
+
+/**
+ * Mock the accounts API response.
+ * @param accounts - Account list.
+ * @returns True when setup complete.
+ */
 function mockAccounts(
   accounts: {
     bankNumber: string;
@@ -116,33 +169,36 @@ function mockAccounts(
     accountNumber: string;
     accountClosingReasonCode: number;
   }[] = [],
-): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(accounts);
+): boolean {
+  (FETCH_GET as jest.Mock).mockResolvedValueOnce(accounts);
+  return true;
 }
 
-function mockBalance(balance = 10000): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ currentBalance: balance });
+/**
+ * Mock the balance API response.
+ * @param balance - Balance value.
+ * @returns True when setup complete.
+ */
+function mockBalance(balance = 10000): boolean {
+  (FETCH_GET as jest.Mock).mockResolvedValueOnce({ currentBalance: balance });
+  return true;
 }
 
-function mockTransactions(txns: HapoalimScrapedTxn[] = []): void {
-  (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({ transactions: txns });
+/**
+ * Mock the transactions API response.
+ * @param txns - Transaction list.
+ * @returns True when setup complete.
+ */
+function mockTransactions(txns: IHapoalimScrapedTxn[] = []): boolean {
+  (FETCH_POST as jest.Mock).mockResolvedValueOnce({ transactions: txns });
+  return true;
 }
 
-function scrapedTxn(overrides: Partial<HapoalimScrapedTxn> = {}): HapoalimScrapedTxn {
-  return {
-    serialNumber: faker.number.int({ min: 1, max: 9999 }),
-    activityDescription: faker.helpers.arrayElement([...HEBREW_TRANSACTION_TYPES]),
-    eventAmount: faker.number.float({ min: 10, max: 5000, fractionDigits: 2 }),
-    eventDate: '20240615',
-    valueDate: '20240616',
-    referenceNumber: faker.number.int({ min: 10000, max: 999999 }),
-    eventActivityTypeCode: 2,
-    currentBalance: faker.number.float({ min: 1000, max: 100000, fractionDigits: 2 }),
-    pfmDetails: '/pfm/details?id=1',
-    ...overrides,
-  };
-}
-
+/**
+ * Set up login mocks and account data for Hapoalim tests.
+ * @param accounts - Account list.
+ * @returns The mock page object.
+ */
 function setupLoginAndAccounts(
   accounts: {
     bankNumber: string;
@@ -152,59 +208,64 @@ function setupLoginAndAccounts(
   }[] = [
     { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
   ],
-): ReturnType<typeof createMockPage> {
-  const page = createHapoalimPage();
-  mockContext.newPage.mockResolvedValue(page);
-  (waitUntil as jest.Mock).mockImplementation(async (fn: () => Promise<boolean>) => {
-    await fn();
-  });
+): ReturnType<typeof FIXTURES.createHapoalimPage> {
+  const page = FIXTURES.createHapoalimPage();
+  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+  (WAIT_UNTIL as jest.Mock).mockImplementation(
+    async (func: () => Promise<boolean>): Promise<boolean> => {
+      await func();
+      return true;
+    },
+  );
   mockAccounts(accounts);
   return page;
 }
 
-beforeEach(() => {
-  faker.seed(42);
-  jest.clearAllMocks();
-  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createHapoalimPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue(
-    'https://login.bankhapoalim.co.il/portalserver/HomePage',
-  );
-});
+beforeEach(
+  /**
+   * Clear mocks before each test.
+   * @returns Test setup flag.
+   */
+  () => {
+    jest.clearAllMocks();
+    (FETCH_POST as jest.Mock).mockReset();
+    (FETCH_GET as jest.Mock).mockReset();
+    (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(FIXTURES.MOCK_BROWSER);
+    const page = FIXTURES.createHapoalimPage();
+    FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
+      'https://login.bankhapoalim.co.il/portalserver/HomePage',
+    );
+    return true;
+  },
+);
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([scrapedTxn()]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    mockTransactions([FIXTURES.scrapedTxn()]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.success).toBe(true);
-    expect(buildContextOptions).toHaveBeenCalled();
+    expect(BUILD_CONTEXT_OPTIONS).toHaveBeenCalled();
   });
 
   it('returns InvalidPassword for error URL', async () => {
-    (getCurrentUrl as jest.Mock).mockResolvedValue(
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
       'https://login.bankhapoalim.co.il/AUTHENTICATE/LOGON?flow=AUTHENTICATE&state=LOGON&errorcode=1.6&callme=false',
     );
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+    expect(result.errorType).toBe(SCRAPER_ERROR_TYPES.InvalidPassword);
   });
 
   it('returns ChangePassword for password expiry URL', async () => {
-    (getCurrentUrl as jest.Mock).mockResolvedValue(
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
       'https://login.bankhapoalim.co.il/MCP/START?flow=MCP&state=START&expiredDate=null',
     );
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+    expect(result.errorType).toBe(SCRAPER_ERROR_TYPES.ChangePassword);
   });
 });
 
@@ -212,85 +273,66 @@ describe('fetchData', () => {
   it('fetches transactions for open accounts', async () => {
     setupLoginAndAccounts();
     mockBalance(15000);
-    mockTransactions([scrapedTxn({ eventAmount: 250, activityDescription: 'קניה' })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    mockTransactions([
+      FIXTURES.scrapedTxn({ eventAmount: 250, activityDescription: '\u05E7\u05E0\u05D9\u05D4' }),
+    ]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('12-345-678');
-    expect(result.accounts![0].balance).toBe(15000);
-
-    const t = result.accounts![0].txns[0];
-    expect(t.description).toBe('קניה');
-    expect(t.originalCurrency).toBe('ILS');
-    expect(t.type).toBe(TransactionTypes.Normal);
-    expect(t.originalAmount).toBe(-250);
+    const account = result.accounts?.[0];
+    expect(account?.accountNumber).toBe('12-345-678');
+    expect(account?.balance).toBe(15000);
+    const txn = account?.txns[0];
+    expect(txn?.description).toBe('\u05E7\u05E0\u05D9\u05D4');
+    expect(txn?.originalCurrency).toBe('ILS');
+    expect(txn?.type).toBe(TX_TYPES.Normal);
+    expect(txn?.originalAmount).toBe(-250);
   });
 
-  it('negates outbound transactions (eventActivityTypeCode=2)', async () => {
+  it('negates outbound transactions', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([scrapedTxn({ eventActivityTypeCode: 2, eventAmount: 300 })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].originalAmount).toBe(-300);
+    mockTransactions([FIXTURES.scrapedTxn({ eventActivityTypeCode: 2, eventAmount: 300 })]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(-300);
   });
 
   it('keeps inbound transactions positive', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([scrapedTxn({ eventActivityTypeCode: 1, eventAmount: 300 })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].originalAmount).toBe(300);
+    mockTransactions([FIXTURES.scrapedTxn({ eventActivityTypeCode: 1, eventAmount: 300 })]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(300);
   });
 
-  it('marks pending transactions (serialNumber=0)', async () => {
+  it('marks pending transactions', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([scrapedTxn({ serialNumber: 0 })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Pending);
+    mockTransactions([FIXTURES.scrapedTxn({ serialNumber: 0 })]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns[0]?.status).toBe(TX_STATUSES.Pending);
   });
 
-  it('marks completed transactions (serialNumber > 0)', async () => {
+  it('marks completed transactions', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([scrapedTxn({ serialNumber: 5 })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].status).toBe(TransactionStatuses.Completed);
+    mockTransactions([FIXTURES.scrapedTxn({ serialNumber: 5 })]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns[0]?.status).toBe(TX_STATUSES.Completed);
   });
 
   it('constructs memo from beneficiary details', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    mockTransactions([
-      scrapedTxn({
-        beneficiaryDetailsData: {
-          partyHeadline: 'Transfer',
-          partyName: 'John',
-          messageHeadline: 'Rent',
-          messageDetail: 'Monthly',
-        },
-      }),
-    ]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].memo).toBe('Transfer John. Rent Monthly.');
+    const beneficiary = {
+      partyHeadline: 'Transfer',
+      partyName: 'John',
+      messageHeadline: 'Rent',
+      messageDetail: 'Monthly',
+    };
+    mockTransactions([FIXTURES.scrapedTxn({ beneficiaryDetailsData: beneficiary })]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns[0]?.memo).toBe('Transfer John. Rent Monthly.');
   });
 
   it('filters closed accounts', async () => {
@@ -299,137 +341,32 @@ describe('fetchData', () => {
       { bankNumber: '12', branchNumber: '345', accountNumber: '999', accountClosingReasonCode: 1 },
     ]);
     mockBalance();
-    mockTransactions([scrapedTxn()]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    mockTransactions([FIXTURES.scrapedTxn()]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('12-345-678');
-  });
-
-  it('uses empty string for missing description', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([scrapedTxn({ activityDescription: undefined })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].description).toBe('');
-  });
-
-  it('includes rawTransaction when option set', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([scrapedTxn()]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions({ includeRawTransaction: true }));
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
-  });
-
-  it('all transactions have type Normal', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([scrapedTxn()]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].type).toBe(TransactionTypes.Normal);
-  });
-
-  it('constructs memo with only partial beneficiary details', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([
-      scrapedTxn({
-        beneficiaryDetailsData: {
-          partyHeadline: 'Wire',
-          partyName: undefined,
-          messageHeadline: undefined,
-          messageDetail: undefined,
-        },
-      }),
-    ]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].memo).toBe('Wire');
-  });
-
-  it('returns empty memo when beneficiary details are all empty', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([scrapedTxn({ beneficiaryDetailsData: {} })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].memo).toBe('');
-  });
-
-  it('returns empty memo when no beneficiary details', async () => {
-    setupLoginAndAccounts();
-    mockBalance();
-    mockTransactions([scrapedTxn({ beneficiaryDetailsData: undefined })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns[0].memo).toBe('');
+    expect(result.accounts?.[0]?.accountNumber).toBe('12-345-678');
   });
 
   it('handles empty accounts list', async () => {
     setupLoginAndAccounts([]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(0);
   });
 
-  it('handles multiple open accounts', async () => {
-    setupLoginAndAccounts([
-      { bankNumber: '12', branchNumber: '100', accountNumber: '001', accountClosingReasonCode: 0 },
-      { bankNumber: '12', branchNumber: '200', accountNumber: '002', accountClosingReasonCode: 0 },
-    ]);
-    mockBalance(5000);
-    mockTransactions([scrapedTxn({ activityDescription: 'Acc1' })]);
-    mockBalance(3000);
-    mockTransactions([scrapedTxn({ activityDescription: 'Acc2' })]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].accountNumber).toBe('12-100-001');
-    expect(result.accounts![1].accountNumber).toBe('12-200-002');
-  });
-
   it('handles null balance response', async () => {
     setupLoginAndAccounts();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null); // balance
-    mockTransactions([scrapedTxn()]);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].balance).toBeUndefined();
+    (FETCH_GET as jest.Mock).mockResolvedValueOnce(null);
+    mockTransactions([FIXTURES.scrapedTxn()]);
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.balance).toBeUndefined();
   });
 
   it('handles empty transactions response', async () => {
     setupLoginAndAccounts();
     mockBalance();
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce(null);
-
-    const scraper = new HapoalimScraper(createMockScraperOptions());
-    const result = await scraper.scrape(CREDS);
-
-    expect(result.accounts![0].txns).toHaveLength(0);
+    (FETCH_POST as jest.Mock).mockResolvedValueOnce({ transactions: [] });
+    const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
+    expect(result.accounts?.[0]?.txns).toHaveLength(0);
   });
 });

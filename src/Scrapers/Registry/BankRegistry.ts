@@ -1,18 +1,19 @@
 import { CompanyTypes } from '../../Definitions.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig.js';
 import { BEHATSDAA_CONFIG } from '../Behatsdaa/BehatsdaaLoginConfig.js';
 import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/BeyahadBishvilhaLoginConfig.js';
-import { discountConfig } from '../Discount/DiscountLoginConfig.js';
+import discountConfig from '../Discount/DiscountLoginConfig.js';
 import { HAPOALIM_CONFIG } from '../Hapoalim/HapoalimLoginConfig.js';
-import { LEUMI_CONFIG } from '../Leumi/LeumiLoginConfig.js';
+import LEUMI_CONFIG from '../Leumi/LeumiLoginConfig.js';
 import { MAX_CONFIG } from '../Max/MaxLoginConfig.js';
 import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig.js';
 import { VISACAL_LOGIN_CONFIG } from '../VisaCal/VisaCalLoginConfig.js';
 import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig.js';
 import { SCRAPER_CONFIGURATION } from './ScraperConfig.js';
 
-export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
+/** Registry mapping CompanyTypes to their declarative login configurations. */
+const BANK_REGISTRY: Partial<Record<CompanyTypes, ILoginConfig>> = {
   [CompanyTypes.Beinleumi]: beinleumiConfig(
     SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].urls.base,
   ),
@@ -38,3 +39,6 @@ export const BANK_REGISTRY: Partial<Record<CompanyTypes, LoginConfig>> = {
   [CompanyTypes.VisaCal]: VISACAL_LOGIN_CONFIG,
   [CompanyTypes.Yahav]: YAHAV_CONFIG,
 };
+
+export { BANK_REGISTRY };
+export default BANK_REGISTRY;

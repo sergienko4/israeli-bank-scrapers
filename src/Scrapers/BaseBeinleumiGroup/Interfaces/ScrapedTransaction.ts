@@ -1,6 +1,6 @@
 import type { TransactionStatuses } from '../../../Transactions.js';
 
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   reference: string;
   date: string;
   credit: string;

@@ -9,6 +9,11 @@ import {
 } from '../../Common/Navigation.js';
 import { createMockPage } from '../MockPage.js';
 
+/**
+ * Creates a mock page for navigation tests with URL stubs.
+ * @param currentUrl - the URL to return from page.url()
+ * @returns a mock page with navigation-related stubs
+ */
 function createNavMockPage(
   currentUrl = 'https://bank.co.il/login',
 ): ReturnType<typeof createMockPage> {

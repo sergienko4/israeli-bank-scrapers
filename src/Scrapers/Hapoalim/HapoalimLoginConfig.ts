@@ -2,12 +2,13 @@ import { type Page } from 'playwright';
 
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];
 
-export const HAPOALIM_CONFIG: LoginConfig = {
+/** Declarative login configuration for Bank Hapoalim. */
+const HAPOALIM_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'userCode', selectors: [] }, // wellKnown → #userCode
@@ -17,7 +18,12 @@ export const HAPOALIM_CONFIG: LoginConfig = {
     { kind: 'css', value: '.login-btn' },
     // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
   ],
-  postAction: async (page: Page) => {
+  /**
+   * Wait for Hapoalim post-login redirect.
+   * @param page - The Playwright page instance.
+   * @returns True when redirect completes.
+   */
+  postAction: async (page: Page): Promise<void> => {
     await waitForRedirect(page, {});
   },
   possibleResults: {
@@ -35,3 +41,6 @@ export const HAPOALIM_CONFIG: LoginConfig = {
     ],
   },
 };
+
+export { HAPOALIM_CONFIG };
+export default HAPOALIM_CONFIG;

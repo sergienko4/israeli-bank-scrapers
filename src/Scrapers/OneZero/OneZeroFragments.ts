@@ -1,4 +1,5 @@
-export const MOVEMENTS_FRAGMENTS_2 = `
+/** GraphQL fragments for OneZero bank movement queries. */
+const MOVEMENTS_FRAGMENTS_2 = `
 fragment LoanDetailsData on LoanDetails {
   __typename
   ... on FullPrePayment {
@@ -212,7 +213,7 @@ fragment TransactionsDetailsData on TransactionDetails {
     value_date
   }
 }
-fragment TransactionFragment on Transaction {
+fragment TransactionFragment on ITransaction {
   __typename
   baseTransaction {
     __typename
@@ -232,7 +233,7 @@ fragment TransactionFragment on Transaction {
     ...TransactionsDetailsData
   }
 }
-fragment MovementFragment on Movement {
+fragment MovementFragment on IMovement {
   __typename
   accountId
   bankCurrencyAmount
@@ -277,3 +278,6 @@ fragment MovementsFragment on Movements {
   }
 }
 `;
+
+export { MOVEMENTS_FRAGMENTS_2 };
+export default MOVEMENTS_FRAGMENTS_2;

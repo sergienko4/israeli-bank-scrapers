@@ -35,7 +35,7 @@
     "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "check-exports": "publint",
     "lint": "eslint src --max-warnings 0 --ignore-pattern '**/*.cjs' && npm run format:check",
-    "lint:fix": "eslint src --fix --ignore-pattern '**/*.cjs' && npm run format",
+    "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "type-check": "tsc --noEmit",

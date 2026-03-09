@@ -1,9 +1,9 @@
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   dealSumType: string;
   voucherNumberRatzOutbound: string;
   voucherNumberRatz: string;
   moreInfo?: string;
-  dealSumOutbound: boolean;
+  dealSumOutbound: number;
   currencyId: string;
   currentPaymentCurrency: string;
   dealSum: number;

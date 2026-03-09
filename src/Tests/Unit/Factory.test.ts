@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { CompanyTypes } from '../../Definitions.js';
 import createScraper from '../../Scrapers/Registry/Factory.js';
 
@@ -10,7 +9,7 @@ describe('Factory', () => {
     });
     expect(scraper).toBeDefined();
 
-    expect(scraper.scrape).toBeInstanceOf(Function);
-    expect(scraper.onProgress).toBeInstanceOf(Function);
+    expect(typeof scraper.scrape).toBe('function');
+    expect(typeof scraper.onProgress).toBe('function');
   });
 });

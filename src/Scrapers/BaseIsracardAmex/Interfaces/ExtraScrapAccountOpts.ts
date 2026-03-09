@@ -2,11 +2,11 @@ import type { Moment } from 'moment';
 import type { Page } from 'playwright';
 
 import type { ScrapedAccountsWithIndex } from '../BaseIsracardAmexBaseTypes.js';
-import type { CompanyServiceOptions } from './CompanyServiceOptions.js';
+import type { ICompanyServiceOptions } from './CompanyServiceOptions.js';
 
-export interface ExtraScrapAccountOpts {
+export interface IExtraScrapAccountOpts {
   page: Page;
-  options: CompanyServiceOptions;
+  options: ICompanyServiceOptions;
   accountMap: ScrapedAccountsWithIndex;
   month: Moment;
 }

@@ -3,9 +3,10 @@ import path from 'path';
 import { type Page, type Request, type Route } from 'playwright';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CURRENT_FILE = fileURLToPath(import.meta.url);
+const CURRENT_DIR = path.dirname(CURRENT_FILE);
 
-interface MockRoute {
+interface IMockRoute {
   match: string | RegExp;
   method?: 'GET' | 'POST';
   abort?: boolean;
@@ -14,38 +15,53 @@ interface MockRoute {
   status?: number;
 }
 
+/**
+ * Loads a fixture file from the fixtures directory.
+ * @param fixturePath - relative path within the fixtures directory
+ * @returns the file contents as a string
+ */
 export function loadFixture(fixturePath: string): string {
-  return fs.readFileSync(path.resolve(__dirname, '..', 'fixtures', fixturePath), 'utf-8');
+  const fullPath = path.resolve(CURRENT_DIR, '..', 'fixtures', fixturePath);
+  return fs.readFileSync(fullPath, 'utf-8');
 }
 
-export async function setupRequestInterception(page: Page, routes: MockRoute[]): Promise<void> {
+/**
+ * Sets up request interception on a Playwright page using mock route definitions.
+ * @param page - the Playwright page to intercept requests on
+ * @param routes - array of mock route definitions
+ * @returns promise that resolves when interception is set up
+ */
+export async function setupRequestInterception(page: Page, routes: IMockRoute[]): Promise<boolean> {
   await page.route('**/*', async (route: Route, request: Request) => {
     const url = request.url();
     const method = request.method();
 
-    for (const mockRoute of routes) {
-      const urlMatch =
+    const matchingRoute = routes.find(mockRoute => {
+      const isUrlMatch =
         mockRoute.match instanceof RegExp
           ? mockRoute.match.test(url)
           : url.includes(mockRoute.match);
-      const methodMatch = !mockRoute.method || mockRoute.method === method;
+      const isMethodMatch = !mockRoute.method || mockRoute.method === method;
+      return isUrlMatch && isMethodMatch;
+    });
 
-      if (urlMatch && methodMatch) {
-        if (mockRoute.abort) {
-          await route.abort('failed');
-          return;
-        }
-        const body =
-          typeof mockRoute.body === 'function' ? mockRoute.body(request) : mockRoute.body;
-        await route.fulfill({
-          status: mockRoute.status ?? 200,
-          contentType: mockRoute.contentType!,
-          body,
-        });
+    if (matchingRoute) {
+      if (matchingRoute.abort) {
+        await route.abort('failed');
         return;
       }
+      const body =
+        typeof matchingRoute.body === 'function' ? matchingRoute.body(request) : matchingRoute.body;
+      const contentType = matchingRoute.contentType ?? 'text/html';
+      await route.fulfill({
+        status: matchingRoute.status ?? 200,
+        contentType,
+        body,
+      });
+      return;
     }
 
     await route.continue();
   });
+  return true;
 }

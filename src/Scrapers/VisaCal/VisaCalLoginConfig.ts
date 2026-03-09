@@ -7,7 +7,8 @@ import {
 } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
-import type { LoginConfig } from '../Base/LoginConfig.js';
+import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
+import type { ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import {
   CONNECT_IFRAME_OPTS,
@@ -18,10 +19,20 @@ import {
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
-async function visaCalCheckReadiness(page: Page): Promise<void> {
+/**
+ * Wait for the VisaCal login button to appear on the page.
+ * @param page - The Playwright page instance.
+ * @returns True when the login button is found.
+ */
+async function visaCalCheckReadiness(page: Page): LifecyclePromise {
   await waitUntilElementFound(page, '#ccLoginDesktopBtn');
 }
 
+/**
+ * Open the VisaCal login popup and navigate to the login form inside the iframe.
+ * @param page - The Playwright page instance.
+ * @returns The iframe Frame containing the login form.
+ */
 async function visaCalOpenLoginPopup(page: Page): Promise<Frame> {
   await waitUntilElementFound(page, '#ccLoginDesktopBtn', { visible: true });
   await clickButton(page, '#ccLoginDesktopBtn');
@@ -32,14 +43,20 @@ async function visaCalOpenLoginPopup(page: Page): Promise<Frame> {
   return frame;
 }
 
-async function visaCalPostAction(page: Page): Promise<void> {
+/**
+ * Wait for VisaCal post-login navigation to complete.
+ * @param page - The Playwright page instance.
+ * @returns True when post-login navigation completes.
+ */
+async function visaCalPostAction(page: Page): LifecyclePromise {
   const isAlreadyLoggedIn = page.url().includes('cal-online.co.il/#');
   if (!isAlreadyLoggedIn) {
     await waitForNavigation(page);
   }
 }
 
-export const VISACAL_LOGIN_CONFIG: LoginConfig = {
+/** Declarative login configuration for VisaCal. */
+export const VISACAL_LOGIN_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
     { credentialKey: 'username', selectors: [] },
@@ -61,3 +78,5 @@ export const VISACAL_LOGIN_CONFIG: LoginConfig = {
     ],
   },
 };
+
+export default VISACAL_LOGIN_CONFIG;

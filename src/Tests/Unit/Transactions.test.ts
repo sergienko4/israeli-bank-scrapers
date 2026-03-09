@@ -7,9 +7,14 @@ import {
   getRawTransaction,
   sortTransactionsByDate,
 } from '../../Common/Transactions.js';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 
-function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
+/**
+ * Creates a test transaction with sensible defaults and optional overrides.
+ * @param overrides - partial transaction fields to override defaults
+ * @returns a complete Transaction for testing
+ */
+function createTransaction(overrides: Partial<ITransaction> = {}): ITransaction {
   return {
     type: TransactionTypes.Normal,
     date: '2024-01-15T00:00:00.000Z',
@@ -52,11 +57,13 @@ describe('fixInstallments', () => {
     ];
     const result = fixInstallments(txns);
     const expected = moment('2024-01-15').add(2, 'month');
-    expect(moment(result[0].date).isSame(expected, 'month')).toBe(true);
+    const isSameMonth = moment(result[0].date).isSame(expected, 'month');
+    expect(isSameMonth).toBe(true);
   });
 
   it('returns empty array for empty input', () => {
-    expect(fixInstallments([])).toEqual([]);
+    const result = fixInstallments([]);
+    expect(result).toEqual([]);
   });
 
   it('does not mutate original transaction', () => {
@@ -84,7 +91,8 @@ describe('sortTransactionsByDate', () => {
   });
 
   it('returns empty array for empty input', () => {
-    expect(sortTransactionsByDate([])).toEqual([]);
+    const result = sortTransactionsByDate([]);
+    expect(result).toEqual([]);
   });
 
   it('handles single transaction', () => {
@@ -148,20 +156,21 @@ describe('filterOldTransactions', () => {
   });
 
   it('returns empty for empty input', () => {
-    expect(filterOldTransactions([], startMoment, false)).toEqual([]);
+    const result = filterOldTransactions([], startMoment, false);
+    expect(result).toEqual([]);
   });
 });
 
 describe('getRawTransaction', () => {
   it('returns cleaned data when called with one argument', () => {
     const data = { key: 'value', empty: '', nil: null };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string>;
     expect(result).toEqual({ key: 'value' });
   });
 
   it('removes undefined and empty arrays from data', () => {
     const data = { key: 'value', undef: undefined, arr: [] };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, string>;
     expect(result).toEqual({ key: 'value' });
   });
 
@@ -187,52 +196,55 @@ describe('getRawTransaction', () => {
 
   it('handles nested objects with empty values', () => {
     const data = { outer: { inner: 'value', empty: '' } };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, Record<string, string>>;
     expect(result).toEqual({ outer: { inner: 'value' } });
   });
 
   it('handles arrays within data', () => {
     const data = { items: [{ a: 1, b: null }, { c: 2 }] };
-    const result = getRawTransaction(data) as Record<string, unknown>;
+    const result = getRawTransaction(data) as Record<string, Record<string, number>[]>;
     expect(result).toEqual({ items: [{ a: 1 }, { c: 2 }] });
   });
 
   it('returns primitive values as-is', () => {
-    expect(getRawTransaction('hello')).toBe('hello');
-    expect(getRawTransaction(42)).toBe(42);
+    const helloResult = getRawTransaction('hello');
+    expect(helloResult).toBe('hello');
+    const numberResult = getRawTransaction(42);
+    expect(numberResult).toBe(42);
   });
 });
 
 describe('property-based invariants', () => {
-  const MIN_MS = new Date('2020-01-01').getTime();
-  const MAX_MS = new Date('2026-12-31').getTime();
+  const minMs = new Date('2020-01-01').getTime();
+  const maxMs = new Date('2026-12-31').getTime();
   const txnArb = fc
-    .integer({ min: MIN_MS, max: MAX_MS })
+    .integer({ min: minMs, max: maxMs })
     .map(ms => createTransaction({ date: new Date(ms).toISOString() }));
 
   it('sortTransactionsByDate always produces ascending order', () => {
-    fc.assert(
-      fc.property(fc.array(txnArb, { minLength: 2, maxLength: 20 }), txns => {
-        const sorted = sortTransactionsByDate(txns);
-        for (let i = 1; i < sorted.length; i++) {
-          expect(new Date(sorted[i].date).getTime()).toBeGreaterThanOrEqual(
-            new Date(sorted[i - 1].date).getTime(),
-          );
-        }
-      }),
-    );
+    const txnArray = fc.array(txnArb, { minLength: 2, maxLength: 20 });
+    const sortProperty = fc.property(txnArray, txns => {
+      const sorted = sortTransactionsByDate(txns);
+      for (let i = 1; i < sorted.length; i++) {
+        const currentTime = new Date(sorted[i].date).getTime();
+        const previousTime = new Date(sorted[i - 1].date).getTime();
+        expect(currentTime).toBeGreaterThanOrEqual(previousTime);
+      }
+    });
+    fc.assert(sortProperty);
   });
 
   it('filterOldTransactions never returns transactions before start date', () => {
     const startDate = new Date('2023-06-01');
-    const startMoment = moment(startDate);
-    fc.assert(
-      fc.property(fc.array(txnArb, { minLength: 1, maxLength: 20 }), txns => {
-        const result = filterOldTransactions(txns, startMoment, false);
-        result.forEach(t => {
-          expect(moment(t.date).isSameOrAfter(startMoment, 'day')).toBe(true);
-        });
-      }),
-    );
+    const startMomentPbt = moment(startDate);
+    const txnArray = fc.array(txnArb, { minLength: 1, maxLength: 20 });
+    const filterProperty = fc.property(txnArray, txns => {
+      const result = filterOldTransactions(txns, startMomentPbt, false);
+      result.forEach(t => {
+        const isAfterStart = moment(t.date).isSameOrAfter(startMomentPbt, 'day');
+        expect(isAfterStart).toBe(true);
+      });
+    });
+    fc.assert(filterProperty);
   });
 });

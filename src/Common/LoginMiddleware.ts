@@ -1,10 +1,10 @@
 import type { Frame, Page } from 'playwright';
 
-import type { ScraperScrapingResult } from '../Scrapers/Base/Interface.js';
-import type { BankScraperConfig } from '../Scrapers/Registry/ScraperConfig.js';
+import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import type { IBankScraperConfig } from '../Scrapers/Registry/ScraperConfig.js';
 
 /** Cached result of the HTML structure parse — populated once by stepParseLoginPage. */
-export interface ParsedLoginPage {
+export interface IParsedLoginPage {
   /** All accessible child frames (excludes mainFrame, cross-origin failures). */
   childFrames: Frame[];
   /** The frame (or main page) where the first login input was found — null if not yet detected. */
@@ -16,49 +16,66 @@ export interface ParsedLoginPage {
 }
 
 /** Context passed through the middleware chain. */
-export interface LoginContext {
+export interface ILoginContext {
   page: Page;
   activeFrame: Page | Frame;
-  loginSetup: BankScraperConfig['loginSetup'];
+  loginSetup: IBankScraperConfig['loginSetup'];
   /** Cached page structure — set by stepParseLoginPage, consumed by downstream steps. */
-  parsedPage?: ParsedLoginPage;
+  parsedPage?: IParsedLoginPage;
 }
 
 /** Result from a middleware step. */
-export interface StepResult {
+export interface IStepResult {
   /** true = continue to next step, false = stop chain and return `result`. */
   shouldContinue: boolean;
   /** Only set when shouldContinue is false — the final scraping result. */
-  result?: ScraperScrapingResult;
+  result?: IScraperScrapingResult;
 }
 
 /** A single step in the login chain. */
-export type LoginStep = (ctx: LoginContext) => Promise<StepResult>;
+export type LoginStep = (ctx: ILoginContext) => Promise<IStepResult>;
 
 /** A login step with a human-readable name for logging. */
-export interface NamedLoginStep {
+export interface INamedLoginStep {
   /** Short name for logs, e.g. 'navigate', 'fill', 'otp-confirm'. */
   readonly name: string;
   /** The step function to execute. */
   readonly execute: LoginStep;
 }
 
-const CONTINUE: StepResult = { shouldContinue: true };
+const CONTINUE: IStepResult = { shouldContinue: true };
 
-export function stopWithResult(result: ScraperScrapingResult): StepResult {
+/**
+ * Create a stop result that terminates the login chain with a scraping result.
+ * @param result - The scraping result to return from the chain.
+ * @returns A step result with shouldContinue=false.
+ */
+export function stopWithResult(result: IScraperScrapingResult): IStepResult {
   return { shouldContinue: false, result };
 }
 
-/** Run a chain of login steps. Stops at the first step that returns shouldContinue=false. */
-export async function runLoginChain(
-  steps: LoginStep[],
-  ctx: LoginContext,
-): Promise<ScraperScrapingResult | null> {
-  for (const step of steps) {
-    const result = await step(ctx);
-    if (!result.shouldContinue) return result.result ?? null;
-  }
-  return null;
+/** Nullable scraping result — matches upstream chain return semantics. */
+type NullableChainResult = Promise<IScraperScrapingResult | null>;
+
+/**
+ * Run a chain of login steps. Stops at the first step that returns shouldContinue=false.
+ * @param steps - The ordered login step functions.
+ * @param ctx - The login context shared across steps.
+ * @returns The scraping result from the first stopping step, or null if all continued.
+ */
+export async function runLoginChain(steps: LoginStep[], ctx: ILoginContext): NullableChainResult {
+  const actions = steps.map(
+    (step): (() => Promise<IStepResult>) =>
+      () =>
+        step(ctx),
+  );
+  const initialValue: Promise<IStepResult> = Promise.resolve(CONTINUE);
+  const finalResult = await actions.reduce<Promise<IStepResult>>(async (prev, action) => {
+    const prevResult = await prev;
+    if (!prevResult.shouldContinue) return prevResult;
+    return action();
+  }, initialValue);
+  return finalResult.result ?? null;
 }
 
 export { CONTINUE };

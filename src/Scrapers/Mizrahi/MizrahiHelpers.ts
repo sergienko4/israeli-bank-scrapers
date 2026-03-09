@@ -5,16 +5,16 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import type { MizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
-import type { MoreDetails } from './Interfaces/MoreDetails.js';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+import type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
+import type { IMoreDetails } from './Interfaces/MoreDetails.js';
+import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 
-export type { ConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts.js';
-export type { ConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts.js';
-export type { MizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
-export type { MoreDetails } from './Interfaces/MoreDetails.js';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
-export type { ScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult.js';
+export type { IConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts.js';
+export type { IConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts.js';
+export type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
+export type { IMoreDetails } from './Interfaces/MoreDetails.js';
+export type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+export type { IScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult.js';
 
 const LOG = getDebug('mizrahi');
 
@@ -31,13 +31,18 @@ export const DATE_FORMAT = MIZRAHI_CFG.format.date;
 export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
 export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
 
+/**
+ * Compute the effective start moment, capped at one year ago.
+ * @param optionsStartDate - The user-requested start date.
+ * @returns The later of one-year-ago or the requested date.
+ */
 export function getStartMoment(optionsStartDate: Date): moment.Moment {
   const defaultStartMoment = moment().subtract(1, 'years');
-  const startDate = optionsStartDate;
-  return moment.max(defaultStartMoment, moment(startDate));
+  const startDateMoment = moment(optionsStartDate);
+  return moment.max(defaultStartMoment, startDateMoment);
 }
 
-interface MoreDetailsResponse {
+interface IMoreDetailsResponse {
   body: {
     fields: [
       [
@@ -56,7 +61,12 @@ interface MoreDetailsResponse {
   };
 }
 
-function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, string | number> {
+/**
+ * Build the request parameters for fetching extra transaction details.
+ * @param item - The scraped transaction to build parameters for.
+ * @returns A key-value map of API request parameters.
+ */
+function buildExtraDetailsParams(item: IScrapedTransaction): Record<string, string | number> {
   const tarPeula = moment(item.MC02PeulaTaaEZ);
   const tarErech = moment(item.MC02ErehTaaEZ);
   return {
@@ -74,7 +84,12 @@ function buildExtraDetailsParams(item: ScrapedTransaction): Record<string, strin
   };
 }
 
-function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDetails {
+/**
+ * Parse the detail fields from the API response into a structured object.
+ * @param fields - Array of label-value pairs from the API.
+ * @returns Structured details with entries map and memo string.
+ */
+function parseDetailsFields(fields: { Label: string; Value: string }[]): IMoreDetails {
   const entries: [string, string][] = fields.map(record => [
     record.Label.trim(),
     record.Value.trim(),
@@ -88,49 +103,76 @@ function parseDetailsFields(fields: { Label: string; Value: string }[]): MoreDet
   };
 }
 
+const EMPTY_DETAILS: IMoreDetails = { entries: {}, memo: undefined };
+
+/**
+ * Fetch extra details for a single transaction from the Mizrahi API.
+ * @param page - The Playwright page with an active session.
+ * @param item - The scraped transaction to fetch details for.
+ * @param apiHeaders - Headers captured from the initial request.
+ * @returns The extra details, or an empty-details sentinel if unavailable.
+ */
 async function fetchMoreDetails(
   page: Page,
-  item: ScrapedTransaction,
+  item: IScrapedTransaction,
   apiHeaders: Record<string, string>,
-): Promise<MoreDetails | null> {
-  if (item.MC02ShowDetailsEZ !== '1') return null;
+): Promise<IMoreDetails> {
+  if (item.MC02ShowDetailsEZ !== '1') return EMPTY_DETAILS;
   const params = buildExtraDetailsParams(item);
-  const response = await fetchPostWithinPage<MoreDetailsResponse>(page, MORE_DETAILS_URL, {
+  const response = await fetchPostWithinPage<IMoreDetailsResponse>(page, MORE_DETAILS_URL, {
     data: params,
     extraHeaders: apiHeaders,
   });
-  const details = response?.body.fields[0][0].Records[0].Fields;
+  if (!response) return EMPTY_DETAILS;
+  const details = response.body.fields[0][0].Records[0].Fields;
   LOG.debug({ params, details }, 'fetch details');
   if (Array.isArray(details) && details.length > 0) return parseDetailsFields(details);
-  return null;
+  return EMPTY_DETAILS;
 }
 
+/**
+ * Get extra transaction details, falling back to empty details on error.
+ * @param page - The Playwright page with an active session.
+ * @param item - The scraped transaction to enrich.
+ * @param apiHeaders - Headers captured from the initial request.
+ * @returns The extra details or an empty-details sentinel.
+ */
 export async function getExtraTransactionDetails(
   page: Page,
-  item: ScrapedTransaction,
+  item: IScrapedTransaction,
   apiHeaders: Record<string, string>,
-): Promise<MoreDetails> {
+): Promise<IMoreDetails> {
   try {
     LOG.debug(item, 'getExtraTransactionDetails for item');
-    const result = await fetchMoreDetails(page, item, apiHeaders);
-    if (result) return result;
+    return await fetchMoreDetails(page, item, apiHeaders);
   } catch (error) {
     LOG.debug(error, 'Error fetching extra transaction details');
   }
-  return { entries: {}, memo: undefined };
+  return EMPTY_DETAILS;
 }
 
+/**
+ * Build a Mizrahi request payload from the intercepted request and date range.
+ * @param request - The intercepted Playwright request.
+ * @param optionsStartDate - The user-requested start date.
+ * @returns The modified request data with updated date range.
+ */
 export function createDataFromRequest(
   request: Request,
   optionsStartDate: Date,
-): MizrahiRequestData {
-  const data = JSON.parse(request.postData() ?? '{}') as MizrahiRequestData;
+): IMizrahiRequestData {
+  const data = JSON.parse(request.postData() ?? '{}') as IMizrahiRequestData;
   data.inFromDate = getStartMoment(optionsStartDate).format(DATE_FORMAT);
   data.inToDate = moment().format(DATE_FORMAT);
   data.table.maxRow = MAX_ROWS_PER_REQUEST;
   return data;
 }
 
+/**
+ * Extract XSRF token and content-type headers from the intercepted request.
+ * @param request - The intercepted Playwright request.
+ * @returns Header map with XSRF token and content type.
+ */
 export function createHeadersFromRequest(request: Request): Record<string, string> {
   return {
     mizrahixsrftoken: request.headers().mizrahixsrftoken,
@@ -138,12 +180,17 @@ export function createHeadersFromRequest(request: Request): Record<string, strin
   };
 }
 
-export function getTransactionIdentifier(row: ScrapedTransaction): string | number | undefined {
+/**
+ * Derive a unique transaction identifier from a scraped row.
+ * @param row - The scraped transaction row.
+ * @returns A composite string key, a parsed numeric reference, or empty string if absent.
+ */
+export function getTransactionIdentifier(row: IScrapedTransaction): string | number {
   if (!row.MC02AsmahtaMekoritEZ) {
-    return undefined;
+    return '';
   }
   if (row.TransactionNumber && String(row.TransactionNumber) !== '1') {
-    return `${row.MC02AsmahtaMekoritEZ}-${row.TransactionNumber}`;
+    return `${row.MC02AsmahtaMekoritEZ}-${String(row.TransactionNumber)}`;
   }
   return parseInt(row.MC02AsmahtaMekoritEZ, 10);
 }
