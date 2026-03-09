@@ -1,6 +1,6 @@
-import type { Portfolio } from './Portfolio.js';
+import type { IPortfolio } from './Portfolio.js';
 
-export interface Customer {
+export interface ICustomer {
   customerId: string;
-  portfolios?: Portfolio[] | null;
+  portfolios?: IPortfolio[] | null;
 }

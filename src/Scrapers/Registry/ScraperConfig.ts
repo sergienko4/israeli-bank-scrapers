@@ -1,136 +1,22 @@
-/* eslint-disable max-lines */
 import { CompanyTypes } from '../../Definitions.js';
-import { type SelectorCandidate } from '../Base/LoginConfig.js';
+import {
+  BEINLEUMI_DOM_SELECTORS,
+  type IBankScraperConfig,
+  NULL_API,
+  NULL_AUTH,
+  NULL_FORMAT,
+  NULL_TIMING,
+  SIMPLE_LOGIN,
+  VISACAL_API,
+} from './ScraperConfigDefaults.js';
+import {
+  WELL_KNOWN_DASHBOARD_SELECTORS,
+  WELL_KNOWN_LOGIN_SELECTORS,
+} from './WellKnownSelectors.js';
 
-// ─── Config shape ────────────────────────────────────────────────────────────
+export type { IBankScraperConfig };
 
-export interface BankScraperConfig {
-  /** Browser navigation URLs */
-  urls: {
-    base: string | null; // Official home page — no subdomain, no path
-    loginRoute: string | null; // Angular/CGI route (checkReadiness nav)
-    transactions: string | null; // Full URL to the transactions page/portal
-  };
-  /** REST API endpoints */
-  api: {
-    base: string | null; // Alternate/portal API domain
-    purchaseHistory: string | null; // Behatsdaa
-    card: string | null; // BeyahadBishvilha
-    calTransactions: string | null;
-    calFrames: string | null;
-    calPending: string | null;
-    calInit: string | null;
-    calLoginResponse: string | null;
-    calOrigin: string | null;
-    calXSiteId: string | null;
-  };
-  /** Authentication identifiers */
-  auth: {
-    companyCode: string | null; // Amex: '77', Isracard: '11'
-    countryCode: string | null; // Israel: '212'
-    idType: string | null;
-    checkLevel: string | null;
-    organizationId: string | null; // Behatsdaa: '20'
-  };
-  /** Login flow capabilities — drives pre/post-login behavior in BaseScraperWithBrowser. */
-  loginSetup: {
-    isApiOnly: boolean; // No browser login form (Amex, Isracard — API calls)
-    hasOtpConfirm: boolean; // "Send me SMS" button before code entry (Beinleumi)
-    hasOtpCode: boolean; // OTP code entry screen (Beinleumi, OneZero)
-    hasSecondLoginStep: boolean; // Optional 2nd login form (Max Flow B)
-  };
-  /** Data format and pagination */
-  format: {
-    date: string | null; // moment.js format string
-    apiLang: string | null;
-    numItemsPerPage: number | null;
-    sortCode: number | null;
-    maxRowsPerRequest: number | null;
-  };
-  /** Timing and delays */
-  timing: {
-    elementRenderMs: number | null;
-    loginDelayMinMs: number | null;
-    loginDelayMaxMs: number | null;
-  };
-  /** CSS selectors for DOM data scraping (post-login dashboard). */
-  selectors: Record<string, SelectorCandidate[]>;
-}
-
-// ─── Null-fill helpers (shared across banks) ─────────────────────────────────
-
-const NULL_API: BankScraperConfig['api'] = {
-  base: null,
-  purchaseHistory: null,
-  card: null,
-  calTransactions: null,
-  calFrames: null,
-  calPending: null,
-  calInit: null,
-  calLoginResponse: null,
-  calOrigin: null,
-  calXSiteId: null,
-};
-const NULL_AUTH: BankScraperConfig['auth'] = {
-  companyCode: null,
-  countryCode: null,
-  idType: null,
-  checkLevel: null,
-  organizationId: null,
-};
-const SIMPLE_LOGIN: BankScraperConfig['loginSetup'] = {
-  isApiOnly: false,
-  hasOtpConfirm: false,
-  hasOtpCode: false,
-  hasSecondLoginStep: false,
-};
-const NULL_FORMAT: BankScraperConfig['format'] = {
-  date: null,
-  apiLang: null,
-  numItemsPerPage: null,
-  sortCode: null,
-  maxRowsPerRequest: null,
-};
-const NULL_TIMING: BankScraperConfig['timing'] = {
-  elementRenderMs: null,
-  loginDelayMinMs: null,
-  loginDelayMaxMs: null,
-};
-
-// ─── Shared selector sets ─────────────────────────────────────────────────────
-
-// Column class strings (used for td class matching in BaseBeinleumiGroupHelpers) are
-// intentionally NOT here — they are hardcoded in BaseBeinleumiGroupHelpers.ts.
-const BEINLEUMI_DOM_SELECTORS: Record<string, SelectorCandidate[]> = {
-  accountsNumber: [{ kind: 'css', value: 'div.fibi_account span.acc_num' }],
-  completedTransactionsTable: [{ kind: 'css', value: 'table#dataTable077' }],
-  pendingTransactionsTable: [{ kind: 'css', value: 'table#dataTable023' }],
-  nextPageLink: [{ kind: 'css', value: 'a#Npage.paging' }],
-  currentBalance: [{ kind: 'css', value: '.main_balance' }],
-  transactionsTab: [{ kind: 'css', value: 'a#tabHeader4' }],
-  datesContainer: [{ kind: 'css', value: 'div#fibi_dates' }],
-  fromDateInput: [{ kind: 'css', value: 'input#fromDate' }],
-  showButton: [{ kind: 'css', value: 'input[value=הצג]' }],
-  tableContainer: [{ kind: 'css', value: "div[id*='divTable']" }],
-  closeDatePickerBtn: [{ kind: 'css', value: 'button.ui-datepicker-close' }],
-};
-
-const VISACAL_API: BankScraperConfig['api'] = {
-  base: null,
-  purchaseHistory: null,
-  card: null,
-  calTransactions:
-    'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
-  calFrames: 'https://api.cal-online.co.il/Frames/api/Frames/GetFrameStatus',
-  calPending: 'https://api.cal-online.co.il/Transactions/api/approvals/getClearanceRequests',
-  calInit: 'https://api.cal-online.co.il/Authentication/api/account/init',
-  calLoginResponse: '/col-rest/calconnect/authentication/login',
-  calOrigin: 'https://digital-web.cal-online.co.il',
-  calXSiteId: '09031987-273E-2311-906C-8AF85B17C8D9',
-};
-
-// ─── Central scraper configuration ───────────────────────────────────────────
-
+/** Central per-bank scraper configuration — URLs, API, auth, format, timing, selectors. */
 export const SCRAPER_CONFIGURATION = {
   banks: {
     [CompanyTypes.Hapoalim]: {
@@ -378,161 +264,8 @@ export const SCRAPER_CONFIGURATION = {
       timing: NULL_TIMING,
       selectors: {},
     },
-  } satisfies Record<CompanyTypes, BankScraperConfig>,
+  } satisfies Record<CompanyTypes, IBankScraperConfig>,
 
-  /**
-   * Global login-field fallback dictionary used by SelectorResolver on every bank.
-   * Order = middleware priority: visible text first → CSS last resort.
-   */
-  wellKnownSelectors: {
-    username: [
-      // --- visible text (what the user sees) ---
-      { kind: 'labelText', value: 'שם משתמש' },
-      { kind: 'labelText', value: 'קוד משתמש' },
-      { kind: 'labelText', value: 'מספר לקוח' },
-      { kind: 'placeholder', value: 'שם משתמש' },
-      { kind: 'placeholder', value: 'קוד משתמש' },
-      { kind: 'placeholder', value: 'מספר לקוח' },
-      { kind: 'placeholder', value: 'תז' },
-      { kind: 'ariaLabel', value: 'שם משתמש' },
-      { kind: 'ariaLabel', value: 'קוד משתמש' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'username' },
-      { kind: 'name', value: 'userCode' },
-      // --- CSS last resort ---
-      { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
-      { kind: 'css', value: '#user-name' }, // Max
-      { kind: 'css', value: '#userNumberDesktopHeb' }, // Mizrahi
-      { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal
-    ],
-    userCode: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'קוד משתמש' },
-      { kind: 'labelText', value: 'שם משתמש' },
-      { kind: 'placeholder', value: 'קוד משתמש' },
-      { kind: 'placeholder', value: 'שם משתמש' },
-      { kind: 'placeholder', value: 'מספר לקוח' },
-      { kind: 'ariaLabel', value: 'קוד משתמש' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'userCode' },
-      { kind: 'name', value: 'username' },
-      // --- CSS last resort ---
-      { kind: 'css', value: '#userCode' }, // Hapoalim
-    ],
-    password: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'סיסמה' },
-      { kind: 'labelText', value: 'סיסמא' },
-      { kind: 'labelText', value: 'קוד סודי' },
-      { kind: 'placeholder', value: 'סיסמה' },
-      { kind: 'placeholder', value: 'סיסמא' },
-      { kind: 'placeholder', value: 'קוד סודי' },
-      { kind: 'ariaLabel', value: 'סיסמה' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'password' },
-      // --- CSS last resort ---
-      { kind: 'css', value: 'input[type="password"]' },
-      { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
-      { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
-      { kind: 'css', value: '#tzPassword' }, // Discount
-      { kind: 'css', value: '#passwordDesktopHeb' }, // Mizrahi
-      { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
-    ],
-    id: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'תעודת זהות' },
-      { kind: 'labelText', value: 'מספר זהות' },
-      { kind: 'placeholder', value: 'תעודת זהות' },
-      { kind: 'placeholder', value: 'מספר זהות' },
-      { kind: 'placeholder', value: 'ת.ז' },
-      { kind: 'ariaLabel', value: 'תעודת זהות' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'id' },
-      // --- CSS last resort ---
-      { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
-      { kind: 'css', value: '#tzId' }, // Discount
-    ],
-    nationalID: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'תעודת זהות' },
-      { kind: 'labelText', value: 'מספר זהות' },
-      { kind: 'placeholder', value: 'תעודת זהות' },
-      { kind: 'placeholder', value: 'מספר זהות' },
-      { kind: 'ariaLabel', value: 'תעודת זהות' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'nationalID' },
-      { kind: 'name', value: 'id' },
-      // --- CSS last resort ---
-      { kind: 'css', value: '#pinno' }, // Yahav
-    ],
-    card6Digits: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'ספרות' },
-      { kind: 'placeholder', value: '6 ספרות' },
-      { kind: 'placeholder', value: 'ספרות הכרטיס' },
-      { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
-    ],
-    num: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'קוד מזהה' },
-      { kind: 'labelText', value: 'מספר חשבון' },
-      { kind: 'placeholder', value: 'מספר חשבון' },
-      { kind: 'ariaLabel', value: 'מספר חשבון' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'num' },
-      // --- CSS last resort ---
-      { kind: 'css', value: '#aidnum' }, // Discount
-    ],
-    otpCode: [
-      // --- visible text ---
-      { kind: 'labelText', value: 'קוד חד פעמי' },
-      { kind: 'labelText', value: 'קוד אימות' },
-      { kind: 'placeholder', value: 'קוד חד פעמי' },
-      { kind: 'placeholder', value: 'קוד SMS' },
-      { kind: 'placeholder', value: 'קוד אימות' },
-      { kind: 'placeholder', value: 'הזן קוד' },
-      // --- semantic HTML ---
-      { kind: 'name', value: 'otpCode' },
-    ],
-    /** Universal submit-button fallback — visible text first, CSS last */
-    __submit__: [
-      // --- visible text ---
-      { kind: 'ariaLabel', value: 'כניסה' },
-      { kind: 'ariaLabel', value: 'התחברות' },
-      { kind: 'ariaLabel', value: 'התחבר' },
-      { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
-      { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
-      { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
-      // --- CSS last resort ---
-      { kind: 'css', value: 'button[type="submit"]' },
-    ],
-  } satisfies Record<string, SelectorCandidate[]>,
-
-  /** Global dashboard-field fallback dictionary used by resolveDashboardField() */
-  wellKnownDashboardSelectors: {
-    balance: [
-      { kind: 'css', value: '.balance' },
-      { kind: 'css', value: '[data-testid="balance"]' },
-      { kind: 'ariaLabel', value: 'יתרה' },
-      { kind: 'ariaLabel', value: 'balance' },
-    ],
-    loadingIndicator: [
-      { kind: 'css', value: '.react-loading.hide' },
-      { kind: 'css', value: '[data-loading]' },
-      { kind: 'css', value: '.spinner' },
-    ],
-    /** Generic date-from filter input — Hebrew placeholder variants + HTML5 date input */
-    fromDateInput: [
-      { kind: 'placeholder', value: 'מתאריך' },
-      { kind: 'placeholder', value: 'מהתאריך' },
-      { kind: 'placeholder', value: 'תאריך התחלה' },
-      { kind: 'css', value: 'input[type="date"]' },
-    ],
-    /** Generic loading spinner — Yahav, generic patterns */
-    loadingSpinner: [
-      { kind: 'css', value: '.loading-bar-spinner' },
-      { kind: 'css', value: '.loading' },
-      { kind: 'css', value: '[role="progressbar"]' },
-    ],
-  } satisfies Record<string, SelectorCandidate[]>,
+  wellKnownSelectors: WELL_KNOWN_LOGIN_SELECTORS,
+  wellKnownDashboardSelectors: WELL_KNOWN_DASHBOARD_SELECTORS,
 } as const;

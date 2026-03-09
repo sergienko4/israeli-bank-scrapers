@@ -1,10 +1,16 @@
-import { type Frame, type Page } from 'playwright';
+import { type Page } from 'playwright';
 
 import { elementPresentOnPage } from '../../Common/ElementsInteractions.js';
-import { sleep } from '../../Common/Waiting.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 
-async function beinleumiPostAction(page: Page): Promise<void> {
+/**
+ * Wait for any of the known post-login dashboard selectors to appear.
+ * @param page - The Playwright page to check for dashboard elements.
+ * @returns True once the race completes.
+ */
+async function beinleumiPostAction(
+  page: Page,
+): ReturnType<NonNullable<ILoginConfig['postAction']>> {
   await Promise.race([
     page.waitForSelector('#card-header'),
     page.waitForSelector('#account_num'),
@@ -16,36 +22,49 @@ async function beinleumiPostAction(page: Page): Promise<void> {
   });
 }
 
-const BEINLEUMI_FIELDS: LoginConfig['fields'] = [
+/** Login field declarations for Beinleumi — wellKnown resolves #username and #password. */
+export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
   { credentialKey: 'username', selectors: [] }, // wellKnown → #username
   { credentialKey: 'password', selectors: [] }, // wellKnown → #password
 ];
 
-const BEINLEUMI_SUBMIT: LoginConfig['submit'] = [
+const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
   { kind: 'css', value: '#continueBtn' },
   // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
 ];
 
-const BEINLEUMI_POSSIBLE_RESULTS: LoginConfig['possibleResults'] = {
+const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
   success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/, /FibiMenu\/Online/],
   invalidPassword: [/FibiMenu\/Marketing\/Private\/Home/],
 };
 
-async function beinleumiPreAction(page: Page): Promise<Frame | undefined> {
+/**
+ * Click the login trigger if present, then wait for the form to render.
+ * @param page - The Playwright page to interact with.
+ * @returns The login iframe if found, or undefined.
+ */
+async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
   const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
   if (hasTrigger) {
     await page.evaluate(() => {
       const el = document.querySelector('a.login-trigger');
       if (el instanceof HTMLElement) el.click();
     });
-    await sleep(2000);
-  } else {
-    await sleep(1000);
+    await page.waitForTimeout(2000);
+    const loginFrame = page.frames().find(f => f.url().includes('login'));
+    return loginFrame;
   }
-  return undefined;
+  await page.waitForTimeout(1000);
+  const loginFrame = page.frames().find(f => f.url().includes('login'));
+  return loginFrame;
 }
 
-export function beinleumiConfig(loginUrl: string): LoginConfig {
+/**
+ * Build the login configuration for Beinleumi bank.
+ * @param loginUrl - The bank's login page URL.
+ * @returns A complete ILoginConfig for the Beinleumi login flow.
+ */
+export function beinleumiConfig(loginUrl: string): ILoginConfig {
   return {
     loginUrl,
     fields: BEINLEUMI_FIELDS,

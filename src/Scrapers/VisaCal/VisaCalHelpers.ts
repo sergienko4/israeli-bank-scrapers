@@ -7,16 +7,16 @@ import {
   waitUntilIframeFound,
 } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import {
-  type CardLevelFrame,
-  type CardPendingTransactionDetails,
-  type CardTransactionDetails,
-  type FramesResponse,
+  type ICardLevelFrame,
+  type ICardPendingTransactionDetails,
+  type ICardTransactionDetails,
+  type IFramesResponse,
+  type IScrapedPendingTransaction,
+  type IScrapedTransaction,
   isPending,
-  type ScrapedPendingTransaction,
-  type ScrapedTransaction,
   TrnTypeCode,
 } from './VisaCalTypes.js';
 
@@ -32,19 +32,35 @@ const CONNECT_IFRAME_CHECK_OPTS = {
   description: 'login iframe check',
 } as const;
 
-export function isConnectFrame(f: Frame): boolean {
-  return f.url().includes('connect');
+/**
+ * Check whether the given frame URL belongs to the connect login iframe.
+ * @param frame - The Playwright frame to inspect.
+ * @returns True if the frame URL contains 'connect'.
+ */
+export function isConnectFrame(frame: Frame): boolean {
+  return frame.url().includes('connect');
 }
 
+/**
+ * Detect whether the login iframe shows an invalid-password error message.
+ * @param page - The Playwright page to inspect.
+ * @returns True if invalid-password error is visible.
+ */
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
   try {
     const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
     const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
+    /**
+     * Extract inner text from an error div element.
+     * @param item - The error div element.
+     * @returns The inner text content.
+     */
+    const extractErrorText = (item: Element): string => (item as HTMLDivElement).innerText;
     const errorMessage = isErrorFound
       ? await pageEval(frame, {
           selector: 'div.general-error > div',
           defaultResult: '',
-          callback: item => (item as HTMLDivElement).innerText,
+          callback: extractErrorText,
         })
       : '';
     return errorMessage === INVALID_PASSWORD_MESSAGE;
@@ -53,6 +69,11 @@ export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
   }
 }
 
+/**
+ * Detect whether the login iframe shows a change-password form.
+ * @param page - The Playwright page to inspect.
+ * @returns True if a change-password form is visible.
+ */
 export async function hasChangePasswordForm(page: Page): Promise<boolean> {
   try {
     const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
@@ -62,9 +83,16 @@ export async function hasChangePasswordForm(page: Page): Promise<boolean> {
   }
 }
 
+type OptionalInstallments = { number: number; total: number } | undefined;
+
+/**
+ * Extract installment info from a transaction, if applicable.
+ * @param transaction - A completed or pending VisaCal transaction.
+ * @returns Installment number and total, or undefined if not an installment.
+ */
 export function getInstallments(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
-): { number: number; total: number } | undefined {
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
+): OptionalInstallments {
   const numOfPayments = isPending(transaction)
     ? transaction.numberOfPayments
     : transaction.numOfPayments;
@@ -73,8 +101,13 @@ export function getInstallments(
     : undefined;
 }
 
+/**
+ * Calculate charged and original amounts from a transaction.
+ * @param transaction - A completed or pending VisaCal transaction.
+ * @returns Object with chargedAmount and originalAmount.
+ */
 export function getTransactionAmounts(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
 ): {
   chargedAmount: number;
   originalAmount: number;
@@ -86,20 +119,32 @@ export function getTransactionAmounts(
   };
 }
 
-interface TxnBaseOpts {
-  transaction: ScrapedTransaction | ScrapedPendingTransaction;
+interface ITransactionBaseOpts {
+  transaction: IScrapedTransaction | IScrapedPendingTransaction;
   date: moment.Moment;
   installments: ReturnType<typeof getInstallments>;
 }
 
+/**
+ * Compute the transaction date, adjusting for installment offset.
+ * @param date - The base purchase date.
+ * @param installments - Installment info, if applicable.
+ * @returns ISO date string.
+ */
 function getTxnDate(date: moment.Moment, installments: ReturnType<typeof getInstallments>): string {
   return installments
     ? date.add(installments.number - 1, 'month').toISOString()
     : date.toISOString();
 }
 
+/**
+ * Determine the processed date based on transaction type.
+ * @param transaction - A completed or pending transaction.
+ * @param date - The purchase date moment.
+ * @returns ISO date string for the processed date.
+ */
 function getProcessedDate(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
   date: moment.Moment,
 ): string {
   return isPending(transaction)
@@ -109,25 +154,36 @@ function getProcessedDate(
 
 const NORMAL_TYPE_CODES = [TrnTypeCode.Regular, TrnTypeCode.StandingOrder];
 
+/**
+ * Map a boolean pending flag to the appropriate TransactionStatuses value.
+ * @param isPendingTxn - True if the transaction is pending.
+ * @returns The corresponding TransactionStatuses enum value.
+ */
 function buildTxnStatus(isPendingTxn: boolean): TransactionStatuses {
   return isPendingTxn ? TransactionStatuses.Pending : TransactionStatuses.Completed;
 }
 
-interface TxnAmounts {
+interface ITransactionAmounts {
   originalAmount: number;
   originalCurrency: string;
   chargedAmount: number;
   chargedCurrency: string | undefined;
 }
 
+/**
+ * Build the amount fields for a transaction record.
+ * @param transaction - A completed or pending transaction.
+ * @param isPendingTxn - True if the transaction is pending.
+ * @returns Object with original and charged amounts and currencies.
+ */
 function buildTxnAmounts(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
   isPendingTxn: boolean,
-): TxnAmounts {
+): ITransactionAmounts {
   const { chargedAmount, originalAmount } = getTransactionAmounts(transaction);
   const chargedCurrency = isPendingTxn
     ? undefined
-    : (transaction as ScrapedTransaction).debCrdCurrencySymbol;
+    : (transaction as IScrapedTransaction).debCrdCurrencySymbol;
   return {
     originalAmount,
     originalCurrency: transaction.trnCurrencySymbol,
@@ -136,7 +192,12 @@ function buildTxnAmounts(
   };
 }
 
-function buildTransactionBase(opts: TxnBaseOpts): Transaction {
+/**
+ * Assemble the base ITransaction object from a scraped VisaCal transaction.
+ * @param opts - Transaction data, date, and installment info.
+ * @returns A fully populated ITransaction record.
+ */
+function buildTransactionBase(opts: ITransactionBaseOpts): ITransaction {
   const { transaction, date, installments } = opts;
   const isPendingTxn = isPending(transaction);
   return {
@@ -154,10 +215,16 @@ function buildTransactionBase(opts: TxnBaseOpts): Transaction {
   };
 }
 
+/**
+ * Map a single VisaCal transaction to an ITransaction, with optional raw data.
+ * @param transaction - A completed or pending VisaCal transaction.
+ * @param options - Optional scraper settings controlling raw-data inclusion.
+ * @returns A mapped ITransaction record.
+ */
 export function mapOneTransaction(
-  transaction: ScrapedTransaction | ScrapedPendingTransaction,
+  transaction: IScrapedTransaction | IScrapedPendingTransaction,
   options?: ScraperOptions,
-): Transaction {
+): ITransaction {
   const installments = getInstallments(transaction);
   const date = moment(transaction.trnPurchaseDate);
   const result = buildTransactionBase({ transaction, date, installments });
@@ -166,10 +233,16 @@ export function mapOneTransaction(
   return result;
 }
 
+/**
+ * Collect all transactions from completed and pending data sources.
+ * @param data - Array of completed card transaction details.
+ * @param pendingData - Optional pending transaction details.
+ * @returns Combined array of all scraped transactions.
+ */
 export function collectAllTransactions(
-  data: CardTransactionDetails[],
-  pendingData?: CardPendingTransactionDetails | null,
-): (ScrapedTransaction | ScrapedPendingTransaction)[] {
+  data: ICardTransactionDetails[],
+  pendingData?: ICardPendingTransactionDetails,
+): (IScrapedTransaction | IScrapedPendingTransaction)[] {
   const pendingTransactions = pendingData?.result
     ? pendingData.result.cardsList.flatMap(card => card.authDetalisList)
     : [];
@@ -179,25 +252,37 @@ export function collectAllTransactions(
     ...bankAccounts.flatMap(a => a.immidiateDebits.debitDays),
   ].flatMap(d => d.transactions);
   return [...pendingTransactions, ...completedTransactions] as (
-    | ScrapedTransaction
-    | ScrapedPendingTransaction
+    | IScrapedTransaction
+    | IScrapedPendingTransaction
   )[];
 }
 
+/**
+ * Convert all parsed VisaCal data into ITransaction objects.
+ * @param data - Array of completed card transaction details.
+ * @param pendingData - Optional pending transaction details.
+ * @param options - Scraper options controlling raw-data inclusion.
+ * @returns Array of mapped ITransaction objects.
+ */
 export function convertParsedDataToTransactions(
-  data: CardTransactionDetails[],
-  pendingData?: CardPendingTransactionDetails | null,
+  data: ICardTransactionDetails[],
+  pendingData?: ICardPendingTransactionDetails,
   options?: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   return collectAllTransactions(data, pendingData).map(transaction =>
     mapOneTransaction(transaction, options),
   );
 }
 
-export function findCardFrame(
-  frames: FramesResponse,
-  cardUniqueId: string,
-): CardLevelFrame | undefined {
+type OptionalCardFrame = ICardLevelFrame | undefined;
+
+/**
+ * Find the card-level frame matching a specific card unique ID.
+ * @param frames - The frames response from the VisaCal API.
+ * @param cardUniqueId - The card ID to search for.
+ * @returns The matching card frame, or undefined if not found.
+ */
+export function findCardFrame(frames: IFramesResponse, cardUniqueId: string): OptionalCardFrame {
   return frames.result?.bankIssuedCards?.cardLevelFrames?.find(
     f => f.cardUniqueId === cardUniqueId,
   );

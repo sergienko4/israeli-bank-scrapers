@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { CompanyTypes, createScraper, SCRAPERS } from '../index.js';
 
-describe('E2E: Scraper Factory', () => {
+describe('E2E: IScraper Factory', () => {
   const allCompanyTypes = Object.values(CompanyTypes);
 
   test.each(allCompanyTypes)('createScraper(%s) returns a valid scraper instance', companyId => {
@@ -10,8 +9,8 @@ describe('E2E: Scraper Factory', () => {
       startDate: new Date(),
     });
     expect(scraper).toBeDefined();
-    expect(scraper.scrape).toBeInstanceOf(Function);
-    expect(scraper.onProgress).toBeInstanceOf(Function);
+    expect(typeof scraper.scrape).toBe('function');
+    expect(typeof scraper.onProgress).toBe('function');
   });
 
   test('every CompanyType has a SCRAPERS definition', () => {
@@ -23,7 +22,7 @@ describe('E2E: Scraper Factory', () => {
   });
 });
 
-describe('E2E: Scraper error handling', () => {
+describe('E2E: IScraper error handling', () => {
   test('scraper rejects with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,

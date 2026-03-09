@@ -9,21 +9,24 @@ import {
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
-  type ErrorResult,
+  type IErrorResult,
   WafBlockError,
 } from './Errors.js';
 import {
-  type Scraper,
+  type IScraper,
+  type IScraperDiagnostics,
+  type IScraperLoginResult,
+  type IScraperScrapingResult,
   type ScraperCredentials,
-  type ScraperDiagnostics,
   type ScraperGetLongTermTwoFactorTokenResult,
-  type ScraperLoginResult,
   type ScraperOptions,
-  type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from './Interface.js';
+import type { VoidResult } from './Interfaces/CallbackTypes.js';
+import ScraperError from './ScraperError.js';
 
-interface DiagnosticsState {
+/** Internal state for tracking login and fetch diagnostics. */
+interface IDiagnosticsState {
   loginUrl: string;
   finalUrl?: string;
   loginStartMs: number;
@@ -33,40 +36,76 @@ interface DiagnosticsState {
   warnings: string[];
 }
 
+/** Event name for scrape progress notifications. */
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 const LOG = getDebug('base-scraper');
 
-function extractErrorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === 'string') return e;
-  return String(e);
+/**
+ * Extract a human-readable message from an unknown error value.
+ * @param error - The caught error value.
+ * @returns A string error message.
+ */
+function extractErrorMessage(error: Error | string): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
 }
 
-function categorizeError(e: unknown): ErrorResult {
-  if (e instanceof TimeoutError) return createTimeoutError(e.message);
-  if (e instanceof WafBlockError) return createWafBlockedError(e.message, e.details);
-  return createGenericError(extractErrorMessage(e));
+/**
+ * Map an error to a structured error result based on its type.
+ * @param error - The caught error value.
+ * @returns A structured error result for the scraper.
+ */
+function categorizeError(error: Error | string): IErrorResult {
+  if (error instanceof TimeoutError) return createTimeoutError(error.message);
+  if (error instanceof WafBlockError) return createWafBlockedError(error.message, error.details);
+  const message = extractErrorMessage(error);
+  return createGenericError(message);
 }
 
-export class BaseScraper<TCredentials extends ScraperCredentials> implements Scraper<TCredentials> {
-  protected readonly diagState: DiagnosticsState = {
+/** Payload shape for scraper progress events. */
+interface IProgressPayload {
+  type: ScraperProgressTypes;
+}
+
+/**
+ * Base scraper class — handles lifecycle (init, login, fetch, terminate)
+ * and emits progress events.
+ */
+export default class BaseScraper<
+  TCredentials extends ScraperCredentials,
+> implements IScraper<TCredentials> {
+  protected readonly diagState: IDiagnosticsState = {
     loginUrl: '',
     loginStartMs: 0,
     lastAction: 'start',
     warnings: [],
   };
 
-  private eventEmitter = new EventEmitter();
+  private _eventEmitter = new EventEmitter();
 
+  /**
+   * Create a new BaseScraper with the given options.
+   * @param options - Scraper configuration options.
+   */
   constructor(public options: ScraperOptions) {}
 
-  // eslint-disable-next-line  @typescript-eslint/require-await
-  public async initialize(): Promise<void> {
+  /**
+   * Initialize the scraper and set the default timezone.
+   * @returns True when initialization completes.
+   */
+  public initialize(): Promise<boolean> {
     this.emitProgress(ScraperProgressTypes.Initializing);
     moment.tz.setDefault('Asia/Jerusalem');
+    return Promise.resolve(true);
   }
 
-  public async scrape(credentials: TCredentials): Promise<ScraperScrapingResult> {
+  /**
+   * Run the full scrape lifecycle: init, login, fetch, terminate.
+   * @param credentials - The user's bank credentials.
+   * @returns The scraping result with accounts or error details.
+   */
+  public async scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
     this.emitProgress(ScraperProgressTypes.StartScraping);
     await this.initialize();
     const loginResult = await this.executeLogin(credentials);
@@ -77,46 +116,82 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     return finalResult;
   }
 
-  public triggerTwoFactorAuth(_phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
-    throw new Error(`triggerOtp() is not created in ${this.options.companyId}`);
+  /**
+   * Trigger two-factor authentication for the given phone number.
+   * @param phoneNumber - The phone number to send OTP to.
+   * @returns The trigger result with status.
+   */
+  public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
+    void phoneNumber;
+    throw new ScraperError(`triggerOtp() is not created in ${this.options.companyId}`);
   }
 
+  /**
+   * Retrieve a long-term token using the provided OTP code.
+   * @param otpCode - The one-time password from the user.
+   * @returns The long-term token result.
+   */
   public getLongTermTwoFactorToken(
-    _otpCode: string,
+    otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    throw new Error(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
+    void otpCode;
+    throw new ScraperError(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
   }
 
+  /**
+   * Register a listener for scrape progress events.
+   * @param func - Callback receiving company ID and progress payload.
+   */
   public onProgress(
-    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
-  ): void {
-    this.eventEmitter.on(SCRAPE_PROGRESS, func);
+    func: (companyId: CompanyTypes, payload: IProgressPayload) => VoidResult,
+  ): VoidResult {
+    this._eventEmitter.on(SCRAPE_PROGRESS, func);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async login(_credentials: TCredentials): Promise<ScraperLoginResult> {
-    throw new Error(`login() is not created in ${this.options.companyId}`);
+  /**
+   * Perform the bank-specific login — override in subclasses.
+   * @param credentials - The user's bank credentials.
+   * @returns The login result.
+   */
+  protected login(credentials: TCredentials): Promise<IScraperLoginResult> {
+    void credentials;
+    throw new ScraperError(`login() is not created in ${this.options.companyId}`);
   }
 
-  // eslint-disable-next-line  @typescript-eslint/require-await
-  protected async fetchData(): Promise<ScraperScrapingResult> {
-    throw new Error(`fetchData() is not created in ${this.options.companyId}`);
+  /**
+   * Fetch transaction data after successful login — override in subclasses.
+   * @returns The scraping result with account data.
+   */
+  protected fetchData(): Promise<IScraperScrapingResult> {
+    throw new ScraperError(`fetchData() is not created in ${this.options.companyId}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async terminate(_success: boolean): Promise<void> {
+  /**
+   * Clean up resources after scraping — override in subclasses.
+   * @param isSuccess - Whether the scraping session was successful.
+   * @returns True when termination completes.
+   */
+  protected terminate(isSuccess: boolean): Promise<boolean> {
+    void isSuccess;
     this.emitProgress(ScraperProgressTypes.Terminating);
+    return Promise.resolve(true);
   }
 
-  protected emitProgress(type: ScraperProgressTypes): void {
-    this.emit(SCRAPE_PROGRESS, { type });
+  /**
+   * Emit a scraper progress event to all registered listeners.
+   * @param type - The progress event type.
+   * @returns True after the event is emitted.
+   */
+  protected emitProgress(type: ScraperProgressTypes): boolean {
+    this.emitEvent(SCRAPE_PROGRESS, { type });
+    return true;
   }
 
-  protected emit(eventName: string, payload: Record<string, unknown>): void {
-    this.eventEmitter.emit(eventName, this.options.companyId, payload);
-  }
-
-  protected buildDiagnostics(): ScraperDiagnostics {
+  /**
+   * Assemble diagnostics from the current scraper state.
+   * @returns A snapshot of login and fetch timing, URLs, and warnings.
+   */
+  protected buildDiagnostics(): IScraperDiagnostics {
     const { loginUrl, finalUrl, loginStartMs, fetchStartMs, lastAction, pageTitle, warnings } =
       this.diagState;
     return {
@@ -130,22 +205,53 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
     };
   }
 
-  private async executeLogin(credentials: TCredentials): Promise<ScraperScrapingResult> {
+  /**
+   * Emit a named event with a payload to all registered listeners.
+   * @param eventName - The event name to emit.
+   * @param payload - The event data.
+   * @returns True after the event is emitted.
+   */
+  private emitEvent(eventName: string, payload: IProgressPayload): boolean {
+    this._eventEmitter.emit(eventName, this.options.companyId, payload);
+    return true;
+  }
+
+  /**
+   * Execute the login step and catch errors into structured results.
+   * @param credentials - The user's bank credentials.
+   * @returns The login result or a structured error.
+   */
+  private async executeLogin(credentials: TCredentials): Promise<IScraperScrapingResult> {
     this.diagState.loginStartMs = Date.now();
     this.diagState.lastAction = 'logging in';
     try {
       return await this.login(credentials);
     } catch (e) {
-      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
+      const errorResult = categorizeError(e as Error);
+      return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }
 
+  /**
+   * Execute the fetch step if login was successful.
+   * @param loginResult - The result from the login step.
+   * @returns The fetch result or the passed-through login failure.
+   */
   private async executeFetchData(
-    loginResult: ScraperScrapingResult,
-  ): Promise<ScraperScrapingResult> {
+    loginResult: IScraperScrapingResult,
+  ): Promise<IScraperScrapingResult> {
     if (!loginResult.success) return loginResult;
     this.diagState.fetchStartMs = Date.now();
     this.diagState.lastAction = 'fetching data';
+    return this.doFetchData(loginResult);
+  }
+
+  /**
+   * Perform the actual fetch data call and propagate OTP token.
+   * @param loginResult - The login result that may contain a persistent OTP token.
+   * @returns The fetch result with optional OTP token propagation.
+   */
+  private async doFetchData(loginResult: IScraperScrapingResult): Promise<IScraperScrapingResult> {
     try {
       const scrapeResult = await this.fetchData();
       if (
@@ -157,20 +263,32 @@ export class BaseScraper<TCredentials extends ScraperCredentials> implements Scr
       }
       return scrapeResult;
     } catch (e) {
-      return { ...categorizeError(e), diagnostics: this.buildDiagnostics() };
+      const errorResult = categorizeError(e as Error);
+      return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }
 
-  private logResultSummary(result: ScraperScrapingResult): void {
+  /**
+   * Log a formatted summary of the scraping result.
+   * @param result - The scraping result to summarize.
+   * @returns True after the summary is logged.
+   */
+  private logResultSummary(result: IScraperScrapingResult): boolean {
     const lines = formatResultSummary(this.options.companyId, result);
     for (const line of lines) {
       LOG.info(line);
     }
+    return true;
   }
 
+  /**
+   * Run the termination step and return the original result on failure.
+   * @param scrapeResult - The scraping result to return.
+   * @returns The original result or a generic error if termination fails.
+   */
   private async handleTermination(
-    scrapeResult: ScraperScrapingResult,
-  ): Promise<ScraperScrapingResult> {
+    scrapeResult: IScraperScrapingResult,
+  ): Promise<IScraperScrapingResult> {
     try {
       await this.terminate(scrapeResult.success);
     } catch (e) {

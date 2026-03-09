@@ -1,4 +1,4 @@
-export interface QueryPagination {
+export interface IQueryPagination {
   hasMore: boolean;
   cursor: string;
 }

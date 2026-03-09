@@ -10,26 +10,22 @@ import {
 } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import {
-  type DashboardFieldOpts,
-  type FieldContext,
+  type IDashboardFieldOpts,
+  type IFieldContext,
   resolveDashboardField,
-  toFirstCss,
 } from '../../Common/SelectorResolver.js';
 import { CompanyTypes } from '../../Definitions.js';
 import {
-  type Transaction,
-  type TransactionsAccount,
+  type ITransaction,
+  type ITransactionsAccount,
   TransactionStatuses,
 } from '../../Transactions.js';
-import { GenericBankScraper } from '../Base/GenericBankScraper.js';
+import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
+import ScraperError from '../Base/ScraperError.js';
 import {
   getAccountIdsBothUIs,
   getTransactionsFrame,
-  selectAccountFromDropdown,
-} from '../Beinleumi/BeinleumiAccountSelector.js';
-export {
-  clickAccountSelectorGetAccountIds,
   selectAccountFromDropdown,
 } from '../Beinleumi/BeinleumiAccountSelector.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
@@ -38,19 +34,22 @@ import {
   ERROR_MESSAGE_CLASS,
   extractTransaction,
   getTransactionsColsTypeClasses,
+  type IScrapedTransaction,
   isNoTransactionInDateRangeError,
-  type ScrapedTransaction,
-  type TransactionsTr,
+  type ITransactionsTr,
 } from './BaseBeinleumiGroupHelpers.js';
 
-// All Beinleumi group banks share the same selectors and timing
 const BEINLEUMI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi];
 const SEL = BEINLEUMI_CFG.selectors;
 const ELEMENT_RENDER_TIMEOUT_MS = BEINLEUMI_CFG.timing.elementRenderMs;
 
-// ─── Dashboard resolution helpers ────────────────────────────────────────────
-
-function dashOpts(ctx: Page | Frame, key: string): DashboardFieldOpts {
+/**
+ * Build dashboard field options for the given context and selector key.
+ * @param ctx - The page or frame context.
+ * @param key - The selector key to resolve.
+ * @returns Dashboard field options for the resolver.
+ */
+function dashOpts(ctx: Page | Frame, key: string): IDashboardFieldOpts {
   return {
     pageOrFrame: ctx,
     fieldKey: key,
@@ -59,67 +58,123 @@ function dashOpts(ctx: Page | Frame, key: string): DashboardFieldOpts {
   };
 }
 
-async function resolveAndClick(ctx: Page | Frame, key: string): Promise<void> {
-  const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+/**
+ * Resolve a dashboard field — throw if not found.
+ * @param ctx - The page or frame context.
+ * @param key - The selector key to resolve.
+ * @returns The resolved field context with selector and frame.
+ */
+async function resolveOrThrow(ctx: Page | Frame, key: string): Promise<IFieldContext> {
+  const opts = dashOpts(ctx, key);
+  const r = await resolveDashboardField(opts);
+  if (!r.isResolved) throw new ScraperError(`[beinleumi] selector '${key}' not found`);
+  return r;
+}
+
+/**
+ * Resolve a dashboard field and click the matched element.
+ * @param ctx - The page or frame context.
+ * @param key - The selector key to resolve.
+ * @returns True after successfully clicking the element.
+ */
+async function resolveAndClick(ctx: Page | Frame, key: string): Promise<boolean> {
+  const r = await resolveOrThrow(ctx, key);
   await clickButton(r.context, r.selector);
+  return true;
 }
 
-async function resolveAndFill(ctx: Page | Frame, key: string, value: string): Promise<void> {
-  const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+/**
+ * Resolve a dashboard field and fill it with the given value.
+ * @param ctx - The page or frame context.
+ * @param key - The selector key to resolve.
+ * @param value - The text value to fill.
+ * @returns True after successfully filling the input.
+ */
+async function resolveAndFill(ctx: Page | Frame, key: string, value: string): Promise<boolean> {
+  const r = await resolveOrThrow(ctx, key);
   await fillInput(r.context, r.selector, value);
+  return true;
 }
 
+/**
+ * Resolve a dashboard field and wait until the element is present.
+ * @param ctx - The page or frame context.
+ * @param key - The selector key to resolve.
+ * @param opts - Optional visibility and timeout settings.
+ * @param opts.visible - Whether the element must be visible.
+ * @param opts.timeout - Maximum wait time in milliseconds.
+ * @returns The resolved field context with selector and frame.
+ */
 async function resolveAndWait(
   ctx: Page | Frame,
   key: string,
   opts?: { visible?: boolean; timeout?: number },
-): Promise<FieldContext> {
-  const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
+): Promise<IFieldContext> {
+  const r = await resolveOrThrow(ctx, key);
   await waitUntilElementFound(r.context, r.selector, opts ?? {});
   return r;
 }
 
-async function resolveSelectorCss(ctx: Page | Frame, key: string): Promise<string> {
-  const r = await resolveDashboardField(dashOpts(ctx, key));
-  if (!r.isResolved) throw new Error(`[beinleumi] selector '${key}' not found`);
-  return r.selector;
+/**
+ * Map each table row to its inner text cells.
+ * @param trs - Array of table row elements.
+ * @returns Array of objects containing inner text for each cell.
+ */
+function mapRowsToTextCells(trs: Element[]): ITransactionsTr[] {
+  return trs.map(tr => {
+    const tdCollection = (tr as HTMLTableRowElement).getElementsByTagName('td');
+    const cells = Array.from(tdCollection);
+    return { innerTds: cells.map(td => td.innerText) };
+  });
 }
 
-// ─── Data extraction ──────────────────────────────────────────────────────────
-
+/**
+ * Extract all transactions from a single table on the page.
+ * @param page - The page or frame containing the table.
+ * @param tableLocator - CSS selector for the transaction table.
+ * @param transactionStatus - Status to assign to extracted transactions.
+ * @returns Array of scraped transactions.
+ */
 async function extractTransactions(
   page: Page | Frame,
   tableLocator: string,
   transactionStatus: TransactionStatuses,
-): Promise<ScrapedTransaction[]> {
-  const txns: ScrapedTransaction[] = [];
-  const transactionsColsTypes = await getTransactionsColsTypeClasses(page, tableLocator);
-  const transactionsRows = await pageEvalAll<TransactionsTr[]>(page, {
+): Promise<IScrapedTransaction[]> {
+  const txns: IScrapedTransaction[] = [];
+  const colTypes = await getTransactionsColsTypeClasses(page, tableLocator);
+  const rows = await pageEvalAll<ITransactionsTr[]>(page, {
     selector: `${tableLocator} tbody tr`,
     defaultResult: [],
-    callback: trs =>
-      trs.map(tr => ({
-        innerTds: Array.from(tr.getElementsByTagName('td')).map(td => td.innerText),
-      })),
+    callback: mapRowsToTextCells,
   });
-  for (const txnRow of transactionsRows) {
-    extractTransaction({ txns, transactionStatus, txnRow, transactionsColsTypes });
+  for (const txnRow of rows) {
+    extractTransaction({ txns, transactionStatus, txnRow, transactionsColsTypes: colTypes });
   }
   return txns;
 }
 
-async function searchByDates(page: Page | Frame, startDate: Moment): Promise<void> {
+/**
+ * Search transactions by date range on the page.
+ * @param page - The page or frame to search in.
+ * @param startDate - The start date for the search range.
+ * @returns True after the search completes.
+ */
+async function searchByDates(page: Page | Frame, startDate: Moment): Promise<boolean> {
   await resolveAndClick(page, 'transactionsTab');
   await resolveAndWait(page, 'datesContainer');
-  await resolveAndFill(page, 'fromDateInput', startDate.format(BEINLEUMI_CFG.format.date));
+  const formattedDate = startDate.format(BEINLEUMI_CFG.format.date);
+  await resolveAndFill(page, 'fromDateInput', formattedDate);
   await resolveAndClick(page, 'closeDatePickerBtn');
   await resolveAndClick(page, 'showButton');
   await waitForNavigation(page);
+  return true;
 }
 
+/**
+ * Read the account number from the page.
+ * @param page - The page or frame containing the account number.
+ * @returns The account number string with slashes replaced by underscores.
+ */
 async function getAccountNumber(page: Page | Frame): Promise<string> {
   const r = await resolveAndWait(page, 'accountsNumber', {
     visible: true,
@@ -129,7 +184,7 @@ async function getAccountNumber(page: Page | Frame): Promise<string> {
   return text.replace('/', '_').trim();
 }
 
-interface ScrapeOpts {
+interface IScrapeOpts {
   page: Page | Frame;
   tableLocator: string;
   transactionStatus: TransactionStatuses;
@@ -137,44 +192,94 @@ interface ScrapeOpts {
   options?: ScraperOptions;
 }
 
-/** Resolve the "next page" link CSS — returns '' when all results fit on one page. */
+/**
+ * Resolve the "next page" link CSS — returns empty string when absent.
+ * @param page - The page or frame to resolve in.
+ * @param shouldPaginate - Whether pagination is enabled.
+ * @returns The CSS selector for the next-page link, or empty string if absent.
+ */
 async function resolveNextLinkCss(page: Page | Frame, shouldPaginate: boolean): Promise<string> {
   if (!shouldPaginate) return '';
-  const r = await resolveDashboardField(dashOpts(page, 'nextPageLink'));
+  const opts = dashOpts(page, 'nextPageLink');
+  const r = await resolveDashboardField(opts);
   return r.isResolved ? r.selector : '';
 }
 
-async function scrapeTransactions(opts: ScrapeOpts): Promise<Transaction[]> {
+interface IPaginationState {
+  txns: IScrapedTransaction[];
+  isDone: boolean;
+}
+
+/**
+ * Scrape one page of transactions, then check for the next-page link.
+ * @param opts - The page, table locator, and transaction status.
+ * @param nextLinkCss - CSS selector for the next-page link.
+ * @param acc - Accumulated state from previous pages.
+ * @returns Updated pagination state with combined transactions.
+ */
+async function scrapeSinglePage(
+  opts: IScrapeOpts,
+  nextLinkCss: string,
+  acc: IPaginationState,
+): Promise<IPaginationState> {
+  if (acc.isDone) return acc;
+  const pageTxns = await extractTransactions(opts.page, opts.tableLocator, opts.transactionStatus);
+  const combined = [...acc.txns, ...pageTxns];
+  if (!nextLinkCss) return { txns: combined, isDone: true };
+  const hasNextPage = await elementPresentOnPage(opts.page, nextLinkCss);
+  if (!hasNextPage) return { txns: combined, isDone: true };
+  await clickButton(opts.page, nextLinkCss);
+  await waitForNavigation(opts.page);
+  return { txns: combined, isDone: false };
+}
+
+/**
+ * Recursively scrape pages of transactions following pagination links.
+ * @param singleOpts - The page, table locator, and transaction status.
+ * @param nextLinkCss - CSS selector for the next-page link.
+ * @param acc - Accumulated state from previous pages.
+ * @returns Combined scraped transactions from all pages.
+ */
+async function scrapeAllPages(
+  singleOpts: IScrapeOpts,
+  nextLinkCss: string,
+  acc: IPaginationState = { txns: [], isDone: false },
+): Promise<IScrapedTransaction[]> {
+  const state = await scrapeSinglePage(singleOpts, nextLinkCss, acc);
+  if (state.isDone) return state.txns;
+  return scrapeAllPages(singleOpts, nextLinkCss, state);
+}
+
+/**
+ * Scrape transactions from a table, following pagination links when present.
+ * @param opts - Scrape options including page, table selector, and pagination flag.
+ * @returns Array of converted transactions.
+ */
+async function scrapeTransactions(opts: IScrapeOpts): Promise<ITransaction[]> {
   const { page, tableLocator, transactionStatus, shouldPaginate, options } = opts;
   const nextLinkCss = await resolveNextLinkCss(page, shouldPaginate);
-  const canPaginate = nextLinkCss !== '';
-  const txns: ScrapedTransaction[] = [];
-  let hasNextPage = false;
-  do {
-    txns.push(...(await extractTransactions(page, tableLocator, transactionStatus)));
-    if (canPaginate) {
-      hasNextPage = await elementPresentOnPage(page, nextLinkCss);
-      if (hasNextPage) {
-        await clickButton(page, nextLinkCss);
-        await waitForNavigation(page);
-      }
-    }
-  } while (hasNextPage);
-  return convertTransactions(txns, options);
+  const singleOpts: IScrapeOpts = { page, tableLocator, transactionStatus, shouldPaginate };
+  const allTxns = await scrapeAllPages(singleOpts, nextLinkCss);
+  return convertTransactions(allTxns, options);
 }
 
-interface ScrapeTableByKeyOpts {
-  status: TransactionStatuses;
-  shouldPaginate: boolean;
-  options?: ScraperOptions;
-}
-
+/**
+ * Scrape a transaction table identified by a dashboard selector key.
+ * @param page - The page or frame containing the table.
+ * @param key - The dashboard selector key for the table.
+ * @param opts - Status, pagination, and scraper options.
+ * @param opts.status - Transaction status to assign.
+ * @param opts.shouldPaginate - Whether to follow pagination links.
+ * @param opts.options - Optional scraper options.
+ * @returns Array of transactions, or empty if the table is absent.
+ */
 async function scrapeTableByKey(
   page: Page | Frame,
   key: string,
-  opts: ScrapeTableByKeyOpts,
-): Promise<Transaction[]> {
-  const r = await resolveDashboardField(dashOpts(page, key));
+  opts: { status: TransactionStatuses; shouldPaginate: boolean; options?: ScraperOptions },
+): Promise<ITransaction[]> {
+  const dashOptions = dashOpts(page, key);
+  const r = await resolveDashboardField(dashOptions);
   if (!r.isResolved) return []; // table absent from DOM (e.g. no pending txns for period)
   return scrapeTransactions({
     page,
@@ -185,10 +290,16 @@ async function scrapeTableByKey(
   });
 }
 
+/**
+ * Fetch both pending and completed transactions from the page.
+ * @param page - The page or frame to scrape.
+ * @param options - Optional scraper options.
+ * @returns Combined array of pending and completed transactions.
+ */
 async function fetchPendingAndCompleted(
   page: Page | Frame,
   options?: ScraperOptions,
-): Promise<Transaction[]> {
+): Promise<ITransaction[]> {
   const pending = await scrapeTableByKey(page, 'pendingTransactionsTable', {
     status: TransactionStatuses.Pending,
     shouldPaginate: false,
@@ -202,11 +313,18 @@ async function fetchPendingAndCompleted(
   return [...pending, ...completed];
 }
 
+/**
+ * Get all transactions for the current account after waiting for the table to render.
+ * @param page - The page or frame to scrape.
+ * @param options - Optional scraper options.
+ * @returns Array of transactions, or empty if no transactions in date range.
+ */
 async function getAccountTransactions(
   page: Page | Frame,
   options?: ScraperOptions,
-): Promise<Transaction[]> {
-  const tableContainerCss = await resolveSelectorCss(page, 'tableContainer');
+): Promise<ITransaction[]> {
+  const tableContainer = await resolveOrThrow(page, 'tableContainer');
+  const tableContainerCss = tableContainer.selector;
   await Promise.race([
     waitUntilElementFound(page, tableContainerCss, { visible: false }),
     waitUntilElementFound(page, `.${ERROR_MESSAGE_CLASS}`, { visible: false }),
@@ -215,29 +333,48 @@ async function getAccountTransactions(
   return fetchPendingAndCompleted(page, options);
 }
 
+/**
+ * Read the current account balance from the page.
+ * @param page - The page or frame containing the balance.
+ * @returns The parsed balance as a number.
+ */
 async function getCurrentBalance(page: Page | Frame): Promise<number> {
   const r = await resolveAndWait(page, 'currentBalance', {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
   const balanceStr = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
-  return parseFloat(balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', ''));
+  const sanitized = balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', '');
+  return parseFloat(sanitized);
 }
 
-export async function waitForPostLogin(page: Page): Promise<void> {
-  return Promise.race([
+/**
+ * Wait for the post-login page to finish loading.
+ * @param page - The Playwright page to wait on.
+ * @returns True after a post-login element is detected.
+ */
+export async function waitForPostLogin(page: Page): Promise<boolean> {
+  await Promise.race([
     waitUntilElementFound(page, '#card-header', { visible: false }),
     waitUntilElementFound(page, '#account_num', { visible: true }),
     waitUntilElementFound(page, '#matafLogoutLink', { visible: true }),
     waitUntilElementFound(page, '#validationMsg', { visible: true }),
   ]);
+  return true;
 }
 
+/**
+ * Fetch all transaction data for a single account.
+ * @param page - The page or frame to scrape.
+ * @param startDate - The start date for the transaction range.
+ * @param options - Optional scraper options.
+ * @returns Account data including number, balance, and transactions.
+ */
 async function fetchAccountData(
   page: Page | Frame,
   startDate: Moment,
   options?: ScraperOptions,
-): Promise<TransactionsAccount> {
+): Promise<ITransactionsAccount> {
   const accountNumber = await getAccountNumber(page);
   const balance = await getCurrentBalance(page);
   await searchByDates(page, startDate);
@@ -245,55 +382,92 @@ async function fetchAccountData(
   return { accountNumber, txns, balance };
 }
 
-async function selectAccountBothUIs(page: Page, accountId: string): Promise<void> {
+/**
+ * Select an account using either the new or legacy UI dropdown.
+ * @param page - The Playwright page.
+ * @param accountId - The account identifier to select.
+ * @returns True after the account is selected.
+ */
+async function selectAccountBothUIs(page: Page, accountId: string): Promise<boolean> {
   const isAccountSelected = await selectAccountFromDropdown(page, accountId);
   if (!isAccountSelected) {
     await page.selectOption('#account_num_select', accountId);
     await waitUntilElementFound(page, '#account_num_select', { visible: true });
   }
+  return true;
 }
 
+/**
+ * Fetch account data using the transactions frame or main page.
+ * @param page - The Playwright page.
+ * @param startDate - The start date for the transaction range.
+ * @param options - Optional scraper options.
+ * @returns Account data including number, balance, and transactions.
+ */
 async function fetchAccountDataBothUIs(
   page: Page,
   startDate: Moment,
   options?: ScraperOptions,
-): Promise<TransactionsAccount> {
+): Promise<ITransactionsAccount> {
   const frame = await getTransactionsFrame(page);
   return fetchAccountData(frame ?? page, startDate, options);
 }
 
-async function fetchAccounts(
-  page: Page,
-  startDate: Moment,
-  options?: ScraperOptions,
-): Promise<TransactionsAccount[]> {
-  const accountsIds = await getAccountIdsBothUIs(page);
-  if (accountsIds.length === 0) return [await fetchAccountDataBothUIs(page, startDate, options)];
-  const accounts: TransactionsAccount[] = [];
-  for (const accountId of accountsIds) {
-    await selectAccountBothUIs(page, accountId);
-    accounts.push(await fetchAccountDataBothUIs(page, startDate, options));
-  }
-  return accounts;
+/** Bundled arguments for multi-account fetching. */
+interface IFetchAccountsOpts {
+  page: Page;
+  startDate: Moment;
+  options?: ScraperOptions;
 }
 
-interface ScraperSpecificCredentials {
+/**
+ * Fetch transaction data for all accounts sequentially.
+ * @param opts - Page, start date, and scraper options.
+ * @returns Array of account data for all accounts.
+ */
+async function fetchAccounts(opts: IFetchAccountsOpts): Promise<ITransactionsAccount[]> {
+  const { page, startDate, options } = opts;
+  const accountsIds = await getAccountIdsBothUIs(page);
+  if (accountsIds.length === 0) {
+    return [await fetchAccountDataBothUIs(page, startDate, options)];
+  }
+  const initial = Promise.resolve<ITransactionsAccount[]>([]);
+  return accountsIds.reduce(
+    (memo, accountId) =>
+      memo.then(async acc => {
+        await selectAccountBothUIs(page, accountId);
+        return [...acc, await fetchAccountDataBothUIs(page, startDate, options)];
+      }),
+    initial,
+  );
+}
+
+interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
 
-abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<ScraperSpecificCredentials> {
-  public async fetchData(): Promise<{ success: boolean; accounts: TransactionsAccount[] }> {
+/** Base scraper for all Beinleumi group banks. */
+abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+  /**
+   * Fetch transaction data for all accounts from the bank portal.
+   * @returns Success flag and array of account transaction data.
+   */
+  public async fetchData(): Promise<{ success: boolean; accounts: ITransactionsAccount[] }> {
     const startMomentLimit = moment({ year: 1600 });
-    const startMoment = moment.max(startMomentLimit, moment(this.options.startDate));
-    const transactionsUrl = SCRAPER_CONFIGURATION.banks[this.options.companyId].urls.transactions!;
+    const startDateMoment = moment(this.options.startDate);
+    const startMoment = moment.max(startMomentLimit, startDateMoment);
+    const transactionsUrl =
+      SCRAPER_CONFIGURATION.banks[this.options.companyId].urls.transactions ?? '';
     await this.navigateTo(transactionsUrl);
-    const accounts = await fetchAccounts(this.page, startMoment, this.options);
+    const fetchOpts: IFetchAccountsOpts = {
+      page: this.page,
+      startDate: startMoment,
+      options: this.options,
+    };
+    const accounts = await fetchAccounts(fetchOpts);
     return { success: true, accounts };
   }
 }
 
 export default BeinleumiGroupBaseScraper;
-
-// toFirstCss re-exported so callers migrating later don't need to import from SelectorResolver
-export { toFirstCss };

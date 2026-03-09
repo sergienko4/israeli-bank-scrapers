@@ -2,7 +2,7 @@ import { type Browser, type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';
-import { amexRoutes } from './Helpers/AmexRoutes.js';
+import amexRoutes from './Helpers/AmexRoutes.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
@@ -26,8 +26,14 @@ describe('External Browser: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
+      /**
+       * Set up request interception for the page.
+       * @param page - page to prepare
+       * @returns true after interception is set up
+       */
       preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
+        const routes = amexRoutes();
+        await setupRequestInterception(page, routes);
       },
     });
 
@@ -48,8 +54,14 @@ describe('External Browser: Mocked E2E', () => {
       startDate: new Date('2026-01-01'),
       browserContext: context,
       defaultTimeout: 15000,
+      /**
+       * Set up request interception for the page.
+       * @param page - page to prepare
+       * @returns true after interception is set up
+       */
       preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
+        const routes = amexRoutes();
+        await setupRequestInterception(page, routes);
       },
     });
 
@@ -70,8 +82,14 @@ describe('External Browser: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
-      preparePage: async (page: Page) => {
-        await setupRequestInterception(page, amexRoutes());
+      /**
+       * Set up request interception for the page.
+       * @param page - page to prepare
+       * @returns true after interception is set up
+       */
+      preparePage: async (page: Page): Promise<void> => {
+        const routes = amexRoutes();
+        await setupRequestInterception(page, routes);
       },
     };
 

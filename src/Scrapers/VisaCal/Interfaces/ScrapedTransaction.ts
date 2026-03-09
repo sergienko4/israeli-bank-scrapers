@@ -1,6 +1,6 @@
 import type { CurrencySymbol, TrnTypeCode } from '../VisaCalBaseTypes.js';
 
-export interface ScrapedTransaction {
+export interface IScrapedTransaction {
   amtBeforeConvAndIndex: number;
   branchCodeDesc: string;
   cashAccManagerName: null;

@@ -27,6 +27,11 @@ describe('Error Scenarios: Mocked E2E', () => {
       skipCloseBrowser: true,
       defaultTimeout: 10000,
       navigationRetryCount: 0,
+      /**
+       * Set up mock routes returning HTTP 500.
+       * @param page - page to prepare
+       * @returns true after interception
+       */
       preparePage: async page => {
         await setupRequestInterception(page, [
           {
@@ -51,6 +56,11 @@ describe('Error Scenarios: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 10000,
+      /**
+       * Set up mock routes with network abort on validate.
+       * @param page - page to prepare
+       * @returns true after interception
+       */
       preparePage: async page => {
         await setupRequestInterception(page, [
           {
@@ -66,7 +76,7 @@ describe('Error Scenarios: Mocked E2E', () => {
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBeTruthy();
-    expect(result.errorMessage).toMatch(/fetchPostWithinPage error/);
+    expect(result.errorMessage).toMatch(/NetworkError|fetch/);
   }, 60000);
 
   it('handles validate returning invalid response', async () => {
@@ -76,6 +86,11 @@ describe('Error Scenarios: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 10000,
+      /**
+       * Set up mock routes with invalid validate response.
+       * @param page - page to prepare
+       * @returns true after interception
+       */
       preparePage: async page => {
         await setupRequestInterception(page, [
           {

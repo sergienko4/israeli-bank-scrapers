@@ -30,6 +30,21 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 
 jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
+  /**
+   * Executes async actions sequentially, collecting results.
+   * @param actions - Array of async factory functions.
+   * @returns Array of resolved values.
+   */
+  runSerial: jest.fn().mockImplementation(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+    const seed = Promise.resolve([] as T[]);
+    return actions.reduce(
+      (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
+      seed,
+    );
+  }),
+  humanDelay: jest.fn().mockResolvedValue(undefined),
+  waitUntil: jest.fn().mockResolvedValue(undefined),
+  raceTimeout: jest.fn().mockResolvedValue(undefined),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
@@ -43,11 +58,15 @@ jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn((data: unknown) => data),
+  getRawTransaction: jest.fn((data: Record<string, string>) => data),
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -56,26 +75,26 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-const { buildContextOptions } = await import('../../Common/Browser.js');
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { fetchPostWithinPage } = await import('../../Common/Fetch.js');
-const { getCurrentUrl } = await import('../../Common/Navigation.js');
-const { default: BehatsdaaScraper } = await import('../../Scrapers/Behatsdaa/BehatsdaaScraper.js');
-const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
-const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
+const BROWSER_MOD = await import('../../Common/Browser.js');
+const CAMOUFOX_MOD = await import('../../Common/CamoufoxLauncher.js');
+const FETCH_MOD = await import('../../Common/Fetch.js');
+const NAVIGATION_MOD = await import('../../Common/Navigation.js');
+const BEHATSDAA_MOD = await import('../../Scrapers/Behatsdaa/BehatsdaaScraper.js');
+const TRANSACTIONS_MOD = await import('../../Transactions.js');
+const MOCK_PAGE_MOD = await import('../MockPage.js');
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
-interface BehatsdaaVariant {
+interface IBehatsdaaVariant {
   name: string;
   variantName: string;
   customerPrice: number;
@@ -83,7 +102,12 @@ interface BehatsdaaVariant {
   tTransactionID: string;
 }
 
-function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
+/**
+ * Creates a Behatsdaa API variant with optional overrides.
+ * @param overrides - Partial variant fields to override defaults.
+ * @returns A complete Behatsdaa variant object.
+ */
+function variant(overrides: Partial<IBehatsdaaVariant> = {}): IBehatsdaaVariant {
   return {
     name: 'Test Product',
     variantName: 'Size L',
@@ -94,41 +118,51 @@ function variant(overrides: Partial<BehatsdaaVariant> = {}): BehatsdaaVariant {
   };
 }
 
+/**
+ * Creates a mock page configured for Behatsdaa scraper tests.
+ * @param token - The localStorage token value, defaults to 'mock-token'.
+ * @returns A mock page with Behatsdaa-specific eval behavior.
+ */
 function createBehatsdaaPage(
-  token: string | null = 'mock-token',
-): ReturnType<typeof createMockPage> {
-  return createMockPage({
-    evaluate: jest.fn().mockResolvedValue(token),
+  token = 'mock-token',
+): ReturnType<typeof MOCK_PAGE_MOD.createMockPage> {
+  const tokenValue = token === 'NO_TOKEN' ? null : token;
+  return MOCK_PAGE_MOD.createMockPage({
+    evaluate: jest.fn().mockResolvedValue(tokenValue),
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
   });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createBehatsdaaPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
+  (CAMOUFOX_MOD.launchCamoufox as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  const behatsdaaPage = createBehatsdaaPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(behatsdaaPage);
+  (NAVIGATION_MOD.getCurrentUrl as jest.Mock).mockResolvedValue('https://www.behatsdaa.org.il/');
 });
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
       data: { memberId: 'M001', variants: [] },
     });
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(buildContextOptions).toHaveBeenCalled();
+    expect(BROWSER_MOD.buildContextOptions).toHaveBeenCalled();
   });
 });
 
 describe('fetchData', () => {
   it('returns error when token not in localStorage', async () => {
-    mockContext.newPage.mockResolvedValue(createBehatsdaaPage(null));
+    const nullTokenPage = createBehatsdaaPage('NO_TOKEN');
+    MOCK_CONTEXT.newPage.mockResolvedValue(nullTokenPage);
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
@@ -136,11 +170,12 @@ describe('fetchData', () => {
   });
 
   it('returns error when API response has errorDescription', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
       errorDescription: 'Service unavailable',
     });
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
@@ -148,9 +183,10 @@ describe('fetchData', () => {
   });
 
   it('returns error when API response has no data', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({});
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({});
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
@@ -158,55 +194,59 @@ describe('fetchData', () => {
   });
 
   it('converts variants to transactions', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    const giftVariant = variant({ customerPrice: 250, name: 'Gift Card', variantName: 'Premium' });
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
       data: {
         memberId: 'M001',
-        variants: [variant({ customerPrice: 250, name: 'Gift Card', variantName: 'Premium' })],
+        variants: [giftVariant],
       },
     });
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('M001');
+    const firstAccount = result.accounts?.[0];
+    expect(firstAccount?.accountNumber).toBe('M001');
 
-    const t = result.accounts![0].txns[0];
-    expect(t.originalAmount).toBe(-250);
-    expect(t.originalCurrency).toBe('ILS');
-    expect(t.status).toBe(TransactionStatuses.Completed);
-    expect(t.type).toBe(TransactionTypes.Normal);
-    expect(t.description).toBe('Gift Card');
-    expect(t.memo).toBe('Premium');
+    const txn = firstAccount?.txns[0];
+    expect(txn?.originalAmount).toBe(-250);
+    expect(txn?.originalCurrency).toBe('ILS');
+    expect(txn?.status).toBe(TRANSACTIONS_MOD.TransactionStatuses.Completed);
+    expect(txn?.type).toBe(TRANSACTIONS_MOD.TransactionTypes.Normal);
+    expect(txn?.description).toBe('Gift Card');
+    expect(txn?.memo).toBe('Premium');
   });
 
   it('includes rawTransaction when option set', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
       data: { memberId: 'M001', variants: [variant()] },
     });
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions({ includeRawTransaction: true }));
+    const options = MOCK_PAGE_MOD.createMockScraperOptions({ includeRawTransaction: true });
+    const scraper = new BEHATSDAA_MOD.default(options);
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect(result.accounts?.[0]?.txns[0].rawTransaction).toBeDefined();
   });
 
   it('sends Bearer token in authorization header', async () => {
-    (fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockResolvedValueOnce({
       data: { memberId: 'M001', variants: [] },
     });
 
-    const scraper = new BehatsdaaScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new BEHATSDAA_MOD.default(options);
     await scraper.scrape(CREDS);
 
-    const extraHeadersMatcher = { authorization: 'Bearer mock-token' };
-    expect(fetchPostWithinPage).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.any(String) as string,
-      expect.objectContaining({
-        extraHeaders: expect.objectContaining(extraHeadersMatcher) as Record<string, string>,
-      }),
-    );
+    const fetchMock = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    const callArgs = fetchMock.mock.calls[0] as [
+      Record<string, string>,
+      string,
+      { extraHeaders: Record<string, string> },
+    ];
+    expect(callArgs[2].extraHeaders.authorization).toBe('Bearer mock-token');
   });
 });

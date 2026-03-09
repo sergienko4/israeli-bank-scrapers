@@ -16,10 +16,14 @@ jest.unstable_mockModule('../../Common/Browser.js', () => ({
 jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   humanDelay: jest.fn().mockResolvedValue(undefined),
   sleep: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(async (fns: (() => Promise<unknown>)[]) => {
-    const results = [];
-    for (const fn of fns) results.push(await fn());
-    return results;
+  runSerial: jest.fn((fns: (() => Promise<string>)[]) => {
+    const emptyArray: string[] = [];
+    const initialValue = Promise.resolve(emptyArray);
+    return fns.reduce(async (accPromise: Promise<string[]>, funcItem: () => Promise<string>) => {
+      const accumulated = await accPromise;
+      const funcResult = await funcItem();
+      return [...accumulated, funcResult];
+    }, initialValue);
   }),
   waitUntil: jest.fn().mockResolvedValue(undefined),
   raceTimeout: jest.fn().mockResolvedValue(undefined),
@@ -28,7 +32,11 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -40,33 +48,36 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 jest.unstable_mockModule('../../Common/Dates.js', () => ({ default: jest.fn(() => []) }));
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  fixInstallments: jest.fn((txns: unknown[]) => txns),
-  filterOldTransactions: jest.fn((txns: unknown[]) => txns),
-  getRawTransaction: jest.fn((data: unknown) => data),
+  fixInstallments: jest.fn((txns: string[]) => txns),
+  filterOldTransactions: jest.fn((txns: string[]) => txns),
+  getRawTransaction: jest.fn((data: Record<string, string>) => data),
 }));
 
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { fetchGetWithinPage, fetchPostWithinPage } = await import('../../Common/Fetch.js');
-const { SCRAPERS } = await import('../../Definitions.js');
-const { default: AMEXScraper } = await import('../../Scrapers/Amex/AmexScraper.js');
-const { LOGIN_RESULTS } = await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
-const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
-const { exportTransactions, extendAsyncTimeout, getTestsConfig, maybeTestCompanyAPI } =
-  await import('../TestsUtils.js');
+const CAMOUFOX_MOD = await import('../../Common/CamoufoxLauncher.js');
+const FETCH_MOD = await import('../../Common/Fetch.js');
+const DEFINITIONS_MOD = await import('../../Definitions.js');
+const AMEX_MOD = await import('../../Scrapers/Amex/AmexScraper.js');
+const BASE_SCRAPER_MOD = await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
+const MOCK_PAGE_MOD = await import('../MockPage.js');
+const TESTS_UTILS_MOD = await import('../TestsUtils.js');
 
 const AMEX_CREDS = { id: '123456789', card6Digits: '123456', password: 'pass' };
 
-const mockAmexContext = {
+const MOCK_AMEX_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockAmexBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockAmexContext),
+const MOCK_AMEX_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_AMEX_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-function mockAmexLogin(): void {
-  (fetchPostWithinPage as jest.Mock)
+/**
+ * Sets up mock responses for the Amex login flow.
+ * @returns The configured mock for chaining.
+ */
+function mockAmexLogin(): jest.Mock {
+  return (FETCH_MOD.fetchPostWithinPage as jest.Mock)
     .mockResolvedValueOnce({
       Header: { Status: '1' },
       ValidateIdDataBean: { returnCode: '1', userName: 'testuser' },
@@ -74,21 +85,23 @@ function mockAmexLogin(): void {
     .mockResolvedValueOnce({ status: '1' });
 }
 
-const COMPANY_ID = 'amex'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'amex';
+const TESTS_CONFIG = TESTS_UTILS_MOD.getTestsConfig();
 
 describe('AMEX fetchData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (launchCamoufox as jest.Mock).mockResolvedValue(mockAmexBrowser);
-    mockAmexContext.newPage.mockResolvedValue(createMockPage());
+    (CAMOUFOX_MOD.launchCamoufox as jest.Mock).mockResolvedValue(MOCK_AMEX_BROWSER);
+    const mockPage = MOCK_PAGE_MOD.createMockPage();
+    MOCK_AMEX_CONTEXT.newPage.mockResolvedValue(mockPage);
   });
 
   it('handles empty month response — returns accounts[]', async () => {
     mockAmexLogin();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValue(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValue(null);
 
-    const scraper = new AMEXScraper(createMockScraperOptions());
+    const options = MOCK_PAGE_MOD.createMockScraperOptions();
+    const scraper = new AMEX_MOD.default(options);
     const result = await scraper.scrape(AMEX_CREDS);
 
     expect(result.success).toBe(true);
@@ -98,53 +111,56 @@ describe('AMEX fetchData', () => {
 
 describe('AMEX legacy scraper', () => {
   beforeAll(() => {
-    extendAsyncTimeout(); // The default timeout is 5 seconds per async test, this function extends the timeout value
+    TESTS_UTILS_MOD.extendAsyncTimeout();
   });
 
   test('should expose login fields in scrapers constant', () => {
-    expect(SCRAPERS.amex).toBeDefined();
-    expect(SCRAPERS.amex.loginFields).toContain('id');
-    expect(SCRAPERS.amex.loginFields).toContain('card6Digits');
-    expect(SCRAPERS.amex.loginFields).toContain('password');
+    expect(DEFINITIONS_MOD.SCRAPERS.amex).toBeDefined();
+    expect(DEFINITIONS_MOD.SCRAPERS.amex.loginFields).toContain('id');
+    expect(DEFINITIONS_MOD.SCRAPERS.amex.loginFields).toContain('card6Digits');
+    expect(DEFINITIONS_MOD.SCRAPERS.amex.loginFields).toContain('password');
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
-    'should fail on invalid user/password"',
-    async () => {
-      const options = {
-        ...testsConfig.options,
-        companyId: COMPANY_ID,
-      };
-
-      const scraper = new AMEXScraper(options as unknown as ScraperOptions);
-
-      const result = await scraper.scrape({
-        id: 'e10s12',
-        card6Digits: '123456',
-        password: '3f3ss3d',
-      });
-
-      expect(result).toBeDefined();
-      expect(result.success).toBeFalsy();
-      expect(result.errorType).toBe(LOGIN_RESULTS.InvalidPassword);
-    },
-  );
-
-  maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
+  TESTS_UTILS_MOD.maybeTestCompanyAPI(
+    COMPANY_ID,
+    config => config.companyAPI.invalidPassword === true,
+  )('should fail on invalid user/password"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
-    const scraper = new AMEXScraper(options as unknown as ScraperOptions);
+    const scraper = new AMEX_MOD.default(options as ScraperOptions);
+
+    const result = await scraper.scrape({
+      id: 'e10s12',
+      card6Digits: '123456',
+      password: '3f3ss3d',
+    });
+
+    expect(result).toBeDefined();
+    expect(result.success).toBeFalsy();
+    expect(result.errorType).toBe(BASE_SCRAPER_MOD.LOGIN_RESULTS.InvalidPassword);
+  });
+
+  TESTS_UTILS_MOD.maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
+    const options = {
+      ...TESTS_CONFIG.options,
+      companyId: COMPANY_ID,
+    };
+
+    const scraper = new AMEX_MOD.default(options as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.amex as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.amex as unknown as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const errorType = result.errorType ?? '';
+    const errorMessage = result.errorMessage ?? '';
+    const error = `${errorType} ${errorMessage}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    const accounts = result.accounts ?? [];
+    TESTS_UTILS_MOD.exportTransactions(COMPANY_ID, accounts);
   });
 });

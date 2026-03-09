@@ -7,7 +7,7 @@ import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import {
   injectFormByInput,
@@ -22,11 +22,11 @@ const hasCredentials = !!(
   process.env.DISCOUNT_PASSWORD &&
   process.env.DISCOUNT_NUM
 );
-const describeIf = hasCredentials ? describe : describe.skip;
+const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
 const ERR = selectorErrorFor('id', 'password', 'num');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://start.telebank.co.il/login/#/LOGIN_PAGE',
   fields: [
     {
@@ -55,9 +55,19 @@ const baseCfg: LoginConfig = {
     { kind: 'css', value: '#WRONG_sendBtn' },
     { kind: 'css', value: '.sendBtn' },
   ],
+  /**
+   * Wait for the login form to be ready.
+   * @param page - page to check
+   * @returns true when ready
+   */
   checkReadiness: async page => {
     await waitUntilElementFound(page, '#tzId');
   },
+  /**
+   * Handle post-submit navigation.
+   * @param page - page for post-action
+   * @returns true when done
+   */
   postAction: async page => {
     try {
       await waitForNavigation(page);
@@ -80,7 +90,7 @@ const baseCfg: LoginConfig = {
   },
 };
 
-describeIf('E2E: Selector fallback — Discount', () => {
+DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -94,20 +104,30 @@ describeIf('E2E: Selector fallback — Discount', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ id: '000000000', password: 'FallbackTest123', num: '000000' });
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });
 
   it('Round 1 — form injected into iframe; iframe detected first and fields filled', async () => {
-    const iframeCfg: LoginConfig = {
-      ...baseCfg,
-      checkReadiness: async (page: Page) => {
+    const iframeCfg: ILoginConfig = {
+      ...BASE_CFG,
+      /**
+       * Wait for the login form with iframe injection.
+       * @param page - page to check
+       * @returns true when ready
+       */
+      checkReadiness: async (page: Page): Promise<void> => {
         await waitUntilElementFound(page, '#tzId');
         await injectFormByInput(page, '#tzId');
       },
-      postAction: async (page: Page) => {
+      /**
+       * Handle post-submit navigation for iframe test.
+       * @param page - page for post-action
+       * @returns true when done
+       */
+      postAction: async (page: Page): Promise<void> => {
         try {
           await waitForNavigation(page, { timeout: 15000 });
         } catch {

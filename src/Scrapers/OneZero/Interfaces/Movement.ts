@@ -1,6 +1,6 @@
-import type { OneZeroTransaction } from './OneZeroTransaction.js';
+import type { IOneZeroTransaction } from './OneZeroTransaction.js';
 
-export interface Movement {
+export interface IMovement {
   accountId: string;
   bankCurrencyAmount: string;
   bookingDate: string;
@@ -16,6 +16,6 @@ export interface Movement {
   movementType: string;
   portfolioId: string;
   runningBalance: string;
-  transaction?: OneZeroTransaction | null;
+  transaction?: IOneZeroTransaction | null;
   valueDate: string;
 }

@@ -5,18 +5,18 @@ import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteract
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
-import type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
-import type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
-import type { TransactionsTr } from './Interfaces/TransactionsTr.js';
+import type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
+import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+import type { ITransactionsTr } from './Interfaces/TransactionsTr.js';
 
 export type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
-export type { ExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
-export type { ScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
-export type { TransactionsTr } from './Interfaces/TransactionsTr.js';
+export type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
+export type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
+export type { ITransactionsTr } from './Interfaces/TransactionsTr.js';
 
 export const DATE_FORMAT = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi].format.date;
 const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא נמצאו נתונים בנושא המבוקש';
@@ -31,21 +31,44 @@ const DEBIT_COLUMN_CLASS = 'debit';
 const CREDIT_COLUMN_CLASS = 'credit';
 export const ERROR_MESSAGE_CLASS = 'NO_DATA';
 
+/**
+ * Parse a currency string into a numeric amount.
+ * @param amountStr - Raw amount string with currency symbols.
+ * @returns The parsed float value.
+ */
 function getAmountData(amountStr: string): number {
-  return parseFloat(amountStr.replace(SHEKEL_CURRENCY_SYMBOL, '').replaceAll(',', ''));
+  const cleaned = amountStr.replace(SHEKEL_CURRENCY_SYMBOL, '').replaceAll(',', '');
+  return parseFloat(cleaned);
 }
 
-export function getTxnAmount(txn: ScrapedTransaction): number {
+/**
+ * Calculate the net amount (credit minus debit) for a scraped transaction.
+ * @param txn - The scraped transaction containing credit and debit strings.
+ * @returns The net amount as a number.
+ */
+export function getTxnAmount(txn: IScrapedTransaction): number {
   const credit = getAmountData(txn.credit);
   const debit = getAmountData(txn.debit);
   return (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
 }
 
+/**
+ * Retrieve a single column value from a transaction row.
+ * @param tds - The row's cell values indexed by position.
+ * @param cols - Column class to index mapping.
+ * @param key - The column class name to look up.
+ * @returns The trimmed cell text, or empty string if absent.
+ */
 export function getCol(tds: TransactionsTrTds, cols: TransactionsColsTypes, key: string): string {
   return (tds[cols[key]] || '').trim();
 }
 
-function makeTxnFields(txn: ScrapedTransaction): Omit<Transaction, 'rawTransaction'> {
+/**
+ * Build the core transaction fields from a scraped transaction row.
+ * @param txn - The scraped transaction data.
+ * @returns Transaction fields excluding rawTransaction.
+ */
+function makeTxnFields(txn: IScrapedTransaction): Omit<ITransaction, 'rawTransaction'> {
   const d = moment(txn.date, DATE_FORMAT).toISOString();
   const amount = getTxnAmount(txn);
   return {
@@ -62,27 +85,46 @@ function makeTxnFields(txn: ScrapedTransaction): Omit<Transaction, 'rawTransacti
   };
 }
 
+/**
+ * Build a single ITransaction from a scraped row, optionally including raw data.
+ * @param txn - The scraped transaction data.
+ * @param options - Optional scraper settings controlling raw-data inclusion.
+ * @returns A fully constructed ITransaction.
+ */
 export function buildSingleTransaction(
-  txn: ScrapedTransaction,
+  txn: IScrapedTransaction,
   options?: ScraperOptions,
-): Transaction {
-  const result: Transaction = makeTxnFields(txn);
+): ITransaction {
+  const result: ITransaction = makeTxnFields(txn);
   if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
   return result;
 }
 
+/**
+ * Convert an array of scraped transactions into ITransaction objects.
+ * @param txns - The scraped transactions to convert.
+ * @param options - Optional scraper settings controlling raw-data inclusion.
+ * @returns Array of ITransaction objects.
+ */
 export function convertTransactions(
-  txns: ScrapedTransaction[],
+  txns: IScrapedTransaction[],
   options?: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   return txns.map(txn => buildSingleTransaction(txn, options));
 }
 
+/**
+ * Extract transaction details from a table row according to its status.
+ * @param txnRow - The DOM-scraped table row.
+ * @param status - Whether the transaction is completed or pending.
+ * @param cols - Column class to index mapping.
+ * @returns A structured scraped transaction object.
+ */
 export function extractTransactionDetails(
-  txnRow: TransactionsTr,
+  txnRow: ITransactionsTr,
   status: TransactionStatuses,
   cols: TransactionsColsTypes,
-): ScrapedTransaction {
+): IScrapedTransaction {
   const tds = txnRow.innerTds;
   const isCompleted = status === TransactionStatuses.Completed;
   return {
@@ -99,15 +141,30 @@ export function extractTransactionDetails(
   };
 }
 
+/**
+ * Discover column-type mappings from the first row of a transaction table.
+ * @param page - The page or frame containing the table.
+ * @param tableLocator - CSS selector for the transaction table.
+ * @returns A map of column CSS class to column index.
+ */
 export async function getTransactionsColsTypeClasses(
   page: Page | Frame,
   tableLocator: string,
 ): Promise<TransactionsColsTypes> {
   const result: TransactionsColsTypes = {};
+  /**
+   * Map table cells to column class and index pairs.
+   * @param tds - The table cells from the first row.
+   * @returns Column class and index pairs.
+   */
+  const extractColClasses = (
+    tds: Element[],
+  ): { colClass: ReturnType<Element['getAttribute']>; index: number }[] =>
+    tds.map((td, index) => ({ colClass: td.getAttribute('class'), index }));
   const typeClassesObjs = await pageEvalAll(page, {
     selector: `${tableLocator} tbody tr:first-of-type td`,
-    defaultResult: [] as { colClass: string | null; index: number }[],
-    callback: tds => tds.map((td, index) => ({ colClass: td.getAttribute('class'), index })),
+    defaultResult: [] as { colClass: ReturnType<Element['getAttribute']>; index: number }[],
+    callback: extractColClasses,
   });
   for (const typeClassObj of typeClassesObjs) {
     if (typeClassObj.colClass) result[typeClassObj.colClass] = typeClassObj.index;
@@ -115,12 +172,23 @@ export async function getTransactionsColsTypeClasses(
   return result;
 }
 
-export function extractTransaction(opts: ExtractTxnOpts): void {
+/**
+ * Extract a transaction from a row and push it to the accumulator if it has a date.
+ * @param opts - Extraction options containing the row, status, columns, and accumulator.
+ * @returns True after processing the row.
+ */
+export function extractTransaction(opts: IExtractTxnOpts): boolean {
   const { txns, transactionStatus, txnRow, transactionsColsTypes } = opts;
   const txn = extractTransactionDetails(txnRow, transactionStatus, transactionsColsTypes);
   if (txn.date !== '') txns.push(txn);
+  return true;
 }
 
+/**
+ * Check whether the page displays a "no data in date range" message.
+ * @param page - The page or frame to inspect.
+ * @returns True if the error message is present.
+ */
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (!hasErrorInfoElement) return false;

@@ -14,7 +14,11 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -23,24 +27,23 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-const { default: moment } = await import('moment');
-const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
-const { fetchAccounts, fetchTxnData } =
-  await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch.js');
-const { createMockPage } = await import('../MockPage.js');
+const MOMENT_MOD = await import('moment');
+const FETCH_MOD = await import('../../Common/Fetch.js');
+const ISRACARD_FETCH_MOD = await import('../../Scrapers/BaseIsracardAmex/BaseIsracardAmexFetch.js');
+const MOCK_PAGE_MOD = await import('../MockPage.js');
 
 const SERVICES_URL = 'https://digital.example.co.il/ServerServices/services/ProxyService';
 
-let page: ReturnType<typeof createMockPage>;
+let page: ReturnType<typeof MOCK_PAGE_MOD.createMockPage>;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  page = createMockPage();
+  page = MOCK_PAGE_MOD.createMockPage();
 });
 
 describe('fetchAccounts', () => {
   it('returns mapped accounts when response is valid', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
       Header: { Status: '1' },
       DashboardMonthBean: {
         cardsCharges: [
@@ -50,7 +53,8 @@ describe('fetchAccounts', () => {
       },
     });
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
 
     expect(result).toHaveLength(2);
     expect(result[0].index).toBe(0);
@@ -60,66 +64,77 @@ describe('fetchAccounts', () => {
   });
 
   it('returns empty array when response is null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
     expect(result).toEqual([]);
   });
 
   it('returns empty array when Header.Status is not 1', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
     expect(result).toEqual([]);
   });
 
   it('returns empty array when DashboardMonthBean is missing', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '1' } });
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '1' } });
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
     expect(result).toEqual([]);
   });
 
   it('returns empty array when cardsCharges is undefined', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
       Header: { Status: '1' },
       DashboardMonthBean: {},
     });
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
     expect(result).toEqual([]);
   });
 
   it('calls fetchGetWithinPage with DashboardMonth reqName', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({ Header: { Status: '0' } });
 
-    await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-15'));
+    const startMoment = MOMENT_MOD.default('2024-06-15');
+    await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const fetchMock = FETCH_MOD.fetchGetWithinPage as jest.Mock;
+    const firstCallArgs = fetchMock.mock.calls[0] as [never, string];
+    const calledUrl = firstCallArgs[1];
     expect(calledUrl).toContain('reqName=DashboardMonth');
     expect(calledUrl).toContain('billingDate=2024-06-15');
   });
 
   it('parses processedDate from billingDate as ISO string', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
       Header: { Status: '1' },
       DashboardMonthBean: {
         cardsCharges: [{ cardIndex: '0', cardNumber: '1234', billingDate: '15/06/2024' }],
       },
     });
 
-    const result = await fetchAccounts(page as never, SERVICES_URL, moment('2024-06-15'));
+    const startMoment = MOMENT_MOD.default('2024-06-15');
+    const result = await ISRACARD_FETCH_MOD.fetchAccounts(page as never, SERVICES_URL, startMoment);
     expect(result[0].processedDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 
 describe('fetchTxnData', () => {
   it('calls fetchGetWithinPage with CardsTransactionsList reqName', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    await fetchTxnData(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    await ISRACARD_FETCH_MOD.fetchTxnData(page as never, SERVICES_URL, startMoment);
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const fetchMock = FETCH_MOD.fetchGetWithinPage as jest.Mock;
+    const firstCallArgs = fetchMock.mock.calls[0] as [never, string];
+    const calledUrl = firstCallArgs[1];
     expect(calledUrl).toContain('reqName=CardsTransactionsList');
     expect(calledUrl).toContain('month=06');
     expect(calledUrl).toContain('year=2024');
@@ -131,34 +146,42 @@ describe('fetchTxnData', () => {
       Header: { Status: '1' },
       CardsTransactionsListBean: {},
     };
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(mockData);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(mockData);
 
-    const result = await fetchTxnData(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchTxnData(page as never, SERVICES_URL, startMoment);
     expect(result).toBe(mockData);
   });
 
   it('returns null when fetchGetWithinPage returns null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    const result = await fetchTxnData(page as never, SERVICES_URL, moment('2024-06-01'));
+    const startMoment = MOMENT_MOD.default('2024-06-01');
+    const result = await ISRACARD_FETCH_MOD.fetchTxnData(page as never, SERVICES_URL, startMoment);
     expect(result).toBeNull();
   });
 
   it('pads single-digit month with leading zero', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    await fetchTxnData(page as never, SERVICES_URL, moment('2024-03-01'));
+    const startMoment = MOMENT_MOD.default('2024-03-01');
+    await ISRACARD_FETCH_MOD.fetchTxnData(page as never, SERVICES_URL, startMoment);
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const fetchMock = FETCH_MOD.fetchGetWithinPage as jest.Mock;
+    const firstCallArgs = fetchMock.mock.calls[0] as [never, string];
+    const calledUrl = firstCallArgs[1];
     expect(calledUrl).toContain('month=03');
   });
 
   it('does not pad two-digit month', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    await fetchTxnData(page as never, SERVICES_URL, moment('2024-11-01'));
+    const startMoment = MOMENT_MOD.default('2024-11-01');
+    await ISRACARD_FETCH_MOD.fetchTxnData(page as never, SERVICES_URL, startMoment);
 
-    const calledUrl: string = (fetchGetWithinPage as jest.Mock).mock.calls[0][1] as string;
+    const fetchMock = FETCH_MOD.fetchGetWithinPage as jest.Mock;
+    const firstCallArgs = fetchMock.mock.calls[0] as [never, string];
+    const calledUrl = firstCallArgs[1];
     expect(calledUrl).toContain('month=11');
   });
 });

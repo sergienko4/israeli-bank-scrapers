@@ -1,48 +1,24 @@
-/* eslint-disable import-x/max-dependencies */
-import { CompanyTypes } from '../../Definitions.js';
-import AmexScraper from '../Amex/AmexScraper.js';
-import { type Scraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
-import BehatsdaaScraper from '../Behatsdaa/BehatsdaaScraper.js';
-import BeinleumiScraper from '../Beinleumi/BeinleumiScraper.js';
-import BeyahadBishvilhaScraper from '../BeyahadBishvilha/BeyahadBishvilhaScraper.js';
-import DiscountScraper from '../Discount/DiscountScraper.js';
-import HapoalimScraper from '../Hapoalim/HapoalimScraper.js';
-import IsracardScraper from '../Isracard/IsracardScraper.js';
-import LeumiScraper from '../Leumi/LeumiScraper.js';
-import MassadScraper from '../Massad/MassadScraper.js';
-import MaxScraper from '../Max/MaxScraper.js';
-import MercantileScraper from '../Mercantile/MercantileScraper.js';
-import MizrahiScraper from '../Mizrahi/MizrahiScraper.js';
-import OneZeroScraper from '../OneZero/OneZeroScraper.js';
-import OtsarHahayalScraper from '../OtsarHahayal/OtsarHahayalScraper.js';
-import PagiScraper from '../Pagi/PagiScraper.js';
-import VisaCalScraper from '../VisaCal/VisaCalScraper.js';
-import YahavScraper from '../Yahav/YahavScraper.js';
+import { type CompanyTypes } from '../../Definitions.js';
+import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
+import ScraperError from '../Base/ScraperError.js';
+import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
+  type ScraperFactory,
+} from './ScraperRegistryAmexToIsracard.js';
+import SCRAPER_REGISTRY_LEUMI_TO_YAHAV from './ScraperRegistryLeumiToYahav.js';
 
-type ScraperFactory = (options: ScraperOptions) => Scraper<ScraperCredentials>;
-
+/** Combined registry of all supported bank scrapers. */
 const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
-  [CompanyTypes.Hapoalim]: o => new HapoalimScraper(o),
-  [CompanyTypes.Leumi]: o => new LeumiScraper(o),
-  [CompanyTypes.BeyahadBishvilha]: o => new BeyahadBishvilhaScraper(o),
-  [CompanyTypes.Mizrahi]: o => new MizrahiScraper(o),
-  [CompanyTypes.Discount]: o => new DiscountScraper(o),
-  [CompanyTypes.Mercantile]: o => new MercantileScraper(o),
-  [CompanyTypes.OtsarHahayal]: o => new OtsarHahayalScraper(o),
-  [CompanyTypes.VisaCal]: o => new VisaCalScraper(o),
-  [CompanyTypes.Max]: o => new MaxScraper(o),
-  [CompanyTypes.Isracard]: o => new IsracardScraper(o),
-  [CompanyTypes.Amex]: o => new AmexScraper(o),
-  [CompanyTypes.Beinleumi]: o => new BeinleumiScraper(o),
-  [CompanyTypes.Massad]: o => new MassadScraper(o),
-  [CompanyTypes.Yahav]: o => new YahavScraper(o),
-  [CompanyTypes.OneZero]: o => new OneZeroScraper(o),
-  [CompanyTypes.Behatsdaa]: o => new BehatsdaaScraper(o),
-  [CompanyTypes.Pagi]: o => new PagiScraper(o),
+  ...SCRAPER_REGISTRY_AMEX_TO_ISRACARD,
+  ...SCRAPER_REGISTRY_LEUMI_TO_YAHAV,
 };
 
-export default function createScraper(options: ScraperOptions): Scraper<ScraperCredentials> {
+/**
+ * Create a scraper instance for the given company.
+ * @param options - Scraper configuration including company ID and credentials.
+ * @returns A scraper instance ready to scrape transactions.
+ */
+export default function createScraper(options: ScraperOptions): IScraper<ScraperCredentials> {
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
-  throw new Error(`unknown company id ${options.companyId}`);
+  throw new ScraperError(`unknown company id ${options.companyId}`);
 }

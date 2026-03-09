@@ -9,8 +9,8 @@ import {
   maybeTestCompanyAPI,
 } from '../TestsUtils.js';
 
-const COMPANY_ID = 'pagi'; // TODO this property should be hard-coded in the provider
-const testsConfig = getTestsConfig();
+const COMPANY_ID = 'pagi';
+const TESTS_CONFIG = getTestsConfig();
 
 describe('Pagi legacy scraper', () => {
   beforeAll(() => {
@@ -22,11 +22,11 @@ describe('Pagi legacy scraper', () => {
     expect(SCRAPERS.pagi.loginFields).toContain('password');
   });
 
-  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword)(
+  maybeTestCompanyAPI(COMPANY_ID, config => config.companyAPI.invalidPassword === true)(
     'should fail on invalid user/password"',
     async () => {
       const options = {
-        ...testsConfig.options,
+        ...TESTS_CONFIG.options,
         companyId: COMPANY_ID,
       };
 
@@ -42,19 +42,19 @@ describe('Pagi legacy scraper', () => {
 
   maybeTestCompanyAPI(COMPANY_ID)('should scrape transactions"', async () => {
     const options = {
-      ...testsConfig.options,
+      ...TESTS_CONFIG.options,
       companyId: COMPANY_ID,
     };
 
     const scraper = new PagiScraper(options as unknown as ScraperOptions);
     const result = await scraper.scrape(
-      testsConfig.credentials.pagi as Parameters<typeof scraper.scrape>[0],
+      TESTS_CONFIG.credentials.pagi as unknown as Parameters<typeof scraper.scrape>[0],
     );
     expect(result).toBeDefined();
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const error = `${result.errorType ?? ''} ${result.errorMessage ?? ''}`.trim();
     expect(error).toBe('');
     expect(result.success).toBeTruthy();
 
-    exportTransactions(COMPANY_ID, result.accounts || []);
+    exportTransactions(COMPANY_ID, result.accounts ?? []);
   });
 });

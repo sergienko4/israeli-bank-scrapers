@@ -4,9 +4,10 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
-import { GenericBankScraper } from '../Base/GenericBankScraper.js';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import GenericBankScraper from '../Base/GenericBankScraper.js';
+import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
+import type { Nullable } from '../Base/Interfaces/CallbackTypes.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import { BEHATSDAA_CONFIG } from './BehatsdaaLoginConfig.js';
 
@@ -14,12 +15,12 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 
 const LOG = getDebug('behatsdaa');
 
-interface ScraperSpecificCredentials {
+interface IScraperSpecificCredentials {
   id: string;
   password: string;
 }
 
-interface Variant {
+interface IPurchaseVariant {
   name: string;
   variantName: string;
   customerPrice: number;
@@ -27,19 +28,25 @@ interface Variant {
   tTransactionID: string;
 }
 
-interface PurchaseHistoryResponse {
+interface IPurchaseHistoryResponse {
   data?: {
     errorDescription?: string;
     memberId: string;
-    variants: Variant[];
+    variants: IPurchaseVariant[];
   };
   errorDescription?: string;
 }
 
-function variantToTransaction(variant: Variant, options?: ScraperOptions): Transaction {
+/**
+ * Convert a Behatsdaa purchase variant into a standard transaction.
+ * @param variant - The raw purchase variant from the API.
+ * @param options - Optional scraper options for raw transaction inclusion.
+ * @returns A normalised transaction object.
+ */
+function variantToTransaction(variant: IPurchaseVariant, options?: ScraperOptions): ITransaction {
   // The price is positive, make it negative as it's an expense
   const originalAmount = -variant.customerPrice;
-  const result: Transaction = {
+  const result: ITransaction = {
     type: TransactionTypes.Normal,
     identifier: variant.tTransactionID,
     date: moment(variant.orderDate).format('YYYY-MM-DD'),
@@ -60,12 +67,21 @@ function variantToTransaction(variant: Variant, options?: ScraperOptions): Trans
   return result;
 }
 
-class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/** Scraper for the Behatsdaa (בהצדעה) benefit program portal. */
+class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+  /**
+   * Create a new Behatsdaa scraper instance.
+   * @param options - Scraper configuration options.
+   */
   constructor(options: ScraperOptions) {
     super(options, BEHATSDAA_CONFIG);
   }
 
-  public async fetchData(): Promise<ScraperScrapingResult> {
+  /**
+   * Fetch transaction data from the Behatsdaa API.
+   * @returns Scraping result with accounts and transactions.
+   */
+  public async fetchData(): Promise<IScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
       LOG.debug('Token not found in local storage');
@@ -73,17 +89,23 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     }
     const res = await this.fetchWithToken(token);
     LOG.debug('Data fetched');
-    return this.buildAccountResult(res ?? {});
+    if (!res) return { success: false, errorMessage: 'EmptyResponse' };
+    return this.buildAccountResult(res);
   }
 
-  private async fetchWithToken(token: string): Promise<PurchaseHistoryResponse | null> {
+  /**
+   * Post to the purchase history API with the given bearer token.
+   * @param token - The bearer token from local storage.
+   * @returns The purchase history response (empty object on parse failure).
+   */
+  private async fetchWithToken(token: string): Promise<Nullable<IPurchaseHistoryResponse>> {
     const body = {
       FromDate: moment(this.options.startDate).format('YYYY-MM-DDTHH:mm:ss'),
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
     LOG.debug('Fetching data');
-    return fetchPostWithinPage<PurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
+    return fetchPostWithinPage<IPurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
       data: body,
       extraHeaders: {
         authorization: `Bearer ${token}`,
@@ -93,7 +115,12 @@ class BehatsdaaScraper extends GenericBankScraper<ScraperSpecificCredentials> {
     });
   }
 
-  private buildAccountResult(res: NonNullable<PurchaseHistoryResponse>): ScraperScrapingResult {
+  /**
+   * Transform the API response into a standard scraping result.
+   * @param res - The purchase history response from the API.
+   * @returns A scraping result with success flag and account data.
+   */
+  private buildAccountResult(res: IPurchaseHistoryResponse): IScraperScrapingResult {
     if (res.errorDescription || res.data?.errorDescription) {
       LOG.debug('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
       return { success: false, errorMessage: res.errorDescription };

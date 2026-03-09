@@ -1,26 +1,51 @@
 import _ from 'lodash';
 import moment, { type Moment } from 'moment';
 
-import { type Transaction, TransactionTypes } from '../Transactions.js';
+import { type ITransaction, TransactionTypes } from '../Transactions.js';
 
-function isNormalTransaction(txn: Transaction): boolean {
+/**
+ * Check whether a transaction is a normal (non-installment) type.
+ * @param txn - The transaction to check.
+ * @returns True if the transaction is normal.
+ */
+function isNormalTransaction(txn: ITransaction): boolean {
   return txn.type === TransactionTypes.Normal;
 }
 
-function isInstallmentTransaction(txn: Transaction): boolean {
+/**
+ * Check whether a transaction is an installment type.
+ * @param txn - The transaction to check.
+ * @returns True if the transaction is an installment.
+ */
+function isInstallmentTransaction(txn: ITransaction): boolean {
   return txn.type === TransactionTypes.Installments;
 }
 
-function isNonInitialInstallmentTransaction(txn: Transaction): boolean {
+/**
+ * Check whether a transaction is a non-initial installment (number > 1).
+ * @param txn - The transaction to check.
+ * @returns True if the transaction is a non-initial installment.
+ */
+function isNonInitialInstallmentTransaction(txn: ITransaction): boolean {
   return isInstallmentTransaction(txn) && !!txn.installments && txn.installments.number > 1;
 }
 
-function isInitialInstallmentTransaction(txn: Transaction): boolean {
+/**
+ * Check whether a transaction is the first installment (number === 1).
+ * @param txn - The transaction to check.
+ * @returns True if the transaction is the initial installment.
+ */
+function isInitialInstallmentTransaction(txn: ITransaction): boolean {
   return isInstallmentTransaction(txn) && !!txn.installments && txn.installments.number === 1;
 }
 
-export function fixInstallments(txns: Transaction[]): Transaction[] {
-  return txns.map((txn: Transaction) => {
+/**
+ * Fix installment transaction dates by adding months based on installment number.
+ * @param txns - The array of transactions to fix.
+ * @returns A new array with corrected installment dates.
+ */
+export function fixInstallments(txns: ITransaction[]): ITransaction[] {
+  return txns.map((txn: ITransaction) => {
     const clonedTxn = { ...txn };
 
     if (
@@ -36,15 +61,27 @@ export function fixInstallments(txns: Transaction[]): Transaction[] {
   });
 }
 
-export function sortTransactionsByDate(txns: Transaction[]): Transaction[] {
+/**
+ * Sort transactions by date ascending.
+ * @param txns - The transactions to sort.
+ * @returns A new array of transactions sorted by date.
+ */
+export function sortTransactionsByDate(txns: ITransaction[]): ITransaction[] {
   return _.sortBy(txns, ['date']);
 }
 
+/**
+ * Filter out transactions older than the start date.
+ * @param txns - The transactions to filter.
+ * @param startMoment - The earliest allowed transaction date.
+ * @param shouldCombineInstallments - Whether to combine installment transactions.
+ * @returns Filtered transactions within the date range.
+ */
 export function filterOldTransactions(
-  txns: Transaction[],
+  txns: ITransaction[],
   startMoment: Moment,
   shouldCombineInstallments: boolean,
-): Transaction[] {
+): ITransaction[] {
   return txns.filter(txn => {
     const shouldCombineNeededAndInitialOrNormal =
       shouldCombineInstallments &&
@@ -57,39 +94,50 @@ export function filterOldTransactions(
 }
 
 /**
- * Recursively remove null, undefined, empty string, and empty array values from objects and arrays.
+ * Recursively remove null, undefined, empty string, and empty array values.
+ * @param value - The value to clean (object, array, or primitive).
+ * @returns A cleaned copy with empty values removed.
  */
 function removeEmptyValues<T>(value: T): T {
   if (Array.isArray(value)) {
-    return (value as unknown[]).map(item => removeEmptyValues(item)) as unknown as T;
+    return (value as object[]).map(item => removeEmptyValues(item)) as T;
   }
 
   if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => {
-        if (v === null || v === undefined || v === '') return false;
-        if (Array.isArray(v) && v.length === 0) return false;
+    const rawEntries = Object.entries(value as Record<string, T>);
+    const entries = rawEntries
+      .filter(([, fieldValue]) => {
+        if (!fieldValue && fieldValue !== 0 && fieldValue !== false) return false;
+        if (Array.isArray(fieldValue) && fieldValue.length === 0) return false;
         return true;
       })
-      .map(([k, v]) => [k, removeEmptyValues(v)]);
+      .map(([key, fieldValue]) => [key, removeEmptyValues(fieldValue)]);
 
-    return Object.fromEntries(entries) as unknown as T;
+    return Object.fromEntries(entries) as T;
   }
 
   return value;
 }
 
+/** Raw bank data — can be an object, primitive, or array of such values. */
+type RawBankData = string | number | boolean | object;
+
+/** Result type for raw transaction data — either a single value or array. */
+type RawTransactionResult = RawBankData | RawBankData[];
+
 /**
  * Add/extend raw transaction data with new raw data.
- * - Cleans the data to remove null/undefined/empty-string keys.
- * - When called with one argument: returns cleaned data (common case for setting new raw transaction).
- * - When called with two arguments and transaction has rawTransaction: extends existing raw transaction.
+ * Cleans the data to remove null/undefined/empty-string keys.
+ * @param data - The new raw transaction data to add.
+ * @param transaction - Optional existing transaction to extend.
+ * @param transaction.rawTransaction - The existing raw transaction data.
+ * @returns Cleaned raw transaction data, merged with existing if present.
  */
 export function getRawTransaction(
-  data: unknown,
-  transaction?: { rawTransaction?: unknown },
-): unknown {
-  const current = transaction?.rawTransaction;
+  data: RawBankData,
+  transaction?: Pick<ITransaction, 'rawTransaction'>,
+): RawTransactionResult {
+  const current = transaction?.rawTransaction as RawBankData | RawBankData[] | undefined;
   const cleaned = removeEmptyValues(data);
 
   if (!current) {
@@ -97,7 +145,8 @@ export function getRawTransaction(
   }
 
   if (Array.isArray(current)) {
-    return [...(current as unknown[]), cleaned];
+    const currentArray = current as RawBankData[];
+    return [...currentArray, cleaned];
   }
 
   return [current, cleaned];

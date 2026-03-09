@@ -1,3 +1,3 @@
-export interface Account {
+export interface IAccount {
   accountId: string;
 }

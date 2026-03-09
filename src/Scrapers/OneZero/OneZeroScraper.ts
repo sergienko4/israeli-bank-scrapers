@@ -1,331 +1,370 @@
 import moment from 'moment';
 
 import { getDebug } from '../../Common/Debug.js';
-import { fetchGraphql, fetchPost } from '../../Common/Fetch.js';
-import { getRawTransaction } from '../../Common/Transactions.js';
+import { fetchGraphql, type JsonValue } from '../../Common/Fetch.js';
+import { runSerial } from '../../Common/Waiting.js';
 import {
-  type Transaction as ScrapingTransaction,
-  type TransactionsAccount,
-  TransactionStatuses,
-  TransactionTypes,
+  type ITransaction as ScrapingTransaction,
+  type ITransactionsAccount,
 } from '../../Transactions.js';
-import { BaseScraper } from '../Base/BaseScraper.js';
+import BaseScraper from '../Base/BaseScraper.js';
 import { createGenericError, ScraperErrorTypes } from '../Base/Errors.js';
 import {
+  type IScraperLoginResult,
+  type IScraperScrapingResult,
   type ScraperGetLongTermTwoFactorTokenResult,
-  type ScraperLoginResult,
-  type ScraperScrapingResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from '../Base/Interface.js';
+import {
+  fetchDeviceToken,
+  getIdToken,
+  getSessionToken,
+  idPost,
+  sendOtp,
+} from './OneZeroIdentity.js';
+import { fallbackBalance, mapMovement, sortByTimestamp } from './OneZeroMappers.js';
 import { GET_ACCOUNT_BALANCE, GET_CUSTOMER, GET_MOVEMENTS } from './OneZeroQueries.js';
 import {
-  type Category,
-  type Customer,
-  type Movement,
-  type Portfolio,
-  type QueryPagination,
-  type Recurrence,
-  type ScraperSpecificCredentials,
+  type ICategory,
+  type ICustomer,
+  type IMovement,
+  type IPortfolio,
+  type IQueryPagination,
+  type IRecurrence,
+  type IScraperSpecificCredentials,
 } from './OneZeroTypes.js';
 
-export type { Category, Recurrence };
-
-const HEBREW_WORDS_REGEX = /[\u0590-\u05FF][\u0590-\u05FF"'\-_ /\\]*[\u0590-\u05FF]/g;
+export type { ICategory, IRecurrence };
 
 const LOG = getDebug('one-zero');
+const GQL_URL = 'https://mobile.tfd-bank.com/mobile-graph/graphql';
+const MOVEMENTS_LIMIT = 50;
 
-const IDENTITY_SERVER_URL = 'https://identity.tfd-bank.com/v1/';
+/** Pagination input for the movements GraphQL query. */
+interface IMovementsPaginationInput {
+  [key: string]: JsonValue;
+  limit: number;
+}
 
-const GRAPHQL_API_URL = 'https://mobile.tfd-bank.com/mobile-graph/graphql';
-
-function reverseHebrewRanges(plain: string, ranges: { start: number; end: number }[]): string {
-  const out: string[] = [];
-  let index = 0;
-  for (const { start, end } of ranges) {
-    out.push(...Array.from(plain.substring(index, start)));
-    index += start - index;
-    out.push(...Array.from(plain.substring(start, end)).reverse());
-    index += end - start;
-  }
-  out.push(...Array.from(plain.substring(index)));
-  return out.join('');
+/** GraphQL variables for a movements query. */
+interface IMovementsVariables {
+  [key: string]: JsonValue;
+  portfolioId: string;
+  accountId: string;
+  language: string;
+  pagination: IMovementsPaginationInput;
 }
 
 /**
- * One Zero Hebrew strings are reversed with a LTR unicode control character.
- * Strip it and reverse Hebrew substrings back to natural order.
+ * Build the GraphQL variables for a movements query.
+ * @param portfolioId - The portfolio identifier.
+ * @param accountId - The account identifier.
+ * @param cursor - The pagination cursor.
+ * @returns The variables object for the query.
  */
-function sanitizeHebrew(text: string): string {
-  if (!text.includes('\u202d')) return text.trim();
-  const plain = text.replace(/\u202d/gi, '').trim();
-  const ranges = [...plain.matchAll(HEBREW_WORDS_REGEX)].map(m => ({
-    start: m.index,
-    end: m.index + m[0].length,
-  }));
-  return reverseHebrewRanges(plain, ranges);
+function buildMovementsVariables(
+  portfolioId: string,
+  accountId: string,
+  cursor?: string,
+): IMovementsVariables {
+  return {
+    portfolioId,
+    accountId,
+    language: 'HEBREW',
+    pagination: { cursor: cursor ?? null, limit: MOVEMENTS_LIMIT },
+  };
 }
 
-export default class OneZeroScraper extends BaseScraper<ScraperSpecificCredentials> {
-  private otpContext?: string;
+interface IMovementsFetchContext {
+  portfolio: IPortfolio;
+  accountId: string;
+  startDate: Date;
+}
 
-  private accessToken?: string;
+interface IMovementsFetchState {
+  accumulated: IMovement[];
+  cursor: string | null;
+}
 
+/**
+ * Check if pagination should stop for movements.
+ * @param result - The accumulated movements so far.
+ * @param hasMore - Whether more pages exist.
+ * @param startDate - The start date threshold.
+ * @returns True if fetching should stop.
+ */
+function shouldStop(result: IMovement[], hasMore: boolean, startDate: Date): boolean {
+  if (!hasMore) return true;
+  if (!result.length) return false;
+  return new Date(result[0].movementTimestamp) < startDate;
+}
+
+/** OneZero bank scraper — fetches transactions via GraphQL. */
+export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredentials> {
+  /** Internal OTP context token. */
+  private _otpContext?: string;
+
+  /** Bearer access token for API calls. */
+  private _accessToken?: string;
+
+  /**
+   * Trigger two-factor auth by sending an OTP.
+   * @param phoneNumber - Full international phone number.
+   * @returns The trigger result.
+   */
   public async triggerTwoFactorAuth(
     phoneNumber: string,
   ): Promise<ScraperTwoFactorAuthTriggerResult> {
     if (!phoneNumber.startsWith('+')) {
-      return createGenericError(
-        'A full international phone number starting with + and a three digit country code is required',
-      );
+      return createGenericError('Full international phone number with + prefix required');
     }
     LOG.debug('Fetching device token');
-    const deviceToken = await this.fetchDeviceToken();
+    const deviceToken = await fetchDeviceToken();
     LOG.debug(`Sending OTP to phone number ${phoneNumber}`);
-    this.otpContext = await this.prepareOtp(phoneNumber, deviceToken);
+    this._otpContext = await sendOtp(phoneNumber, deviceToken);
     return { success: true };
   }
 
+  /**
+   * Verify OTP code and return a long-term token.
+   * @param otpCode - The OTP code from the user.
+   * @returns The long-term token result.
+   */
   public async getLongTermTwoFactorToken(
     otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    if (!this.otpContext) {
-      return createGenericError('triggerOtp was not called before calling getPermenantOtpToken()');
+    if (!this._otpContext) {
+      return createGenericError('triggerOtp was not called');
     }
-
     LOG.debug('Requesting OTP token');
-    const otpVerifyResponse = await fetchPost<{ resultData: { otpToken: string } }>(
-      `${IDENTITY_SERVER_URL}/otp/verify`,
-      {
-        otpContext: this.otpContext,
-        otpCode,
-      },
-    );
-
-    const {
-      resultData: { otpToken },
-    } = otpVerifyResponse;
-    return { success: true, longTermTwoFactorAuthToken: otpToken };
-  }
-
-  public async login(credentials: ScraperSpecificCredentials): Promise<ScraperLoginResult> {
-    const otpTokenResult = await this.resolveOtpToken(credentials);
-    if (!otpTokenResult.success) return otpTokenResult;
-    LOG.debug('Requesting id token');
-    const idToken = await this.getIdToken(
-      otpTokenResult.longTermTwoFactorAuthToken,
-      credentials.email,
-      credentials.password,
-    );
-    LOG.debug('Requesting session token');
-    this.accessToken = await this.getSessionToken(idToken, credentials.password);
-    return { success: true, persistentOtpToken: otpTokenResult.longTermTwoFactorAuthToken };
-  }
-
-  public async fetchData(): Promise<ScraperScrapingResult> {
-    if (!this.accessToken) return createGenericError('login() was not called');
-    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-    const startMoment = moment.max(defaultStartMoment, moment(this.options.startDate));
-    const portfolios = await this.fetchPortfolios();
+    const resp = await idPost<{ resultData: { otpToken: string } }>('otp/verify', {
+      otpContext: this._otpContext,
+      otpCode,
+    });
     return {
       success: true,
-      accounts: await Promise.all(
-        portfolios.map(portfolio => this.fetchPortfolioMovements(portfolio, startMoment.toDate())),
-      ),
+      longTermTwoFactorAuthToken: resp.resultData.otpToken,
     };
   }
 
-  private async fetchDeviceToken(): Promise<string> {
-    const resp = await fetchPost<{ resultData: { deviceToken: string } }>(
-      `${IDENTITY_SERVER_URL}/devices/token`,
-      {
-        extClientId: 'mobile',
-        os: 'Android',
-      },
-    );
-    return resp.resultData.deviceToken;
+  /**
+   * Login using email, password, and OTP.
+   * @param credentials - The user credentials.
+   * @returns The login result.
+   */
+  public async login(credentials: IScraperSpecificCredentials): Promise<IScraperLoginResult> {
+    const otp = await this.resolveOtpToken(credentials);
+    if (!otp.success) return otp;
+    const token = otp.longTermTwoFactorAuthToken;
+    LOG.debug('Requesting id token');
+    const idTk = await getIdToken(token, credentials.email, credentials.password);
+    LOG.debug('Requesting session token');
+    this._accessToken = await getSessionToken(idTk, credentials.password);
+    return { success: true, persistentOtpToken: token };
   }
 
-  private async prepareOtp(phoneNumber: string, deviceToken: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { otpContext: string } }>(
-      `${IDENTITY_SERVER_URL}/otp/prepare`,
-      {
-        factorValue: phoneNumber,
-        deviceToken,
-        otpChannel: 'SMS_OTP',
-      },
+  /**
+   * Fetch transaction data for all portfolios.
+   * @returns The scraping result with accounts.
+   */
+  public async fetchData(): Promise<IScraperScrapingResult> {
+    if (!this._accessToken) {
+      return createGenericError('login() was not called');
+    }
+    const defStart = moment().subtract(1, 'years').add(1, 'day');
+    const optStart = moment(this.options.startDate);
+    const startDate = moment.max(defStart, optStart).toDate();
+    const portfolios = await this.fetchPortfolios();
+    const actions = portfolios.map(
+      (p): (() => Promise<ITransactionsAccount>) =>
+        () =>
+          this.fetchPortfolioMovements(p, startDate),
     );
-    return resp.resultData.otpContext;
+    return { success: true, accounts: await runSerial(actions) };
   }
 
+  /**
+   * Build authorization headers for GraphQL requests.
+   * @returns The authorization headers object.
+   */
+  private authHeaders(): Record<string, string> {
+    return { authorization: `Bearer ${this._accessToken ?? ''}` };
+  }
+
+  /**
+   * Resolve OTP token via user-supplied retriever.
+   * @param creds - Credentials with retriever and phone.
+   * @returns The long-term token result.
+   */
   private async resolveOtpTokenViaRetriever(
-    credentials: ScraperSpecificCredentials & {
+    creds: IScraperSpecificCredentials & {
       otpCodeRetriever: () => Promise<string>;
       phoneNumber: string;
     },
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    LOG.debug('Triggering user supplied otpCodeRetriever callback');
-    const triggerResult = await this.triggerTwoFactorAuth(credentials.phoneNumber);
-    if (!triggerResult.success) return triggerResult;
-    const otpCode = await credentials.otpCodeRetriever();
-    const otpTokenResult = await this.getLongTermTwoFactorToken(otpCode);
-    if (!otpTokenResult.success) return otpTokenResult;
-    return { success: true, longTermTwoFactorAuthToken: otpTokenResult.longTermTwoFactorAuthToken };
+    LOG.debug('Triggering otpCodeRetriever callback');
+    const trigger = await this.triggerTwoFactorAuth(creds.phoneNumber);
+    if (!trigger.success) return trigger;
+    const otpCode = await creds.otpCodeRetriever();
+    return this.getLongTermTwoFactorToken(otpCode);
   }
 
-  private async resolveOtpToken(
-    credentials: ScraperSpecificCredentials,
-  ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    if ('otpLongTermToken' in credentials) {
-      if (!credentials.otpLongTermToken) return createGenericError('Invalid otpLongTermToken');
-      return { success: true, longTermTwoFactorAuthToken: credentials.otpLongTermToken };
+  /**
+   * Try resolving OTP from a stored long-term token.
+   * @param creds - The user credentials.
+   * @returns The token result if found, or false.
+   */
+  private static resolveStoredToken(
+    creds: IScraperSpecificCredentials,
+  ): ScraperGetLongTermTwoFactorTokenResult | false {
+    if (!('otpLongTermToken' in creds)) return false;
+    if (!creds.otpLongTermToken) {
+      return createGenericError('Invalid otpLongTermToken');
     }
-    if (!('otpCodeRetriever' in credentials)) {
+    return {
+      success: true,
+      longTermTwoFactorAuthToken: creds.otpLongTermToken,
+    };
+  }
+
+  /**
+   * Resolve OTP token from credentials.
+   * @param creds - The user credentials.
+   * @returns The long-term token result.
+   */
+  private async resolveOtpToken(
+    creds: IScraperSpecificCredentials,
+  ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
+    const stored = OneZeroScraper.resolveStoredToken(creds);
+    if (stored !== false) return stored;
+    if (!('otpCodeRetriever' in creds)) {
       return {
         success: false,
         errorType: ScraperErrorTypes.TwoFactorRetrieverMissing,
-        errorMessage: 'otpLongTermToken or otpCodeRetriever is required',
+        errorMessage: 'otpLongTermToken or otpCodeRetriever required',
       };
     }
-    if (!credentials.phoneNumber)
-      return createGenericError(
-        'phoneNumber is required when providing a otpCodeRetriever callback',
-      );
-    return this.resolveOtpTokenViaRetriever(credentials);
+    if (!creds.phoneNumber) {
+      return createGenericError('phoneNumber required with retriever');
+    }
+    return this.resolveOtpTokenViaRetriever(creds);
   }
 
-  private async getIdToken(otpSmsToken: string, email: string, pass: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { idToken: string } }>(
-      `${IDENTITY_SERVER_URL}/getIdToken`,
-      {
-        otpSmsToken,
-        email,
-        pass,
-        pinCode: '',
-      },
-    );
-    return resp.resultData.idToken;
-  }
-
-  private async getSessionToken(idToken: string, pass: string): Promise<string> {
-    const resp = await fetchPost<{ resultData: { accessToken: string } }>(
-      `${IDENTITY_SERVER_URL}/sessions/token`,
-      {
-        idToken,
-        pass,
-      },
-    );
-    return resp.resultData.accessToken;
-  }
-
+  /**
+   * Fetch a single page of movements from the GraphQL API.
+   * @param portfolioId - The portfolio identifier.
+   * @param accountId - The account identifier.
+   * @param cursor - The pagination cursor or null.
+   * @returns The movements and pagination info.
+   */
   private async fetchMovementsPage(
     portfolioId: string,
     accountId: string,
     cursor: string | null,
-  ): Promise<{ movements: Movement[]; pagination: QueryPagination }> {
-    const { movements } = await fetchGraphql<{
-      movements: { movements: Movement[]; pagination: QueryPagination };
-    }>(GRAPHQL_API_URL, GET_MOVEMENTS, {
-      variables: { portfolioId, accountId, language: 'HEBREW', pagination: { cursor, limit: 50 } },
-      extraHeaders: { authorization: `Bearer ${this.accessToken}` },
+  ): Promise<{ movements: IMovement[]; pagination: IQueryPagination }> {
+    const variables = buildMovementsVariables(portfolioId, accountId, cursor ?? undefined);
+    const resp = await fetchGraphql<{
+      movements: { movements: IMovement[]; pagination: IQueryPagination };
+    }>(GQL_URL, GET_MOVEMENTS, {
+      variables,
+      extraHeaders: this.authHeaders(),
     });
-    return movements;
+    return resp.movements;
   }
 
-  private async fetchMovementsUntilStart(
-    portfolio: Portfolio,
-    accountId: string,
-    startDate: Date,
-  ): Promise<{ movements: Movement[]; done: boolean }> {
-    const result: Movement[] = [];
-    let cursor: string | null = null;
-    while (!result.length || new Date(result[0].movementTimestamp) >= startDate) {
-      LOG.debug(`Fetching transactions for account ${portfolio.portfolioNum}...`);
-      const { movements: newMovements, pagination } = await this.fetchMovementsPage(
-        portfolio.portfolioId,
-        accountId,
-        cursor,
-      );
-      result.unshift(...newMovements);
-      cursor = pagination.cursor;
-      if (!pagination.hasMore) return { movements: result, done: true };
+  /**
+   * Fetch movements recursively until startDate is reached.
+   * @param ctx - Portfolio, account, and date context.
+   * @param state - Accumulated movements and cursor.
+   * @returns The accumulated movements and done flag.
+   */
+  private async fetchMovementsRec(
+    ctx: IMovementsFetchContext,
+    state: IMovementsFetchState,
+  ): Promise<{ movements: IMovement[]; done: boolean }> {
+    const { portfolio, accountId, startDate } = ctx;
+    LOG.debug(`Fetching txns for ${portfolio.portfolioNum}...`);
+    const pg = await this.fetchMovementsPage(portfolio.portfolioId, accountId, state.cursor);
+    const merged = [...pg.movements, ...state.accumulated];
+    if (shouldStop(merged, pg.pagination.hasMore, startDate)) {
+      return { movements: merged, done: !pg.pagination.hasMore };
     }
-    return { movements: result, done: false };
+    const next = { accumulated: merged, cursor: pg.pagination.cursor };
+    return this.fetchMovementsRec(ctx, next);
   }
 
+  /**
+   * Fetch all movements for a portfolio from the start date.
+   * @param portfolio - The portfolio to fetch for.
+   * @param accountId - The account identifier.
+   * @param startDate - The start date threshold.
+   * @returns The sorted movements array.
+   */
   private async fetchAllMovements(
-    portfolio: Portfolio,
+    portfolio: IPortfolio,
     accountId: string,
     startDate: Date,
-  ): Promise<Movement[]> {
-    const { movements } = await this.fetchMovementsUntilStart(portfolio, accountId, startDate);
-    movements.sort(
-      (x, y) => new Date(x.movementTimestamp).valueOf() - new Date(y.movementTimestamp).valueOf(),
-    );
-    return movements;
+  ): Promise<IMovement[]> {
+    const ctx = { portfolio, accountId, startDate };
+    const init = { accumulated: [] as IMovement[], cursor: null };
+    const { movements } = await this.fetchMovementsRec(ctx, init);
+    return sortByTimestamp(movements);
   }
 
+  /**
+   * Fetch current account balance with fallback.
+   * @param portfolio - The portfolio to query.
+   * @param accountId - The account identifier.
+   * @param fb - The fallback balance value.
+   * @returns The account balance.
+   */
   private async fetchBalance(
-    portfolio: Portfolio,
+    portfolio: IPortfolio,
     accountId: string,
-    fallback: number,
+    fb: number,
   ): Promise<number> {
     try {
-      const { balance: accountBalance }: { balance: { currentAccountBalance: number } } =
-        await fetchGraphql(GRAPHQL_API_URL, GET_ACCOUNT_BALANCE, {
-          variables: { portfolioId: portfolio.portfolioId, accountId },
-          extraHeaders: { authorization: `Bearer ${this.accessToken}` },
-        });
-      return accountBalance.currentAccountBalance;
+      const vars = { portfolioId: portfolio.portfolioId, accountId };
+      const resp: { balance: { currentAccountBalance: number } } = await fetchGraphql(
+        GQL_URL,
+        GET_ACCOUNT_BALANCE,
+        { variables: vars, extraHeaders: this.authHeaders() },
+      );
+      return resp.balance.currentAccountBalance;
     } catch {
-      LOG.debug('balance query failed — falling back to runningBalance of last movement');
-      return fallback;
+      LOG.debug('balance query failed — using fallback');
+      return fb;
     }
   }
 
-  private mapMovement(movement: Movement): ScrapingTransaction {
-    const hasInstallments = movement.transaction?.enrichment?.recurrences?.some(x => x.isRecurrent);
-    const modifier = movement.creditDebit === 'DEBIT' ? -1 : 1;
-    const result: ScrapingTransaction = {
-      identifier: movement.movementId,
-      date: movement.valueDate,
-      chargedAmount: +movement.movementAmount * modifier,
-      chargedCurrency: movement.movementCurrency,
-      originalAmount: +movement.movementAmount * modifier,
-      originalCurrency: movement.movementCurrency,
-      description: sanitizeHebrew(movement.description),
-      processedDate: movement.movementTimestamp,
-      status: TransactionStatuses.Completed,
-      type: hasInstallments ? TransactionTypes.Installments : TransactionTypes.Normal,
-    };
-    if (this.options.includeRawTransaction) result.rawTransaction = getRawTransaction(movement);
-    return result;
-  }
-
+  /**
+   * Fetch movements and balance for a single portfolio.
+   * @param portfolio - The portfolio to process.
+   * @param startDate - The start date threshold.
+   * @returns The transactions account result.
+   */
   private async fetchPortfolioMovements(
-    portfolio: Portfolio,
+    portfolio: IPortfolio,
     startDate: Date,
-  ): Promise<TransactionsAccount> {
-    const account = portfolio.accounts[0];
-    const movements = await this.fetchAllMovements(portfolio, account.accountId, startDate);
-    const fallbackBalance = !movements.length
-      ? 0
-      : parseFloat(movements[movements.length - 1].runningBalance);
-    const balance = await this.fetchBalance(portfolio, account.accountId, fallbackBalance);
-    const matchingMovements = movements.filter(
-      movement => new Date(movement.movementTimestamp) >= startDate,
-    );
-    return {
-      accountNumber: portfolio.portfolioNum,
-      balance,
-      txns: matchingMovements.map(m => this.mapMovement(m)),
-    };
+  ): Promise<ITransactionsAccount> {
+    const acct = portfolio.accounts[0];
+    const mvs = await this.fetchAllMovements(portfolio, acct.accountId, startDate);
+    const fb = fallbackBalance(mvs);
+    const bal = await this.fetchBalance(portfolio, acct.accountId, fb);
+    const matching = mvs.filter(m => new Date(m.movementTimestamp) >= startDate);
+    const txns: ScrapingTransaction[] = matching.map(m => mapMovement(m, this.options));
+    return { accountNumber: portfolio.portfolioNum, balance: bal, txns };
   }
 
-  private async fetchPortfolios(): Promise<Portfolio[]> {
+  /**
+   * Fetch the list of portfolios from the GraphQL API.
+   * @returns The array of portfolios.
+   */
+  private async fetchPortfolios(): Promise<IPortfolio[]> {
     LOG.debug('Fetching account list');
-    const result = await fetchGraphql<{ customer: Customer[] }>(GRAPHQL_API_URL, GET_CUSTOMER, {
-      extraHeaders: { authorization: `Bearer ${this.accessToken}` },
+    const resp = await fetchGraphql<{ customer: ICustomer[] }>(GQL_URL, GET_CUSTOMER, {
+      extraHeaders: this.authHeaders(),
     });
-    return result.customer.flatMap(customer => customer.portfolios ?? []);
+    return resp.customer.flatMap(c => c.portfolios ?? []);
   }
 }

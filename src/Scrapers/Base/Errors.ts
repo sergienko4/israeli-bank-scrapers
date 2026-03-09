@@ -1,13 +1,19 @@
-import type { ErrorResult } from './Interfaces/ErrorResult.js';
-import type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
+import type { IErrorResult } from './Interfaces/ErrorResult.js';
+import type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
 export { ScraperErrorTypes } from './ErrorTypes.js';
-export type { ErrorResult } from './Interfaces/ErrorResult.js';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
+export type { IErrorResult } from './Interfaces/ErrorResult.js';
+export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
 import { ScraperErrorTypes } from './ErrorTypes.js';
 
-function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): ErrorResult {
+/**
+ * Create a typed error result with success=false.
+ * @param errorType - The scraper error type classification.
+ * @param errorMessage - A human-readable error description.
+ * @returns A structured error result.
+ */
+function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): IErrorResult {
   return {
     success: false,
     errorType,
@@ -15,15 +21,31 @@ function createErrorResult(errorType: ScraperErrorTypes, errorMessage: string): 
   };
 }
 
-export function createTimeoutError(errorMessage: string): ErrorResult {
+/**
+ * Create a timeout error result.
+ * @param errorMessage - A description of the timeout condition.
+ * @returns A timeout error result.
+ */
+export function createTimeoutError(errorMessage: string): IErrorResult {
   return createErrorResult(ScraperErrorTypes.Timeout, errorMessage);
 }
 
-export function createGenericError(errorMessage: string): ErrorResult {
+/**
+ * Create a generic error result.
+ * @param errorMessage - A description of the error condition.
+ * @returns A generic error result.
+ */
+export function createGenericError(errorMessage: string): IErrorResult {
   return createErrorResult(ScraperErrorTypes.Generic, errorMessage);
 }
 
-export function createWafBlockedError(message: string, details?: WafErrorDetails): ErrorResult {
+/**
+ * Create a WAF-blocked error result with optional details.
+ * @param message - A description of the WAF block.
+ * @param details - Optional structured WAF error details.
+ * @returns A WAF-blocked error result.
+ */
+export function createWafBlockedError(message: string, details?: IWafErrorDetails): IErrorResult {
   return {
     success: false,
     errorType: ScraperErrorTypes.WafBlocked,
@@ -40,16 +62,32 @@ const WAF_SUGGESTIONS = {
   trustedIp: 'Use Microsoft Azure or residential IP (not Oracle Cloud/AWS)',
 } as const;
 
+/** Structured error for WAF/IP block scenarios with provider-specific details. */
 export class WafBlockError extends Error {
-  public readonly details: WafErrorDetails;
+  public readonly details: IWafErrorDetails;
 
-  constructor(details: WafErrorDetails) {
-    const msg = `WAF blocked by ${details.provider} (HTTP ${details.httpStatus}, "${details.pageTitle}"). ${details.suggestions[0]}`;
+  /**
+   * Create a WAF block error with structured details.
+   * @param details - The structured WAF error details.
+   */
+  constructor(details: IWafErrorDetails) {
+    const httpStatusStr = String(details.httpStatus);
+    const msg =
+      `WAF blocked by ${details.provider} ` +
+      `(HTTP ${httpStatusStr}, "${details.pageTitle}"). ` +
+      details.suggestions[0];
     super(msg);
     this.name = 'WafBlockError';
     this.details = details;
   }
 
+  /**
+   * Create a Cloudflare WAF block error.
+   * @param httpStatus - The HTTP status code from Cloudflare.
+   * @param pageTitle - The page title returned by Cloudflare.
+   * @param pageUrl - The URL that was blocked.
+   * @returns A WafBlockError for Cloudflare blocks.
+   */
   public static cloudflareBlock(
     httpStatus: number,
     pageTitle: string,
@@ -68,6 +106,12 @@ export class WafBlockError extends Error {
     });
   }
 
+  /**
+   * Create a Cloudflare Turnstile challenge error.
+   * @param pageTitle - The page title of the Turnstile challenge.
+   * @param pageUrl - The URL with the Turnstile challenge.
+   * @returns A WafBlockError for Turnstile challenges.
+   */
   public static cloudflareTurnstile(pageTitle: string, pageUrl: string): WafBlockError {
     return new WafBlockError({
       provider: 'cloudflare',
@@ -78,6 +122,15 @@ export class WafBlockError extends Error {
     });
   }
 
+  /**
+   * Create a generic API block error from an unknown WAF provider.
+   * @param httpStatus - The HTTP status code received.
+   * @param pageUrl - The URL of the blocked API call.
+   * @param opts - Optional page title and response snippet for diagnostics.
+   * @param opts.pageTitle - The page title from the blocked response.
+   * @param opts.responseSnippet - A snippet of the response body for diagnostics.
+   * @returns A WafBlockError for API-level blocks.
+   */
   public static apiBlock(
     httpStatus: number,
     pageUrl: string,

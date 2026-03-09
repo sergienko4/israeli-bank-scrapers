@@ -21,7 +21,11 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns mock debug logger with all methods stubbed.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -30,19 +34,15 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-const {
-  clickAccountSelectorGetAccountIds,
-  getAccountIdsBothUIs,
-  getTransactionsFrame,
-  selectAccountFromDropdown,
-} = await import('../../Scrapers/Beinleumi/BeinleumiAccountSelector.js');
-const { createMockPage } = await import('../MockPage.js');
+const ACCOUNT_SELECTOR_MODULE =
+  await import('../../Scrapers/Beinleumi/BeinleumiAccountSelector.js');
+const MOCK_PAGE_MODULE = await import('../MockPage.js');
 
-let mockPage: ReturnType<typeof createMockPage>;
+let mockPage: ReturnType<typeof MOCK_PAGE_MODULE.createMockPage>;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockPage = createMockPage();
+  mockPage = MOCK_PAGE_MODULE.createMockPage();
 });
 
 describe('clickAccountSelectorGetAccountIds', () => {
@@ -50,31 +50,39 @@ describe('clickAccountSelectorGetAccountIds', () => {
     mockPage.$eval.mockResolvedValueOnce(true);
     mockPage.$$eval.mockResolvedValueOnce(['account-1', 'account-2']);
 
-    const result = await clickAccountSelectorGetAccountIds(mockPage as unknown as Page);
-    expect(result).toEqual(['account-1', 'account-2']);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual(['account-1', 'account-2']);
   });
 
   it('opens dropdown if not already open before reading options', async () => {
     mockPage.$eval.mockResolvedValueOnce(false);
     mockPage.$$eval.mockResolvedValueOnce(['account-3']);
 
-    const result = await clickAccountSelectorGetAccountIds(mockPage as unknown as Page);
-    expect(result).toEqual(['account-3']);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual(['account-3']);
   });
 
   it('returns empty array when an error is thrown', async () => {
     mockPage.$eval.mockRejectedValueOnce(new Error('page crash'));
 
-    const result = await clickAccountSelectorGetAccountIds(mockPage as unknown as Page);
-    expect(result).toEqual([]);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual([]);
   });
 
   it('returns empty array when $$eval throws', async () => {
     mockPage.$eval.mockResolvedValueOnce(true);
     mockPage.$$eval.mockRejectedValueOnce(new Error('no elements'));
 
-    const result = await clickAccountSelectorGetAccountIds(mockPage as unknown as Page);
-    expect(result).toEqual([]);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual([]);
   });
 });
 
@@ -83,24 +91,30 @@ describe('getAccountIdsBothUIs', () => {
     mockPage.$eval.mockResolvedValueOnce(true);
     mockPage.$$eval.mockResolvedValueOnce(['111', '222']);
 
-    const result = await getAccountIdsBothUIs(mockPage as unknown as Page);
-    expect(result).toEqual(['111', '222']);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual(['111', '222']);
   });
 
   it('falls back to old UI when new UI returns empty', async () => {
     mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
     mockPage.evaluate.mockResolvedValueOnce(['333']);
 
-    const result = await getAccountIdsBothUIs(mockPage as unknown as Page);
-    expect(result).toEqual(['333']);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual(['333']);
   });
 
   it('returns empty array when both UIs return nothing', async () => {
     mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
     mockPage.evaluate.mockResolvedValueOnce([]);
 
-    const result = await getAccountIdsBothUIs(mockPage as unknown as Page);
-    expect(result).toEqual([]);
+    const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
+      mockPage as unknown as Page,
+    );
+    expect(accounts).toEqual([]);
   });
 });
 
@@ -109,8 +123,11 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$eval.mockResolvedValueOnce(true);
     mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-99');
-    expect(result).toBe(false);
+    const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
+      mockPage as unknown as Page,
+      'acc-99',
+    );
+    expect(isSelected).toBe(false);
   });
 
   it('returns true when account is found and clicked', async () => {
@@ -123,8 +140,11 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
     mockPage.evaluate.mockResolvedValueOnce('acc-1').mockResolvedValueOnce(undefined);
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
-    expect(result).toBe(true);
+    const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
+      mockPage as unknown as Page,
+      'acc-1',
+    );
+    expect(isSelected).toBe(true);
   });
 
   it('returns false when no matching option found in DOM', async () => {
@@ -137,8 +157,11 @@ describe('selectAccountFromDropdown', () => {
     mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
     mockPage.evaluate.mockResolvedValueOnce('acc-different');
 
-    const result = await selectAccountFromDropdown(mockPage as unknown as Page, 'acc-1');
-    expect(result).toBe(false);
+    const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
+      mockPage as unknown as Page,
+      'acc-1',
+    );
+    expect(isSelected).toBe(false);
   });
 });
 
@@ -147,8 +170,8 @@ describe('getTransactionsFrame', () => {
     mockPage.$.mockResolvedValue(null);
     mockPage.frames.mockReturnValue([]);
 
-    const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBeNull();
+    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
+    expect(frame).toBeUndefined();
   });
 
   it('returns frame found via iframe element contentFrame', async () => {
@@ -158,8 +181,8 @@ describe('getTransactionsFrame', () => {
     };
     mockPage.$.mockResolvedValueOnce(mockIframeEl);
 
-    const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
+    expect(frame).toBe(mockFrame);
   });
 
   it('returns frame found via page.frames() by name', async () => {
@@ -167,8 +190,8 @@ describe('getTransactionsFrame', () => {
     mockPage.$.mockResolvedValueOnce(null);
     mockPage.frames.mockReturnValueOnce([mockFrame]);
 
-    const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
+    expect(frame).toBe(mockFrame);
   });
 
   it('retries and returns frame on second attempt', async () => {
@@ -179,8 +202,8 @@ describe('getTransactionsFrame', () => {
     mockPage.$.mockResolvedValueOnce(null).mockResolvedValueOnce(mockIframeEl);
     mockPage.frames.mockReturnValue([]);
 
-    const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBe(mockFrame);
+    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
+    expect(frame).toBe(mockFrame);
   });
 
   it('handles stale iframe element (contentFrame throws)', async () => {
@@ -190,7 +213,7 @@ describe('getTransactionsFrame', () => {
     mockPage.$.mockResolvedValue(mockIframeEl);
     mockPage.frames.mockReturnValue([]);
 
-    const result = await getTransactionsFrame(mockPage as unknown as Page);
-    expect(result).toBeNull();
+    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
+    expect(frame).toBeUndefined();
   });
 });

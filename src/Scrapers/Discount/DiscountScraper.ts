@@ -3,18 +3,19 @@ import { type Page } from 'playwright';
 
 import { fetchGetWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
+import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type Transaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { ScraperErrorTypes } from '../Base/Errors.js';
-import { GenericBankScraper } from '../Base/GenericBankScraper.js';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
-import { type LoginConfig } from '../Base/LoginConfig.js';
+import GenericBankScraper from '../Base/GenericBankScraper.js';
+import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import { discountConfig } from './DiscountLoginConfig.js';
+import discountConfig from './DiscountLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 
-interface ScrapedTransaction {
+interface IScrapedTransaction {
   OperationNumber: number;
   OperationDate: string;
   ValueDate: string;
@@ -22,11 +23,11 @@ interface ScrapedTransaction {
   OperationDescriptionToDisplay: string;
 }
 
-interface CurrentAccountInfo {
+interface ICurrentAccountInfo {
   AccountBalance: number;
 }
 
-interface ScrapedAccountData {
+interface IScrapedAccountData {
   UserAccountsData: {
     DefaultAccountNumber: string;
     UserAccounts: {
@@ -37,23 +38,25 @@ interface ScrapedAccountData {
   };
 }
 
-interface ScrapedTransactionData {
+interface IScrapedTransactionData {
   Error?: { MsgText: string };
   CurrentAccountLastTransactions?: {
-    OperationEntry: ScrapedTransaction[] | null;
-    CurrentAccountInfo: CurrentAccountInfo;
+    OperationEntry: IScrapedTransaction[] | null;
+    CurrentAccountInfo: ICurrentAccountInfo;
     FutureTransactionsBlock: {
-      FutureTransactionEntry: ScrapedTransaction[] | null;
+      FutureTransactionEntry: IScrapedTransaction[] | null;
     };
   };
 }
 
-function convertOneTxn(
-  txn: ScrapedTransaction,
-  txnStatus: TransactionStatuses,
-  options?: ScraperOptions,
-): Transaction {
-  const result: Transaction = {
+/**
+ * Build the base transaction object from a scraped API entry.
+ * @param txn - The scraped transaction from the API.
+ * @param txnStatus - The status to assign to the transaction.
+ * @returns The base ITransaction object.
+ */
+function buildTxnBase(txn: IScrapedTransaction, txnStatus: TransactionStatuses): ITransaction {
+  return {
     type: TransactionTypes.Normal,
     identifier: txn.OperationNumber,
     date: moment(txn.OperationDate, CFG.format.date).toISOString(),
@@ -64,19 +67,43 @@ function convertOneTxn(
     description: txn.OperationDescriptionToDisplay,
     status: txnStatus,
   };
-  if (options?.includeRawTransaction) result.rawTransaction = getRawTransaction(txn);
+}
+
+/**
+ * Convert a single scraped transaction to the standard format.
+ * @param txn - The scraped transaction from the API.
+ * @param txnStatus - The status to assign to the transaction.
+ * @param options - Optional scraper options for raw data inclusion.
+ * @returns The converted ITransaction.
+ */
+function convertOneTxn(
+  txn: IScrapedTransaction,
+  txnStatus: TransactionStatuses,
+  options?: ScraperOptions,
+): ITransaction {
+  const result = buildTxnBase(txn, txnStatus);
+  if (options?.includeRawTransaction) {
+    result.rawTransaction = getRawTransaction(txn);
+  }
   return result;
 }
 
+/**
+ * Convert an array of scraped transactions to the standard format.
+ * @param txns - The array of scraped transactions.
+ * @param txnStatus - The status to assign to all transactions.
+ * @param options - Optional scraper options.
+ * @returns The converted ITransaction array.
+ */
 function convertTransactions(
-  txns: ScrapedTransaction[],
+  txns: IScrapedTransaction[],
   txnStatus: TransactionStatuses,
   options?: ScraperOptions,
-): Transaction[] {
+): ITransaction[] {
   return txns.map(txn => convertOneTxn(txn, txnStatus, options));
 }
 
-interface FetchOneAccOpts {
+interface IFetchOneAccountOpts {
   page: Page;
   apiSiteUrl: string;
   accountNumber: string;
@@ -84,40 +111,100 @@ interface FetchOneAccOpts {
   options: ScraperOptions;
 }
 
+/**
+ * Extract pending (future) transactions from the response.
+ * @param txnsResult - The scraped transaction data.
+ * @param options - The scraper options.
+ * @returns The array of pending transactions.
+ */
 function getPendingTxns(
-  txnsResult: ScrapedTransactionData,
+  txnsResult: IScrapedTransactionData,
   options: ScraperOptions,
-): Transaction[] {
-  const rawFutureTxns: ScrapedTransaction[] | null | undefined =
-    txnsResult.CurrentAccountLastTransactions?.FutureTransactionsBlock.FutureTransactionEntry;
+): ITransaction[] {
+  const futureBlock = txnsResult.CurrentAccountLastTransactions?.FutureTransactionsBlock;
+  const rawFutureTxns = futureBlock?.FutureTransactionEntry;
   if (!rawFutureTxns) return [];
   return convertTransactions(rawFutureTxns, TransactionStatuses.Pending, options);
 }
 
+/**
+ * Extract completed transactions from the account data.
+ * @param data - The current account last transactions block.
+ * @param options - The scraper options.
+ * @returns The array of completed transactions.
+ */
+function getCompletedTxns(
+  data: NonNullable<IScrapedTransactionData['CurrentAccountLastTransactions']>,
+  options: ScraperOptions,
+): ITransaction[] {
+  if (!data.OperationEntry) return [];
+  return convertTransactions(data.OperationEntry, TransactionStatuses.Completed, options);
+}
+
+const DEFAULT_ACCOUNT_DATA = {
+  OperationEntry: null,
+  CurrentAccountInfo: { AccountBalance: 0 },
+  FutureTransactionsBlock: { FutureTransactionEntry: null },
+} as const;
+
+interface IAccountResult {
+  accountNumber: string;
+  balance: number;
+  txns: ITransaction[];
+}
+
+/**
+ * Build the result for a single account from its transaction data.
+ * @param txnsResult - The scraped transaction data.
+ * @param accountNumber - The account number string.
+ * @param options - The scraper options.
+ * @returns The account result with number, balance, and transactions.
+ */
 function buildOneAccountResult(
-  txnsResult: ScrapedTransactionData,
+  txnsResult: IScrapedTransactionData,
   accountNumber: string,
   options: ScraperOptions,
-): { accountNumber: string; balance: number; txns: Transaction[] } {
-  const data = txnsResult.CurrentAccountLastTransactions!;
-  const completedTxns = data.OperationEntry
-    ? convertTransactions(data.OperationEntry, TransactionStatuses.Completed, options)
-    : [];
+): IAccountResult {
+  const data = txnsResult.CurrentAccountLastTransactions ?? DEFAULT_ACCOUNT_DATA;
+  const completed = getCompletedTxns(data, options);
+  const pending = getPendingTxns(txnsResult, options);
   return {
     accountNumber,
     balance: data.CurrentAccountInfo.AccountBalance,
-    txns: [...completedTxns, ...getPendingTxns(txnsResult, options)],
+    txns: [...completed, ...pending],
   };
 }
 
-async function fetchOneAccount(
-  opts: FetchOneAccOpts,
-): Promise<{ error: string } | { accountNumber: string; balance: number; txns: Transaction[] }> {
+/**
+ * Build the transactions URL for a specific account.
+ * @param apiSiteUrl - The base API site URL.
+ * @param accountNumber - The account number.
+ * @param startDateStr - The formatted start date string.
+ * @returns The full transactions URL.
+ */
+function buildTxnsUrl(apiSiteUrl: string, accountNumber: string, startDateStr: string): string {
+  return (
+    `${apiSiteUrl}/lastTransactions/${accountNumber}/Date` +
+    '?IsCategoryDescCode=True&IsTransactionDetails=True' +
+    '&IsEventNames=True&IsFutureTransactionFlag=True' +
+    `&FromDate=${startDateStr}`
+  );
+}
+
+type IFetchOneResult = { error: string } | IAccountResult;
+
+/**
+ * Fetch transaction data for a single account from the API.
+ * @param opts - The fetch options for a single account.
+ * @returns Either an error object or the account result.
+ */
+async function fetchOneAccount(opts: IFetchOneAccountOpts): Promise<IFetchOneResult> {
   const { page, apiSiteUrl, accountNumber, startDateStr, options } = opts;
-  const txnsUrl = `${apiSiteUrl}/lastTransactions/${accountNumber}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${startDateStr}`;
-  const txnsResult = await fetchGetWithinPage<ScrapedTransactionData>(page, txnsUrl);
-  if (!txnsResult || txnsResult.Error) {
-    return { error: txnsResult?.Error?.MsgText ?? 'unknown error' };
+  const txnsUrl = buildTxnsUrl(apiSiteUrl, accountNumber, startDateStr);
+  const txnsResult = await fetchGetWithinPage<IScrapedTransactionData>(page, txnsUrl);
+  if (!txnsResult) return { accountNumber, balance: 0, txns: [] };
+  if (txnsResult.Error) {
+    return { error: txnsResult.Error.MsgText };
   }
   if (!txnsResult.CurrentAccountLastTransactions) {
     return { accountNumber, balance: 0, txns: [] };
@@ -125,13 +212,19 @@ async function fetchOneAccount(
   return buildOneAccountResult(txnsResult, accountNumber, options);
 }
 
+/**
+ * Build the formatted start date string from scraper options.
+ * @param options - The scraper options.
+ * @returns The formatted start date string.
+ */
 function buildStartDateStr(options: ScraperOptions): string {
   const defaultStartMoment = moment().subtract(1, 'years').add(2, 'day');
-  const startMoment = moment.max(defaultStartMoment, moment(options.startDate));
+  const optionsStartMoment = moment(options.startDate);
+  const startMoment = moment.max(defaultStartMoment, optionsStartMoment);
   return startMoment.format(CFG.format.date);
 }
 
-interface FetchAllAccountsOpts {
+interface IFetchAllAccountsOpts {
   page: Page;
   apiSiteUrl: string;
   accountNumbers: string[];
@@ -139,32 +232,61 @@ interface FetchAllAccountsOpts {
   options: ScraperOptions;
 }
 
-async function fetchAllAccounts(opts: FetchAllAccountsOpts): Promise<ScraperScrapingResult> {
-  const { page, apiSiteUrl, accountNumbers, startDateStr, options } = opts;
-  const accountsData = [];
-  for (const accountNumber of accountNumbers) {
-    const result = await fetchOneAccount({
-      page,
-      apiSiteUrl,
-      accountNumber,
-      startDateStr,
-      options,
-    });
-    if ('error' in result)
-      return { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: result.error };
+/**
+ * Check results for errors and collect successful account data.
+ * @param results - The array of fetch results.
+ * @returns The scraping result with all accounts or an error.
+ */
+function collectAccountResults(results: IFetchOneResult[]): IScraperScrapingResult {
+  const accountsData: IAccountResult[] = [];
+  for (const result of results) {
+    if ('error' in result) {
+      return {
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: result.error,
+      };
+    }
     accountsData.push(result);
   }
   return { success: true, accounts: accountsData };
 }
 
-interface FetchAccountDataOpts {
+/**
+ * Fetch transaction data for all accounts sequentially.
+ * @param opts - The fetch options for all accounts.
+ * @returns The scraping result with all accounts.
+ */
+async function fetchAllAccounts(opts: IFetchAllAccountsOpts): Promise<IScraperScrapingResult> {
+  const { page, apiSiteUrl, accountNumbers, startDateStr, options } = opts;
+  const actions = accountNumbers.map(
+    (accountNumber): (() => Promise<IFetchOneResult>) =>
+      () =>
+        fetchOneAccount({
+          page,
+          apiSiteUrl,
+          accountNumber,
+          startDateStr,
+          options,
+        }),
+  );
+  const results = await runSerial(actions);
+  return collectAccountResults(results);
+}
+
+interface IFetchAccountDataOpts {
   page: Page;
   apiSiteUrl: string;
-  accountInfo: ScrapedAccountData;
+  accountInfo: IScrapedAccountData;
   options: ScraperOptions;
 }
 
-function buildAccountsOpts(opts: FetchAccountDataOpts): FetchAllAccountsOpts {
+/**
+ * Build the options for fetching all accounts.
+ * @param opts - The account data fetch options.
+ * @returns The options for fetchAllAccounts.
+ */
+function buildAccountsOpts(opts: IFetchAccountDataOpts): IFetchAllAccountsOpts {
   const { page, apiSiteUrl, accountInfo, options } = opts;
   const startDateStr = buildStartDateStr(options);
   const accountNumbers = accountInfo.UserAccountsData.UserAccounts.map(
@@ -173,41 +295,56 @@ function buildAccountsOpts(opts: FetchAccountDataOpts): FetchAllAccountsOpts {
   return { page, apiSiteUrl, accountNumbers, startDateStr, options };
 }
 
+/**
+ * Fetch account data from the Discount API.
+ * @param page - The Playwright page instance.
+ * @param options - The scraper options.
+ * @returns The scraping result with all accounts.
+ */
 async function fetchAccountData(
   page: Page,
   options: ScraperOptions,
-): Promise<ScraperScrapingResult> {
+): Promise<IScraperScrapingResult> {
   const apiSiteUrl = `${CFG.api.base}/Titan/gatewayAPI`;
-  const accountInfo = await fetchGetWithinPage<ScrapedAccountData>(
+  const accountInfoUrl = `${apiSiteUrl}/userAccountsData`;
+  const accountInfo = await fetchGetWithinPage<IScrapedAccountData>(page, accountInfoUrl);
+  if (!accountInfo) return { success: false, errorMessage: 'Failed to fetch account data' };
+  const accountsOpts = buildAccountsOpts({
     page,
-    `${apiSiteUrl}/userAccountsData`,
-  );
-  if (!accountInfo)
-    return {
-      success: false,
-      errorType: ScraperErrorTypes.Generic,
-      errorMessage: 'failed to get account data',
-    };
-  return fetchAllAccounts(buildAccountsOpts({ page, apiSiteUrl, accountInfo, options }));
+    apiSiteUrl,
+    accountInfo,
+    options,
+  });
+  return fetchAllAccounts(accountsOpts);
 }
 
-interface ScraperSpecificCredentials {
+interface IScraperSpecificCredentials {
   id: string;
   password: string;
   num: string;
 }
 
-class DiscountScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/** Discount bank scraper — fetches transactions from Discount online banking. */
+class DiscountScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+  /**
+   * Create a Discount scraper with the given options and login config.
+   * @param options - The scraper configuration options.
+   * @param config - Optional login configuration override.
+   */
   constructor(
     options: ScraperOptions,
-    config: LoginConfig = discountConfig(
+    config: ILoginConfig = discountConfig(
       SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount].urls.base,
     ),
   ) {
     super(options, config);
   }
 
-  public async fetchData(): Promise<ScraperScrapingResult> {
+  /**
+   * Fetch transaction data from Discount online banking.
+   * @returns The scraping result with accounts and transactions.
+   */
+  public async fetchData(): Promise<IScraperScrapingResult> {
     return fetchAccountData(this.page, this.options);
   }
 }

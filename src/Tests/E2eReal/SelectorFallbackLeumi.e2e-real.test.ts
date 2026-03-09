@@ -12,13 +12,13 @@ import { type Page } from 'playwright';
 import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const leumiWellKnownCfg: LoginConfig = {
+const LEUMI_WELL_KNOWN_CFG: ILoginConfig = {
   loginUrl: 'https://www.leumi.co.il/he',
   fields: [
     // NO fallback — relies entirely on WELL_KNOWN_SELECTORS.username + .password
@@ -33,19 +33,29 @@ const leumiWellKnownCfg: LoginConfig = {
   ],
   submit: [{ kind: 'css', value: "button[type='submit']" }],
   // Navigate from Leumi home to the actual login page that has Hebrew placeholder inputs
-  checkReadiness: async (page: Page) => {
+  /**
+   * Navigate from Leumi home to the login page.
+   * @param page - page to check readiness
+   * @returns true when ready
+   */
+  checkReadiness: async (page: Page): Promise<void> => {
     await waitUntilElementFound(page, '.enter_account');
     const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
     await page.goto(href, { waitUntil: 'networkidle' });
     await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
   },
-  postAction: async (page: Page) => {
+  /**
+   * Wait after form submission.
+   * @param page - page for post-action
+   * @returns true when done
+   */
+  postAction: async (page: Page): Promise<void> => {
     await page.waitForTimeout(3000);
   },
   possibleResults: {
     success: [/eBanking\/SO\/SPA\.aspx/i],
     invalidPassword: [
-      async opts => {
+      async (opts): Promise<boolean> => {
         if (!opts?.page) return false;
         const txt = await opts.page.evaluate(() => document.body.innerText);
         return txt.includes('אחד או יותר מפרטי ההזדהות שמסרת שגויים');
@@ -69,7 +79,7 @@ describe('E2E: Selector fallback — Leumi (Round 3 WELL_KNOWN_SELECTORS)', () =
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      leumiWellKnownCfg,
+      LEUMI_WELL_KNOWN_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'WellKnownTestLMI' } as {
       username: string;
       password: string;

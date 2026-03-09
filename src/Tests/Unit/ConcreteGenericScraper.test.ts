@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import type { LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import type { ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -31,7 +31,11 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns mock debug logger with all methods stubbed.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -45,9 +49,9 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
     .fn()
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
-  candidateToCss: jest.fn((c: { kind: string; value: string }) => c.value),
+  candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
-  extractCredentialKey: jest.fn((s: string) => s),
+  extractCredentialKey: jest.fn((selector: string) => selector),
   toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
@@ -55,20 +59,37 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
 jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
-  runSerial: jest.fn(),
+  runSerial: jest.fn().mockImplementation(
+    /**
+     * Execute actions sequentially like the real runSerial.
+     * @param actions - Array of async action factories.
+     * @returns Array of action results.
+     */
+    <T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
+      const seed = Promise.resolve([] as T[]);
+      return actions.reduce(
+        (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
+        seed,
+      );
+    },
+  ),
   TimeoutError: class TimeoutError extends Error {},
   SECOND: 1000,
 }));
 
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { getCurrentUrl } = await import('../../Common/Navigation.js');
-const { ConcreteGenericScraper } = await import('../../Scrapers/Base/ConcreteGenericScraper.js');
-const { createMockBrowser, createMockContext, createMockPage, createMockScraperOptions } =
-  await import('../MockPage.js');
+const LAUNCH_CAMOUFOX_MODULE = await import('../../Common/CamoufoxLauncher.js');
+const NAV_MODULE = await import('../../Common/Navigation.js');
+const SCRAPER_MODULE = await import('../../Scrapers/Base/ConcreteGenericScraper.js');
+const MOCK_MODULE = await import('../MockPage.js');
 
 const SUCCESS_URL = 'https://bank.example.com/dashboard';
 
-function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
+/**
+ * Creates a login config with sensible defaults and optional overrides.
+ * @param overrides - partial config to merge with defaults.
+ * @returns complete login config for tests.
+ */
+function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://bank.example.com/login',
     fields: [
@@ -86,39 +107,44 @@ function makeLoginConfig(overrides: Partial<LoginConfig> = {}): LoginConfig {
 
 const CREDS: ScraperCredentials = { username: 'testuser', password: 'testpass' };
 
-let mockBrowser: ReturnType<typeof createMockBrowser>;
-let mockContext: ReturnType<typeof createMockContext>;
-let mockPage: ReturnType<typeof createMockPage>;
+let mockBrowser: ReturnType<typeof MOCK_MODULE.createMockBrowser>;
+let mockContext: ReturnType<typeof MOCK_MODULE.createMockContext>;
+let mockPage: ReturnType<typeof MOCK_MODULE.createMockPage>;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockPage = createMockPage();
-  mockContext = createMockContext(mockPage);
-  mockBrowser = createMockBrowser(mockContext);
-  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
-  (getCurrentUrl as jest.Mock).mockResolvedValue(SUCCESS_URL);
+  mockPage = MOCK_MODULE.createMockPage();
+  mockContext = MOCK_MODULE.createMockContext(mockPage);
+  mockBrowser = MOCK_MODULE.createMockBrowser(mockContext);
+  (LAUNCH_CAMOUFOX_MODULE.launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
+  (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(SUCCESS_URL);
 });
 
 describe('ConcreteGenericScraper', () => {
   describe('fetchData', () => {
     it('returns success with empty accounts', async () => {
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, makeLoginConfig());
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
       expect(result.accounts).toEqual([]);
     });
   });
 
-  describe('login via LoginConfig', () => {
+  describe('login via ILoginConfig', () => {
     it('succeeds when navigated to success URL', async () => {
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, makeLoginConfig());
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
     });
 
     it('returns InvalidPassword when URL matches invalidPassword condition', async () => {
-      (getCurrentUrl as jest.Mock).mockResolvedValue('https://bank.example.com/login?error=1');
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
+      (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
+        'https://bank.example.com/login?error=1',
+      );
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, makeLoginConfig());
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(false);
     });
@@ -130,7 +156,8 @@ describe('ConcreteGenericScraper', () => {
           { kind: 'ariaLabel', value: 'כניסה' },
         ],
       });
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, config);
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
     });
@@ -138,35 +165,43 @@ describe('ConcreteGenericScraper', () => {
 
   describe('getLoginOptions', () => {
     it('includes loginUrl from config', async () => {
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), makeLoginConfig());
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, makeLoginConfig());
       await scraper.scrape(CREDS);
-      expect(mockPage.goto).toHaveBeenCalledWith(
-        'https://bank.example.com/login',
-        expect.anything(),
-      );
+      const anyArgMatcher: object = expect.anything() as object;
+      expect(mockPage.goto).toHaveBeenCalledWith('https://bank.example.com/login', anyArgMatcher);
     });
 
     it('uses preAction when provided', async () => {
       const preAction = jest.fn().mockResolvedValue(undefined);
-      const config = makeLoginConfig({
-        preAction: async _page => {
-          await preAction();
-          return undefined;
-        },
-      });
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);
+      /**
+       * Stub preAction that delegates to spy.
+       * @returns Resolved promise with no frame override.
+       */
+      const preActionFn = async (): Promise<undefined> => {
+        await preAction();
+        const [noFrame] = [] as undefined[];
+        return noFrame;
+      };
+      const config = makeLoginConfig({ preAction: preActionFn });
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, config);
       await scraper.scrape(CREDS);
       expect(preAction).toHaveBeenCalled();
     });
 
     it('uses postAction when provided', async () => {
       const postAction = jest.fn().mockResolvedValue(undefined);
-      const config = makeLoginConfig({
-        postAction: async () => {
-          await postAction();
-        },
-      });
-      const scraper = new ConcreteGenericScraper(createMockScraperOptions(), config);
+      /**
+       * Stub postAction that delegates to spy.
+       * @returns True when post-action completes.
+       */
+      const postActionFn = async (): Promise<void> => {
+        await postAction();
+      };
+      const config = makeLoginConfig({ postAction: postActionFn });
+      const scraperOptions = MOCK_MODULE.createMockScraperOptions();
+      const scraper = new SCRAPER_MODULE.ConcreteGenericScraper(scraperOptions, config);
       await scraper.scrape(CREDS);
       expect(postAction).toHaveBeenCalled();
     });

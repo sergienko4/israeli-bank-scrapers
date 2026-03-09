@@ -1,4 +1,4 @@
-export interface ScraperDiagnostics {
+export interface IScraperDiagnostics {
   loginUrl: string;
   finalUrl?: string;
   loginDurationMs?: number;

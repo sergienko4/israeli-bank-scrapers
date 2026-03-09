@@ -19,7 +19,13 @@ const SENSITIVE_PATHS = [
 
 const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
 
-function censor(value: unknown, path: string[]): unknown {
+/**
+ * Redact sensitive values from log output based on the JSON path.
+ * @param value - The value at the sensitive path.
+ * @param path - The JSON path segments leading to this value.
+ * @returns A censored string replacement.
+ */
+function censor(value: unknown, path: string[]): string {
   const key = path[path.length - 1];
   if (key === 'accountNumber') return '****' + String(value).slice(-4);
   if (AMOUNT_KEYS.has(key)) return (value as number) > 0 ? '+***' : '-***';
@@ -36,6 +42,11 @@ const ROOT_LOGGER = pino({
 
 export type ScraperLogger = Logger;
 
+/**
+ * Create a child logger scoped to a specific module.
+ * @param name - The module name for log context.
+ * @returns A pino Logger child instance.
+ */
 export function getDebug(name: string): Logger {
   return ROOT_LOGGER.child({ module: name });
 }

@@ -1,4 +1,4 @@
-export interface InitResponse {
+export interface IInitResponse {
   result: {
     cards: {
       cardUniqueId: string;

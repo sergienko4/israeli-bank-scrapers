@@ -30,75 +30,94 @@ jest.unstable_mockModule('../../Common/Browser.js', () => ({
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
-  getRawTransaction: jest.fn((data: unknown) => data),
+  getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
 }));
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+jest.unstable_mockModule(
+  '../../Common/Debug.js',
+  /**
+   * Mock Debug module.
+   * @returns mocked debug exports
+   */
+  () => ({
+    getDebug:
+      /**
+       * Debug factory.
+       * @returns mock logger
+       */
+      (): Record<string, jest.Mock> => ({
+        trace: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      }),
   }),
-}));
+);
 
-const { buildContextOptions } = await import('../../Common/Browser.js');
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { pageEval, pageEvalAll } = await import('../../Common/ElementsInteractions.js');
-const { filterOldTransactions } = await import('../../Common/Transactions.js');
-const { default: BeyahadBishvilhaScraper } =
+const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
+const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =
+  await import('../../Common/ElementsInteractions.js');
+const { filterOldTransactions: FILTER_OLD } = await import('../../Common/Transactions.js');
+const { default: BEYAHAD_SCRAPER } =
   await import('../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.js');
-const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
-const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
+const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
+  await import('../../Transactions.js');
+const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
+  await import('../MockPage.js');
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
 const CREDS = { id: '123456789', password: 'pass123' };
 
-function setupPage(): ReturnType<typeof createMockPage> {
-  const page = createMockPage({
+/**
+ * Creates a mock page and attaches it to the mock context.
+ * @returns the mock page instance
+ */
+function setupPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const page = CREATE_MOCK_PAGE({
     $: jest.fn().mockResolvedValue({ click: jest.fn().mockResolvedValue(undefined) }),
   });
-  mockContext.newPage.mockResolvedValue(page);
+  MOCK_CONTEXT.newPage.mockResolvedValue(page);
   return page;
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
+  (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   setupPage();
 });
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
-    (pageEval as jest.Mock)
+    (PAGE_EVAL as jest.Mock)
       .mockResolvedValueOnce('1234567890') // accountNumber
       .mockResolvedValueOnce('₪5,000.00'); // balance
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([]);
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(buildContextOptions).toHaveBeenCalled();
+    expect(BUILD_CONTEXT_OPTIONS).toHaveBeenCalled();
   });
 });
 
 describe('fetchData', () => {
   it('extracts transactions from page', async () => {
-    (pageEval as jest.Mock)
+    (PAGE_EVAL as jest.Mock)
       .mockResolvedValueOnce('מספר כרטיס 12345') // accountNumber
       .mockResolvedValueOnce('₪5,000.00'); // balance
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN001',
@@ -108,26 +127,26 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].txns).toHaveLength(1);
-
-    const t = result.accounts![0].txns[0];
-    expect(t.description).toBe('סופר שופ');
-    expect(t.originalAmount).toBe(150);
-    expect(t.originalCurrency).toBe('ILS');
-    expect(t.status).toBe(TransactionStatuses.Completed);
-    expect(t.type).toBe(TransactionTypes.Normal);
-    expect(t.identifier).toBe('TXN001');
+    expect(result.accounts?.[0]?.txns).toHaveLength(1);
+    expect(result.accounts?.[0]?.txns[0]).toMatchObject({
+      description: 'סופר שופ',
+      originalAmount: 150,
+      originalCurrency: 'ILS',
+      status: TX_STATUSES.Completed,
+      type: TX_TYPES.Normal,
+      identifier: 'TXN001',
+    });
   });
 
   it('parses dollar amounts', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('$1,000.00');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('$1,000.00');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN002',
@@ -137,17 +156,17 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('USD');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(50);
+    expect(result.accounts?.[0]?.txns[0]?.originalCurrency).toBe('USD');
+    expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(50);
   });
 
   it('parses euro amounts', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('€500.00');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('€500.00');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN003',
@@ -157,17 +176,17 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('EUR');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(75.5);
+    expect(result.accounts?.[0]?.txns[0]?.originalCurrency).toBe('EUR');
+    expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(75.5);
   });
 
   it('parses space-separated currency format', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN004',
@@ -177,17 +196,17 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].originalCurrency).toBe('GBP');
-    expect(result.accounts![0].txns[0].originalAmount).toBe(200);
+    expect(result.accounts?.[0]?.txns[0]?.originalCurrency).toBe('GBP');
+    expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(200);
   });
 
   it('filters null transactions from DOM extraction', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN001',
@@ -195,19 +214,19 @@ describe('fetchData', () => {
         type: 'רכישה',
         chargedAmount: '₪100.00',
       },
-      null,
+      false,
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(1);
+    expect(result.accounts?.[0]?.txns).toHaveLength(1);
   });
 
   it('calls filterOldTransactions when enabled', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN001',
@@ -217,16 +236,16 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(createMockScraperOptions());
+    const scraper = new BEYAHAD_SCRAPER(CREATE_OPTS());
     await scraper.scrape(CREDS);
 
-    expect(filterOldTransactions).toHaveBeenCalled();
+    expect(FILTER_OLD).toHaveBeenCalled();
   });
 
   it('includes rawTransaction when option set', async () => {
-    (pageEval as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
+    (PAGE_EVAL as jest.Mock).mockResolvedValueOnce('12345').mockResolvedValueOnce('₪0');
 
-    (pageEvalAll as jest.Mock).mockResolvedValueOnce([
+    (PAGE_EVAL_ALL as jest.Mock).mockResolvedValueOnce([
       {
         date: '15/06/24',
         identifier: 'TXN001',
@@ -236,11 +255,10 @@ describe('fetchData', () => {
       },
     ]);
 
-    const scraper = new BeyahadBishvilhaScraper(
-      createMockScraperOptions({ includeRawTransaction: true }),
-    );
+    const opts = CREATE_OPTS({ includeRawTransaction: true });
+    const scraper = new BEYAHAD_SCRAPER(opts);
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    expect(result.accounts?.[0]?.txns[0]?.rawTransaction).toBeDefined();
   });
 });

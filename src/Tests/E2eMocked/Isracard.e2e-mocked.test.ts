@@ -3,7 +3,7 @@ import { type Browser } from 'playwright';
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
-import { amexRoutes } from './Helpers/AmexRoutes.js';
+import amexRoutes from './Helpers/AmexRoutes.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { loadFixture, setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
@@ -21,38 +21,50 @@ afterAll(async () => {
 
 describe('Isracard: Mocked E2E', () => {
   it('completes full scrape lifecycle', async () => {
+    const routes = amexRoutes();
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
+      /**
+       * Sets up request interception for the test page.
+       * @param page - the Playwright page to configure
+       * @returns setup completion promise
+       */
       preparePage: async page => {
-        await setupRequestInterception(page, amexRoutes());
+        await setupRequestInterception(page, routes);
       },
     });
 
     const result = await scraper.scrape(CREDS);
-    const error = `${result.errorType || ''} ${result.errorMessage || ''}`.trim();
+    const errorType = result.errorType ?? '';
+    const errorMessage = result.errorMessage ?? '';
+    const error = `${errorType} ${errorMessage}`.trim();
     expect(error).toBe('');
     expect(result.success).toBe(true);
     expect(result.accounts).toBeDefined();
-    expect(result.accounts!.length).toBeGreaterThan(0);
-    expect(result.accounts![0].txns.length).toBeGreaterThan(0);
+    const accounts = result.accounts ?? [];
+    expect(accounts.length).toBeGreaterThan(0);
+    expect(accounts[0].txns.length).toBeGreaterThan(0);
   }, 60000);
 
   it('detects invalid password', async () => {
+    const invalidLoginRoutes = amexRoutes({ login: JSON.stringify({ status: '9' }) });
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
+      /**
+       * Intercepts requests with invalid password response.
+       * @param page - the Playwright page to configure
+       * @returns setup completion promise
+       */
       preparePage: async page => {
-        await setupRequestInterception(
-          page,
-          amexRoutes({ login: JSON.stringify({ status: '9' }) }),
-        );
+        await setupRequestInterception(page, invalidLoginRoutes);
       },
     });
 
@@ -68,18 +80,24 @@ describe('Isracard: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 15000,
+      /**
+       * Intercepts requests to simulate WAF block.
+       * @param page - the Playwright page to configure
+       * @returns setup completion promise
+       */
       preparePage: async page => {
+        const loginFixture = loadFixture('amex/login-page.html');
         await setupRequestInterception(page, [
           {
             match: '/personalarea/Login',
             contentType: 'text/html',
-            body: loadFixture('amex/login-page.html'),
+            body: loginFixture,
           },
           {
             match: 'reqName=ValidateIdData',
             method: 'POST',
             contentType: 'application/json',
-            body: 'null',
+            body: JSON.stringify({ Header: { Status: '0' } }),
           },
         ]);
       },
@@ -87,6 +105,7 @@ describe('Isracard: Mocked E2E', () => {
 
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('WAF block');
+    expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+    expect(result.errorMessage).toContain('WAF blocked');
   }, 60000);
 });

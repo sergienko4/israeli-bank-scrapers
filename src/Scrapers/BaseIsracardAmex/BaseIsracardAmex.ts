@@ -4,13 +4,13 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { humanDelay } from '../../Common/Waiting.js';
 import { CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
-import { type Transaction } from '../../Transactions.js';
+import { type ITransaction } from '../../Transactions.js';
 import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes, WafBlockError } from '../Base/Errors.js';
-import { type ScraperOptions, type ScraperScrapingResult } from '../Base/Interface.js';
+import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 import { fetchAllTransactions } from './BaseIsracardAmexEnrich.js';
-import { type ScrapedLoginValidation } from './BaseIsracardAmexTypes.js';
+import { type IScrapedLoginValidation } from './BaseIsracardAmexTypes.js';
 
 // Shared by both Amex and Isracard — identical values in both config entries
 const {
@@ -23,36 +23,44 @@ const { loginDelayMinMs: LOGIN_DELAY_MIN, loginDelayMaxMs: LOGIN_DELAY_MAX } =
 
 const LOG = getDebug('base-isracard-amex');
 
-interface ScraperSpecificCredentials {
+interface IScraperSpecificCredentials {
   id: string;
   password: string;
   card6Digits: string;
 }
 
-class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCredentials> {
-  private baseUrl: string;
+type ValidatedBean = NonNullable<IScrapedLoginValidation['ValidateIdDataBean']>;
 
-  private companyCode: string;
+/** Shared scraper base for Amex and Isracard credit-card portals. */
+class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCredentials> {
+  private _baseUrl: string;
 
-  private servicesUrl: string;
+  private _companyCode: string;
 
+  private _servicesUrl: string;
+
+  /**
+   * Create a new IsracardAmex scraper with portal-specific config.
+   * @param options - scraper options
+   * @param baseUrl - portal base URL
+   * @param companyCode - portal company code
+   */
   constructor(options: ScraperOptions, baseUrl: string, companyCode: string) {
     super(options);
-    this.baseUrl = baseUrl;
-    this.companyCode = companyCode;
-    this.servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
+    this._baseUrl = baseUrl;
+    this._companyCode = companyCode;
+    this._servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
   }
 
-  public async login(credentials: ScraperSpecificCredentials): Promise<ScraperScrapingResult> {
+  /**
+   * Validate credentials against the portal and perform login.
+   * @param credentials - user credentials
+   * @returns scraping result indicating success or failure reason
+   */
+  public async login(credentials: IScraperSpecificCredentials): Promise<IScraperScrapingResult> {
     this.setupResponseLogging();
     await this.navigateToLoginPage();
     const validatedData = await this.validateCredentials(credentials);
-    if (!validatedData) {
-      throw WafBlockError.apiBlock(0, this.page.url(), {
-        pageTitle: await this.page.title(),
-        responseSnippet: 'validateCredentials returned null',
-      });
-    }
     const validateReturnCode = validatedData.returnCode;
     LOG.debug(`user validate with return code '${validateReturnCode}'`);
     return validateReturnCode === '1'
@@ -60,49 +68,91 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
       : this.handleValidateReturnCode(validateReturnCode);
   }
 
+  /**
+   * Fetch all transaction data across accounts and months.
+   * @returns aggregated account transactions
+   */
   public async fetchData(): Promise<{
     success: boolean;
-    accounts: { accountNumber: string; txns: Transaction[] }[];
+    accounts: { accountNumber: string; txns: ITransaction[] }[];
   }> {
     const defaultStartMoment = moment().subtract(1, 'years');
-    const startDate = this.options.startDate;
-    const startMoment = moment.max(defaultStartMoment, moment(startDate));
+    const startDateMoment = moment(this.options.startDate);
+    const startMoment = moment.max(defaultStartMoment, startDateMoment);
     return fetchAllTransactions({
       page: this.page,
       options: this.options,
-      companyServiceOptions: { servicesUrl: this.servicesUrl, companyCode: this.companyCode },
+      companyServiceOptions: { servicesUrl: this._servicesUrl, companyCode: this._companyCode },
       startMoment,
     });
   }
 
-  private buildValidateRequest(credentials: ScraperSpecificCredentials): Record<string, string> {
+  /**
+   * Build the credential-validation request payload.
+   * @param credentials - user credentials
+   * @param companyCode - portal company code
+   * @returns key-value request body
+   */
+  private static buildValidateRequest(
+    credentials: IScraperSpecificCredentials,
+    companyCode: string,
+  ): Record<string, string> {
     return {
       id: credentials.id,
       cardSuffix: credentials.card6Digits,
       countryCode: COUNTRY_CODE,
       idType: ID_TYPE,
       checkLevel: CHECK_LEVEL,
-      companyCode: this.companyCode,
+      companyCode,
     };
   }
 
+  /**
+   * Throw a WafBlockError with page context for validation failures.
+   * @param result - raw portal response for debug logging
+   */
+  private async throwValidationError(result: IScrapedLoginValidation | null): Promise<never> {
+    const snippet = JSON.stringify(result).substring(0, 300);
+    LOG.debug('validation failed: result=%s', snippet);
+    const currentUrl = this.page.url();
+    const pageTitle = await this.page.title();
+    throw WafBlockError.apiBlock(0, currentUrl, {
+      pageTitle,
+      responseSnippet: 'validateCredentials returned empty result',
+    });
+  }
+
+  /**
+   * Send credential validation request; throws WafBlockError on failure.
+   * @param credentials - user credentials
+   * @returns validated data bean from the portal
+   */
   private async validateCredentials(
-    credentials: ScraperSpecificCredentials,
-  ): Promise<ScrapedLoginValidation['ValidateIdDataBean'] | null> {
-    const validateUrl = `${this.servicesUrl}?reqName=ValidateIdData`;
+    credentials: IScraperSpecificCredentials,
+  ): Promise<ValidatedBean> {
+    const validateUrl = `${this._servicesUrl}?reqName=ValidateIdData`;
     LOG.debug('validating credentials');
-    const result = await fetchPostWithinPage<ScrapedLoginValidation>(this.page, validateUrl, {
-      data: this.buildValidateRequest(credentials),
+    const validateRequest = IsracardAmexBaseScraper.buildValidateRequest(
+      credentials,
+      this._companyCode,
+    );
+    const result = await fetchPostWithinPage<IScrapedLoginValidation>(this.page, validateUrl, {
+      data: validateRequest,
     });
     if (result?.Header.Status !== '1' || !result.ValidateIdDataBean) {
-      LOG.debug('validation failed: result=%s', JSON.stringify(result).substring(0, 300));
-      return null;
+      return this.throwValidationError(result);
     }
     return result.ValidateIdDataBean;
   }
 
-  private buildLoginRequest(
-    credentials: ScraperSpecificCredentials,
+  /**
+   * Build the login request payload from credentials and validated username.
+   * @param credentials - user credentials
+   * @param userName - validated username from the portal
+   * @returns key-value request body
+   */
+  private static buildLoginRequest(
+    credentials: IScraperSpecificCredentials,
     userName: string,
   ): Record<string, string> {
     return {
@@ -115,7 +165,12 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
-  private interpretLoginStatus(status: string | undefined): ScraperScrapingResult {
+  /**
+   * Map the login status code to a scraping result.
+   * @param status - login status from the portal
+   * @returns scraping result with success/failure info
+   */
+  private interpretLoginStatus(status: string | undefined): IScraperScrapingResult {
     if (status === '1') {
       this.emitProgress(ScraperProgressTypes.LoginSuccess);
       return { success: true };
@@ -132,20 +187,33 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
+  /**
+   * Execute the login API call after successful credential validation.
+   * @param credentials - user credentials
+   * @param userName - validated username
+   * @returns scraping result indicating login outcome
+   */
   private async performLogin(
-    credentials: ScraperSpecificCredentials,
+    credentials: IScraperSpecificCredentials,
     userName: string,
-  ): Promise<ScraperScrapingResult> {
-    const loginUrl = `${this.servicesUrl}?reqName=performLogonI`;
+  ): Promise<IScraperScrapingResult> {
+    const loginUrl = `${this._servicesUrl}?reqName=performLogonI`;
     LOG.debug('user login started');
+    const loginRequest = IsracardAmexBaseScraper.buildLoginRequest(credentials, userName);
     const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
-      data: this.buildLoginRequest(credentials, userName),
+      data: loginRequest,
     });
-    LOG.debug(loginResult, `user login with status '${loginResult?.status}'`);
-    return this.interpretLoginStatus(loginResult?.status);
+    const loginStatus = loginResult?.status;
+    LOG.debug(loginResult, `user login with status '${loginStatus ?? 'null'}'`);
+    return this.interpretLoginStatus(loginStatus);
   }
 
-  private handleValidateReturnCode(returnCode: string): ScraperScrapingResult {
+  /**
+   * Handle non-success return codes from credential validation.
+   * @param returnCode - validation return code
+   * @returns scraping result with appropriate error type
+   */
+  private handleValidateReturnCode(returnCode: string): IScraperScrapingResult {
     if (returnCode === '4') {
       this.emitProgress(ScraperProgressTypes.ChangePassword);
       return { success: false, errorType: ScraperErrorTypes.ChangePassword };
@@ -158,17 +226,21 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<ScraperSpecificCred
     };
   }
 
+  /** Attach response logging for proxy and personal-area endpoints. */
   private setupResponseLogging(): void {
     this.page.on('response', response => {
       const url = response.url();
+      const statusCode = response.status();
+      const truncatedUrl = url.substring(0, 120);
       if (url.includes('ProxyRequestHandler') || url.includes('personalarea'))
-        LOG.debug('response: %d %s', response.status(), url.substring(0, 120));
+        LOG.debug('response: %d %s', statusCode, truncatedUrl);
     });
   }
 
+  /** Navigate to the Isracard/Amex login page and wait for readiness. */
   private async navigateToLoginPage(): Promise<void> {
-    LOG.debug(`navigating to ${this.baseUrl}/personalarea/Login`);
-    await this.navigateTo(`${this.baseUrl}/personalarea/Login`);
+    LOG.debug(`navigating to ${this._baseUrl}/personalarea/Login`);
+    await this.navigateTo(`${this._baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
     await humanDelay(LOGIN_DELAY_MIN, LOGIN_DELAY_MAX);
     this.emitProgress(ScraperProgressTypes.LoggingIn);

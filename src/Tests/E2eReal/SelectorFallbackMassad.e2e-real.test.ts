@@ -4,13 +4,13 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type LoginConfig } from '../../Scrapers/Base/LoginConfig.js';
+import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 
-const baseCfg: LoginConfig = {
+const BASE_CFG: ILoginConfig = {
   loginUrl:
     'https://online.bankmassad.co.il/MatafLoginService/MatafLoginServlet?bankId=MASADPRTAL&site=Private&KODSAFA=HE',
   fields: [
@@ -33,15 +33,26 @@ const baseCfg: LoginConfig = {
     { kind: 'css', value: '#WRONG_continueBtn' },
     { kind: 'css', value: '#continueBtn' },
   ],
+  /**
+   * Wait before login form interaction.
+   * @param page - page to prepare
+   * @returns ready status
+   */
   preAction: async page => {
     await page.waitForTimeout(1000);
-    return undefined;
+    const noFrame = page.frames().at(-999);
+    return noFrame;
   },
+  /**
+   * Wait for post-submit result.
+   * @param page - page for post-action
+   * @returns done status
+   */
   postAction: async page => {
     await Promise.race([
       page.waitForSelector('#card-header', { timeout: 15000 }),
       page.waitForSelector('#validationMsg', { timeout: 15000 }),
-    ]).catch(() => {});
+    ]).catch(() => true);
   },
   possibleResults: {
     success: [/fibi.*accountSummary/, /Resources\/PortalNG\/shell/],
@@ -63,7 +74,7 @@ describe('E2E: Selector fallback — Massad (FIBI MATAF portal)', () => {
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
-      baseCfg,
+      BASE_CFG,
     ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMSD' } as {
       username: string;
       password: string;

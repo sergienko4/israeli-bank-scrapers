@@ -21,7 +21,8 @@ describe('Browser context options (Camoufox)', () => {
   });
 
   it('applies locale to browser context', async () => {
-    const context = await browser.newContext(buildContextOptions());
+    const contextOpts = buildContextOptions();
+    const context = await browser.newContext(contextOpts);
     const page = await context.newPage();
     try {
       await page.goto('about:blank');

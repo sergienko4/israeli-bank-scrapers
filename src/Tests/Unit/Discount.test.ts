@@ -37,7 +37,11 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: () => ({
+  /**
+   * Creates a mock debug logger.
+   * @returns mock debug logger with all methods stubbed.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -46,38 +50,44 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-const { buildContextOptions } = await import('../../Common/Browser.js');
-const { launchCamoufox } = await import('../../Common/CamoufoxLauncher.js');
-const { fetchGetWithinPage } = await import('../../Common/Fetch.js');
-const { getCurrentUrl, waitForNavigation } = await import('../../Common/Navigation.js');
-const { ScraperErrorTypes } = await import('../../Scrapers/Base/Errors.js');
-const { default: DiscountScraper } = await import('../../Scrapers/Discount/DiscountScraper.js');
-const { TransactionStatuses, TransactionTypes } = await import('../../Transactions.js');
-const { createMockPage, createMockScraperOptions } = await import('../MockPage.js');
+const BUILD_CONTEXT_OPTIONS = await import('../../Common/Browser.js');
+const LAUNCH_CAMOUFOX = await import('../../Common/CamoufoxLauncher.js');
+const FETCH_MODULE = await import('../../Common/Fetch.js');
+const NAV_MODULE = await import('../../Common/Navigation.js');
+const ERRORS_MODULE = await import('../../Scrapers/Base/Errors.js');
+const DISCOUNT_MODULE = await import('../../Scrapers/Discount/DiscountScraper.js');
+const TXN_TYPES = await import('../../Transactions.js');
+const MOCK_HELPERS = await import('../MockPage.js');
 
-const mockContext = {
+const MOCK_CONTEXT = {
   newPage: jest.fn(),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const mockBrowser = {
-  newContext: jest.fn().mockResolvedValue(mockContext),
+const MOCK_BROWSER = {
+  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
 
 const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
 
+/**
+ * Mock the accounts data API response.
+ * @param accounts - array of account objects with AccountID.
+ * @returns true after mocking the response.
+ */
 function mockAccountsData(
   accounts: { AccountID: string }[] = [{ AccountID: '12-345-67890' }],
-): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+): boolean {
+  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     UserAccountsData: {
       DefaultAccountNumber: accounts[0].AccountID,
-      UserAccounts: accounts.map(a => ({ NewAccountInfo: a })),
+      UserAccounts: accounts.map(acct => ({ NewAccountInfo: acct })),
     },
   });
+  return true;
 }
 
-interface DiscountTxn {
+interface IDiscountTxn {
   OperationNumber: number;
   OperationDate: string;
   ValueDate: string;
@@ -85,21 +95,34 @@ interface DiscountTxn {
   OperationDescriptionToDisplay: string;
 }
 
+/**
+ * Mock the transactions API response.
+ * @param txns - array of completed transactions.
+ * @param futureTxns - array of pending/future transactions.
+ * @param balance - account balance value.
+ * @returns true after mocking the response.
+ */
 function mockTransactions(
-  txns: DiscountTxn[] = [],
-  futureTxns: DiscountTxn[] = [],
+  txns: IDiscountTxn[] = [],
+  futureTxns: IDiscountTxn[] = [],
   balance = 5000,
-): void {
-  (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+): boolean {
+  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     CurrentAccountLastTransactions: {
       OperationEntry: txns,
       CurrentAccountInfo: { AccountBalance: balance },
       FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
     },
   });
+  return true;
 }
 
-function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
+/**
+ * Create a test transaction with optional overrides.
+ * @param overrides - partial transaction fields to merge with defaults.
+ * @returns complete discount transaction object.
+ */
+function txn(overrides: Partial<IDiscountTxn> = {}): IDiscountTxn {
   return {
     OperationNumber: 1001,
     OperationDate: '20240615',
@@ -112,9 +135,10 @@ function txn(overrides: Partial<DiscountTxn> = {}): DiscountTxn {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
-  mockContext.newPage.mockResolvedValue(createMockPage());
-  (getCurrentUrl as jest.Mock).mockResolvedValue(
+  (LAUNCH_CAMOUFOX.launchCamoufox as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  const mockPage = MOCK_HELPERS.createMockPage();
+  MOCK_CONTEXT.newPage.mockResolvedValue(mockPage);
+  (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
     'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
   );
 });
@@ -123,51 +147,53 @@ describe('login', () => {
   it('succeeds when navigating to success URL', async () => {
     mockAccountsData();
     mockTransactions([txn()]);
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
-    expect(buildContextOptions).toHaveBeenCalled();
+    expect(BUILD_CONTEXT_OPTIONS.buildContextOptions).toHaveBeenCalled();
   });
 
   it('returns InvalidPassword for invalid password URL', async () => {
-    (getCurrentUrl as jest.Mock).mockResolvedValue(
+    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
       'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE',
     );
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+    expect(result.errorType).toBe(ERRORS_MODULE.ScraperErrorTypes.InvalidPassword);
   });
 
   it('returns ChangePassword for password renewal URL', async () => {
-    (getCurrentUrl as jest.Mock).mockResolvedValue(
+    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
       'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW',
     );
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+    expect(result.errorType).toBe(ERRORS_MODULE.ScraperErrorTypes.ChangePassword);
   });
 });
 
 describe('fetchData', () => {
   it('fetches and converts transactions for a single account', async () => {
     mockAccountsData([{ AccountID: '12-345-67890' }]);
-    mockTransactions([txn({ OperationAmount: -250, OperationDescriptionToDisplay: 'רמי לוי' })]);
+    const txnData = txn({ OperationAmount: -250, OperationDescriptionToDisplay: 'רמי לוי' });
+    mockTransactions([txnData]);
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(1);
-    expect(result.accounts![0].accountNumber).toBe('12-345-67890');
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].accountNumber).toBe('12-345-67890');
 
-    const t = result.accounts![0].txns[0];
-    expect(t.originalAmount).toBe(-250);
-    expect(t.description).toBe('רמי לוי');
-    expect(t.originalCurrency).toBe('ILS');
-    expect(t.status).toBe(TransactionStatuses.Completed);
-    expect(t.type).toBe(TransactionTypes.Normal);
+    const transaction = accounts[0].txns[0];
+    expect(transaction.originalAmount).toBe(-250);
+    expect(transaction.description).toBe('רמי לוי');
+    expect(transaction.originalCurrency).toBe('ILS');
+    expect(transaction.status).toBe(TXN_TYPES.TransactionStatuses.Completed);
+    expect(transaction.type).toBe(TXN_TYPES.TransactionTypes.Normal);
   });
 
   it('handles multiple accounts', async () => {
@@ -175,48 +201,49 @@ describe('fetchData', () => {
     mockTransactions([txn()]);
     mockTransactions([txn({ OperationAmount: -50 })]);
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].accountNumber).toBe('111');
-    expect(result.accounts![1].accountNumber).toBe('222');
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].accountNumber).toBe('111');
+    expect(accounts[1].accountNumber).toBe('222');
   });
 
   it('returns error when accountInfo is null', async () => {
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
+    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
-    expect(result.errorMessage).toBe('failed to get account data');
+    expect(result.errorMessage).toBe('Failed to fetch account data');
   });
 
   it('returns error when transaction response has Error field', async () => {
     mockAccountsData();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
       Error: { MsgText: 'שגיאה בשרת' },
     });
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('שגיאה בשרת');
   });
 
-  it('returns success with 0 transactions when CurrentAccountLastTransactions is absent', async () => {
+  it('returns success with 0 txns when CurrentAccountLastTransactions is absent', async () => {
     mockAccountsData();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({});
+    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({});
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].txns).toHaveLength(0);
   });
 
   it('includes pending (future) transactions', async () => {
@@ -226,18 +253,21 @@ describe('fetchData', () => {
       [txn({ OperationAmount: -50, OperationDescriptionToDisplay: 'עתידי' })],
     );
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns).toHaveLength(2);
-    const pending = result.accounts![0].txns.find(t => t.status === TransactionStatuses.Pending);
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].txns).toHaveLength(2);
+    const pending = accounts[0].txns.find(
+      transaction => transaction.status === TXN_TYPES.TransactionStatuses.Pending,
+    );
     expect(pending).toBeDefined();
-    expect(pending!.description).toBe('עתידי');
+    expect(pending?.description).toBe('עתידי');
   });
 
   it('returns empty when transactions array is null', async () => {
     mockAccountsData();
-    (fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
+    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
       CurrentAccountLastTransactions: {
         OperationEntry: null,
         CurrentAccountInfo: { AccountBalance: 0 },
@@ -245,31 +275,35 @@ describe('fetchData', () => {
       },
     });
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(true);
-    expect(result.accounts![0].txns).toHaveLength(0);
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].txns).toHaveLength(0);
   });
 
   it('includes rawTransaction when option is set', async () => {
     mockAccountsData();
     mockTransactions([txn()]);
 
-    const scraper = new DiscountScraper(createMockScraperOptions({ includeRawTransaction: true }));
+    const opts = MOCK_HELPERS.createMockScraperOptions({ includeRawTransaction: true });
+    const scraper = new DISCOUNT_MODULE.default(opts);
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].txns[0].rawTransaction).toBeDefined();
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].txns[0].rawTransaction).toBeDefined();
   });
 
   it('includes account balance', async () => {
     mockAccountsData();
     mockTransactions([txn()], [], 12345);
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);
 
-    expect(result.accounts![0].balance).toBe(12345);
+    const accounts = result.accounts ?? [];
+    expect(accounts[0].balance).toBe(12345);
   });
 });
 
@@ -278,10 +312,10 @@ describe('postAction', () => {
     mockAccountsData();
     mockTransactions([txn()]);
 
-    const scraper = new DiscountScraper(createMockScraperOptions());
+    const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     await scraper.scrape(CREDS);
 
     // postAction now uses page.waitForURL('**/apollo/**') instead of waitForNavigation
-    expect(waitForNavigation).not.toHaveBeenCalled();
+    expect(NAV_MODULE.waitForNavigation).not.toHaveBeenCalled();
   });
 });

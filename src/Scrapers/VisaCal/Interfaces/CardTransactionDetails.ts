@@ -1,8 +1,8 @@
 import type { CurrencySymbol } from '../VisaCalBaseTypes.js';
-import type { CardApiStatus } from './CardApiStatus.js';
-import type { ScrapedTransaction } from './ScrapedTransaction.js';
+import type { ICardApiStatus } from './CardApiStatus.js';
+import type { IScrapedTransaction } from './ScrapedTransaction.js';
 
-export interface CardTransactionDetails extends CardApiStatus {
+export interface ICardTransactionDetails extends ICardApiStatus {
   result: {
     bankAccounts: {
       bankAccountNum: string;
@@ -23,7 +23,7 @@ export interface CardTransactionDetails extends CardApiStatus {
           currencySymbol: CurrencySymbol;
           amount: number;
         }[];
-        transactions: ScrapedTransaction[];
+        transactions: IScrapedTransaction[];
       }[];
       immidiateDebits: { totalDebits: []; debitDays: [] };
     }[];

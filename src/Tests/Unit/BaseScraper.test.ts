@@ -1,43 +1,56 @@
 import { TimeoutError } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
-import { BaseScraper } from '../../Scrapers/Base/BaseScraper.js';
+import BaseScraper from '../../Scrapers/Base/BaseScraper.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type {
+  IScraperLoginResult,
+  IScraperScrapingResult,
   ScraperCredentials,
-  ScraperLoginResult,
-  ScraperScrapingResult,
 } from '../../Scrapers/Base/Interface.js';
 import { createMockScraperOptions } from '../MockPage.js';
 
+/** Test scraper subclass that exposes configurable login/fetch behavior. */
 class TestScraper extends BaseScraper<ScraperCredentials> {
-  loginResult: ScraperLoginResult = { success: true };
+  public loginResult: IScraperLoginResult = { success: true };
 
-  fetchResult: ScraperScrapingResult = { success: true, accounts: [] };
+  public fetchResult: IScraperScrapingResult = { success: true, accounts: [] };
 
-  loginError: Error | null = null;
+  public loginError: Error | null = null;
 
-  fetchError: Error | null = null;
+  public fetchError: Error | null = null;
 
-  terminateError: Error | null = null;
+  public terminateError: Error | null = null;
 
-  terminated = false;
+  public terminated = false;
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async login(): Promise<ScraperLoginResult> {
+  /**
+   * Simulates login with configurable result or error.
+   * @returns the configured login result
+   */
+  protected override async login(): Promise<IScraperLoginResult> {
     if (this.loginError) throw this.loginError;
-    return this.loginResult;
+    return Promise.resolve(this.loginResult);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  protected async fetchData(): Promise<ScraperScrapingResult> {
+  /**
+   * Simulates data fetching with configurable result or error.
+   * @returns the configured scraping result
+   */
+  protected override async fetchData(): Promise<IScraperScrapingResult> {
     if (this.fetchError) throw this.fetchError;
-    return this.fetchResult;
+    return Promise.resolve(this.fetchResult);
   }
 
-  protected async terminate(success: boolean): Promise<void> {
+  /**
+   * Simulates termination with configurable error.
+   * @param success - whether the scrape was successful
+   * @returns true when termination completes
+   */
+  protected override async terminate(success: boolean): Promise<boolean> {
     this.terminated = true;
     if (this.terminateError) throw this.terminateError;
     await super.terminate(success);
+    return true;
   }
 }
 
@@ -132,6 +145,7 @@ describe('BaseScraper', () => {
       const events: string[] = [];
       scraper.onProgress((_companyId, payload) => {
         events.push(payload.type);
+        return true;
       });
       await scraper.scrape({ userCode: 'test', password: 'test' });
       expect(events).toContain(ScraperProgressTypes.StartScraping);

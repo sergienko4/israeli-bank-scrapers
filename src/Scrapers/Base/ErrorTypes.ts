@@ -1,4 +1,5 @@
-export enum ScraperErrorTypes {
+/** Categorized error types returned by scrapers on failure. */
+enum ScraperErrorTypes {
   TwoFactorRetrieverMissing = 'TWO_FACTOR_RETRIEVER_MISSING',
   InvalidOtp = 'INVALID_OTP',
   InvalidPassword = 'INVALID_PASSWORD',
@@ -6,7 +7,13 @@ export enum ScraperErrorTypes {
   Timeout = 'TIMEOUT',
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
-  /** @deprecated Use `Generic` instead. Kept for backwards-compatibility. */
+  /**
+   * Legacy generic error type — kept for backwards-compatibility.
+   * @deprecated Use `Generic` instead.
+   */
   General = 'GENERAL_ERROR',
   WafBlocked = 'WAF_BLOCKED',
 }
+
+export { ScraperErrorTypes };
+export default ScraperErrorTypes;

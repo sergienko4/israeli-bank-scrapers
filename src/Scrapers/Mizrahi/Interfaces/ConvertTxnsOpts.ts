@@ -1,10 +1,10 @@
 import type { ScraperOptions } from '../../Base/Interface.js';
-import type { MoreDetails } from './MoreDetails.js';
-import type { ScrapedTransaction } from './ScrapedTransaction.js';
+import type { IMoreDetails } from './MoreDetails.js';
+import type { IScrapedTransaction } from './ScrapedTransaction.js';
 
-export interface ConvertTxnsOpts {
-  txns: ScrapedTransaction[];
-  getMoreDetails: (row: ScrapedTransaction) => Promise<MoreDetails>;
+export interface IConvertTxnsOpts {
+  txns: IScrapedTransaction[];
+  getMoreDetails: (row: IScrapedTransaction) => Promise<IMoreDetails>;
   isPendingIfTodayTransaction?: boolean;
   options?: ScraperOptions;
 }

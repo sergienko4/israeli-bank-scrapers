@@ -1,19 +1,20 @@
 import { type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions.js';
-import { type ErrorResult } from './Errors.js';
-import type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
-import type { OutputDataOptions } from './Interfaces/OutputDataOptions.js';
-import type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
+import { type IErrorResult } from './Errors.js';
+import type { LifecyclePromise, VoidResult } from './Interfaces/CallbackTypes.js';
+import type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
+import type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
+import type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 
-export type { DefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
-export type { ErrorResult } from './Interfaces/ErrorResult.js';
-export type { FutureDebit } from './Interfaces/FutureDebit.js';
-export type { OutputDataOptions } from './Interfaces/OutputDataOptions.js';
-export type { ScraperDiagnostics } from './Interfaces/ScraperDiagnostics.js';
-export type { ScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
-export type { ScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
-export type { WafErrorDetails } from './Interfaces/WafErrorDetails.js';
+export type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
+export type { IErrorResult } from './Interfaces/ErrorResult.js';
+export type { IFutureDebit } from './Interfaces/FutureDebit.js';
+export type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
+export type { IScraperDiagnostics } from './Interfaces/ScraperDiagnostics.js';
+export type { IScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
+export type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
+export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
@@ -41,7 +42,7 @@ export type OptInFeatures =
   | 'mizrahi:pendingIfHasGenericDescription'
   | 'mizrahi:isPendingIfTodayTransaction';
 
-interface ExternalBrowserOptions {
+interface IExternalBrowserOptions {
   /**
    * An externally created browser instance.
    * you can get a browser directly from playwright via `chromium.launch()`
@@ -56,7 +57,7 @@ interface ExternalBrowserOptions {
   skipCloseBrowser?: boolean;
 }
 
-interface ExternalBrowserContextOptions {
+interface IExternalBrowserContextOptions {
   /**
    * An externally managed browser context. This is useful when you want to manage the browser
    */
@@ -64,9 +65,9 @@ interface ExternalBrowserContextOptions {
 }
 
 type ScraperBrowserOptions =
-  | ExternalBrowserOptions
-  | ExternalBrowserContextOptions
-  | DefaultBrowserOptions;
+  | IExternalBrowserOptions
+  | IExternalBrowserContextOptions
+  | IDefaultBrowserOptions;
 
 export type ScraperOptions = ScraperBrowserOptions & {
   /**
@@ -95,11 +96,10 @@ export type ScraperOptions = ScraperBrowserOptions & {
   shouldCombineInstallments?: boolean;
 
   /**
-   * adjust the page instance before it is being used.
-   *
-   * @param page
+   * Adjust the page instance before it is being used.
+   * @param page - The Playwright Page instance to configure.
    */
-  preparePage?: (page: Page) => Promise<void>;
+  preparePage?: (page: Page) => LifecyclePromise;
 
   /**
    * if set, store a screenshot if failed to scrape. Used for debug purposes
@@ -114,7 +114,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
   /**
    * Options for manipulation of output data
    */
-  outputData?: OutputDataOptions;
+  outputData?: IOutputDataOptions;
 
   /**
    * Perform additional operation for each transaction to get more information (Like category) about it.
@@ -163,23 +163,23 @@ export type ScraperOptions = ScraperBrowserOptions & {
   loginLogLevel?: 'info' | 'trace';
 };
 
-export interface Scraper<TCredentials extends ScraperCredentials> {
-  scrape(credentials: TCredentials): Promise<ScraperScrapingResult>;
+export interface IScraper<TCredentials extends ScraperCredentials> {
+  scrape(credentials: TCredentials): Promise<IScraperScrapingResult>;
   onProgress(
-    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => void,
-  ): void;
+    func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => VoidResult,
+  ): VoidResult;
   triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult>;
   getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult>;
 }
 
 export type ScraperTwoFactorAuthTriggerResult =
-  | ErrorResult
+  | IErrorResult
   | {
       success: true;
     };
 
 export type ScraperGetLongTermTwoFactorTokenResult =
-  | ErrorResult
+  | IErrorResult
   | {
       success: true;
       longTermTwoFactorAuthToken: string;

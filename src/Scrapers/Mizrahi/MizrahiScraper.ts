@@ -1,298 +1,302 @@
 import moment from 'moment';
-import type { Frame } from 'playwright';
 
 import { getDebug } from '../../Common/Debug.js';
-import {
-  pageEvalAll,
-  waitUntilElementFound,
-  waitUntilIframeFound,
-} from '../../Common/ElementsInteractions.js';
+import { waitUntilElementFound, waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
-import { toFirstCss } from '../../Common/SelectorResolver.js';
-import { getRawTransaction } from '../../Common/Transactions.js';
-import { SHEKEL_CURRENCY } from '../../Constants.js';
+import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
 import {
-  type Transaction,
-  type TransactionsAccount,
+  type ITransaction,
+  type ITransactionsAccount,
   TransactionStatuses,
-  TransactionTypes,
 } from '../../Transactions.js';
 import { ScraperErrorTypes } from '../Base/Errors.js';
-import { GenericBankScraper } from '../Base/GenericBankScraper.js';
-import type { ScraperOptions, ScraperScrapingResult } from '../Base/Interface.js';
+import GenericBankScraper from '../Base/GenericBankScraper.js';
+import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
+import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { convertTransactions, extractPendingTxns } from './MizrahiConverters.js';
 import {
-  type ConvertOneRowOpts,
-  type ConvertTxnsOpts,
   createDataFromRequest,
   createHeadersFromRequest,
   GENERIC_DESCRIPTIONS,
   getExtraTransactionDetails,
   getStartMoment,
-  getTransactionIdentifier,
-  type MoreDetails,
+  type IMoreDetails,
+  type IScrapedTransaction,
+  type IScrapedTransactionsResult,
   PENDING_TRANSACTIONS_IFRAME,
-  type ScrapedTransaction,
-  type ScrapedTransactionsResult,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers.js';
 import { MIZRAHI_CONFIG } from './MizrahiLoginConfig.js';
+import buildSel from './MizrahiSelectors.js';
 
 const LOG = getDebug('mizrahi');
-// Phase-1 compat: extract first CSS candidate — full resolveDashboardField() migration in Phase 2
-const SEL = Object.fromEntries(
-  Object.entries(SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors).map(([k, cs]) => [
-    k,
-    toFirstCss(cs),
-  ]),
-) as Record<string, string>;
+const SELECTORS = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors;
+const SEL = buildSel(SELECTORS);
 
-interface BuildRowBaseOpts {
-  row: ScrapedTransaction;
-  txnDate: string;
-  moreDetails: MoreDetails;
-  isPendingIfTodayTransaction: boolean;
-}
-
-function buildRowBase(opts: BuildRowBaseOpts): Transaction {
-  const { row, txnDate, moreDetails, isPendingIfTodayTransaction } = opts;
-  return {
-    type: TransactionTypes.Normal,
-    identifier: getTransactionIdentifier(row),
-    date: txnDate,
-    processedDate: txnDate,
-    originalAmount: row.MC02SchumEZ,
-    originalCurrency: SHEKEL_CURRENCY,
-    chargedAmount: row.MC02SchumEZ,
-    description: row.MC02TnuaTeurEZ,
-    memo: moreDetails.memo,
-    status:
-      isPendingIfTodayTransaction && row.IsTodayTransaction
-        ? TransactionStatuses.Pending
-        : TransactionStatuses.Completed,
-  };
-}
-
-async function convertOneRow(opts: ConvertOneRowOpts): Promise<Transaction> {
-  const { row, getMoreDetails, isPendingIfTodayTransaction, options } = opts;
-  const moreDetails = await getMoreDetails(row);
-  const txnDate = moment(row.MC02PeulaTaaEZ, moment.HTML5_FMT.DATETIME_LOCAL_SECONDS).toISOString();
-  const result = buildRowBase({ row, txnDate, moreDetails, isPendingIfTodayTransaction });
-  if (options?.includeRawTransaction)
-    result.rawTransaction = getRawTransaction({
-      ...row,
-      additionalInformation: moreDetails.entries,
-    });
-  return result;
-}
-
-async function convertTransactions(opts: ConvertTxnsOpts): Promise<Transaction[]> {
-  const { txns, getMoreDetails, isPendingIfTodayTransaction = false, options } = opts;
-  return Promise.all(
-    txns.map(row => convertOneRow({ row, getMoreDetails, isPendingIfTodayTransaction, options })),
-  );
-}
-
-function mapPendingRow([
-  dateStr,
-  description,
-  _incomeAmountStr,
-  amountStr,
-]: string[]): Transaction | null {
-  const date = moment(dateStr, 'DD/MM/YY').toISOString();
-  if (!date) return null;
-  return {
-    type: TransactionTypes.Normal,
-    date,
-    processedDate: date,
-    originalAmount: parseFloat(amountStr.replaceAll(',', '')),
-    originalCurrency: SHEKEL_CURRENCY,
-    chargedAmount: parseFloat(amountStr.replaceAll(',', '')),
-    description,
-    status: TransactionStatuses.Pending,
-  };
-}
-
-async function extractPendingTransactions(page: Frame): Promise<Transaction[]> {
-  const pendingTxn = await pageEvalAll(page, {
-    selector: SEL.pendingTransactionRows,
-    defaultResult: [],
-    callback: trs =>
-      trs.map(tr => Array.from(tr.querySelectorAll('td'), td => td.textContent || '')),
-  });
-  return pendingTxn.map(row => mapPendingRow(row)).filter((t): t is Transaction => t !== null);
-}
-
-interface ScraperSpecificCredentials {
+/** Mizrahi-specific login credentials. */
+interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
 
-class MizrahiScraper extends GenericBankScraper<ScraperSpecificCredentials> {
+/**
+ * Click helper for $eval.
+ * @param el - The DOM element to click.
+ */
+const CLICK_FN = (el: Element): void => {
+  (el as HTMLElement).click();
+};
+
+/** Mizrahi bank scraper implementation. */
+class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+  /**
+   * Create a new MizrahiScraper instance.
+   * @param options - Scraper configuration options.
+   */
   constructor(options: ScraperOptions) {
     super(options, MIZRAHI_CONFIG);
   }
 
-  public async fetchData(): Promise<ScraperScrapingResult> {
-    await this.page.$eval(SEL.accountDropdown, el => {
-      (el as HTMLElement).click();
-    });
-    const numOfAccounts = (await this.page.$$(SEL.accountDropdownItem)).length;
+  /**
+   * Fetch all account data from Mizrahi.
+   * @returns Scraping result with accounts or error.
+   */
+  public async fetchData(): Promise<IScraperScrapingResult> {
+    await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    const items = await this.page.$$(SEL.accountDropdownItem);
+    return this.fetchAllAccounts(items.length);
+  }
+
+  /**
+   * Fetch data for all accounts by iterating the dropdown.
+   * @param count - Number of accounts in the dropdown.
+   * @returns Scraping result with accounts or error.
+   */
+  private async fetchAllAccounts(count: number): Promise<IScraperScrapingResult> {
     try {
-      const results: TransactionsAccount[] = [];
-      for (let i = 0; i < numOfAccounts; i += 1) {
-        results.push(await this.selectAndFetchAccount(i));
-      }
-      return { success: true, accounts: results };
-    } catch (e) {
+      const indices = Array.from({ length: count }, (_, idx) => idx);
+      const actions = indices.map(
+        idx => (): Promise<ITransactionsAccount> => this.selectAndFetchAccount(idx),
+      );
+      const accounts = await runSerial(actions);
+      return { success: true, accounts };
+    } catch (caught) {
       return {
         success: false,
         errorType: ScraperErrorTypes.Generic,
-        errorMessage: (e as Error).message,
+        errorMessage: (caught as Error).message,
       };
     }
   }
 
-  private async selectAndFetchAccount(index: number): Promise<TransactionsAccount> {
-    if (index > 0)
-      await this.page.$eval(SEL.accountDropdown, el => {
-        (el as HTMLElement).click();
-      });
-    await this.page.$eval(`${SEL.accountDropdownItem}:nth-child(${index + 1})`, el => {
-      (el as HTMLElement).click();
-    });
+  /**
+   * Select an account by dropdown index and fetch data.
+   * @param index - The dropdown index.
+   * @returns The account transactions data.
+   */
+  private async selectAndFetchAccount(index: number): Promise<ITransactionsAccount> {
+    if (index > 0) await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    const nthChild = String(index + 1);
+    const selector = `${SEL.accountDropdownItem}:nth-child(${nthChild})`;
+    await this.page.$eval(selector, CLICK_FN);
     return this.fetchAccount();
   }
 
-  private async getPendingTransactions(): Promise<Transaction[]> {
-    await this.page.$eval(SEL.pendingTransactionsLink, el => {
-      (el as HTMLElement).click();
-    });
+  /**
+   * Fetch pending transactions from the iframe.
+   * @returns Array of pending ITransactions.
+   */
+  private async getPendingTransactions(): Promise<ITransaction[]> {
+    await this.page.$eval(SEL.pendingTransactionsLink, CLICK_FN);
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
-    const isPending = await waitUntilElementFound(frame, SEL.pendingFrameIdentifier)
+    const hasPending = await waitUntilElementFound(frame, SEL.pendingFrameIdentifier)
       .then(() => true)
       .catch(() => false);
-    if (!isPending) {
-      return [];
-    }
-
-    const pendingTxn = await extractPendingTransactions(frame);
-    return pendingTxn;
+    if (!hasPending) return [];
+    return extractPendingTxns(frame);
   }
 
-  private async navigateToTransactions(): Promise<void> {
+  /**
+   * Navigate to the transactions view.
+   * @returns True when navigation is complete.
+   */
+  private async navigateToTransactions(): Promise<boolean> {
     await this.page.waitForSelector(SEL.oshLink);
-    await this.page.$eval(SEL.oshLink, el => {
-      (el as HTMLElement).click();
-    });
+    await this.page.$eval(SEL.oshLink, CLICK_FN);
     await waitUntilElementFound(this.page, SEL.transactionsLink);
-    await this.page.$eval(SEL.transactionsLink, el => {
-      (el as HTMLElement).click();
-    });
+    await this.page.$eval(SEL.transactionsLink, CLICK_FN);
+    return true;
   }
 
+  /**
+   * Get the account number from the page.
+   * @returns The account number string.
+   */
   private async getAccountNumber(): Promise<string> {
-    const accountNumberElement = await this.page.$(SEL.accountNumberSpan);
-    const accountNumberHandle = await accountNumberElement?.getProperty('title');
-    const accountNumber = (await accountNumberHandle?.jsonValue()) as string;
-    if (!accountNumber) throw new Error('Account number not found');
+    const el = await this.page.$(SEL.accountNumberSpan);
+    const handle = await el?.getProperty('title');
+    const accountNumber = (await handle?.jsonValue()) as string;
+    if (!accountNumber) throw new ScraperError('Account number not found');
     return accountNumber;
   }
 
-  private async fetchTransactionData(): Promise<
-    readonly [ScrapedTransactionsResult | null, Record<string, string>]
-  > {
-    return Promise.any(
-      TRANSACTIONS_REQUEST_URLS.map(async url => {
-        const request = await this.page.waitForRequest(url);
-        const data = createDataFromRequest(request, this.options.startDate);
-        const headers = createHeadersFromRequest(request);
-        return [
-          await fetchPostWithinPage<ScrapedTransactionsResult>(this.page, url, {
-            data,
-            extraHeaders: headers,
-          }),
-          headers,
-        ] as const;
-      }),
-    );
+  /**
+   * Race multiple transaction request URLs.
+   * @param url - The URL to try.
+   * @returns A tuple of [response, headers].
+   */
+  private async fetchOneTxnUrl(
+    url: string,
+  ): Promise<readonly [IScrapedTransactionsResult | { isEmpty: true }, Record<string, string>]> {
+    const request = await this.page.waitForRequest(url);
+    const data = createDataFromRequest(request, this.options.startDate);
+    const headers = createHeadersFromRequest(request);
+    const response = await fetchPostWithinPage<IScrapedTransactionsResult>(this.page, url, {
+      data,
+      extraHeaders: headers,
+    });
+    if (!response) return [{ isEmpty: true as const }, headers] as const;
+    return [response, headers] as const;
   }
 
+  /**
+   * Fetch raw transaction data from the bank API.
+   * @returns A tuple of [response, headers].
+   */
+  private async fetchTransactionData(): Promise<
+    readonly [IScrapedTransactionsResult | { isEmpty: true }, Record<string, string>]
+  > {
+    const urls = TRANSACTIONS_REQUEST_URLS;
+    const promises = urls.map(url => this.fetchOneTxnUrl(url));
+    return Promise.any(promises);
+  }
+
+  /**
+   * Build a function that fetches extra details.
+   * @param apiHeaders - The API headers for the request.
+   * @returns A function that gets more details for a row.
+   */
   private buildMoreDetailsGetter(
     apiHeaders: Record<string, string>,
-  ): (row: ScrapedTransaction) => Promise<MoreDetails> {
-    return this.options.shouldAddTransactionInformation
-      ? (row: ScrapedTransaction): Promise<MoreDetails> =>
-          getExtraTransactionDetails(this.page, row, apiHeaders)
-      : (): Promise<MoreDetails> => Promise.resolve({ entries: {}, memo: undefined });
+  ): (row: IScrapedTransaction) => Promise<IMoreDetails> {
+    if (!this.options.shouldAddTransactionInformation) {
+      return (): Promise<IMoreDetails> => Promise.resolve({ entries: {}, memo: undefined });
+    }
+    return (row: IScrapedTransaction): Promise<IMoreDetails> =>
+      getExtraTransactionDetails(this.page, row, apiHeaders);
   }
 
+  /**
+   * Convert and apply pending marks to transactions.
+   * @param response - The API response.
+   * @param apiHeaders - The API headers.
+   * @returns The converted and marked transactions.
+   */
   private async convertAndMarkTxns(
-    response: ScrapedTransactionsResult,
+    response: IScrapedTransactionsResult,
     apiHeaders: Record<string, string>,
-  ): Promise<Transaction[]> {
-    const relevantRows = response.body.table.rows.filter(row => row.RecTypeSpecified);
+  ): Promise<ITransaction[]> {
+    const rows = response.body.table.rows.filter(r => r.RecTypeSpecified);
+    const isPendingToday = this.options.optInFeatures?.includes(
+      'mizrahi:isPendingIfTodayTransaction',
+    );
     const oshTxn = await convertTransactions({
-      txns: relevantRows,
+      txns: rows,
       getMoreDetails: this.buildMoreDetailsGetter(apiHeaders),
-      isPendingIfTodayTransaction: this.options.optInFeatures?.includes(
-        'mizrahi:isPendingIfTodayTransaction',
-      ),
+      isPendingIfTodayTransaction: isPendingToday,
       options: this.options,
     });
-    oshTxn
-      .filter(txn => this.shouldMarkAsPending(txn))
-      .forEach(txn => {
-        txn.status = TransactionStatuses.Pending;
-      });
+    this.applyPendingStatus(oshTxn);
     return oshTxn;
   }
 
-  private async fetchAccount(): Promise<TransactionsAccount & { balance: number }> {
+  /**
+   * Mark transactions that should be pending.
+   * @param txns - The transactions to check and mark.
+   */
+  private applyPendingStatus(txns: ITransaction[]): void {
+    txns
+      .filter(t => this.shouldMarkAsPending(t))
+      .forEach(t => {
+        t.status = TransactionStatuses.Pending;
+      });
+  }
+
+  /**
+   * Fetch all data for a single account.
+   * @returns The account with transactions and balance.
+   */
+  private async fetchAccount(): Promise<ITransactionsAccount & { balance: number }> {
     await this.navigateToTransactions();
     const accountNumber = await this.getAccountNumber();
     const [response, apiHeaders] = await this.fetchTransactionData();
-    this.validateTransactionResponse(response);
+    MizrahiScraper.validateResponse(response);
     const oshTxn = await this.convertAndMarkTxns(response, apiHeaders);
     const allTxn = await this.filterAndMergeTxns(oshTxn);
     return { accountNumber, txns: allTxn, balance: +response.body.fields.Yitra };
   }
 
-  private validateTransactionResponse(
-    response: ScrapedTransactionsResult | null,
-  ): asserts response is ScrapedTransactionsResult {
-    if (!response?.header.success) {
-      throw new Error(
-        `Error fetching transaction. Response message: ${response ? response.header.messages[0].text : ''}`,
-      );
+  /**
+   * Validate that the transaction response indicates success.
+   * @param response - The API response to validate.
+   */
+  private static validateResponse(
+    response: IScrapedTransactionsResult | { isEmpty: true },
+  ): asserts response is IScrapedTransactionsResult {
+    if ('isEmpty' in response) throw new ScraperError('Empty transaction response');
+    if (!response.header.success) {
+      const msg = response.header.messages[0]?.text ?? '';
+      throw new ScraperError(`Error fetching transaction. Response message: ${msg}`);
     }
   }
 
-  private async filterAndMergeTxns(oshTxn: Transaction[]): Promise<Transaction[]> {
+  /**
+   * Filter old transactions and merge with pending.
+   * @param oshTxn - The completed transactions.
+   * @returns The merged and filtered transactions.
+   */
+  private async filterAndMergeTxns(oshTxn: ITransaction[]): Promise<ITransaction[]> {
     const startMoment = getStartMoment(this.options.startDate);
-    return oshTxn
-      .filter(txn => moment(txn.date).isSameOrAfter(startMoment))
-      .concat(await this.getPendingTransactions());
+    const filtered = oshTxn.filter(t => moment(t.date).isSameOrAfter(startMoment));
+    const pending = await this.getPendingTransactions();
+    return filtered.concat(pending);
   }
 
-  private shouldMarkAsPending(txn: Transaction): boolean {
-    if (this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier') && !txn.identifier) {
-      LOG.debug(`Marking transaction '${txn.description}' as pending due to no identifier.`);
-      return true;
-    }
+  /**
+   * Check if no identifier warrants pending status.
+   * @param txn - The transaction to check.
+   * @returns True if it should be marked pending.
+   */
+  private isPendingByNoIdentifier(txn: ITransaction): boolean {
+    const isOptIn = this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier');
+    if (!isOptIn || txn.identifier) return false;
+    LOG.debug(`Marking '${txn.description}' as pending: no identifier.`);
+    return true;
+  }
 
-    if (
-      this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription') &&
-      GENERIC_DESCRIPTIONS.includes(txn.description)
-    ) {
-      LOG.debug(`Marking transaction '${txn.description}' as pending due to generic description.`);
-      return true;
-    }
+  /**
+   * Check if a generic description warrants pending status.
+   * @param txn - The transaction to check.
+   * @returns True if it should be marked pending.
+   */
+  private isPendingByGenericDesc(txn: ITransaction): boolean {
+    const isOptIn = this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription');
+    if (!isOptIn || !GENERIC_DESCRIPTIONS.includes(txn.description)) return false;
+    LOG.debug(`Marking '${txn.description}' as pending: generic description.`);
+    return true;
+  }
 
-    return false;
+  /**
+   * Check if a transaction should be marked as pending.
+   * @param txn - The transaction to check.
+   * @returns True if it should be marked as pending.
+   */
+  private shouldMarkAsPending(txn: ITransaction): boolean {
+    return this.isPendingByNoIdentifier(txn) || this.isPendingByGenericDesc(txn);
   }
 }
 

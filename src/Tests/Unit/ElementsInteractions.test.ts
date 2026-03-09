@@ -62,7 +62,8 @@ describe('setValue', () => {
   it('sets input value directly via $eval', async () => {
     const page = createMockPage();
     await setValue(page, '#password', 'secret');
-    expect(page.$eval).toHaveBeenCalledWith('#password', expect.any(Function), ['secret']);
+    const anyFn = expect.any(Function) as (...args: never[]) => never;
+    expect(page.$eval).toHaveBeenCalledWith('#password', anyFn, ['secret']);
   });
 });
 
@@ -70,7 +71,8 @@ describe('clickButton', () => {
   it('calls $eval with click callback', async () => {
     const page = createMockPage();
     await clickButton(page, '#submit');
-    expect(page.$eval).toHaveBeenCalledWith('#submit', expect.any(Function));
+    const anyFn = expect.any(Function) as (...args: never[]) => never;
+    expect(page.$eval).toHaveBeenCalledWith('#submit', anyFn);
   });
 });
 
@@ -78,7 +80,8 @@ describe('clickLink', () => {
   it('calls $eval on the link', async () => {
     const page = createMockPage();
     await clickLink(page, 'a.nav-link');
-    expect(page.$eval).toHaveBeenCalledWith('a.nav-link', expect.any(Function));
+    const anyFn = expect.any(Function) as (...args: never[]) => never;
+    expect(page.$eval).toHaveBeenCalledWith('a.nav-link', anyFn);
   });
 });
 
@@ -86,15 +89,15 @@ describe('elementPresentOnPage', () => {
   it('returns true when element exists', async () => {
     const page = createMockPage();
     page.$.mockResolvedValue({});
-    const result = await elementPresentOnPage(page, '.exists');
-    expect(result).toBe(true);
+    const isPresent = await elementPresentOnPage(page, '.exists');
+    expect(isPresent).toBe(true);
   });
 
   it('returns false when element does not exist', async () => {
     const page = createMockPage();
     page.$.mockResolvedValue(null);
-    const result = await elementPresentOnPage(page, '.missing');
-    expect(result).toBe(false);
+    const isPresent = await elementPresentOnPage(page, '.missing');
+    expect(isPresent).toBe(false);
   });
 });
 
@@ -128,7 +131,12 @@ describe('pageEval', () => {
     const result = await pageEval(page, {
       selector: '.balance',
       defaultResult: '',
-      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+      /**
+       * Extracts text content from element.
+       * @param el - the matched element
+       * @returns the text content
+       */
+      callback: (el: Element): string => (el as HTMLElement).textContent || '',
     });
     expect(result).toBe('evaluated');
   });
@@ -139,7 +147,12 @@ describe('pageEval', () => {
     const result = await pageEval(page, {
       selector: '.missing',
       defaultResult: 'default',
-      callback: (el: Element) => (el as HTMLElement).textContent ?? '',
+      /**
+       * Extracts text content from element.
+       * @param el - the matched element
+       * @returns the text content
+       */
+      callback: (el: Element): string => (el as HTMLElement).textContent || '',
     });
     expect(result).toBe('default');
   });
@@ -147,13 +160,17 @@ describe('pageEval', () => {
   it('rethrows non-selector errors', async () => {
     const page = createMockPage();
     page.$eval.mockRejectedValue(new Error('network error'));
-    await expect(
-      pageEval(page, {
-        selector: '.broken',
-        defaultResult: null as Element | null,
-        callback: (el: Element) => el,
-      }),
-    ).rejects.toThrow('network error');
+    const evalPromise = pageEval(page, {
+      selector: '.broken',
+      defaultResult: null as Element | null,
+      /**
+       * Returns the element itself.
+       * @param el - the matched element
+       * @returns the element
+       */
+      callback: (el: Element): Element => el,
+    });
+    await expect(evalPromise).rejects.toThrow('network error');
   });
 });
 
@@ -164,7 +181,12 @@ describe('pageEvalAll', () => {
     const result = await pageEvalAll(page, {
       selector: '.items',
       defaultResult: [] as Element[],
-      callback: (els: Element[]) => els,
+      /**
+       * Returns the elements array.
+       * @param els - the matched elements
+       * @returns the elements
+       */
+      callback: (els: Element[]): Element[] => els,
     });
     expect(result).toEqual(['a', 'b']);
   });
@@ -175,7 +197,12 @@ describe('pageEvalAll', () => {
     const result = await pageEvalAll(page, {
       selector: '.missing',
       defaultResult: [] as Element[],
-      callback: (els: Element[]) => els,
+      /**
+       * Returns the elements array.
+       * @param els - the matched elements
+       * @returns the elements
+       */
+      callback: (els: Element[]): Element[] => els,
     });
     expect(result).toEqual([]);
   });
@@ -183,37 +210,50 @@ describe('pageEvalAll', () => {
   it('rethrows non-selector errors', async () => {
     const page = createMockPage();
     page.$$eval.mockRejectedValue(new Error('network error'));
-    await expect(
-      pageEvalAll(page, {
-        selector: '.broken',
-        defaultResult: [] as Element[],
-        callback: (els: Element[]) => els,
-      }),
-    ).rejects.toThrow('network error');
+    const evalAllPromise = pageEvalAll(page, {
+      selector: '.broken',
+      defaultResult: [] as Element[],
+      /**
+       * Returns the elements array.
+       * @param els - the matched elements
+       * @returns the elements
+       */
+      callback: (els: Element[]): Element[] => els,
+    });
+    await expect(evalAllPromise).rejects.toThrow('network error');
   });
 });
 
 describe('waitUntilIframeFound', () => {
   it('resolves when matching frame is found', async () => {
-    const mockFrame = { url: () => 'https://bank.co.il/iframe' } as unknown as Frame;
+    /**
+     * Returns the mock iframe URL.
+     * @returns the iframe URL string
+     */
+    const urlFn = (): string => 'https://bank.co.il/iframe';
+    const mockFrame = { url: urlFn } as unknown as Frame;
     const page = createMockPage();
     page.frames.mockReturnValue([mockFrame]);
-    const result = await waitUntilIframeFound(
-      page,
-      (f: Frame) => f.url() === 'https://bank.co.il/iframe',
-      {
-        description: 'test',
-        timeout: 5000,
-      },
-    );
+    /**
+     * Checks whether the frame matches the expected iframe URL.
+     * @param frame - the frame to check
+     * @returns true when the frame URL matches
+     */
+    const isIframeMatch = (frame: Frame): boolean => frame.url() === 'https://bank.co.il/iframe';
+    const result = await waitUntilIframeFound(page, isIframeMatch, {
+      description: 'test',
+      timeout: 5000,
+    });
     expect(result).toBe(mockFrame);
   });
 
   it('throws when frame is not found within timeout', async () => {
     const page = createMockPage();
     page.frames.mockReturnValue([]);
-    await expect(
-      waitUntilIframeFound(page, () => false, { description: 'missing frame', timeout: 100 }),
-    ).rejects.toThrow();
+    const iframePromise = waitUntilIframeFound(page, () => false, {
+      description: 'missing frame',
+      timeout: 100,
+    });
+    await expect(iframePromise).rejects.toThrow();
   });
 });

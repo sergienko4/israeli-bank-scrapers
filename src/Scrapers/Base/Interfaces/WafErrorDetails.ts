@@ -1,4 +1,4 @@
-export interface WafErrorDetails {
+export interface IWafErrorDetails {
   provider: 'cloudflare' | 'unknown';
   httpStatus: number;
   pageTitle: string;

@@ -7,22 +7,41 @@ const LOG = getDebug('navigation');
 
 export type WaitUntilState = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
 
-interface WaitForOptions {
+interface IWaitForOptions {
   waitUntil?: WaitUntilState;
   timeout?: number;
 }
 
+/**
+ * Wait for the current page navigation to complete.
+ * @param pageOrFrame - The Playwright Page or Frame to wait on.
+ * @param options - Optional wait configuration (waitUntil, timeout).
+ * @returns True after navigation completes.
+ */
 export async function waitForNavigation(
   pageOrFrame: Page | Frame,
-  options?: WaitForOptions,
-): Promise<void> {
+  options?: IWaitForOptions,
+): Promise<boolean> {
   await pageOrFrame.waitForURL('**', options);
+  return true;
 }
 
-export async function waitForNavigationAndDomLoad(page: Page): Promise<void> {
+/**
+ * Wait for navigation with DOM content loaded.
+ * @param page - The Playwright Page to wait on.
+ * @returns True after DOM content is loaded.
+ */
+export async function waitForNavigationAndDomLoad(page: Page): Promise<boolean> {
   await waitForNavigation(page, { waitUntil: 'domcontentloaded' });
+  return true;
 }
 
+/**
+ * Get the current URL of a page or frame.
+ * @param pageOrFrame - The Playwright Page or Frame to query.
+ * @param isClientSide - Whether to use client-side evaluation.
+ * @returns The current URL string.
+ */
 export function getCurrentUrl(
   pageOrFrame: Page | Frame,
   isClientSide = false,
@@ -34,6 +53,12 @@ export function getCurrentUrl(
   return pageOrFrame.url();
 }
 
+/**
+ * Get the current URL safely, returning '?' on failure.
+ * @param pageOrFrame - The Playwright Page or Frame to query.
+ * @param isClientSide - Whether to use client-side evaluation.
+ * @returns The current URL or '?' on error.
+ */
 async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Promise<string> {
   try {
     return await getCurrentUrl(pageOrFrame, isClientSide);
@@ -42,23 +67,32 @@ async function safeGetUrl(pageOrFrame: Page | Frame, isClientSide: boolean): Pro
   }
 }
 
-export interface WaitForRedirectOptions {
+/** Options for waiting for a URL redirect. */
+export interface IWaitForRedirectOptions {
   timeout?: number;
   isClientSide?: boolean;
   ignoreList?: string[];
 }
 
-interface RedirectPollOpts {
+/** Internal options for redirect polling. */
+interface IRedirectPollOpts {
   isClientSide: boolean;
   ignoreList: string[];
   timeout: number;
 }
 
+/**
+ * Poll until the URL changes from the initial value.
+ * @param pageOrFrame - The Playwright Page or Frame to poll.
+ * @param initial - The initial URL to detect a change from.
+ * @param opts - Polling configuration options.
+ * @returns True when the URL has changed.
+ */
 async function pollForRedirect(
   pageOrFrame: Page | Frame,
   initial: string,
-  opts: RedirectPollOpts,
-): Promise<void> {
+  opts: IRedirectPollOpts,
+): Promise<boolean> {
   await waitUntil(
     async () => {
       const current = await getCurrentUrl(pageOrFrame, opts.isClientSide);
@@ -67,64 +101,91 @@ async function pollForRedirect(
     `waiting for redirect from ${initial}`,
     { timeout: opts.timeout, interval: 1000 },
   );
+  return true;
 }
 
+/**
+ * Wait for the page to redirect away from its current URL.
+ * @param pageOrFrame - The Playwright Page or Frame to watch.
+ * @param opts - Optional redirect wait configuration.
+ * @returns True when redirect completes.
+ */
 export async function waitForRedirect(
   pageOrFrame: Page | Frame,
-  opts: WaitForRedirectOptions = {},
-): Promise<void> {
+  opts: IWaitForRedirectOptions = {},
+): Promise<boolean> {
   const { timeout = 20000, isClientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, isClientSide);
   LOG.debug('waitForRedirect from %s', initial);
   try {
     await pollForRedirect(pageOrFrame, initial, { isClientSide, ignoreList, timeout });
-  } catch (e) {
+  } catch (caught) {
     LOG.debug(
       'waitForRedirect TIMEOUT (%dms) — still at %s',
       timeout,
       await safeGetUrl(pageOrFrame, isClientSide),
     );
-    throw e;
+    throw caught;
   }
   LOG.debug('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
+  return true;
 }
 
-export interface WaitForUrlOptions {
+/** Options for waiting for a specific URL. */
+export interface IWaitForUrlOptions {
   timeout?: number;
   isClientSide?: boolean;
 }
 
-interface UrlPollOpts {
+/** Internal options for URL polling. */
+interface IUrlPollOpts {
   timeout: number;
   isClientSide: boolean;
 }
 
+/**
+ * Poll until the page URL matches the target pattern.
+ * @param pageOrFrame - The Playwright Page or Frame to poll.
+ * @param url - The target URL string or regex pattern.
+ * @param opts - Polling configuration options.
+ * @returns True when the URL matches.
+ */
 async function pollForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
-  opts: UrlPollOpts,
-): Promise<void> {
+  opts: IUrlPollOpts,
+): Promise<boolean> {
+  const urlDescription = String(url);
   await waitUntil(
     async () => {
       const current = await getCurrentUrl(pageOrFrame, opts.isClientSide);
       return url instanceof RegExp ? url.test(current) : url === current;
     },
-    `waiting for url to be ${url}`,
+    `waiting for url to be ${urlDescription}`,
     { timeout: opts.timeout, interval: 1000 },
   );
+  return true;
 }
 
+/**
+ * Wait for the page URL to match a specific string or pattern.
+ * @param pageOrFrame - The Playwright Page or Frame to watch.
+ * @param url - The target URL string or regex pattern.
+ * @param opts - Optional URL wait configuration.
+ * @returns True when the URL matches.
+ */
 export async function waitForUrl(
   pageOrFrame: Page | Frame,
   url: string | RegExp,
-  opts: WaitForUrlOptions = {},
-): Promise<void> {
+  opts: IWaitForUrlOptions = {},
+): Promise<boolean> {
   const { timeout = 20000, isClientSide = false } = opts;
   try {
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
-  } catch (e) {
+  } catch (caught) {
     const stuck = await safeGetUrl(pageOrFrame, isClientSide);
     LOG.debug('waitForUrl TIMEOUT (%dms) pattern=%s at %s', timeout, url, stuck);
-    throw e;
+    throw caught;
   }
+  return true;
 }
