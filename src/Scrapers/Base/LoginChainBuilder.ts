@@ -9,7 +9,6 @@ import {
   stepOtpConfirm,
   stepParseLoginPage,
   stepPostAction,
-  stepSecondLogin,
   stepWaitAfterSubmit,
 } from './LoginSteps.js';
 
@@ -86,7 +85,7 @@ function appendOtpConfirm(
 }
 
 /**
- * Append OTP code and second-login steps if the login setup requires them.
+ * Append OTP code step (if needed) and post-action to the chain.
  * @param steps - The mutable array to append to.
  * @param opts - Combined step context and login options.
  * @param ctx - The login context with loginSetup flags.
@@ -105,14 +104,6 @@ function appendRemainingSteps(
      */
     const doOtpCode = (): Promise<IStepResult> => stepOtpCode(stepCtx);
     steps.push({ name: 'otp-code', execute: doOtpCode });
-  }
-  if (ctx.loginSetup.hasSecondLoginStep) {
-    /**
-     * Handle the optional second login form.
-     * @returns Step result indicating whether to continue.
-     */
-    const doSecond = (): Promise<IStepResult> => stepSecondLogin(loginOptions);
-    steps.push({ name: 'second-login', execute: doSecond });
   }
   /**
    * Run the post-login action defined in login config.

@@ -16,7 +16,7 @@ const HAPOALIM_CONFIG: ILoginConfig = {
   ],
   submit: [
     { kind: 'css', value: '.login-btn' },
-    // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
+    // textContent 'כניסה' fallback is in wellKnownSelectors.__submit__
   ],
   /**
    * Wait for Hapoalim post-login redirect.

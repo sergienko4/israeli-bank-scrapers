@@ -106,7 +106,7 @@ export const SCRAPER_CONFIGURATION = {
       urls: { base: 'https://www.max.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://onlinelcapi.max.co.il' },
       auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasSecondLoginStep: true },
+      loginSetup: SIMPLE_LOGIN,
       format: NULL_FORMAT,
       timing: NULL_TIMING,
       selectors: {},

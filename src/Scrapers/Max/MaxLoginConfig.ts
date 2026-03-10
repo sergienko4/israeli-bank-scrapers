@@ -33,33 +33,40 @@ async function resolveAndFill(page: Page, field: IFieldConfig, value: string): P
   return true;
 }
 
-/** Max login credentials with optional national ID for Flow B. */
-interface IMaxCredentials {
+/** Max login credentials with optional national ID. */
+export interface IMaxCredentials {
   username: string;
   password: string;
   id?: string;
 }
 
+/** Hebrew phrases that indicate Max is asking for ID verification. */
+const ID_FORM_INDICATORS = ['תעודת הזהות', 'תעודת זהות', 'ת.ז.'];
+
 /**
- * Handle the optional second-login step in Max's Flow B.
- * If the ID form is not present (Flow A), this function is a no-op.
- * @param page - The Playwright page with the second login form.
- * @param credentials - The user's Max credentials including optional ID.
- * @returns True after the second step completes or is skipped.
+ * Detect the Max ID verification form by scanning visible page text.
+ * Waits briefly for the page to settle, then checks for ID-related Hebrew text.
+ * @param page - The Playwright page to check.
+ * @returns True if the page contains ID verification text.
  */
-export async function maxHandleSecondLoginStep(
-  page: Page,
-  credentials: IMaxCredentials,
-): Promise<boolean> {
-  if (!credentials.id) return true;
-  const pageUrl = page.url();
-  const idCtx = await resolveFieldContext(page, MAX_ID_FIELD, pageUrl);
-  if (!idCtx.isResolved) return true;
+async function detectIdForm(page: Page): Promise<boolean> {
+  await page.waitForTimeout(2000);
+  const bodyText = await page.evaluate(() => document.body.innerText);
+  return ID_FORM_INDICATORS.some(phrase => bodyText.includes(phrase));
+}
+
+/**
+ * Fill the ID form: re-fill username + password + ID, then submit again.
+ * @param page - The Playwright page with the ID form.
+ * @param credentials - The user's Max credentials including ID.
+ * @returns True after the form is submitted.
+ */
+async function fillIdFormAndSubmit(page: Page, credentials: IMaxCredentials): Promise<boolean> {
   await resolveAndFill(page, MAX_USERNAME_FIELD, credentials.username);
   await resolveAndFill(page, MAX_PASSWORD_FIELD, credentials.password);
-  await fillInput(idCtx.context, idCtx.selector, credentials.id);
-  const submitSelector = 'app-user-login-form .general-button.send-me-code';
-  await clickButton(page, submitSelector);
+  if (credentials.id) await resolveAndFill(page, MAX_ID_FIELD, credentials.id);
+  const submitXpath = 'xpath=//button[contains(., "כניסה")]';
+  await clickButton(page, submitXpath);
   await page.waitForTimeout(1000);
   return true;
 }
@@ -148,17 +155,33 @@ async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['pr
 }
 
 /**
- * Wait for the Max post-login page to resolve to a known outcome.
+ * Wait for the Max dashboard or error indicator after submit.
  * @param page - The Playwright page to observe after login submission.
  * @returns True after a post-login indicator is detected.
  */
-async function maxPostAction(page: Page): LifecyclePromise {
+async function waitForDashboardOrError(page: Page): LifecyclePromise {
   if (page.url().startsWith('https://www.max.co.il/homepage')) return;
   await Promise.race([
     page.waitForURL('**/homepage/**', { timeout: 20000 }),
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
     waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
   ]);
+}
+
+/**
+ * Build the Max post-action: if ID field visible → fill all 3 fields → submit → dashboard.
+ * @param credentials - The user's Max credentials with optional ID.
+ * @returns An async post-action function for the login config.
+ */
+export function buildMaxPostAction(credentials: IMaxCredentials): (page: Page) => LifecyclePromise {
+  return async (page: Page): LifecyclePromise => {
+    if (page.url().startsWith('https://www.max.co.il/homepage')) return;
+    if (!credentials.id) return waitForDashboardOrError(page);
+    const hasIdForm = await detectIdForm(page);
+    if (!hasIdForm) return waitForDashboardOrError(page);
+    await fillIdFormAndSubmit(page, credentials);
+    return waitForDashboardOrError(page);
+  };
 }
 
 /**
@@ -218,7 +241,7 @@ export const MAX_CONFIG: ILoginConfig = {
   ],
   checkReadiness: maxCheckReadiness,
   preAction: maxPreAction,
-  postAction: maxPostAction,
+  // postAction is set dynamically by MaxScraper.getLoginOptions with credentials
   waitUntil: 'domcontentloaded',
   possibleResults: {
     success: [checkMaxSuccess],

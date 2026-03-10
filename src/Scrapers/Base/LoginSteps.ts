@@ -217,18 +217,6 @@ export async function stepOtpCode(ctx: ILoginStepContext): Promise<IStepResult> 
 }
 
 /**
- * Execute the second login step (e.g. Max Flow B additional form).
- * @param loginOptions - Login configuration with postAction callback.
- * @returns A step result indicating whether to continue the chain.
- */
-export async function stepSecondLogin(loginOptions: ILoginOptions): Promise<IStepResult> {
-  if (loginOptions.postAction) {
-    await loginOptions.postAction();
-  }
-  return CONTINUE;
-}
-
-/**
  * Execute post-login action or wait for navigation.
  * @param ctx - The shared login step context.
  * @param loginOptions - Login configuration with optional postAction.

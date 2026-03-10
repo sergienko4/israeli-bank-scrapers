@@ -78,7 +78,15 @@ const { BANK_REGISTRY } = await import('../../Scrapers/Registry/BankRegistry.js'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const VALID_KINDS = ['labelText', 'css', 'placeholder', 'ariaLabel', 'name', 'xpath'] as const;
+const VALID_KINDS = [
+  'labelText',
+  'textContent',
+  'css',
+  'placeholder',
+  'ariaLabel',
+  'name',
+  'xpath',
+] as const;
 
 const WELL_KNOWN = SCRAPER_CONFIGURATION.wellKnownSelectors;
 type WkKey = keyof typeof WELL_KNOWN;

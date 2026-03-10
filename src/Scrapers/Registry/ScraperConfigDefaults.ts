@@ -32,7 +32,6 @@ export interface IBankScraperConfig {
     isApiOnly: boolean;
     hasOtpConfirm: boolean;
     hasOtpCode: boolean;
-    hasSecondLoginStep: boolean;
   };
   /** Data format and pagination */
   format: {
@@ -77,12 +76,11 @@ export const NULL_AUTH: IBankScraperConfig['auth'] = {
   organizationId: null,
 };
 
-/** Default simple login setup — no OTP, no second step, not API-only. */
+/** Default simple login setup — no OTP, not API-only. */
 export const SIMPLE_LOGIN: IBankScraperConfig['loginSetup'] = {
   isApiOnly: false,
   hasOtpConfirm: false,
   hasOtpCode: false,
-  hasSecondLoginStep: false,
 };
 
 /** Default format config with all fields set to null. */

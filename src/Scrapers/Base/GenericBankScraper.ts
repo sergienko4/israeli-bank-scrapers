@@ -1,6 +1,7 @@
 import { type Frame, type Page } from 'playwright';
 
 import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
+import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../../Common/FormAnchor.js';
 import {
   candidateToCss,
   type IFieldContext,
@@ -173,6 +174,7 @@ export default class GenericBankScraper<
   TCredentials extends ScraperCredentials,
 > extends BaseScraperWithBrowser<TCredentials> {
   private _fieldConfigs: IFieldConfig[] = [];
+  private _formAnchor: IFormAnchor | null = null;
 
   /**
    * Create a new GenericBankScraper with options and login configuration.
@@ -209,6 +211,7 @@ export default class GenericBankScraper<
 
   /**
    * Fill login fields using selector resolution with fallback to CSS selectors.
+   * After the first field resolves, discovers the form anchor and scopes subsequent fields.
    * @param pageOrFrame - The page or frame containing the inputs.
    * @param fields - The field descriptors with selectors and values.
    * @returns True when all fields are filled.
@@ -217,11 +220,13 @@ export default class GenericBankScraper<
     pageOrFrame: Page | Frame,
     fields: { selector: string; value: string; credentialKey?: string }[],
   ): Promise<boolean> {
+    this._formAnchor = null;
     const fieldConfigs = this._fieldConfigs;
     const actions = fields.map((field, index): (() => Promise<boolean>) => {
       const fieldConfig = fieldConfigs[index];
       return async (): Promise<boolean> => {
-        await this.fillFieldWithFallback(pageOrFrame, fieldConfig, {
+        const scopedConfig = this.scopeFieldConfig(fieldConfig);
+        await this.fillFieldWithFallback(pageOrFrame, scopedConfig, {
           selector: field.selector,
           value: field.value,
         });
@@ -229,6 +234,33 @@ export default class GenericBankScraper<
       };
     });
     await runSerial(actions);
+    return true;
+  }
+
+  /**
+   * Scope a field config to the discovered form anchor, if available.
+   * @param fieldConfig - The original field configuration.
+   * @returns A form-scoped field config, or the original if no anchor exists.
+   */
+  private scopeFieldConfig(fieldConfig: IFieldConfig): IFieldConfig {
+    if (!this._formAnchor) return fieldConfig;
+    const scoped = scopeCandidates(this._formAnchor.selector, fieldConfig.selectors);
+    return { credentialKey: fieldConfig.credentialKey, selectors: scoped };
+  }
+
+  /**
+   * Discover the form anchor from a resolved input selector.
+   * @param result - The resolved field context from selector resolution.
+   * @returns True after discovery attempt completes.
+   */
+  private async tryDiscoverFormAnchor(result: IFieldContext): Promise<boolean> {
+    if (this._formAnchor) return true;
+    if (!result.isResolved) return true;
+    try {
+      this._formAnchor = await discoverFormAnchor(result.context, result.selector);
+    } catch {
+      // Form anchor is optional — never break the login flow
+    }
     return true;
   }
 
@@ -279,6 +311,7 @@ export default class GenericBankScraper<
     );
     if (result.isResolved) {
       this.activeLoginContext = result.context;
+      await this.tryDiscoverFormAnchor(result);
       await fillInput(result.context, result.selector, value);
     }
     return result;

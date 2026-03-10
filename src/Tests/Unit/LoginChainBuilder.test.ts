@@ -14,9 +14,6 @@ const OTP_CONFIRM_STEP = 'otp-confirm';
 /** Step name appended when OTP code is enabled. */
 const OTP_CODE_STEP = 'otp-code';
 
-/** Step name appended when second login step is enabled. */
-const SECOND_LOGIN_STEP = 'second-login';
-
 /** Step name always appended as the final step. */
 const POST_ACTION_STEP = 'post-action';
 
@@ -59,11 +56,6 @@ jest.unstable_mockModule('../../Scrapers/Base/LoginSteps.js', () => ({
    * @returns stub result
    */
   stepOtpCode: jest.fn().mockResolvedValue(STUB_RESULT),
-  /**
-   * Stub second login step.
-   * @returns stub result
-   */
-  stepSecondLogin: jest.fn().mockResolvedValue(STUB_RESULT),
   /**
    * Stub post action step.
    * @returns stub result
@@ -121,7 +113,6 @@ function createCtx(flags: Partial<ILoginContext['loginSetup']> = {}): ILoginCont
       isApiOnly: false,
       hasOtpConfirm: false,
       hasOtpCode: false,
-      hasSecondLoginStep: false,
       ...flags,
     },
   };
@@ -160,7 +151,7 @@ describe('buildLoginChain', () => {
       expect(names).toEqual([...CORE_STEP_NAMES, POST_ACTION_STEP]);
     });
 
-    it('returns exactly 6 steps when no OTP or second login', () => {
+    it('returns exactly 6 steps when no OTP flags are set', () => {
       const chain = buildChain();
       expect(chain).toHaveLength(6);
     });
@@ -218,14 +209,8 @@ describe('buildLoginChain', () => {
       expect(names).toContain(OTP_CODE_STEP);
     });
 
-    it('appends second-login when hasSecondLoginStep is true', () => {
-      const chain = buildChain({ hasSecondLoginStep: true });
-      const names = extractStepNames(chain);
-      expect(names).toContain(SECOND_LOGIN_STEP);
-    });
-
     it('always appends post-action as the last step', () => {
-      const chain = buildChain({ hasOtpCode: true, hasSecondLoginStep: true });
+      const chain = buildChain({ hasOtpCode: true });
       const names = extractStepNames(chain);
       const lastStep = names[names.length - 1];
       expect(lastStep).toBe(POST_ACTION_STEP);
@@ -236,12 +221,6 @@ describe('buildLoginChain', () => {
       const names = extractStepNames(chain);
       expect(names).not.toContain(OTP_CODE_STEP);
     });
-
-    it('does NOT include second-login when hasSecondLoginStep is false', () => {
-      const chain = buildChain({ hasSecondLoginStep: false });
-      const names = extractStepNames(chain);
-      expect(names).not.toContain(SECOND_LOGIN_STEP);
-    });
   });
 
   describe('full chain combinations', () => {
@@ -249,18 +228,11 @@ describe('buildLoginChain', () => {
       const chain = buildChain({
         hasOtpConfirm: true,
         hasOtpCode: true,
-        hasSecondLoginStep: true,
       });
       const names = extractStepNames(chain);
-      const expectedNames = [
-        ...CORE_STEP_NAMES,
-        OTP_CONFIRM_STEP,
-        OTP_CODE_STEP,
-        SECOND_LOGIN_STEP,
-        POST_ACTION_STEP,
-      ];
+      const expectedNames = [...CORE_STEP_NAMES, OTP_CONFIRM_STEP, OTP_CODE_STEP, POST_ACTION_STEP];
       expect(names).toEqual(expectedNames);
-      expect(chain).toHaveLength(9);
+      expect(chain).toHaveLength(8);
     });
 
     it('orders otp-confirm before otp-code', () => {
@@ -269,14 +241,6 @@ describe('buildLoginChain', () => {
       const confirmIdx = names.indexOf(OTP_CONFIRM_STEP);
       const codeIdx = names.indexOf(OTP_CODE_STEP);
       expect(confirmIdx).toBeLessThan(codeIdx);
-    });
-
-    it('orders otp-code before second-login', () => {
-      const chain = buildChain({ hasOtpCode: true, hasSecondLoginStep: true });
-      const names = extractStepNames(chain);
-      const codeIdx = names.indexOf(OTP_CODE_STEP);
-      const secondIdx = names.indexOf(SECOND_LOGIN_STEP);
-      expect(codeIdx).toBeLessThan(secondIdx);
     });
   });
 
@@ -319,12 +283,6 @@ describe('buildLoginChain', () => {
       expect(names).not.toContain(OTP_CONFIRM_STEP);
     });
 
-    it('does NOT append second-login when only hasOtpConfirm is true', () => {
-      const chain = buildChain({ hasOtpConfirm: true, hasSecondLoginStep: false });
-      const names = extractStepNames(chain);
-      expect(names).not.toContain(SECOND_LOGIN_STEP);
-    });
-
     it('post-action is always present even with no optional steps', () => {
       const chain = buildChain();
       const names = extractStepNames(chain);
@@ -335,7 +293,6 @@ describe('buildLoginChain', () => {
       const chain = buildChain({
         hasOtpConfirm: true,
         hasOtpCode: true,
-        hasSecondLoginStep: true,
       });
       const names = extractStepNames(chain);
       const uniqueNames = new Set(names);
