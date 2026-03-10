@@ -2,7 +2,9 @@ import { type SelectorCandidate } from '../Base/LoginConfig.js';
 
 /**
  * Global login-field fallback dictionary used by SelectorResolver on every bank.
- * Order = middleware priority: visible text first, CSS last resort.
+ * Order = middleware priority: visible text first, CSS fallback, textContent last resort.
+ * textContent (walk-up DOM) is placed AFTER CSS — it's the absolute last resort
+ * for banks that don't use standard labels/placeholders/aria/CSS.
  */
 export const WELL_KNOWN_LOGIN_SELECTORS = {
   username: [
@@ -19,11 +21,14 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'username' },
     { kind: 'name', value: 'userCode' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
     { kind: 'css', value: '#user-name' }, // Max
     { kind: 'css', value: '#userNumberDesktopHeb' }, // Mizrahi
     { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'שם משתמש' },
+    { kind: 'textContent', value: 'קוד משתמש' },
   ],
   userCode: [
     // --- visible text ---
@@ -36,8 +41,11 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'userCode' },
     { kind: 'name', value: 'username' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: '#userCode' }, // Hapoalim
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'קוד משתמש' },
+    { kind: 'textContent', value: 'שם משתמש' },
   ],
   password: [
     // --- visible text ---
@@ -50,13 +58,16 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'ariaLabel', value: 'סיסמה' },
     // --- semantic HTML ---
     { kind: 'name', value: 'password' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: 'input[type="password"]' },
     { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
     { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
     { kind: 'css', value: '#tzPassword' }, // Discount
     { kind: 'css', value: '#passwordDesktopHeb' }, // Mizrahi
     { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'סיסמה' },
+    { kind: 'textContent', value: 'סיסמא' },
   ],
   id: [
     // --- visible text ---
@@ -68,9 +79,12 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'ariaLabel', value: 'תעודת זהות' },
     // --- semantic HTML ---
     { kind: 'name', value: 'id' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
     { kind: 'css', value: '#tzId' }, // Discount
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'תעודת זהות' },
+    { kind: 'textContent', value: 'מספר זהות' },
   ],
   nationalID: [
     // --- visible text ---
@@ -82,8 +96,11 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'nationalID' },
     { kind: 'name', value: 'id' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: '#pinno' }, // Yahav
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'תעודת זהות' },
+    { kind: 'textContent', value: 'מספר זהות' },
   ],
   card6Digits: [
     // --- visible text ---
@@ -91,6 +108,8 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'placeholder', value: '6 ספרות' },
     { kind: 'placeholder', value: 'ספרות הכרטיס' },
     { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
+    // --- walk-up DOM (last resort) ---
+    { kind: 'textContent', value: 'ספרות' },
   ],
   num: [
     // --- visible text ---
@@ -100,8 +119,11 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'ariaLabel', value: 'מספר חשבון' },
     // --- semantic HTML ---
     { kind: 'name', value: 'num' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: '#aidnum' }, // Discount
+    // --- walk-up DOM (absolute last resort) ---
+    { kind: 'textContent', value: 'קוד מזהה' },
+    { kind: 'textContent', value: 'מספר חשבון' },
   ],
   otpCode: [
     // --- visible text ---
@@ -113,6 +135,9 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'placeholder', value: 'הזן קוד' },
     // --- semantic HTML ---
     { kind: 'name', value: 'otpCode' },
+    // --- walk-up DOM (last resort) ---
+    { kind: 'textContent', value: 'קוד חד פעמי' },
+    { kind: 'textContent', value: 'קוד אימות' },
   ],
   /** Universal submit-button fallback — visible text first, CSS last */
   __submit__: [
@@ -123,8 +148,14 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
     { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
     { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
-    // --- CSS last resort ---
+    // --- CSS fallback ---
     { kind: 'css', value: 'button[type="submit"]' },
+    // --- walk-up DOM (absolute last resort — button/link/select ancestor) ---
+    { kind: 'textContent', value: 'כניסה' },
+    { kind: 'textContent', value: 'התחברות' },
+    { kind: 'textContent', value: 'שלח' },
+    { kind: 'textContent', value: 'המשך' },
+    { kind: 'textContent', value: 'אישור' },
   ],
 } satisfies Record<string, SelectorCandidate[]>;
 

@@ -2,7 +2,6 @@ import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
-import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -37,14 +36,6 @@ DESCRIBE_IF('E2E: Max (real credentials)', () => {
       id: process.env.MAX_ID,
     });
 
-    if (result.errorType === ScraperErrorTypes.Timeout) {
-      console.log('[skip] Max login timed out — redirect race or transient CI issue');
-      return;
-    }
-    if (result.errorType === ScraperErrorTypes.Generic) {
-      console.log('[skip] Max returned generic error — portal navigation intermittent');
-      return;
-    }
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
   });

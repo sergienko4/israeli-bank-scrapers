@@ -143,7 +143,7 @@ export interface ILabelStrategyOpts {
 }
 
 /**
- * Try label-based resolution (for-attr, then nesting/ariaRef/sibling/proximity).
+ * Try label-based resolution (for-attr, then nesting/ariaRef/sibling/proximity/walk-up).
  * @param opts - The label resolution options.
  * @returns The resolved CSS/XPath selector, or empty string if no strategy matched.
  */
@@ -158,6 +158,99 @@ export async function resolveLabelStrategies(opts: ILabelStrategyOpts): Promise<
   const siblingResult = await resolveBySibling({ ctx, baseXpath, queryFn });
   if (siblingResult) return siblingResult;
   return resolveByProximity({ ctx, baseXpath, queryFn });
+}
+
+/** XPath filter to exclude hidden, submit, and button inputs. */
+const NON_FILLABLE_FILTER = 'not(@type="hidden") and not(@type="submit") and not(@type="button")';
+
+/** Interactive ancestor tags that a text node can walk up to. */
+const INTERACTIVE_ANCESTORS = ['button', 'a', 'select'] as const;
+
+/**
+ * Strategy 6: find text node, walk up to nearest container with a fillable input.
+ * Broader than proximity — searches all ancestors, not just the immediate parent.
+ * @param ctx - The Playwright Page or Frame to search in.
+ * @param textValue - The visible text to search for.
+ * @param queryFn - A function that checks element existence with a timeout.
+ * @returns The XPath selector for the container input, or empty string if not found.
+ */
+export async function resolveByContainerInput(
+  ctx: Page | Frame,
+  textValue: string,
+  queryFn: QueryFn,
+): Promise<string> {
+  const xpath =
+    `xpath=//*[text()[contains(., "${textValue}")]]/` +
+    `ancestor::*[.//input[${NON_FILLABLE_FILTER}]][1]//input[${NON_FILLABLE_FILTER}][1]`;
+  const isFound = await queryFn(ctx, xpath);
+  if (!isFound) return '';
+  const isOk = await isFillableInput(ctx, xpath);
+  if (!isOk) return '';
+  LOG.debug('textContent "%s" → container input walk-up', textValue);
+  return xpath;
+}
+
+/** Options for building an ancestor probe action. */
+interface IAncestorProbeOpts {
+  ctx: Page | Frame;
+  textValue: string;
+  queryFn: QueryFn;
+}
+
+/**
+ * Build a lazy action that probes a single ancestor tag for a text value.
+ * @param opts - The ancestor probe options.
+ * @param tag - The HTML tag name to search for.
+ * @returns An async function that resolves to a selector or empty string.
+ */
+function buildAncestorProbe(opts: IAncestorProbeOpts, tag: string): () => Promise<string> {
+  return async () => {
+    const xpath = `xpath=//${tag}[.//text()[contains(., "${opts.textValue}")]]`;
+    const isFound = await opts.queryFn(opts.ctx, xpath);
+    if (!isFound) return '';
+    LOG.debug('textContent "%s" → walk-up to <%s>', opts.textValue, tag);
+    return xpath;
+  };
+}
+
+/**
+ * Walk up from a text node to find the nearest interactive ancestor (button, a, select).
+ * @param ctx - The Playwright Page or Frame to search in.
+ * @param textValue - The visible text to search for.
+ * @param queryFn - A function that checks element existence with a timeout.
+ * @returns The XPath selector for the interactive ancestor, or empty string if not found.
+ */
+export async function resolveByAncestorWalkUp(
+  ctx: Page | Frame,
+  textValue: string,
+  queryFn: QueryFn,
+): Promise<string> {
+  const opts: IAncestorProbeOpts = { ctx, textValue, queryFn };
+  const actions = INTERACTIVE_ANCESTORS.map(tag => buildAncestorProbe(opts, tag));
+  const emptyPromise = Promise.resolve('');
+  return actions.reduce<Promise<string>>(async (prev, action) => {
+    const found = await prev;
+    if (found) return found;
+    const next = await action();
+    return next;
+  }, emptyPromise);
+}
+
+/**
+ * Resolve a textContent candidate: find text anywhere, walk up to interactive element or nearby input.
+ * @param ctx - The Playwright Page or Frame to search in.
+ * @param textValue - The visible text to search for.
+ * @param queryFn - A function that checks element existence with a timeout.
+ * @returns The resolved selector, or empty string if not found.
+ */
+export async function resolveTextContent(
+  ctx: Page | Frame,
+  textValue: string,
+  queryFn: QueryFn,
+): Promise<string> {
+  const interactive = await resolveByAncestorWalkUp(ctx, textValue, queryFn);
+  if (interactive) return interactive;
+  return resolveByContainerInput(ctx, textValue, queryFn);
 }
 
 /**

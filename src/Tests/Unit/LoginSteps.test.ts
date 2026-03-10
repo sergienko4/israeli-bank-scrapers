@@ -88,7 +88,6 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
 const {
   stepOtpConfirm: STEP_OTP_CONFIRM,
   stepOtpCode: STEP_OTP_CODE,
-  stepSecondLogin: STEP_SECOND_LOGIN,
   resolveField: RESOLVE_FIELD,
   fillOneInput: FILL_ONE_INPUT,
 } = await import('../../Scrapers/Base/LoginSteps.js');
@@ -147,22 +146,6 @@ describe('stepOtpCode', () => {
     expect(stepResult.shouldContinue).toBe(false);
     expect(stepResult.result).toEqual(otpResult);
     expect(MOCK_HANDLE_OTP_CODE).toHaveBeenCalledWith(ctx.page, ctx.options, '+972****100');
-  });
-});
-
-describe('stepSecondLogin', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('calls postAction when provided and continues', async () => {
-    const postAction = jest.fn().mockResolvedValue(true);
-    const stepResult = await STEP_SECOND_LOGIN({ postAction } as never);
-    expect(postAction).toHaveBeenCalledTimes(1);
-    expect(stepResult.shouldContinue).toBe(true);
-  });
-
-  it('continues without error when postAction is absent', async () => {
-    const stepResult = await STEP_SECOND_LOGIN({} as never);
-    expect(stepResult.shouldContinue).toBe(true);
   });
 });
 

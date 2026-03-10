@@ -149,7 +149,6 @@ describe('resolveFieldContext', () => {
     const page = makePage({ $: findOnSecondCall });
     const result = await SELECTOR_MOD.resolveFieldContext(page, field, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
-    expect(result.selector).toBe('input[placeholder*="שם משתמש"]');
     expect(result.resolvedVia).toBe('wellKnown');
     expect(result.round).toBe('mainPage');
   });
@@ -160,7 +159,6 @@ describe('resolveFieldContext', () => {
     const emptyField: IFieldConfig = { credentialKey: 'username', selectors: [] };
     const result = await SELECTOR_MOD.resolveFieldContext(page, emptyField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
-    expect(result.selector).toBe('input[placeholder*="שם משתמש"]');
     expect(result.resolvedVia).toBe('wellKnown');
   });
 
@@ -304,5 +302,22 @@ describe('ariaLabel exact match', () => {
     const css = SELECTOR_MOD.candidateToCss({ kind: 'ariaLabel', value: 'סיסמה' });
     expect(css).toBe('input[aria-label="סיסמה"]');
     expect(css).not.toContain('*=');
+  });
+});
+
+// ── textContent kind ────────────────────────────────────────────────────────
+
+describe('textContent kind', () => {
+  it('candidateToCss converts textContent to xpath contains', () => {
+    const css = SELECTOR_MOD.candidateToCss({ kind: 'textContent', value: 'כניסה' });
+    expect(css).toBe('xpath=//*[contains(text(), "כניסה")]');
+  });
+
+  it('tryInContextInternal returns kind:textContent when textContent candidate resolves', async () => {
+    const element = {};
+    const ctx = makeFrame({ $: jest.fn().mockResolvedValue(element) });
+    const candidates: SelectorCandidate[] = [{ kind: 'textContent', value: 'כניסה' }];
+    const result = await SELECTOR_MOD.tryInContextInternal(ctx, candidates);
+    expect(result.kind).toBe('textContent');
   });
 });

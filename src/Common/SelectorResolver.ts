@@ -3,7 +3,7 @@ import { type Frame, type Page } from 'playwright';
 import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig.js';
 import { getDebug } from './Debug.js';
-import { resolveLabelText } from './SelectorLabelStrategies.js';
+import { resolveLabelText, resolveTextContent } from './SelectorLabelStrategies.js';
 import {
   buildNotFoundContext,
   type IFieldContext,
@@ -54,6 +54,8 @@ export function candidateToCss(candidate: SelectorCandidate): string {
   switch (candidate.kind) {
     case 'labelText':
       return `xpath=//label[contains(., "${candidate.value}")]`;
+    case 'textContent':
+      return `xpath=//*[contains(text(), "${candidate.value}")]`;
     case 'css':
       return candidate.value;
     case 'placeholder':
@@ -155,6 +157,40 @@ async function probeLabelText(
 }
 
 /**
+ * Probe a textContent candidate: find visible text, walk up DOM to interactive ancestor.
+ * @param ctx - The Page or Frame context to query in.
+ * @param candidate - The textContent selector candidate to probe.
+ * @returns The probe result with css and kind, or empty result if not found.
+ */
+async function probeTextContent(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+): Promise<IProbeResult> {
+  const resolved = await resolveTextContent(ctx, candidate.value, queryWithTimeout);
+  return { css: resolved, kind: 'textContent' };
+}
+
+/**
+ * Probe a standard (non-label, non-textContent) candidate via direct query.
+ * @param ctx - The Page or Frame context to query in.
+ * @param candidate - The selector candidate to probe.
+ * @returns The probe result with css and kind, or empty result if not found.
+ */
+async function probeStandardCandidate(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+): Promise<IProbeResult> {
+  const css = candidateToCss(candidate);
+  const isFound = await queryWithTimeout(ctx, css);
+  if (isFound) {
+    LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+    return { css, kind: candidate.kind };
+  }
+  LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
+  return { css: '', kind: candidate.kind };
+}
+
+/**
  * Probe a single candidate in the given context.
  * @param ctx - The Page or Frame context to query in.
  * @param candidate - The selector candidate to probe.
@@ -165,16 +201,9 @@ async function probeCandidate(
   candidate: SelectorCandidate,
 ): Promise<IProbeResult> {
   try {
-    if (candidate.kind === 'labelText') {
-      return await probeLabelText(ctx, candidate);
-    }
-    const css = candidateToCss(candidate);
-    const isFound = await queryWithTimeout(ctx, css);
-    if (isFound) {
-      LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
-      return { css, kind: candidate.kind };
-    }
-    LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
+    if (candidate.kind === 'labelText') return await probeLabelText(ctx, candidate);
+    if (candidate.kind === 'textContent') return await probeTextContent(ctx, candidate);
+    return await probeStandardCandidate(ctx, candidate);
   } catch {
     debugCandidateSkipped(candidate);
   }

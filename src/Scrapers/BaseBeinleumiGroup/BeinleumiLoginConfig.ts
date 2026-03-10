@@ -30,7 +30,7 @@ export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
   { kind: 'css', value: '#continueBtn' },
-  // ariaLabel 'כניסה' fallback is now in wellKnownSelectors.__submit__
+  // textContent 'המשך'/'כניסה' fallback is in wellKnownSelectors.__submit__
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {

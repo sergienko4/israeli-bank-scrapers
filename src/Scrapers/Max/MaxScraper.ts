@@ -3,28 +3,16 @@ import type { ILoginOptions } from '../Base/BaseScraperWithBrowser.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { fetchTransactions } from './MaxHelpers.js';
-import { MAX_CONFIG, maxHandleSecondLoginStep } from './MaxLoginConfig.js';
+import { buildMaxPostAction, type IMaxCredentials, MAX_CONFIG } from './MaxLoginConfig.js';
 
 export { getMemo } from './MaxHelpers.js';
 export type { IScrapedTransaction } from './MaxTypes.js';
 
 /**
- * Max has two login flows:
- *  - Flow A (common):     home -> username+password -> dashboard
- *  - Flow B (occasional): home -> username+password -> 2nd form -> dashboard
- * Provide `id` (Israeli national ID) so Flow B is handled.
+ * Max bank scraper — single login flow with conditional ID verification.
+ * After username+password submit, if ID field appears, fills all 3 fields and submits again.
  */
-interface IScraperSpecificCredentials {
-  /** Max account username. */
-  username: string;
-  /** Max account password. */
-  password: string;
-  /** Israeli national ID for second login step. */
-  id?: string;
-}
-
-/** Max bank scraper implementation. */
-class MaxScraper extends GenericBankScraper<IScraperSpecificCredentials> {
+class MaxScraper extends GenericBankScraper<IMaxCredentials> {
   /**
    * Create a new MaxScraper instance.
    * @param options - Scraper configuration options.
@@ -34,22 +22,21 @@ class MaxScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   }
 
   /**
-   * Build login options with second login step handler.
+   * Build login options with conditional ID post-action.
    * @param credentials - Max account credentials.
-   * @returns Login options with second step handler.
+   * @returns Login options with postAction that handles conditional ID.
    */
-  public override getLoginOptions(credentials: IScraperSpecificCredentials): ILoginOptions {
+  public override getLoginOptions(credentials: IMaxCredentials): ILoginOptions {
     const opts = super.getLoginOptions(credentials);
-    const original = opts.postAction;
+    const postAction = buildMaxPostAction(credentials);
     return {
       ...opts,
       /**
-       * Handle Max second login step then call original.
-       * @returns True after handling second step.
+       * Post-action: check for ID form, fill if needed, wait for dashboard.
+       * @returns True after post-login completes.
        */
       postAction: async (): Promise<boolean> => {
-        await maxHandleSecondLoginStep(this.page, credentials);
-        if (original) await original();
+        await postAction(this.page);
         return true;
       },
     };
