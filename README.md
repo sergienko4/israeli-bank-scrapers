@@ -73,20 +73,22 @@
 | Cloudflare WAF bypass | No                                   | First-attempt pass — native anti-detect, no plugins needed            |
 | Module format         | CommonJS only                        | Full ESM (`"type": "module"`) with dual CJS/ESM output                |
 | WAF error reporting   | "Unknown error"                      | Structured `WAF_BLOCKED` with provider, HTTP status, suggestions      |
-| Login field detection | Hardcoded CSS selectors              | WellKnown system — finds fields by visible text, label, placeholder   |
+| Login field detection | Hardcoded CSS selectors              | 7-strategy resolver: label, textContent walk-up, placeholder, aria, name, CSS, form-anchor |
 | OTP auto-detection    | Manual                               | Automatic — detects OTP screen, fills code, no browser changes needed |
 | Architecture          | Per-bank scrapers                    | Login middleware chain with HTML parser + cached frame resolution     |
 | TypeScript            | 4.7                                  | 5.9 strict mode, JSDoc on all functions                               |
 | Type naming           | No prefix                            | I-prefix interfaces (v8.0+), backward-compat aliases included        |
-| Test coverage         | ~600 tests                           | 895 tests, 68 suites, coverage thresholds enforced                    |
+| Test coverage         | ~600 tests                           | 972 tests, 95 suites, coverage thresholds enforced                    |
 | E2E coverage          | 3 banks                              | All 18 institutions                                                   |
 
 ### What's new in v8.0.0
 
 - **Strict ESLint with JSDoc** — every function, method, and class has JSDoc documentation. 2,598 ESLint errors resolved.
 - **I-prefix interfaces** — all public interfaces renamed with `I` prefix (e.g., `IScraper`, `IScraperScrapingResult`). **Backward-compatible**: old names (`Scraper`, `ScraperLoginResult`, `ScraperScrapingResult`) still work as type aliases.
-- **256 new tests** — total: 895 tests across 68 suites with enforced coverage thresholds.
-- **Architectural bans** — ESLint rules enforce: no `any`, no `void` returns, no `sleep()`/`setTimeout()`, no nested function calls, max 20 lines per function.
+- **`textContent` selector kind** — finds elements by visible text, walks up the DOM tree to the nearest interactive ancestor (button, link, select) or container with fillable inputs. Absolute last-resort fallback before CSS selectors.
+- **Form-anchored discovery** — after the first login field resolves, discovers the `<form>` element and scopes subsequent field resolution to that form context. Prevents false positives from unrelated page sections.
+- **Max single-flow login** — removed `hasSecondLoginStep` from the middleware chain. Max's conditional ID verification is now handled in `postAction`: after first submit, detects ID form by visible Hebrew text, fills all 3 fields if needed.
+- **900+ tests** — total: 934 tests across 70 suites with enforced coverage thresholds.
 
 Camoufox integration, middleware architecture, and ESM migration by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
 
@@ -461,20 +463,28 @@ Some scrapers support opt-in features for breaking changes. See the [OptInFeatur
 The login flow uses a middleware pattern — each step receives a shared `LoginContext` and can stop the chain or pass results to the next step:
 
 ```
-stepNavigate → stepParseLoginPage → stepFillAndSubmit → stepCheckResult → stepOtpConfirm → stepOtpCode → stepPostAction
+stepNavigate → stepParseLoginPage → stepFillAndSubmit → stepCheckResult → [stepOtpConfirm → stepOtpCode] → stepPostAction
 ```
 
 | Step                 | Purpose                                                                |
 | -------------------- | ---------------------------------------------------------------------- |
 | `stepNavigate`       | Go to bank home page, wait for readiness                               |
 | `stepParseLoginPage` | **Parse HTML structure once** — cache child frames for all later steps |
-| `stepFillAndSubmit`  | Resolve fields by visible text/label/placeholder, fill, click submit   |
+| `stepFillAndSubmit`  | Resolve fields by visible text/label/placeholder, fill, click submit. FormAnchor scopes subsequent fields to the same `<form>`. |
 | `stepCheckResult`    | Check URL/page for success or error                                    |
-| `stepOtpConfirm`     | Detect OTP screen, click "Send SMS" trigger                            |
-| `stepOtpCode`        | Get code from `otpCodeRetriever`, fill, submit, verify                 |
-| `stepPostAction`     | Wait for dashboard navigation                                          |
+| `stepOtpConfirm`     | *(optional)* Detect OTP screen, click "Send SMS" trigger               |
+| `stepOtpCode`        | *(optional)* Get code from `otpCodeRetriever`, fill, submit, verify    |
+| `stepPostAction`     | Bank-specific: wait for dashboard, handle conditional forms (e.g. Max ID verification) |
 
-**Key design principle:** No hardcoded CSS selectors for login fields. The `SelectorResolver` finds inputs by visible Hebrew text (`placeholder`, `label`, `ariaLabel`) using the `wellKnownSelectors` dictionary. The HTML is parsed once in `stepParseLoginPage` — all child frames are cached and reused by every downstream step.
+**Selector resolution priority** (7 candidate kinds, tried in order):
+1. `labelText` — find `<label>` by visible Hebrew text, follow `for=` attribute to input
+2. `placeholder` — match `input[placeholder*="..."]`
+3. `ariaLabel` — match `input[aria-label="..."]`
+4. `name` — match `[name="..."]`
+5. `css` — direct CSS selector (bank-specific fallback)
+6. `textContent` — find any visible text on page, walk up DOM to nearest interactive ancestor or container with inputs
+
+**Form-anchored discovery:** After the first field resolves, `FormAnchor` walks up from the `<input>` to find the parent `<form>`. All subsequent fields are scoped to that form first, falling back to full-page search if not found. This prevents false positives from unrelated forms on the page.
 
 ### Module Format
 
@@ -494,10 +504,10 @@ Full ESM (`"type": "module"`) with dual output:
 
 | Category | Suites | Tests |
 |---|---|---|
-| Unit tests | 47 | 619 |
+| Unit tests | 70 | 904 |
 | Mocked E2E | 9 | 30 |
-| Real E2E | 12 | 246 |
-| **Total** | **68** | **895** |
+| Real E2E | 16 | 38 |
+| **Total** | **95** | **972** |
 
 Coverage thresholds are enforced and ratcheted — no PR can reduce coverage.
 
@@ -559,7 +569,7 @@ const scraper = createScraper({
 | v7.8.1  | Mar 2026 | Login middleware chain, ScraperConfig central bank configuration                |
 | v7.9.0  | Mar 2026 | **Camoufox** replaces playwright-extra+stealth (Firefox anti-detect, C++ level) |
 | v7.10.0 | Mar 2026 | Full ESM migration, `stepParseLoginPage` HTML parser middleware                 |
-| v8.0.0  | Mar 2026 | Strict ESLint + JSDoc on all functions, I-prefix interfaces, 895 tests          |
+| v8.0.0  | Mar 2026 | Strict ESLint + JSDoc, I-prefix interfaces, textContent selector, form-anchor, Max single-flow |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -578,6 +588,9 @@ const scraper = createScraper({
 - [x] `GenericBankScraper` + `BANK_REGISTRY` — add a new DOM bank in one config object
 - [x] 4-round selector fallback — scraper auto-discovers login fields even if IDs change
 - [x] Remove all hardcoded CSS selectors from login fields — visible text first
+- [x] `textContent` selector kind — DOM walk-up from visible text to interactive ancestor
+- [x] Form-anchored discovery — scope field resolution to the discovered `<form>` element
+- [x] Max single-flow login — conditional ID in postAction, no separate middleware step
 - [x] TypeDoc API reference auto-published at [sergienko4.github.io/israeli-bank-scrapers](https://sergienko4.github.io/israeli-bank-scrapers/)
 - [ ] Replace `playwright` dependency with `playwright-core` (Camoufox provides the browser binary)
 - [ ] Configurable proxy support for residential IP routing
