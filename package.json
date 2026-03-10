@@ -1,7 +1,7 @@
 {
   "name": "@sergienko4/israeli-bank-scrapers",
   "version": "7.10.0",
-  "description": "Provide scrapers for all major Israeli banks and credit card companies",
+  "description": "Scrape transactions from all 18 Israeli banks with Cloudflare WAF bypass (Camoufox + Playwright)",
   "engines": {
     "node": ">= 22.14.0"
   },

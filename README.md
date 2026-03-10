@@ -43,10 +43,13 @@
     <li><a href="#about">About</a></li>
     <li><a href="#supported-institutions">Supported Institutions</a></li>
     <li><a href="#getting-started">Getting Started</a></li>
+    <li><a href="#upgrading">Upgrading</a></li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#type-reference">Type Reference</a></li>
     <li><a href="#waf-troubleshooting">WAF Troubleshooting</a></li>
     <li><a href="#advanced-options">Advanced Options</a></li>
     <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#performance-tips">Performance Tips</a></li>
     <li><a href="#version-timeline">Version Timeline</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -73,7 +76,17 @@
 | Login field detection | Hardcoded CSS selectors              | WellKnown system — finds fields by visible text, label, placeholder   |
 | OTP auto-detection    | Manual                               | Automatic — detects OTP screen, fills code, no browser changes needed |
 | Architecture          | Per-bank scrapers                    | Login middleware chain with HTML parser + cached frame resolution     |
-| E2E test coverage     | 3 banks                              | All 18 institutions                                                   |
+| TypeScript            | 4.7                                  | 5.9 strict mode, JSDoc on all functions                               |
+| Type naming           | No prefix                            | I-prefix interfaces (v8.0+), backward-compat aliases included        |
+| Test coverage         | ~600 tests                           | 895 tests, 68 suites, coverage thresholds enforced                    |
+| E2E coverage          | 3 banks                              | All 18 institutions                                                   |
+
+### What's new in v8.0.0
+
+- **Strict ESLint with JSDoc** — every function, method, and class has JSDoc documentation. 2,598 ESLint errors resolved.
+- **I-prefix interfaces** — all public interfaces renamed with `I` prefix (e.g., `IScraper`, `IScraperScrapingResult`). **Backward-compatible**: old names (`Scraper`, `ScraperLoginResult`, `ScraperScrapingResult`) still work as type aliases.
+- **256 new tests** — total: 895 tests across 68 suites with enforced coverage thresholds.
+- **Architectural bans** — ESLint rules enforce: no `any`, no `void` returns, no `sleep()`/`setTimeout()`, no nested function calls, max 20 lines per function.
 
 Camoufox integration, middleware architecture, and ESM migration by [@sergienko4](https://github.com/sergienko4). Validated on all 18 institutions across local, Azure, and Oracle Cloud servers.
 
@@ -128,6 +141,82 @@ npm install @sergienko4/israeli-bank-scrapers
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Upgrading
+
+### From upstream (eshaham/israeli-bank-scrapers)
+
+```diff
+- npm install israeli-bank-scrapers
++ npm install @sergienko4/israeli-bank-scrapers
+```
+
+```diff
+- import { createScraper } from 'israeli-bank-scrapers';
++ import { createScraper } from '@sergienko4/israeli-bank-scrapers';
+```
+
+Key differences:
+- **Browser**: Playwright + Camoufox instead of Puppeteer. If you pass your own `browser`, use `Camoufox()` instead of `chromium.launch()`
+- **`getPuppeteerConfig()`**: Removed. Use Playwright's API directly
+- **Module format**: Full ESM with dual CJS/ESM output. Both `import` and `require()` work
+- **Type names**: Interfaces use `I` prefix (e.g., `IScraper`). Old names still work as aliases
+
+### v7.x → v8.0.0
+
+**Type renames (non-breaking with aliases):**
+
+All public interfaces now use the `I` prefix. Old names are re-exported as type aliases and continue to work:
+
+```typescript
+// Both work — old names are aliases for the new I-prefixed types
+import type { Scraper } from '@sergienko4/israeli-bank-scrapers';              // v7 name (still works)
+import type { IScraper } from '@sergienko4/israeli-bank-scrapers';             // v8 name (preferred)
+
+import type { ScraperScrapingResult } from '@sergienko4/israeli-bank-scrapers'; // v7 name (still works)
+import type { IScraperScrapingResult } from '@sergienko4/israeli-bank-scrapers'; // v8 name (preferred)
+```
+
+| v7.x name | v8.0.0 name | Status |
+|---|---|---|
+| `Scraper<T>` | `IScraper<T>` | Alias works |
+| `ScraperLoginResult` | `IScraperLoginResult` | Alias works |
+| `ScraperScrapingResult` | `IScraperScrapingResult` | Alias works |
+| `ScraperCredentials` | `ScraperCredentials` | Unchanged |
+| `ScraperOptions` | `ScraperOptions` | Unchanged |
+
+**No code changes required** — your existing imports continue to work. The new `I`-prefixed names are recommended for new code.
+
+### v7.8.x → v7.9.x
+
+**Browser engine change (non-breaking for consumers):**
+
+- `playwright-extra` + `puppeteer-extra-plugin-stealth` replaced by `@hieutran094/camoufox-js` (Firefox anti-detect browser)
+- The scraper API is unchanged — `createScraper()` works identically
+- If you pass your own `browser` instance, use `Camoufox()` instead of `chromium.launch()`
+
+### v7.9.x → v7.10.x
+
+**Full ESM migration (potentially breaking for test consumers):**
+
+- `package.json` now has `"type": "module"`
+- Dual CJS/ESM output: `lib/index.mjs` (ESM) + `lib/index.cjs` (CJS)
+- If you import this library, `import` and `require()` both work — no changes needed
+- If you extend scraper classes in tests: `jest` is no longer a global in ESM — use `import { jest } from '@jest/globals'`
+
+### v7.0.x → v7.1.x
+
+**New additions (non-breaking):**
+
+- `ScraperOptions.otpCodeRetriever` — optional callback for DOM banks (Beinleumi, Discount). Not required — if omitted and OTP is detected, returns `TWO_FACTOR_RETRIEVER_MISSING`.
+- `ScraperScrapingResult.persistentOtpToken` — optional token returned by banks supporting session reuse (e.g. OneZero). Save and pass as `credentials.otpLongTermToken` to skip SMS on next run.
+- `ScraperErrorTypes.InvalidOtp = 'INVALID_OTP'` — new error type when OTP code is rejected.
+
+**Deprecated (still works, no action needed):**
+
+- `ScraperErrorTypes.General = 'GENERAL_ERROR'` — use `ScraperErrorTypes.Generic = 'GENERIC'` instead. Both values remain in the enum.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Usage
 
 ```typescript
@@ -136,7 +225,7 @@ import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 const scraper = createScraper({
   companyId: CompanyTypes.amex,
   startDate: new Date('2024-01-01'),
-  combineInstallments: false,
+  shouldCombineInstallments: false,
 });
 
 const result = await scraper.scrape({
@@ -210,6 +299,46 @@ import { SCRAPERS } from '@sergienko4/israeli-bank-scrapers';
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Type Reference
+
+All types are exported from the package entry point:
+
+```typescript
+import type {
+  IScraper,                // Main scraper interface (generic over credentials)
+  IScraperScrapingResult,  // Result of scrape() — accounts, errors, diagnostics
+  IScraperLoginResult,     // Login attempt result
+  ScraperCredentials,      // Union of all credential shapes
+  ScraperOptions,          // Configuration passed to createScraper()
+} from '@sergienko4/israeli-bank-scrapers';
+```
+
+### Exported Types
+
+| Type | Description |
+|---|---|
+| `IScraper<TCredentials>` | Main scraper interface with `scrape()`, `onProgress()`, `triggerTwoFactorAuth()` |
+| `IScraperScrapingResult` | Result object: `success`, `accounts`, `errorType`, `errorDetails`, `diagnostics` |
+| `IScraperLoginResult` | Login result: `success`, `errorType`, `errorMessage` |
+| `ScraperCredentials` | Union type for all bank credential shapes |
+| `ScraperOptions` | Config: `companyId`, `startDate`, browser options, OTP, timeouts |
+| `CompanyTypes` | Enum of all supported bank/card company identifiers |
+| `SCRAPERS` | Object with metadata (name, loginFields) for each company |
+
+### Backward-Compatible Aliases
+
+These v7.x names are re-exported as type aliases and continue to work:
+
+| v7.x name | Points to | Usage |
+|---|---|---|
+| `Scraper<T>` | `IScraper<T>` | `import type { Scraper } from '...'` |
+| `ScraperLoginResult` | `IScraperLoginResult` | `import type { ScraperLoginResult } from '...'` |
+| `ScraperScrapingResult` | `IScraperScrapingResult` | `import type { ScraperScrapingResult } from '...'` |
+| `ScaperLoginResult` | `IScraperLoginResult` | Legacy typo alias (upstream compat) |
+| `ScaperScrapingResult` | `IScraperScrapingResult` | Legacy typo alias (upstream compat) |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## WAF Troubleshooting
 
 Camoufox bypasses most Cloudflare challenges automatically via C++-level Firefox anti-detect. If you still get `errorType: 'WAF_BLOCKED'`:
@@ -219,6 +348,8 @@ Camoufox bypasses most Cloudflare challenges automatically via C++-level Firefox
 | API-level 403       | Login succeeds but API calls blocked | Wait 1-2 hours, reduce scrape frequency |
 | Datacenter IP block | Cloud provider IPs rate-limited      | Use residential proxy or Azure          |
 | Turnstile CAPTCHA   | Interactive challenge on login page  | Use a trusted IP provider               |
+| First run on new IP | Cloudflare flags unknown IP          | Run once with `headless: false` to pass initial challenge, then switch to headless |
+| Parallel scraping   | Too many concurrent requests         | Use browser contexts (shared browser), add 2-5s delay between scrapers |
 
 > **Tip:** Camoufox passes WAF on first attempt from most IPs. No stealth plugins or retry logic needed — anti-detection is built into the browser binary.
 
@@ -319,7 +450,7 @@ if (!result.success && result.errorType === 'TWO_FACTOR_RETRIEVER_MISSING') {
 
 ### Opt-In Features
 
-Some scrapers support opt-in features for breaking changes. See the [OptInFeatures type](./src/scrapers/interface.ts).
+Some scrapers support opt-in features for breaking changes. See the [OptInFeatures type](./src/Scrapers/Base/Interface.ts).
 
 ---
 
@@ -359,6 +490,58 @@ Full ESM (`"type": "module"`) with dual output:
 }
 ```
 
+### Test Coverage
+
+| Category | Suites | Tests |
+|---|---|---|
+| Unit tests | 47 | 619 |
+| Mocked E2E | 9 | 30 |
+| Real E2E | 12 | 246 |
+| **Total** | **68** | **895** |
+
+Coverage thresholds are enforced and ratcheted — no PR can reduce coverage.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Performance Tips
+
+### Browser context reuse
+
+For parallel scraping of multiple banks, share a single browser and create isolated contexts:
+
+```typescript
+import { Camoufox } from '@hieutran094/camoufox-js';
+
+const browser = await Camoufox({ headless: true });
+
+const results = await Promise.all(
+  banks.map(async ({ companyId, credentials }) => {
+    const context = await browser.newContext();
+    const scraper = createScraper({ companyId, startDate, browserContext: context });
+    const result = await scraper.scrape(credentials);
+    await context.close();
+    return result;
+  }),
+);
+
+await browser.close();
+```
+
+### Headless mode
+
+Always use `headless: true` for production. Headed mode (`headless: false`) is useful for debugging and initial WAF challenges on new IPs.
+
+### Timeout tuning
+
+```typescript
+const scraper = createScraper({
+  companyId: CompanyTypes.leumi,
+  startDate,
+  defaultTimeout: 60000, // increase for slow connections (default: 30s)
+  navigationRetryCount: 2, // retry navigation on failure (default: 0)
+});
+```
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Version Timeline
@@ -376,51 +559,7 @@ Full ESM (`"type": "module"`) with dual output:
 | v7.8.1  | Mar 2026 | Login middleware chain, ScraperConfig central bank configuration                |
 | v7.9.0  | Mar 2026 | **Camoufox** replaces playwright-extra+stealth (Firefox anti-detect, C++ level) |
 | v7.10.0 | Mar 2026 | Full ESM migration, `stepParseLoginPage` HTML parser middleware                 |
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Migration Notes
-
-### v7.0.x → v7.1.x
-
-**New additions (non-breaking):**
-
-- `ScraperOptions.otpCodeRetriever` — optional callback for DOM banks (Beinleumi, Discount). Not required — if omitted and OTP is detected, returns `TWO_FACTOR_RETRIEVER_MISSING`.
-- `ScraperScrapingResult.persistentOtpToken` — optional token returned by banks supporting session reuse (e.g. OneZero). Save and pass as `credentials.otpLongTermToken` to skip SMS on next run.
-- `ScraperErrorTypes.InvalidOtp = 'INVALID_OTP'` — new error type when OTP code is rejected.
-
-**Deprecated (still works, no action needed):**
-
-- `ScraperErrorTypes.General = 'GENERAL_ERROR'` — use `ScraperErrorTypes.Generic = 'GENERIC'` instead. Both values remain in the enum.
-
-**Potentially breaking — `WafBlockError.apiBlock()` signature:**
-
-```typescript
-// Old (v7.0.x):
-WafBlockError.apiBlock(httpStatus, pageUrl, pageTitle, responseSnippet);
-
-// New (v7.1.x):
-WafBlockError.apiBlock(httpStatus, pageUrl, { pageTitle, responseSnippet });
-```
-
-This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers who only check `result.errorType === 'WAF_BLOCKED'` are unaffected.
-
-### v7.8.x → v7.9.x
-
-**Browser engine change (non-breaking for consumers):**
-
-- `playwright-extra` + `puppeteer-extra-plugin-stealth` replaced by `@hieutran094/camoufox-js` (Firefox anti-detect browser)
-- The scraper API is unchanged — `createScraper()` works identically
-- If you pass your own `browser` instance, use `Camoufox()` instead of `chromium.launch()`
-
-### v7.9.x → v7.10.x
-
-**Full ESM migration (potentially breaking for test consumers):**
-
-- `package.json` now has `"type": "module"`
-- Dual CJS/ESM output: `lib/index.mjs` (ESM) + `lib/index.cjs` (CJS)
-- If you import this library, `import` and `require()` both work — no changes needed
-- If you extend scraper classes in tests: `jest` is no longer a global in ESM — use `import { jest } from '@jest/globals'`
+| v8.0.0  | Mar 2026 | Strict ESLint + JSDoc on all functions, I-prefix interfaces, 895 tests          |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -435,11 +574,11 @@ This only affects code that calls `WafBlockError.apiBlock()` directly. Consumers
 - [x] Automatic OTP handling for DOM banks (Beinleumi, Discount) — no manual steps
 - [x] `INVALID_OTP` error type — fast fail (5s) with clear message when code is wrong/expired
 - [x] `persistentOtpToken` surfaced in scrape result for session reuse
-- [x] Zero-Compromise ESLint gate: `no-any`, `no-unsafe-*`, explicit return types, 20-line/300-line limits
+- [x] Zero-Compromise ESLint: strict types, JSDoc on all functions, I-prefix interfaces, architectural bans
 - [x] `GenericBankScraper` + `BANK_REGISTRY` — add a new DOM bank in one config object
 - [x] 4-round selector fallback — scraper auto-discovers login fields even if IDs change
+- [x] Remove all hardcoded CSS selectors from login fields — visible text first
 - [x] TypeDoc API reference auto-published at [sergienko4.github.io/israeli-bank-scrapers](https://sergienko4.github.io/israeli-bank-scrapers/)
-- [ ] Remove ALL hardcoded CSS selectors — use only visible text, labels, placeholders, aria attributes
 - [ ] Replace `playwright` dependency with `playwright-core` (Camoufox provides the browser binary)
 - [ ] Configurable proxy support for residential IP routing
 
@@ -513,7 +652,7 @@ Project Link: [github.com/sergienko4/israeli-bank-scrapers](https://github.com/s
 [pw-url]: https://playwright.dev
 [jest-shield]: https://img.shields.io/badge/Jest-30-C21325?style=for-the-badge&logo=jest&logoColor=white
 [jest-url]: https://jestjs.io
-[eslint-shield]: https://img.shields.io/badge/ESLint-9-4B32C3?style=for-the-badge&logo=eslint&logoColor=white
+[eslint-shield]: https://img.shields.io/badge/ESLint-10-4B32C3?style=for-the-badge&logo=eslint&logoColor=white
 [eslint-url]: https://eslint.org
 [docs-shield]: https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white
 [docs-url]: https://sergienko4.github.io/israeli-bank-scrapers/
