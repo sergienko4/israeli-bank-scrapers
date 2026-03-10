@@ -15,9 +15,9 @@ While there's no specific template for creating a new issue, please take the tim
 
 ## Testing the scrapers
 
-In order to run tests you need first to create test configuration file `./src/tests/.tests-config.js` from template `./src/tests/.tests-config.tpl.js`. This file will be used by `jest` testing framework.
+In order to run tests you need first to create test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`. This file will be used by `jest` testing framework.
 
-> IMPORTANT: Under `src/tests` folder exists `.gitignore` file that ignore the test configuration file thus this file will not be commited to github. Still when you create new PRs make sure that you didn't explicitly added it to the PR.
+> IMPORTANT: Under `src/Tests` folder exists `.gitignore` file that ignore the test configuration file thus this file will not be commited to github. Still when you create new PRs make sure that you didn't explicitly added it to the PR.
 
 This library supports both testing against credit card companies / banks api and also against mock data. Until we will have a good coverage of scrapers test with mock data, the default configuration is set to execute real companies api tests.
 
@@ -55,7 +55,7 @@ npm test -- --testNamePattern="Leumi legacy scraper should expose login fields i
 
 Many IDEs support running jest tests directly from the UI. In webstorm for example a small play icon automatically appears next to each describe/test.
 
-**IMPORTANT Note** babel is configured to ignore tests by default. You must add an environment variable `BABEL_ENV=test` to the IDE test configuration to allow the tests to work.
+**IMPORTANT Note** The project uses ESM (`"type": "module"`). If your IDE needs special configuration for Jest with ESM, set `NODE_OPTIONS=--experimental-vm-modules` in the test run configuration.
 
 ### Save unit test scraper results into file
 
@@ -109,11 +109,11 @@ EOF
 ```
 
 #### Trying to run the tests using the CLI fail saying the test configuration file is missing
-Make sure that you created test configuration file `./src/tests/.tests-config.js` from template `./src/tests/.tests-config.tpl.js`.
+Make sure that you created test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`.
 
 #### Trying to run the tests using the IDE fail saying the test configuration file is missing
-1. Make sure that you created test configuration file `./src/tests/.tests-config.js` from template `./src/tests/.tests-config.tpl.js`.
-2. Make sure that you added environment variable `BABEL_ENV=test` to the IDE test configuration.
+1. Make sure that you created test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`.
+2. Make sure that you set `NODE_OPTIONS=--experimental-vm-modules` in the IDE test configuration.
 
 #### Tests of desired company are skipped without any errors
 
@@ -134,7 +134,7 @@ PR titles **must** follow [Conventional Commits](https://www.conventionalcommits
 - `docs: description` — documentation only
 - `test: description` — test changes only
 
-All PRs must pass 7 required CI checks before merge (lint, type-check, tests, build, E2E, audit, PR title validation).
+All PRs must pass CI checks before merge (lint, type-check, tests, build, E2E, audit, PR title validation). The pre-commit hook runs the same 8-gate validation locally.
 
 ## Publishing
 
@@ -158,7 +158,7 @@ Most scrapers inherit from `BaseScraper`, notice that you need to implement the 
 Unless you plan to override the entire `login()` function, You can override this function to login regularly in a login form.
 
 ```typescript
-import { LoginResults, PossibleLoginResults } from './base-scraper-with-browser';
+import { LoginResults, PossibleLoginResults } from './Scrapers/Base/BaseScraperWithBrowser';
 
 function getPossibleLoginResults(): PossibleLoginResults {
   // checkout file `base-scraper-with-browser.ts` for available result types
@@ -184,4 +184,4 @@ function getLoginOptions(credentials) {
 
 ### Overriding fetchData()
 
-You can override this async function however way you want, as long as your return results as `ScaperScrapingResult` (checkout declaration [here](./src/scrapers/base-scraper.ts#L151)).
+You can override this async function however way you want, as long as your return results as `IScraperScrapingResult` (see [Interface.ts](./src/Scrapers/Base/Interface.ts)).
