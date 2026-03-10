@@ -1,5 +1,23 @@
 # Changelog
 
+## [8.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.10.0...v8.0.0) (2026-03-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* All interfaces renamed with I-prefix (e.g., Transaction → ITransaction, ScraperScrapingResult → IScraperScrapingResult). Public API callback types use LifecyclePromise instead of void. fetchGetWithinPage/fetchPostWithinPage return Nullable<TResult> instead of TResult.
+
+### Features
+
+* strict ESLint config with JSDoc, I-prefix, architectural bans ([#119](https://github.com/sergienko4/israeli-bank-scrapers/issues/119)) ([becfecf](https://github.com/sergienko4/israeli-bank-scrapers/commit/becfecfead80edf1cc9fb8b5f27737843e8691b3))
+* textContent selector + form-anchor + Max single-flow refactor ([#124](https://github.com/sergienko4/israeli-bank-scrapers/issues/124)) ([f8bbfff](https://github.com/sergienko4/israeli-bank-scrapers/commit/f8bbfff27de362e588f82c95dc39dfa7d8419902))
+
+
+### Bug Fixes
+
+* add backward-compatible type aliases for v7.x consumers ([#121](https://github.com/sergienko4/israeli-bank-scrapers/issues/121)) ([842a8a4](https://github.com/sergienko4/israeli-bank-scrapers/commit/842a8a438bb544563d120f71a31535769cb354b9))
+* add diagnostic logging to Max postAction + increase timeout to 60s ([#125](https://github.com/sergienko4/israeli-bank-scrapers/issues/125)) ([442efd6](https://github.com/sergienko4/israeli-bank-scrapers/commit/442efd6778b6ebfcd174651612db2188e2587359))
+
 ## [7.10.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.9.0...v7.10.0) (2026-03-08)
 
 
