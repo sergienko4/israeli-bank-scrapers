@@ -5,6 +5,7 @@ import { type IErrorResult } from './Errors.js';
 import type { LifecyclePromise, VoidResult } from './Interfaces/CallbackTypes.js';
 import type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
 import type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
+import type { IScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
 import type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 
 export type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
@@ -184,3 +185,21 @@ export type ScraperGetLongTermTwoFactorTokenResult =
       success: true;
       longTermTwoFactorAuthToken: string;
     };
+
+// Backward-compatible type aliases (v7.x names → I-prefixed equivalents)
+
+/**
+ * Backward-compatible alias for IScraper. Prefer IScraper for new code.
+ */
+export type Scraper<TCredentials extends ScraperCredentials = ScraperCredentials> =
+  IScraper<TCredentials>;
+
+/**
+ * Backward-compatible alias for IScraperLoginResult. Prefer IScraperLoginResult for new code.
+ */
+export type ScraperLoginResult = IScraperLoginResult;
+
+/**
+ * Backward-compatible alias for IScraperScrapingResult. Prefer IScraperScrapingResult for new code.
+ */
+export type ScraperScrapingResult = IScraperScrapingResult;
