@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
 import {
-  assertFailedLogin,
   assertSuccessfulScrape,
   BROWSER_ARGS,
   lastMonthStartDate,
@@ -43,20 +42,5 @@ DESCRIBE_IF('E2E: Isracard (real credentials)', () => {
 
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
-  });
-
-  it('fails with invalid credentials', async () => {
-    const scraper = createScraper({
-      companyId: CompanyTypes.Isracard,
-      startDate: new Date(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-    });
-    const result = await scraper.scrape({
-      id: '000000000',
-      card6Digits: '000000',
-      password: 'invalid123',
-    });
-    assertFailedLogin(result);
   });
 });

@@ -1,37 +1,26 @@
 import { type Page } from 'playwright';
 
+import { getDebug } from '../../Common/Debug.js';
+import { capturePageText, elementPresentOnPage } from '../../Common/ElementsInteractions.js';
 import {
-  clickButton,
-  elementPresentOnPage,
-  fillInput,
-  waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
-import { resolveFieldContext } from '../../Common/SelectorResolver.js';
+  findFormByField,
+  wellKnownPlaceholder,
+  wellKnownSubmitButton,
+} from '../../Common/WellKnownLocators.js';
 import { CompanyTypes } from '../../Definitions.js';
 import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
-import { type IFieldConfig, type ILoginConfig } from '../Base/LoginConfig.js';
+import { type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
+const LOG = getDebug('max-login');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 
-const MAX_USERNAME_FIELD: IFieldConfig = { credentialKey: 'username', selectors: [] };
-const MAX_PASSWORD_FIELD: IFieldConfig = { credentialKey: 'password', selectors: [] };
-const MAX_ID_FIELD: IFieldConfig = { credentialKey: 'id', selectors: [] };
-
-/**
- * Resolve a login field via SelectorResolver and fill it with the given value.
- * @param page - The Playwright page to resolve and fill in.
- * @param field - The field config with credential key and selectors.
- * @param value - The text value to enter into the input.
- * @returns True if the field was found and filled, false if not resolved.
- */
-async function resolveAndFill(page: Page, field: IFieldConfig, value: string): Promise<boolean> {
-  const pageUrl = page.url();
-  const ctx = await resolveFieldContext(page, field, pageUrl);
-  if (!ctx.isResolved) return false;
-  await fillInput(ctx.context, ctx.selector, value);
-  return true;
-}
+/** Hebrew phrases that indicate Max is requesting ID verification after login. */
+const SECOND_LOGIN_INDICATORS: readonly string[] = [
+  'נבקש למלא את מספר תעודת הזהות',
+  'מלא את מספר תעודת הזהות',
+  'תעודת הזהות',
+];
 
 /** Max login credentials with optional national ID for Flow B. */
 interface IMaxCredentials {
@@ -41,74 +30,77 @@ interface IMaxCredentials {
 }
 
 /**
- * Handle the optional second-login step in Max's Flow B.
- * If the ID form is not present (Flow A), this function is a no-op.
- * @param page - The Playwright page with the second login form.
+ * Detect whether the page is showing an ID verification prompt.
+ * Scans visible page text for indicator phrases.
+ * @param page - The Playwright page to scan.
+ * @returns True if any indicator phrase is found in the page text.
+ */
+export async function detectIdVerification(page: Page): Promise<boolean> {
+  const pageText = await capturePageText(page);
+  return SECOND_LOGIN_INDICATORS.some(ind => pageText.includes(ind));
+}
+
+/**
+ * Fill all three login fields (ID, username, password) and submit the form.
+ * Scoped to the form that contains the username field — avoids the hidden OTP tab.
+ * @param page - The Playwright page with the ID verification form.
+ * @param credentials - The user's Max credentials including ID.
+ * @returns True after the form is submitted.
+ */
+async function fillAndSubmitIdForm(page: Page, credentials: IMaxCredentials): Promise<boolean> {
+  const form = findFormByField(page, 'username');
+  const idField = wellKnownPlaceholder(form, 'id');
+  await idField.waitFor({ state: 'visible', timeout: 10000 });
+  await idField.fill(credentials.id ?? '');
+  LOG.info('second-login: ID filled');
+  await wellKnownPlaceholder(form, 'username').fill(credentials.username);
+  await wellKnownPlaceholder(form, 'password').fill(credentials.password);
+  LOG.info('second-login: username + password re-filled');
+  await wellKnownSubmitButton(form).click();
+  await page.waitForTimeout(1000);
+  LOG.info('second-login: form submitted with ID');
+  return true;
+}
+
+/**
+ * Check if ID prompt is showing and fill it if credentials include ID.
+ * @param page - The Playwright page to check.
+ * @param credentials - The user's Max credentials.
+ * @returns True if ID was filled, false if skipped.
+ */
+async function handleIdPromptIfPresent(page: Page, credentials: IMaxCredentials): Promise<boolean> {
+  if (!credentials.id) return false;
+  const hasIdPrompt = await detectIdVerification(page);
+  if (!hasIdPrompt) return false;
+  LOG.info('post-login: ID verification detected — filling fields');
+  await fillAndSubmitIdForm(page, credentials);
+  return true;
+}
+
+/**
+ * Handle Max post-login: check redirect, check ID prompt, wait for dashboard.
+ *
+ * Flow: submit → redirected to dashboard? → yes: done
+ *                                         → no: ID prompt? → fill ID → submit → dashboard
+ *
+ * @param page - The Playwright page after login form submission.
  * @param credentials - The user's Max credentials including optional ID.
- * @returns True after the second step completes or is skipped.
+ * @returns True after the dashboard is reached.
  */
 export async function maxHandleSecondLoginStep(
   page: Page,
   credentials: IMaxCredentials,
 ): Promise<boolean> {
-  if (!credentials.id) return true;
-  const pageUrl = page.url();
-  const idCtx = await resolveFieldContext(page, MAX_ID_FIELD, pageUrl);
-  if (!idCtx.isResolved) return true;
-  await resolveAndFill(page, MAX_USERNAME_FIELD, credentials.username);
-  await resolveAndFill(page, MAX_PASSWORD_FIELD, credentials.password);
-  await fillInput(idCtx.context, idCtx.selector, credentials.id);
-  const submitSelector = 'app-user-login-form .general-button.send-me-code';
-  await clickButton(page, submitSelector);
-  await page.waitForTimeout(1000);
+  const isOnDashboard = page.url().includes('/homepage');
+  if (isOnDashboard) {
+    LOG.info('post-login: already on dashboard');
+    return true;
+  }
+  await handleIdPromptIfPresent(page, credentials);
+  LOG.info('post-login: waiting for dashboard redirect');
+  await page.waitForURL('**/homepage/**', { timeout: 30000 });
+  LOG.info('post-login: dashboard reached');
   return true;
-}
-
-/**
- * Try to click the first visible locator matching one of the given texts.
- * @param page - The Playwright page to search in.
- * @param text - The button text to look for.
- * @returns True if a visible element was clicked, false otherwise.
- */
-async function tryClickVisible(page: Page, text: string): Promise<boolean> {
-  const loc = page.locator(`text=${text}`).first();
-  const isVisible = await loc.isVisible({ timeout: 3000 }).catch(() => false);
-  if (isVisible) {
-    await loc.click();
-    return true;
-  }
-  return false;
-}
-
-/**
- * Force-click the first DOM element matching the given text.
- * @param page - The Playwright page to search in.
- * @param text - The button text to look for.
- * @returns True if an element was force-clicked, false otherwise.
- */
-async function tryForceClick(page: Page, text: string): Promise<boolean> {
-  const loc = page.locator(`text=${text}`).first();
-  const count = await loc.count();
-  if (count > 0) {
-    await loc.click({ force: true });
-    return true;
-  }
-  return false;
-}
-
-/**
- * Click the first visible or present element matching one of the given texts.
- * @param page - The Playwright page to search in.
- * @param texts - Ordered list of button texts to try.
- * @returns True if any element was clicked.
- */
-async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> {
-  const visibleChecks = texts.map(text => tryClickVisible(page, text));
-  const visibleResults = await Promise.all(visibleChecks);
-  if (visibleResults.some(Boolean)) return true;
-  const forceChecks = texts.map(text => tryForceClick(page, text));
-  const forceResults = await Promise.all(forceChecks);
-  return forceResults.some(Boolean);
 }
 
 /**
@@ -127,38 +119,46 @@ async function closePopupIfPresent(page: Page): Promise<boolean> {
 }
 
 /**
+ * Wait for a text element to become visible, then click it.
+ * @param page - The Playwright page to search in.
+ * @param text - The visible text to find and click.
+ * @param timeout - Maximum wait time in ms.
+ * @returns True after the element is clicked.
+ */
+async function waitAndClickText(page: Page, text: string, timeout = 10000): Promise<boolean> {
+  const locator = page.getByText(text, { exact: false }).first();
+  await locator.waitFor({ state: 'visible', timeout });
+  await locator.click();
+  return true;
+}
+
+/**
  * Navigate the Max login flow: personal area → private customers → password login.
+ * Each step waits for visibility before clicking — no hardcoded sleeps.
  * @param page - The Playwright page to navigate.
  * @returns The login frame if found, or undefined when Max uses the main page.
  */
 async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
   await closePopupIfPresent(page);
-  await clickFirstVisible(page, ['כניסה לאיזור האישי']);
-  await page.waitForTimeout(1500);
-  await clickFirstVisible(page, ['לקוחות פרטיים']);
-  await page.waitForTimeout(500);
-  await clickFirstVisible(page, ['כניסה עם סיסמה']);
-  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
-    state: 'visible',
-    timeout: 15000,
-  });
+  await waitAndClickText(page, 'כניסה לאיזור האישי');
+  await waitAndClickText(page, 'לקוחות פרטיים');
+  await waitAndClickText(page, 'כניסה עם סיסמה');
+  const usernameField = wellKnownPlaceholder(page, 'username');
+  await usernameField.waitFor({ state: 'visible', timeout: 15000 });
   // Max login uses the main page — no iframe needed
   const noFrame = page.frames().find(f => f.name() === '__nonexistent__');
   return noFrame;
 }
 
 /**
- * Wait for the Max post-login page to resolve to a known outcome.
- * @param page - The Playwright page to observe after login submission.
- * @returns True after a post-login indicator is detected.
+ * Post-action after second-login step completes.
+ * Dashboard wait is handled by maxHandleSecondLoginStep — just log URL.
+ * @param page - The Playwright page (already on dashboard).
  */
 async function maxPostAction(page: Page): LifecyclePromise {
-  if (page.url().startsWith('https://www.max.co.il/homepage')) return;
-  await Promise.race([
-    page.waitForURL('**/homepage/**', { timeout: 20000 }),
-    waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
-    waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
-  ]);
+  const currentUrl = page.url();
+  LOG.info('post-action: url=%s', currentUrl);
+  await page.waitForTimeout(0);
 }
 
 /**

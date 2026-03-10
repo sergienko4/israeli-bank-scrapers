@@ -94,6 +94,30 @@ jest.unstable_mockModule(
   () => ({ default: jest.fn(() => [MOMENT('2024-06-01')]) }),
 );
 
+jest.unstable_mockModule('../../Common/WellKnownLocators.js', () => {
+  /** Locator stub with chainable methods. */
+  const stub: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    fill: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    and: jest.fn(),
+    getByPlaceholder: jest.fn(),
+    getByRole: jest.fn(),
+    locator: jest.fn(),
+  };
+  stub.first.mockReturnValue(stub);
+  stub.and.mockReturnValue(stub);
+  stub.getByPlaceholder.mockReturnValue(stub);
+  stub.getByRole.mockReturnValue(stub);
+  stub.locator.mockReturnValue(stub);
+  return {
+    wellKnownPlaceholder: jest.fn().mockReturnValue(stub),
+    wellKnownSubmitButton: jest.fn().mockReturnValue(stub),
+    findFormByField: jest.fn().mockReturnValue(stub),
+  };
+});
+
 jest.unstable_mockModule(
   '../../Common/Waiting.js',
   /**

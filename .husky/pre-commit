@@ -50,7 +50,7 @@ if [ -f .env ]; then
   npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs 2>/dev/null
   run_gate node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
     --testPathPatterns='E2eReal/Amex|E2eReal/Isracard|E2eReal/Max|E2eReal/Discount|E2eReal/Visacal' \
-    --verbose || exit 1
+    --runInBand --verbose || exit 1
 else
   echo "  ⚠️  No .env file — skipping real E2E (CI will run them)" | tee -a "$LOG_FILE"
 fi

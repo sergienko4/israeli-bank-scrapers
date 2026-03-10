@@ -3,20 +3,22 @@
  *
  * Tests labelText false-positive guard, iframe labelText, and sibling strategy.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -39,6 +41,7 @@ const FALSE_POSITIVE_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText false-positive guard', () => {
   it('does NOT resolve <div> containing "סיסמה" in nested <p> — uses placeholder instead', async () => {
+    const browserContext = await createIsolatedContext();
     const fpConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
       fields: [
@@ -75,8 +78,7 @@ describe('labelText false-positive guard', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },
@@ -113,6 +115,7 @@ const FRAME_LABEL_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText in iframe', () => {
   it('resolves <label for="id"> inside an iframe (Round 1)', async () => {
+    const browserContext = await createIsolatedContext();
     const iframeLabelConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/',
       fields: [
@@ -154,8 +157,7 @@ describe('labelText in iframe', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 15000,
         preparePage,
       },
@@ -190,6 +192,7 @@ const LABEL_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText sibling strategy', () => {
   it('resolves <label>text</label><input> (no for= attr) via sibling strategy', async () => {
+    const browserContext = await createIsolatedContext();
     const siblingConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
       fields: [
@@ -226,8 +229,7 @@ describe('labelText sibling strategy', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },

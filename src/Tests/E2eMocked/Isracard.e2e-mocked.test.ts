@@ -1,18 +1,18 @@
-import { type Browser } from 'playwright';
-
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import amexRoutes from './Helpers/AmexRoutes.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { loadFixture, setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -21,12 +21,12 @@ afterAll(async () => {
 
 describe('Isracard: Mocked E2E', () => {
   it('completes full scrape lifecycle', async () => {
+    const browserContext = await createIsolatedContext();
     const routes = amexRoutes();
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 15000,
       /**
        * Sets up request interception for the test page.
@@ -51,12 +51,12 @@ describe('Isracard: Mocked E2E', () => {
   }, 60000);
 
   it('detects invalid password', async () => {
+    const browserContext = await createIsolatedContext();
     const invalidLoginRoutes = amexRoutes({ login: JSON.stringify({ status: '9' }) });
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 15000,
       /**
        * Intercepts requests with invalid password response.
@@ -74,11 +74,11 @@ describe('Isracard: Mocked E2E', () => {
   }, 60000);
 
   it('detects WAF block when validate returns null', async () => {
+    const browserContext = await createIsolatedContext();
     const scraper = createScraper({
       companyId: CompanyTypes.Isracard,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 15000,
       /**
        * Intercepts requests to simulate WAF block.

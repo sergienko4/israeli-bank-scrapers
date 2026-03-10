@@ -1,12 +1,12 @@
-import { type Browser } from 'playwright';
-
 import { buildContextOptions } from '../../Common/Browser.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
-
-let browser: Browser;
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -21,8 +21,7 @@ describe('Browser context options (Camoufox)', () => {
   });
 
   it('applies locale to browser context', async () => {
-    const contextOpts = buildContextOptions();
-    const context = await browser.newContext(contextOpts);
+    const context = await createIsolatedContext();
     const page = await context.newPage();
     try {
       await page.goto('about:blank');

@@ -1,17 +1,17 @@
-import { type Browser } from 'playwright';
-
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -20,11 +20,11 @@ afterAll(async () => {
 
 describe('Error Scenarios: Mocked E2E', () => {
   it('handles login page returning HTTP 500', async () => {
+    const browserContext = await createIsolatedContext();
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 10000,
       navigationRetryCount: 0,
       /**
@@ -50,11 +50,11 @@ describe('Error Scenarios: Mocked E2E', () => {
   }, 60000);
 
   it('handles validate network error (fetch throws inside page.evaluate)', async () => {
+    const browserContext = await createIsolatedContext();
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 10000,
       /**
        * Set up mock routes with network abort on validate.
@@ -80,11 +80,11 @@ describe('Error Scenarios: Mocked E2E', () => {
   }, 60000);
 
   it('handles validate returning invalid response', async () => {
+    const browserContext = await createIsolatedContext();
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
       startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
+      browserContext,
       defaultTimeout: 10000,
       /**
        * Set up mock routes with invalid validate response.

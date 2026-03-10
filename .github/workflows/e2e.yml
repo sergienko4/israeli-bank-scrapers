@@ -86,7 +86,7 @@ jobs:
       - name: Install Camoufox browser
         run: npx @hieutran094/camoufox-js fetch
       - name: Run real E2E tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --runInBand --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}

@@ -9,12 +9,16 @@
  * Primary CSS selectors in the config are deliberately wrong.
  * Round 3 (WELL_KNOWN_SELECTORS) is what actually resolves each field.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 // ── Login page: inputs have Hebrew placeholders but NO matching CSS ids ────────
@@ -57,10 +61,8 @@ const WRONG_ID_CONFIG: ILoginConfig = {
   },
 };
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -69,6 +71,7 @@ afterAll(async () => {
 
 describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
   it('resolves fields via Hebrew placeholder when primary CSS id is wrong — login succeeds', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with login and home HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -93,8 +96,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },
@@ -113,6 +115,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
   }, 30000);
 
   it('returns failure when ALL rounds fail — isResolved:false causes login to report error', async () => {
+    const browserContext = await createIsolatedContext();
     const emptyPageConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
       fields: [
@@ -147,8 +150,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },
@@ -188,6 +190,7 @@ const FRAME_LOGIN_HTML = `<!DOCTYPE html><html><body>
 
 describe('Selector fallback Round 1: iframe-first detection', () => {
   it('finds login fields inside an iframe before checking the main page', async () => {
+    const browserContext = await createIsolatedContext();
     // Config: only wrong CSS ids — no explicit display-name fallbacks.
     // Round 1 searches iframes first and finds the Hebrew placeholder inputs.
     const iframeConfig: ILoginConfig = {
@@ -243,8 +246,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 15000,
         preparePage,
       },
@@ -281,6 +283,7 @@ const LABEL_FOR_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText resolution: <label for="id">', () => {
   it('resolves fields via <label for="id"> when no placeholder or CSS id matches', async () => {
+    const browserContext = await createIsolatedContext();
     const labelConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
       fields: [
@@ -317,8 +320,7 @@ describe('labelText resolution: <label for="id">', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },

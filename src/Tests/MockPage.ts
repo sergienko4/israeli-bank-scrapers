@@ -114,6 +114,15 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
       }),
       count: jest.fn().mockResolvedValue(0),
     }),
+    getByText: jest.fn().mockImplementation(() => {
+      const loc: Record<string, jest.Mock> = {
+        first: jest.fn(),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+      };
+      loc.first.mockReturnValue(loc);
+      return loc;
+    }),
     ...overrides,
   } as unknown as IMockPage & Page;
 }

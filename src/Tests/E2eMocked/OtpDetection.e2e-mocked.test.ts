@@ -7,13 +7,17 @@ import { jest } from '@jest/globals';
  *
  * All pages are served via Playwright route interception; no real network calls.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import { type ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 // ── Shared HTML fixtures ──────────────────────────────────────────────────────
@@ -117,10 +121,8 @@ function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   };
 }
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -131,6 +133,7 @@ afterAll(async () => {
 
 describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with test HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -155,8 +158,7 @@ describe('OTP detection', () => {
       {
         companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 3000,
         preparePage,
         // No otpCodeRetriever provided
@@ -175,6 +177,7 @@ describe('OTP detection', () => {
   }, 30000);
 
   it('Test 2: OTP code-entry screen, retriever provided → code filled → login succeeds', async () => {
+    const browserContext = await createIsolatedContext();
     const retrieverSpy = jest.fn().mockResolvedValue('123456');
 
     /**
@@ -201,8 +204,7 @@ describe('OTP detection', () => {
       {
         companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 3000,
         preparePage,
         otpCodeRetriever: retrieverSpy,
@@ -223,6 +225,7 @@ describe('OTP detection', () => {
   }, 30000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {
+    const browserContext = await createIsolatedContext();
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
 
     /**
@@ -249,8 +252,7 @@ describe('OTP detection', () => {
       {
         companyId: CompanyTypes.Beinleumi,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 3000,
         preparePage,
         otpCodeRetriever: retrieverSpy,
@@ -271,6 +273,7 @@ describe('OTP detection', () => {
   }, 30000);
 
   it('Test 4: Normal login (no OTP) — zero regression, login succeeds', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with test HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -295,8 +298,7 @@ describe('OTP detection', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 3000,
         preparePage,
       },
@@ -313,6 +315,7 @@ describe('OTP detection', () => {
   }, 30000);
 
   it('Test 5: Login error page — false-positive guard, no OTP triggered', async () => {
+    const browserContext = await createIsolatedContext();
     const retrieverSpy = jest.fn();
 
     /**
@@ -339,9 +342,8 @@ describe('OTP detection', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
-        defaultTimeout: 3000,
+        browserContext,
+        defaultTimeout: 10000,
         preparePage,
         otpCodeRetriever: retrieverSpy,
       },

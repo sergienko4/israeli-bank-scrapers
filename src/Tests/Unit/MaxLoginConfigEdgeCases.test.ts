@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
 
 const MOCK_ELEMENT_PRESENT = jest.fn().mockResolvedValue(false);
 
@@ -74,84 +73,30 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
+/** Shared locator stub for WellKnownLocators mock. */
+const LOCATOR_STUB: Record<string, jest.Mock> = {
+  first: jest.fn(),
+  waitFor: jest.fn().mockResolvedValue(undefined),
+  fill: jest.fn().mockResolvedValue(undefined),
+  click: jest.fn().mockResolvedValue(undefined),
+  and: jest.fn(),
+  getByPlaceholder: jest.fn(),
+  getByRole: jest.fn(),
+  locator: jest.fn(),
+};
+LOCATOR_STUB.first.mockReturnValue(LOCATOR_STUB);
+LOCATOR_STUB.and.mockReturnValue(LOCATOR_STUB);
+LOCATOR_STUB.getByPlaceholder.mockReturnValue(LOCATOR_STUB);
+LOCATOR_STUB.getByRole.mockReturnValue(LOCATOR_STUB);
+LOCATOR_STUB.locator.mockReturnValue(LOCATOR_STUB);
+
+jest.unstable_mockModule('../../Common/WellKnownLocators.js', () => ({
+  wellKnownPlaceholder: jest.fn().mockReturnValue(LOCATOR_STUB),
+  wellKnownSubmitButton: jest.fn().mockReturnValue(LOCATOR_STUB),
+  findFormByField: jest.fn().mockReturnValue(LOCATOR_STUB),
+}));
+
 const { MAX_CONFIG } = await import('../../Scrapers/Max/MaxLoginConfig.js');
-
-const MOCK_WAIT_FOR_SELECTOR = jest.fn().mockResolvedValue(undefined);
-
-/**
- * Creates a mock Page object with configurable URL.
- * @param url - the URL the page should report
- * @returns a mock Page instance
- */
-function makeMockPage(url = 'https://www.max.co.il/login'): Page {
-  return {
-    url: jest.fn().mockReturnValue(url),
-    $eval: jest.fn().mockResolvedValue(undefined),
-    waitForSelector: MOCK_WAIT_FOR_SELECTOR,
-    waitForURL: jest.fn().mockResolvedValue(undefined),
-    waitForTimeout: jest.fn().mockResolvedValue(undefined),
-    locator: jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        isVisible: jest.fn().mockResolvedValue(true),
-        click: jest.fn().mockResolvedValue(undefined),
-        count: jest.fn().mockResolvedValue(1),
-      }),
-    }),
-    frames: jest.fn().mockReturnValue([]),
-  } as Partial<Page> as Page;
-}
-
-describe('MAX_CONFIG preAction force-click fallback', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('falls back to force-click when locator is not visible', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
-    const mockClick = jest.fn().mockResolvedValue(undefined);
-    const mockLocator = jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        isVisible: jest.fn().mockResolvedValue(false),
-        click: mockClick,
-        count: jest.fn().mockResolvedValue(1),
-      }),
-    });
-    const page = makeMockPage();
-    (page as unknown as { locator: jest.Mock }).locator = mockLocator;
-    await MAX_CONFIG.preAction?.(page);
-    expect(mockClick).toHaveBeenCalledWith({ force: true });
-  });
-
-  it('skips force-click when element count is zero', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
-    const mockClick = jest.fn().mockResolvedValue(undefined);
-    const mockLocator = jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        isVisible: jest.fn().mockResolvedValue(false),
-        click: mockClick,
-        count: jest.fn().mockResolvedValue(0),
-      }),
-    });
-    const page = makeMockPage();
-    (page as unknown as { locator: jest.Mock }).locator = mockLocator;
-    await MAX_CONFIG.preAction?.(page);
-    expect(mockClick).not.toHaveBeenCalled();
-  });
-
-  it('handles isVisible rejection gracefully and force-clicks', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
-    const mockClick = jest.fn().mockResolvedValue(undefined);
-    const mockLocator = jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        isVisible: jest.fn().mockRejectedValue('detached'),
-        click: mockClick,
-        count: jest.fn().mockResolvedValue(1),
-      }),
-    });
-    const page = makeMockPage();
-    (page as unknown as { locator: jest.Mock }).locator = mockLocator;
-    await MAX_CONFIG.preAction?.(page);
-    expect(mockClick).toHaveBeenCalledWith({ force: true });
-  });
-});
 
 describe('MAX_CONFIG possibleResults edge cases', () => {
   beforeEach(() => jest.clearAllMocks());

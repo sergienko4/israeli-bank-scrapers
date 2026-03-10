@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<body>
+<div class="login-popup">
+  <h3>כניסה ללקוחות פרטיים</h3>
+  <!-- Navigation buttons — maxPreAction clicks these in sequence -->
+  <span>כניסה לאיזור האישי</span>
+  <span>לקוחות פרטיים</span>
+  <span>כניסה עם סיסמה</span>
+  <!-- OTP tab (hidden) -->
+  <form aria-hidden="true">
+    <input placeholder="מספר תעודת זהות או דרכון" tabindex="-1" />
+    <button tabindex="-1">שלחו לי קוד לנייד</button>
+  </form>
+  <!-- Password tab (active) — Flow B: ID verification required -->
+  <form aria-hidden="false" class="user-login-form">
+    <div>
+      <input type="tel" placeholder="מספר תעודת זהות/דרכון" tabindex="0" />
+      <span class="error-msg">בשל מספר ניסיונות לא טובים, נבקש למלא את מספר תעודת הזהות שלך</span>
+    </div>
+    <div>
+      <input type="text" placeholder="שם משתמש" tabindex="0" autocomplete="on" />
+    </div>
+    <div>
+      <input type="password" placeholder="סיסמה" tabindex="0" autocomplete="on" />
+    </div>
+    <button tabindex="0"
+      onclick="window.location.href='https://mock-max.local/homepage/personal'">
+      <span>כניסה</span>
+    </button>
+  </form>
+</div>
+</body>
+</html>

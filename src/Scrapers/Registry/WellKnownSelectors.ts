@@ -59,16 +59,24 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
   ],
   id: [
-    // --- visible text ---
+    // --- visible text (labels) ---
+    { kind: 'labelText', value: 'מספר תעודת זהות' },
     { kind: 'labelText', value: 'תעודת זהות' },
     { kind: 'labelText', value: 'מספר זהות' },
+    { kind: 'labelText', value: 'זהות' },
+    // --- visible text (placeholders) ---
+    { kind: 'placeholder', value: 'מספר תעודת זהות' },
+    { kind: 'placeholder', value: 'מספר תעודת זהות/דרכון' },
     { kind: 'placeholder', value: 'תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
     { kind: 'placeholder', value: 'ת.ז' },
+    { kind: 'placeholder', value: 'ת.ז.' },
+    // --- visible text (aria) ---
+    { kind: 'ariaLabel', value: 'מספר תעודת זהות' },
     { kind: 'ariaLabel', value: 'תעודת זהות' },
     // --- semantic HTML ---
     { kind: 'name', value: 'id' },
-    // --- CSS last resort ---
+    // --- CSS last resort (non-Max banks) ---
     { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
     { kind: 'css', value: '#tzId' }, // Discount
   ],

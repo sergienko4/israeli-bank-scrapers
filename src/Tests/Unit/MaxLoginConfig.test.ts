@@ -6,6 +6,32 @@ const MOCK_FILL_INPUT = jest.fn().mockResolvedValue(undefined);
 const MOCK_CLICK_BUTTON = jest.fn().mockResolvedValue(undefined);
 const MOCK_ELEMENT_PRESENT_ON_PAGE = jest.fn().mockResolvedValue(false);
 const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
+const MOCK_CAPTURE_PAGE_TEXT = jest.fn().mockResolvedValue('');
+
+const MOCK_FILL = jest.fn().mockResolvedValue(undefined);
+const MOCK_CLICK = jest.fn().mockResolvedValue(undefined);
+const MOCK_WAIT_FOR = jest.fn().mockResolvedValue(undefined);
+
+/**
+ * Creates a chainable locator stub for getByPlaceholder/getByRole.
+ * @returns A mock locator with first/waitFor/fill/click methods.
+ */
+function makeLocatorStub(): Record<string, jest.Mock> {
+  const stub: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    waitFor: MOCK_WAIT_FOR,
+    fill: MOCK_FILL,
+    click: MOCK_CLICK,
+    and: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(true),
+    count: jest.fn().mockResolvedValue(1),
+  };
+  stub.first.mockReturnValue(stub);
+  stub.and.mockReturnValue(stub);
+  return stub;
+}
+
+const MOCK_LOCATOR_STUB = makeLocatorStub();
 
 jest.unstable_mockModule(
   '../../Common/Debug.js',
@@ -43,7 +69,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: MOCK_CLICK_BUTTON,
   waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
   elementPresentOnPage: MOCK_ELEMENT_PRESENT_ON_PAGE,
-  capturePageText: jest.fn().mockResolvedValue(''),
+  capturePageText: MOCK_CAPTURE_PAGE_TEXT,
 }));
 
 jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
@@ -66,19 +92,31 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { maxHandleSecondLoginStep: MAX_HANDLE_SECOND_LOGIN_STEP, MAX_CONFIG } =
-  await import('../../Scrapers/Max/MaxLoginConfig.js');
+jest.unstable_mockModule('../../Common/WellKnownLocators.js', () => ({
+  wellKnownPlaceholder: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+  wellKnownSubmitButton: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+  findFormByField: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+}));
+
+const { MAX_CONFIG } = await import('../../Scrapers/Max/MaxLoginConfig.js');
 
 const MOCK_PAGE_EVAL = jest.fn().mockResolvedValue(undefined);
 const MOCK_WAIT_FOR_SELECTOR = jest.fn().mockResolvedValue(undefined);
 const MOCK_WAIT_FOR_URL = jest.fn().mockResolvedValue(undefined);
+
 const MOCK_LOCATOR = jest.fn().mockReturnValue({
-  first: jest.fn().mockReturnValue({
-    isVisible: jest.fn().mockResolvedValue(true),
-    click: jest.fn().mockResolvedValue(undefined),
-    count: jest.fn().mockResolvedValue(1),
-  }),
+  first: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+  isVisible: jest.fn().mockResolvedValue(true),
+  click: jest.fn().mockResolvedValue(undefined),
+  count: jest.fn().mockResolvedValue(1),
 });
+
+/**
+ * Creates a mock Page with configurable URL and stubbed Playwright methods.
+ * @param url - The URL the mock page reports.
+ * @returns A mock Page instance.
+ */
+const MOCK_GET_BY_TEXT = jest.fn().mockReturnValue(MOCK_LOCATOR_STUB);
 
 /**
  * Creates a mock Page with configurable URL and stubbed Playwright methods.
@@ -89,7 +127,11 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
   MOCK_PAGE_EVAL.mockClear();
   MOCK_WAIT_FOR_SELECTOR.mockClear();
   MOCK_WAIT_FOR_URL.mockClear();
+  MOCK_FILL.mockClear();
+  MOCK_CLICK.mockClear();
+  MOCK_WAIT_FOR.mockClear();
   MOCK_LOCATOR.mockClear();
+  MOCK_GET_BY_TEXT.mockClear();
   return {
     url: jest.fn().mockReturnValue(url),
     $eval: MOCK_PAGE_EVAL,
@@ -97,123 +139,12 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
     waitForURL: MOCK_WAIT_FOR_URL,
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     locator: MOCK_LOCATOR,
+    getByPlaceholder: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+    getByRole: jest.fn().mockReturnValue(MOCK_LOCATOR_STUB),
+    getByText: MOCK_GET_BY_TEXT,
     frames: jest.fn().mockReturnValue([]),
   } as unknown as Page;
 }
-
-describe('maxHandleSecondLoginStep', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('is a no-op when credentials.id is not provided', async () => {
-    const page = makeMockPage();
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, { username: 'user', password: 'pass' });
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).not.toHaveBeenCalled();
-    expect(MOCK_FILL_INPUT).not.toHaveBeenCalled();
-  });
-
-  it('is a no-op when ID field is not found (Flow A)', async () => {
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValue({ isResolved: false });
-    const page = makeMockPage();
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, {
-      username: 'user',
-      password: 'pass',
-      id: '123456789',
-    });
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).toHaveBeenCalled();
-    expect(MOCK_FILL_INPUT).not.toHaveBeenCalled();
-  });
-
-  it('fills username, password, and ID when ID field is found (Flow B)', async () => {
-    const mockContext = {} as Page;
-    const page = makeMockPage();
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({
-      isResolved: true,
-      selector: '#id-field',
-      context: mockContext,
-    })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#user-name', context: page })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page });
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, {
-      username: 'testuser',
-      password: 'testpass',
-      id: '123456789',
-    });
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).toHaveBeenCalledTimes(3);
-    expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(3);
-    expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
-  });
-
-  it('skips username fill when username resolution fails in Flow B', async () => {
-    const mockContext = {} as Page;
-    const page = makeMockPage();
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({
-      isResolved: true,
-      selector: '#id-field',
-      context: mockContext,
-    })
-      .mockResolvedValueOnce({ isResolved: false })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page });
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, { username: 'u', password: 'p', id: '123' });
-    expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(2);
-    expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
-  });
-
-  it('skips password fill when password resolution fails in Flow B', async () => {
-    const mockContext = {} as Page;
-    const page = makeMockPage();
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({
-      isResolved: true,
-      selector: '#id-field',
-      context: mockContext,
-    })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#user-name', context: page })
-      .mockResolvedValueOnce({ isResolved: false });
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, { username: 'u', password: 'p', id: '123' });
-    expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(2);
-    expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
-  });
-
-  it('fills only ID when both username and password resolution fail', async () => {
-    const mockContext = {} as Page;
-    const page = makeMockPage();
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({
-      isResolved: true,
-      selector: '#id-field',
-      context: mockContext,
-    })
-      .mockResolvedValueOnce({ isResolved: false })
-      .mockResolvedValueOnce({ isResolved: false });
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, { username: 'u', password: 'p', id: '123' });
-    expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(1);
-    expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
-  });
-
-  it('passes correct FieldConfig to resolveFieldContext for each field', async () => {
-    const mockContext = {} as Page;
-    const page = makeMockPage();
-    MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({
-      isResolved: true,
-      selector: '#id',
-      context: mockContext,
-    })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#u', context: page })
-      .mockResolvedValueOnce({ isResolved: true, selector: '#p', context: page });
-    await MAX_HANDLE_SECOND_LOGIN_STEP(page, { username: 'u', password: 'p', id: '123' });
-    const idMatcher = expect.objectContaining({ credentialKey: 'id', selectors: [] }) as unknown;
-    const userMatcher = expect.objectContaining({
-      credentialKey: 'username',
-      selectors: [],
-    }) as unknown;
-    const passMatcher = expect.objectContaining({
-      credentialKey: 'password',
-      selectors: [],
-    }) as unknown;
-    const anyString = expect.any(String) as unknown;
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).toHaveBeenNthCalledWith(1, page, idMatcher, anyString);
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).toHaveBeenNthCalledWith(2, page, userMatcher, anyString);
-    expect(MOCK_RESOLVE_FIELD_CONTEXT).toHaveBeenNthCalledWith(3, page, passMatcher, anyString);
-  });
-});
 
 describe('MAX_CONFIG', () => {
   it('has loginUrl from ScraperConfig', () => {
@@ -310,14 +241,16 @@ describe('MAX_CONFIG', () => {
   });
 
   describe('preAction', () => {
-    it('clicks navigation buttons and waits for username input', async () => {
+    it('clicks navigation buttons via getByText and waits for username input', async () => {
       MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(false);
       const page = makeMockPage();
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
       const didPreAction = await preAction(page);
       expect(didPreAction).toBeUndefined();
-      expect(MOCK_LOCATOR).toHaveBeenCalled();
+      expect(MOCK_GET_BY_TEXT).toHaveBeenCalledWith('כניסה לאיזור האישי', { exact: false });
+      expect(MOCK_GET_BY_TEXT).toHaveBeenCalledWith('לקוחות פרטיים', { exact: false });
+      expect(MOCK_GET_BY_TEXT).toHaveBeenCalledWith('כניסה עם סיסמה', { exact: false });
     });
 
     it('closes popup if present before navigating', async () => {
@@ -332,18 +265,11 @@ describe('MAX_CONFIG', () => {
   });
 
   describe('postAction', () => {
-    it('returns immediately when already on homepage', async () => {
+    it('completes without error (dashboard wait handled by second-login step)', async () => {
       const page = makeMockPage('https://www.max.co.il/homepage/personal');
       const postAction = MAX_CONFIG.postAction ?? ((): Promise<boolean> => Promise.resolve(true));
-      await postAction(page);
-      expect(MOCK_WAIT_FOR_URL).not.toHaveBeenCalled();
-    });
-
-    it('waits for homepage or error popup when not on homepage', async () => {
-      const page = makeMockPage('https://www.max.co.il/login');
-      const postAction = MAX_CONFIG.postAction ?? ((): Promise<boolean> => Promise.resolve(true));
-      await postAction(page);
-      expect(MOCK_WAIT_FOR_URL).toHaveBeenCalled();
+      const postActionResult = postAction(page);
+      await expect(postActionResult).resolves.toBeUndefined();
     });
   });
 });

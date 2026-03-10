@@ -17,8 +17,8 @@ describe('buildContextOptions', () => {
     expect(options.userAgent).toBeUndefined();
   });
 
-  it('does not set viewport (Camoufox handles it at C++ level)', () => {
+  it('sets viewport to 1920x1280 for consistent rendering', () => {
     const options = buildContextOptions();
-    expect(options.viewport).toBeUndefined();
+    expect(options.viewport).toEqual({ width: 1920, height: 1280 });
   });
 });

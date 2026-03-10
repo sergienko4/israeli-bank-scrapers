@@ -3,19 +3,21 @@
  *
  * Tests span nested input, div sibling input, and placeholder regression.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Page } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
 
-let browser: Browser;
-
 beforeAll(async () => {
-  browser = await getSharedBrowser();
+  await getSharedBrowser();
 }, 30000);
 
 afterAll(async () => {
@@ -34,6 +36,7 @@ const SPAN_NESTED_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText via <span> with nested input', () => {
   it('resolves <span>סיסמה<input></span> via nested strategy', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with span nested HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -58,8 +61,7 @@ describe('labelText via <span> with nested input', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },
@@ -93,6 +95,7 @@ const DIV_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('labelText via <div> with sibling input', () => {
   it('resolves <div>סיסמה</div><input> via sibling strategy', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with div sibling HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -117,8 +120,7 @@ describe('labelText via <div> with sibling input', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },
@@ -157,6 +159,7 @@ const PLACEHOLDER_ONLY_HTML = `<!DOCTYPE html><html><body dir="rtl">
 
 describe('placeholder resolution (regression)', () => {
   it('resolves fields via placeholder when no label/div/span/CSS exists', async () => {
+    const browserContext = await createIsolatedContext();
     /**
      * Intercept requests with placeholder-only HTML fixtures.
      * @param page - Playwright page to configure with route interception.
@@ -181,8 +184,7 @@ describe('placeholder resolution (regression)', () => {
       {
         companyId: CompanyTypes.Discount,
         startDate: new Date('2026-01-01'),
-        browser,
-        skipCloseBrowser: true,
+        browserContext,
         defaultTimeout: 10000,
         preparePage,
       },

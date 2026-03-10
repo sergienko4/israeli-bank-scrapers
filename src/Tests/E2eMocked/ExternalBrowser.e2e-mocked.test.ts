@@ -3,7 +3,11 @@ import { type Browser, type Page } from 'playwright';
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';
 import amexRoutes from './Helpers/AmexRoutes.js';
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  createIsolatedContext,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const CREDS = { id: '123456789', card6Digits: '123456', password: 'testpass' };
@@ -47,7 +51,7 @@ describe('External Browser: Mocked E2E', () => {
   }, 60000);
 
   it('uses provided browser context', async () => {
-    const context = await browser.newContext();
+    const context = await createIsolatedContext();
 
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
@@ -75,28 +79,35 @@ describe('External Browser: Mocked E2E', () => {
     await context.close();
   }, 60000);
 
-  it('can run multiple sequential scrapes with shared browser', async () => {
-    const options = {
-      companyId: CompanyTypes.Amex,
-      startDate: new Date('2026-01-01'),
-      browser,
-      skipCloseBrowser: true,
-      defaultTimeout: 15000,
-      /**
-       * Set up request interception for the page.
-       * @param page - page to prepare
-       * @returns true after interception is set up
-       */
-      preparePage: async (page: Page): Promise<void> => {
-        const routes = amexRoutes();
-        await setupRequestInterception(page, routes);
-      },
+  it('can run multiple sequential scrapes with isolated contexts', async () => {
+    /**
+     * Set up request interception for the page.
+     * @param page - page to prepare
+     * @returns true after interception is set up
+     */
+    const preparePage = async (page: Page): Promise<void> => {
+      const routes = amexRoutes();
+      await setupRequestInterception(page, routes);
     };
 
-    const result1 = await createScraper(options).scrape(CREDS);
+    const ctx1 = await createIsolatedContext();
+    const result1 = await createScraper({
+      companyId: CompanyTypes.Amex,
+      startDate: new Date('2026-01-01'),
+      browserContext: ctx1,
+      defaultTimeout: 15000,
+      preparePage,
+    }).scrape(CREDS);
     expect(result1.success).toBe(true);
 
-    const result2 = await createScraper(options).scrape(CREDS);
+    const ctx2 = await createIsolatedContext();
+    const result2 = await createScraper({
+      companyId: CompanyTypes.Amex,
+      startDate: new Date('2026-01-01'),
+      browserContext: ctx2,
+      defaultTimeout: 15000,
+      preparePage,
+    }).scrape(CREDS);
     expect(result2.success).toBe(true);
   }, 120000);
 });
