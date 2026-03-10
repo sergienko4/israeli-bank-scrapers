@@ -1,5 +1,6 @@
 import { type Page } from 'playwright';
 
+import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
   elementPresentOnPage,
@@ -12,6 +13,7 @@ import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
 import { type IFieldConfig, type ILoginConfig } from '../Base/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
 
+const LOG = getDebug('max-login');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 
 const MAX_USERNAME_FIELD: IFieldConfig = { credentialKey: 'username', selectors: [] };
@@ -51,8 +53,12 @@ const ID_FORM_INDICATORS = ['תעודת הזהות', 'תעודת זהות', 'ת.
  */
 async function detectIdForm(page: Page): Promise<boolean> {
   await page.waitForTimeout(2000);
+  const currentUrl = page.url();
   const bodyText = await page.evaluate(() => document.body.innerText);
-  return ID_FORM_INDICATORS.some(phrase => bodyText.includes(phrase));
+  const snippet = bodyText.slice(0, 200).replace(/\n/g, ' ');
+  const hasIdText = ID_FORM_INDICATORS.some(phrase => bodyText.includes(phrase));
+  LOG.info('detectIdForm: url=%s hasIdText=%s snippet="%s"', currentUrl, hasIdText, snippet);
+  return hasIdText;
 }
 
 /**
@@ -160,9 +166,11 @@ async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['pr
  * @returns True after a post-login indicator is detected.
  */
 async function waitForDashboardOrError(page: Page): LifecyclePromise {
-  if (page.url().startsWith('https://www.max.co.il/homepage')) return;
+  const currentUrl = page.url();
+  if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
+  LOG.info('waitForDashboardOrError: url=%s', currentUrl);
   await Promise.race([
-    page.waitForURL('**/homepage/**', { timeout: 20000 }),
+    page.waitForURL('**/homepage/**', { timeout: 60000 }),
     waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
     waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
   ]);
@@ -174,11 +182,15 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
  * @returns An async post-action function for the login config.
  */
 export function buildMaxPostAction(credentials: IMaxCredentials): (page: Page) => LifecyclePromise {
+  const hasId = !!credentials.id;
   return async (page: Page): LifecyclePromise => {
-    if (page.url().startsWith('https://www.max.co.il/homepage')) return;
+    const entryUrl = page.url();
+    LOG.info('postAction entry: url=%s hasId=%s', entryUrl, hasId);
+    if (entryUrl.startsWith('https://www.max.co.il/homepage')) return;
     if (!credentials.id) return waitForDashboardOrError(page);
     const hasIdForm = await detectIdForm(page);
     if (!hasIdForm) return waitForDashboardOrError(page);
+    LOG.info('postAction: ID form detected — filling username+password+ID');
     await fillIdFormAndSubmit(page, credentials);
     return waitForDashboardOrError(page);
   };
