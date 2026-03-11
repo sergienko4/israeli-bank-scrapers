@@ -2,6 +2,14 @@
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
+# Skip full quality gate for non-code changes (docs, CI workflows, config)
+STAGED_FILES=$(git diff --cached --name-only)
+CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)')
+if [ -z "$CODE_FILES" ]; then
+  echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
+  exit 0
+fi
+
 run_gate() {
   "$@" 2>&1 | tee -a "$LOG_FILE"
   return "${PIPESTATUS[0]}"
