@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.0.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.1...v8.0.2) (2026-03-11)
+
+
+### Bug Fixes
+
+* opt into Node.js 24 for GitHub Pages actions ([#132](https://github.com/sergienko4/israeli-bank-scrapers/issues/132)) ([d222c8a](https://github.com/sergienko4/israeli-bank-scrapers/commit/d222c8aac35dda4240e91538557e5bb7ca169f74))
+* restrict GITHUB_TOKEN permissions per OSSF Scorecard ([#134](https://github.com/sergienko4/israeli-bank-scrapers/issues/134)) ([35b9f0b](https://github.com/sergienko4/israeli-bank-scrapers/commit/35b9f0bbbc70b8c9c632dfa7aa71de55199f3620))
+
 ## [8.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.0...v8.0.1) (2026-03-11)
 
 
