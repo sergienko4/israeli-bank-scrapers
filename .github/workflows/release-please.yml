@@ -47,7 +47,12 @@ jobs:
           path: ~/.cache/camoufox
           key: camoufox-${{ hashFiles('package-lock.json') }}
       - name: Install Camoufox browser
-        run: npx @hieutran094/camoufox-js fetch
+        run: |
+          if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
+            echo "Camoufox already cached, skipping fetch"
+          else
+            npx @hieutran094/camoufox-js fetch
+          fi
       - name: Lint (warnings as errors)
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Format check
