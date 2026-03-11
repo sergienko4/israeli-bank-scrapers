@@ -1,5 +1,15 @@
 # Changelog
 
+## [8.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.0...v8.0.1) (2026-03-11)
+
+
+### Bug Fixes
+
+* add CodeQL security analysis workflow ([#128](https://github.com/sergienko4/israeli-bank-scrapers/issues/128)) ([66e59e8](https://github.com/sergienko4/israeli-bank-scrapers/commit/66e59e84b702a57f7687204466ee00e8a5c3230e))
+* move CodeQL to standalone workflow + skip hook for non-code changes ([#130](https://github.com/sergienko4/israeli-bank-scrapers/issues/130)) ([84c6415](https://github.com/sergienko4/israeli-bank-scrapers/commit/84c6415102c09a8fabc0a3bfc02328b3d3ce356e))
+* rewrite README with balanced layout, doctoc TOC, and all-contributors ([#127](https://github.com/sergienko4/israeli-bank-scrapers/issues/127)) ([56be12c](https://github.com/sergienko4/israeli-bank-scrapers/commit/56be12ccc6dcb1546b7a35bb5281653a3814653e))
+* skip Camoufox fetch when cached, avoid GitHub API rate limits ([#131](https://github.com/sergienko4/israeli-bank-scrapers/issues/131)) ([ed1745d](https://github.com/sergienko4/israeli-bank-scrapers/commit/ed1745db9e29791d263a6f3cbe87cc125280d440))
+
 ## [8.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v7.10.0...v8.0.0) (2026-03-10)
 
 
