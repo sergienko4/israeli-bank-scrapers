@@ -83,8 +83,8 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
     const startMoment = this.computeStartMoment();
     LOG.debug(`fetch transactions starting ${startMoment.format()}`);
     const hdrs = await this.buildHeaders();
-    const cards = await fetchCards(hdrs);
-    const frames = await fetchFrames(hdrs, cards);
+    const cards = await fetchCards(this.page, hdrs);
+    const frames = await fetchFrames(this.page, hdrs, cards);
     const ctx: IApiContext = { startDate: this.options.startDate, startMoment, hdrs, frames };
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
     LOG.debug(`return ${String(accounts.length)} scraped accounts`);
@@ -197,8 +197,9 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
     const futureMonths = this.options.futureMonthsToScrape ?? 1;
     const allMonths = buildMonthRange(ctx.startMoment, futureMonths);
     LOG.debug(`fetch completed transactions for card ${card.cardUniqueId}`);
-    const monthsData = await fetchCardDataMonths(card, allMonths, ctx.hdrs);
-    const pendingResult = await fetchPendingData(card, ctx.hdrs);
+    const fetchOpts = { page: this.page, card, allMonths, hdrs: ctx.hdrs };
+    const monthsData = await fetchCardDataMonths(fetchOpts);
+    const pendingResult = await fetchPendingData(this.page, card, ctx.hdrs);
     const pending = isCardPendingTransactionDetails(pendingResult) ? pendingResult : undefined;
     return convertParsedDataToTransactions(monthsData, pending, this.options);
   }

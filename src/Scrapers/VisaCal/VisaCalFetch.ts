@@ -1,7 +1,8 @@
 import moment from 'moment';
+import { type Page } from 'playwright';
 
 import { getDebug } from '../../Common/Debug.js';
-import { fetchPost } from '../../Common/Fetch.js';
+import { fetchPostWithinPage, type JsonValue } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
@@ -65,27 +66,33 @@ function validateMonthData(
   );
 }
 
+/** Options for a single month fetch call. */
+export interface IMonthFetchOpts {
+  page: Page;
+  card: ICardInfo;
+  month: moment.Moment;
+  hdrs: Record<string, string>;
+}
+
 /**
- * Fetch transaction data for a single month.
- * @param card - The card to fetch for.
- * @param month - The month to fetch.
- * @param hdrs - API request headers.
+ * Fetch transaction data for a single month via the browser session.
+ * @param opts - The month fetch options.
  * @returns The month's transaction details.
  */
-export async function fetchMonthData(
-  card: ICardInfo,
-  month: moment.Moment,
-  hdrs: Record<string, string>,
-): Promise<ICardTransactionDetails> {
-  const monthData = await fetchPost<ICardTransactionDetails | ICardApiStatus>(
+export async function fetchMonthData(opts: IMonthFetchOpts): Promise<ICardTransactionDetails> {
+  const { page, card, month, hdrs } = opts;
+  const body: Record<string, JsonValue> = {
+    cardUniqueId: card.cardUniqueId,
+    month: month.format('M'),
+    year: month.format('YYYY'),
+  };
+  const raw = await fetchPostWithinPage<ICardTransactionDetails | ICardApiStatus>(
+    page,
     TXN_ENDPOINT,
-    {
-      cardUniqueId: card.cardUniqueId,
-      month: month.format('M'),
-      year: month.format('YYYY'),
-    },
-    hdrs,
+    { data: body, extraHeaders: hdrs },
   );
+  if (raw === null) throw new ScraperError('fetchMonthData: null response');
+  const monthData = raw;
   validateMonthData(monthData, card);
   if (!isCardTransactionDetails(monthData)) {
     throw new ScraperError('monthData is not of type ICardTransactionDetails');
@@ -108,44 +115,54 @@ function handlePendingFailure(
 }
 
 /**
- * Fetch pending transaction data for a card.
+ * Fetch pending transaction data for a card via the browser session.
+ * @param page - The Playwright page for browser-context fetch.
  * @param card - The card to fetch pending for.
  * @param hdrs - API request headers.
  * @returns Pending transaction details or status.
  */
 export async function fetchPendingData(
+  page: Page,
   card: ICardInfo,
   hdrs: Record<string, string>,
 ): Promise<ICardPendingTransactionDetails | ICardApiStatus> {
   LOG.debug(`fetch pending transactions for card ${card.cardUniqueId}`);
-  const data = await fetchPost<ICardPendingTransactionDetails | ICardApiStatus>(
+  const body: Record<string, JsonValue> = { cardUniqueIDArray: [card.cardUniqueId] };
+  const raw = await fetchPostWithinPage<ICardPendingTransactionDetails | ICardApiStatus>(
+    page,
     PENDING_ENDPOINT,
-    { cardUniqueIDArray: [card.cardUniqueId] },
-    hdrs,
+    { data: body, extraHeaders: hdrs },
   );
-  const isValid = data.statusCode === 1 || data.statusCode === 96;
-  if (!isValid) return handlePendingFailure(data, card);
-  if (!isCardPendingTransactionDetails(data)) {
+  if (raw === null) throw new ScraperError('fetchPendingData: null response');
+  const isValid = raw.statusCode === 1 || raw.statusCode === 96;
+  if (!isValid) return handlePendingFailure(raw, card);
+  if (!isCardPendingTransactionDetails(raw)) {
     LOG.debug('pendingData is not ICardPendingTransactionDetails');
   }
-  return data;
+  return raw;
+}
+
+/** Options for fetching all months of card data. */
+export interface ICardDataMonthsOpts {
+  page: Page;
+  card: ICardInfo;
+  allMonths: moment.Moment[];
+  hdrs: Record<string, string>;
 }
 
 /**
- * Fetch transaction data for all months sequentially.
- * @param card - The card to fetch for.
- * @param allMonths - Array of months to fetch.
- * @param hdrs - API request headers.
+ * Fetch transaction data for all months sequentially via the browser session.
+ * @param opts - The card data months options.
  * @returns Array of monthly transaction details.
  */
 export async function fetchCardDataMonths(
-  card: ICardInfo,
-  allMonths: moment.Moment[],
-  hdrs: Record<string, string>,
+  opts: ICardDataMonthsOpts,
 ): Promise<ICardTransactionDetails[]> {
+  const { page, card, allMonths, hdrs } = opts;
   const initial = Promise.resolve<ICardTransactionDetails[]>([]);
   return allMonths.reduce(
-    (memo, month) => memo.then(async acc => [...acc, await fetchMonthData(card, month, hdrs)]),
+    (memo, month) =>
+      memo.then(async acc => [...acc, await fetchMonthData({ page, card, month, hdrs })]),
     initial,
   );
 }
@@ -163,30 +180,44 @@ export function buildMonthRange(startMoment: moment.Moment, futureMonths: number
 }
 
 /**
- * Fetch card list from the init API.
+ * Fetch card list from the init API via the browser session.
+ * @param page - The Playwright page for browser-context fetch.
  * @param hdrs - API request headers.
  * @returns Array of card info objects.
  */
-export async function fetchCards(hdrs: Record<string, string>): Promise<ICardInfo[]> {
+export async function fetchCards(page: Page, hdrs: Record<string, string>): Promise<ICardInfo[]> {
   LOG.debug('fetch cards via init API');
-  const initData = await fetchPost<IInitResponse>(INIT_ENDPOINT, { tokenGuid: '' }, hdrs);
-  return initData.result.cards.map(({ cardUniqueId, last4Digits }) => ({
-    cardUniqueId,
-    last4Digits,
-  }));
+  const raw = await fetchPostWithinPage<IInitResponse>(page, INIT_ENDPOINT, {
+    data: { tokenGuid: '' },
+    extraHeaders: hdrs,
+  });
+  if (raw === null) throw new ScraperError('fetchCards: null init response');
+  const initData = raw;
+  const cards = initData.result.cards;
+  return cards.map(({ cardUniqueId, last4Digits }) => ({ cardUniqueId, last4Digits }));
 }
 
 /**
- * Fetch card frames (misgarot) from the API.
+ * Fetch card frames (misgarot) from the API via the browser session.
+ * @param page - The Playwright page for browser-context fetch.
  * @param hdrs - API request headers.
  * @param cards - Array of card info.
  * @returns The frames response data.
  */
 export async function fetchFrames(
+  page: Page,
   hdrs: Record<string, string>,
   cards: ICardInfo[],
 ): Promise<IFramesResponse> {
   LOG.debug('fetch frames (misgarot) of cards');
   const cardIds = cards.map(({ cardUniqueId }) => ({ cardUniqueId }));
-  return fetchPost<IFramesResponse>(FRAMES_ENDPOINT, { cardsForFrameData: cardIds }, hdrs);
+  const body: Record<string, JsonValue> = {
+    cardsForFrameData: cardIds as JsonValue[],
+  };
+  const raw = await fetchPostWithinPage<IFramesResponse>(page, FRAMES_ENDPOINT, {
+    data: body,
+    extraHeaders: hdrs,
+  });
+  if (raw === null) throw new ScraperError('fetchFrames: null response');
+  return raw;
 }
