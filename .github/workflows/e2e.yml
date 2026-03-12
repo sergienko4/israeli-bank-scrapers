@@ -103,6 +103,7 @@ jobs:
       - name: Run real E2E tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
+          LOG_LEVEL: debug
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
