@@ -3,12 +3,12 @@ import { type Page } from 'playwright';
 import {
   waitUntilElementDisappear,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
-import { waitForNavigation } from '../../Common/Navigation.js';
-import { CompanyTypes } from '../../Definitions.js';
-import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
-import { type ILoginConfig } from '../Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+} from '../../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../../Common/Navigation.js';
+import { CompanyTypes } from '../../../Definitions.js';
+import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
 const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking IAccount';

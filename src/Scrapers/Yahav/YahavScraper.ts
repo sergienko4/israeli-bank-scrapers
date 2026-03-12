@@ -22,8 +22,8 @@ import {
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import { YAHAV_CONFIG } from './YahavLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { YAHAV_CONFIG } from './Config/YahavLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);

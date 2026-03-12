@@ -2,8 +2,8 @@ import { type ITransaction } from '../../Transactions.js';
 import type { ILoginOptions } from '../Base/BaseScraperWithBrowser.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
+import { buildMaxPostAction, type IMaxCredentials, MAX_CONFIG } from './Config/MaxLoginConfig.js';
 import { fetchTransactions } from './MaxHelpers.js';
-import { buildMaxPostAction, type IMaxCredentials, MAX_CONFIG } from './MaxLoginConfig.js';
 
 export { getMemo } from './MaxHelpers.js';
 export type { IScrapedTransaction } from './MaxTypes.js';

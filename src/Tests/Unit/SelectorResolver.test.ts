@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright';
 
-import type { IFieldConfig, SelectorCandidate } from '../../Scrapers/Base/LoginConfig.js';
+import type { IFieldConfig, SelectorCandidate } from '../../Scrapers/Base/Config/LoginConfig.js';
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
   /**

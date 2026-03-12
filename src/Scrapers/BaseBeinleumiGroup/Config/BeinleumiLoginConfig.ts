@@ -1,7 +1,7 @@
 import { type Page } from 'playwright';
 
-import { elementPresentOnPage } from '../../Common/ElementsInteractions.js';
-import { type ILoginConfig } from '../Base/LoginConfig.js';
+import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
+import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.

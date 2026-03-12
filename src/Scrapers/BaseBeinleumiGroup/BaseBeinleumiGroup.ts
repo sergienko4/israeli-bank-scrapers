@@ -28,7 +28,7 @@ import {
   getTransactionsFrame,
   selectAccountFromDropdown,
 } from '../Beinleumi/BeinleumiAccountSelector.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import {
   convertTransactions,
   ERROR_MESSAGE_CLASS,

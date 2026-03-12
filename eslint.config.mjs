@@ -28,25 +28,16 @@ export default tseslint.config(
   {
 
     ignores: [
-
       '.github/**',
-
       'lib/**',
-
       'node_modules/**',
-
       'coverage/**',
-
       'src/coverage/**',
-
+      'tsup.config.ts',
       '**/*.js',
-
       '**/*.mjs',
-
-      'tsup.config.ts'
-
-    ]
-
+      '**/*.cjs',
+    ],
   },
 
 
@@ -457,12 +448,11 @@ export default tseslint.config(
 
       'no-unused-vars': 'error',
 
-      '@typescript-eslint/no-unused-vars': [
-
+      // ── UNUSED CODE REMOVAL ───────────────────────────────────────────
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
         'error',
-
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' },
-
+        { vars: 'all', varsIgnorePattern: '^_', args: 'after-used', argsIgnorePattern: '^_' },
       ],
 
 

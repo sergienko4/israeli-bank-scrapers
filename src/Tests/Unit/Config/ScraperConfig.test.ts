@@ -1,10 +1,10 @@
 import { jest } from '@jest/globals';
 
-import type { SelectorCandidate } from '../../Scrapers/Base/LoginConfig.js';
+import type { SelectorCandidate } from '../../../Scrapers/Base/Config/LoginConfig.js';
 
 // ── Mocks (required by transitive imports from ILoginConfig files) ────────────
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../../Common/Debug.js', () => ({
   /**
    * Creates a mock debug logger.
    * @returns mock debug logger with all methods stubbed.
@@ -18,7 +18,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
+jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   waitUntilElementFound: jest.fn(),
   waitUntilElementDisappear: jest.fn(),
   clickButton: jest.fn(),
@@ -34,7 +34,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
+jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn(),
   waitForRedirect: jest.fn(),
   getCurrentUrl: jest.fn(),
@@ -42,7 +42,7 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForNavigationAndDomLoad: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
   sleep: jest.fn(),
   humanDelay: jest.fn(),
   waitUntil: jest.fn(),
@@ -52,7 +52,7 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: jest.fn(),
   resolveFieldWithCache: jest.fn(),
   candidateToCss: jest.fn(),
@@ -62,19 +62,20 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveDashboardField: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../Common/Storage.js', () => ({
+jest.unstable_mockModule('../../../Common/Storage.js', () => ({
   getFromSessionStorage: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({
+jest.unstable_mockModule('../../../Common/Fetch.js', () => ({
   fetchPost: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));
 
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
-const { SCRAPER_CONFIGURATION } = await import('../../Scrapers/Registry/ScraperConfig.js');
-const { BANK_REGISTRY } = await import('../../Scrapers/Registry/BankRegistry.js');
+const { SCRAPER_CONFIGURATION } =
+  await import('../../../Scrapers/Registry/Config/ScraperConfig.js');
+const { BANK_REGISTRY } = await import('../../../Scrapers/Registry/BankRegistry.js');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

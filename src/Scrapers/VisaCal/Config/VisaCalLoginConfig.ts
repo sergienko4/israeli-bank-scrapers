@@ -4,18 +4,18 @@ import {
   clickButton,
   waitUntilElementFound,
   waitUntilIframeFound,
-} from '../../Common/ElementsInteractions.js';
-import { waitForNavigation } from '../../Common/Navigation.js';
-import { CompanyTypes } from '../../Definitions.js';
-import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
-import type { ILoginConfig } from '../Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+} from '../../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../../Common/Navigation.js';
+import { CompanyTypes } from '../../../Definitions.js';
+import type { ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 import {
   CONNECT_IFRAME_OPTS,
   hasChangePasswordForm,
   hasInvalidPasswordError,
   isConnectFrame,
-} from './VisaCalHelpers.js';
+} from '../VisaCalHelpers.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 

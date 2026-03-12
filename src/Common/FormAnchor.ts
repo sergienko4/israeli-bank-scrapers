@@ -1,7 +1,7 @@
 import { type Frame, type Page } from 'playwright';
 
+import { type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { type Nullable } from '../Scrapers/Base/Interfaces/CallbackTypes.js';
-import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
 import { getDebug } from './Debug.js';
 
 const LOG = getDebug('form-anchor');

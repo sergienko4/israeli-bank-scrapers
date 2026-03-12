@@ -6,12 +6,12 @@ import { getRawTransaction } from '../../Common/Transactions.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { type ILoginConfig } from '../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
-import { type ILoginConfig } from '../Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import discountConfig from './DiscountLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import discountConfig from './Config/DiscountLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 

@@ -1,4 +1,4 @@
-import type { ResultCondition } from '../LoginConfigTypes.js';
+import type { ResultCondition } from '../Config/LoginConfigTypes.js';
 
 /**
  * Map of login outcomes → conditions (same semantics as ILoginOptions.possibleResults

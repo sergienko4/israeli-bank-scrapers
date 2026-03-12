@@ -1,6 +1,7 @@
 import { getDebug } from '../../Common/Debug.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
+import { HAPOALIM_CONFIG } from './Config/HapoalimLoginConfig.js';
 import {
   buildDateOpts,
   fetchOneAccount,
@@ -8,7 +9,6 @@ import {
   getContext,
   type IAccountResult,
 } from './HapoalimHelpers.js';
-import { HAPOALIM_CONFIG } from './HapoalimLoginConfig.js';
 
 const LOG = getDebug('hapoalim');
 

@@ -1,8 +1,8 @@
 import { CompanyTypes } from '../../Definitions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
-import discountConfig from '../Discount/DiscountLoginConfig.js';
+import discountConfig from '../Discount/Config/DiscountLoginConfig.js';
 import DiscountScraper from '../Discount/DiscountScraper.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 
 /** Scraper for Mercantile — uses Discount login flow. */
 class MercantileScraper extends DiscountScraper {

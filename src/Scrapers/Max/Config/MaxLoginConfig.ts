@@ -1,17 +1,17 @@
 import { type Page } from 'playwright';
 
-import { getDebug } from '../../Common/Debug.js';
+import { getDebug } from '../../../Common/Debug.js';
 import {
   clickButton,
   elementPresentOnPage,
   fillInput,
   waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
-import { resolveFieldContext } from '../../Common/SelectorResolver.js';
-import { CompanyTypes } from '../../Definitions.js';
-import type { LifecyclePromise } from '../Base/Interfaces/CallbackTypes.js';
-import { type IFieldConfig, type ILoginConfig } from '../Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+} from '../../../Common/ElementsInteractions.js';
+import { resolveFieldContext } from '../../../Common/SelectorResolver.js';
+import { CompanyTypes } from '../../../Definitions.js';
+import { type IFieldConfig, type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const LOG = getDebug('max-login');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];

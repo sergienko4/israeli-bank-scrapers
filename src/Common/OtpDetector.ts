@@ -1,6 +1,6 @@
 import { type Frame, type Page } from 'playwright';
 
-import { type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
+import { type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { getDebug } from './Debug.js';
 import { tryInContext } from './SelectorResolver.js';
 

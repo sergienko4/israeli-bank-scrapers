@@ -1,6 +1,6 @@
 import { type Frame, type Page } from 'playwright';
 
-import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
+import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { getDebug } from './Debug.js';
 import { tryInContextInternal } from './SelectorResolver.js';
 

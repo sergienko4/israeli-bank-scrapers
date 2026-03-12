@@ -4,7 +4,7 @@ import type { Page } from 'playwright';
 const MOCK_ELEMENT_PRESENT = jest.fn().mockResolvedValue(false);
 
 jest.unstable_mockModule(
-  '../../Common/Debug.js',
+  '../../../Common/Debug.js',
   /**
    * Mock Debug module.
    * @returns mocked debug exports
@@ -25,7 +25,7 @@ jest.unstable_mockModule(
   }),
 );
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   waitUntil: jest.fn().mockResolvedValue(undefined),
@@ -46,7 +46,7 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
+jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   fillInput: jest.fn().mockResolvedValue(undefined),
   clickButton: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
@@ -54,7 +54,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   resolveFieldWithCache: jest
     .fn()
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
@@ -66,7 +66,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
+jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il'),
@@ -74,7 +74,7 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { MAX_CONFIG } = await import('../../Scrapers/Max/MaxLoginConfig.js');
+const { MAX_CONFIG } = await import('../../../Scrapers/Max/Config/MaxLoginConfig.js');
 
 const MOCK_WAIT_FOR_SELECTOR = jest.fn().mockResolvedValue(undefined);
 

@@ -4,7 +4,7 @@ import type { Page } from 'playwright';
 const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
 const MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR = jest.fn().mockResolvedValue(undefined);
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../../Common/Debug.js', () => ({
   /**
    * Creates a stub logger for the Debug module mock.
    * @returns stub logger with jest.fn() methods
@@ -18,7 +18,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   }),
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
+jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
   waitUntilElementDisappear: MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR,
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -29,7 +29,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
+jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
   getCurrentUrl: jest.fn().mockResolvedValue(''),
@@ -37,7 +37,7 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { MIZRAHI_CONFIG } = await import('../../Scrapers/Mizrahi/MizrahiLoginConfig.js');
+const { MIZRAHI_CONFIG } = await import('../../../Scrapers/Mizrahi/Config/MizrahiLoginConfig.js');
 
 const MOCK_GOTO = jest.fn().mockResolvedValue(undefined);
 const MOCK_QUERY = jest.fn().mockResolvedValue(null);

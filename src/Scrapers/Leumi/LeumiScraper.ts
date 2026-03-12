@@ -21,8 +21,8 @@ import {
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import LEUMI_CONFIG from './LeumiLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import LEUMI_CONFIG from './Config/LeumiLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 // Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration

@@ -8,7 +8,7 @@ import { type ITransaction } from '../../Transactions.js';
 import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes, WafBlockError } from '../Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { fetchAllTransactions } from './BaseIsracardAmexEnrich.js';
 import { type IScrapedLoginValidation } from './BaseIsracardAmexTypes.js';
 
