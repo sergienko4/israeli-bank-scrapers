@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.0.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.2...v8.0.3) (2026-03-12)
+
+
+### Bug Fixes
+
+* add OTP confirm flow for Beinleumi group banks ([#136](https://github.com/sergienko4/israeli-bank-scrapers/issues/136)) ([a01866e](https://github.com/sergienko4/israeli-bank-scrapers/commit/a01866e913a47ed96e2a461f1a2b2c20df4a7b41))
+
 ## [8.0.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.1...v8.0.2) (2026-03-11)
 
 
