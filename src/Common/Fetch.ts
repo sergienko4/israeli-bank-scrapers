@@ -54,6 +54,27 @@ function logApiCall(tag: string, status: number, durationMs: number): boolean {
   return true;
 }
 
+/** Max chars of raw body to log when JSON parse fails (visible at WARN level). */
+const RAW_BODY_LOG_LIMIT = 1000;
+
+/**
+ * Log response body at DEBUG, parse JSON, log raw body at WARN on failure.
+ * @param text - The raw response body text.
+ * @param label - A short label for the log line (e.g. "GET /api/foo").
+ * @returns The parsed JSON value.
+ */
+function debugLogAndParse(text: string, label: string): JsonValue {
+  const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
+  LOG.debug('response body: %s', bodyPreview);
+  try {
+    return JSON.parse(text) as JsonValue;
+  } catch (err: unknown) {
+    const rawPreview = text.substring(0, RAW_BODY_LOG_LIMIT);
+    LOG.warn('JSON parse failed for %s — raw body: %s', label, rawPreview);
+    throw err;
+  }
+}
+
 /**
  * Log response issues such as non-200 status or WAF blocks.
  * @param status - The HTTP response status code.
@@ -92,13 +113,13 @@ async function parseFetchGetResponse<TResult>(
   const urlTail = url.slice(-100);
   logApiCall(`GET ${urlTail}`, fetchResult.status, elapsed);
   const text = await fetchResult.text();
-  const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
-  LOG.debug('response body: %s', bodyPreview);
+  const getLabel = `GET ${urlTail}`;
   if (fetchResult.status !== 200) {
+    debugLogAndParse(text, getLabel); // log body before throwing
     const statusStr = String(fetchResult.status);
     throw new ScraperError(`GET request returned status ${statusStr}`);
   }
-  return JSON.parse(text) as TResult;
+  return debugLogAndParse(text, getLabel) as TResult;
 }
 
 /**
@@ -151,9 +172,7 @@ export async function fetchPost<TResult>(
   const result = await fetch(url, request);
   logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
   const text = await result.text();
-  const preview = text.substring(0, BODY_PREVIEW_LIMIT);
-  LOG.debug('response body: %s', preview);
-  return JSON.parse(text) as TResult;
+  return debugLogAndParse(text, `POST ${url.slice(-100)}`) as TResult;
 }
 
 /** Options for GraphQL fetch requests. */
@@ -227,6 +246,8 @@ function parseGetResult(opts: IParseGetOpts): Nullable<Record<string, JsonValue>
   try {
     return JSON.parse(result) as Record<string, JsonValue>;
   } catch (err) {
+    const rawPreview = result.substring(0, 1000);
+    LOG.warn('JSON parse failed (page GET) %s — raw body: %s', url, rawPreview);
     if (!shouldIgnoreErrors) {
       const msg = err instanceof Error ? err.message : String(err);
       const statusStr = String(status);
@@ -324,6 +345,8 @@ function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, JsonVal
   try {
     if (text !== '') return JSON.parse(text) as Record<string, JsonValue>;
   } catch (err) {
+    const rawPreview = text.substring(0, 1000);
+    LOG.warn('JSON parse failed (page POST) %s — raw body: %s', url, rawPreview);
     if (!shouldIgnoreErrors) {
       const msg = err instanceof Error ? err.message : String(err);
       const statusStr = String(status);
