@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
+import type { ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import type { ILoginConfig } from '../../Scrapers/Base/LoginConfig.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 

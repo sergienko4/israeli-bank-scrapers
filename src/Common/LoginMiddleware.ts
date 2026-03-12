@@ -1,7 +1,7 @@
 import type { Frame, Page } from 'playwright';
 
 import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
-import type { IBankScraperConfig } from '../Scrapers/Registry/ScraperConfig.js';
+import type { IBankScraperConfig } from '../Scrapers/Registry/Config/ScraperConfig.js';
 
 /** Cached result of the HTML structure parse — populated once by stepParseLoginPage. */
 export interface IParsedLoginPage {

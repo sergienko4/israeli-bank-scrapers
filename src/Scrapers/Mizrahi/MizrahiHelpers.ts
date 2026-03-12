@@ -4,7 +4,7 @@ import { type Page, type Request } from 'playwright';
 import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
 import type { IMoreDetails } from './Interfaces/MoreDetails.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';

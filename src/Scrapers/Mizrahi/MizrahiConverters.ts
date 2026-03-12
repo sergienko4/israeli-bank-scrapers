@@ -6,7 +6,7 @@ import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import {
   getTransactionIdentifier,
   type IConvertOneRowOpts,

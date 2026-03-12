@@ -19,7 +19,7 @@ import {
   type TransactionTypes,
 } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import {
   type IInstallmentInfo,
   type INoIdentifier,

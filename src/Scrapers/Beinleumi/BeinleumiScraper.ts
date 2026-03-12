@@ -1,8 +1,8 @@
 import { CompanyTypes } from '../../Definitions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import BeinleumiGroupBaseScraper from '../BaseBeinleumiGroup/BaseBeinleumiGroup.js';
-import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { beinleumiConfig } from '../BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 
 /** Scraper for Bank Beinleumi — extends the shared Beinleumi group base. */
 class BeinleumiScraper extends BeinleumiGroupBaseScraper {

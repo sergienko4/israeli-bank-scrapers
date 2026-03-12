@@ -14,7 +14,8 @@ import { ScraperErrorTypes } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { MIZRAHI_CONFIG } from './Config/MizrahiLoginConfig.js';
 import { convertTransactions, extractPendingTxns } from './MizrahiConverters.js';
 import {
   createDataFromRequest,
@@ -28,7 +29,6 @@ import {
   PENDING_TRANSACTIONS_IFRAME,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers.js';
-import { MIZRAHI_CONFIG } from './MizrahiLoginConfig.js';
 import buildSel from './MizrahiSelectors.js';
 
 const LOG = getDebug('mizrahi');

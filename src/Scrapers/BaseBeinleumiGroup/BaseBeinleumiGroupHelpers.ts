@@ -7,7 +7,7 @@ import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
 import type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';

@@ -1,4 +1,4 @@
-import { type SelectorCandidate } from '../Base/LoginConfig.js';
+import { type SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 
 // ---- Config shape ----
 

@@ -9,7 +9,7 @@ import { waitUntil } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 
 const LOG = getDebug('hapoalim');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];

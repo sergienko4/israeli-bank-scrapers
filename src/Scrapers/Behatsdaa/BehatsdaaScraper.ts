@@ -8,8 +8,8 @@ import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import type { Nullable } from '../Base/Interfaces/CallbackTypes.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import { BEHATSDAA_CONFIG } from './BehatsdaaLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { BEHATSDAA_CONFIG } from './Config/BehatsdaaLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
 

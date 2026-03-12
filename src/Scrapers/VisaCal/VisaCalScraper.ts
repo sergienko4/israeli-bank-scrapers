@@ -9,6 +9,7 @@ import type { ITransactionsAccount } from '../../Transactions.js';
 import type { ILoginOptions } from '../Base/BaseScraperWithBrowser.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
+import { VISACAL_LOGIN_CONFIG } from './Config/VisaCalLoginConfig.js';
 import {
   buildApiHeaders,
   buildMonthRange,
@@ -20,7 +21,6 @@ import {
   X_SITE_ID,
 } from './VisaCalFetch.js';
 import { convertParsedDataToTransactions, findCardFrame } from './VisaCalHelpers.js';
-import { VISACAL_LOGIN_CONFIG } from './VisaCalLoginConfig.js';
 import {
   authModuleOrUndefined,
   type IApiContext,

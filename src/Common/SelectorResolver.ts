@@ -1,7 +1,7 @@
 import { type Frame, type Page } from 'playwright';
 
-import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/ScraperConfig.js';
+import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/Config/ScraperConfig.js';
 import { getDebug } from './Debug.js';
 import { resolveLabelText, resolveTextContent } from './SelectorLabelStrategies.js';
 import {

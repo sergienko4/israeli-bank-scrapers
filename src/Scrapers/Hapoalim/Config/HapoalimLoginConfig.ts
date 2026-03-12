@@ -1,9 +1,9 @@
 import { type Page } from 'playwright';
 
-import { waitForRedirect } from '../../Common/Navigation.js';
-import { CompanyTypes } from '../../Definitions.js';
-import { type ILoginConfig } from '../Base/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { waitForRedirect } from '../../../Common/Navigation.js';
+import { CompanyTypes } from '../../../Definitions.js';
+import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Hapoalim];
 

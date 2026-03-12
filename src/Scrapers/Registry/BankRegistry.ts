@@ -1,16 +1,16 @@
 import { CompanyTypes } from '../../Definitions.js';
-import { type ILoginConfig } from '../Base/LoginConfig.js';
-import { beinleumiConfig } from '../BaseBeinleumiGroup/BeinleumiLoginConfig.js';
-import { BEHATSDAA_CONFIG } from '../Behatsdaa/BehatsdaaLoginConfig.js';
-import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/BeyahadBishvilhaLoginConfig.js';
-import discountConfig from '../Discount/DiscountLoginConfig.js';
-import { HAPOALIM_CONFIG } from '../Hapoalim/HapoalimLoginConfig.js';
-import LEUMI_CONFIG from '../Leumi/LeumiLoginConfig.js';
-import { MAX_CONFIG } from '../Max/MaxLoginConfig.js';
-import { MIZRAHI_CONFIG } from '../Mizrahi/MizrahiLoginConfig.js';
-import { VISACAL_LOGIN_CONFIG } from '../VisaCal/VisaCalLoginConfig.js';
-import { YAHAV_CONFIG } from '../Yahav/YahavLoginConfig.js';
-import { SCRAPER_CONFIGURATION } from './ScraperConfig.js';
+import { type ILoginConfig } from '../Base/Config/LoginConfig.js';
+import { beinleumiConfig } from '../BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js';
+import { BEHATSDAA_CONFIG } from '../Behatsdaa/Config/BehatsdaaLoginConfig.js';
+import { BEYAHAD_CONFIG } from '../BeyahadBishvilha/Config/BeyahadBishvilhaLoginConfig.js';
+import discountConfig from '../Discount/Config/DiscountLoginConfig.js';
+import { HAPOALIM_CONFIG } from '../Hapoalim/Config/HapoalimLoginConfig.js';
+import LEUMI_CONFIG from '../Leumi/Config/LeumiLoginConfig.js';
+import { MAX_CONFIG } from '../Max/Config/MaxLoginConfig.js';
+import { MIZRAHI_CONFIG } from '../Mizrahi/Config/MizrahiLoginConfig.js';
+import { VISACAL_LOGIN_CONFIG } from '../VisaCal/Config/VisaCalLoginConfig.js';
+import { YAHAV_CONFIG } from '../Yahav/Config/YahavLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from './Config/ScraperConfig.js';
 
 /** Registry mapping CompanyTypes to their declarative login configurations. */
 const BANK_REGISTRY: Partial<Record<CompanyTypes, ILoginConfig>> = {

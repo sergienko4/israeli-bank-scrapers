@@ -7,7 +7,7 @@ import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
 import {
   type ILoginOptions,

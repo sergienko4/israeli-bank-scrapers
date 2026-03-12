@@ -14,9 +14,13 @@ import {
   LOGIN_RESULTS,
   type PossibleLoginResults,
 } from './BaseScraperWithBrowser.js';
+import {
+  type IFieldConfig,
+  type ILoginConfig,
+  type SelectorCandidate,
+} from './Config/LoginConfig.js';
 import { type ScraperCredentials, type ScraperOptions } from './Interface.js';
 import type { Nullable, OptionalFramePromise } from './Interfaces/CallbackTypes.js';
-import { type IFieldConfig, type ILoginConfig, type SelectorCandidate } from './LoginConfig.js';
 
 /**
  * Normalize submit button candidates to an array.

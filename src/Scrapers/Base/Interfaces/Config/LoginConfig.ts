@@ -1,10 +1,10 @@
 import type { Frame, Page } from 'playwright';
 
-import type { WaitUntilState } from '../../../Common/Navigation.js';
-import type { OtpConfig, SelectorCandidate } from '../LoginConfigTypes.js';
-import type { LifecyclePromise } from './CallbackTypes.js';
+import type { WaitUntilState } from '../../../../Common/Navigation.js';
+import type { OtpConfig, SelectorCandidate } from '../../Config/LoginConfigTypes.js';
+import type { LifecyclePromise } from '../CallbackTypes.js';
+import type { ILoginPossibleResults } from '../LoginPossibleResults.js';
 import type { IFieldConfig } from './FieldConfig.js';
-import type { ILoginPossibleResults } from './LoginPossibleResults.js';
 
 /** Async page lifecycle callback that performs side effects without returning a value. */
 type PageLifecycleCallback = (page: Page) => LifecyclePromise;

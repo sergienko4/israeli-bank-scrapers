@@ -17,8 +17,8 @@ import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
-import { BEYAHAD_CONFIG } from './BeyahadBishvilhaLoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { BEYAHAD_CONFIG } from './Config/BeyahadBishvilhaLoginConfig.js';
 
 const LOG = getDebug('beyahadBishvilha');
 

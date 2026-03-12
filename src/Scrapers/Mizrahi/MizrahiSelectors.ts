@@ -1,5 +1,5 @@
 import { toFirstCss } from '../../Common/SelectorResolver.js';
-import type { SelectorCandidate } from '../Base/LoginConfig.js';
+import type { SelectorCandidate } from '../Base/Config/LoginConfig.js';
 
 /** Selector config entry type. */
 type SelectorConfig = Record<string, SelectorCandidate[]>;

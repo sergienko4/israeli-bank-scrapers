@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright';
 
-import type { LifecyclePromise } from '../../Scrapers/Base/Interfaces/CallbackTypes.js';
+import type { LifecyclePromise } from '../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 
 const MOCK_RESOLVE_FIELD_CONTEXT = jest.fn();
 const MOCK_FILL_INPUT = jest.fn().mockResolvedValue(undefined);
@@ -10,7 +10,7 @@ const MOCK_ELEMENT_PRESENT_ON_PAGE = jest.fn().mockResolvedValue(false);
 const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
 
 jest.unstable_mockModule(
-  '../../Common/Debug.js',
+  '../../../Common/Debug.js',
   /**
    * Mock Debug module.
    * @returns mocked debug exports
@@ -30,7 +30,7 @@ jest.unstable_mockModule(
   }),
 );
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   waitUntil: jest.fn().mockResolvedValue(undefined),
@@ -40,7 +40,7 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
+jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   fillInput: MOCK_FILL_INPUT,
   clickButton: MOCK_CLICK_BUTTON,
   waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
@@ -48,7 +48,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   resolveFieldWithCache: jest
     .fn()
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
@@ -60,7 +60,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
+jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il'),
@@ -69,7 +69,7 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
 }));
 
 const { buildMaxPostAction: BUILD_MAX_POST_ACTION, MAX_CONFIG } =
-  await import('../../Scrapers/Max/MaxLoginConfig.js');
+  await import('../../../Scrapers/Max/Config/MaxLoginConfig.js');
 
 type IMaxCredentials = Parameters<typeof BUILD_MAX_POST_ACTION>[0];
 

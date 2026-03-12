@@ -80,7 +80,7 @@ const { ScraperErrorTypes: SCRAPER_ERROR_TYPES } = await import('../../Scrapers/
 const { default: BEINLEUMI_GROUP_BASE_SCRAPER } =
   await import('../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroup.js');
 const { beinleumiConfig: BEINLEUMI_CONFIG } =
-  await import('../../Scrapers/BaseBeinleumiGroup/BeinleumiLoginConfig.js');
+  await import('../../Scrapers/BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js');
 const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
   await import('../../Transactions.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =

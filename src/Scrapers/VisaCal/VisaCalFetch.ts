@@ -4,7 +4,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPost } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import ScraperError from '../Base/ScraperError.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/ScraperConfig.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import {
   type ICardApiStatus,
   type ICardInfo,

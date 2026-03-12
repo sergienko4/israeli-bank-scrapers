@@ -27,8 +27,8 @@ import {
   type ILoginOptions,
   LOGIN_RESULTS,
 } from './BaseScraperHelpers.js';
+import type { IFieldConfig } from './Config/LoginConfig.js';
 import type { ScraperOptions } from './Interface.js';
-import type { IFieldConfig } from './LoginConfig.js';
 
 /** Shared context passed from BaseScraperWithBrowser to each login step. */
 export interface ILoginStepContext {

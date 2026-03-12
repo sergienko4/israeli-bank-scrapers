@@ -1,4 +1,8 @@
-import { CompanyTypes } from '../../Definitions.js';
+import { CompanyTypes } from '../../../Definitions.js';
+import {
+  WELL_KNOWN_DASHBOARD_SELECTORS,
+  WELL_KNOWN_LOGIN_SELECTORS,
+} from '../WellKnownSelectors.js';
 import {
   BEINLEUMI_DOM_SELECTORS,
   type IBankScraperConfig,
@@ -9,10 +13,6 @@ import {
   SIMPLE_LOGIN,
   VISACAL_API,
 } from './ScraperConfigDefaults.js';
-import {
-  WELL_KNOWN_DASHBOARD_SELECTORS,
-  WELL_KNOWN_LOGIN_SELECTORS,
-} from './WellKnownSelectors.js';
 
 export type { IBankScraperConfig };
 

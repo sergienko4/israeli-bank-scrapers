@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
+  '../../../Common/ElementsInteractions.js',
   /**
    * Mock ElementsInteractions.
    * @returns Mocked module.
@@ -18,10 +18,10 @@ jest.unstable_mockModule(
 );
 
 const { elementPresentOnPage: ELEMENT_PRESENT } =
-  await import('../../Common/ElementsInteractions.js');
+  await import('../../../Common/ElementsInteractions.js');
 const { beinleumiConfig: BEINLEUMI_CONFIG, BEINLEUMI_FIELDS } =
-  await import('../../Scrapers/BaseBeinleumiGroup/BeinleumiLoginConfig.js');
-const { createMockPage: CREATE_MOCK_PAGE } = await import('../MockPage.js');
+  await import('../../../Scrapers/BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js');
+const { createMockPage: CREATE_MOCK_PAGE } = await import('../../MockPage.js');
 
 beforeEach(() => {
   jest.clearAllMocks();
