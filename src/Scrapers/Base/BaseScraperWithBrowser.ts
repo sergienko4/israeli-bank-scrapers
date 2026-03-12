@@ -84,7 +84,7 @@ class BaseScraperWithBrowser<
     this.emitProgress(ScraperProgressTypes.Initializing);
     const page = await this.initializePage();
     if (!page) {
-      LOG.debug('failed to initiate a browser page, exit');
+      this.bankLog.debug('failed to initiate a browser page, exit');
       return true;
     }
     await this.setupPage(page);
@@ -113,7 +113,7 @@ class BaseScraperWithBrowser<
       navOpts: { waitUntil },
       status,
       retries,
-      log: LOG,
+      log: this.bankLog,
       navigateTo: retryFn,
     });
   }
@@ -179,7 +179,7 @@ class BaseScraperWithBrowser<
     };
     const stepCtx = this.buildStepContext();
     const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);
-    const chainResult = await runLoggedChain(steps, ctx, LOG);
+    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
     if (chainResult !== null) return chainResult;
     const resultCtx = this.loginResultCtx();
     return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
@@ -192,7 +192,7 @@ class BaseScraperWithBrowser<
    */
   public async terminate(isSuccess: boolean): Promise<boolean> {
     const successStr = String(isSuccess);
-    LOG.debug('terminating browser with success = %s', successStr);
+    this.bankLog.debug('terminating browser with success = %s', successStr);
     this.emitProgress(ScraperProgressTypes.Terminating);
     await this.captureFailureScreenshot(isSuccess);
     const reversed = this._cleanups.reverse();
@@ -216,7 +216,7 @@ class BaseScraperWithBrowser<
     const response = await this.page.goto(url, { waitUntil });
     if (response !== null) {
       const status = response.status();
-      LOG.debug('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
+      this.bankLog.debug('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
     }
     return response;
   }
@@ -309,13 +309,13 @@ class BaseScraperWithBrowser<
       this.page.setDefaultTimeout(this.options.defaultTimeout);
     }
     if (this.options.preparePage) {
-      LOG.debug('execute preparePage interceptor provided in options');
+      this.bankLog.debug('execute preparePage interceptor provided in options');
       await this.options.preparePage(this.page);
     }
     this.page.on('requestfailed', request => {
       const errorText = request.failure()?.errorText ?? 'unknown';
       const failedUrl = request.url();
-      LOG.debug('Request failed: %s %s', errorText, failedUrl);
+      this.bankLog.debug('Request failed: %s %s', errorText, failedUrl);
     });
     return true;
   }
@@ -342,10 +342,11 @@ class BaseScraperWithBrowser<
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as IDefaultBrowserOptions;
     const { shouldShowBrowser } = opts;
-    LOG.debug('launch Camoufox headless=%s', !shouldShowBrowser);
+    this.bankLog.debug('launch Camoufox headless=%s', !shouldShowBrowser);
     const browser = await launchCamoufox(!shouldShowBrowser);
+    const bankLogger = this.bankLog;
     this._cleanups.push(async () => {
-      LOG.debug('closing the browser');
+      bankLogger.debug('closing the browser');
       await browser.close();
       return true;
     });
@@ -358,9 +359,9 @@ class BaseScraperWithBrowser<
    * @returns A new Playwright page, or undefined on failure.
    */
   private async initializePage(): Promise<Page | undefined> {
-    LOG.debug('initialize browser page');
+    this.bankLog.debug('initialize browser page');
     if ('browserContext' in this.options) {
-      LOG.debug('Using the browser context provided in options');
+      this.bankLog.debug('Using the browser context provided in options');
       return this.options.browserContext.newPage();
     }
     if ('browser' in this.options) {
@@ -374,12 +375,13 @@ class BaseScraperWithBrowser<
    * @returns A new Playwright page.
    */
   private async initializeFromExistingBrowser(): Promise<Page> {
-    LOG.debug('Using the browser instance provided in options');
+    this.bankLog.debug('Using the browser instance provided in options');
     const opts = this.options as { browser: Browser; skipCloseBrowser?: boolean };
     const { browser } = opts;
+    const bankLogger = this.bankLog;
     if (!opts.skipCloseBrowser) {
       this._cleanups.push(async () => {
-        LOG.debug('closing the browser');
+        bankLogger.debug('closing the browser');
         await browser.close();
         return true;
       });
@@ -394,12 +396,13 @@ class BaseScraperWithBrowser<
    */
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
     if (isSuccess || !this.options.storeFailureScreenShotPath) return true;
-    LOG.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+    this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+    const bankLogger = this.bankLog;
     await this.page
       .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
       .catch((caught: unknown) => {
         const errMsg = (caught as Error).message.slice(0, 80);
-        LOG.debug('screenshot failed: %s', errMsg);
+        bankLogger.debug('screenshot failed: %s', errMsg);
       });
     return true;
   }

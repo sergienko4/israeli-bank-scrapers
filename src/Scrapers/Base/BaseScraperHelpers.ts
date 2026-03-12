@@ -98,14 +98,6 @@ export async function matchesAnyCondition(
 }
 
 /**
- * Create a generic error scraping result.
- * @returns A failed scraping result with Generic error type.
- */
-export function createGeneralError(): IScraperScrapingResult {
-  return { success: false, errorType: ScraperErrorTypes.Generic };
-}
-
-/**
  * Run a cleanup function, swallowing errors to avoid masking earlier failures.
  * @param cleanup - The cleanup function to execute.
  * @returns True after the cleanup attempt completes.
