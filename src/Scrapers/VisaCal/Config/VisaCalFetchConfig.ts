@@ -2,7 +2,7 @@
 export const VISA_CAL_ACCEPT_LANGUAGE = 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7';
 
 /** Default HTTP headers for VisaCal API requests. */
-export const API_HEADERS: Record<string, string> = {
+export const API_HEADERS: Readonly<Record<string, string>> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
     'AppleWebKit/537.36 (KHTML, like Gecko) ' +

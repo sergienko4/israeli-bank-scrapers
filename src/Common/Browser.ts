@@ -2,7 +2,7 @@ import { type BrowserContextOptions } from 'playwright';
 
 import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
-export { ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
+export { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
 /**
  * Build Playwright browser context options with Israeli bank-friendly defaults.

@@ -1,10 +1,6 @@
 import { type Frame, type Page } from 'playwright';
 
-import {
-  REDIRECT_TIMEOUT_MS,
-  URL_POLL_INTERVAL_MS,
-  URL_WAIT_TIMEOUT_MS,
-} from './Config/NavigationConfig.js';
+import { NAVIGATION_TIMEOUT_MS, URL_POLL_INTERVAL_MS } from './Config/NavigationConfig.js';
 import { getDebug } from './Debug.js';
 import { waitUntil } from './Waiting.js';
 
@@ -119,7 +115,7 @@ export async function waitForRedirect(
   pageOrFrame: Page | Frame,
   opts: IWaitForRedirectOptions = {},
 ): Promise<boolean> {
-  const { timeout = REDIRECT_TIMEOUT_MS, isClientSide = false, ignoreList = [] } = opts;
+  const { timeout = NAVIGATION_TIMEOUT_MS, isClientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, isClientSide);
   LOG.debug('waitForRedirect from %s', initial);
   try {
@@ -184,7 +180,7 @@ export async function waitForUrl(
   url: string | RegExp,
   opts: IWaitForUrlOptions = {},
 ): Promise<boolean> {
-  const { timeout = URL_WAIT_TIMEOUT_MS, isClientSide = false } = opts;
+  const { timeout = NAVIGATION_TIMEOUT_MS, isClientSide = false } = opts;
   try {
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
   } catch (caught) {
