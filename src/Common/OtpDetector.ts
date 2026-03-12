@@ -1,56 +1,19 @@
 import { type Frame, type Page } from 'playwright';
 
-import { type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import {
+  OTP_INPUT_CANDIDATES,
+  OTP_SUBMIT_CANDIDATES,
+  OTP_TEXT_PATTERNS,
+  PHONE_PATTERN,
+  SMS_TRIGGER_CANDIDATES,
+} from './Config/OtpDetectorConfig.js';
 import { getDebug } from './Debug.js';
 import { tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-detector');
 
-// OTP text patterns — Hebrew + English, most-specific first
-const OTP_TEXT_PATTERNS = [
-  'סיסמה חד פעמית',
-  'קוד חד פעמי',
-  'אימות זהות',
-  'לצורך אימות',
-  'בחר טלפון',
-  'שלח קוד',
-  'קוד SMS',
-  'קוד אימות',
-  'one-time password',
-  'SMS code',
-] as const;
-
-const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'placeholder', value: 'קוד חד פעמי' },
-  { kind: 'placeholder', value: 'קוד SMS' },
-  { kind: 'placeholder', value: 'קוד אימות' },
-  { kind: 'placeholder', value: 'הזן קוד' },
-  { kind: 'ariaLabel', value: 'קוד' },
-  { kind: 'name', value: 'otpCode' },
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'css', value: '#codeinput' },
-];
-
-const PHONE_PATTERN = /[*]{4,}\d{2,4}/;
-
-export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'xpath', value: '//button[contains(.,"אשר")]' },
-  { kind: 'xpath', value: '//button[contains(.,"המשך")]' },
-  { kind: 'xpath', value: '//button[contains(.,"אישור")]' },
-  { kind: 'xpath', value: '//button[contains(.,"כניסה")]' },
-  { kind: 'ariaLabel', value: 'כניסה' },
-  { kind: 'css', value: 'button[type="submit"]' },
-  { kind: 'css', value: 'input[type="button"]' },
-];
-
-const SMS_TRIGGER_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'xpath', value: '//button[contains(.,"SMS")]' },
-  { kind: 'ariaLabel', value: 'שלח SMS' },
-  { kind: 'css', value: 'input[type="radio"][value="SMS"]' },
-  { kind: 'xpath', value: '//button[contains(.,"שלח")]' },
-  { kind: 'xpath', value: '//button[contains(.,"קבל קוד")]' },
-];
+export { OTP_SUBMIT_CANDIDATES };
 
 type TextCheckResult = 'otp' | 'clear' | 'unknown';
 

@@ -1,7 +1,9 @@
 import type { Browser } from 'playwright';
 
+import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
+
 /** Default locale for Camoufox browser instances. */
-export const CAMOUFOX_LOCALE = 'he-IL';
+export const CAMOUFOX_LOCALE = ISRAEL_LOCALE;
 
 /**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).

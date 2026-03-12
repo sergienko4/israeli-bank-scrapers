@@ -2,6 +2,11 @@ import { type Frame, type Page } from 'playwright';
 
 import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/Config/ScraperConfig.js';
+import {
+  CANDIDATE_TIMEOUT_MS,
+  CREDENTIAL_KEY_MAP,
+  MIN_ID_LENGTH,
+} from './Config/SelectorResolverConfig.js';
 import { getDebug } from './Debug.js';
 import { resolveLabelText, resolveTextContent } from './SelectorLabelStrategies.js';
 import {
@@ -27,23 +32,6 @@ const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardS
   string,
   SelectorCandidate[]
 >;
-
-/** Max ms to wait for a single `$()` call before treating it as not found. */
-const CANDIDATE_TIMEOUT_MS = 2000;
-
-const CREDENTIAL_KEY_MAP: Record<string, string> = {
-  password: 'password',
-  sisma: 'password',
-  tzpassword: 'password',
-  usercode: 'username',
-  username: 'username',
-  usernum: 'username',
-  uid: 'id',
-  tzid: 'id',
-  aidnum: 'num',
-  num: 'num',
-  account: 'num',
-};
 
 /**
  * Convert a SelectorCandidate to a Playwright-compatible selector string.
@@ -91,7 +79,7 @@ export function extractCredentialKey(selector: string): string {
   for (const [key, val] of Object.entries(CREDENTIAL_KEY_MAP)) {
     if (lower.includes(key)) return val;
   }
-  if (lower.startsWith('id') && lower.length <= 4) return 'id';
+  if (lower.startsWith('id') && lower.length <= MIN_ID_LENGTH) return 'id';
   return id;
 }
 

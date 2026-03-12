@@ -15,6 +15,7 @@ import {
   type ScraperGetLongTermTwoFactorTokenResult,
   type ScraperTwoFactorAuthTriggerResult,
 } from '../Base/Interface.js';
+import { GQL_LANGUAGE, GQL_URL, MOVEMENTS_LIMIT } from './Config/OneZeroConfig.js';
 import {
   fetchDeviceToken,
   getIdToken,
@@ -37,8 +38,6 @@ import {
 export type { ICategory, IRecurrence };
 
 const LOG = getDebug('one-zero');
-const GQL_URL = 'https://mobile.tfd-bank.com/mobile-graph/graphql';
-const MOVEMENTS_LIMIT = 50;
 
 /** Pagination input for the movements GraphQL query. */
 interface IMovementsPaginationInput {
@@ -70,7 +69,7 @@ function buildMovementsVariables(
   return {
     portfolioId,
     accountId,
-    language: 'HEBREW',
+    language: GQL_LANGUAGE,
     pagination: { cursor: cursor ?? null, limit: MOVEMENTS_LIMIT },
   };
 }

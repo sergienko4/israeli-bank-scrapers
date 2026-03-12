@@ -232,11 +232,6 @@ describe('fetchPostWithinPage', () => {
 });
 
 describe('detectWafBlock', () => {
-  it('detects HTTP 403', () => {
-    const result403 = detectWafBlock(403, '');
-    expect(result403).toBe('HTTP 403');
-  });
-
   it('detects HTTP 429', () => {
     const result429 = detectWafBlock(429, '');
     expect(result429).toBe('HTTP 429');

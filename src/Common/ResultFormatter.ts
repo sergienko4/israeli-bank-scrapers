@@ -1,11 +1,17 @@
 import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
+import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
+import {
+  DESC_PREVIEW_LENGTH,
+  MASK_TAIL_LENGTH,
+  MAX_TXN_PREVIEW,
+  SEPARATOR_WIDTH,
+} from './Config/ResultFormatterConfig.js';
 
 /** Optional numeric amount — undefined when the bank API omits the field. */
 type OptionalAmount = number | undefined;
 
-const MAX_TXN_PREVIEW = 3;
-const SEPARATOR = '\u2550'.repeat(40);
+const SEPARATOR = '\u2550'.repeat(SEPARATOR_WIDTH);
 
 /**
  * Mask an account number for PII-safe logging, showing only last 4 digits.
@@ -13,7 +19,7 @@ const SEPARATOR = '\u2550'.repeat(40);
  * @returns The masked account number.
  */
 export function maskAccount(acct: string): string {
-  return acct.length <= 4 ? '****' : '****' + acct.slice(-4);
+  return acct.length <= MASK_TAIL_LENGTH ? '****' : '****' + acct.slice(-MASK_TAIL_LENGTH);
 }
 
 /**
@@ -33,7 +39,7 @@ export function maskAmount(amount: OptionalAmount): string {
  */
 export function maskDesc(desc: string): string {
   if (!desc) return '***';
-  return desc.slice(0, 3) + '***';
+  return desc.slice(0, DESC_PREVIEW_LENGTH) + '***';
 }
 
 /**
@@ -42,7 +48,7 @@ export function maskDesc(desc: string): string {
  * @returns The formatted date string.
  */
 function formatDate(isoDate: string): string {
-  return isoDate ? new Date(isoDate).toLocaleDateString('he-IL') : '';
+  return isoDate ? new Date(isoDate).toLocaleDateString(ISRAEL_LOCALE) : '';
 }
 
 /**

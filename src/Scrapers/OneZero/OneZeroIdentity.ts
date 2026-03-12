@@ -1,6 +1,5 @@
 import { fetchPost } from '../../Common/Fetch.js';
-
-const ID_URL = 'https://identity.tfd-bank.com/v1/';
+import { ID_URL } from './Config/OneZeroConfig.js';
 
 /**
  * Post to the identity server and return the typed response.

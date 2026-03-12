@@ -2,17 +2,17 @@ import { type Frame, type Page } from 'playwright';
 
 import { getDebug } from '../../Common/Debug.js';
 import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
+import {
+  ACCOUNT_SELECTOR,
+  DROPDOWN_PANEL_SELECTOR,
+  ELEMENT_RENDER_TIMEOUT_MS,
+  IFRAME_NAME,
+  OPTION_SELECTOR,
+  TRANSACTIONS_FRAME_LOAD_ATTEMPTS,
+  TRANSACTIONS_FRAME_WAIT_MS,
+} from './Config/BeinleumiAccountSelectorConfig.js';
 
 const LOG = getDebug('beinleumi-account-selector');
-
-const ACCOUNT_SELECTOR = 'div.current-account';
-const DROPDOWN_PANEL_SELECTOR = 'div.mat-mdc-autocomplete-panel.account-select-dd';
-const OPTION_SELECTOR = 'mat-option .mdc-list-item__primary-text';
-
-const ELEMENT_RENDER_TIMEOUT_MS = 10000;
-const IFRAME_NAME = 'iframe-old-pages';
-const TRANSACTIONS_FRAME_LOAD_ATTEMPTS = 3;
-const TRANSACTIONS_FRAME_WAIT_MS = 2000;
 
 /**
  * Check whether the account dropdown panel is currently visible.

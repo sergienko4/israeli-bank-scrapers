@@ -1,7 +1,8 @@
 import { type BrowserContextOptions } from 'playwright';
 
-/** Default timezone for Israeli bank portals. */
-export const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
+import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
+
+export { ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
 /**
  * Build Playwright browser context options with Israeli bank-friendly defaults.
@@ -11,8 +12,8 @@ export const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
  */
 export function buildContextOptions(): BrowserContextOptions {
   return {
-    locale: 'he-IL',
-    timezoneId: 'Asia/Jerusalem',
+    locale: ISRAEL_LOCALE,
+    timezoneId: ISRAEL_TIMEZONE,
     javaScriptEnabled: true,
   };
 }

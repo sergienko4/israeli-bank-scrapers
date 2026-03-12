@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { type ITransactionsAccount } from '../Transactions.js';
+import { ASYNC_TIMEOUT } from './Config/TestTimingConfig.js';
 
 const FILE_NAME = fileURLToPath(import.meta.url);
 const DIR_NAME = path.dirname(FILE_NAME);
@@ -111,7 +112,7 @@ export function maybeTestCompanyAPI(
  * @param timeout - timeout in milliseconds, defaults to 120000
  * @returns true when the timeout has been set
  */
-export function extendAsyncTimeout(timeout = 120000): boolean {
+export function extendAsyncTimeout(timeout = ASYNC_TIMEOUT): boolean {
   jest.setTimeout(timeout);
   return true;
 }
