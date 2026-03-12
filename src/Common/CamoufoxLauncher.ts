@@ -1,7 +1,8 @@
 import type { Browser } from 'playwright';
 
-/** Default locale for Camoufox browser instances. */
-export const CAMOUFOX_LOCALE = 'he-IL';
+import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
+
+export { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
 
 /**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
@@ -13,6 +14,6 @@ export async function launchCamoufox(headless: boolean): Promise<Browser> {
   const camoufoxModule = await import('@hieutran094/camoufox-js');
   return camoufoxModule.Camoufox({
     headless,
-    locale: CAMOUFOX_LOCALE,
+    locale: ISRAEL_LOCALE,
   }) as unknown as Browser;
 }

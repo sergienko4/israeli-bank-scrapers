@@ -8,9 +8,8 @@ import {
   type IScrapedAccountsWithinPageResponse,
   type IScrapedTransactionData,
 } from './BaseIsracardAmexTypes.js';
+import { ISRACARD_DATE_FORMAT, RATE_LIMIT_SLEEP_MS } from './Config/IsracardAmexFetchConfig.js';
 
-const DATE_FORMAT = 'DD/MM/YYYY';
-const RATE_LIMIT_SLEEP_BETWEEN = 1000;
 const LOG = getDebug('base-isracard-amex');
 
 /**
@@ -51,7 +50,7 @@ export async function fetchAccounts(
     return cardsCharges.map(cardCharge => ({
       index: parseInt(cardCharge.cardIndex, 10),
       accountNumber: cardCharge.cardNumber,
-      processedDate: moment(cardCharge.billingDate, DATE_FORMAT).toISOString(),
+      processedDate: moment(cardCharge.billingDate, ISRACARD_DATE_FORMAT).toISOString(),
     }));
   }
   return [];
@@ -89,7 +88,7 @@ export async function fetchTxnData(
   monthMoment: Moment,
 ): ReturnType<typeof fetchGetWithinPage<IScrapedTransactionData>> {
   const dataUrl = getTransactionsUrl(servicesUrl, monthMoment);
-  await page.waitForTimeout(RATE_LIMIT_SLEEP_BETWEEN);
+  await page.waitForTimeout(RATE_LIMIT_SLEEP_MS);
   LOG.debug(`fetching transactions from ${dataUrl} for month ${monthMoment.format('YYYY-MM')}`);
   return fetchGetWithinPage<IScrapedTransactionData>(page, dataUrl);
 }

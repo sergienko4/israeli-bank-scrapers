@@ -1,6 +1,16 @@
 import { type Frame, type Page } from 'playwright';
 
 import ScraperError from '../Scrapers/Base/ScraperError.js';
+import {
+  CLICK_BUTTON_DELAY_MAX_MS,
+  CLICK_BUTTON_DELAY_MIN_MS,
+  ELEMENT_HTML_CAPTURE_LIMIT,
+  FILL_INPUT_DELAY_MAX_MS,
+  FILL_INPUT_DELAY_MIN_MS,
+  IFRAME_DEFAULT_TIMEOUT_MS,
+  IFRAME_POLL_INTERVAL_MS,
+  PAGE_TEXT_CAPTURE_LIMIT,
+} from './Config/ElementsInteractionConfig.js';
 import { getDebug } from './Debug.js';
 import { humanDelay, waitUntil } from './Waiting.js';
 
@@ -13,7 +23,10 @@ const LOG = getDebug('elements');
  */
 export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
   return pageOrFrame
-    .evaluate((): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, 400))
+    .evaluate(
+      (limit: number): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, limit),
+      PAGE_TEXT_CAPTURE_LIMIT,
+    )
     .catch(() => '(context unavailable)');
 }
 
@@ -21,13 +34,14 @@ export async function capturePageText(pageOrFrame: Page | Frame): Promise<string
  * Capture outer HTML of a matched element for diagnostic logging.
  * @param pageOrFrame - The Playwright page or frame to search.
  * @param selector - The CSS selector for the target element.
- * @returns The first 300 characters of the element's outer HTML.
+ * @returns A truncated preview of the element's outer HTML.
  */
 async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): Promise<string> {
   return pageOrFrame
     .evaluate(
-      (sel: string): string => document.querySelector(sel)?.outerHTML.slice(0, 300) ?? '—',
-      selector,
+      ({ sel, limit }: { sel: string; limit: number }): string =>
+        document.querySelector(sel)?.outerHTML.slice(0, limit) ?? '—',
+      { sel: selector, limit: ELEMENT_HTML_CAPTURE_LIMIT },
     )
     .catch(() => '(context unavailable)');
 }
@@ -115,7 +129,7 @@ async function waitForIframe(
       return Promise.resolve(frame !== false);
     },
     'waiting for iframe',
-    { timeout, interval: 1000 },
+    { timeout, interval: IFRAME_POLL_INTERVAL_MS },
   );
   return frame;
 }
@@ -132,7 +146,7 @@ async function waitUntilIframeFound(
   framePredicate: (frame: Frame) => boolean,
   opts: IWaitOptions & { description?: string } = {},
 ): Promise<Frame> {
-  const { timeout = 30000, description = '' } = opts;
+  const { timeout = IFRAME_DEFAULT_TIMEOUT_MS, description = '' } = opts;
   const frame = await waitForIframe(page, framePredicate, timeout);
 
   if (frame === false) {
@@ -155,7 +169,7 @@ async function fillInput(
   inputValue: string,
 ): Promise<boolean> {
   LOG.debug('fill %s', inputSelector);
-  await humanDelay(200, 600);
+  await humanDelay(FILL_INPUT_DELAY_MIN_MS, FILL_INPUT_DELAY_MAX_MS);
   await pageOrFrame.locator(inputSelector).first().fill(inputValue);
   return true;
 }
@@ -191,7 +205,7 @@ async function setValue(
  */
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<boolean> {
   LOG.debug('click %s', buttonSelector);
-  await humanDelay(200, 800);
+  await humanDelay(CLICK_BUTTON_DELAY_MIN_MS, CLICK_BUTTON_DELAY_MAX_MS);
   await page.$eval(buttonSelector, el => {
     (el as HTMLElement).click();
   });

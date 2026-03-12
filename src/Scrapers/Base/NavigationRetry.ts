@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 
 import type { getDebug } from '../../Common/Debug.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
+import { MAX_403_RETRIES, WAF_RETRY_DELAY_MS } from './Config/LoginFlowConfig.js';
 import ScraperError from './ScraperError.js';
 
 /** Navigation options wrapping the optional Playwright waitUntil strategy. */
@@ -30,12 +31,6 @@ export interface INavigationRetryParams {
   /** Callback to perform a full navigateTo — retries with the same wait strategy. */
   navigateTo: INavigateToFn;
 }
-
-/** Maximum number of WAF 403 retry attempts before giving up. */
-const MAX_403_RETRIES = 2;
-
-/** Milliseconds to wait between WAF 403 retry attempts. */
-const WAF_RETRY_DELAY_MS = 15_000;
 
 /**
  * Handle a non-OK navigation response with generic retry or 403 handling.

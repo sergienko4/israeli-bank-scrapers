@@ -28,6 +28,7 @@ import {
   LOGIN_RESULTS,
 } from './BaseScraperHelpers.js';
 import type { IFieldConfig, SelectorCandidate } from './Config/LoginConfig.js';
+import { LOGIN_STEP_WAIT_MS } from './Config/LoginFlowConfig.js';
 import type { ScraperOptions } from './Interface.js';
 
 /** Shared context passed from BaseScraperWithBrowser to each login step. */
@@ -169,7 +170,7 @@ async function submitForm(
  * @returns A step result indicating whether to continue the chain.
  */
 export async function stepWaitAfterSubmit(ctx: ILoginStepContext): Promise<IStepResult> {
-  await ctx.page.waitForTimeout(1500);
+  await ctx.page.waitForTimeout(LOGIN_STEP_WAIT_MS);
   return CONTINUE;
 }
 

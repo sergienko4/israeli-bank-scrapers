@@ -1,23 +1,6 @@
 import pino, { type Logger } from 'pino';
 
-const SENSITIVE_PATHS = [
-  'password',
-  'credentials.password',
-  'token',
-  'auth.token',
-  'auth.calConnectToken',
-  'secret',
-  'otp',
-  'otpCode',
-  'id',
-  'credentials.id',
-  'card6Digits',
-  'credentials.card6Digits',
-  'credentials.num',
-  'authorization',
-];
-
-const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
+import { AMOUNT_KEYS, SENSITIVE_PATHS } from './Config/DebugConfig.js';
 
 /**
  * Redact sensitive values from log output based on the JSON path.

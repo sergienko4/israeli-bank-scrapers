@@ -4,6 +4,13 @@ import { type Frame, type Page } from 'playwright';
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
+import {
+  OTP_ANIMATION_DELAY_MS,
+  OTP_CHAR_INPUT_DELAY_MS,
+  OTP_FILL_INPUT_SELECTORS,
+  OTP_TRIGGER_DELAY_MS,
+  OTP_VERIFY_DELAY_MS,
+} from './Config/OtpConfig.js';
 import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
@@ -17,10 +24,6 @@ import {
 import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-handler');
-
-const OTP_ANIMATION_DELAY_MS = 800;
-const OTP_VERIFY_DELAY_MS = 5000;
-const OTP_TRIGGER_DELAY_MS = 2000;
 
 /**
  * Save a screenshot of the current page for OTP debugging.
@@ -59,18 +62,6 @@ async function buildMissingRetrieverResult(
   }
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
 }
-
-const OTP_FILL_INPUT_SELECTORS = [
-  '#codeinput',
-  'input[placeholder*="סיסמה"]:not([id="password"])',
-  'input[placeholder*="קוד חד פעמי"]',
-  'input[placeholder*="קוד SMS"]',
-  'input[placeholder*="קוד אימות"]',
-  'input[placeholder*="הזן קוד"]',
-  'input[placeholder*="one-time"]',
-  'input[type="tel"]',
-  '[name="otpCode"]',
-];
 
 /**
  * Check a single frame for an OTP input selector match.
@@ -148,7 +139,7 @@ async function typeOtpIntoField(
   const el = await frame.$(matchedSelector);
   try {
     const locator = frame.locator(matchedSelector).first();
-    await locator.pressSequentially(code, { delay: 80 });
+    await locator.pressSequentially(code, { delay: OTP_CHAR_INPUT_DELAY_MS });
     LOG.debug('typed OTP code via locator selector: %s', matchedSelector);
   } catch (e: unknown) {
     LOG.debug(e, 'locator failed, falling back to evaluate injection');

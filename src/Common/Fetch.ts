@@ -2,20 +2,18 @@ import { type Page } from 'playwright';
 
 import type { Nullable } from '../Scrapers/Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../Scrapers/Base/ScraperError.js';
+import {
+  BODY_PREVIEW_LIMIT,
+  JSON_CONTENT_TYPE,
+  WAF_BLOCK_PATTERNS,
+  WAF_STATUS_CODES,
+} from './Config/FetchConfig.js';
 import { getDebug } from './Debug.js';
 
 const LOG = getDebug('fetch');
 
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
 const EMPTY_RESULT: Nullable<never> = JSON.parse('null') as Nullable<never>;
-
-const JSON_CONTENT_TYPE = 'application/json';
-const WAF_BLOCK_PATTERNS = [
-  'block automation',
-  'attention required',
-  'just a moment',
-  'access denied',
-] as const;
 
 /**
  * Build standard JSON request headers for API calls.
@@ -35,7 +33,7 @@ function getJsonHeaders(): Record<string, string> {
  * @returns A description of the detected block, or empty string if none.
  */
 export function detectWafBlock(status: number, body: string): string {
-  if (status === 403 || status === 429 || status === 503) {
+  if (WAF_STATUS_CODES.has(status)) {
     return `HTTP ${String(status)}`;
   }
   if (!body) return '';
@@ -65,7 +63,7 @@ function logApiCall(tag: string, status: number, durationMs: number): boolean {
  */
 function logResponseIssues(status: number, text: string, url: string): boolean {
   if (text !== '') {
-    const bodyPreview = text.substring(0, 300);
+    const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
     LOG.debug('response body: %s', bodyPreview);
   }
   if (status !== 200 && status !== 204) {
@@ -94,7 +92,7 @@ async function parseFetchGetResponse<TResult>(
   const urlTail = url.slice(-100);
   logApiCall(`GET ${urlTail}`, fetchResult.status, elapsed);
   const text = await fetchResult.text();
-  const bodyPreview = text.substring(0, 300);
+  const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
   LOG.debug('response body: %s', bodyPreview);
   if (fetchResult.status !== 200) {
     const statusStr = String(fetchResult.status);
@@ -153,7 +151,7 @@ export async function fetchPost<TResult>(
   const result = await fetch(url, request);
   logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
   const text = await result.text();
-  const preview = text.substring(0, 300);
+  const preview = text.substring(0, BODY_PREVIEW_LIMIT);
   LOG.debug('response body: %s', preview);
   return JSON.parse(text) as TResult;
 }

@@ -19,8 +19,8 @@ import {
   type IScrapedTransactionData,
   type ScrapedAccountsWithIndex,
 } from './BaseIsracardAmexTypes.js';
+import { TRANSACTIONS_BATCH_SIZE } from './Config/IsracardAmexFetchConfig.js';
 
-const TRANSACTIONS_BATCH_SIZE = 10;
 const LOG = getDebug('base-isracard-amex');
 
 /**

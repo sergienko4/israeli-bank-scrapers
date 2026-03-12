@@ -1,5 +1,6 @@
 import { type Frame, type Page } from 'playwright';
 
+import { NAVIGATION_TIMEOUT_MS, URL_POLL_INTERVAL_MS } from './Config/NavigationConfig.js';
 import { getDebug } from './Debug.js';
 import { waitUntil } from './Waiting.js';
 
@@ -99,7 +100,7 @@ async function pollForRedirect(
       return current !== initial && !opts.ignoreList.includes(current);
     },
     `waiting for redirect from ${initial}`,
-    { timeout: opts.timeout, interval: 1000 },
+    { timeout: opts.timeout, interval: URL_POLL_INTERVAL_MS },
   );
   return true;
 }
@@ -114,7 +115,7 @@ export async function waitForRedirect(
   pageOrFrame: Page | Frame,
   opts: IWaitForRedirectOptions = {},
 ): Promise<boolean> {
-  const { timeout = 20000, isClientSide = false, ignoreList = [] } = opts;
+  const { timeout = NAVIGATION_TIMEOUT_MS, isClientSide = false, ignoreList = [] } = opts;
   const initial = await getCurrentUrl(pageOrFrame, isClientSide);
   LOG.debug('waitForRedirect from %s', initial);
   try {
@@ -162,7 +163,7 @@ async function pollForUrl(
       return url instanceof RegExp ? url.test(current) : url === current;
     },
     `waiting for url to be ${urlDescription}`,
-    { timeout: opts.timeout, interval: 1000 },
+    { timeout: opts.timeout, interval: URL_POLL_INTERVAL_MS },
   );
   return true;
 }
@@ -179,7 +180,7 @@ export async function waitForUrl(
   url: string | RegExp,
   opts: IWaitForUrlOptions = {},
 ): Promise<boolean> {
-  const { timeout = 20000, isClientSide = false } = opts;
+  const { timeout = NAVIGATION_TIMEOUT_MS, isClientSide = false } = opts;
   try {
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
   } catch (caught) {
