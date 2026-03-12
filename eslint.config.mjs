@@ -28,15 +28,16 @@ export default tseslint.config(
   {
 
     ignores: [
-
       '.github/**',
       'lib/**',
       'node_modules/**',
       'coverage/**',
       'src/coverage/**',
-      'tsup.config.ts'
-    ]
-
+      'tsup.config.ts',
+      '**/*.js',
+      '**/*.mjs',
+      '**/*.cjs',
+    ],
   },
 
 
