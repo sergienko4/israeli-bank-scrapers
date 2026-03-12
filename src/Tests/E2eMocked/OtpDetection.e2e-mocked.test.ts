@@ -103,8 +103,8 @@ describe('OTP detection', () => {
     const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
-    const anyStringMatcher: string = expect.any(String) as string;
-    expect(retrieverSpy).toHaveBeenCalledWith(anyStringMatcher);
+    const isAnyString: string = expect.any(String) as unknown as string;
+    expect(retrieverSpy).toHaveBeenCalledWith(isAnyString);
   }, 30000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {

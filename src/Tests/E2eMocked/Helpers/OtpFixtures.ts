@@ -1,3 +1,10 @@
+import type { Page } from 'playwright';
+
+import type { LifecyclePromise } from '../../../Scrapers/Base/Interfaces/CallbackTypes.js';
+import { setupRequestInterception } from './RequestInterceptor.js';
+
+// ── HTML Fixtures ────────────────────────────────────────────────────────────
+
 /** Login form -> clicking "כניסה" shows the OTP selection screen (JS-rendered, no URL change) */
 export const OTP_SELECTION_HTML = `<!DOCTYPE html><html><body dir="rtl">
 <div id="login-form">
@@ -106,10 +113,7 @@ export const DASHBOARD_HTML = '<!DOCTYPE html><html><body><h1>Dashboard</h1></bo
 export const ERROR_PAGE_HTML =
   '<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>';
 
-import type { Page } from 'playwright';
-
-import type { LifecyclePromise } from '../../../Scrapers/Base/Interfaces/CallbackTypes.js';
-import { setupRequestInterception } from './RequestInterceptor.js';
+// ── Test Helpers ─────────────────────────────────────────────────────────────
 
 /** Route entry for request interception. */
 interface IRouteEntry {
