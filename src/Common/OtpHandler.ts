@@ -1,12 +1,14 @@
 import path from 'path';
 import { type Frame, type Page } from 'playwright';
 
+import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
 import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
 import {
+  clickFromCandidates,
   clickOtpTriggerIfPresent,
   detectOtpScreen,
   extractPhoneHint,
@@ -288,15 +290,25 @@ async function verifyOtpAccepted(page: Page): Promise<IScraperScrapingResult> {
 }
 
 /**
- * Confirm OTP delivery — extract phone hint, then click "Send SMS".
+ * Confirm OTP delivery — click bank-specific confirm button if provided, then SMS trigger.
  * @param page - The Playwright page instance.
  * @param parsedPage - Optional parsed login page with child frame info.
+ * @param triggerSelectors - Optional bank-specific confirm button selectors (from ILoginConfig.otp).
  * @returns The phone hint string extracted from the OTP screen.
  */
-export async function handleOtpConfirm(page: Page, parsedPage?: IParsedLoginPage): Promise<string> {
+export async function handleOtpConfirm(
+  page: Page,
+  parsedPage?: IParsedLoginPage,
+  triggerSelectors?: SelectorCandidate[],
+): Promise<string> {
   const phoneHint = await extractPhoneHint(page);
-  LOG.debug('OTP confirm — phone hint: %s, clicking SMS trigger', phoneHint);
   const childFrames = parsedPage?.childFrames;
+  if (triggerSelectors) {
+    LOG.debug('OTP confirm — clicking bank-specific confirm button (phone: %s)', phoneHint);
+    await clickFromCandidates(page, triggerSelectors, childFrames);
+    await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
+  }
+  LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
   await clickOtpTriggerIfPresent(page, childFrames);
   await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   return phoneHint;

@@ -27,7 +27,7 @@ import {
   type ILoginOptions,
   LOGIN_RESULTS,
 } from './BaseScraperHelpers.js';
-import type { IFieldConfig } from './Config/LoginConfig.js';
+import type { IFieldConfig, SelectorCandidate } from './Config/LoginConfig.js';
 import type { ScraperOptions } from './Interface.js';
 
 /** Shared context passed from BaseScraperWithBrowser to each login step. */
@@ -36,6 +36,7 @@ export interface ILoginStepContext {
   activeLoginContext: Page | Frame | null;
   currentParsedPage?: IParsedLoginPage;
   otpPhoneHint: string;
+  otpTriggerSelectors?: SelectorCandidate[];
   diagState: { loginUrl: string; lastAction: string };
   emitProgress: (type: ScraperProgressTypes) => boolean;
   navigateTo: (url: string, waitUntil?: string) => Promise<boolean>;
@@ -202,7 +203,11 @@ export async function stepCheckEarlyResult(
  * @returns A step result indicating whether to continue the chain.
  */
 export async function stepOtpConfirm(ctx: ILoginStepContext): Promise<IStepResult> {
-  ctx.otpPhoneHint = await handleOtpConfirm(ctx.page, ctx.currentParsedPage);
+  ctx.otpPhoneHint = await handleOtpConfirm(
+    ctx.page,
+    ctx.currentParsedPage,
+    ctx.otpTriggerSelectors,
+  );
   return CONTINUE;
 }
 

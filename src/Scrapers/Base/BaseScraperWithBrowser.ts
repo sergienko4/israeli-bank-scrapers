@@ -17,6 +17,7 @@ import {
   type PossibleLoginResults,
   resolveAndBuildLoginResult,
 } from './BaseScraperHelpers.js';
+import type { SelectorCandidate } from './Config/LoginConfig.js';
 import type {
   IDefaultBrowserOptions,
   IScraperScrapingResult,
@@ -67,6 +68,8 @@ class BaseScraperWithBrowser<
   protected activeLoginContext: Page | Frame | null = null;
 
   protected page!: Page;
+
+  protected _otpTriggerSelectors?: SelectorCandidate[];
 
   private _cleanups: (() => Promise<boolean>)[] = [];
 
@@ -240,6 +243,7 @@ class BaseScraperWithBrowser<
       activeLoginContext: this.activeLoginContext,
       currentParsedPage: undefined,
       otpPhoneHint: this._otpPhoneHint,
+      otpTriggerSelectors: this._otpTriggerSelectors,
       diagState: this.diagState,
       /**
        * Delegate progress events to the scraper.

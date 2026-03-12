@@ -43,6 +43,33 @@ describe('beinleumiConfig', () => {
     expect(config.preAction).toBeDefined();
     expect(config.postAction).toBeDefined();
   });
+
+  it('has otp config with kind dom and triggerSelectors', () => {
+    const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
+    expect(config.otp).toBeDefined();
+    expect(config.otp?.kind).toBe('dom');
+  });
+
+  it('otp triggerSelectors use only text-based kinds', () => {
+    const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
+    const otp = config.otp;
+    expect(otp?.kind).toBe('dom');
+    if (otp?.kind !== 'dom') return;
+    const triggers = otp.triggerSelectors ?? [];
+    expect(triggers.length).toBeGreaterThan(0);
+    const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText', 'placeholder']);
+    const isAllAllowed = triggers.every(s => allowedKinds.has(s.kind));
+    expect(isAllAllowed).toBe(true);
+  });
+
+  it('otp inputSelectors and submitSelectors are defined', () => {
+    const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
+    const otp = config.otp;
+    expect(otp?.kind).toBe('dom');
+    if (otp?.kind !== 'dom') return;
+    expect(otp.inputSelectors.length).toBeGreaterThan(0);
+    expect(otp.submitSelectors.length).toBeGreaterThan(0);
+  });
 });
 
 describe('beinleumiPreAction — trigger panel logic (lines 50-56)', () => {

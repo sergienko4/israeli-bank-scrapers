@@ -2,6 +2,7 @@ import { type Page } from 'playwright';
 
 import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -69,6 +70,7 @@ export function beinleumiConfig(loginUrl: string): ILoginConfig {
     loginUrl,
     fields: BEINLEUMI_FIELDS,
     submit: BEINLEUMI_SUBMIT,
+    otp: DOM_OTP,
     preAction: beinleumiPreAction,
     postAction: beinleumiPostAction,
     possibleResults: BEINLEUMI_POSSIBLE_RESULTS,

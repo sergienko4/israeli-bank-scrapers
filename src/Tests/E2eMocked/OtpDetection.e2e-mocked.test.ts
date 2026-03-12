@@ -7,92 +7,22 @@ import { jest } from '@jest/globals';
  *
  * All pages are served via Playwright route interception; no real network calls.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Browser } from 'playwright';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
-import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
-
-// ── Shared HTML fixtures ──────────────────────────────────────────────────────
-
-/** Login form → clicking "כניסה" shows the OTP selection screen (JS-rendered, no URL change) */
-const OTP_SELECTION_HTML = `<!DOCTYPE html><html><body dir="rtl">
-<div id="login-form">
-  <input type="text" placeholder="שם משתמש" />
-  <input type="password" placeholder="סיסמה" />
-  <button id="login-btn" type="button" onclick="showPhoneSelect()">כניסה</button>
-</div>
-<div id="phone-select" style="display:none">
-  <p>לצורך אימות זהותך, יש לבחור טלפון לקבלת סיסמה חד פעמית</p>
-  <span id="phone-hint">*****5100</span>
-  <button id="sms-btn" type="button" onclick="showCodeEntry()">SMS</button>
-  <button id="sms-send-btn" type="button" onclick="showCodeEntry()">שלח</button>
-</div>
-<div id="code-entry" style="display:none">
-  <input id="otp-input" placeholder="קוד חד פעמי" />
-  <button id="otp-submit" type="button"
-    onclick="window.location.href='https://test-bank.local/dashboard'">אשר</button>
-</div>
-<script>
-  function showPhoneSelect() {
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('phone-select').style.display = 'block';
-  }
-  function showCodeEntry() {
-    document.getElementById('phone-select').style.display = 'none';
-    document.getElementById('code-entry').style.display = 'block';
-  }
-</script>
-</body></html>`;
-
-/** Simple OTP code-entry screen (no phone selection step) */
-const OTP_CODE_ENTRY_HTML = `<!DOCTYPE html><html><body dir="rtl">
-<div id="login-form">
-  <input type="text" placeholder="שם משתמש" />
-  <input type="password" placeholder="סיסמה" />
-  <button id="login-btn" type="button" onclick="showOtp()">כניסה</button>
-</div>
-<div id="otp-form" style="display:none">
-  <p>לצורך אימות זהותך יש להזין סיסמה חד פעמית</p>
-  <input id="otp-input" placeholder="קוד חד פעמי" />
-  <button id="otp-submit" type="button"
-    onclick="window.location.href='https://test-bank.local/dashboard'">אשר</button>
-</div>
-<script>
-  function showOtp() {
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('otp-form').style.display = 'block';
-  }
-</script>
-</body></html>`;
-
-/** Normal login — no OTP at all */
-const NORMAL_LOGIN_HTML = `<!DOCTYPE html><html><body>
-<form>
-  <input type="text" placeholder="שם משתמש" />
-  <input type="password" placeholder="סיסמה" />
-  <button id="login-btn" type="button"
-    onclick="window.location.href='https://test-bank.local/dashboard'">כניסה</button>
-</form>
-</body></html>`;
-
-/** Login error page — wrong credentials, no OTP keywords */
-const LOGIN_ERROR_HTML = `<!DOCTYPE html><html><body dir="rtl">
-<form>
-  <input type="text" placeholder="שם משתמש" />
-  <input type="password" placeholder="סיסמה" />
-  <button id="login-btn" type="button"
-    onclick="window.location.href='https://test-bank.local/error'">כניסה</button>
-</form>
-<p id="error-msg" style="display:none">שם משתמש שגוי. ניסיון 2 מתוך 3</p>
-</body></html>`;
-
-const DASHBOARD_HTML = '<!DOCTYPE html><html><body><h1>Dashboard</h1></body></html>';
-const ERROR_PAGE_HTML =
-  '<!DOCTYPE html><html><body><p>שם משתמש שגוי. ניסיון 2 מתוך 3</p></body></html>';
+import {
+  buildLoginDashboardPage,
+  buildLoginErrorPage,
+  LOGIN_ERROR_HTML,
+  NORMAL_LOGIN_HTML,
+  OTP_CODE_ENTRY_HTML,
+  OTP_CONFIRM_THEN_CODE_HTML,
+  OTP_SELECTION_HTML,
+} from './Helpers/OtpFixtures.js';
 
 // ── Shared ILoginConfig helpers ────────────────────────────────────────────────
 
@@ -117,6 +47,12 @@ function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   };
 }
 
+interface ITestCredentials {
+  username: string;
+  password: string;
+}
+const TEST_CREDS: ITestCredentials = { username: 'testuser', password: 'testpass' };
+
 let browser: Browser;
 
 beforeAll(async () => {
@@ -131,26 +67,6 @@ afterAll(async () => {
 
 describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
-    /**
-     * Intercept requests with test HTML fixtures.
-     * @param page - Playwright page to configure with route interception.
-     * @returns True when interception is configured.
-     */
-    const preparePage = async (page: Page): Promise<void> => {
-      await setupRequestInterception(page, [
-        {
-          match: 'test-bank.local/login',
-          contentType: 'text/html; charset=utf-8',
-          body: OTP_CODE_ENTRY_HTML,
-        },
-        {
-          match: 'test-bank.local/dashboard',
-          contentType: 'text/html; charset=utf-8',
-          body: DASHBOARD_HTML,
-        },
-      ]);
-    };
-
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Beinleumi,
@@ -158,17 +74,12 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage,
-        // No otpCodeRetriever provided
+        preparePage: buildLoginDashboardPage(OTP_CODE_ENTRY_HTML),
       },
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
-
+    const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
     expect(result.errorMessage).toMatch(/otpCodeRetriever/);
@@ -176,27 +87,6 @@ describe('OTP detection', () => {
 
   it('Test 2: OTP code-entry screen, retriever provided → code filled → login succeeds', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('123456');
-
-    /**
-     * Intercept requests with test HTML fixtures.
-     * @param page - Playwright page to configure with route interception.
-     * @returns True when interception is configured.
-     */
-    const preparePage = async (page: Page): Promise<void> => {
-      await setupRequestInterception(page, [
-        {
-          match: 'test-bank.local/login',
-          contentType: 'text/html; charset=utf-8',
-          body: OTP_CODE_ENTRY_HTML,
-        },
-        {
-          match: 'test-bank.local/dashboard',
-          contentType: 'text/html; charset=utf-8',
-          body: DASHBOARD_HTML,
-        },
-      ]);
-    };
-
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Beinleumi,
@@ -204,47 +94,21 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage,
+        preparePage: buildLoginDashboardPage(OTP_CODE_ENTRY_HTML),
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
-
+    const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
-    // phoneHint is empty string — page has no masked phone pattern
     const anyStringMatcher: string = expect.any(String) as string;
     expect(retrieverSpy).toHaveBeenCalledWith(anyStringMatcher);
   }, 30000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
-
-    /**
-     * Intercept requests with test HTML fixtures.
-     * @param page - Playwright page to configure with route interception.
-     * @returns True when interception is configured.
-     */
-    const preparePage = async (page: Page): Promise<void> => {
-      await setupRequestInterception(page, [
-        {
-          match: 'test-bank.local/login',
-          contentType: 'text/html; charset=utf-8',
-          body: OTP_SELECTION_HTML,
-        },
-        {
-          match: 'test-bank.local/dashboard',
-          contentType: 'text/html; charset=utf-8',
-          body: DASHBOARD_HTML,
-        },
-      ]);
-    };
-
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Beinleumi,
@@ -252,45 +116,20 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage,
+        preparePage: buildLoginDashboardPage(OTP_SELECTION_HTML),
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
-
+    const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
-    // Retriever called with phone hint extracted from the page
     const firstCall = retrieverSpy.mock.calls[0] as string[];
     const retrievedHint = firstCall[0];
     expect(retrievedHint).toBe('*****5100');
   }, 30000);
 
   it('Test 4: Normal login (no OTP) — zero regression, login succeeds', async () => {
-    /**
-     * Intercept requests with test HTML fixtures.
-     * @param page - Playwright page to configure with route interception.
-     * @returns True when interception is configured.
-     */
-    const preparePage = async (page: Page): Promise<void> => {
-      await setupRequestInterception(page, [
-        {
-          match: 'test-bank.local/login',
-          contentType: 'text/html; charset=utf-8',
-          body: NORMAL_LOGIN_HTML,
-        },
-        {
-          match: 'test-bank.local/dashboard',
-          contentType: 'text/html; charset=utf-8',
-          body: DASHBOARD_HTML,
-        },
-      ]);
-    };
-
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
@@ -298,43 +137,76 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage,
+        preparePage: buildLoginDashboardPage(NORMAL_LOGIN_HTML),
       },
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
-
+    const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(result.errorType).toBeUndefined();
   }, 30000);
 
-  it('Test 5: Login error page — false-positive guard, no OTP triggered', async () => {
+  it('Test 5: Two-screen OTP with triggerSelectors — confirm button clicked → code entry → success', async () => {
+    const retrieverSpy = jest.fn().mockResolvedValue('112233');
+    const scraper = new ConcreteGenericScraper(
+      {
+        companyId: CompanyTypes.Beinleumi,
+        startDate: new Date('2026-01-01'),
+        browser,
+        skipCloseBrowser: true,
+        defaultTimeout: 5000,
+        preparePage: buildLoginDashboardPage(OTP_CONFIRM_THEN_CODE_HTML),
+        otpCodeRetriever: retrieverSpy,
+      },
+      makeLoginConfig({
+        otp: {
+          kind: 'dom',
+          triggerSelectors: [{ kind: 'textContent', value: 'שלח' }],
+          inputSelectors: [{ kind: 'placeholder', value: 'קוד חד פעמי' }],
+          submitSelectors: [{ kind: 'textContent', value: 'אישור' }],
+          longTermTokenSupported: false,
+        },
+      }),
+    );
+
+    const result = await scraper.scrape(TEST_CREDS);
+    expect(result.success).toBe(true);
+    expect(retrieverSpy).toHaveBeenCalledTimes(1);
+    const firstCall = retrieverSpy.mock.calls[0] as string[];
+    expect(firstCall[0]).toBe('*****5100');
+  }, 30000);
+
+  it('Test 6: No confirm button on page — triggerSelectors miss gracefully, SMS trigger still works', async () => {
+    const retrieverSpy = jest.fn().mockResolvedValue('654321');
+    const scraper = new ConcreteGenericScraper(
+      {
+        companyId: CompanyTypes.Beinleumi,
+        startDate: new Date('2026-01-01'),
+        browser,
+        skipCloseBrowser: true,
+        defaultTimeout: 5000,
+        preparePage: buildLoginDashboardPage(OTP_SELECTION_HTML),
+        otpCodeRetriever: retrieverSpy,
+      },
+      makeLoginConfig({
+        otp: {
+          kind: 'dom',
+          triggerSelectors: [{ kind: 'textContent', value: 'NON_EXISTENT_BUTTON' }],
+          inputSelectors: [{ kind: 'placeholder', value: 'קוד חד פעמי' }],
+          submitSelectors: [{ kind: 'textContent', value: 'אשר' }],
+          longTermTokenSupported: false,
+        },
+      }),
+    );
+
+    const result = await scraper.scrape(TEST_CREDS);
+    expect(result.success).toBe(true);
+    expect(retrieverSpy).toHaveBeenCalledTimes(1);
+  }, 30000);
+
+  it('Test 7: Login error page — false-positive guard, no OTP triggered', async () => {
     const retrieverSpy = jest.fn();
-
-    /**
-     * Intercept requests with test HTML fixtures.
-     * @param page - Playwright page to configure with route interception.
-     * @returns True when interception is configured.
-     */
-    const preparePage = async (page: Page): Promise<void> => {
-      await setupRequestInterception(page, [
-        {
-          match: 'test-bank.local/login',
-          contentType: 'text/html; charset=utf-8',
-          body: LOGIN_ERROR_HTML,
-        },
-        {
-          match: 'test-bank.local/error',
-          contentType: 'text/html; charset=utf-8',
-          body: ERROR_PAGE_HTML,
-        },
-      ]);
-    };
-
     const scraper = new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
@@ -342,17 +214,16 @@ describe('OTP detection', () => {
         browser,
         skipCloseBrowser: true,
         defaultTimeout: 3000,
-        preparePage,
+        preparePage: buildLoginErrorPage(LOGIN_ERROR_HTML),
         otpCodeRetriever: retrieverSpy,
       },
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({ username: 'wronguser', password: 'wrongpass' } as {
-      username: string;
-      password: string;
-    });
-
+    const result = await scraper.scrape({
+      username: 'wronguser',
+      password: 'wrongpass',
+    } as ITestCredentials);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(retrieverSpy).not.toHaveBeenCalled();

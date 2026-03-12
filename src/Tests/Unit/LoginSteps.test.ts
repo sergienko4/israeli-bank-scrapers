@@ -131,7 +131,7 @@ describe('stepOtpConfirm', () => {
     const stepResult: IStepResult = await STEP_OTP_CONFIRM(ctx);
     expect(stepResult.shouldContinue).toBe(true);
     expect(ctx.otpPhoneHint).toBe('+972****100');
-    expect(MOCK_HANDLE_OTP_CONFIRM).toHaveBeenCalledWith(ctx.page, undefined);
+    expect(MOCK_HANDLE_OTP_CONFIRM).toHaveBeenCalledWith(ctx.page, undefined, undefined);
   });
 });
 
