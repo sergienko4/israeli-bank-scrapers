@@ -200,3 +200,67 @@ export async function clickOtpTriggerIfPresent(
   }
   return true;
 }
+
+/** Result of searching frames for a matching candidate selector. */
+interface IFrameSearchResult {
+  found: true;
+  sel: string;
+  frame: Frame;
+}
+
+/** Negative result when no candidate was found in any frame. */
+interface IFrameSearchMiss {
+  found: false;
+}
+
+/**
+ * Search child frames for the first matching candidate selector.
+ * @param page - The Playwright page whose frames to search.
+ * @param candidates - Ordered SelectorCandidate list to try in each frame.
+ * @param cachedFrames - Optional pre-filtered list of child frames.
+ * @returns The matched selector and frame, or a miss result if none found.
+ */
+async function findCandidateInFrames(
+  page: Page,
+  candidates: SelectorCandidate[],
+  cachedFrames?: Frame[],
+): Promise<IFrameSearchResult | IFrameSearchMiss> {
+  const mainFrame = page.mainFrame();
+  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
+  const frameTasks = frames.map(async (frame): Promise<IFrameSearchResult | false> => {
+    const sel = await tryInContext(frame, candidates);
+    return sel ? { found: true, sel, frame } : false;
+  });
+  const results = await Promise.all(frameTasks);
+  const hit = results.find((r): r is IFrameSearchResult => r !== false);
+  return hit ?? { found: false };
+}
+
+/**
+ * Click the first matching candidate from a bank-specific selector list.
+ * Uses the same tryInContext resolver pipeline as field resolution.
+ * @param page - The Playwright page to search.
+ * @param candidates - Ordered SelectorCandidate list (text-based preferred).
+ * @param cachedFrames - Optional pre-filtered list of child frames.
+ * @returns True if a candidate was found and clicked, false otherwise.
+ */
+export async function clickFromCandidates(
+  page: Page,
+  candidates: SelectorCandidate[],
+  cachedFrames?: Frame[],
+): Promise<boolean> {
+  const mainSel = await tryInContext(page, candidates);
+  if (mainSel) {
+    LOG.debug('clickFromCandidates: found in main page: %s', mainSel);
+    await page.click(mainSel);
+    return true;
+  }
+  const found = await findCandidateInFrames(page, candidates, cachedFrames);
+  if (found.found) {
+    LOG.debug('clickFromCandidates: found in frame: %s', found.sel);
+    await found.frame.click(found.sel);
+    return true;
+  }
+  LOG.debug('clickFromCandidates: no match found');
+  return false;
+}

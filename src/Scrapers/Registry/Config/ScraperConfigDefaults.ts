@@ -1,4 +1,4 @@
-import { type SelectorCandidate } from '../../Base/Config/LoginConfig.js';
+import { type OtpConfig, type SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 
 // ---- Config shape ----
 
@@ -97,6 +97,25 @@ export const NULL_TIMING: IBankScraperConfig['timing'] = {
   elementRenderMs: null,
   loginDelayMinMs: null,
   loginDelayMaxMs: null,
+};
+
+/** Default DOM-based OTP config — shared by all banks with browser OTP flow. */
+export const DOM_OTP: OtpConfig = {
+  kind: 'dom',
+  triggerSelectors: [
+    { kind: 'textContent', value: 'שלח' },
+    { kind: 'ariaLabel', value: 'שלח' },
+  ],
+  inputSelectors: [
+    { kind: 'placeholder', value: 'קוד חד פעמי' },
+    { kind: 'placeholder', value: 'קוד SMS' },
+    { kind: 'name', value: 'otpCode' },
+  ],
+  submitSelectors: [
+    { kind: 'textContent', value: 'אישור' },
+    { kind: 'ariaLabel', value: 'אישור' },
+  ],
+  longTermTokenSupported: false,
 };
 
 // ---- Shared selector sets ----

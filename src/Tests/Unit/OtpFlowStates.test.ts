@@ -49,6 +49,7 @@ jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
   extractPhoneHint: MOCK_EXTRACT_PHONE_HINT,
   clickOtpTriggerIfPresent: MOCK_CLICK_OTP_TRIGGER_IF_PRESENT,
   findOtpSubmitSelector: jest.fn().mockResolvedValue(null),
+  clickFromCandidates: jest.fn().mockResolvedValue(false),
   OTP_SUBMIT_CANDIDATES: [{ kind: 'xpath' as const, value: '//button[contains(.,"send")]' }],
 }));
 

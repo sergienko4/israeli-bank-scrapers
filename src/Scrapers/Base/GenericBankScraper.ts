@@ -199,6 +199,8 @@ export default class GenericBankScraper<
    */
   public getLoginOptions(credentials: TCredentials): ILoginOptions {
     this._fieldConfigs = this.loginConfig.fields;
+    const otpConfig = this.loginConfig.otp;
+    this._otpTriggerSelectors = otpConfig?.kind === 'dom' ? otpConfig.triggerSelectors : undefined;
     const submitSelectorCandidates = submitCandidates(this.loginConfig.submit);
     const submitField = toSubmitField(submitSelectorCandidates);
     const config = this.loginConfig;
