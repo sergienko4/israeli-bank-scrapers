@@ -232,11 +232,6 @@ describe('fetchPostWithinPage', () => {
 });
 
 describe('detectWafBlock', () => {
-  it('detects HTTP 403', () => {
-    const result403 = detectWafBlock(403, '');
-    expect(result403).toBe('HTTP 403');
-  });
-
   it('detects HTTP 429', () => {
     const result429 = detectWafBlock(429, '');
     expect(result429).toBe('HTTP 429');
@@ -270,5 +265,15 @@ describe('detectWafBlock', () => {
   it('returns empty string for normal response body', () => {
     const resultNormal = detectWafBlock(200, '{"Header":{"Status":"1"}}');
     expect(resultNormal).toBe('');
+  });
+
+  it('does not flag HTTP 403 as WAF — it is a permission error', () => {
+    const result403 = detectWafBlock(403, '');
+    expect(result403).toBe('');
+  });
+
+  it('detects WAF body pattern even on 403', () => {
+    const result = detectWafBlock(403, '<title>Attention Required! | Cloudflare</title>');
+    expect(result).toBe('response contains "attention required"');
   });
 });

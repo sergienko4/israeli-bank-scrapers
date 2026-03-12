@@ -2,10 +2,11 @@ import { maskAccount, maskAmount, maskDesc } from '../../Common/ResultFormatter.
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
+import { CI_BROWSER_ARGS, MAX_TXN_LOG, SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
 
-export const SCRAPE_TIMEOUT = 120000;
+export { SCRAPE_TIMEOUT };
 export const isCiEnvironment = !!process.env.CI;
-export const BROWSER_ARGS = isCiEnvironment ? ['--no-sandbox', '--disable-setuid-sandbox'] : [];
+export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
 
 const FAILED_LOGIN_TYPES: string[] = [
   LOGIN_RESULTS.InvalidPassword,
@@ -60,8 +61,6 @@ export function lastMonthStartDate(): Date {
   startDate.setMonth(startDate.getMonth() - 1);
   return startDate;
 }
-
-const MAX_TXN_LOG = 10;
 
 /**
  * Logs a preview of scraped transactions for test debugging.

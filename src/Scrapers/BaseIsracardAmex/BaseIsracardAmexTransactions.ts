@@ -21,9 +21,9 @@ import {
 } from './BaseIsracardAmexTypes.js';
 
 export { fetchAccounts } from './BaseIsracardAmexFetch.js';
+import { ISRACARD_DATE_FORMAT } from './Config/IsracardAmexFetchConfig.js';
 
 const INSTALLMENTS_KEYWORD = 'תשלום';
-const DATE_FORMAT = 'DD/MM/YYYY';
 
 type TxnAmounts = Pick<
   ITransaction,
@@ -90,9 +90,9 @@ function resolveTxnDates(
   const isOutbound = txn.dealSumOutbound;
   const txnDateStr = isOutbound ? txn.fullPurchaseDateOutbound : txn.fullPurchaseDate;
   const resolvedProcessedDate = txn.fullPaymentDate
-    ? moment(txn.fullPaymentDate, DATE_FORMAT).toISOString()
+    ? moment(txn.fullPaymentDate, ISRACARD_DATE_FORMAT).toISOString()
     : processedDate;
-  const date = moment(txnDateStr, DATE_FORMAT).toISOString();
+  const date = moment(txnDateStr, ISRACARD_DATE_FORMAT).toISOString();
   return { date, processedDate: resolvedProcessedDate };
 }
 

@@ -5,6 +5,11 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import {
+  GENERIC_DESCRIPTIONS,
+  MEMO_PREFIXES,
+  PENDING_TRANSACTIONS_IFRAME,
+} from './Config/MizrahiHelpersConfig.js';
 import type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
 import type { IMoreDetails } from './Interfaces/MoreDetails.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
@@ -16,6 +21,8 @@ export type { IMoreDetails } from './Interfaces/MoreDetails.js';
 export type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 export type { IScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult.js';
 
+export { GENERIC_DESCRIPTIONS, PENDING_TRANSACTIONS_IFRAME };
+
 const LOG = getDebug('mizrahi');
 
 const MIZRAHI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi];
@@ -24,12 +31,9 @@ export const TRANSACTIONS_REQUEST_URLS = [
   `${BASE_APP_URL}/OnlinePilot/api/SkyOSH/get428Index`,
   `${BASE_APP_URL}/Online/api/SkyOSH/get428Index`,
 ];
-// URL fragment used to identify the pending-transactions iframe by its src URL
-export const PENDING_TRANSACTIONS_IFRAME = 'p420.aspx';
 const MORE_DETAILS_URL = `${BASE_APP_URL}/Online/api/OSH/getMaherBerurimSMF`;
 export const DATE_FORMAT = MIZRAHI_CFG.format.date;
 export const MAX_ROWS_PER_REQUEST = MIZRAHI_CFG.format.maxRowsPerRequest;
-export const GENERIC_DESCRIPTIONS = ['העברת יומן לבנק זר מסניף זר'];
 
 /**
  * Compute the effective start moment, capped at one year ago.
@@ -97,7 +101,7 @@ function parseDetailsFields(fields: { Label: string; Value: string }[]): IMoreDe
   return {
     entries: Object.fromEntries(entries) as Record<string, string>,
     memo: entries
-      .filter(([label]) => ['שם', 'מהות', 'חשבון'].some(key => label.startsWith(key)))
+      .filter(([label]) => MEMO_PREFIXES.some(key => label.startsWith(key)))
       .map(([label, value]) => `${label} ${value}`)
       .join(', '),
   };

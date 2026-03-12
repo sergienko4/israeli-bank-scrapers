@@ -1,9 +1,16 @@
 import type { Falsy } from 'utility-types';
 
+import {
+  DEFAULT_WAIT_INTERVAL_MS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  HUMAN_DELAY_MAX_MS,
+  HUMAN_DELAY_MIN_MS,
+} from './Config/TimingConfig.js';
+
+export { SECOND } from './Config/TimingConfig.js';
+
 /** Error thrown when an async wait operation exceeds its timeout. */
 export class TimeoutError extends Error {}
-
-export const SECOND = 1000;
 
 type WaitUntilReturn<T> = T extends Falsy ? never : Promise<NonNullable<T>>;
 
@@ -150,7 +157,7 @@ export function waitUntil<T>(
   description = '',
   opts: IWaitUntilOpts = {},
 ): WaitUntilReturn<T> {
-  const { timeout = 10000, interval = 100 } = opts;
+  const { timeout = DEFAULT_WAIT_TIMEOUT_MS, interval = DEFAULT_WAIT_INTERVAL_MS } = opts;
   const state = { lastSeen: undefined as unknown };
   const trackingTest = createTrackingTest(asyncTest, state);
   const promise = buildWaitPromise(trackingTest, interval);
@@ -214,7 +221,10 @@ export function sleep(ms: number): Promise<boolean> {
  * @param maxMs - The maximum delay in milliseconds.
  * @returns A promise that resolves after a random delay.
  */
-export function humanDelay(minMs = 300, maxMs = 1200): Promise<boolean> {
+export function humanDelay(
+  minMs = HUMAN_DELAY_MIN_MS,
+  maxMs = HUMAN_DELAY_MAX_MS,
+): Promise<boolean> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return new Promise(resolve => {
     global.setTimeout(() => {

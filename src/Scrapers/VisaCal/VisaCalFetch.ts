@@ -5,6 +5,7 @@ import { fetchPost } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { API_HEADERS } from './Config/VisaCalFetchConfig.js';
 import {
   type ICardApiStatus,
   type ICardInfo,
@@ -19,17 +20,9 @@ import {
 const LOG = getDebug('visa-cal');
 const VISCAL_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
-const API_HEADERS: Record<string, string> = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
-    'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-    'Chrome/142.0.0.0 Safari/537.36',
+const ORIGIN_HEADERS: Record<string, string> = {
   Origin: VISCAL_CFG.api.calOrigin ?? '',
   Referer: VISCAL_CFG.api.calOrigin ?? '',
-  'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Sec-Fetch-Site': 'same-site',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Dest': 'empty',
 };
 
 /** Endpoint URLs from config. */
@@ -52,6 +45,7 @@ export function buildApiHeaders(authorization: string, xSiteId: string): Record<
     'X-Site-Id': xSiteId,
     'Content-Type': 'application/json',
     ...API_HEADERS,
+    ...ORIGIN_HEADERS,
   };
 }
 
