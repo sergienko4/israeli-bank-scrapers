@@ -15,7 +15,7 @@ jest.unstable_mockModule(
    * Mock Fetch.
    * @returns Mocked module.
    */
-  () => ({ fetchPost: jest.fn() }),
+  () => ({ fetchPostWithinPage: jest.fn() }),
 );
 
 jest.unstable_mockModule(
@@ -135,7 +135,7 @@ const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Commo
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { elementPresentOnPage: ELEMENT_PRESENT } =
   await import('../../Common/ElementsInteractions.js');
-const { fetchPost: FETCH_POST } = await import('../../Common/Fetch.js');
+const { fetchPostWithinPage: FETCH_POST } = await import('../../Common/Fetch.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { getFromSessionStorage: GET_SESSION_STORAGE } = await import('../../Common/Storage.js');
 const { filterOldTransactions: FILTER_OLD_TXNS } = await import('../../Common/Transactions.js');
