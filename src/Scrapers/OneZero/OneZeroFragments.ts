@@ -213,7 +213,7 @@ fragment TransactionsDetailsData on TransactionDetails {
     value_date
   }
 }
-fragment TransactionFragment on ITransaction {
+fragment TransactionFragment on Transaction {
   __typename
   baseTransaction {
     __typename
@@ -233,7 +233,7 @@ fragment TransactionFragment on ITransaction {
     ...TransactionsDetailsData
   }
 }
-fragment MovementFragment on IMovement {
+fragment MovementFragment on Movement {
   __typename
   accountId
   bankCurrencyAmount

@@ -38,43 +38,39 @@ query GetCustomer {
     }
     portfolios {
       __typename
-      ...Portfolio
+      accounts {
+        __typename
+        accountId
+        accountType
+        closingDate
+        currency
+        openingDate
+        status
+        subType
+      }
+      activationDate
+      bank
+      baseCurrency
+      branch
+      club
+      clubDescription
+      iban
+      imageURL
+      isJointAccount
+      partnerName {
+        __typename
+        partnerFirstName
+        partnerLastName
+      }
+      portfolioId
+      portfolioNum
+      portfolioType
+      status
+      subType
+      onboardingCompleted
     }
     status
   }
-}
-fragment IPortfolio on IPortfolio {
-  __typename
-  accounts {
-    __typename
-    accountId
-    accountType
-    closingDate
-    currency
-    openingDate
-    status
-    subType
-  }
-  activationDate
-  bank
-  baseCurrency
-  branch
-  club
-  clubDescription
-  iban
-  imageURL
-  isJointAccount
-  partnerName {
-    __typename
-    partnerFirstName
-    partnerLastName
-  }
-  portfolioId
-  portfolioNum
-  portfolioType
-  status
-  subType
-  onboardingCompleted
 }
 `;
 
@@ -139,18 +135,18 @@ fragment BaseTransactionFragment on BaseTransaction {
   transactionType
   valueDate
 }
-fragment CategoryFragment on ICategory {
+fragment CategoryFragment on Category {
   __typename
   categoryId
   dataSource
   subCategoryId
 }
-fragment RecurrenceFragment on IRecurrence {
+fragment RecurrenceFragment on Recurrence {
   __typename
   dataSource
   isRecurrent
 }
-fragment TransactionEnrichmentFragment on ITransactionEnrichment {
+fragment TransactionEnrichmentFragment on TransactionEnrichment {
   __typename
   categories {
     __typename
@@ -204,13 +200,13 @@ fragment BankTransferDetailsData on BankTransferDetails {
     transferDescriptionKey
   }
 }
-fragment CategoryData on ICategory {
+fragment CategoryData on Category {
   __typename
   categoryId
   dataSource
   subCategoryId
 }
-fragment RecurrenceData on IRecurrence {
+fragment RecurrenceData on Recurrence {
   __typename
   dataSource
   isRecurrent
