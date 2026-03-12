@@ -266,4 +266,14 @@ describe('detectWafBlock', () => {
     const resultNormal = detectWafBlock(200, '{"Header":{"Status":"1"}}');
     expect(resultNormal).toBe('');
   });
+
+  it('does not flag HTTP 403 as WAF — it is a permission error', () => {
+    const result403 = detectWafBlock(403, '');
+    expect(result403).toBe('');
+  });
+
+  it('detects WAF body pattern even on 403', () => {
+    const result = detectWafBlock(403, '<title>Attention Required! | Cloudflare</title>');
+    expect(result).toBe('response contains "attention required"');
+  });
 });
