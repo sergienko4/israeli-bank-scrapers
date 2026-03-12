@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
 
-import { getDebug } from '../../Common/Debug.js';
+import { getDebug, type ScraperLogger } from '../../Common/Debug.js';
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
 import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
@@ -38,7 +38,6 @@ interface IDiagnosticsState {
 
 /** Event name for scrape progress notifications. */
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
-const LOG = getDebug('base-scraper');
 
 /**
  * Extract a human-readable message from an unknown error value.
@@ -82,13 +81,18 @@ export default class BaseScraper<
     warnings: [],
   };
 
+  /** Bank-scoped logger — includes `bank` field in every log line. */
+  protected readonly bankLog: ScraperLogger;
+
   private _eventEmitter = new EventEmitter();
 
   /**
    * Create a new BaseScraper with the given options.
    * @param options - Scraper configuration options.
    */
-  constructor(public options: ScraperOptions) {}
+  constructor(public options: ScraperOptions) {
+    this.bankLog = getDebug(options.companyId);
+  }
 
   /**
    * Initialize the scraper and set the default timezone.
@@ -276,7 +280,7 @@ export default class BaseScraper<
   private logResultSummary(result: IScraperScrapingResult): boolean {
     const lines = formatResultSummary(this.options.companyId, result);
     for (const line of lines) {
-      LOG.info(line);
+      this.bankLog.info(line);
     }
     return true;
   }
