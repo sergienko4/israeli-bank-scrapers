@@ -1,5 +1,14 @@
 # Changelog
 
+## [8.0.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.3...v8.0.4) (2026-03-12)
+
+
+### Bug Fixes
+
+* add bank name to all scraper log lines for CI readability ([#143](https://github.com/sergienko4/israeli-bank-scrapers/issues/143)) ([2f4fb87](https://github.com/sergienko4/israeli-bank-scrapers/commit/2f4fb87a8374fd6f1d207c5f64efb31c341a0d46))
+* opt into Node.js 24 for release-please action ([#140](https://github.com/sergienko4/israeli-bank-scrapers/issues/140)) ([f03e3a5](https://github.com/sergienko4/israeli-bank-scrapers/commit/f03e3a5ae4ac7ec76cba3fd1153b6459632185b0))
+* switch VisaCal API calls from native fetch to browser-context fetch ([#144](https://github.com/sergienko4/israeli-bank-scrapers/issues/144)) ([a18f40a](https://github.com/sergienko4/israeli-bank-scrapers/commit/a18f40ac79aa3148c76fdf60aa248ff26ba29c82))
+
 ## [8.0.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.2...v8.0.3) (2026-03-12)
 
 
