@@ -179,7 +179,10 @@ async function closePopupIfPresent(page: Page): Promise<boolean> {
 async function handleDropdownVersion(page: Page): Promise<string> {
   const hasDropdown = await waitAndClickIfVisible(page, 'לקוחות פרטיים');
   if (!hasDropdown) return '';
-  await page.waitForURL('**/login**', { timeout: LOGIN_FIELD_WAIT_MS });
+  await page.waitForURL('**/login**', {
+    timeout: LOGIN_FIELD_WAIT_MS,
+    waitUntil: 'domcontentloaded',
+  });
   return 'dropdown';
 }
 
