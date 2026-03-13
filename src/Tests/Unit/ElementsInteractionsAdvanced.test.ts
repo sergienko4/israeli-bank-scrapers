@@ -49,7 +49,7 @@ const {
   capturePageText: CAPTURE_PAGE_TEXT,
 } = await import('../../Common/ElementsInteractions.js');
 
-import { createMockPage } from '../MockPage.js';
+import { createMockLocator, createMockPage } from '../MockPage.js';
 
 describe('waitUntilElementFound — timeout path', () => {
   it('rethrows when waitForSelector rejects', async () => {
@@ -118,7 +118,8 @@ describe('clickLink — return value', () => {
 describe('pageEval — readyState wait', () => {
   it('waits for document readyState before evaluating', async () => {
     const page = createMockPage();
-    page.$eval.mockResolvedValue(42);
+    const loc = createMockLocator({ evaluate: jest.fn().mockResolvedValue(42) });
+    page.locator = jest.fn().mockReturnValue(loc);
     await PAGE_EVAL(page, {
       selector: '.num',
       defaultResult: 0,
@@ -136,7 +137,8 @@ describe('pageEval — readyState wait', () => {
 describe('pageEvalAll — readyState wait', () => {
   it('waits for document readyState before evaluating all', async () => {
     const page = createMockPage();
-    page.$$eval.mockResolvedValue([1, 2, 3]);
+    const loc = createMockLocator({ evaluateAll: jest.fn().mockResolvedValue([1, 2, 3]) });
+    page.locator = jest.fn().mockReturnValue(loc);
     await PAGE_EVAL_ALL(page, {
       selector: '.items',
       defaultResult: [] as number[],

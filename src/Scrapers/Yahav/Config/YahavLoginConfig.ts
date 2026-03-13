@@ -13,6 +13,21 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
+/** Playwright selector for the loading spinner (role-based). */
+const LOADER_SEL = 'role=progressbar';
+
+/** Playwright selector for the messaging overlay container. */
+const MESSAGING_SEL = 'text=הודעות';
+
+/** Playwright selector for the messaging dismiss link. */
+const DISMISS_LINK_SEL = 'role=link[name="אישור"]';
+
+/** Playwright selector for post-login account details. */
+const DASHBOARD_SEL = 'text=פרטי חשבון';
+
+/** Playwright selector for the change-password form. */
+const CHANGE_PASSWORD_SEL = '[name="ef_req_parameter_old_credential"]';
+
 /**
  * Yahav post-login action — waits for loader, dismisses messaging, and waits for dashboard.
  * @param page - The Playwright page instance.
@@ -20,15 +35,13 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
  */
 async function yahavPostAction(page: Page): LifecyclePromise {
   await waitForNavigation(page);
-  await waitUntilElementDisappear(page, '.loader');
-  if (await elementPresentOnPage(page, '.messaging-links-container')) {
-    await page.$eval('.link-1', el => {
-      (el as HTMLElement).click();
-    });
+  await waitUntilElementDisappear(page, LOADER_SEL);
+  if (await elementPresentOnPage(page, MESSAGING_SEL)) {
+    await page.locator(DISMISS_LINK_SEL).first().click();
   }
   await Promise.race([
-    waitUntilElementFound(page, '#AccountDetails'),
-    waitUntilElementFound(page, 'input#ef_req_parameter_old_credential'),
+    waitUntilElementFound(page, DASHBOARD_SEL),
+    waitUntilElementFound(page, CHANGE_PASSWORD_SEL),
   ]);
 }
 
@@ -39,19 +52,19 @@ export const YAHAV_COMPANY = CompanyTypes.Yahav;
 export const YAHAV_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
-    { credentialKey: 'username', selectors: [] }, // wellKnown → #username
-    { credentialKey: 'password', selectors: [] }, // wellKnown → #password
-    { credentialKey: 'nationalID', selectors: [] }, // wellKnown → #pinno
+    { credentialKey: 'username', selectors: [] },
+    { credentialKey: 'password', selectors: [] },
+    { credentialKey: 'nationalID', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: '.btn' }],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
   /**
    * Wait for login form fields and submit button to appear.
    * @param page - The Playwright page instance.
    * @returns True when login form is ready.
    */
   checkReadiness: async (page: Page): LifecyclePromise => {
-    const pinnoReady = waitUntilElementFound(page, '#pinno');
-    const btnReady = waitUntilElementFound(page, '.btn');
+    const pinnoReady = waitUntilElementFound(page, '[name="pinno"]');
+    const btnReady = waitUntilElementFound(page, 'role=button[name="כניסה"]');
     await Promise.all([pinnoReady, btnReady]);
   },
   postAction: yahavPostAction,
@@ -59,14 +72,11 @@ export const YAHAV_CONFIG: ILoginConfig = {
     success: ['https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home'],
     invalidPassword: [
       async (opts): Promise<boolean> =>
-        !!(opts?.page && (await elementPresentOnPage(opts.page, '.ui-dialog-buttons'))),
+        !!(opts?.page && (await elementPresentOnPage(opts.page, 'role=dialog >> role=button'))),
     ],
     changePassword: [
       async (opts): Promise<boolean> =>
-        !!(
-          opts?.page &&
-          (await elementPresentOnPage(opts.page, 'input#ef_req_parameter_old_credential'))
-        ),
+        !!(opts?.page && (await elementPresentOnPage(opts.page, CHANGE_PASSWORD_SEL))),
     ],
   },
 };

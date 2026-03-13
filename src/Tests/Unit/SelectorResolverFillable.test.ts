@@ -34,14 +34,19 @@ describe('isFillableInput (via nested input strategy)', () => {
   /**
    * Creates a mock page for fillable input validation tests.
    * @param querySelector - The mock querySelector function.
-   * @param evalMock - The mock $eval function.
+   * @param locatorEvalMock - The mock evaluate function for locator chain.
    * @returns A mock Page object.
    */
-  function makeLabelPage(querySelector: jest.Mock, evalMock: jest.Mock): Page {
+  function makeLabelPage(querySelector: jest.Mock, locatorEvalMock: jest.Mock): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
+    const locSelf = {
+      first: jest.fn(),
+      evaluate: locatorEvalMock,
+    };
+    locSelf.first.mockReturnValue(locSelf);
     return {
       $: querySelector,
-      $eval: evalMock,
+      locator: jest.fn().mockReturnValue(locSelf),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -79,7 +84,7 @@ describe('isFillableInput (via nested input strategy)', () => {
   }
 
   it('accepts <input type="text"> (fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('text');
+    const evalMock = jest.fn().mockResolvedValue({ tag: 'input', type: 'text' });
     const labelQuery = makeQuerySelectorWithLabel();
     const page = makeLabelPage(labelQuery, evalMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
@@ -88,7 +93,7 @@ describe('isFillableInput (via nested input strategy)', () => {
   });
 
   it('accepts <textarea> (fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('textarea');
+    const evalMock = jest.fn().mockResolvedValue({ tag: 'textarea', type: 'text' });
     const labelQuery = makeQuerySelectorWithLabel();
     const page = makeLabelPage(labelQuery, evalMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
@@ -97,7 +102,7 @@ describe('isFillableInput (via nested input strategy)', () => {
   });
 
   it('rejects <input type="submit"> (not fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('submit');
+    const evalMock = jest.fn().mockResolvedValue({ tag: 'input', type: 'submit' });
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
     const page = makeLabelPage(querySelector, evalMock);
@@ -107,7 +112,7 @@ describe('isFillableInput (via nested input strategy)', () => {
   });
 
   it('rejects <input type="hidden"> (not fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('hidden');
+    const evalMock = jest.fn().mockResolvedValue({ tag: 'input', type: 'hidden' });
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
     const page = makeLabelPage(querySelector, evalMock);
@@ -117,7 +122,7 @@ describe('isFillableInput (via nested input strategy)', () => {
   });
 
   it('rejects <div> element (not input/textarea)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('div');
+    const evalMock = jest.fn().mockResolvedValue({ tag: 'div', type: 'text' });
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
     const page = makeLabelPage(querySelector, evalMock);
@@ -133,13 +138,22 @@ describe('textContent walk-up strategies (imported from SelectorLabelStrategies)
   /**
    * Creates a mock page for textContent strategy tests.
    * @param querySelector - The mock querySelector function.
+   * @param evalResult - Optional evaluate result for locator chain.
    * @returns A mock Page object.
    */
-  function makeTextPage(querySelector: jest.Mock): Page {
+  function makeTextPage(
+    querySelector: jest.Mock,
+    evalResult: Record<string, string> = { tag: 'input', type: 'text' },
+  ): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
+    const locSelf = {
+      first: jest.fn(),
+      evaluate: jest.fn().mockResolvedValue(evalResult),
+    };
+    locSelf.first.mockReturnValue(locSelf);
     return {
       $: querySelector,
-      $eval: jest.fn(),
+      locator: jest.fn().mockReturnValue(locSelf),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -197,7 +211,6 @@ describe('textContent walk-up strategies (imported from SelectorLabelStrategies)
       return Promise.resolve(null);
     });
     const page = makeTextPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValueOnce('input').mockResolvedValueOnce('text');
     const inputField: IFieldConfig = {
       credentialKey: 'password',
       selectors: [{ kind: 'textContent', value: 'סיסמה' }],

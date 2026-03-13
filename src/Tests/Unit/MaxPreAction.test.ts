@@ -146,16 +146,19 @@ describe('Max preAction — homepage version detection', () => {
   it('closes popup before starting either version flow', async () => {
     const elements = await import('../../Common/ElementsInteractions.js');
     (elements.elementPresentOnPage as jest.Mock).mockResolvedValueOnce(true);
+    const closeLoc = createLocator(true);
     const page = buildMockPage({
       'כניסה לאיזור האישי': createLocator(true),
       'לקוחות פרטיים': createLocator(false),
       'כניסה עם סיסמה': createLocator(true),
+      סגור: closeLoc,
+      close: closeLoc,
     });
 
     const preAction = MAX_CONFIG.MAX_CONFIG.preAction;
     if (!preAction) throw new TypeError('preAction missing');
     await preAction(page as never);
 
-    expect(page.$eval).toHaveBeenCalled();
+    expect(closeLoc.click).toHaveBeenCalled();
   });
 });

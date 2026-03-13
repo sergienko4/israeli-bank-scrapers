@@ -3,16 +3,14 @@ import { jest } from '@jest/globals';
 import { type ScraperOptions } from '../../Scrapers/Base/Interface.js';
 
 /**
- * Create a mock that resolves to the given value.
- * @param resolvedValue - The value to resolve.
- * @returns Mocked function.
+ * Create a mock that resolves with the given value.
+ * @param v - resolved value
+ * @returns jest mock that resolves with v
  */
-const MOCK_RESOLVED = (resolvedValue?: unknown): jest.Mock =>
-  jest.fn().mockResolvedValue(resolvedValue);
-
+const MOCK_RESOLVED = (v?: unknown): jest.Mock => jest.fn().mockResolvedValue(v);
 /**
- * Create a mock logger with all levels.
- * @returns Mock logger with trace/debug/info/warn/error.
+ * Create a mock logger.
+ * @returns mock logger record
  */
 const MOCK_LOGGER = (): Record<string, jest.Mock> => ({
   trace: jest.fn(),
@@ -21,7 +19,6 @@ const MOCK_LOGGER = (): Record<string, jest.Mock> => ({
   warn: jest.fn(),
   error: jest.fn(),
 });
-
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: MOCK_RESOLVED(),
@@ -63,10 +60,10 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: MOCK_LOGGER,
   /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
+   * Pass-through bank context.
+   * @param _b - bank name
+   * @param fn - callback
+   * @returns callback result
    */
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
@@ -75,7 +72,6 @@ jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
   handleOtpCode: MOCK_RESOLVED(),
   handleOtpConfirm: MOCK_RESOLVED(),
 }));
-
 const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const {
@@ -92,68 +88,54 @@ const { beinleumiConfig: BEINLEUMI_CONFIG } =
   await import('../../Scrapers/BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js');
 const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
   await import('../../Transactions.js');
-const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
-  await import('../MockPage.js');
-
-/**
- * Test scraper extending the Beinleumi group base.
- */
+const MOCK_PAGE_MOD = await import('../MockPage.js');
+const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } = MOCK_PAGE_MOD;
+/** Test subclass of the Beinleumi group base scraper. */
 class TestBeinleumiScraper extends BEINLEUMI_GROUP_BASE_SCRAPER {
   public BASE_URL = 'https://test.fibi.co.il';
-
   public TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
-
   /**
-   * Create test Beinleumi scraper.
-   * @param options - Scraper options.
+   * Construct test scraper.
+   * @param options - scraper options
    */
   constructor(options: ScraperOptions) {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     super(options, config);
   }
 }
-
-const MOCK_CONTEXT = {
-  newPage: jest.fn(),
-  close: jest.fn().mockResolvedValue(undefined),
-};
+const MOCK_CONTEXT = { newPage: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
-
 const CREDS = { username: 'testuser', password: 'testpass' };
-
 /**
- * Create a page mock with standard account selectors.
- * @param overrides - Mock overrides for the page.
- * @returns Mocked page.
+ * Create a mock page with account/balance locators.
+ * @param overrides - mock overrides
+ * @returns mock page
  */
 function createPageWithAccountFeatures(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const { createMockLocator: createLoc } = MOCK_PAGE_MOD;
+  const accountLoc = createLoc({ innerText: jest.fn().mockResolvedValue('12/345678') });
+  const balanceLoc = createLoc({ innerText: jest.fn().mockResolvedValue('\u20AA5,000.00') });
+  const noDataText =
+    '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
+  const noDataLoc = createLoc({ innerText: jest.fn().mockResolvedValue(noDataText) });
   return CREATE_MOCK_PAGE({
-    $eval: jest.fn().mockImplementation(
-      /**
-       * Selector eval mock.
-       * @param selector - CSS selector.
-       * @returns Mocked value.
-       */
-      (selector: string): string => {
-        if (selector === 'div.fibi_account span.acc_num') return '12/345678';
-        if (selector === '.main_balance') return '\u20AA5,000.00';
-        if (selector === '.NO_DATA')
-          return '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
-        return '';
-      },
-    ),
     $$eval: jest.fn().mockResolvedValue([]),
     evaluate: jest.fn().mockResolvedValue([]),
     frames: jest.fn().mockReturnValue([]),
+    locator: jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('חשבון')) return accountLoc;
+      if (sel.includes('יתרה')) return balanceLoc;
+      if (sel.includes('NO_DATA')) return noDataLoc;
+      return createLoc();
+    }),
     ...overrides,
   });
 }
-
 const COMPLETED_COLUMN_TYPES = [
   { colClass: 'date first', index: 0 },
   { colClass: 'reference wrap_normal', index: 1 },
@@ -161,7 +143,6 @@ const COMPLETED_COLUMN_TYPES = [
   { colClass: 'debit', index: 3 },
   { colClass: 'credit', index: 4 },
 ];
-
 const PENDING_COLUMN_TYPES = [
   { colClass: 'first date', index: 0 },
   { colClass: 'details wrap_normal', index: 1 },
@@ -169,11 +150,10 @@ const PENDING_COLUMN_TYPES = [
   { colClass: 'debit', index: 3 },
   { colClass: 'credit', index: 4 },
 ];
-
 /**
- * Set up pageEvalAll to return standard transaction table data.
- * @param rows - Transaction row data.
- * @returns True when setup complete.
+ * Configure PAGE_EVAL_ALL mocks for transaction rows.
+ * @param rows - transaction row data
+ * @returns true when mocks are configured
  */
 function mockTransactionTable(rows: { innerTds: string[] }[]): boolean {
   (PAGE_EVAL_ALL as jest.Mock)
@@ -183,27 +163,19 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): boolean {
     .mockResolvedValueOnce(rows);
   return true;
 }
-
-beforeEach(
-  /**
-   * Clear mocks before each test.
-   */
-  () => {
-    jest.clearAllMocks();
-    (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-    const defaultPage = createPageWithAccountFeatures();
-    MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-      'https://test.fibi.co.il/Resources/PortalNG/shell',
-    );
-    (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
-  },
-);
+beforeEach(() => {
+  jest.clearAllMocks();
+  (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
+  const defaultPage = createPageWithAccountFeatures();
+  MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
+  const shellUrl = 'https://test.fibi.co.il/Resources/PortalNG/shell';
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(shellUrl);
+  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
+});
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
-    const scraper = new TestBeinleumiScraper(CREATE_OPTS());
-    const result = await scraper.scrape(CREDS);
+    const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     expect(result.success).toBe(true);
     expect(BUILD_CONTEXT_OPTIONS).toHaveBeenCalled();
     const page = (await MOCK_CONTEXT.newPage.mock.results[0].value) as ReturnType<
@@ -216,8 +188,7 @@ describe('login', () => {
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
       'https://test.fibi.co.il/FibiMenu/Marketing/Private/Home',
     );
-    const scraper = new TestBeinleumiScraper(CREATE_OPTS());
-    const result = await scraper.scrape(CREDS);
+    const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(SCRAPER_ERROR_TYPES.InvalidPassword);
   });
@@ -255,12 +226,6 @@ describe('fetchData', () => {
 
   it('handles no transactions in date range', async () => {
     (ELEMENT_PRESENT as jest.Mock).mockImplementation(
-      /**
-       * Check for NO_DATA element.
-       * @param _page - Page instance.
-       * @param selector - CSS selector.
-       * @returns Whether element is present.
-       */
       (_page: ReturnType<typeof CREATE_MOCK_PAGE>, selector: string): boolean =>
         selector === '.NO_DATA',
     );
@@ -280,8 +245,9 @@ describe('fetchData', () => {
 
   it('includes rawTransaction when option set', async () => {
     mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '100', '\u20AA100.00', ''] }]);
-    const opts = CREATE_OPTS({ includeRawTransaction: true });
-    const result = await new TestBeinleumiScraper(opts).scrape(CREDS);
+    const result = await new TestBeinleumiScraper(
+      CREATE_OPTS({ includeRawTransaction: true }),
+    ).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.rawTransaction).toBeDefined();
   });
 
@@ -322,10 +288,10 @@ describe('fetchData', () => {
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns).toHaveLength(2);
     const txns = result.accounts?.[0]?.txns ?? [];
-    const pending = txns.find(txn => txn.status === TX_STATUSES.Pending);
-    const completed = txns.find(txn => txn.status === TX_STATUSES.Completed);
-    expect(pending).toBeDefined();
-    expect(completed).toBeDefined();
+    const pendingTxn = txns.find(txn => txn.status === TX_STATUSES.Pending);
+    const completedTxn = txns.find(txn => txn.status === TX_STATUSES.Completed);
+    expect(pendingTxn).toBeDefined();
+    expect(completedTxn).toBeDefined();
   });
 
   it('paginates completed transactions when next page exists', async () => {
@@ -334,24 +300,21 @@ describe('fetchData', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
       .mockResolvedValueOnce([{ innerTds: ['15/06/2024', 'Page1', '100', '\u20AA100.00', ''] }]);
-
     (ELEMENT_PRESENT as jest.Mock)
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true);
-
     (PAGE_EVAL_ALL as jest.Mock)
       .mockResolvedValueOnce(COMPLETED_COLUMN_TYPES)
       .mockResolvedValueOnce([{ innerTds: ['16/06/2024', 'Page2', '200', '\u20AA200.00', ''] }]);
-
     (ELEMENT_PRESENT as jest.Mock).mockResolvedValueOnce(false);
-
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns).toHaveLength(2);
     expect(result.accounts?.[0]?.txns[0]?.description).toBe('Page1');
     expect(result.accounts?.[0]?.txns[1]?.description).toBe('Page2');
     const anyPage = expect.anything() as ReturnType<typeof CREATE_MOCK_PAGE>;
-    expect(CLICK_BUTTON).toHaveBeenCalledWith(anyPage, 'a#Npage.paging');
+    const nextPageSel = expect.stringContaining('\u05D4\u05D1\u05D0') as string;
+    expect(CLICK_BUTTON).toHaveBeenCalledWith(anyPage, nextPageSel);
   });
 
   it('retries iframe detection with waitForTimeout', async () => {

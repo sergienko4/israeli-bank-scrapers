@@ -47,12 +47,15 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD.MM.YY' },
       timing: NULL_TIMING,
       selectors: {
-        advancedSearchBtn: [{ kind: 'css', value: 'button[title="חיפוש מתקדם"]' }],
-        dateRangeRadio: [{ kind: 'css', value: 'bll-radio-button:not([checked])' }],
-        dateFromInput: [{ kind: 'css', value: 'input[formcontrolname="txtInputFrom"]' }],
+        advancedSearchBtn: [{ kind: 'ariaLabel', value: 'חיפוש מתקדם' }],
+        dateRangeRadio: [{ kind: 'xpath', value: '//bll-radio-button[not(@checked)]' }],
+        dateFromInput: [{ kind: 'name', value: 'txtInputFrom' }],
         filterBtn: [{ kind: 'ariaLabel', value: 'סנן' }],
         accountListItems: [
-          { kind: 'css', value: 'app-masked-number-combo span.display-number-li' },
+          {
+            kind: 'xpath',
+            value: '//app-masked-number-combo//span[contains(text(),"-")]',
+          },
         ],
         accountCombo: [
           {
@@ -92,14 +95,18 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY', maxRowsPerRequest: 10000000000 },
       timing: NULL_TIMING,
       selectors: {
-        accountDropdown: [{ kind: 'css', value: '#dropdownBasic, .item' }],
-        accountDropdownItem: [{ kind: 'css', value: '#AccountPicker .item' }],
-        accountNumberSpan: [{ kind: 'css', value: '#dropdownBasic b span' }],
-        pendingTransactionRows: [{ kind: 'css', value: 'tr.rgRow, tr.rgAltRow' }],
-        pendingFrameIdentifier: [{ kind: 'css', value: '#ctl00_ContentPlaceHolder2_panel1' }],
-        oshLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-Main"]' }],
-        transactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/root-main-osh-p428New"]' }],
-        pendingTransactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-p420"]' }],
+        accountDropdown: [{ kind: 'ariaLabel', value: 'בחר חשבון' }],
+        accountDropdownItem: [
+          { kind: 'xpath', value: '//div[@id="AccountPicker"]//div[contains(text(),"-")]' },
+        ],
+        accountNumberSpan: [{ kind: 'xpath', value: '//button[@id="dropdownBasic"]//b//span' }],
+        pendingTransactionRows: [
+          { kind: 'xpath', value: '//tr[contains(@class,"rgRow") or contains(@class,"rgAltRow")]' },
+        ],
+        pendingFrameIdentifier: [{ kind: 'name', value: 'ctl00_ContentPlaceHolder2_panel1' }],
+        oshLink: [{ kind: 'textContent', value: 'עו"ש' }],
+        transactionsLink: [{ kind: 'textContent', value: 'תנועות' }],
+        pendingTransactionsLink: [{ kind: 'textContent', value: 'תנועות עתידיות' }],
       },
     },
     [CompanyTypes.Max]: {
@@ -215,14 +222,20 @@ export const SCRAPER_CONFIGURATION = {
       timing: NULL_TIMING,
       selectors: {
         transactionContainer: [
-          { kind: 'css', value: '.transaction-container, .transaction-component-container' },
+          {
+            kind: 'xpath',
+            value:
+              '//div[contains(@class,"transaction-container") or contains(@class,"transaction-component")]',
+          },
         ],
-        transactionColumns: [{ kind: 'css', value: '.transaction-item > span' }],
-        cardNumber: [{ kind: 'css', value: '.wallet-details div:nth-of-type(2)' }],
-        balance: [
-          { kind: 'css', value: '.wallet-details div:nth-of-type(4) > span:nth-of-type(2)' },
+        transactionColumns: [
+          { kind: 'xpath', value: '//div[contains(@class,"transaction-item")]/span' },
         ],
-        loadingIndicator: [{ kind: 'css', value: '.react-loading.hide' }],
+        cardNumber: [{ kind: 'ariaLabel', value: 'מספר כרטיס' }],
+        balance: [{ kind: 'ariaLabel', value: 'יתרה' }],
+        loadingIndicator: [
+          { kind: 'xpath', value: '//*[@aria-busy="false" or @data-loading="false"]' },
+        ],
       },
     },
     [CompanyTypes.Yahav]: {
@@ -233,26 +246,20 @@ export const SCRAPER_CONFIGURATION = {
       format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
       timing: NULL_TIMING,
       selectors: {
-        accountDetails: [{ kind: 'css', value: '.account-details' }],
-        accountId: [
+        accountDetails: [{ kind: 'textContent', value: 'פרטי חשבון' }],
+        accountId: [{ kind: 'ariaLabel', value: 'מספר תיק' }],
+        transactionRows: [
           {
-            kind: 'css',
-            value: 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]',
+            kind: 'xpath',
+            value: '//div[contains(@class,"list-item")]//div[contains(@class,"entire-content")]',
           },
         ],
-        transactionRows: [{ kind: 'css', value: '.list-item-holder .entire-content-ctr' }],
-        transactionTableHeader: [{ kind: 'css', value: '.under-line-txn-table-header' }],
-        datePickerOpener: [
-          {
-            kind: 'css',
-            value:
-              'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)',
-          },
-        ],
-        monthPickerBtn: [{ kind: 'css', value: '.pmu-month' }],
-        loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
-        monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],
-        yearsGridCheck: [{ kind: 'css', value: '.pmu-years > div:nth-child(1)' }],
+        transactionTableHeader: [{ kind: 'textContent', value: 'תנועות' }],
+        datePickerOpener: [{ kind: 'ariaLabel', value: 'בחר תאריך' }],
+        monthPickerBtn: [{ kind: 'xpath', value: '//div[contains(@class,"pmu-month")]' }],
+        loadingSpinner: [{ kind: 'xpath', value: '//*[@role="progressbar" or @aria-busy="true"]' }],
+        monthsGridCheck: [{ kind: 'xpath', value: '//div[contains(@class,"pmu-months")]/div[1]' }],
+        yearsGridCheck: [{ kind: 'xpath', value: '//div[contains(@class,"pmu-years")]/div[1]' }],
       },
     },
     [CompanyTypes.OneZero]: {

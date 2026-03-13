@@ -104,15 +104,25 @@ const CREDS = { username: 'testuser', password: 'testpass', nationalID: '1234567
 
 /**
  * Creates a mock page configured for Yahav scraper tests.
- * @returns A mock page with Yahav-specific eval behavior.
+ * @returns A mock page with Yahav-specific locator behavior.
  */
 function createYahavPage(): ReturnType<typeof MOCK_PAGE_MOD.createMockPage> {
+  const accountLoc = MOCK_PAGE_MOD.createMockLocator({
+    textContent: jest.fn().mockResolvedValue('ACC-12345'),
+  });
+  const yearLoc = MOCK_PAGE_MOD.createMockLocator({
+    innerText: jest.fn().mockResolvedValue('2025'),
+  });
+  const dayLoc = MOCK_PAGE_MOD.createMockLocator({
+    innerText: jest.fn().mockResolvedValue('1'),
+  });
+  const defaultLoc = MOCK_PAGE_MOD.createMockLocator();
   return MOCK_PAGE_MOD.createMockPage({
-    $eval: jest.fn().mockImplementation((selector: string) => {
-      if (selector.includes('portfolio-value')) return 'ACC-12345';
-      if (selector.includes('.pmu-years')) return '2025';
-      if (selector.includes('.pmu-days')) return '1';
-      return '';
+    locator: jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('\u05DE\u05E1\u05E4\u05E8 \u05EA\u05D9\u05E7')) return accountLoc;
+      if (sel.includes('.pmu-years')) return yearLoc;
+      if (sel.includes('.pmu-days')) return dayLoc;
+      return defaultLoc;
     }),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
   });
@@ -147,7 +157,7 @@ describe('login', () => {
     );
     (ELEMENTS_MOD.elementPresentOnPage as jest.Mock).mockImplementation(
       (_p: Record<string, string>, selector: string) => {
-        return selector === '.ui-dialog-buttons';
+        return selector.includes('dialog');
       },
     );
 

@@ -17,11 +17,16 @@ export type QueryFn = (context: Page | Frame, css: string) => Promise<boolean>;
  * @returns True if the element is a fillable input or textarea.
  */
 export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
-  const tagName = await ctx.$eval(selector, (el: Element) => el.tagName.toLowerCase());
-  if (tagName === 'textarea') return true;
-  if (tagName !== 'input') return false;
-  const type = await ctx.$eval(selector, (el: Element) => el.getAttribute('type') ?? 'text');
-  return type !== 'hidden' && type !== 'submit' && type !== 'button';
+  const info = await ctx
+    .locator(selector)
+    .first()
+    .evaluate((el: Element) => ({
+      tag: el.tagName.toLowerCase(),
+      type: el.getAttribute('type') ?? 'text',
+    }));
+  if (info.tag === 'textarea') return true;
+  if (info.tag !== 'input') return false;
+  return info.type !== 'hidden' && info.type !== 'submit' && info.type !== 'button';
 }
 
 /**

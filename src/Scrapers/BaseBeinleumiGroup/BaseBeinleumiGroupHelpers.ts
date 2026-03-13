@@ -192,9 +192,6 @@ export function extractTransaction(opts: IExtractTxnOpts): boolean {
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (!hasErrorInfoElement) return false;
-  const errorText = await page.$eval(
-    `.${ERROR_MESSAGE_CLASS}`,
-    el => (el as HTMLElement).innerText,
-  );
+  const errorText = await page.locator(`.${ERROR_MESSAGE_CLASS}`).first().innerText();
   return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
 }

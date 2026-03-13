@@ -39,14 +39,6 @@ interface IScraperSpecificCredentials {
   password: string;
 }
 
-/**
- * Click helper for $eval.
- * @param el - The DOM element to click.
- */
-const CLICK_FN = (el: Element): void => {
-  (el as HTMLElement).click();
-};
-
 /** Mizrahi bank scraper implementation. */
 class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   /**
@@ -62,7 +54,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts or error.
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
-    await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    await this.page.locator(SEL.accountDropdown).first().click();
     const items = await this.page.$$(SEL.accountDropdownItem);
     return this.fetchAllAccounts(items.length);
   }
@@ -95,10 +87,10 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns The account transactions data.
    */
   private async selectAndFetchAccount(index: number): Promise<ITransactionsAccount> {
-    if (index > 0) await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    if (index > 0) await this.page.locator(SEL.accountDropdown).first().click();
     const nthChild = String(index + 1);
     const selector = `${SEL.accountDropdownItem}:nth-child(${nthChild})`;
-    await this.page.$eval(selector, CLICK_FN);
+    await this.page.locator(selector).first().click();
     return this.fetchAccount();
   }
 
@@ -107,7 +99,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Array of pending ITransactions.
    */
   private async getPendingTransactions(): Promise<ITransaction[]> {
-    await this.page.$eval(SEL.pendingTransactionsLink, CLICK_FN);
+    await this.page.locator(SEL.pendingTransactionsLink).first().click();
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
@@ -124,9 +116,9 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    */
   private async navigateToTransactions(): Promise<boolean> {
     await this.page.waitForSelector(SEL.oshLink);
-    await this.page.$eval(SEL.oshLink, CLICK_FN);
+    await this.page.locator(SEL.oshLink).first().click();
     await waitUntilElementFound(this.page, SEL.transactionsLink);
-    await this.page.$eval(SEL.transactionsLink, CLICK_FN);
+    await this.page.locator(SEL.transactionsLink).first().click();
     return true;
   }
 

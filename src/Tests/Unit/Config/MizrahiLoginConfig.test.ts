@@ -117,19 +117,20 @@ describe('MIZRAHI_CONFIG', () => {
       const page = makeMockPage();
       const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
       await checkReadiness?.(page);
-      expect(MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR).toHaveBeenCalledWith(
-        page,
-        'div.ngx-overlay.loading-foreground',
-      );
+      const loaderSel = expect.stringContaining('aria-busy') as string;
+      expect(MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR).toHaveBeenCalledWith(page, loaderSel);
     });
   });
 
   describe('postAction', () => {
-    it('waits for dropdownBasic or invalid selector', async () => {
+    it('waits for account dropdown or invalid selector', async () => {
       const page = makeMockPage();
       const postAction = MIZRAHI_CONFIG.postAction;
       await postAction?.(page);
-      expect(MOCK_WAIT_UNTIL_ELEMENT_FOUND).toHaveBeenCalledWith(page, '#dropdownBasic');
+      const dropdownSel = expect.stringContaining(
+        '\u05D1\u05D7\u05E8 \u05D7\u05E9\u05D1\u05D5\u05DF',
+      ) as string;
+      expect(MOCK_WAIT_UNTIL_ELEMENT_FOUND).toHaveBeenCalledWith(page, dropdownSel);
     });
   });
 
@@ -178,7 +179,7 @@ describe('MIZRAHI_CONFIG', () => {
       const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
       const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
       const page = makeMockPage();
-      MOCK_QUERY.mockResolvedValue({});
+      MOCK_QUERY_ALL.mockResolvedValue([{}]);
       expect(await fn({ page })).toBe(true);
     });
 
@@ -186,7 +187,7 @@ describe('MIZRAHI_CONFIG', () => {
       const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
       const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
       const page = makeMockPage();
-      MOCK_QUERY.mockResolvedValue(null);
+      MOCK_QUERY_ALL.mockResolvedValue([]);
       expect(await fn({ page })).toBe(false);
     });
   });

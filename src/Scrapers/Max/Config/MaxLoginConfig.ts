@@ -161,11 +161,10 @@ async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> 
  * @returns True after the popup is closed or confirmed absent.
  */
 async function closePopupIfPresent(page: Page): Promise<boolean> {
-  const hasPopup = await elementPresentOnPage(page, '#closePopup');
+  const closeBtn = 'role=button[name=/סגור|close/i]';
+  const hasPopup = await elementPresentOnPage(page, closeBtn);
   if (hasPopup) {
-    await page.$eval('#closePopup', (el: HTMLElement) => {
-      el.click();
-    });
+    await page.locator(closeBtn).first().click();
   }
   return true;
 }
@@ -203,7 +202,7 @@ async function navigateToLoginPage(page: Page): Promise<string> {
  * @returns True when the field is visible.
  */
 async function waitForLoginField(page: Page): Promise<boolean> {
-  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
+  await page.waitForSelector('[placeholder*="שם משתמש"]', {
     state: 'visible',
     timeout: LOGIN_FIELD_WAIT_MS,
   });
@@ -317,7 +316,7 @@ export const MAX_CONFIG: ILoginConfig = {
   ],
   submit: [
     { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
-    { kind: 'css', value: 'app-user-login-form .general-button.send-me-code' },
+    { kind: 'textContent', value: 'שלח לי קוד' },
   ],
   checkReadiness: maxCheckReadiness,
   preAction: maxPreAction,

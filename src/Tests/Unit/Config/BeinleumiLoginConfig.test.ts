@@ -77,18 +77,21 @@ describe('beinleumiPreAction — trigger panel logic (lines 50-56)', () => {
     const loginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
     };
+    const { createMockLocator } = await import('../../MockPage.js');
+    const triggerLoc = createMockLocator();
     const page = CREATE_MOCK_PAGE({
-      evaluate: jest.fn().mockResolvedValue(undefined),
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([loginFrame]),
+      locator: jest.fn().mockReturnValue(triggerLoc),
     });
     (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(true);
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(ELEMENT_PRESENT).toHaveBeenCalledWith(page, 'a.login-trigger');
-    expect(page.evaluate).toHaveBeenCalled();
+    const triggerSel = expect.stringContaining('\u05DB\u05E0\u05D9\u05E1\u05D4') as string;
+    expect(ELEMENT_PRESENT).toHaveBeenCalledWith(page, triggerSel);
+    expect(triggerLoc.click).toHaveBeenCalled();
     expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
     expect(frame).toBe(loginFrame);
   });

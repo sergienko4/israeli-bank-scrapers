@@ -44,7 +44,7 @@ export default function discountConfig(loginUrl: string): ILoginConfig {
   return {
     loginUrl,
     fields: DISCOUNT_FIELDS,
-    submit: [{ kind: 'css', value: '.sendBtn' }],
+    submit: [{ kind: 'textContent', value: 'שלח' }],
     /**
      * Navigate to Discount login portal and wait for the ID field.
      * @param page - The Playwright page instance.

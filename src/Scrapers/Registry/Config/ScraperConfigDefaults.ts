@@ -47,7 +47,7 @@ export interface IBankScraperConfig {
     loginDelayMinMs: number | null;
     loginDelayMaxMs: number | null;
   };
-  /** CSS selectors for DOM data scraping (post-login dashboard). */
+  /** Selector candidates for DOM data scraping (post-login dashboard). */
   selectors: Record<string, SelectorCandidate[]>;
 }
 
@@ -125,17 +125,17 @@ export const DOM_OTP: OtpConfig = {
 
 /** DOM selectors shared by all Beinleumi-group banks (Beinleumi, OtsarHahayal, Massad, Pagi). */
 export const BEINLEUMI_DOM_SELECTORS: Record<string, SelectorCandidate[]> = {
-  accountsNumber: [{ kind: 'css', value: 'div.fibi_account span.acc_num' }],
-  completedTransactionsTable: [{ kind: 'css', value: 'table#dataTable077' }],
-  pendingTransactionsTable: [{ kind: 'css', value: 'table#dataTable023' }],
-  nextPageLink: [{ kind: 'css', value: 'a#Npage.paging' }],
-  currentBalance: [{ kind: 'css', value: '.main_balance' }],
-  transactionsTab: [{ kind: 'css', value: 'a#tabHeader4' }],
-  datesContainer: [{ kind: 'css', value: 'div#fibi_dates' }],
-  fromDateInput: [{ kind: 'css', value: 'input#fromDate' }],
-  showButton: [{ kind: 'css', value: 'input[value=הצג]' }],
-  tableContainer: [{ kind: 'css', value: "div[id*='divTable']" }],
-  closeDatePickerBtn: [{ kind: 'css', value: 'button.ui-datepicker-close' }],
+  accountsNumber: [{ kind: 'ariaLabel', value: 'מספר חשבון' }],
+  completedTransactionsTable: [{ kind: 'xpath', value: '//table[@id="dataTable077"]' }],
+  pendingTransactionsTable: [{ kind: 'xpath', value: '//table[@id="dataTable023"]' }],
+  nextPageLink: [{ kind: 'textContent', value: 'הבא' }],
+  currentBalance: [{ kind: 'textContent', value: 'יתרה' }],
+  transactionsTab: [{ kind: 'textContent', value: 'תנועות' }],
+  datesContainer: [{ kind: 'ariaLabel', value: 'תאריכים' }],
+  fromDateInput: [{ kind: 'labelText', value: 'מתאריך' }],
+  showButton: [{ kind: 'textContent', value: 'הצג' }],
+  tableContainer: [{ kind: 'xpath', value: "//div[contains(@id,'divTable')]" }],
+  closeDatePickerBtn: [{ kind: 'textContent', value: 'סגור' }],
 };
 
 /** VisaCal API endpoint configuration. */

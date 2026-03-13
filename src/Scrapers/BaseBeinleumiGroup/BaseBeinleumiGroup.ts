@@ -180,7 +180,7 @@ async function getAccountNumber(page: Page | Frame): Promise<string> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  const text = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
+  const text = await r.context.locator(r.selector).first().innerText();
   return text.replace('/', '_').trim();
 }
 
@@ -343,7 +343,7 @@ async function getCurrentBalance(page: Page | Frame): Promise<number> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  const balanceStr = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
+  const balanceStr = await r.context.locator(r.selector).first().innerText();
   const sanitized = balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', '');
   return parseFloat(sanitized);
 }

@@ -46,7 +46,7 @@ interface IScrapedTransaction {
  */
 async function getAccountID(page: Page): Promise<string> {
   try {
-    return await page.$eval(SEL.accountId, (element: Element) => element.textContent);
+    return (await page.locator(SEL.accountId).first().textContent()) ?? '';
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new ScraperError(`Failed to retrieve account ID. Selector '${SEL.accountId}': ${msg}`);
@@ -201,7 +201,7 @@ async function getAccountTransactions(
  * @returns True if the cell was clicked, false otherwise.
  */
 async function tryClickGridCell(page: Page, selector: string, target: string): Promise<boolean> {
-  const text = await page.$eval(selector, el => (el as HTMLElement).innerText);
+  const text = await page.locator(selector).first().innerText();
   if (target !== text) return false;
   await clickButton(page, selector);
   return true;

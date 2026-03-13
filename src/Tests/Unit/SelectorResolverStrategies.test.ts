@@ -34,13 +34,22 @@ describe('resolveLabelText strategies', () => {
   /**
    * Creates a mock page with label-text resolution support.
    * @param querySelector - The mock querySelector function.
+   * @param evalResult - Optional evaluate result for locator chain.
    * @returns A mock Page object.
    */
-  function makeLabelPage(querySelector: jest.Mock): Page {
+  function makeLabelPage(
+    querySelector: jest.Mock,
+    evalResult: Record<string, string> = { tag: 'input', type: 'text' },
+  ): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
+    const locSelf = {
+      first: jest.fn(),
+      evaluate: jest.fn().mockResolvedValue(evalResult),
+    };
+    locSelf.first.mockReturnValue(locSelf);
     return {
       $: querySelector,
-      $eval: jest.fn(),
+      locator: jest.fn().mockReturnValue(locSelf),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -78,7 +87,6 @@ describe('resolveLabelText strategies', () => {
       return Promise.resolve(null);
     });
     const page = makeLabelPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
@@ -128,7 +136,6 @@ describe('resolveLabelText strategies', () => {
       return Promise.resolve(null);
     });
     const page = makeLabelPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
@@ -163,8 +170,7 @@ describe('resolveLabelText strategies', () => {
       if (sel.includes('placeholder')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const page = makeLabelPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValue('hidden');
+    const page = makeLabelPage(querySelector, { tag: 'input', type: 'hidden' });
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
@@ -179,13 +185,22 @@ describe('div/span strict text fallback', () => {
   /**
    * Creates a mock page for div/span label fallback tests.
    * @param querySelector - The mock querySelector function.
+   * @param evalResult - Optional evaluate result for locator chain.
    * @returns A mock Page object.
    */
-  function makeLabelPage(querySelector: jest.Mock): Page {
+  function makeLabelPage(
+    querySelector: jest.Mock,
+    evalResult: Record<string, string> = { tag: 'input', type: 'text' },
+  ): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
+    const locSelf = {
+      first: jest.fn(),
+      evaluate: jest.fn().mockResolvedValue(evalResult),
+    };
+    locSelf.first.mockReturnValue(locSelf);
     return {
       $: querySelector,
-      $eval: jest.fn(),
+      locator: jest.fn().mockReturnValue(locSelf),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -208,7 +223,6 @@ describe('div/span strict text fallback', () => {
       return Promise.resolve(null);
     });
     const page = makeLabelPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');

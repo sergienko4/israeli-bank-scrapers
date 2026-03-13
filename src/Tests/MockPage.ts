@@ -4,6 +4,47 @@ import { type Page } from 'playwright';
 import { CompanyTypes } from '../Definitions.js';
 import { type ScraperOptions } from '../Scrapers/Base/Interface.js';
 
+/** Chainable mock for Playwright Locator (first/evaluate/click/innerText/etc.). */
+export interface IMockLocator {
+  first: jest.Mock;
+  click: jest.Mock;
+  fill: jest.Mock;
+  innerText: jest.Mock;
+  textContent: jest.Mock;
+  getAttribute: jest.Mock;
+  evaluate: jest.Mock;
+  evaluateAll: jest.Mock;
+  isVisible: jest.Mock;
+  waitFor: jest.Mock;
+  count: jest.Mock;
+  pressSequentially: jest.Mock;
+}
+
+/**
+ * Create a chainable mock Playwright Locator.
+ * @param overrides - optional overrides for locator methods.
+ * @returns a mock locator whose .first() returns itself.
+ */
+export function createMockLocator(overrides: Partial<IMockLocator> = {}): IMockLocator {
+  const loc: IMockLocator = {
+    first: jest.fn(),
+    click: jest.fn().mockResolvedValue(undefined),
+    fill: jest.fn().mockResolvedValue(undefined),
+    innerText: jest.fn().mockResolvedValue(''),
+    textContent: jest.fn().mockResolvedValue(''),
+    getAttribute: jest.fn().mockResolvedValue(null),
+    evaluate: jest.fn().mockResolvedValue(undefined),
+    evaluateAll: jest.fn().mockResolvedValue([]),
+    isVisible: jest.fn().mockResolvedValue(true),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    count: jest.fn().mockResolvedValue(0),
+    pressSequentially: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
 export interface IMockPage {
   waitForSelector: jest.Mock;
   $eval: jest.Mock;
@@ -33,11 +74,17 @@ export interface IMockPage {
   focus: jest.Mock;
   click: jest.Mock;
   locator: jest.Mock;
+  getByText: jest.Mock;
+  getByRole: jest.Mock;
+  getByLabel: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
 }
 
 type MockOverrides = Partial<IMockPage>;
+
+/** Default locator instance shared by all fresh mock pages. */
+const DEFAULT_LOCATOR = createMockLocator();
 
 /**
  * Creates a mock Playwright Page with sensible jest.fn() stubs.
@@ -105,16 +152,11 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     focus: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
-    locator: jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        fill: jest.fn().mockResolvedValue(undefined),
-        click: jest.fn().mockResolvedValue(undefined),
-        isVisible: jest.fn().mockResolvedValue(true),
-        waitFor: jest.fn().mockResolvedValue(undefined),
-        count: jest.fn().mockResolvedValue(1),
-      }),
-      count: jest.fn().mockResolvedValue(0),
-    }),
+    locator: jest.fn().mockReturnValue(DEFAULT_LOCATOR),
+    getByText: jest.fn().mockReturnValue(DEFAULT_LOCATOR),
+    getByRole: jest.fn().mockReturnValue(DEFAULT_LOCATOR),
+    getByLabel: jest.fn().mockReturnValue(DEFAULT_LOCATOR),
+    waitForRequest: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as IMockPage & Page;
 }

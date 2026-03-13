@@ -1,11 +1,11 @@
-/** CSS selector for the account dropdown trigger. */
-export const ACCOUNT_SELECTOR = 'div.current-account';
+/** Playwright role selector for the account dropdown trigger (combobox). */
+export const ACCOUNT_SELECTOR = 'role=combobox[name="חשבון"]';
 
-/** CSS selector for the account dropdown panel. */
-export const DROPDOWN_PANEL_SELECTOR = 'div.mat-mdc-autocomplete-panel.account-select-dd';
+/** Playwright role selector for the account dropdown panel. */
+export const DROPDOWN_PANEL_SELECTOR = 'role=listbox';
 
-/** CSS selector for individual account option text. */
-export const OPTION_SELECTOR = 'mat-option .mdc-list-item__primary-text';
+/** Playwright role selector for individual account options. */
+export const OPTION_SELECTOR = 'role=option';
 
 /** Timeout for waiting for UI elements to render (ms). */
 export const ELEMENT_RENDER_TIMEOUT_MS = 10000;

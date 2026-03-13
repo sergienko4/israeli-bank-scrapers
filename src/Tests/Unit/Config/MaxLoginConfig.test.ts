@@ -313,8 +313,8 @@ describe('MAX_CONFIG', () => {
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
       await preAction(page);
-      const anyFn = expect.any(Function) as unknown;
-      expect(MOCK_PAGE_EVAL).toHaveBeenCalledWith('#closePopup', anyFn);
+      const closePopupMatcher = expect.stringMatching(/סגור|close/i) as string;
+      expect(MOCK_LOCATOR).toHaveBeenCalledWith(closePopupMatcher);
     });
   });
 });

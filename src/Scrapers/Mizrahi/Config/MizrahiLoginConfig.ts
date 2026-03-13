@@ -12,8 +12,14 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
 const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking IAccount';
-const MIZRAHI_INVALID_SELECTOR =
-  'a[href*="https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx"]';
+const MIZRAHI_INVALID_XPATH =
+  'xpath=//a[contains(@href,"sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx")]';
+
+/** Playwright selector for the loading overlay (role-based). */
+const LOADER_SEL = 'xpath=//*[@aria-busy="true" or contains(@class,"ngx-overlay")]';
+
+/** Text selector for the account dropdown — signals successful login. */
+const ACCOUNT_DROPDOWN_SEL = 'text=בחר חשבון';
 
 /**
  * Check if the Mizrahi dashboard is already showing a checking account link.
@@ -36,8 +42,8 @@ async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
  */
 async function mizrahiPostAction(page: Page): LifecyclePromise {
   await Promise.race([
-    waitUntilElementFound(page, '#dropdownBasic'),
-    waitUntilElementFound(page, MIZRAHI_INVALID_SELECTOR),
+    waitUntilElementFound(page, ACCOUNT_DROPDOWN_SEL),
+    waitUntilElementFound(page, MIZRAHI_INVALID_XPATH),
     waitForNavigation(page),
   ]);
 }
@@ -49,7 +55,7 @@ const MIZRAHI_CONFIG: ILoginConfig = {
     { credentialKey: 'username', selectors: [] },
     { credentialKey: 'password', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: 'button.btn.btn-primary' }],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
   /**
    * Navigate to the Mizrahi SPA login route and wait for loader to disappear.
    * @param page - The Playwright page instance.
@@ -58,14 +64,14 @@ const MIZRAHI_CONFIG: ILoginConfig = {
   checkReadiness: async (page: Page): LifecyclePromise => {
     const loginRoute = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].urls.loginRoute;
     await page.goto(loginRoute, { waitUntil: 'domcontentloaded' });
-    await waitUntilElementDisappear(page, 'div.ngx-overlay.loading-foreground');
+    await waitUntilElementDisappear(page, LOADER_SEL);
   },
   postAction: mizrahiPostAction,
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i, mizrahiIsLoggedIn],
     invalidPassword: [
       async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$(MIZRAHI_INVALID_SELECTOR))),
+        !!(opts?.page && (await opts.page.$$(MIZRAHI_INVALID_XPATH)).length > 0),
     ],
     changePassword: [/https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/],
   },

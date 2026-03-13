@@ -21,11 +21,12 @@ const LOG = getDebug('beinleumi-account-selector');
  */
 async function isDropdownOpen(page: Page): Promise<boolean> {
   return page
-    .$eval(DROPDOWN_PANEL_SELECTOR, el => {
-      return (
-        window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null
-      );
-    })
+    .locator(DROPDOWN_PANEL_SELECTOR)
+    .first()
+    .evaluate(
+      (el: Element) =>
+        window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null,
+    )
     .catch(() => false);
 }
 
@@ -56,9 +57,11 @@ async function ensureDropdownOpen(page: Page): Promise<boolean> {
 export async function clickAccountSelectorGetAccountIds(page: Page): Promise<string[]> {
   try {
     await ensureDropdownOpen(page);
-    const accountLabels = await page.$$eval(OPTION_SELECTOR, options =>
-      options.map(option => option.textContent.trim()).filter(label => label !== ''),
-    );
+    const accountLabels = await page
+      .locator(OPTION_SELECTOR)
+      .evaluateAll((options: Element[]) =>
+        options.map(option => (option.textContent || '').trim()).filter(label => label !== ''),
+      );
     return accountLabels;
   } catch {
     return [];

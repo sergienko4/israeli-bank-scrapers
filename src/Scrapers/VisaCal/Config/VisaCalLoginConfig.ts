@@ -19,13 +19,19 @@ import {
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
+/** Selector for the VisaCal login button on the main page. */
+const LOGIN_BTN_SEL = '#ccLoginDesktopBtn';
+
+/** Selector for the regular login option in the iframe. */
+const REGULAR_LOGIN_SEL = '#regular-login';
+
 /**
  * Wait for the VisaCal login button to appear on the page.
  * @param page - The Playwright page instance.
  * @returns True when the login button is found.
  */
 async function visaCalCheckReadiness(page: Page): LifecyclePromise {
-  await waitUntilElementFound(page, '#ccLoginDesktopBtn');
+  await waitUntilElementFound(page, LOGIN_BTN_SEL);
 }
 
 /**
@@ -34,11 +40,11 @@ async function visaCalCheckReadiness(page: Page): LifecyclePromise {
  * @returns The iframe Frame containing the login form.
  */
 async function visaCalOpenLoginPopup(page: Page): Promise<Frame> {
-  await waitUntilElementFound(page, '#ccLoginDesktopBtn', { visible: true });
-  await clickButton(page, '#ccLoginDesktopBtn');
+  await waitUntilElementFound(page, LOGIN_BTN_SEL, { visible: true });
+  await clickButton(page, LOGIN_BTN_SEL);
   const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
-  await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
-  await clickButton(frame, '#regular-login');
+  await waitUntilElementFound(frame, REGULAR_LOGIN_SEL, { timeout: 30000 });
+  await clickButton(frame, REGULAR_LOGIN_SEL);
   await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 45000 });
   return frame;
 }
@@ -62,7 +68,7 @@ export const VISACAL_LOGIN_CONFIG: ILoginConfig = {
     { credentialKey: 'username', selectors: [] },
     { credentialKey: 'password', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: 'button[type="submit"]' }],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
   checkReadiness: visaCalCheckReadiness,
   preAction: visaCalOpenLoginPopup,
   postAction: visaCalPostAction,

@@ -15,7 +15,7 @@ import {
   waitUntilElementFound,
   waitUntilIframeFound,
 } from '../../Common/ElementsInteractions.js';
-import { createMockPage } from '../MockPage.js';
+import { createMockLocator, createMockPage } from '../MockPage.js';
 
 describe('waitUntilElementFound', () => {
   it('calls waitForSelector with selector', async () => {
@@ -59,29 +59,36 @@ describe('fillInput', () => {
 });
 
 describe('setValue', () => {
-  it('sets input value directly via $eval', async () => {
-    const page = createMockPage();
+  it('sets input value via locator evaluate', async () => {
+    const loc = createMockLocator();
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     await setValue(page, '#password', 'secret');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('#password', anyFn, ['secret']);
+    expect(page.locator).toHaveBeenCalledWith('#password');
+    expect(loc.first).toHaveBeenCalled();
+    const anyFunction = expect.any(Function) as unknown;
+    expect(loc.evaluate).toHaveBeenCalledWith(anyFunction, 'secret');
   });
 });
 
 describe('clickButton', () => {
-  it('calls $eval with click callback', async () => {
-    const page = createMockPage();
+  it('clicks via locator chain', async () => {
+    const loc = createMockLocator();
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     await clickButton(page, '#submit');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('#submit', anyFn);
+    expect(page.locator).toHaveBeenCalledWith('#submit');
+    expect(loc.first).toHaveBeenCalled();
+    expect(loc.click).toHaveBeenCalled();
   });
 });
 
 describe('clickLink', () => {
-  it('calls $eval on the link', async () => {
-    const page = createMockPage();
+  it('clicks link via locator chain', async () => {
+    const loc = createMockLocator();
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     await clickLink(page, 'a.nav-link');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('a.nav-link', anyFn);
+    expect(page.locator).toHaveBeenCalledWith('a.nav-link');
+    expect(loc.first).toHaveBeenCalled();
+    expect(loc.click).toHaveBeenCalled();
   });
 });
 
@@ -125,9 +132,9 @@ describe('dropdownElements', () => {
 });
 
 describe('pageEval', () => {
-  it('returns result of $eval on selector', async () => {
-    const page = createMockPage();
-    page.$eval.mockResolvedValue('evaluated');
+  it('returns result of locator evaluate on selector', async () => {
+    const loc = createMockLocator({ evaluate: jest.fn().mockResolvedValue('evaluated') });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const result = await pageEval(page, {
       selector: '.balance',
       defaultResult: '',
@@ -139,11 +146,16 @@ describe('pageEval', () => {
       callback: (el: Element): string => (el as HTMLElement).textContent || '',
     });
     expect(result).toBe('evaluated');
+    expect(page.locator).toHaveBeenCalledWith('.balance');
   });
 
   it('returns default when element not found', async () => {
-    const page = createMockPage();
-    page.$eval.mockRejectedValue(new Error('Error: failed to find element matching selector'));
+    const loc = createMockLocator({
+      evaluate: jest
+        .fn()
+        .mockRejectedValue(new Error('Error: failed to find element matching selector')),
+    });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const result = await pageEval(page, {
       selector: '.missing',
       defaultResult: 'default',
@@ -158,8 +170,10 @@ describe('pageEval', () => {
   });
 
   it('rethrows non-selector errors', async () => {
-    const page = createMockPage();
-    page.$eval.mockRejectedValue(new Error('network error'));
+    const loc = createMockLocator({
+      evaluate: jest.fn().mockRejectedValue(new Error('network error')),
+    });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const evalPromise = pageEval(page, {
       selector: '.broken',
       defaultResult: null as Element | null,
@@ -175,9 +189,9 @@ describe('pageEval', () => {
 });
 
 describe('pageEvalAll', () => {
-  it('returns result of $$eval on selector', async () => {
-    const page = createMockPage();
-    page.$$eval.mockResolvedValue(['a', 'b']);
+  it('returns result of locator evaluateAll on selector', async () => {
+    const loc = createMockLocator({ evaluateAll: jest.fn().mockResolvedValue(['a', 'b']) });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const result = await pageEvalAll(page, {
       selector: '.items',
       defaultResult: [] as Element[],
@@ -189,11 +203,16 @@ describe('pageEvalAll', () => {
       callback: (els: Element[]): Element[] => els,
     });
     expect(result).toEqual(['a', 'b']);
+    expect(page.locator).toHaveBeenCalledWith('.items');
   });
 
   it('returns default when no elements found', async () => {
-    const page = createMockPage();
-    page.$$eval.mockRejectedValue(new Error('Error: failed to find elements matching selector'));
+    const loc = createMockLocator({
+      evaluateAll: jest
+        .fn()
+        .mockRejectedValue(new Error('Error: failed to find elements matching selector')),
+    });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const result = await pageEvalAll(page, {
       selector: '.missing',
       defaultResult: [] as Element[],
@@ -208,8 +227,10 @@ describe('pageEvalAll', () => {
   });
 
   it('rethrows non-selector errors', async () => {
-    const page = createMockPage();
-    page.$$eval.mockRejectedValue(new Error('network error'));
+    const loc = createMockLocator({
+      evaluateAll: jest.fn().mockRejectedValue(new Error('network error')),
+    });
+    const page = createMockPage({ locator: jest.fn().mockReturnValue(loc) });
     const evalAllPromise = pageEvalAll(page, {
       selector: '.broken',
       defaultResult: [] as Element[],

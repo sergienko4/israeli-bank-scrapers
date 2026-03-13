@@ -40,7 +40,7 @@ const LEUMI_WELL_KNOWN_CFG: ILoginConfig = {
    */
   checkReadiness: async (page: Page): Promise<void> => {
     await waitUntilElementFound(page, '.enter_account');
-    const href = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
+    const href = (await page.locator('.enter_account').first().getAttribute('href')) ?? '';
     await page.goto(href, { waitUntil: 'networkidle' });
     await waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true });
   },

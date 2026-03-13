@@ -45,17 +45,30 @@ const ACCOUNT_SELECTOR_MODULE =
   await import('../../Scrapers/Beinleumi/BeinleumiAccountSelector.js');
 const MOCK_PAGE_MODULE = await import('../MockPage.js');
 
-let mockPage: ReturnType<typeof MOCK_PAGE_MODULE.createMockPage>;
+type MockPage = ReturnType<typeof MOCK_PAGE_MODULE.createMockPage>;
+type MockLocator = ReturnType<typeof MOCK_PAGE_MODULE.createMockLocator>;
+
+let mockPage: MockPage;
+let dropdownLocator: MockLocator;
+let optionLocator: MockLocator;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockPage = MOCK_PAGE_MODULE.createMockPage();
+  dropdownLocator = MOCK_PAGE_MODULE.createMockLocator();
+  optionLocator = MOCK_PAGE_MODULE.createMockLocator();
+  mockPage = MOCK_PAGE_MODULE.createMockPage({
+    locator: jest.fn().mockImplementation((selector: string) => {
+      if (selector === 'role=listbox') return dropdownLocator;
+      if (selector === 'role=option') return optionLocator;
+      return MOCK_PAGE_MODULE.createMockLocator();
+    }),
+  });
 });
 
 describe('clickAccountSelectorGetAccountIds', () => {
   it('returns account labels when dropdown is visible', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['account-1', 'account-2']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['account-1', 'account-2']);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -64,8 +77,8 @@ describe('clickAccountSelectorGetAccountIds', () => {
   });
 
   it('opens dropdown if not already open before reading options', async () => {
-    mockPage.$eval.mockResolvedValueOnce(false);
-    mockPage.$$eval.mockResolvedValueOnce(['account-3']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(false);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['account-3']);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -74,7 +87,7 @@ describe('clickAccountSelectorGetAccountIds', () => {
   });
 
   it('returns empty array when an error is thrown', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('page crash'));
+    dropdownLocator.evaluate.mockRejectedValueOnce(new Error('page crash'));
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -82,9 +95,9 @@ describe('clickAccountSelectorGetAccountIds', () => {
     expect(accounts).toEqual([]);
   });
 
-  it('returns empty array when $$eval throws', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockRejectedValueOnce(new Error('no elements'));
+  it('returns empty array when evaluateAll throws', async () => {
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockRejectedValueOnce(new Error('no elements'));
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -95,8 +108,8 @@ describe('clickAccountSelectorGetAccountIds', () => {
 
 describe('getAccountIdsBothUIs', () => {
   it('returns new UI accounts when present', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['111', '222']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['111', '222']);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
       mockPage as unknown as Page,
@@ -105,7 +118,7 @@ describe('getAccountIdsBothUIs', () => {
   });
 
   it('falls back to old UI when new UI returns empty', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
+    dropdownLocator.evaluate.mockRejectedValueOnce(new Error('no selector'));
     mockPage.evaluate.mockResolvedValueOnce(['333']);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
@@ -115,7 +128,7 @@ describe('getAccountIdsBothUIs', () => {
   });
 
   it('returns empty array when both UIs return nothing', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
+    dropdownLocator.evaluate.mockRejectedValueOnce(new Error('no selector'));
     mockPage.evaluate.mockResolvedValueOnce([]);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
@@ -127,8 +140,8 @@ describe('getAccountIdsBothUIs', () => {
 
 describe('selectAccountFromDropdown', () => {
   it('returns false when account is not in available list', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['acc-1', 'acc-2']);
 
     const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
       mockPage as unknown as Page,
@@ -138,8 +151,8 @@ describe('selectAccountFromDropdown', () => {
   });
 
   it('returns true when account is found and clicked', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['acc-1', 'acc-2']);
 
     const mockOptionEl = {
       evaluateHandle: jest.fn().mockResolvedValue({}),
@@ -155,8 +168,8 @@ describe('selectAccountFromDropdown', () => {
   });
 
   it('returns false when no matching option found in DOM', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1']);
+    dropdownLocator.evaluate.mockResolvedValueOnce(true);
+    optionLocator.evaluateAll.mockResolvedValueOnce(['acc-1']);
 
     const mockOptionEl = {
       evaluateHandle: jest.fn().mockResolvedValue({}),

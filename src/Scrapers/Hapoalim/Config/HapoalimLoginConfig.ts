@@ -15,7 +15,7 @@ const HAPOALIM_CONFIG: ILoginConfig = {
     { credentialKey: 'password', selectors: [] }, // wellKnown → #password
   ],
   submit: [
-    { kind: 'css', value: '.login-btn' },
+    { kind: 'textContent', value: 'כניסה' },
     // textContent 'כניסה' fallback is in wellKnownSelectors.__submit__
   ],
   /**
