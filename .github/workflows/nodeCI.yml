@@ -88,7 +88,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
+          if [ -f ~/.cache/camoufox/camoufox-bin ]; then
             echo "Camoufox already cached, skipping fetch"
           else
             echo "Cache miss — attempting camoufox-js fetch..."
@@ -101,7 +101,8 @@ jobs:
               mkdir -p ~/.cache/camoufox
               unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
               rm -rf "$ASSET_DIR"
-              ls ~/.cache/camoufox/*/camoufox || (echo "ERROR: Camoufox binary not found after fallback" && exit 1)
+              chmod -R 755 ~/.cache/camoufox
+              test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after fallback" && exit 1)
               echo "Camoufox installed via authenticated gh fallback"
             fi
           fi
@@ -138,7 +139,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
+          if [ -f ~/.cache/camoufox/camoufox-bin ]; then
             echo "Camoufox already cached, skipping fetch"
           else
             echo "Cache miss — attempting camoufox-js fetch..."
@@ -151,7 +152,8 @@ jobs:
               mkdir -p ~/.cache/camoufox
               unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
               rm -rf "$ASSET_DIR"
-              ls ~/.cache/camoufox/*/camoufox || (echo "ERROR: Camoufox binary not found after fallback" && exit 1)
+              chmod -R 755 ~/.cache/camoufox
+              test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after fallback" && exit 1)
               echo "Camoufox installed via authenticated gh fallback"
             fi
           fi
