@@ -79,6 +79,7 @@ const MOCK_WAIT_FOR_URL = jest.fn().mockResolvedValue(undefined);
 const MOCK_LOCATOR = jest.fn().mockReturnValue({
   first: jest.fn().mockReturnValue({
     isVisible: jest.fn().mockResolvedValue(true),
+    waitFor: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
     count: jest.fn().mockResolvedValue(1),
   }),
