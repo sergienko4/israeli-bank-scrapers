@@ -15,6 +15,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   release-please:
     name: Release Please
@@ -24,8 +27,6 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4
         id: release
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
           config-file: release-please-config.json
@@ -48,12 +49,29 @@ jobs:
         with:
           path: ~/.cache/camoufox
           key: camoufox-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            camoufox-
       - name: Install Camoufox browser
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
+          if [ -f ~/.cache/camoufox/camoufox-bin ]; then
             echo "Camoufox already cached, skipping fetch"
           else
-            npx @hieutran094/camoufox-js fetch
+            echo "Cache miss — attempting camoufox-js fetch..."
+            if npx @hieutran094/camoufox-js fetch; then
+              echo "Camoufox installed via camoufox-js"
+            else
+              echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
+              ASSET_DIR=$(mktemp -d)
+              gh release download --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+              mkdir -p ~/.cache/camoufox
+              unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
+              rm -rf "$ASSET_DIR"
+              chmod -R 755 ~/.cache/camoufox
+              test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after fallback" && exit 1)
+              echo "Camoufox installed via authenticated gh fallback"
+            fi
           fi
       - name: Lint (warnings as errors)
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
