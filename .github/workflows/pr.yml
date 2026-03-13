@@ -68,10 +68,7 @@ jobs:
       - name: Prettier check
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@07035fd053f7be764496c0f8d8f9f41f98305101 # v22
-        with:
-          globs: '*.md docs/**/*.md tasks/**/*.md'
-          config: '.markdownlint.json'
+        run: npx markdownlint-cli2 '*.md' 'docs/**/*.md' 'tasks/**/*.md' --config '.markdownlint.json'
 
   type-check:
     name: Type Check
