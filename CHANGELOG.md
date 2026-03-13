@@ -1,5 +1,16 @@
 # Changelog
 
+## [8.0.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.4...v8.0.5) (2026-03-13)
+
+
+### Bug Fixes
+
+* eliminate silent errors and improve log readability ([#148](https://github.com/sergienko4/israeli-bank-scrapers/issues/148)) ([b1581cb](https://github.com/sergienko4/israeli-bank-scrapers/commit/b1581cbb14bff93ce0ef2a7b4068e1950c5cbeb4))
+* handle Max tree-version homepage login flow ([#150](https://github.com/sergienko4/israeli-bank-scrapers/issues/150)) ([aaac1cb](https://github.com/sergienko4/israeli-bank-scrapers/commit/aaac1cb27ca9ad5c8d180b96f676dd3c0c879534))
+* move Node 24 env var to top-level in release-please workflow ([#147](https://github.com/sergienko4/israeli-bank-scrapers/issues/147)) ([a091831](https://github.com/sergienko4/israeli-bank-scrapers/commit/a09183170f2ef1ce7805967b251a35b55a013792))
+* opt into Node.js 24 for all CI workflows ([#145](https://github.com/sergienko4/israeli-bank-scrapers/issues/145)) ([b96a0ad](https://github.com/sergienko4/israeli-bank-scrapers/commit/b96a0ad632be485241b567c5dbd91e0db2f73bf1))
+* switch to allow-licenses allowlist + fix flatted vulnerability ([#151](https://github.com/sergienko4/israeli-bank-scrapers/issues/151)) ([fbceb9d](https://github.com/sergienko4/israeli-bank-scrapers/commit/fbceb9dba92e180738d93a887bc1795b5490ef61))
+
 ## [8.0.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.3...v8.0.4) (2026-03-12)
 
 
