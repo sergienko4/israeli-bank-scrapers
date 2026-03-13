@@ -47,6 +47,8 @@ function buildMockPage(locators: LocatorMap): Record<string, jest.Mock> {
     }),
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+    url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
     frames: jest.fn().mockReturnValue([]),
     $eval: jest.fn().mockResolvedValue(undefined),
   };
@@ -96,8 +98,8 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
 
 const MAX_CONFIG = await import('../../Scrapers/Max/Config/MaxLoginConfig.js');
 
-describe('Max preAction — two homepage versions', () => {
-  it('Case B (new): clicks dropdown then לקוחות פרטיים', async () => {
+describe('Max preAction — homepage version detection', () => {
+  it('Version B (dropdown): clicks dropdown → waits for /login → password tab', async () => {
     const personalArea = createLocator(true);
     const privateCustomers = createLocator(true);
     const passwordLogin = createLocator(true);
@@ -113,10 +115,14 @@ describe('Max preAction — two homepage versions', () => {
 
     expect(personalArea.click).toHaveBeenCalled();
     expect(privateCustomers.click).toHaveBeenCalled();
+    const expectedPattern = '**/login**';
+    const anyObj = expect.any(Object) as Record<string, number>;
+    expect(page.waitForURL).toHaveBeenCalledWith(expectedPattern, anyObj);
     expect(passwordLogin.click).toHaveBeenCalled();
+    expect(page.waitForSelector).toHaveBeenCalled();
   });
 
-  it('Case A (old): skips dropdown, goes direct to login', async () => {
+  it('Version A (direct): skips dropdown, no /login wait, goes to password tab', async () => {
     const personalArea = createLocator(true);
     const privateCustomers = createLocator(false);
     const passwordLogin = createLocator(true);
@@ -132,6 +138,24 @@ describe('Max preAction — two homepage versions', () => {
 
     expect(personalArea.click).toHaveBeenCalled();
     expect(privateCustomers.click).not.toHaveBeenCalled();
+    expect(page.waitForURL).not.toHaveBeenCalled();
     expect(passwordLogin.click).toHaveBeenCalled();
+    expect(page.waitForSelector).toHaveBeenCalled();
+  });
+
+  it('closes popup before starting either version flow', async () => {
+    const elements = await import('../../Common/ElementsInteractions.js');
+    (elements.elementPresentOnPage as jest.Mock).mockResolvedValueOnce(true);
+    const page = buildMockPage({
+      'כניסה לאיזור האישי': createLocator(true),
+      'לקוחות פרטיים': createLocator(false),
+      'כניסה עם סיסמה': createLocator(true),
+    });
+
+    const preAction = MAX_CONFIG.MAX_CONFIG.preAction;
+    if (!preAction) throw new TypeError('preAction missing');
+    await preAction(page as never);
+
+    expect(page.$eval).toHaveBeenCalled();
   });
 });

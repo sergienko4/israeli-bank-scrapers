@@ -171,22 +171,56 @@ async function closePopupIfPresent(page: Page): Promise<boolean> {
 }
 
 /**
- * Navigate the Max login flow, handling two homepage versions:
- * Case A (old): click "כניסה לאיזור האישי" → direct login page.
- * Case B (new): click "כניסה לאיזור האישי" → dropdown → "לקוחות פרטיים" → login.
+ * Detect and handle the dropdown homepage version (new site).
+ * Clicks "לקוחות פרטיים" if visible, then waits for /login navigation.
+ * @param page - The Playwright page.
+ * @returns 'dropdown' if detected, empty string otherwise.
+ */
+async function handleDropdownVersion(page: Page): Promise<string> {
+  const hasDropdown = await waitAndClickIfVisible(page, 'לקוחות פרטיים');
+  if (!hasDropdown) return '';
+  await page.waitForURL('**/login**', { timeout: LOGIN_FIELD_WAIT_MS });
+  return 'dropdown';
+}
+
+/**
+ * Detect the homepage version and navigate to the login page.
+ * Tries dropdown version first; falls back to direct (no-op).
+ * @param page - The Playwright page.
+ * @returns The detected version name for logging.
+ */
+async function navigateToLoginPage(page: Page): Promise<string> {
+  const dropdownResult = await handleDropdownVersion(page);
+  return dropdownResult || 'direct';
+}
+
+/**
+ * Wait for the username field to become visible on the login page.
+ * @param page - The Playwright page to wait on.
+ * @returns True when the field is visible.
+ */
+async function waitForLoginField(page: Page): Promise<boolean> {
+  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
+    state: 'visible',
+    timeout: LOGIN_FIELD_WAIT_MS,
+  });
+  return true;
+}
+
+/**
+ * Navigate the Max login flow by detecting the homepage version.
+ * Supports multiple site versions via navigateToLoginPage().
  * @param page - The Playwright page to navigate.
  * @returns The login frame if found, or undefined when Max uses the main page.
  */
 async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
   await closePopupIfPresent(page);
   await clickFirstVisible(page, ['כניסה לאיזור האישי']);
-  const hasDropdown = await waitAndClickIfVisible(page, 'לקוחות פרטיים');
-  LOG.info('maxPreAction: dropdownFlow=%s', hasDropdown);
+  const version = await navigateToLoginPage(page);
+  const currentUrl = page.url();
+  LOG.info('maxPreAction: version=%s url=%s', version, currentUrl);
   await clickFirstVisible(page, ['כניסה עם סיסמה']);
-  await page.waitForSelector('input[placeholder*="שם משתמש"]', {
-    state: 'visible',
-    timeout: LOGIN_FIELD_WAIT_MS,
-  });
+  await waitForLoginField(page);
   const noFrame = page.frames().find(f => f.name() === '__nonexistent__');
   return noFrame;
 }
