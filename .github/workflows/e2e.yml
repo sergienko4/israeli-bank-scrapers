@@ -51,12 +51,28 @@ jobs:
         with:
           path: ~/.cache/camoufox
           key: camoufox-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            camoufox-
       - name: Install Camoufox browser
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
             echo "Camoufox already cached, skipping fetch"
           else
-            npx @hieutran094/camoufox-js fetch
+            echo "Cache miss — attempting camoufox-js fetch..."
+            if npx @hieutran094/camoufox-js fetch; then
+              echo "Camoufox installed via camoufox-js"
+            else
+              echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
+              ASSET_DIR=$(mktemp -d)
+              gh release download --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+              mkdir -p ~/.cache/camoufox
+              unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
+              rm -rf "$ASSET_DIR"
+              ls ~/.cache/camoufox/*/camoufox || (echo "ERROR: Camoufox binary not found after fallback" && exit 1)
+              echo "Camoufox installed via authenticated gh fallback"
+            fi
           fi
       - name: Run E2E smoke tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose
@@ -78,12 +94,28 @@ jobs:
         with:
           path: ~/.cache/camoufox
           key: camoufox-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            camoufox-
       - name: Install Camoufox browser
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
             echo "Camoufox already cached, skipping fetch"
           else
-            npx @hieutran094/camoufox-js fetch
+            echo "Cache miss — attempting camoufox-js fetch..."
+            if npx @hieutran094/camoufox-js fetch; then
+              echo "Camoufox installed via camoufox-js"
+            else
+              echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
+              ASSET_DIR=$(mktemp -d)
+              gh release download --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+              mkdir -p ~/.cache/camoufox
+              unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
+              rm -rf "$ASSET_DIR"
+              ls ~/.cache/camoufox/*/camoufox || (echo "ERROR: Camoufox binary not found after fallback" && exit 1)
+              echo "Camoufox installed via authenticated gh fallback"
+            fi
           fi
       - name: Run mocked E2E tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
@@ -106,12 +138,28 @@ jobs:
         with:
           path: ~/.cache/camoufox
           key: camoufox-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            camoufox-
       - name: Install Camoufox browser
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -d ~/.cache/camoufox ] && ls ~/.cache/camoufox/*/camoufox 2>/dev/null; then
             echo "Camoufox already cached, skipping fetch"
           else
-            npx @hieutran094/camoufox-js fetch
+            echo "Cache miss — attempting camoufox-js fetch..."
+            if npx @hieutran094/camoufox-js fetch; then
+              echo "Camoufox installed via camoufox-js"
+            else
+              echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
+              ASSET_DIR=$(mktemp -d)
+              gh release download --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+              mkdir -p ~/.cache/camoufox
+              unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
+              rm -rf "$ASSET_DIR"
+              ls ~/.cache/camoufox/*/camoufox || (echo "ERROR: Camoufox binary not found after fallback" && exit 1)
+              echo "Camoufox installed via authenticated gh fallback"
+            fi
           fi
       - name: Run real E2E tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
