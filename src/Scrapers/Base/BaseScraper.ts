@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import moment from 'moment-timezone';
 
-import { getDebug, type ScraperLogger } from '../../Common/Debug.js';
+import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
 import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
@@ -110,14 +110,7 @@ export default class BaseScraper<
    * @returns The scraping result with accounts or error details.
    */
   public async scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
-    this.emitProgress(ScraperProgressTypes.StartScraping);
-    await this.initialize();
-    const loginResult = await this.executeLogin(credentials);
-    const scrapeResult = await this.executeFetchData(loginResult);
-    this.logResultSummary(scrapeResult);
-    const finalResult = await this.handleTermination(scrapeResult);
-    this.emitProgress(ScraperProgressTypes.EndScraping);
-    return finalResult;
+    return runWithBankContext(this.options.companyId, () => this.executeScrape(credentials));
   }
 
   /**
@@ -207,6 +200,22 @@ export default class BaseScraper<
       pageTitle,
       warnings: [...warnings],
     };
+  }
+
+  /**
+   * Internal scrape lifecycle — runs within bank-scoped log context.
+   * @param credentials - The user's bank credentials.
+   * @returns The scraping result with accounts or error details.
+   */
+  private async executeScrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
+    this.emitProgress(ScraperProgressTypes.StartScraping);
+    await this.initialize();
+    const loginResult = await this.executeLogin(credentials);
+    const scrapeResult = await this.executeFetchData(loginResult);
+    this.logResultSummary(scrapeResult);
+    const finalResult = await this.handleTermination(scrapeResult);
+    this.emitProgress(ScraperProgressTypes.EndScraping);
+    return finalResult;
   }
 
   /**

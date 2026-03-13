@@ -40,7 +40,16 @@ function stubLogger(): Record<string, jest.Mock> {
     error: jest.fn(),
   };
 }
-jest.unstable_mockModule('../../Common/Debug.js', () => ({ getDebug: stubLogger }));
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
+  getDebug: stubLogger,
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+}));
 
 const { buildContextOptions: BUILD_CTX } = await import('../../Common/Browser.js');
 const { launchCamoufox: LAUNCH } = await import('../../Common/CamoufoxLauncher.js');

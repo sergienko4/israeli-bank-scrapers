@@ -53,7 +53,16 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   filterOldTransactions: jest.fn((txns: ITransaction[]) => txns),
   getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
 }));
-jest.unstable_mockModule('../../Common/Debug.js', () => ({ getDebug: MOCK_LOGGER }));
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
+  getDebug: MOCK_LOGGER,
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+}));
 jest.unstable_mockModule('../../Common/Dates.js', () => ({
   default: jest.fn(() => [MOMENT('2024-06-01')]),
 }));
@@ -313,12 +322,11 @@ describe('fetchData', () => {
     expect(result.success).toBe(true);
     expect(result.accounts).toHaveLength(0);
   });
-  it('calls fixInstallments when shouldCombineInstallments=false', async () => {
+  it('calls fixInstallments only when shouldCombineInstallments=false', async () => {
     setupFullScrape([txn()]);
     await new TestAmexScraper({ shouldCombineInstallments: false }).scrape(CREDS);
     expect(FIX_INSTALLMENTS).toHaveBeenCalled();
-  });
-  it('skips fixInstallments when shouldCombineInstallments=true', async () => {
+    jest.clearAllMocks();
     setupFullScrape([txn()]);
     await new TestAmexScraper({ shouldCombineInstallments: true }).scrape(CREDS);
     expect(FIX_INSTALLMENTS).not.toHaveBeenCalled();
@@ -352,7 +360,6 @@ async function scrapeWithEvents(scraper: TestAmexScraper): Promise<string[]> {
   const events: string[] = [];
   scraper.onProgress((_id, payload) => {
     events.push(payload.type);
-    return true;
   });
   await scraper.scrape(CREDS);
   return events;
