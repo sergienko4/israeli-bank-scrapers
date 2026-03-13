@@ -5,6 +5,7 @@ import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { createGenericError } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import type { Nullable } from '../Base/Interfaces/CallbackTypes.js';
@@ -67,6 +68,19 @@ function variantToTransaction(variant: IPurchaseVariant, options?: ScraperOption
   return result;
 }
 
+/**
+ * Extract an error description from the API response, if present.
+ * @param res - The purchase history response.
+ * @returns The error description string, or empty string if no error.
+ */
+function extractApiError(res: IPurchaseHistoryResponse): string {
+  if (res.errorDescription || res.data?.errorDescription) {
+    return res.errorDescription ?? res.data?.errorDescription ?? 'unknown API error';
+  }
+  if (!res.data) return 'NoData: purchase history response has no data field';
+  return '';
+}
+
 /** Scraper for the Behatsdaa (בהצדעה) benefit program portal. */
 class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   /**
@@ -85,11 +99,11 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
       LOG.debug('Token not found in local storage');
-      return { success: false, errorMessage: 'TokenNotFound' };
+      return createGenericError('TokenNotFound: userToken missing from localStorage');
     }
     const res = await this.fetchWithToken(token);
     LOG.debug('Data fetched');
-    if (!res) return { success: false, errorMessage: 'EmptyResponse' };
+    if (!res) return createGenericError('EmptyResponse: purchase history API returned null');
     return this.buildAccountResult(res);
   }
 
@@ -121,24 +135,12 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns A scraping result with success flag and account data.
    */
   private buildAccountResult(res: IPurchaseHistoryResponse): IScraperScrapingResult {
-    if (res.errorDescription || res.data?.errorDescription) {
-      LOG.debug('Error fetching data: %s', res.errorDescription ?? res.data?.errorDescription);
-      return { success: false, errorMessage: res.errorDescription };
-    }
-    if (!res.data) {
-      LOG.debug('No data found');
-      return { success: false, errorMessage: 'NoData' };
-    }
+    const apiError = extractApiError(res);
+    if (apiError) return createGenericError(apiError);
+    if (!res.data) return createGenericError('unreachable: data validated by extractApiError');
     LOG.debug('Data fetched successfully');
-    return {
-      success: true,
-      accounts: [
-        {
-          accountNumber: res.data.memberId,
-          txns: res.data.variants.map(variant => variantToTransaction(variant, this.options)),
-        },
-      ],
-    };
+    const txns = res.data.variants.map(v => variantToTransaction(v, this.options));
+    return { success: true, accounts: [{ accountNumber: res.data.memberId, txns }] };
   }
 }
 

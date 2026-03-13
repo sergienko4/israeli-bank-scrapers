@@ -166,7 +166,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('TokenNotFound');
+    expect(result.errorMessage).toContain('TokenNotFound');
   });
 
   it('returns error when API response has errorDescription', async () => {
@@ -190,7 +190,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('NoData');
+    expect(result.errorMessage).toContain('NoData');
   });
 
   it('converts variants to transactions', async () => {

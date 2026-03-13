@@ -40,6 +40,15 @@ export function createGenericError(errorMessage: string): IErrorResult {
 }
 
 /**
+ * Create a change-password error result.
+ * @param errorMessage - A description of the password-change requirement.
+ * @returns A change-password error result.
+ */
+export function createChangePasswordError(errorMessage: string): IErrorResult {
+  return createErrorResult(ScraperErrorTypes.ChangePassword, errorMessage);
+}
+
+/**
  * Create a WAF-blocked error result with optional details.
  * @param message - A description of the WAF block.
  * @param details - Optional structured WAF error details.

@@ -218,7 +218,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('Failed to fetch account data');
+    expect(result.errorMessage).toContain('Failed to fetch account data');
   });
 
   it('returns error when transaction response has Error field', async () => {

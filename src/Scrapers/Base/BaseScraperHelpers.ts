@@ -4,7 +4,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
-import { ScraperErrorTypes } from './Errors.js';
+import { createChangePasswordError, ScraperErrorTypes } from './Errors.js';
 import { type IScraperScrapingResult } from './Interface.js';
 import type { OptionalFramePromise } from './Interfaces/CallbackTypes.js';
 
@@ -237,7 +237,7 @@ export function buildLoginResult(
   }
   if (loginResult === LOGIN_RESULTS.ChangePassword) {
     ctx.emitProgress(ScraperProgressTypes.ChangePassword);
-    return { success: false, errorType: ScraperErrorTypes.ChangePassword };
+    return createChangePasswordError('Bank requires password change');
   }
   return buildFailedResult(ctx, loginResult);
 }

@@ -6,7 +6,7 @@ import { humanDelay } from '../../Common/Waiting.js';
 import { CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
 import { type ITransaction } from '../../Transactions.js';
 import { BaseScraperWithBrowser } from '../Base/BaseScraperWithBrowser.js';
-import { ScraperErrorTypes, WafBlockError } from '../Base/Errors.js';
+import { createChangePasswordError, ScraperErrorTypes, WafBlockError } from '../Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { fetchAllTransactions } from './BaseIsracardAmexEnrich.js';
@@ -177,7 +177,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
     }
     if (status === '3') {
       this.emitProgress(ScraperProgressTypes.ChangePassword);
-      return { success: false, errorType: ScraperErrorTypes.ChangePassword };
+      return createChangePasswordError('Isracard/Amex: password change required (status=3)');
     }
     this.emitProgress(ScraperProgressTypes.LoginFailed);
     return {
@@ -216,7 +216,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
   private handleValidateReturnCode(returnCode: string): IScraperScrapingResult {
     if (returnCode === '4') {
       this.emitProgress(ScraperProgressTypes.ChangePassword);
-      return { success: false, errorType: ScraperErrorTypes.ChangePassword };
+      return createChangePasswordError('Isracard/Amex: password change required (returnCode=4)');
     }
     this.emitProgress(ScraperProgressTypes.LoginFailed);
     return {
