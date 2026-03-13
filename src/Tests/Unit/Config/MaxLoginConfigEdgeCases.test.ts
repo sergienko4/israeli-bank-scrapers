@@ -93,6 +93,7 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
     locator: jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         isVisible: jest.fn().mockResolvedValue(true),
+        waitFor: jest.fn().mockResolvedValue(undefined),
         click: jest.fn().mockResolvedValue(undefined),
         count: jest.fn().mockResolvedValue(1),
       }),
@@ -110,6 +111,7 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         isVisible: jest.fn().mockResolvedValue(false),
+        waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
         click: mockClick,
         count: jest.fn().mockResolvedValue(1),
       }),
@@ -126,6 +128,7 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         isVisible: jest.fn().mockResolvedValue(false),
+        waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
         click: mockClick,
         count: jest.fn().mockResolvedValue(0),
       }),
@@ -142,6 +145,7 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         isVisible: jest.fn().mockRejectedValue('detached'),
+        waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
         click: mockClick,
         count: jest.fn().mockResolvedValue(1),
       }),

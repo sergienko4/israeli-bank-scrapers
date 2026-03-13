@@ -20,6 +20,11 @@ const MAX_USERNAME_FIELD: IFieldConfig = { credentialKey: 'username', selectors:
 const MAX_PASSWORD_FIELD: IFieldConfig = { credentialKey: 'password', selectors: [] };
 const MAX_ID_FIELD: IFieldConfig = { credentialKey: 'id', selectors: [] };
 
+/** Max preAction timeout for dropdown visibility detection (ms). */
+const DROPDOWN_WAIT_MS = CFG.timing.elementRenderMs ?? 5000;
+/** Max preAction timeout for username field to appear after navigation (ms). */
+const LOGIN_FIELD_WAIT_MS = 15000;
+
 /**
  * Resolve a login field via SelectorResolver and fill it with the given value.
  * @param page - The Playwright page to resolve and fill in.
@@ -75,6 +80,32 @@ async function fillIdFormAndSubmit(page: Page, credentials: IMaxCredentials): Pr
   await clickButton(page, submitXpath);
   await page.waitForTimeout(1000);
   return true;
+}
+
+/**
+ * Wait for an element to become visible, then click it.
+ * @param page - The Playwright page to search in.
+ * @param text - The visible text to look for.
+ * @returns True if the element appeared and was clicked, false if not found.
+ */
+async function waitAndClickIfVisible(page: Page, text: string): Promise<boolean> {
+  const loc = page.locator(`text=${text}`).first();
+  const isVisible = await loc.waitFor({ state: 'visible', timeout: DROPDOWN_WAIT_MS }).then(
+    () => true,
+    () => {
+      LOG.info(
+        'waitAndClickIfVisible: "%s" not visible after %dms — skipping',
+        text,
+        DROPDOWN_WAIT_MS,
+      );
+      return false;
+    },
+  );
+  if (isVisible) {
+    await loc.click();
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -140,22 +171,22 @@ async function closePopupIfPresent(page: Page): Promise<boolean> {
 }
 
 /**
- * Navigate the Max login flow: personal area → private customers → password login.
+ * Navigate the Max login flow, handling two homepage versions:
+ * Case A (old): click "כניסה לאיזור האישי" → direct login page.
+ * Case B (new): click "כניסה לאיזור האישי" → dropdown → "לקוחות פרטיים" → login.
  * @param page - The Playwright page to navigate.
  * @returns The login frame if found, or undefined when Max uses the main page.
  */
 async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
   await closePopupIfPresent(page);
   await clickFirstVisible(page, ['כניסה לאיזור האישי']);
-  await page.waitForTimeout(1500);
-  await clickFirstVisible(page, ['לקוחות פרטיים']);
-  await page.waitForTimeout(500);
+  const hasDropdown = await waitAndClickIfVisible(page, 'לקוחות פרטיים');
+  LOG.info('maxPreAction: dropdownFlow=%s', hasDropdown);
   await clickFirstVisible(page, ['כניסה עם סיסמה']);
   await page.waitForSelector('input[placeholder*="שם משתמש"]', {
     state: 'visible',
-    timeout: 15000,
+    timeout: LOGIN_FIELD_WAIT_MS,
   });
-  // Max login uses the main page — no iframe needed
   const noFrame = page.frames().find(f => f.name() === '__nonexistent__');
   return noFrame;
 }
