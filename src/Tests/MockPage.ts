@@ -110,6 +110,7 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
         fill: jest.fn().mockResolvedValue(undefined),
         click: jest.fn().mockResolvedValue(undefined),
         isVisible: jest.fn().mockResolvedValue(true),
+        waitFor: jest.fn().mockResolvedValue(undefined),
         count: jest.fn().mockResolvedValue(1),
       }),
       count: jest.fn().mockResolvedValue(0),
