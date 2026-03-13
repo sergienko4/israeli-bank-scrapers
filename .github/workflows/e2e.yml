@@ -76,7 +76,7 @@ jobs:
             fi
           fi
       - name: Run E2E smoke tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --forceExit --testPathPatterns='tests/e2e\.test' --verbose
 
   e2e-mocked:
     name: E2E Mocked Tests
@@ -120,7 +120,7 @@ jobs:
             fi
           fi
       - name: Run mocked E2E tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --forceExit --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
 
   e2e-real:
     name: E2E Real Bank Tests
@@ -165,7 +165,7 @@ jobs:
             fi
           fi
       - name: Run real E2E tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --forceExit --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           AMEX_ID: ${{ secrets.AMEX_ID }}
