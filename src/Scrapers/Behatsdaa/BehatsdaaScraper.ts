@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { CompanyTypes } from '../../Definitions.js';
@@ -13,8 +12,6 @@ import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { BEHATSDAA_CONFIG } from './Config/BehatsdaaLoginConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];
-
-const LOG = getDebug('behatsdaa');
 
 interface IScraperSpecificCredentials {
   id: string;
@@ -98,11 +95,11 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   public async fetchData(): Promise<IScraperScrapingResult> {
     const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
     if (!token) {
-      LOG.debug('Token not found in local storage');
+      this.bankLog.debug('Token not found in local storage');
       return createGenericError('TokenNotFound: userToken missing from localStorage');
     }
     const res = await this.fetchWithToken(token);
-    LOG.debug('Data fetched');
+    this.bankLog.debug('Data fetched');
     if (!res) return createGenericError('EmptyResponse: purchase history API returned null');
     return this.buildAccountResult(res);
   }
@@ -118,7 +115,7 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       ToDate: moment().format('YYYY-MM-DDTHH:mm:ss'),
       BenefitStatusId: null,
     };
-    LOG.debug('Fetching data');
+    this.bankLog.debug('Fetching data');
     return fetchPostWithinPage<IPurchaseHistoryResponse>(this.page, CFG.api.purchaseHistory, {
       data: body,
       extraHeaders: {
@@ -138,7 +135,7 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
     const apiError = extractApiError(res);
     if (apiError) return createGenericError(apiError);
     if (!res.data) return createGenericError('unreachable: data validated by extractApiError');
-    LOG.debug('Data fetched successfully');
+    this.bankLog.debug('Data fetched successfully');
     const txns = res.data.variants.map(v => variantToTransaction(v, this.options));
     return { success: true, accounts: [{ accountNumber: res.data.memberId, txns }] };
   }

@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug.js';
 import { waitUntilElementFound, waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { runSerial } from '../../Common/Waiting.js';
@@ -31,7 +30,6 @@ import {
 } from './MizrahiHelpers.js';
 import buildSel from './MizrahiSelectors.js';
 
-const LOG = getDebug('mizrahi');
 const SELECTORS = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors;
 const SEL = buildSel(SELECTORS);
 
@@ -274,7 +272,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   private isPendingByNoIdentifier(txn: ITransaction): boolean {
     const isOptIn = this.options.optInFeatures?.includes('mizrahi:pendingIfNoIdentifier');
     if (!isOptIn || txn.identifier) return false;
-    LOG.debug(`Marking '${txn.description}' as pending: no identifier.`);
+    this.bankLog.debug(`Marking '${txn.description}' as pending: no identifier.`);
     return true;
   }
 
@@ -286,7 +284,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   private isPendingByGenericDesc(txn: ITransaction): boolean {
     const isOptIn = this.options.optInFeatures?.includes('mizrahi:pendingIfHasGenericDescription');
     if (!isOptIn || !GENERIC_DESCRIPTIONS.includes(txn.description)) return false;
-    LOG.debug(`Marking '${txn.description}' as pending: generic description.`);
+    this.bankLog.debug(`Marking '${txn.description}' as pending: generic description.`);
     return true;
   }
 

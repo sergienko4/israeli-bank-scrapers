@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { humanDelay } from '../../Common/Waiting.js';
 import { CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
@@ -20,8 +19,6 @@ const {
 } = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex].auth;
 const { loginDelayMinMs: LOGIN_DELAY_MIN, loginDelayMaxMs: LOGIN_DELAY_MAX } =
   SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex].timing;
-
-const LOG = getDebug('base-isracard-amex');
 
 interface IScraperSpecificCredentials {
   id: string;
@@ -62,7 +59,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
     await this.navigateToLoginPage();
     const validatedData = await this.validateCredentials(credentials);
     const validateReturnCode = validatedData.returnCode;
-    LOG.debug(`user validate with return code '${validateReturnCode}'`);
+    this.bankLog.debug(`user validate with return code '${validateReturnCode}'`);
     return validateReturnCode === '1'
       ? this.performLogin(credentials, validatedData.userName ?? '')
       : this.handleValidateReturnCode(validateReturnCode);
@@ -113,7 +110,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
    */
   private async throwValidationError(result: IScrapedLoginValidation | null): Promise<never> {
     const snippet = JSON.stringify(result).substring(0, 300);
-    LOG.debug('validation failed: result=%s', snippet);
+    this.bankLog.debug('validation failed: result=%s', snippet);
     const currentUrl = this.page.url();
     const pageTitle = await this.page.title();
     throw WafBlockError.apiBlock(0, currentUrl, {
@@ -131,7 +128,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
     credentials: IScraperSpecificCredentials,
   ): Promise<ValidatedBean> {
     const validateUrl = `${this._servicesUrl}?reqName=ValidateIdData`;
-    LOG.debug('validating credentials');
+    this.bankLog.debug('validating credentials');
     const validateRequest = IsracardAmexBaseScraper.buildValidateRequest(
       credentials,
       this._companyCode,
@@ -198,13 +195,13 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
     userName: string,
   ): Promise<IScraperScrapingResult> {
     const loginUrl = `${this._servicesUrl}?reqName=performLogonI`;
-    LOG.debug('user login started');
+    this.bankLog.debug('user login started');
     const loginRequest = IsracardAmexBaseScraper.buildLoginRequest(credentials, userName);
     const loginResult = await fetchPostWithinPage<{ status: string }>(this.page, loginUrl, {
       data: loginRequest,
     });
     const loginStatus = loginResult?.status;
-    LOG.debug(loginResult, `user login with status '${loginStatus ?? 'null'}'`);
+    this.bankLog.debug(loginResult, `user login with status '${loginStatus ?? 'null'}'`);
     return this.interpretLoginStatus(loginStatus);
   }
 
@@ -233,13 +230,13 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
       const statusCode = response.status();
       const truncatedUrl = url.substring(0, 120);
       if (url.includes('ProxyRequestHandler') || url.includes('personalarea'))
-        LOG.debug('response: %d %s', statusCode, truncatedUrl);
+        this.bankLog.debug('response: %d %s', statusCode, truncatedUrl);
     });
   }
 
   /** Navigate to the Isracard/Amex login page and wait for readiness. */
   private async navigateToLoginPage(): Promise<void> {
-    LOG.debug(`navigating to ${this._baseUrl}/personalarea/Login`);
+    this.bankLog.debug(`navigating to ${this._baseUrl}/personalarea/Login`);
     await this.navigateTo(`${this._baseUrl}/personalarea/Login`);
     await this.page.waitForFunction(() => document.readyState === 'complete');
     await humanDelay(LOGIN_DELAY_MIN, LOGIN_DELAY_MAX);
