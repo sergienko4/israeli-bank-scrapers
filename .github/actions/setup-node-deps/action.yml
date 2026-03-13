@@ -1,0 +1,12 @@
+name: Setup Node & Dependencies
+description: Setup Node.js from .nvmrc and install npm dependencies. Caller must run actions/checkout first.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+    - run: npm ci
+      shell: bash
