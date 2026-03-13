@@ -60,7 +60,16 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   TimeoutError: Error,
   SECOND: 1000,
 }));
-jest.unstable_mockModule('../../Common/Debug.js', () => ({ getDebug: MOCK_LOGGER }));
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
+  getDebug: MOCK_LOGGER,
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+}));
 jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
   handleOtpStep: jest.fn().mockResolvedValue(null),
   handleOtpCode: MOCK_RESOLVED(),
@@ -178,7 +187,6 @@ function mockTransactionTable(rows: { innerTds: string[] }[]): boolean {
 beforeEach(
   /**
    * Clear mocks before each test.
-   * @returns Test setup flag.
    */
   () => {
     jest.clearAllMocks();
@@ -189,7 +197,6 @@ beforeEach(
       'https://test.fibi.co.il/Resources/PortalNG/shell',
     );
     (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
-    return true;
   },
 );
 
@@ -278,16 +285,14 @@ describe('fetchData', () => {
     expect(result.accounts?.[0]?.txns[0]?.rawTransaction).toBeDefined();
   });
 
-  it('parses reference number as integer', async () => {
-    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '12345', '\u20AA100.00', ''] }]);
+  it('parses reference number as integer and undefined when empty', async () => {
+    mockTransactionTable([
+      { innerTds: ['15/06/2024', 'With Ref', '12345', '\u20AA100.00', ''] },
+      { innerTds: ['16/06/2024', 'No Ref', '', '\u20AA50.00', ''] },
+    ]);
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.identifier).toBe(12345);
-  });
-
-  it('sets identifier to undefined when reference is empty', async () => {
-    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '', '\u20AA100.00', ''] }]);
-    const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
-    expect(result.accounts?.[0]?.txns[0]?.identifier).toBeUndefined();
+    expect(result.accounts?.[0]?.txns[1]?.identifier).toBeUndefined();
   });
 
   it('extracts pending transactions with pending column layout', async () => {
@@ -359,17 +364,12 @@ describe('fetchData', () => {
     expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
   });
 
-  it('extracts balance from page', async () => {
-    mockTransactionTable([{ innerTds: ['15/06/2024', 'Test', '100', '\u20AA100.00', ''] }]);
-    const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
-    expect(result.accounts?.[0]?.balance).toBe(5000);
-  });
-
-  it('handles commas in currency amounts', async () => {
+  it('extracts balance and handles commas in currency amounts', async () => {
     mockTransactionTable([
       { innerTds: ['15/06/2024', 'Big Purchase', '100', '\u20AA1,500.50', ''] },
     ]);
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
+    expect(result.accounts?.[0]?.balance).toBe(5000);
     expect(result.accounts?.[0]?.txns[0]?.originalAmount).toBe(-1500.5);
   });
 });

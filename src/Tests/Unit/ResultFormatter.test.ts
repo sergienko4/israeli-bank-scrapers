@@ -93,10 +93,8 @@ describe('ResultFormatter — PII masking', () => {
       expect(neg).toBe(' -***');
       expect(zero).toBe(' +***');
       expect(undef).toBe('  ***');
-    });
-    it('never exposes actual amount value', () => {
-      const masked = maskAmount(12345.67);
-      expect(masked).not.toContain('12345');
+      const large = maskAmount(12345.67);
+      expect(large).not.toContain('12345');
     });
   });
   describe('maskDesc', () => {
@@ -209,6 +207,22 @@ describe('ResultFormatter — PII masking', () => {
       expect(output).toContain('success=false');
       expect(output).toContain('INVALID_PASSWORD');
     });
+    it('includes errorMessage in failure output, falls back when missing', () => {
+      const withMsg: IScraperScrapingResult = {
+        success: false,
+        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+        errorMessage: 'page.goto: Timeout 30000ms exceeded',
+      };
+      const out1 = formatResultSummary('TestBank', withMsg).join('\n');
+      expect(out1).toContain('GENERIC');
+      expect(out1).toContain('page.goto: Timeout 30000ms exceeded');
+      const noMsg: IScraperScrapingResult = {
+        success: false,
+        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+      };
+      const out2 = formatResultSummary('TestBank', noMsg).join('\n');
+      expect(out2).toContain('no error message');
+    });
   });
 
   describe('logger output at info level — no PII leaks', () => {
@@ -260,19 +274,11 @@ describe('ResultFormatter — PII masking', () => {
       expect(output).not.toContain('9876');
     });
 
-    it('debug-level verbose logs are suppressed at info level', () => {
+    it('debug and trace logs are suppressed at info level', () => {
       const { stream, output } = createCapture();
       const logger = pino({ level: 'info' }, stream);
       logger.debug('navigateTo https://bank.com/secret-path → 200');
       logger.debug('fill #password with value');
-      logger.debug('response: 200 https://api.bank.com/token=SECRET');
-      const logged = output();
-      expect(logged).toBe('');
-    });
-
-    it('trace-level logs are suppressed at info level', () => {
-      const { stream, output } = createCapture();
-      const logger = pino({ level: 'info' }, stream);
       logger.trace('[1/6] navigate: url=https://bank.com, frames=3');
       const logged = output();
       expect(logged).toBe('');

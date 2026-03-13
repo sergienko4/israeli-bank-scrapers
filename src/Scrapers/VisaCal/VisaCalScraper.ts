@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl } from '../../Common/Navigation.js';
 import { getFromSessionStorage } from '../../Common/Storage.js';
 import { filterOldTransactions } from '../../Common/Transactions.js';
@@ -29,8 +28,6 @@ import {
   type ILoginResponse,
   isCardPendingTransactionDetails,
 } from './VisaCalTypes.js';
-
-const LOG = getDebug('visa-cal');
 
 /** Credentials specific to VisaCal login. */
 interface IScraperSpecificCredentials {
@@ -81,13 +78,13 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
     const startMoment = this.computeStartMoment();
-    LOG.debug(`fetch transactions starting ${startMoment.format()}`);
+    this.bankLog.debug(`fetch transactions starting ${startMoment.format()}`);
     const hdrs = await this.buildHeaders();
     const cards = await fetchCards(this.page, hdrs);
     const frames = await fetchFrames(this.page, hdrs, cards);
     const ctx: IApiContext = { startDate: this.options.startDate, startMoment, hdrs, frames };
     const accounts = await this.fetchAllCardAccounts(cards, ctx);
-    LOG.debug(`return ${String(accounts.length)} scraped accounts`);
+    this.bankLog.debug(`return ${String(accounts.length)} scraped accounts`);
     return { success: true, accounts };
   }
 
@@ -97,7 +94,7 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    */
   public async getAuthorizationHeader(): Promise<string> {
     if (this._authorization) return this._authorization;
-    LOG.debug('token not captured — falling back to sessionStorage');
+    this.bankLog.debug('token not captured — falling back to sessionStorage');
     const authModule = await this.waitForAuthModule();
     const token = authModule.auth.calConnectToken ?? '';
     this._authorization = `CALAuthScheme ${token}`;
@@ -137,7 +134,7 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       { timeout: 60_000, interval: 500 },
     );
     const elapsed = String(Date.now() - startMs);
-    LOG.debug('sessionStorage populated after %sms', elapsed);
+    this.bankLog.debug('sessionStorage populated after %sms', elapsed);
     return authModule;
   }
 
@@ -157,13 +154,13 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   private async captureAuthToken(): Promise<boolean> {
     const token = await this._authTokenPromise;
     if (token) {
-      LOG.debug('login token intercepted from POST response');
+      this.bankLog.debug('login token intercepted from POST response');
       this._authorization = `CALAuthScheme ${token}`;
     } else {
-      LOG.debug('login token NOT intercepted — fallback later');
+      this.bankLog.debug('login token NOT intercepted — fallback later');
     }
     const currentUrl = await getCurrentUrl(this.page);
-    LOG.debug('post-login URL: %s', currentUrl);
+    this.bankLog.debug('post-login URL: %s', currentUrl);
     return true;
   }
 
@@ -179,7 +176,7 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       )
       .then(async resp => ((await resp.json()) as ILoginResponse).token)
       .catch((caught: unknown) => {
-        LOG.debug({ err: caught }, 'interceptLoginToken: no POST response within 15s');
+        this.bankLog.debug({ err: caught }, 'interceptLoginToken: no POST response within 15s');
         return '';
       });
   }
@@ -196,7 +193,7 @@ class VisaCalScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   ): Promise<ReturnType<typeof convertParsedDataToTransactions>> {
     const futureMonths = this.options.futureMonthsToScrape ?? 1;
     const allMonths = buildMonthRange(ctx.startMoment, futureMonths);
-    LOG.debug(`fetch completed transactions for card ${card.cardUniqueId}`);
+    this.bankLog.debug(`fetch completed transactions for card ${card.cardUniqueId}`);
     const fetchOpts = { page: this.page, card, allMonths, hdrs: ctx.hdrs };
     const monthsData = await fetchCardDataMonths(fetchOpts);
     const pendingResult = await fetchPendingData(this.page, card, ctx.hdrs);

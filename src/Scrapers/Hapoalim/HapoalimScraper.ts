@@ -1,4 +1,3 @@
-import { getDebug } from '../../Common/Debug.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { HAPOALIM_CONFIG } from './Config/HapoalimLoginConfig.js';
@@ -9,8 +8,6 @@ import {
   getContext,
   type IAccountResult,
 } from './HapoalimHelpers.js';
-
-const LOG = getDebug('hapoalim');
 
 /** Hapoalim-specific login credentials. */
 interface IScraperSpecificCredentials {
@@ -77,7 +74,7 @@ class HapoalimScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       }),
     );
     const accounts = await Promise.all(promises);
-    LOG.debug('fetching ended');
+    this.bankLog.debug('fetching ended');
     return { success: true, accounts };
   }
 }

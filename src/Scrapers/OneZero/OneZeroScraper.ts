@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { getDebug } from '../../Common/Debug.js';
 import { fetchGraphql, type JsonValue } from '../../Common/Fetch.js';
 import { runSerial } from '../../Common/Waiting.js';
 import {
@@ -36,8 +35,6 @@ import {
 } from './OneZeroTypes.js';
 
 export type { ICategory, IRecurrence };
-
-const LOG = getDebug('one-zero');
 
 /** Pagination input for the movements GraphQL query. */
 interface IMovementsPaginationInput {
@@ -117,9 +114,9 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
     if (!phoneNumber.startsWith('+')) {
       return createGenericError('Full international phone number with + prefix required');
     }
-    LOG.debug('Fetching device token');
+    this.bankLog.debug('Fetching device token');
     const deviceToken = await fetchDeviceToken();
-    LOG.debug(`Sending OTP to phone number ${phoneNumber}`);
+    this.bankLog.debug(`Sending OTP to phone number ${phoneNumber}`);
     this._otpContext = await sendOtp(phoneNumber, deviceToken);
     return { success: true };
   }
@@ -135,7 +132,7 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
     if (!this._otpContext) {
       return createGenericError('triggerOtp was not called');
     }
-    LOG.debug('Requesting OTP token');
+    this.bankLog.debug('Requesting OTP token');
     const resp = await idPost<{ resultData: { otpToken: string } }>('otp/verify', {
       otpContext: this._otpContext,
       otpCode,
@@ -155,9 +152,9 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
     const otp = await this.resolveOtpToken(credentials);
     if (!otp.success) return otp;
     const token = otp.longTermTwoFactorAuthToken;
-    LOG.debug('Requesting id token');
+    this.bankLog.debug('Requesting id token');
     const idTk = await getIdToken(token, credentials.email, credentials.password);
-    LOG.debug('Requesting session token');
+    this.bankLog.debug('Requesting session token');
     this._accessToken = await getSessionToken(idTk, credentials.password);
     return { success: true, persistentOtpToken: token };
   }
@@ -201,7 +198,7 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
       phoneNumber: string;
     },
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    LOG.debug('Triggering otpCodeRetriever callback');
+    this.bankLog.debug('Triggering otpCodeRetriever callback');
     const trigger = await this.triggerTwoFactorAuth(creds.phoneNumber);
     if (!trigger.success) return trigger;
     const otpCode = await creds.otpCodeRetriever();
@@ -282,7 +279,7 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
     state: IMovementsFetchState,
   ): Promise<{ movements: IMovement[]; done: boolean }> {
     const { portfolio, accountId, startDate } = ctx;
-    LOG.debug(`Fetching txns for ${portfolio.portfolioNum}...`);
+    this.bankLog.debug(`Fetching txns for ${portfolio.portfolioNum}...`);
     const pg = await this.fetchMovementsPage(portfolio.portfolioId, accountId, state.cursor);
     const merged = [...pg.movements, ...state.accumulated];
     if (shouldStop(merged, pg.pagination.hasMore, startDate)) {
@@ -331,7 +328,7 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
       );
       return resp.balance.currentAccountBalance;
     } catch {
-      LOG.debug('balance query failed — using fallback');
+      this.bankLog.debug('balance query failed — using fallback');
       return fb;
     }
   }
@@ -360,7 +357,7 @@ export default class OneZeroScraper extends BaseScraper<IScraperSpecificCredenti
    * @returns The array of portfolios.
    */
   private async fetchPortfolios(): Promise<IPortfolio[]> {
-    LOG.debug('Fetching account list');
+    this.bankLog.debug('Fetching account list');
     const resp = await fetchGraphql<{ customer: ICustomer[] }>(GQL_URL, GET_CUSTOMER, {
       extraHeaders: this.authHeaders(),
     });

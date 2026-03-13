@@ -48,6 +48,13 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
     warn: jest.fn(),
     error: jest.fn(),
   }),
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
 const BUILD_CONTEXT_OPTIONS = await import('../../Common/Browser.js');
@@ -218,7 +225,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('Failed to fetch account data');
+    expect(result.errorMessage).toContain('Failed to fetch account data');
   });
 
   it('returns error when transaction response has Error field', async () => {

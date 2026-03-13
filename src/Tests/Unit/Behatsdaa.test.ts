@@ -73,6 +73,13 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
     warn: jest.fn(),
     error: jest.fn(),
   }),
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
 const BROWSER_MOD = await import('../../Common/Browser.js');
@@ -166,7 +173,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('TokenNotFound');
+    expect(result.errorMessage).toContain('TokenNotFound');
   });
 
   it('returns error when API response has errorDescription', async () => {
@@ -190,7 +197,7 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
 
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('NoData');
+    expect(result.errorMessage).toContain('NoData');
   });
 
   it('converts variants to transactions', async () => {

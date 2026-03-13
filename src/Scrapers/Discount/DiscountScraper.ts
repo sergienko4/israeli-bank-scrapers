@@ -7,7 +7,7 @@ import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ILoginConfig } from '../Base/Config/LoginConfig.js';
-import { ScraperErrorTypes } from '../Base/Errors.js';
+import { createGenericError, ScraperErrorTypes } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
@@ -308,7 +308,8 @@ async function fetchAccountData(
   const apiSiteUrl = `${CFG.api.base}/Titan/gatewayAPI`;
   const accountInfoUrl = `${apiSiteUrl}/userAccountsData`;
   const accountInfo = await fetchGetWithinPage<IScrapedAccountData>(page, accountInfoUrl);
-  if (!accountInfo) return { success: false, errorMessage: 'Failed to fetch account data' };
+  if (!accountInfo)
+    return createGenericError('Failed to fetch account data from /userAccountsData');
   const accountsOpts = buildAccountsOpts({
     page,
     apiSiteUrl,

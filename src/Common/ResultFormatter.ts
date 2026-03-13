@@ -116,7 +116,8 @@ function formatSuccess(result: IScraperScrapingResult): string[] {
  */
 function formatFailure(result: IScraperScrapingResult): string[] {
   const errorType = result.errorType ?? 'unknown';
-  return [`Result: success=false | errorType=${errorType}`];
+  const msg = result.errorMessage ?? 'no error message';
+  return [`Result: success=false | errorType=${errorType} | ${msg}`];
 }
 
 /**

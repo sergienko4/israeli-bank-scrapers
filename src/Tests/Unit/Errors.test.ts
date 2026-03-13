@@ -1,4 +1,5 @@
 import {
+  createChangePasswordError,
   createGenericError,
   createTimeoutError,
   createWafBlockedError,
@@ -34,6 +35,15 @@ describe('createGenericError', () => {
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.Generic);
     expect(result.errorMessage).toBe('something went wrong');
+  });
+});
+
+describe('createChangePasswordError', () => {
+  it('returns error result with ChangePassword type', () => {
+    const result: IErrorResult = createChangePasswordError('password change required');
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
+    expect(result.errorMessage).toBe('password change required');
   });
 });
 
