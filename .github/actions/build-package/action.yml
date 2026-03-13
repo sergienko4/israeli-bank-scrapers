@@ -1,0 +1,22 @@
+name: Build Package
+description: Build dual CJS+ESM package with tsup, clean internals, verify outputs, and validate exports
+
+runs:
+  using: composite
+  steps:
+    - name: Build with tsup
+      run: npx tsup
+      shell: bash
+    - name: Remove internal source from lib
+      run: npx rimraf lib/Common lib/Scrapers lib/Tests
+      shell: bash
+    - name: Verify build output
+      shell: bash
+      run: |
+        test -f lib/index.cjs || (echo "ERROR: lib/index.cjs not found" && exit 1)
+        test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
+        test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
+        test -f lib/index.d.cts || (echo "ERROR: lib/index.d.cts not found" && exit 1)
+    - name: Validate package exports
+      run: npm run check-exports
+      shell: bash
