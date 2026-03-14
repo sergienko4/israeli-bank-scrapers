@@ -24,8 +24,8 @@ env:
 #   release-please → publish (if release_created)
 #
 # No validate job — PR checks already passed before merge.
-# Publish rebuilds from clean checkout (tsup ~6s, simpler than
-# cross-workflow artifact sharing).
+# Publish uses npm ci + build (clean reproducible build for
+# provenance attestation). PR workflow validates correctness.
 # ──────────────────────────────────────────────────────────────
 
 jobs:

@@ -52,18 +52,19 @@ concurrency:
   cancel-in-progress: true
 
 # ──────────────────────────────────────────────────────────────
-# Job DAG:
+# Architecture: 2 parallel jobs
 #
-#   setup → [lint, type-check, unit-tests, e2e-smoke, e2e-mocked, audit, dep-review]
-#                                                                          │
-#           [lint, type-check] ─────────────────────────────────────→ build
+#   validate    — single job: npm ci once → lint → tsc → audit →
+#                 unit tests → e2e smoke → e2e mocked → e2e real →
+#                 build → upload artifacts
+#   dep-review  — no packages needed, PR-only
 # ──────────────────────────────────────────────────────────────
 
 jobs:
-  setup:
-    name: Setup
+  validate:
+    name: Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -72,14 +73,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
-  lint:
-    name: Lint & Format
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
+      # ── Lint & Format ──
       - name: ESLint (warnings as errors)
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
@@ -90,82 +84,32 @@ jobs:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
 
-  type-check:
-    name: Type Check
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - run: npx tsc --noEmit
+      # ── Type Check ──
+      - name: Type check
+        run: npx tsc --noEmit
 
-  unit-tests:
-    name: Unit Tests
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: Run tests with coverage
+      # ── Audit ──
+      - name: Audit production dependencies
+        run: npm audit --audit-level=high --omit=dev
+      - name: Audit all dependencies (informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      # ── Unit Tests ──
+      - name: Unit tests with coverage
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: coverage-report
-          path: src/coverage/
-          retention-days: 7
 
-  e2e-smoke:
-    name: E2E Smoke Tests
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: Run E2E smoke tests
+      # ── E2E Smoke Tests ──
+      - name: E2E smoke tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose --forceExit
 
-  e2e-mocked:
-    name: E2E Mocked Tests
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: Run mocked E2E tests
+      # ── E2E Mocked Tests ──
+      - name: E2E mocked tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
-  e2e-real:
-    name: E2E Real Bank Tests
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: Run real E2E tests
+      # ── E2E Real Bank Tests (conditional — same-repo PRs and manual dispatch only) ──
+      - name: E2E real bank tests
+        if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
@@ -185,23 +129,28 @@ jobs:
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
 
-  audit:
-    name: npm Audit
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - name: Audit production dependencies
-        run: npm audit --audit-level=high --omit=dev
-      - name: Audit all dependencies (informational)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      # ── Build ──
+      - uses: ./.github/actions/build-package
+      - name: Dry-run publish (catch packaging errors early)
+        run: npm pack --dry-run
+
+      # ── Upload Artifacts ──
+      - name: Upload build artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: build-output
+          path: lib/
+          retention-days: 7
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-report
+          path: src/coverage/
+          retention-days: 7
 
   dependency-review:
     name: Dependency Review
-    needs: [setup]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -215,18 +164,3 @@ jobs:
             BlueOak-1.0.0, CC0-1.0, CC-BY-3.0, CC-BY-4.0, MPL-2.0,
             Python-2.0, WTFPL, Unlicense
           allow-dependencies-licenses: 'pkg:npm/playwright-core'
-
-  build:
-    name: Build Verification
-    needs: [lint, type-check]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: ./.github/actions/build-package
-      - name: Dry-run publish (catch packaging errors early)
-        run: npm pack --dry-run
