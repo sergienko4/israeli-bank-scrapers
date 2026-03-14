@@ -1,6 +1,10 @@
 import { type Page } from 'playwright';
 
-import { pageEvalAll, waitUntilElementFound } from '../../../Common/ElementsInteractions.js';
+import {
+  elementPresentOnPage,
+  pageEvalAll,
+  waitUntilElementFound,
+} from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
@@ -19,7 +23,7 @@ const ENTER_ACCOUNT_SEL = 'role=link[name="כניסה לחשבון"]';
 const SKIP_TO_ACCOUNT_SEL = 'role=link[name="דלג לחשבון"]';
 
 /** Selector for the change-password form. */
-const CHANGE_PASSWORD_SEL = 'xpath=//form[@action="/changepassword"]';
+const CHANGE_PASSWORD_SEL = 'text=שינוי סיסמה';
 
 /**
  * Navigate to the Leumi login form and wait for all input fields to render.
@@ -32,8 +36,8 @@ async function leumiCheckReadiness(page: Page): LifecyclePromise {
   await page.goto(loginUrl);
   await waitForNavigation(page, { waitUntil: 'networkidle' });
   await Promise.all([
-    waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true }),
-    waitUntilElementFound(page, 'input[placeholder="סיסמה"]', { visible: true }),
+    waitUntilElementFound(page, 'role=textbox[name="שם משתמש"]', { visible: true }),
+    waitUntilElementFound(page, 'role=textbox[name="סיסמה"]', { visible: true }),
     waitUntilElementFound(page, 'role=button[name="כניסה"]', { visible: true }),
   ]);
 }
@@ -47,7 +51,7 @@ async function leumiPostAction(page: Page): LifecyclePromise {
   await Promise.race([
     waitUntilElementFound(page, SKIP_TO_ACCOUNT_SEL, { visible: true, timeout: 60000 }),
     waitUntilElementFound(page, 'text=תוכן ראשי', { visible: false, timeout: 60000 }),
-    page.waitForSelector(`xpath=//div[contains(string(),"${LEUMI_INVALID_PASSWORD_MSG}")]`),
+    waitUntilElementFound(page, `text=${LEUMI_INVALID_PASSWORD_MSG}`, { timeout: 60000 }),
     waitUntilElementFound(page, CHANGE_PASSWORD_SEL, {
       visible: true,
       timeout: 60000,
@@ -81,28 +85,14 @@ async function checkLeumiMessage(page: Page, selector: string, prefix: string): 
 }
 
 /**
- * Extract the sibling text of the error icon for password error detection.
- * @param elements - Array of matched SVG elements.
- * @returns The inner text of the sibling element next to the icon.
- */
-function extractCapaSiblingText(elements: Element[]): string {
-  return (elements[0]?.parentElement?.children[1] as HTMLDivElement).innerText;
-}
-
-/**
- * Check whether the invalid-password error icon and message are visible.
+ * Check whether the invalid-password error message is visible.
  * @param opts - The possible-result check options with page reference.
- * @param opts.page - The Playwright page to inspect for the error icon.
+ * @param opts.page - The Playwright page to inspect for the error message.
  * @returns True if the invalid password message is present.
  */
 async function checkInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  const parentText = await pageEvalAll(opts.page, {
-    selector: 'xpath=//svg[@id="Capa_1"]',
-    defaultResult: '',
-    callback: extractCapaSiblingText,
-  });
-  return parentText.startsWith(LEUMI_INVALID_PASSWORD_MSG);
+  return elementPresentOnPage(opts.page, `text=${LEUMI_INVALID_PASSWORD_MSG}`);
 }
 
 /**

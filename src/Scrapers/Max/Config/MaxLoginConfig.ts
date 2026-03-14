@@ -202,7 +202,7 @@ async function navigateToLoginPage(page: Page): Promise<string> {
  * @returns True when the field is visible.
  */
 async function waitForLoginField(page: Page): Promise<boolean> {
-  await page.waitForSelector('[placeholder*="שם משתמש"]', {
+  await page.waitForSelector('role=textbox[name=/שם משתמש/]', {
     state: 'visible',
     timeout: LOGIN_FIELD_WAIT_MS,
   });
@@ -238,8 +238,8 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   LOG.info('waitForDashboardOrError: url=%s', currentUrl);
   await Promise.race([
     page.waitForURL('**/homepage/**', { timeout: 60000 }),
-    waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
-    waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
+    waitUntilElementFound(page, 'role=dialog >> text=פרטים שגויים', { visible: true }),
+    waitUntilElementFound(page, 'role=dialog >> text=שגיאה', { visible: true }),
   ]);
 }
 
@@ -294,7 +294,7 @@ function checkMaxSuccess(opts?: { page?: Page }): boolean {
  */
 async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupWrongDetails');
+  return elementPresentOnPage(opts.page, 'role=dialog >> text=פרטים שגויים');
 }
 
 /**
@@ -305,7 +305,7 @@ async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean>
  */
 async function checkMaxUnknownError(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupCardHoldersLoginError');
+  return elementPresentOnPage(opts.page, 'role=dialog >> text=שגיאה');
 }
 
 export const MAX_CONFIG: ILoginConfig = {

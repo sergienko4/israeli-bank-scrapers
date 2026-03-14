@@ -75,7 +75,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
  */
 async function getAccountIdsOldUI(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const selectElement = document.getElementById('account_num_select');
+    const selectElement = document.querySelector('[name="account_num_select"]');
     const options = selectElement ? selectElement.querySelectorAll('option') : [];
     return Array.from(options, option => option.value);
   });
@@ -137,27 +137,6 @@ export async function selectAccountFromDropdown(
 type OptionalFrame = Frame | undefined;
 
 /**
- * Try to get a frame from an iframe element handle.
- * @param iframeEl - The element handle for the iframe.
- * @param attempt - Zero-based attempt index for logging.
- * @returns The content frame if available.
- */
-async function tryContentFrame(
-  iframeEl: Awaited<ReturnType<Page['$']>>,
-  attempt: number,
-): Promise<OptionalFrame> {
-  const noFrame: OptionalFrame = undefined;
-  if (!iframeEl) return noFrame;
-  try {
-    const frame = await iframeEl.contentFrame();
-    if (frame) return frame;
-  } catch (e: unknown) {
-    LOG.debug(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
-  }
-  return noFrame;
-}
-
-/**
  * Try a single attempt to locate the transactions iframe.
  * @param page - The Playwright page instance.
  * @param attempt - Zero-based attempt index for logging.
@@ -165,9 +144,6 @@ async function tryContentFrame(
  */
 async function tryGetFrameAttempt(page: Page, attempt: number): Promise<OptionalFrame> {
   await page.waitForTimeout(TRANSACTIONS_FRAME_WAIT_MS);
-  const iframeEl = await page.$(`#${IFRAME_NAME}`).catch(() => null);
-  const fromElement = await tryContentFrame(iframeEl, attempt);
-  if (fromElement) return fromElement;
   const byName = page.frames().find(f => f.name() === IFRAME_NAME);
   if (byName) return byName;
   LOG.debug(

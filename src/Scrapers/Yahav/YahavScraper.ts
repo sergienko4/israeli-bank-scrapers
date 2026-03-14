@@ -194,32 +194,14 @@ async function getAccountTransactions(
 }
 
 /**
- * Try clicking a grid cell that matches the target text.
- * @param page - The Playwright page instance.
- * @param selector - The CSS selector for the cell.
- * @param target - The target text to match.
- * @returns True if the cell was clicked, false otherwise.
- */
-async function tryClickGridCell(page: Page, selector: string, target: string): Promise<boolean> {
-  const text = await page.locator(selector).first().innerText();
-  if (target !== text) return false;
-  await clickButton(page, selector);
-  return true;
-}
-
-/**
  * Select a year from the date picker grid.
  * @param page - The Playwright page instance.
  * @param targetYear - The year string to select.
  * @returns True after selection.
  */
 async function selectYearFromGrid(page: Page, targetYear: string): Promise<boolean> {
-  const actions = Array.from(
-    { length: 12 },
-    (_, i): (() => Promise<boolean>) =>
-      () =>
-        tryClickGridCell(page, `.pmu-years > div:nth-child(${String(i + 1)})`, targetYear),
-  );
+  const yearCell = page.getByText(targetYear, { exact: true }).first();
+  const actions = [(): Promise<boolean> => yearCell.click().then(() => true)];
   await runSerial(actions);
   return true;
 }
@@ -231,12 +213,8 @@ async function selectYearFromGrid(page: Page, targetYear: string): Promise<boole
  * @returns True after selection.
  */
 async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean> {
-  const actions = Array.from(
-    { length: 41 },
-    (_, i): (() => Promise<boolean>) =>
-      () =>
-        tryClickGridCell(page, `.pmu-days > div:nth-child(${String(i + 1)})`, targetDay),
-  );
+  const dayCell = page.getByText(targetDay, { exact: true }).first();
+  const actions = [(): Promise<boolean> => dayCell.click().then(() => true)];
   await runSerial(actions);
   return true;
 }
@@ -249,7 +227,7 @@ async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean
 async function openDatePicker(page: Page): Promise<boolean> {
   await waitUntilElementFound(page, SEL.datePickerOpener, { visible: true });
   await clickButton(page, SEL.datePickerOpener);
-  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
+  await waitUntilElementFound(page, 'text=1', { visible: true });
   return true;
 }
 
@@ -282,7 +260,8 @@ async function searchByDates(page: Page, startDate: Moment): Promise<boolean> {
   await navigateToYearView(page);
   await selectYearFromGrid(page, year);
   await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
-  await clickButton(page, `.pmu-months > div:nth-child(${month})`);
+  const monthCell = page.getByText(month, { exact: true }).first();
+  await monthCell.click();
   await selectDayFromGrid(page, day);
   return true;
 }
@@ -369,7 +348,8 @@ class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
   private async navigateToStatements(): Promise<boolean> {
     await waitUntilElementFound(this.page, SEL.accountDetails, { visible: true });
     await clickButton(this.page, SEL.accountDetails);
-    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', {
+    const statementsReadySel = 'text=תנועות בחשבון';
+    await waitUntilElementFound(this.page, statementsReadySel, {
       visible: true,
     });
     return true;

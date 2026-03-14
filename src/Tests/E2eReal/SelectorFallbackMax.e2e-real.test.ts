@@ -48,7 +48,7 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when readiness indicator is visible.
    */
   checkReadiness: async (page: Page): Promise<void> => {
-    await waitUntilElementFound(page, '.personal-area > a.go-to-personal-area', { visible: true });
+    await waitUntilElementFound(page, 'text=כניסה לאיזור האישי', { visible: true });
   },
   /**
    * Navigates to password login tab via popup dismissal and tab clicks.
@@ -56,16 +56,14 @@ const BASE_CFG: ILoginConfig = {
    * @returns Resolved promise after pre-login navigation completes (no frame override).
    */
   preAction: async (page: Page): Promise<Frame | undefined> => {
-    const isPopupPresent = await elementPresentOnPage(page, '#closePopup');
-    if (isPopupPresent) await clickButton(page, '#closePopup');
-    await clickButton(page, '.personal-area > a.go-to-personal-area');
-    const isPrivateLinkPresent = await elementPresentOnPage(page, '.login-link#private');
-    if (isPrivateLinkPresent) await clickButton(page, '.login-link#private');
-    await waitUntilElementFound(page, '#login-password-link', { visible: true });
-    await clickButton(page, '#login-password-link');
-    await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
-      visible: true,
-    });
+    const isPopupPresent = await elementPresentOnPage(page, 'role=button[name=/סגור|close/i]');
+    if (isPopupPresent) await clickButton(page, 'role=button[name=/סגור|close/i]');
+    await clickButton(page, 'text=כניסה לאיזור האישי');
+    const isPrivateLinkPresent = await elementPresentOnPage(page, 'text=לקוחות פרטיים');
+    if (isPrivateLinkPresent) await clickButton(page, 'text=לקוחות פרטיים');
+    await waitUntilElementFound(page, 'text=כניסה עם סיסמה', { visible: true });
+    await clickButton(page, 'text=כניסה עם סיסמה');
+    await waitUntilElementFound(page, 'text=שם משתמש', { visible: true });
     const noFrame = page.frames().at(-999);
     return noFrame;
   },
@@ -80,8 +78,8 @@ const BASE_CFG: ILoginConfig = {
         timeout: 20000,
         ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
       }),
-      page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
-      page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
+      waitUntilElementFound(page, 'role=dialog >> text=פרטים שגויים', { visible: true }),
+      waitUntilElementFound(page, 'role=dialog >> text=שגיאה', { visible: true }),
     ]).catch(() => {
       // Expected: race may reject when none of the conditions match within timeout
     });
@@ -90,11 +88,14 @@ const BASE_CFG: ILoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [
-      async (opts): Promise<boolean> => !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
+      async (opts): Promise<boolean> =>
+        !!(
+          opts?.page && (await elementPresentOnPage(opts.page, 'role=dialog >> text=פרטים שגויים'))
+        ),
     ],
     unknownError: [
       async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
+        !!(opts?.page && (await elementPresentOnPage(opts.page, 'role=dialog >> text=שגיאה'))),
     ],
   },
 };

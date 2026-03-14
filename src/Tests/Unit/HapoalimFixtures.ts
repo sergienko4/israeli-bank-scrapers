@@ -33,7 +33,12 @@ export const MOCK_BROWSER = {
  */
 export function createHapoalimPage(): ReturnType<typeof createMockPage> {
   return createMockPage({
-    evaluate: jest.fn().mockResolvedValueOnce(true).mockResolvedValueOnce('/api/v1'),
+    evaluate: jest
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce('/api/v1')
+      .mockResolvedValue(false),
     cookies: jest.fn().mockResolvedValue([{ name: 'XSRF-TOKEN', value: 'xsrf-token-value' }]),
   });
 }

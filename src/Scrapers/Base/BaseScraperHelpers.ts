@@ -186,7 +186,9 @@ export async function alreadyAtResultUrl(
  */
 export async function detectGenericInvalidPassword(page: Page): Promise<boolean> {
   try {
-    return (await page.locator('input[aria-invalid="true"]').count()) > 0;
+    return await page.evaluate(
+      () => document.querySelectorAll('input[aria-invalid="true"]').length > 0,
+    );
   } catch {
     return false;
   }

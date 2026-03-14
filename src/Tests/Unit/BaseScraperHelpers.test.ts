@@ -77,7 +77,7 @@ function makeMockPage(url = 'https://example.com'): Page {
   return {
     url: jest.fn().mockReturnValue(url),
     title: jest.fn().mockResolvedValue('Test'),
-    locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+    evaluate: jest.fn().mockResolvedValue(false),
   } as Partial<Page> as Page;
 }
 
@@ -121,7 +121,7 @@ describe('alreadyAtResultUrl', () => {
         throw new ScraperError('detached');
       }),
       title: jest.fn().mockResolvedValue(''),
-      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      evaluate: jest.fn().mockResolvedValue(false),
     } as Partial<Page> as Page;
     const possibleResults = { [LOGIN_RESULTS.Success]: ['https://bank.co.il/dashboard'] };
     const isAtResult = await ALREADY_AT_RESULT_URL(possibleResults, page);
@@ -134,7 +134,7 @@ describe('detectGenericInvalidPassword', () => {
 
   it('returns true when aria-invalid input is present', async () => {
     const page = makeMockPage();
-    (page.locator as jest.Mock).mockReturnValue({ count: jest.fn().mockResolvedValue(2) });
+    (page.evaluate as jest.Mock).mockResolvedValue(true);
     const isInvalid = await DETECT_INVALID_PW(page);
     expect(isInvalid).toBe(true);
   });
@@ -145,11 +145,9 @@ describe('detectGenericInvalidPassword', () => {
     expect(isInvalid).toBe(false);
   });
 
-  it('returns false when locator throws', async () => {
+  it('returns false when evaluate throws', async () => {
     const page = makeMockPage();
-    (page.locator as jest.Mock).mockImplementation(() => {
-      throw new ScraperError('page closed');
-    });
+    (page.evaluate as jest.Mock).mockRejectedValue(new ScraperError('page closed'));
     const isInvalid = await DETECT_INVALID_PW(page);
     expect(isInvalid).toBe(false);
   });
@@ -205,7 +203,7 @@ describe('resolveAndBuildLoginResult', () => {
   it('upgrades UnknownError to InvalidPassword when aria-invalid detected', async () => {
     MOCK_GET_CURRENT_URL.mockResolvedValue('https://bank.co.il/login');
     const page = makeMockPage('https://bank.co.il/login');
-    (page.locator as jest.Mock).mockReturnValue({ count: jest.fn().mockResolvedValue(1) });
+    (page.evaluate as jest.Mock).mockResolvedValue(true);
     const ctx = {
       page,
       diagState: { lastAction: '' },

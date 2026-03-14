@@ -19,11 +19,11 @@ import {
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
-/** Selector for the VisaCal login button on the main page. */
-const LOGIN_BTN_SEL = '#ccLoginDesktopBtn';
+/** Text selector for the VisaCal login button — visible Hebrew text on main page. */
+const LOGIN_BTN_SEL = 'text=כניסה לחשבון';
 
-/** Selector for the regular login option in the iframe. */
-const REGULAR_LOGIN_SEL = '#regular-login';
+/** Text selector for the regular login tab inside the connect iframe. */
+const REGULAR_LOGIN_SEL = 'role=tab[name="כניסה עם שם משתמש"]';
 
 /**
  * Wait for the VisaCal login button to appear on the page.
@@ -45,7 +45,7 @@ async function visaCalOpenLoginPopup(page: Page): Promise<Frame> {
   const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
   await waitUntilElementFound(frame, REGULAR_LOGIN_SEL, { timeout: 30000 });
   await clickButton(frame, REGULAR_LOGIN_SEL);
-  await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 45000 });
+  await waitUntilElementFound(frame, 'text=שם משתמש', { timeout: 45000 });
   return frame;
 }
 

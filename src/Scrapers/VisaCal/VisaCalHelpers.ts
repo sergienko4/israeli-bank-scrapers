@@ -1,11 +1,7 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright';
 
-import {
-  elementPresentOnPage,
-  pageEval,
-  waitUntilIframeFound,
-} from '../../Common/ElementsInteractions.js';
+import { elementPresentOnPage, waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
@@ -49,21 +45,7 @@ export function isConnectFrame(frame: Frame): boolean {
 export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
   try {
     const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
-    const isErrorFound = await elementPresentOnPage(frame, 'div.general-error > div');
-    /**
-     * Extract inner text from an error div element.
-     * @param item - The error div element.
-     * @returns The inner text content.
-     */
-    const extractErrorText = (item: Element): string => (item as HTMLDivElement).innerText;
-    const errorMessage = isErrorFound
-      ? await pageEval(frame, {
-          selector: 'div.general-error > div',
-          defaultResult: '',
-          callback: extractErrorText,
-        })
-      : '';
-    return errorMessage === INVALID_PASSWORD_MESSAGE;
+    return await elementPresentOnPage(frame, `text=${INVALID_PASSWORD_MESSAGE}`);
   } catch {
     return false; // iframe gone = page navigated away = no invalid-password error
   }
@@ -77,7 +59,7 @@ export async function hasInvalidPasswordError(page: Page): Promise<boolean> {
 export async function hasChangePasswordForm(page: Page): Promise<boolean> {
   try {
     const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_CHECK_OPTS);
-    return await elementPresentOnPage(frame, '.change-password-subtitle');
+    return await elementPresentOnPage(frame, 'text=שינוי סיסמה');
   } catch {
     return false; // iframe gone = page navigated away = no change-password form
   }

@@ -186,28 +186,15 @@ describe('selectAccountFromDropdown', () => {
 });
 
 describe('getTransactionsFrame', () => {
-  it('returns null after all attempts fail', async () => {
-    mockPage.$.mockResolvedValue(null);
+  it('returns undefined after all attempts fail', async () => {
     mockPage.frames.mockReturnValue([]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBeUndefined();
   });
 
-  it('returns frame found via iframe element contentFrame', async () => {
-    const mockFrame = { name: jest.fn().mockReturnValue('') };
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockResolvedValue(mockFrame),
-    };
-    mockPage.$.mockResolvedValueOnce(mockIframeEl);
-
-    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
-    expect(frame).toBe(mockFrame);
-  });
-
   it('returns frame found via page.frames() by name', async () => {
     const mockFrame = { name: jest.fn().mockReturnValue('iframe-old-pages') };
-    mockPage.$.mockResolvedValueOnce(null);
     mockPage.frames.mockReturnValueOnce([mockFrame]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
@@ -215,25 +202,10 @@ describe('getTransactionsFrame', () => {
   });
 
   it('retries and returns frame on second attempt', async () => {
-    const mockFrame = { name: jest.fn().mockReturnValue('') };
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockResolvedValue(mockFrame),
-    };
-    mockPage.$.mockResolvedValueOnce(null).mockResolvedValueOnce(mockIframeEl);
-    mockPage.frames.mockReturnValue([]);
+    const mockFrame = { name: jest.fn().mockReturnValue('iframe-old-pages') };
+    mockPage.frames.mockReturnValueOnce([]).mockReturnValueOnce([mockFrame]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBe(mockFrame);
-  });
-
-  it('handles stale iframe element (contentFrame throws)', async () => {
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockRejectedValue(new Error('stale element')),
-    };
-    mockPage.$.mockResolvedValue(mockIframeEl);
-    mockPage.frames.mockReturnValue([]);
-
-    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
-    expect(frame).toBeUndefined();
   });
 });

@@ -117,7 +117,7 @@ describe('MIZRAHI_CONFIG', () => {
       const page = makeMockPage();
       const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
       await checkReadiness?.(page);
-      const loaderSel = expect.stringContaining('aria-busy') as string;
+      const loaderSel = 'role=progressbar';
       expect(MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR).toHaveBeenCalledWith(page, loaderSel);
     });
   });

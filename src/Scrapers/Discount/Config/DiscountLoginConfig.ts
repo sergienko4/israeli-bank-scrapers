@@ -52,7 +52,7 @@ export default function discountConfig(loginUrl: string): ILoginConfig {
      */
     checkReadiness: async (page: Page): LifecyclePromise => {
       await page.goto(LOGIN_PORTAL);
-      await waitUntilElementFound(page, '#tzId');
+      await waitUntilElementFound(page, 'text=מספר זהות');
     },
     postAction: discountPostAction,
     possibleResults: DISCOUNT_POSSIBLE_RESULTS,

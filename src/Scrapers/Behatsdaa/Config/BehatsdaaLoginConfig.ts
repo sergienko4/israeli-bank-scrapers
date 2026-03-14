@@ -33,7 +33,7 @@ export const BEHATSDAA_CONFIG: ILoginConfig = {
     success: [`${CFG.urls.base}/`],
     invalidPassword: [
       async (opts): Promise<boolean> =>
-        !!(opts?.page && (await elementPresentOnPage(opts.page, '.custom-input-error-label'))),
+        !!(opts?.page && (await elementPresentOnPage(opts.page, 'role=alert'))),
     ],
   },
 };

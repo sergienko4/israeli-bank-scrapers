@@ -355,10 +355,10 @@ async function getCurrentBalance(page: Page | Frame): Promise<number> {
  */
 export async function waitForPostLogin(page: Page): Promise<boolean> {
   await Promise.race([
-    waitUntilElementFound(page, '#card-header', { visible: false }),
-    waitUntilElementFound(page, '#account_num', { visible: true }),
-    waitUntilElementFound(page, '#matafLogoutLink', { visible: true }),
-    waitUntilElementFound(page, '#validationMsg', { visible: true }),
+    waitUntilElementFound(page, 'text=כרטיס', { visible: false }),
+    waitUntilElementFound(page, 'text=מספר חשבון', { visible: true }),
+    waitUntilElementFound(page, 'role=link[name=/יציאה|התנתק/]', { visible: true }),
+    waitUntilElementFound(page, 'text=שגיאה', { visible: true }),
   ]);
   return true;
 }
@@ -391,8 +391,8 @@ async function fetchAccountData(
 async function selectAccountBothUIs(page: Page, accountId: string): Promise<boolean> {
   const isAccountSelected = await selectAccountFromDropdown(page, accountId);
   if (!isAccountSelected) {
-    await page.selectOption('#account_num_select', accountId);
-    await waitUntilElementFound(page, '#account_num_select', { visible: true });
+    await page.selectOption('role=listbox', accountId);
+    await waitUntilElementFound(page, 'role=listbox', { visible: true });
   }
   return true;
 }

@@ -26,7 +26,7 @@ const DISMISS_LINK_SEL = 'role=link[name="אישור"]';
 const DASHBOARD_SEL = 'text=פרטי חשבון';
 
 /** Playwright selector for the change-password form. */
-const CHANGE_PASSWORD_SEL = '[name="ef_req_parameter_old_credential"]';
+const CHANGE_PASSWORD_SEL = 'text=שינוי סיסמה';
 
 /**
  * Yahav post-login action — waits for loader, dismisses messaging, and waits for dashboard.
@@ -63,7 +63,7 @@ export const YAHAV_CONFIG: ILoginConfig = {
    * @returns True when login form is ready.
    */
   checkReadiness: async (page: Page): LifecyclePromise => {
-    const pinnoReady = waitUntilElementFound(page, '[name="pinno"]');
+    const pinnoReady = waitUntilElementFound(page, 'role=textbox[name="שם משתמש"]');
     const btnReady = waitUntilElementFound(page, 'role=button[name="כניסה"]');
     await Promise.all([pinnoReady, btnReady]);
   },
