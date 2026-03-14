@@ -160,29 +160,14 @@ beforeEach(() => {
  * @returns array of scraped transactions across two cards.
  */
 function buildHappyPathTxns(): IScrapedTransaction[] {
-  return [
-    rawTxn({
-      shortCardNumber: '1111',
-      originalAmount: 200,
-      actualPaymentAmount: '200',
-      merchantName: 'רמי לוי',
-      categoryId: 1,
-    }),
-    rawTxn({
-      shortCardNumber: '1111',
-      originalAmount: 50,
-      actualPaymentAmount: '50',
-      merchantName: 'פוקס',
-      categoryId: 1,
-    }),
-    rawTxn({
-      shortCardNumber: '2222',
-      originalAmount: 300,
-      actualPaymentAmount: '300',
-      merchantName: 'IKEA',
-      categoryId: 1,
-    }),
+  const overrides = [
+    { shortCardNumber: '1111', originalAmount: 200, merchantName: 'רמי לוי' },
+    { shortCardNumber: '1111', originalAmount: 50, merchantName: 'פוקס' },
+    { shortCardNumber: '2222', originalAmount: 300, merchantName: 'IKEA' },
   ];
+  return overrides.map(d =>
+    rawTxn({ ...d, actualPaymentAmount: String(d.originalAmount), categoryId: 1 }),
+  );
 }
 
 /**

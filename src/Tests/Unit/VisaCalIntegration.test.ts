@@ -1,43 +1,48 @@
 import { jest } from '@jest/globals';
 
 import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createFetchMock,
+  createNavigationMock,
+  createStorageMock,
+  createWaitingMock,
+} from '../MockModuleFactories.js';
+import {
   VISACAL_CONNECT_AUTH_URL,
   VISACAL_CONNECT_LOGIN_URL,
   VISACAL_LOGIN_URL,
   VISACAL_SUCCESS_URL,
 } from '../TestConstants.js';
 
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
+jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock(VISACAL_SUCCESS_URL),
+);
 jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
+  '../../Common/Transactions.js',
   /**
-   * Mock CamoufoxLauncher.
+   * Mock Transactions with passthrough filter.
    * @returns Mocked module.
    */
-  () => ({ launchCamoufox: jest.fn() }),
+  () => ({
+    filterOldTransactions: jest.fn(<T>(txns: T[]): T[] => txns),
+    getRawTransaction: jest.fn(
+      (data: Record<string, string | number>): Record<string, string | number> => data,
+    ),
+  }),
 );
-
-jest.unstable_mockModule(
-  '../../Common/Fetch.js',
-  /**
-   * Mock Fetch.
-   * @returns Mocked module.
-   */
-  () => ({ fetchPostWithinPage: jest.fn() }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Storage.js',
-  /**
-   * Mock Storage.
-   * @returns Mocked module.
-   */
-  () => ({ getFromSessionStorage: jest.fn() }),
-);
+jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 jest.unstable_mockModule(
   '../../Common/ElementsInteractions.js',
   /**
-   * Mock ElementsInteractions.
+   * Mock ElementsInteractions with VisaCal iframe URL.
    * @returns Mocked module.
    */
   () => ({
@@ -54,96 +59,6 @@ jest.unstable_mockModule(
     }),
     elementPresentOnPage: jest.fn().mockResolvedValue(false),
     pageEval: jest.fn().mockResolvedValue(''),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Navigation.js',
-  /**
-   * Mock Navigation.
-   * @returns Mocked module.
-   */
-  () => ({
-    getCurrentUrl: jest.fn().mockResolvedValue(VISACAL_SUCCESS_URL),
-    waitForNavigation: jest.fn().mockResolvedValue(undefined),
-    waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-    waitForRedirect: jest.fn().mockResolvedValue(undefined),
-    waitForUrl: jest.fn().mockResolvedValue(undefined),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Browser.js',
-  /**
-   * Mock Browser.
-   * @returns Mocked module.
-   */
-  () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Transactions.js',
-  /**
-   * Mock Transactions.
-   * @returns Mocked module.
-   */
-  () => ({
-    filterOldTransactions: jest.fn(<T>(txns: T[]): T[] => txns),
-    getRawTransaction: jest.fn(
-      (data: Record<string, string | number>): Record<string, string | number> => data,
-    ),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Waiting.js',
-  /**
-   * Mock Waiting.
-   * @returns Mocked module.
-   */
-  () => ({
-    waitUntil: jest.fn(async <T>(func: () => Promise<T>): Promise<T> => func()),
-    TimeoutError: class TimeoutError extends Error {},
-    SECOND: 1000,
-    sleep: jest.fn().mockResolvedValue(undefined),
-    humanDelay: jest.fn().mockResolvedValue(undefined),
-    runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
-      const seed = Promise.resolve([] as T[]);
-      return actions.reduce(
-        (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
-        seed,
-      );
-    }),
-    raceTimeout: jest.fn().mockResolvedValue(undefined),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
-  /**
-   * Mock Debug.
-   * @returns Mocked module.
-   */
-  () => ({
-    getDebug:
-      /**
-       * Debug factory.
-       * @returns Mock logger.
-       */
-      (): Record<string, jest.Mock> => ({
-        trace: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
   }),
 );
 
@@ -166,7 +81,13 @@ interface ISessionData {
   auth?: { calConnectToken: string };
 }
 
+/** Empty session data sentinel. */
 const EMPTY_SESSION: ISessionData = {};
+
+/** Default card list for session storage mock. */
+const DEFAULT_CARDS: { cardUniqueId: string; last4Digits: string }[] = [
+  { cardUniqueId: 'card-1', last4Digits: '4580' },
+];
 
 /**
  * Build VisaCal scraper options with defaults.
@@ -180,44 +101,59 @@ function visaCalOptions(
 }
 
 /**
+ * Create a mock login iframe frame object.
+ * @returns Frame mock with url() returning connect login URL.
+ */
+function createLoginFrameMock(): { url: () => string; waitForSelector: jest.Mock } {
+  /**
+   * Connect login URL getter.
+   * @returns Connect login URL.
+   */
+  const url = (): string => VISACAL_CONNECT_LOGIN_URL;
+  return { url, waitForSelector: jest.fn().mockResolvedValue(undefined) };
+}
+
+/**
+ * Create a mock request object for auth response.
+ * @returns Request mock with method() returning POST.
+ */
+function createAuthRequestMock(): { method: () => string } {
+  /**
+   * HTTP method getter.
+   * @returns HTTP method string.
+   */
+  const method = (): string => 'POST';
+  return { method };
+}
+
+/**
+ * Create a mock auth response for waitForResponse.
+ * @param token - Auth token to return from json().
+ * @returns Response mock with json(), url(), and request().
+ */
+function createAuthResponseMock(token = 'cal-auth-token'): {
+  json: jest.Mock;
+  url: () => string;
+  request: () => { method: () => string };
+} {
+  /**
+   * Auth API URL getter.
+   * @returns Auth API URL.
+   */
+  const url = (): string => VISACAL_CONNECT_AUTH_URL;
+  return { json: jest.fn().mockResolvedValue({ token }), url, request: createAuthRequestMock };
+}
+
+/**
  * Create a mock VisaCal page with login iframe and auth response.
  * @returns mock page object.
  */
 function createMockVisaCalPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const frameMock = createLoginFrameMock();
+  const responseMock = createAuthResponseMock();
   return CREATE_MOCK_PAGE({
-    frames: jest.fn().mockReturnValue([
-      {
-        url:
-          /**
-           * Frame URL getter.
-           * @returns URL.
-           */
-          (): string => VISACAL_CONNECT_LOGIN_URL,
-        waitForSelector: jest.fn().mockResolvedValue(undefined),
-      },
-    ]),
-    waitForResponse: jest.fn().mockResolvedValue({
-      json: jest.fn().mockResolvedValue({ token: 'cal-auth-token' }),
-      url:
-        /**
-         * Response URL getter.
-         * @returns URL.
-         */
-        (): string => VISACAL_CONNECT_AUTH_URL,
-      request:
-        /**
-         * Request getter.
-         * @returns Request mock.
-         */
-        () => ({
-          method:
-            /**
-             * Method getter.
-             * @returns HTTP method.
-             */
-            (): string => 'POST',
-        }),
-    }),
+    frames: jest.fn().mockReturnValue([frameMock]),
+    waitForResponse: jest.fn().mockResolvedValue(responseMock),
   });
 }
 
@@ -232,10 +168,20 @@ function mockWaitUntil(): boolean {
   return true;
 }
 
-/** Default card list for session storage mock. */
-const DEFAULT_CARDS: { cardUniqueId: string; last4Digits: string }[] = [
-  { cardUniqueId: 'card-1', last4Digits: '4580' },
-];
+/**
+ * Resolve session key to the appropriate session data.
+ * @param key - Session storage key.
+ * @param cards - Card list for the init key.
+ * @returns Session data matching the key.
+ */
+function resolveSessionKey(
+  key: string,
+  cards: { cardUniqueId: string; last4Digits: string }[],
+): ISessionData {
+  if (key === 'init') return { result: { cards } };
+  if (key === 'auth-module') return { auth: { calConnectToken: 'cal-auth-token' } };
+  return EMPTY_SESSION;
+}
 
 /**
  * Configure session storage with card and auth data.
@@ -247,13 +193,8 @@ function mockSessionStorage(
 ): boolean {
   (GET_SESSION_STORAGE as jest.Mock).mockImplementation(
     (_page: ReturnType<typeof CREATE_MOCK_PAGE>, key: string): Promise<ISessionData> => {
-      if (key === 'init') {
-        return Promise.resolve({ result: { cards } });
-      }
-      if (key === 'auth-module') {
-        return Promise.resolve({ auth: { calConnectToken: 'cal-auth-token' } });
-      }
-      return Promise.resolve(EMPTY_SESSION);
+      const data = resolveSessionKey(key, cards);
+      return Promise.resolve(data);
     },
   );
   return true;
@@ -274,6 +215,9 @@ function setupVisaCalMocks(
   return page;
 }
 
+/** Empty bank-issued cards response. */
+const EMPTY_BANK_CARDS = { result: { bankIssuedCards: { cardLevelFrames: [] } } };
+
 /**
  * Set up standard fetch mocks for a complete scrape cycle.
  * @param txnDetailsResponse - The transaction details response.
@@ -288,9 +232,37 @@ function setupFetchMocks(
 ): boolean {
   (FETCH_POST as jest.Mock)
     .mockResolvedValueOnce(FIXTURES.INIT_RESPONSE)
-    .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } })
+    .mockResolvedValueOnce(EMPTY_BANK_CARDS)
     .mockResolvedValueOnce(txnDetailsResponse)
     .mockResolvedValueOnce(pendingResponse);
+  return true;
+}
+
+/**
+ * Create a mock page configured for invalid login testing.
+ * @returns Mock page with empty auth token.
+ */
+function createInvalidLoginPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const frameMock = createLoginFrameMock();
+  const responseMock = createAuthResponseMock('');
+  return CREATE_MOCK_PAGE({
+    url: jest.fn().mockReturnValue(VISACAL_LOGIN_URL),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+    frames: jest.fn().mockReturnValue([frameMock]),
+    waitForResponse: jest.fn().mockResolvedValue(responseMock),
+  });
+}
+
+/**
+ * Configure mocks for an invalid login scenario.
+ * @param page - The mock page to use.
+ * @returns true when configured.
+ */
+function setupInvalidLoginMocks(page: ReturnType<typeof CREATE_MOCK_PAGE>): boolean {
+  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(VISACAL_LOGIN_URL);
+  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(true);
+  (PAGE_EVAL as jest.Mock).mockResolvedValue('שם המשתמש או הסיסמה שהוזנו שגויים');
   return true;
 }
 
@@ -328,48 +300,8 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error element in iframe returns InvalidPassword', async () => {
-    const loginUrl = VISACAL_LOGIN_URL;
-    const loginPage = CREATE_MOCK_PAGE({
-      url: jest.fn().mockReturnValue(loginUrl),
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-      frames: jest.fn().mockReturnValue([
-        {
-          url:
-            /**
-             * Frame URL getter.
-             * @returns URL.
-             */
-            (): string => VISACAL_CONNECT_LOGIN_URL,
-          waitForSelector: jest.fn().mockResolvedValue(undefined),
-        },
-      ]),
-      waitForResponse: jest.fn().mockResolvedValue({
-        json: jest.fn().mockResolvedValue({ token: '' }),
-        url:
-          /**
-           * Response URL getter.
-           * @returns URL.
-           */
-          (): string => VISACAL_CONNECT_AUTH_URL,
-        request:
-          /**
-           * Request getter.
-           * @returns Request mock.
-           */
-          () => ({
-            method:
-              /**
-               * Method getter.
-               * @returns HTTP method.
-               */
-              (): string => 'POST',
-          }),
-      }),
-    });
-    FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(loginUrl);
-    (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(true);
-    (PAGE_EVAL as jest.Mock).mockResolvedValue('שם המשתמש או הסיסמה שהוזנו שגויים');
+    const loginPage = createInvalidLoginPage();
+    setupInvalidLoginMocks(loginPage);
 
     const scraper = new VISA_CAL_SCRAPER(visaCalOptions());
     const result = await scraper.scrape(FIXTURES.CREDS);
@@ -381,7 +313,7 @@ describe('integration: full scrape flow', () => {
     setupVisaCalMocks([]);
     (FETCH_POST as jest.Mock)
       .mockResolvedValueOnce(FIXTURES.EMPTY_CARDS_INIT_RESPONSE)
-      .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } });
+      .mockResolvedValueOnce(EMPTY_BANK_CARDS);
 
     const scraper = new VISA_CAL_SCRAPER(visaCalOptions());
     const result = await scraper.scrape(FIXTURES.CREDS);

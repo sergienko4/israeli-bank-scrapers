@@ -110,16 +110,29 @@ function createLeumiResponse(overrides: Record<string, number | string | object[
  * @param response.json - mock json() method on the response.
  * @returns partial page mock overrides.
  */
+/**
+ * Create a mock goto response with ok=true, status=200.
+ * @returns goto response mock
+ */
+function mockGotoResponse(): { ok: jest.Mock; status: jest.Mock } {
+  return { ok: jest.fn().mockReturnValue(true), status: jest.fn().mockReturnValue(200) };
+}
+
+/**
+ * Build Leumi page mock with account IDs and response.
+ * @param accountIds - account ID list
+ * @param response - mock response object
+ * @param response.json - jest mock returning parsed JSON
+ * @returns mock page overrides
+ */
 function buildLeumiPageMock(
   accountIds: string[],
   response: { json: jest.Mock },
 ): Record<string, jest.Mock> {
+  const gotoRes = mockGotoResponse();
   return {
     evaluate: jest.fn().mockResolvedValue(accountIds),
-    goto: jest.fn().mockResolvedValue({
-      ok: jest.fn().mockReturnValue(true),
-      status: jest.fn().mockReturnValue(200),
-    }),
+    goto: jest.fn().mockResolvedValue(gotoRes),
     waitForResponse: jest.fn().mockResolvedValue(response),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
