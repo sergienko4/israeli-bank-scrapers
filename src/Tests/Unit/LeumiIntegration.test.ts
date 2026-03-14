@@ -31,6 +31,7 @@ const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =
   await import('../../Common/ElementsInteractions.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { ScraperErrorTypes: SCRAPER_ERROR_TYPES } = await import('../../Scrapers/Base/Errors.js');
+const { TransactionStatuses: TXN_STATUSES } = await import('../../Transactions.js');
 const { default: LEUMI_SCRAPER } = await import('../../Scrapers/Leumi/LeumiScraper.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_MOCK_SCRAPER_OPTIONS } =
   await import('../MockPage.js');
@@ -74,6 +75,18 @@ function mockGotoResponse(): { ok: jest.Mock; status: jest.Mock } {
 }
 
 /**
+ * Common no-op page stubs shared by all Leumi page mocks.
+ * @returns mock fields for waitForSelector, focus, and $.
+ */
+function pageStubs(): Record<string, jest.Mock> {
+  return {
+    waitForSelector: jest.fn().mockResolvedValue(undefined),
+    focus: jest.fn().mockResolvedValue(undefined),
+    $: jest.fn().mockResolvedValue(null),
+  };
+}
+
+/**
  * Base page mock fields shared across Leumi tests.
  * @param accountIds - account IDs
  * @param response - mock response object
@@ -87,9 +100,7 @@ function leumiPageBase(
   return {
     evaluate: jest.fn().mockResolvedValue(accountIds),
     waitForResponse: jest.fn().mockResolvedValue(response),
-    waitForSelector: jest.fn().mockResolvedValue(undefined),
-    focus: jest.fn().mockResolvedValue(undefined),
-    $: jest.fn().mockResolvedValue(null),
+    ...pageStubs(),
   };
 }
 
@@ -199,6 +210,11 @@ describe('integration: full scrape flow', () => {
     expect(accounts[0].accountNumber).toBe('789_012');
     expect(accounts[0].txns).toHaveLength(3);
     expect(accounts[0].balance).toBe(12345.67);
+
+    const pendingTxns = accounts[0].txns.filter(t => t.status === TXN_STATUSES.Pending);
+    const completedTxns = accounts[0].txns.filter(t => t.status === TXN_STATUSES.Completed);
+    expect(pendingTxns).toHaveLength(1);
+    expect(completedTxns).toHaveLength(2);
   });
 
   it('invalid login: returns InvalidPassword for error message', async () => {
@@ -236,5 +252,8 @@ describe('integration: full scrape flow', () => {
     const result = await scraper.scrape(CREDS);
 
     INTEGRATION.assertEmptyTxns(result);
+    const accounts = result.accounts ?? [];
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0].accountNumber).toBe('555_666');
   });
 });

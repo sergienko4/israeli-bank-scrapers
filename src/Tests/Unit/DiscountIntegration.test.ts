@@ -50,6 +50,17 @@ interface IDiscountTxn {
 }
 
 /**
+ * Build the user accounts API payload.
+ * @param accounts - array of account objects with AccountID.
+ * @returns payload matching Discount accounts API shape.
+ */
+function createUserAccountsPayload(accounts: { AccountID: string }[]): Record<string, object> {
+  const defaultId = accounts[0]?.AccountID ?? '';
+  const mapped = accounts.map(acct => ({ NewAccountInfo: acct }));
+  return { UserAccountsData: { DefaultAccountNumber: defaultId, UserAccounts: mapped } };
+}
+
+/**
  * Mock the accounts data API response.
  * @param accounts - array of account objects with AccountID.
  * @returns true after mocking the response.
@@ -57,13 +68,28 @@ interface IDiscountTxn {
 function mockAccountsData(
   accounts: { AccountID: string }[] = [{ AccountID: '12-345-67890' }],
 ): boolean {
-  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    UserAccountsData: {
-      DefaultAccountNumber: accounts[0]?.AccountID ?? '',
-      UserAccounts: accounts.map(acct => ({ NewAccountInfo: acct })),
-    },
-  });
+  const payload = createUserAccountsPayload(accounts);
+  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(payload);
   return true;
+}
+
+/**
+ * Build the inner transaction block for Discount API response.
+ * @param txns - completed transactions.
+ * @param futureTxns - pending/future transactions.
+ * @param balance - account balance value.
+ * @returns inner block matching CurrentAccountLastTransactions shape.
+ */
+function createTxnBlock(
+  txns: IDiscountTxn[],
+  futureTxns: IDiscountTxn[],
+  balance: number,
+): Record<string, object> {
+  return {
+    OperationEntry: txns,
+    CurrentAccountInfo: { AccountBalance: balance },
+    FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
+  };
 }
 
 /**
@@ -78,13 +104,7 @@ function buildTxnResponse(
   futureTxns: IDiscountTxn[],
   balance: number,
 ): Record<string, object> {
-  return {
-    CurrentAccountLastTransactions: {
-      OperationEntry: txns,
-      CurrentAccountInfo: { AccountBalance: balance },
-      FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
-    },
-  };
+  return { CurrentAccountLastTransactions: createTxnBlock(txns, futureTxns, balance) };
 }
 
 /**
@@ -172,5 +192,8 @@ describe('integration: full scrape flow', () => {
     const result = await scraper.scrape(CREDS);
 
     INTEGRATION.assertEmptyTxns(result);
+    const accounts = result.accounts ?? [];
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0].accountNumber).toBe('00-000-00000');
   });
 });

@@ -38,6 +38,8 @@ const { default: BEINLEUMI_GROUP_BASE_SCRAPER } =
   await import('../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroup.js');
 const { beinleumiConfig: BEINLEUMI_CONFIG } =
   await import('../../Scrapers/BaseBeinleumiGroup/Config/BeinleumiLoginConfig.js');
+const { ERROR_MESSAGE_CLASS } =
+  await import('../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroupHelpers.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
 const INTEGRATION = await import('../IntegrationHelpers.js');
@@ -61,6 +63,8 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 const CREDS = { username: 'testuser', password: 'testpass' };
+// Column classes mirror real Beinleumi HTML: 'reference wrap_normal' holds description text,
+// 'details' holds the numeric reference — names are confusing but match production DOM.
 const COMPLETED_COL = [
   { colClass: 'date first', index: 0 },
   { colClass: 'reference wrap_normal', index: 1 },
@@ -77,7 +81,7 @@ const COMPLETED_COL = [
 function evalBySelector(selector: string): string {
   if (selector === 'div.fibi_account span.acc_num') return '12/345678';
   if (selector === '.main_balance') return '\u20AA5,000.00';
-  if (selector === '.NO_DATA')
+  if (selector === `.${ERROR_MESSAGE_CLASS}`)
     return '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
   return '';
 }
@@ -141,7 +145,7 @@ describe('integration: full scrape flow', () => {
   it('no data: elementPresentOnPage for NO_DATA returns success with 0 txns', async () => {
     (ELEMENT_PRESENT as jest.Mock).mockImplementation(
       (_page: ReturnType<typeof CREATE_MOCK_PAGE>, selector: string): boolean =>
-        selector === '.NO_DATA',
+        selector === `.${ERROR_MESSAGE_CLASS}`,
     );
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     INTEGRATION.assertEmptyTxns(result);
