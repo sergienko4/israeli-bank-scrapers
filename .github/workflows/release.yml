@@ -32,6 +32,7 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       release_created: ${{ steps.release.outputs.release_created || inputs.force_publish }}
     steps:
@@ -47,6 +48,7 @@ jobs:
     needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: npm-publish
     permissions:
       contents: read

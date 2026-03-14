@@ -58,6 +58,7 @@ jobs:
   setup:
     name: Setup
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -70,6 +71,7 @@ jobs:
     name: Lint & Format
     needs: [setup]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -87,6 +89,7 @@ jobs:
     name: Type Check
     needs: [setup]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -96,6 +99,7 @@ jobs:
     name: Unit Tests
     needs: [setup]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -126,7 +130,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: Run E2E smoke tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose --forceExit
 
   e2e-mocked:
     name: E2E Mocked Tests
@@ -141,7 +145,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: Run mocked E2E tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
   e2e-real:
     name: E2E Real Bank Tests
@@ -157,7 +161,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: Run real E2E tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           AMEX_ID: ${{ secrets.AMEX_ID }}
@@ -180,6 +184,7 @@ jobs:
     name: npm Audit
     needs: [setup]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -194,6 +199,7 @@ jobs:
     needs: [setup]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
@@ -209,6 +215,7 @@ jobs:
     name: Build Verification
     needs: [lint, type-check]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
