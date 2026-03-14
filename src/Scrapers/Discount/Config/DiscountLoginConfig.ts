@@ -21,9 +21,13 @@ const DISCOUNT_FIELDS: ILoginConfig['fields'] = [
   { credentialKey: 'num', selectors: [] }, // wellKnown → #aidnum
 ];
 
+/** Primary Discount success URL used after login. */
+export const DISCOUNT_SUCCESS_URL =
+  'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE';
+
 const DISCOUNT_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
   success: [
-    'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
+    DISCOUNT_SUCCESS_URL,
     'https://start.telebank.co.il/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE',
     'https://start.telebank.co.il/apollo/retail2/',
   ],
