@@ -207,23 +207,27 @@ function setupVisaCalMocks(
 /** Empty bank-issued cards response. */
 const EMPTY_BANK_CARDS = { result: { bankIssuedCards: { cardLevelFrames: [] } } };
 
+/** Default pending response (no pending transactions). */
+const NO_PENDING: { statusCode: number } = { statusCode: 96 };
+
+/** Fetch response type for card transaction details. */
+type TxnDetailsResponse = ReturnType<typeof FIXTURES.mockCardTransactionDetails>;
+
 /**
  * Set up standard fetch mocks for a complete scrape cycle.
- * @param txnDetailsResponse - The transaction details response.
- * @param pendingResponse - The pending transactions response.
+ * @param details - The transaction details response.
+ * @param pending - The pending transactions response.
  * @returns True when complete.
  */
 function setupFetchMocks(
-  txnDetailsResponse: ReturnType<typeof FIXTURES.mockCardTransactionDetails>,
-  pendingResponse:
-    | ReturnType<typeof FIXTURES.mockCardTransactionDetails>
-    | { statusCode: number } = { statusCode: 96 },
+  details: TxnDetailsResponse,
+  pending: TxnDetailsResponse | { statusCode: number } = NO_PENDING,
 ): boolean {
   (FETCH_POST as jest.Mock)
     .mockResolvedValueOnce(FIXTURES.INIT_RESPONSE)
     .mockResolvedValueOnce(EMPTY_BANK_CARDS)
-    .mockResolvedValueOnce(txnDetailsResponse)
-    .mockResolvedValueOnce(pendingResponse);
+    .mockResolvedValueOnce(details)
+    .mockResolvedValueOnce(pending);
   return true;
 }
 
@@ -255,20 +259,22 @@ function setupInvalidLoginMocks(page: ReturnType<typeof CREATE_MOCK_PAGE>): bool
   return true;
 }
 
-beforeEach(
-  /**
-   * Clear mocks before each test.
-   * @returns Test setup flag.
-   */
-  () => {
-    jest.clearAllMocks();
-    (FETCH_POST as jest.Mock).mockReset();
-    (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(FIXTURES.MOCK_BROWSER);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(VISACAL_SUCCESS_URL);
-    (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
-    return true;
-  },
-);
+/**
+ * Reset fetch and browser mocks to default VisaCal state.
+ * @returns true when configured.
+ */
+function resetVisaCalMocks(): boolean {
+  (FETCH_POST as jest.Mock).mockReset();
+  (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(FIXTURES.MOCK_BROWSER);
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(VISACAL_SUCCESS_URL);
+  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
+  return true;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  resetVisaCalMocks();
+});
 
 describe('integration: full scrape flow', () => {
   it('happy path: cards + completed transactions with account and amounts', async () => {

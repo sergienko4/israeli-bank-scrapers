@@ -1,67 +1,30 @@
 import { jest } from '@jest/globals';
 
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createNavigationMock,
+  createTransactionsMock,
+} from '../MockModuleFactories.js';
 import { LEUMI_LOGIN_URL, LEUMI_SUCCESS_URL } from '../TestConstants.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock(LEUMI_SUCCESS_URL),
+);
+jest.unstable_mockModule('../../Common/Transactions.js', () => {
+  const { getRawTransaction } = createTransactionsMock();
+  return { getRawTransaction };
+});
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  ...createElementsMock(),
   pageEval: jest.fn().mockResolvedValue(LEUMI_LOGIN_URL),
   pageEvalAll: jest.fn().mockResolvedValue(''),
-
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
-  capturePageText: jest.fn().mockResolvedValue(''),
 }));
-
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue(LEUMI_SUCCESS_URL),
-  waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-  waitForRedirect: jest.fn().mockResolvedValue(undefined),
-  waitForUrl: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
-
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn(
-    (data: Record<string, string | number>): Record<string, string | number> => data,
-  ),
-}));
-
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
-  /**
-   * Mock Debug module.
-   * @returns mocked debug exports
-   */
-  () => ({
-    getDebug:
-      /**
-       * Debug factory.
-       * @returns mock logger
-       */
-      (): Record<string, jest.Mock> => ({
-        trace: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-  }),
-);
 
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =

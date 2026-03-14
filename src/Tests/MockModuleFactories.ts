@@ -147,7 +147,7 @@ export function createTransactionsMock(): {
     getRawTransaction: jest.fn(
       (data: Record<string, string | number>): Record<string, string | number> => data,
     ),
-    filterOldTransactions: jest.fn(<T>(_d: Date, txns: T[]): T[] => txns),
+    filterOldTransactions: jest.fn(<T>(txns: T[]): T[] => txns),
     fixInstallments: jest.fn(<T>(txns: T[]): T[] => txns),
     sortTransactionsByDate: jest.fn(<T>(txns: T[]): T[] => txns),
   };

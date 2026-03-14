@@ -1,72 +1,27 @@
 import { jest } from '@jest/globals';
 
 import type { IScrapedTransaction } from '../../Scrapers/Max/MaxScraper.js';
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createFetchMock,
+  createNavigationMock,
+  createTransactionsMock,
+} from '../MockModuleFactories.js';
 import { MAX_LOGIN_URL, MAX_SUCCESS_URL } from '../TestConstants.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({
-  fetchGetWithinPage: jest.fn(),
-}));
-
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
-
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
-
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue(MAX_SUCCESS_URL),
-  waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  waitForRedirect: jest.fn().mockResolvedValue(undefined),
-  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-  waitForUrl: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  fixInstallments: jest.fn(<T>(txns: T[]) => txns),
-  filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
-  sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
-  getRawTransaction: jest.fn(
-    (data: Record<string, string | number>): Record<string, string | number> => data,
-  ),
-}));
-
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
-  /**
-   * Mock Debug module.
-   * @returns mocked debug exports
-   */
-  () => ({
-    getDebug:
-      /**
-       * Debug factory.
-       * @returns mock logger
-       */
-      (): Record<string, jest.Mock> => ({
-        trace: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-  }),
-);
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', () => {
+  const { fetchGetWithinPage } = createFetchMock();
+  return { fetchGetWithinPage };
+});
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () => createNavigationMock(MAX_SUCCESS_URL));
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 // MOMENT is imported after this mock declaration, but jest.unstable_mockModule
 // uses a lazy factory — MOMENT will be bound by the time the factory executes.
@@ -117,31 +72,36 @@ function mockTxnMonth(txns: IScrapedTransaction[] = []): typeof FETCH_GET {
   return FETCH_GET;
 }
 
+/** Default values for a raw Max transaction. */
+const RAW_TXN_DEFAULTS: IScrapedTransaction = {
+  shortCardNumber: '4580',
+  paymentDate: '2024-06-15',
+  purchaseDate: '2024-06-10',
+  actualPaymentAmount: '100',
+  paymentCurrency: 376,
+  originalCurrency: SHEKEL_CURRENCY,
+  originalAmount: 100,
+  planName: 'רגילה',
+  planTypeId: 5,
+  comments: '',
+  merchantName: 'סופר שופ',
+  categoryId: 1,
+};
+
 /**
  * Creates a raw Max transaction with sensible defaults.
  * @param overrides - fields to override
  * @returns a scraped transaction
  */
 function rawTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
-  return {
-    shortCardNumber: '4580',
-    paymentDate: '2024-06-15',
-    purchaseDate: '2024-06-10',
-    actualPaymentAmount: '100',
-    paymentCurrency: 376,
-    originalCurrency: SHEKEL_CURRENCY,
-    originalAmount: 100,
-    planName: 'רגילה',
-    planTypeId: 5,
-    comments: '',
-    merchantName: 'סופר שופ',
-    categoryId: 1,
-    ...overrides,
-  };
+  return { ...RAW_TXN_DEFAULTS, ...overrides };
 }
 
-beforeEach(() => {
-  jest.clearAllMocks();
+/**
+ * Wire browser/context/page mocks for each test.
+ * @returns true when configured.
+ */
+function resetBrowserMocks(): boolean {
   const page = CREATE_MOCK_PAGE({
     url: jest.fn().mockReturnValue(MAX_SUCCESS_URL),
     waitForURL: jest.fn().mockResolvedValue(undefined),
@@ -150,6 +110,12 @@ beforeEach(() => {
   MOCK_CONTEXT.close.mockResolvedValue(undefined);
   MOCK_BROWSER.newContext.mockResolvedValue(MOCK_CONTEXT);
   MOCK_BROWSER.close.mockResolvedValue(undefined);
+  return true;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  resetBrowserMocks();
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_SUCCESS_URL);
   (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
