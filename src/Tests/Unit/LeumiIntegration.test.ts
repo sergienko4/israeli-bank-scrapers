@@ -117,21 +117,23 @@ function buildLeumiPageMock(
   };
 }
 
+/** Default history transaction for Leumi tests. */
+const DEFAULT_LEUMI_TXN = {
+  DateUTC: '2025-06-15T00:00:00',
+  Amount: -100,
+  Description: 'Test ITransaction',
+  ReferenceNumberLong: 12345,
+  AdditionalData: 'memo text',
+};
+
 /**
  * Build default Leumi response with one history transaction.
  * @returns mock response for a standard Leumi page
  */
 function buildDefaultLeumiResponse(): { json: jest.Mock } {
-  const txn = {
-    DateUTC: '2025-06-15T00:00:00',
-    Amount: -100,
-    Description: 'Test ITransaction',
-    ReferenceNumberLong: 12345,
-    AdditionalData: 'memo text',
-  };
   return createLeumiResponse({
     BalanceDisplay: '5000.00',
-    HistoryTransactionsItems: [txn],
+    HistoryTransactionsItems: [DEFAULT_LEUMI_TXN],
   });
 }
 
