@@ -104,13 +104,6 @@ function createLeumiResponse(overrides: Record<string, number | string | object[
 }
 
 /**
- * Build mock page overrides for a Leumi page.
- * @param accountIds - account IDs from page.evaluate.
- * @param response - mock API response object.
- * @param response.json - mock json() method on the response.
- * @returns partial page mock overrides.
- */
-/**
  * Create a mock goto response with ok=true, status=200.
  * @returns goto response mock
  */
@@ -146,17 +139,16 @@ function buildLeumiPageMock(
  * @returns mock response for a standard Leumi page
  */
 function buildDefaultLeumiResponse(): { json: jest.Mock } {
+  const txn = {
+    DateUTC: '2025-06-15T00:00:00',
+    Amount: -100,
+    Description: 'Test ITransaction',
+    ReferenceNumberLong: 12345,
+    AdditionalData: 'memo text',
+  };
   return createLeumiResponse({
     BalanceDisplay: '5000.00',
-    HistoryTransactionsItems: [
-      {
-        DateUTC: '2025-06-15T00:00:00',
-        Amount: -100,
-        Description: 'Test ITransaction',
-        ReferenceNumberLong: 12345,
-        AdditionalData: 'memo text',
-      },
-    ],
+    HistoryTransactionsItems: [txn],
   });
 }
 

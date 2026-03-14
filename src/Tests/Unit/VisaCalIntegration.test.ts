@@ -4,6 +4,7 @@ import {
   createBrowserMock,
   createCamoufoxMock,
   createDebugMock,
+  createElementsMock,
   createFetchMock,
   createNavigationMock,
   createStorageMock,
@@ -39,28 +40,16 @@ jest.unstable_mockModule(
 jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
 jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
-jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
-  /**
-   * Mock ElementsInteractions with VisaCal iframe URL.
-   * @returns Mocked module.
-   */
-  () => ({
-    clickButton: jest.fn().mockResolvedValue(undefined),
-    fillInput: jest.fn().mockResolvedValue(undefined),
-    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-    waitUntilIframeFound: jest.fn().mockResolvedValue({
-      url:
-        /**
-         * Frame URL getter.
-         * @returns URL string.
-         */
-        (): string => VISACAL_CONNECT_LOGIN_URL,
-    }),
-    elementPresentOnPage: jest.fn().mockResolvedValue(false),
-    pageEval: jest.fn().mockResolvedValue(''),
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
+  ...createElementsMock(),
+  waitUntilIframeFound: jest.fn().mockResolvedValue({
+    /**
+     * Get the VisaCal connect login URL.
+     * @returns VisaCal connect login URL.
+     */
+    url: (): string => VISACAL_CONNECT_LOGIN_URL,
   }),
-);
+}));
 
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { elementPresentOnPage: ELEMENT_PRESENT, pageEval: PAGE_EVAL } =

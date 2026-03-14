@@ -68,8 +68,8 @@ jest.unstable_mockModule(
   }),
 );
 
-// MOMENT is imported before the Dates mock references it, but jest.unstable_mockModule
-// uses a lazy factory — MOMENT is already bound by the time the mock executes.
+// MOMENT is imported after this mock declaration, but jest.unstable_mockModule
+// uses a lazy factory — MOMENT will be bound by the time the factory executes.
 jest.unstable_mockModule('../../Common/Dates.js', () => ({
   default: jest.fn(() => [MOMENT('2024-06-01')]),
 }));
