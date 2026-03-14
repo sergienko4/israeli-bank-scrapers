@@ -85,6 +85,13 @@ function evalBySelector(selector: string): string {
     return '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
   return '';
 }
+/** Default page mock methods for Beinleumi tests. */
+const DEFAULT_PAGE_MOCKS = {
+  $$eval: jest.fn().mockResolvedValue([]),
+  evaluate: jest.fn().mockResolvedValue([]),
+  frames: jest.fn().mockReturnValue([]),
+};
+
 /**
  * Create a page mock with standard account selectors.
  * @param overrides - Mock overrides for the page.
@@ -93,13 +100,8 @@ function evalBySelector(selector: string): string {
 function createPage(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
-  return CREATE_MOCK_PAGE({
-    $eval: jest.fn().mockImplementation(evalBySelector),
-    $$eval: jest.fn().mockResolvedValue([]),
-    evaluate: jest.fn().mockResolvedValue([]),
-    frames: jest.fn().mockReturnValue([]),
-    ...overrides,
-  });
+  const evalMock = jest.fn().mockImplementation(evalBySelector);
+  return CREATE_MOCK_PAGE({ $eval: evalMock, ...DEFAULT_PAGE_MOCKS, ...overrides });
 }
 
 /**
