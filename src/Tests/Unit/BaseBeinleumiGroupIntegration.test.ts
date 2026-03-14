@@ -127,8 +127,8 @@ beforeEach(() => {
 describe('integration: full scrape flow', () => {
   it('happy path: completed transactions table yields success with account and amounts', async () => {
     mockTxnTable([
-      { innerTds: ['10/06/2024', 'Salary', '5001', '', '\u20AA3,200.00'] },
-      { innerTds: ['12/06/2024', 'Rent', '5002', '\u20AA1,800.00', ''] },
+      { innerTds: ['10/06/2024', '5001', 'Salary', '', '\u20AA3,200.00'] },
+      { innerTds: ['12/06/2024', '5002', 'Rent', '\u20AA1,800.00', ''] },
     ]);
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     const accounts = INTEGRATION.assertSuccess(result, 1);

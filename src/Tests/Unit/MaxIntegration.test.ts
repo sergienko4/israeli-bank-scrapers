@@ -98,14 +98,22 @@ function rawTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransacti
 }
 
 /**
+ * Create a default Max page mock with success URL.
+ * @returns mock page
+ */
+function createMaxPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  return CREATE_MOCK_PAGE({
+    url: jest.fn().mockReturnValue(MAX_SUCCESS_URL),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+  });
+}
+
+/**
  * Wire browser/context/page mocks for each test.
  * @returns true when configured.
  */
 function resetBrowserMocks(): boolean {
-  const page = CREATE_MOCK_PAGE({
-    url: jest.fn().mockReturnValue(MAX_SUCCESS_URL),
-    waitForURL: jest.fn().mockResolvedValue(undefined),
-  });
+  const page = createMaxPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(page);
   MOCK_CONTEXT.close.mockResolvedValue(undefined);
   MOCK_BROWSER.newContext.mockResolvedValue(MOCK_CONTEXT);

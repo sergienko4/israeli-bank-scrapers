@@ -62,7 +62,7 @@ export function createMockBrowser(context: IMockContext): IMockBrowser {
 export function createBrowserScaffold(): {
   mockBrowser: IMockBrowser;
   mockContext: IMockContext;
-  wirePage: (pg: Record<string, jest.Mock>) => boolean;
+  wirePage: (_pg: Record<string, jest.Mock>) => boolean;
 } {
   const mockContext = createMockContext();
   const mockBrowser = createMockBrowser(mockContext);
