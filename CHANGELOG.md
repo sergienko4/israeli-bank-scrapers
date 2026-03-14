@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.0.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.5...v8.0.6) (2026-03-14)
+
+
+### Bug Fixes
+
+* harden CI/CD — timeouts, reliability, consolidate 10 jobs into 2 ([#154](https://github.com/sergienko4/israeli-bank-scrapers/issues/154)) ([cb6d573](https://github.com/sergienko4/israeli-bank-scrapers/commit/cb6d5739cb8315c2c0194a12cb5880ec0e15f3d8))
+
 ## [8.0.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.4...v8.0.5) (2026-03-13)
 
 
