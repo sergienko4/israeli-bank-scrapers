@@ -222,11 +222,9 @@ describe('integration: full scrape flow', () => {
     INTEGRATION.assertFailure(result, ERROR_TYPES.InvalidPassword);
   });
 
-  it('empty data: empty month responses with 0 txns', async () => {
+  it('empty data: null result from month API with 0 txns', async () => {
     mockCategories();
-    (FETCH_GET as jest.Mock).mockResolvedValueOnce({
-      result: { transactions: [] },
-    });
+    (FETCH_GET as jest.Mock).mockResolvedValueOnce({ result: null });
 
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
