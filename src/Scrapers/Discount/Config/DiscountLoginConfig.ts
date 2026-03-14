@@ -27,7 +27,7 @@ export const DISCOUNT_SUCCESS_URL =
 
 const DISCOUNT_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
   success: [
-    'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
+    DISCOUNT_SUCCESS_URL,
     'https://start.telebank.co.il/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE',
     'https://start.telebank.co.il/apollo/retail2/',
   ],

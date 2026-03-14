@@ -52,16 +52,20 @@ const CREDS = { username: 'testuser', password: 'testpass' };
  * @param overrides - fields to merge into the response JSON
  * @returns mock response object with json method
  */
+/** Default empty Leumi response shape. */
+const DEFAULT_LEUMI_RESPONSE = { TodayTransactionsItems: [], HistoryTransactionsItems: [] };
+
+/**
+ * Create a mock Leumi API response.
+ * @param overrides - fields to merge into default response
+ * @returns mock response with json()
+ */
 function createLeumiResponse(overrides: Record<string, number | string | object[]> = {}): {
   json: jest.Mock;
 } {
   return {
     json: jest.fn().mockResolvedValue({
-      jsonResp: JSON.stringify({
-        TodayTransactionsItems: [],
-        HistoryTransactionsItems: [],
-        ...overrides,
-      }),
+      jsonResp: JSON.stringify({ ...DEFAULT_LEUMI_RESPONSE, ...overrides }),
     }),
   };
 }
@@ -75,10 +79,30 @@ function mockGotoResponse(): { ok: jest.Mock; status: jest.Mock } {
 }
 
 /**
- * Build Leumi page mock with account IDs and response.
- * @param accountIds - account ID list
+ * Base page mock fields shared across Leumi tests.
+ * @param accountIds - account IDs
  * @param response - mock response object
- * @param response.json - jest mock returning parsed JSON
+ * @param response.json - jest mock for json()
+ * @returns base mock fields
+ */
+function leumiPageBase(
+  accountIds: string[],
+  response: { json: jest.Mock },
+): Record<string, jest.Mock> {
+  return {
+    evaluate: jest.fn().mockResolvedValue(accountIds),
+    waitForResponse: jest.fn().mockResolvedValue(response),
+    waitForSelector: jest.fn().mockResolvedValue(undefined),
+    focus: jest.fn().mockResolvedValue(undefined),
+    $: jest.fn().mockResolvedValue(null),
+  };
+}
+
+/**
+ * Build full Leumi page mock with goto and click.
+ * @param accountIds - account IDs
+ * @param response - mock response object
+ * @param response.json - jest mock for json()
  * @returns mock page overrides
  */
 function buildLeumiPageMock(
@@ -87,13 +111,9 @@ function buildLeumiPageMock(
 ): Record<string, jest.Mock> {
   const gotoRes = mockGotoResponse();
   return {
-    evaluate: jest.fn().mockResolvedValue(accountIds),
+    ...leumiPageBase(accountIds, response),
     goto: jest.fn().mockResolvedValue(gotoRes),
-    waitForResponse: jest.fn().mockResolvedValue(response),
-    waitForSelector: jest.fn().mockResolvedValue(undefined),
     $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
-    focus: jest.fn().mockResolvedValue(undefined),
-    $: jest.fn().mockResolvedValue(null),
   };
 }
 

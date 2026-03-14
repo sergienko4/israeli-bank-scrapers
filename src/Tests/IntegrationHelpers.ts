@@ -32,20 +32,6 @@ export interface IMockBrowser {
   close: jest.Mock;
 }
 
-/** Browser scaffold with mock browser, context, page wiring. */
-interface IBrowserScaffold {
-  /** Mock browser with newContext(). */
-  mockBrowser: IMockBrowser;
-  /** Mock context with newPage(). */
-  mockContext: IMockContext;
-  /**
-   * Wire a mock page into the scaffold.
-   * @param _page - mock page to return from newPage()
-   * @returns true when wired
-   */
-  wirePage: (_page: Record<string, jest.Mock>) => boolean;
-}
-
 /**
  * Create a mock browser context with newPage() and close().
  * @returns mock context object
@@ -73,7 +59,11 @@ export function createMockBrowser(context: IMockContext): IMockBrowser {
  * Create a browser scaffold wiring mockBrowser, mockContext, page.
  * @returns scaffold with mockBrowser, mockContext, wirePage
  */
-export function createBrowserScaffold(): IBrowserScaffold {
+export function createBrowserScaffold(): {
+  mockBrowser: IMockBrowser;
+  mockContext: IMockContext;
+  wirePage: (pg: Record<string, jest.Mock>) => boolean;
+} {
   const mockContext = createMockContext();
   const mockBrowser = createMockBrowser(mockContext);
   /**

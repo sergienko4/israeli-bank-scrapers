@@ -120,17 +120,27 @@ function createAuthRequestMock(): { method: () => string } {
  * @param token - Auth token to return from json().
  * @returns Response mock with json(), url(), and request().
  */
+/**
+ * Auth API URL getter.
+ * @returns VisaCal connect auth URL.
+ */
+const AUTH_URL = (): string => VISACAL_CONNECT_AUTH_URL;
+
+/**
+ * Create a mock auth response for waitForResponse.
+ * @param token - Auth token to return.
+ * @returns Response mock.
+ */
 function createAuthResponseMock(token = 'cal-auth-token'): {
   json: jest.Mock;
   url: () => string;
   request: () => { method: () => string };
 } {
-  /**
-   * Auth API URL getter.
-   * @returns Auth API URL.
-   */
-  const url = (): string => VISACAL_CONNECT_AUTH_URL;
-  return { json: jest.fn().mockResolvedValue({ token }), url, request: createAuthRequestMock };
+  return {
+    json: jest.fn().mockResolvedValue({ token }),
+    url: AUTH_URL,
+    request: createAuthRequestMock,
+  };
 }
 
 /**

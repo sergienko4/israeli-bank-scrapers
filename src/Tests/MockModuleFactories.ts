@@ -154,17 +154,15 @@ export function createTransactionsMock(): {
 }
 
 /**
- * Waiting module mock with real runSerial implementation.
- * @returns Waiting mock module
+ * Internal stubs for sleep, delay, serial, waitUntil, raceTimeout.
+ * @returns timing mock stubs
  */
-export function createWaitingMock(): {
+function serialRunnerStubs(): {
   sleep: jest.Mock;
   humanDelay: jest.Mock;
   runSerial: jest.Mock;
   waitUntil: jest.Mock;
   raceTimeout: jest.Mock;
-  TimeoutError: typeof Error;
-  SECOND: number;
 } {
   return {
     sleep: jest.fn().mockResolvedValue(undefined),
@@ -178,9 +176,24 @@ export function createWaitingMock(): {
     }),
     waitUntil: jest.fn(async <T>(func: () => Promise<T>): Promise<T> => func()),
     raceTimeout: jest.fn().mockResolvedValue(undefined),
-    TimeoutError: Error,
-    SECOND: 1000,
   };
+}
+
+/**
+ * Waiting module mock with real runSerial implementation.
+ * @returns Waiting mock module
+ */
+export function createWaitingMock(): {
+  sleep: jest.Mock;
+  humanDelay: jest.Mock;
+  runSerial: jest.Mock;
+  waitUntil: jest.Mock;
+  raceTimeout: jest.Mock;
+  TimeoutError: typeof Error;
+  SECOND: number;
+} {
+  const stubs = serialRunnerStubs();
+  return { ...stubs, TimeoutError: Error, SECOND: 1000 };
 }
 
 /**
