@@ -116,11 +116,6 @@ function createAuthRequestMock(): { method: () => string } {
 }
 
 /**
- * Create a mock auth response for waitForResponse.
- * @param token - Auth token to return from json().
- * @returns Response mock with json(), url(), and request().
- */
-/**
  * Auth API URL getter.
  * @returns VisaCal connect auth URL.
  */

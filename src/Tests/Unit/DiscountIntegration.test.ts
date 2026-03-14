@@ -1,61 +1,25 @@
 import { jest } from '@jest/globals';
 
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createFetchMock,
+  createNavigationMock,
+  createTransactionsMock,
+} from '../MockModuleFactories.js';
 import { DISCOUNT_LOGIN_PAGE_URL, DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({
-  fetchGetWithinPage: jest.fn(),
-}));
-
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
-
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  getCurrentUrl: jest.fn().mockResolvedValue(DISCOUNT_SUCCESS_URL),
-  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-  waitForRedirect: jest.fn().mockResolvedValue(undefined),
-  waitForUrl: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
-
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn(
-    (data: Record<string, string | number>): Record<string, string | number> => data,
-  ),
-}));
-
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger with all methods stubbed.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock(DISCOUNT_SUCCESS_URL),
+);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const LAUNCH_CAMOUFOX = await import('../../Common/CamoufoxLauncher.js');
 const FETCH_MODULE = await import('../../Common/Fetch.js');

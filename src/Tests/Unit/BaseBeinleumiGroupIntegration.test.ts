@@ -6,6 +6,7 @@ import {
   createCamoufoxMock,
   createDebugMock,
   createElementsMock,
+  createNavigationMock,
   createOtpMock,
   createTransactionsMock,
   createWaitingMock,
@@ -20,13 +21,9 @@ import {
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
-jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  getCurrentUrl: jest.fn().mockResolvedValue(BEINLEUMI_SUCCESS_URL),
-  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-  waitForRedirect: jest.fn().mockResolvedValue(undefined),
-  waitForUrl: jest.fn().mockResolvedValue(undefined),
-}));
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock(BEINLEUMI_SUCCESS_URL),
+);
 jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
 jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
 jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);

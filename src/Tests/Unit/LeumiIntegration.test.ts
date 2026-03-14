@@ -47,11 +47,6 @@ const MOCK_BROWSER = {
 
 const CREDS = { username: 'testuser', password: 'testpass' };
 
-/**
- * Creates a mock Leumi API response with optional data overrides.
- * @param overrides - fields to merge into the response JSON
- * @returns mock response object with json method
- */
 /** Default empty Leumi response shape. */
 const DEFAULT_LEUMI_RESPONSE = { TodayTransactionsItems: [], HistoryTransactionsItems: [] };
 
