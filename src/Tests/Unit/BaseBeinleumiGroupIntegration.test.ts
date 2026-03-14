@@ -152,6 +152,6 @@ describe('integration: full scrape flow', () => {
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     INTEGRATION.assertEmptyTxns(result);
     expect(result.accounts).toBeDefined();
-    expect(result.accounts?.length).toBeGreaterThanOrEqual(0);
+    expect(result.accounts?.length).toBeGreaterThanOrEqual(1);
   });
 });

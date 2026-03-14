@@ -59,13 +59,9 @@ export function createMockBrowser(context: IMockContext): IMockBrowser {
 interface IBrowserScaffold {
   mockBrowser: IMockBrowser;
   mockContext: IMockContext;
-  wirePage: (pg: Record<string, jest.Mock>) => boolean;
+  wirePage: (_pg: Record<string, jest.Mock>) => boolean;
 }
 
-/**
- * Create a browser scaffold wiring mockBrowser, mockContext, page.
- * @returns scaffold with mockBrowser, mockContext, wirePage
- */
 /**
  * Create a wirePage function bound to a context.
  * @param ctx - mock context to wire pages into
