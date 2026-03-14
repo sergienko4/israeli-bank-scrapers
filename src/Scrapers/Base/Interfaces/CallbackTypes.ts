@@ -1,4 +1,4 @@
-import type { Frame } from 'playwright';
+import type { Frame } from 'playwright-core';
 
 /**
  * Async return type for lifecycle callbacks that perform side effects.

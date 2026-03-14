@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 /** Nullable result from session storage lookup — matches browser API semantics. */
 type NullableStorageResult<T> = Promise<T | null>;

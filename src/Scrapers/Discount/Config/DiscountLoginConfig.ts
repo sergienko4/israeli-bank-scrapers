@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { waitUntilElementFound } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';

@@ -1,4 +1,4 @@
-import { type Browser, type Page } from 'playwright';
+import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { createScraper } from '../../index.js';

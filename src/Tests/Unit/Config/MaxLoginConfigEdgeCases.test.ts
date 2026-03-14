@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 const MOCK_ELEMENT_PRESENT = jest.fn().mockResolvedValue(false);
 

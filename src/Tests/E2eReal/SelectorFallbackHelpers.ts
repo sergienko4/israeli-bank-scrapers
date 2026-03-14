@@ -2,7 +2,7 @@
  * Shared helpers for selector-fallback real e2e tests.
  * Imported by each per-bank test file (run in parallel by Jest).
  */
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';

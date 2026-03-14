@@ -1,5 +1,5 @@
 import moment, { type Moment } from 'moment';
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import {
   clickButton,

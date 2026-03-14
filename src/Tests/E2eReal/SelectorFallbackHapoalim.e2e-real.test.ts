@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 /** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForRedirect } from '../../Common/Navigation.js';

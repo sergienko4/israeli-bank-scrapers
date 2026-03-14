@@ -9,7 +9,7 @@
  * Primary CSS selectors in the config are deliberately wrong.
  * Round 3 (WELL_KNOWN_SELECTORS) is what actually resolves each field.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';

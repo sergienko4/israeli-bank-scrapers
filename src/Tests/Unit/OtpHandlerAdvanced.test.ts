@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Frame, Page } from 'playwright';
+import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';

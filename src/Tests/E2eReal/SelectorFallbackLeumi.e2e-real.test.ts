@@ -7,7 +7,7 @@ import { jest } from '@jest/globals';
  * With WRONG CSS ids and NO explicit fallbacks configured, Round 3 must find the
  * login fields via the global WELL_KNOWN_SELECTORS Hebrew dictionary.
  */
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';

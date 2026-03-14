@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
 import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';

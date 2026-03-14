@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { type Browser, type BrowserContext } from 'playwright';
+import { type Browser, type BrowserContext } from 'playwright-core';
 
 import { type ILoginOptions } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import {

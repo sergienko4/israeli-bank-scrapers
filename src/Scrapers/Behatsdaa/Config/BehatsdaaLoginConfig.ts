@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../../Definitions.js';

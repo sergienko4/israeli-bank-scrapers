@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Frame, Page } from 'playwright';
+import type { Frame, Page } from 'playwright-core';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 

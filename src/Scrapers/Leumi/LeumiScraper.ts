@@ -1,6 +1,6 @@
 import { type Moment } from 'moment';
 import moment from 'moment';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import {
   clickButton,

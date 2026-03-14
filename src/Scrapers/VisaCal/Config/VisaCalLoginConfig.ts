@@ -1,4 +1,4 @@
-import type { Frame, Page } from 'playwright';
+import type { Frame, Page } from 'playwright-core';
 
 import {
   clickButton,

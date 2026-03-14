@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { type Frame } from 'playwright';
+import { type Frame } from 'playwright-core';
 
 import {
   clickButton,

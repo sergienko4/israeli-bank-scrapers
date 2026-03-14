@@ -1,4 +1,4 @@
-import { type Browser } from 'playwright';
+import { type Browser } from 'playwright-core';
 
 import { buildContextOptions } from '../../Common/Browser.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';

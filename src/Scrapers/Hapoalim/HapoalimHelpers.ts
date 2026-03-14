@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 import { v4 as uuid4 } from 'uuid';
 
 import { getDebug } from '../../Common/Debug.js';

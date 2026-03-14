@@ -1,4 +1,4 @@
-import { type Browser } from 'playwright';
+import { type Browser } from 'playwright-core';
 
 import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 

@@ -1,4 +1,4 @@
-import { type Browser, type BrowserContext, type Page } from 'playwright';
+import { type Browser, type BrowserContext, type Page } from 'playwright-core';
 
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions.js';
 import { type IErrorResult } from './Errors.js';

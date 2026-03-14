@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { pageEvalAll, waitUntilElementFound } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
