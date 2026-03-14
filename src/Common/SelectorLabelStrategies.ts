@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { getDebug } from './Debug.js';
 

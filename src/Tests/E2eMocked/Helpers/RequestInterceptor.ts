@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { type Page, type Request, type Route } from 'playwright';
+import { type Page, type Request, type Route } from 'playwright-core';
 import { fileURLToPath } from 'url';
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);

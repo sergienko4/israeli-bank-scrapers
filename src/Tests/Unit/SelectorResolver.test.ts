@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Frame, Page } from 'playwright';
+import type { Frame, Page } from 'playwright-core';
 
 import type { IFieldConfig, SelectorCandidate } from '../../Scrapers/Base/Config/LoginConfig.js';
 

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../Definitions.js';
 import { type ScraperOptions } from '../Scrapers/Base/Interface.js';

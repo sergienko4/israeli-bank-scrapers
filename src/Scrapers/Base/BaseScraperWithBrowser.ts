@@ -1,4 +1,4 @@
-import type { Browser, Frame, Page } from 'playwright';
+import type { Browser, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../Common/Browser.js';
 import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';

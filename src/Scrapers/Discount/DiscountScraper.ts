@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { fetchGetWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';

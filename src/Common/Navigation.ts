@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { NAVIGATION_TIMEOUT_MS, URL_POLL_INTERVAL_MS } from './Config/NavigationConfig.js';
 import { getDebug } from './Debug.js';

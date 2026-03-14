@@ -1,4 +1,4 @@
-import type { Frame, Page } from 'playwright';
+import type { Frame, Page } from 'playwright-core';
 
 import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import type { IBankScraperConfig } from '../Scrapers/Registry/Config/ScraperConfig.js';

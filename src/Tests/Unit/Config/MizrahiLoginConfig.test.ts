@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
 const MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR = jest.fn().mockResolvedValue(undefined);

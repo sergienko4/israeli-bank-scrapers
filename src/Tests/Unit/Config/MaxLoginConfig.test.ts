@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 import type { LifecyclePromise } from '../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 

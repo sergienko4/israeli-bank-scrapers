@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../../Common/FormAnchor.js';

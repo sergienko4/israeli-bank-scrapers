@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';

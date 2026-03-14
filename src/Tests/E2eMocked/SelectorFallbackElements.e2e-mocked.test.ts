@@ -3,7 +3,7 @@
  *
  * Tests span nested input, div sibling input, and placeholder regression.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';

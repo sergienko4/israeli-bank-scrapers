@@ -1,4 +1,4 @@
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { type Nullable } from '../Scrapers/Base/Interfaces/CallbackTypes.js';

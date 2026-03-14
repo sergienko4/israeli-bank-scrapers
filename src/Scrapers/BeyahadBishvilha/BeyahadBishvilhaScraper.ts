@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions.js';

@@ -1,4 +1,4 @@
-import type { Browser } from 'playwright';
+import type { Browser } from 'playwright-core';
 
 import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
 

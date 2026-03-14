@@ -3,7 +3,7 @@ import { jest } from '@jest/globals';
  * Max has a complex preAction (popups, password tab navigation) before form fill.
  * This test proves the selector resolution still works correctly with that preAction.
  */
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import {
   clickButton,

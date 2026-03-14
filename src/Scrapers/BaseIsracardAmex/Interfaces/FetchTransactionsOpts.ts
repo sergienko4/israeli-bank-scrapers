@@ -1,5 +1,5 @@
 import type { Moment } from 'moment';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 import type { ScraperOptions } from '../../Base/Interface.js';
 import type { ICompanyServiceOptions } from './CompanyServiceOptions.js';

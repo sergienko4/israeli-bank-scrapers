@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 import type { IStepResult, LoginStep } from '../../Common/LoginMiddleware.js';
 import type { ILoginOptions } from '../../Scrapers/Base/BaseScraperHelpers.js';

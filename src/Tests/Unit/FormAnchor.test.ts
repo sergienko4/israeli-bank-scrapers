@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { Page } from 'playwright';
+import type { Page } from 'playwright-core';
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
   /**

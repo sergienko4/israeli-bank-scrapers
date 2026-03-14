@@ -1,4 +1,4 @@
-import { type BrowserContextOptions } from 'playwright';
+import { type BrowserContextOptions } from 'playwright-core';
 
 import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 

@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Page, type Request } from 'playwright';
+import { type Page, type Request } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';

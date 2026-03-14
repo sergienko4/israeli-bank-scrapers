@@ -1,5 +1,5 @@
 import path from 'path';
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';

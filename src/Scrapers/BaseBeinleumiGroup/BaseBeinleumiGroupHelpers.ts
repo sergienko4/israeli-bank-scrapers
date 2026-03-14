@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';

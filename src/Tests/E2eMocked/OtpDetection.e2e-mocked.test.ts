@@ -7,7 +7,7 @@ import { jest } from '@jest/globals';
  *
  * All pages are served via Playwright route interception; no real network calls.
  */
-import { type Browser } from 'playwright';
+import { type Browser } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { type Frame, type Page } from 'playwright';
+import { type Frame, type Page } from 'playwright-core';
 
 jest.unstable_mockModule(
   '../../Common/Waiting.js',

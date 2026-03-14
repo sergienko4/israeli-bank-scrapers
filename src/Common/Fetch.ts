@@ -1,4 +1,4 @@
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import type { Nullable } from '../Scrapers/Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../Scrapers/Base/ScraperError.js';

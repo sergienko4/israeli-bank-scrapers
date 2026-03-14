@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 /** Selector-fallback: Discount Bank — Round 2 (main page fallback CSS id) + Round 1 (iframe-first detection). */
 import * as dotenv from 'dotenv';
-import { type Page } from 'playwright';
+import { type Page } from 'playwright-core';
 
 import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../Common/Navigation.js';

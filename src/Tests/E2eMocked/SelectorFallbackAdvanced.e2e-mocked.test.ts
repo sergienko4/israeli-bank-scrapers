@@ -3,7 +3,7 @@
  *
  * Tests labelText false-positive guard, iframe labelText, and sibling strategy.
  */
-import { type Browser, type Page } from 'playwright';
+import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
