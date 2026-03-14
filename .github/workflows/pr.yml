@@ -8,6 +8,11 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - 'tsup.config.ts'
+      - 'jest.config.js'
+      - 'eslint.config.mjs'
+      - '.prettierrc.cjs'
       - '.github/workflows/**'
       - '.github/actions/**'
   pull_request:
