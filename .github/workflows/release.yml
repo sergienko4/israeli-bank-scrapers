@@ -39,7 +39,7 @@ jobs:
       - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4
         id: release
         with:
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }} # PAT with contents:write — needed for cross-branch release commits
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

@@ -228,3 +228,5 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/build-package
+      - name: Dry-run publish (catch packaging errors early)
+        run: npm pack --dry-run
