@@ -5,10 +5,24 @@
  * stay in sync with the production login configs.
  */
 import { CompanyTypes } from '../Definitions.js';
+import ScraperError from '../Scrapers/Base/ScraperError.js';
 import { DISCOUNT_SUCCESS_URL } from '../Scrapers/Discount/Config/DiscountLoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks;
+
+/**
+ * Require a non-null config value, throwing at module load time if missing.
+ * @param value - The config value to check.
+ * @param name - Human-readable config key name for the error message.
+ * @returns The value, guaranteed to be a string.
+ */
+function requireConfig(value: unknown, name: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new ScraperError(`Required config "${name}" is missing`);
+  }
+  return value;
+}
 
 // ---- Hapoalim ----
 
@@ -72,7 +86,10 @@ export const MAX_LOGIN_URL = `${CFG[CompanyTypes.Max].urls.base}/login`;
 /** VisaCal base URL from scraper configuration. */
 export const VISACAL_BASE_URL = CFG[CompanyTypes.VisaCal].urls.base;
 
-const VISACAL_CAL_ORIGIN = CFG[CompanyTypes.VisaCal].api.calOrigin ?? 'MISSING:calOrigin';
+const VISACAL_CAL_ORIGIN = requireConfig(
+  CFG[CompanyTypes.VisaCal].api.calOrigin,
+  'VisaCal.api.calOrigin',
+);
 
 /** VisaCal dashboard origin (calOrigin). */
 export const VISACAL_ORIGIN = VISACAL_CAL_ORIGIN;

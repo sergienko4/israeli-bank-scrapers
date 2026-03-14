@@ -232,17 +232,23 @@ function mockWaitUntil(): boolean {
   return true;
 }
 
+/** Default card list for session storage mock. */
+const DEFAULT_CARDS: { cardUniqueId: string; last4Digits: string }[] = [
+  { cardUniqueId: 'card-1', last4Digits: '4580' },
+];
+
 /**
  * Configure session storage with card and auth data.
+ * @param cards - Card list returned for the 'init' key.
  * @returns true when configured.
  */
-function mockSessionStorage(): boolean {
+function mockSessionStorage(
+  cards: { cardUniqueId: string; last4Digits: string }[] = DEFAULT_CARDS,
+): boolean {
   (GET_SESSION_STORAGE as jest.Mock).mockImplementation(
     (_page: ReturnType<typeof CREATE_MOCK_PAGE>, key: string): Promise<ISessionData> => {
       if (key === 'init') {
-        return Promise.resolve({
-          result: { cards: [{ cardUniqueId: 'card-1', last4Digits: '4580' }] },
-        });
+        return Promise.resolve({ result: { cards } });
       }
       if (key === 'auth-module') {
         return Promise.resolve({ auth: { calConnectToken: 'cal-auth-token' } });
@@ -255,13 +261,16 @@ function mockSessionStorage(): boolean {
 
 /**
  * Set up mocks for VisaCal login and session flow.
+ * @param cards - Card list for session storage (defaults to one card).
  * @returns The mock page object.
  */
-function setupVisaCalMocks(): ReturnType<typeof CREATE_MOCK_PAGE> {
+function setupVisaCalMocks(
+  cards: { cardUniqueId: string; last4Digits: string }[] = DEFAULT_CARDS,
+): ReturnType<typeof CREATE_MOCK_PAGE> {
   const page = createMockVisaCalPage();
   FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
   mockWaitUntil();
-  mockSessionStorage();
+  mockSessionStorage(cards);
   return page;
 }
 
@@ -369,7 +378,7 @@ describe('integration: full scrape flow', () => {
   });
 
   it('empty data: empty card list from init API with 0 accounts', async () => {
-    setupVisaCalMocks();
+    setupVisaCalMocks([]);
     (FETCH_POST as jest.Mock)
       .mockResolvedValueOnce(FIXTURES.EMPTY_CARDS_INIT_RESPONSE)
       .mockResolvedValueOnce({ result: { bankIssuedCards: { cardLevelFrames: [] } } });

@@ -1,135 +1,31 @@
 import { jest } from '@jest/globals';
 
 import type { ITestAccountMock } from '../IntegrationHelpers.js';
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createFetchMock,
+  createNavigationMock,
+  createOtpMock,
+  createTransactionsMock,
+  createWaitingMock,
+} from '../MockModuleFactories.js';
 import { HAPOALIM_LOGIN_ERROR_URL, HAPOALIM_SUCCESS_URL } from '../TestConstants.js';
 import type { IHapoalimScrapedTxn } from './HapoalimFixtures.js';
 
-jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
-  /**
-   * Mock CamoufoxLauncher.
-   * @returns Mocked module.
-   */
-  () => ({ launchCamoufox: jest.fn() }),
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock(HAPOALIM_SUCCESS_URL),
 );
-
-jest.unstable_mockModule(
-  '../../Common/Fetch.js',
-  /**
-   * Mock Fetch.
-   * @returns Mocked module.
-   */
-  () => ({ fetchGetWithinPage: jest.fn(), fetchPostWithinPage: jest.fn() }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Browser.js',
-  /**
-   * Mock Browser.
-   * @returns Mocked module.
-   */
-  () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Navigation.js',
-  /**
-   * Mock Navigation.
-   * @returns Mocked module.
-   */
-  () => ({
-    getCurrentUrl: jest.fn().mockResolvedValue(HAPOALIM_SUCCESS_URL),
-    waitForNavigation: jest.fn().mockResolvedValue(undefined),
-    waitForRedirect: jest.fn().mockResolvedValue(undefined),
-    waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-    waitForUrl: jest.fn().mockResolvedValue(undefined),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
-  /**
-   * Mock ElementsInteractions.
-   * @returns Mocked module.
-   */
-  () => ({
-    clickButton: jest.fn().mockResolvedValue(undefined),
-    fillInput: jest.fn().mockResolvedValue(undefined),
-    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-    elementPresentOnPage: jest.fn().mockResolvedValue(false),
-    capturePageText: jest.fn().mockResolvedValue(''),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Waiting.js',
-  /**
-   * Mock Waiting.
-   * @returns Mocked module.
-   */
-  () => ({
-    waitUntil: jest.fn().mockResolvedValue(undefined),
-    sleep: jest.fn().mockResolvedValue(undefined),
-    humanDelay: jest.fn().mockResolvedValue(undefined),
-    /**
-     * Executes async actions sequentially, collecting results.
-     * @param actions - Array of async factory functions.
-     * @returns Array of resolved values.
-     */
-    runSerial: jest.fn().mockImplementation(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
-      const seed = Promise.resolve([] as T[]);
-      return actions.reduce(
-        (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
-        seed,
-      );
-    }),
-    raceTimeout: jest.fn().mockResolvedValue(undefined),
-    TimeoutError: Error,
-    SECOND: 1000,
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Transactions.js',
-  /**
-   * Mock Transactions.
-   * @returns Mocked module.
-   */
-  () => ({
-    getRawTransaction: jest.fn(
-      (data: Record<string, string | number>): Record<string, string | number> => data,
-    ),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
-  /**
-   * Mock Debug.
-   * @returns Mocked module.
-   */
-  () => ({
-    getDebug:
-      /**
-       * Debug factory.
-       * @returns Mock logger.
-       */
-      (): Record<string, jest.Mock> => ({
-        trace: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-  }),
-);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+jest.unstable_mockModule('../../Common/OtpHandler.js', createOtpMock);
 
 jest.unstable_mockModule(
   'uuid',
@@ -138,19 +34,6 @@ jest.unstable_mockModule(
    * @returns Mocked module.
    */
   () => ({ v4: jest.fn((): string => 'mock-uuid') }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/OtpHandler.js',
-  /**
-   * Mock OtpHandler.
-   * @returns Mocked module.
-   */
-  () => ({
-    handleOtpStep: jest.fn().mockResolvedValue(null),
-    handleOtpCode: jest.fn().mockResolvedValue(undefined),
-    handleOtpConfirm: jest.fn().mockResolvedValue(undefined),
-  }),
 );
 
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
