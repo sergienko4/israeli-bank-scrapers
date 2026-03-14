@@ -1,0 +1,46 @@
+# CodeRabbit AI PR Review Configuration
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en
+reviews:
+  # Auto-review every PR
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Review profile: assertive catches more issues
+  profile: assertive
+
+  # What to include in reviews
+  path_instructions:
+    - path: "src/Scrapers/**"
+      instructions: >
+        Bank scraper code. Check for: hardcoded CSS/ID selectors (must use visible text),
+        missing error handling, methods over 20 lines, any types, fetch pattern violations
+        (browser scrapers must use fetchPostWithinPage/fetchGetWithinPage, not native fetch).
+    - path: "src/Common/**"
+      instructions: >
+        Shared infrastructure. Check for: breaking changes to public API,
+        missing JSDoc on exported functions, max 3 params per function.
+    - path: ".github/**"
+      instructions: >
+        CI/CD workflows. Check for: missing timeout-minutes, unpinned actions,
+        overly broad permissions, missing set -euo pipefail in shell scripts.
+
+  # Don't review these paths
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/lib/**"
+    - "!package-lock.json"
+    - "!CHANGELOG.md"
+
+  # Request changes on high-severity issues
+  request_changes_workflow: true
+
+  # Collapse walkthrough for large PRs
+  collapse_walkthrough: true
+
+chat:
+  auto_reply: true
