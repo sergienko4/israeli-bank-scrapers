@@ -9,7 +9,7 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 
-const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
+export const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 
 /**

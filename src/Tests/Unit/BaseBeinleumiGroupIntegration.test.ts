@@ -1,77 +1,31 @@
 import { jest } from '@jest/globals';
 
 import { type ScraperOptions } from '../../Scrapers/Base/Interface.js';
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createOtpMock,
+  createTransactionsMock,
+  createWaitingMock,
+} from '../MockModuleFactories.js';
+import { BEINLEUMI_SUCCESS_URL } from '../TestConstants.js';
 
-/**
- * Create a mock that resolves to the given value.
- * @param v - The value to resolve.
- * @returns Mocked function.
- */
-const MOCK_RESOLVED = (v?: unknown): jest.Mock => jest.fn().mockResolvedValue(v);
-/**
- * Create a mock logger with all levels.
- * @returns Mock logger with trace/debug/info/warn/error.
- */
-const MOCK_LOGGER = (): Record<string, jest.Mock> => ({
-  trace: jest.fn(),
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-});
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: MOCK_RESOLVED(),
-  fillInput: MOCK_RESOLVED(),
-  waitUntilElementFound: MOCK_RESOLVED(),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  pageEvalAll: jest.fn().mockResolvedValue([]),
-  pageEval: jest.fn().mockResolvedValue(null),
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  waitForNavigation: MOCK_RESOLVED(),
-  getCurrentUrl: jest.fn().mockResolvedValue('https://test.fibi.co.il/Resources/PortalNG/shell'),
-  waitForNavigationAndDomLoad: MOCK_RESOLVED(),
-  waitForRedirect: MOCK_RESOLVED(),
-  waitForUrl: MOCK_RESOLVED(),
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+  getCurrentUrl: jest.fn().mockResolvedValue(BEINLEUMI_SUCCESS_URL),
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
-}));
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
-  sleep: MOCK_RESOLVED(),
-  humanDelay: MOCK_RESOLVED(),
-  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
-    const seed = Promise.resolve([] as T[]);
-    return actions.reduce(
-      (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
-      seed,
-    );
-  }),
-  waitUntil: MOCK_RESOLVED(),
-  raceTimeout: MOCK_RESOLVED(),
-  TimeoutError: Error,
-  SECOND: 1000,
-}));
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: MOCK_LOGGER,
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
-jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
-  handleOtpStep: jest.fn().mockResolvedValue(null),
-  handleOtpCode: jest.fn().mockResolvedValue({ success: true }),
-  handleOtpConfirm: MOCK_RESOLVED(''),
-}));
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+jest.unstable_mockModule('../../Common/OtpHandler.js', createOtpMock);
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { elementPresentOnPage: ELEMENT_PRESENT, pageEvalAll: PAGE_EVAL_ALL } =
   await import('../../Common/ElementsInteractions.js');
@@ -161,9 +115,7 @@ beforeEach(() => {
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const defaultPage = createPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
-  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-    'https://test.fibi.co.il/Resources/PortalNG/shell',
-  );
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(BEINLEUMI_SUCCESS_URL);
 });
 describe('integration: full scrape flow', () => {
   it('happy path: completed transactions table yields success with account and amounts', async () => {

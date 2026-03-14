@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 
+import { HAPOALIM_SUCCESS_URL } from '../TestConstants.js';
 import type { IHapoalimScrapedTxn } from './HapoalimFixtures.js';
 
 jest.unstable_mockModule(
@@ -36,9 +37,7 @@ jest.unstable_mockModule(
    * @returns Mocked module.
    */
   () => ({
-    getCurrentUrl: jest
-      .fn()
-      .mockResolvedValue('https://login.bankhapoalim.co.il/portalserver/HomePage'),
+    getCurrentUrl: jest.fn().mockResolvedValue(HAPOALIM_SUCCESS_URL),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     waitForRedirect: jest.fn().mockResolvedValue(undefined),
     waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
@@ -96,7 +95,9 @@ jest.unstable_mockModule(
    * @returns Mocked module.
    */
   () => ({
-    getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
+    getRawTransaction: jest.fn(
+      (data: Record<string, string | number>): Record<string, string | number> => data,
+    ),
   }),
 );
 
@@ -200,6 +201,39 @@ function mockTransactions(txns: IHapoalimScrapedTxn[] = []): boolean {
 }
 
 /**
+ * Configure waitUntil mock to execute and resolve its callback.
+ * @returns true when setup complete.
+ */
+function setupWaitUntilMock(): boolean {
+  (WAIT_UNTIL as jest.Mock).mockImplementation(
+    async (func: () => Promise<boolean>): Promise<boolean> => {
+      await func();
+      return true;
+    },
+  );
+  return true;
+}
+
+/**
+ * Wire a Hapoalim page into the context and mock accounts.
+ * @param accounts - Account list to mock.
+ * @returns The mock page object.
+ */
+function setupMockAccounts(
+  accounts: {
+    bankNumber: string;
+    branchNumber: string;
+    accountNumber: string;
+    accountClosingReasonCode: number;
+  }[],
+): ReturnType<typeof FIXTURES.createHapoalimPage> {
+  const page = FIXTURES.createHapoalimPage();
+  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+  mockAccounts(accounts);
+  return page;
+}
+
+/**
  * Set up login mocks and account data for Hapoalim tests.
  * @param accounts - Account list.
  * @returns The mock page object.
@@ -214,16 +248,8 @@ function setupLoginAndAccounts(
     { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
   ],
 ): ReturnType<typeof FIXTURES.createHapoalimPage> {
-  const page = FIXTURES.createHapoalimPage();
-  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
-  (WAIT_UNTIL as jest.Mock).mockImplementation(
-    async (func: () => Promise<boolean>): Promise<boolean> => {
-      await func();
-      return true;
-    },
-  );
-  mockAccounts(accounts);
-  return page;
+  setupWaitUntilMock();
+  return setupMockAccounts(accounts);
 }
 
 beforeEach(
@@ -238,9 +264,7 @@ beforeEach(
     (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(FIXTURES.MOCK_BROWSER);
     const page = FIXTURES.createHapoalimPage();
     FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-      'https://login.bankhapoalim.co.il/portalserver/HomePage',
-    );
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(HAPOALIM_SUCCESS_URL);
     return true;
   },
 );

@@ -1,4 +1,7 @@
 import { jest } from '@jest/globals';
+
+import { DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({
@@ -11,14 +14,9 @@ jest.unstable_mockModule('../../Common/Browser.js', () => ({
 
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
-  getCurrentUrl: jest
-    .fn()
-    .mockResolvedValue('https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE'),
-
+  getCurrentUrl: jest.fn().mockResolvedValue(DISCOUNT_SUCCESS_URL),
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
-
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -33,7 +31,9 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn((data: unknown) => data),
+  getRawTransaction: jest.fn(
+    (data: Record<string, string | number>): Record<string, string | number> => data,
+  ),
 }));
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
@@ -103,6 +103,27 @@ function mockAccountsData(
 }
 
 /**
+ * Build the raw transaction API response payload.
+ * @param txns - completed transactions.
+ * @param futureTxns - pending/future transactions.
+ * @param balance - account balance value.
+ * @returns response object matching Discount API shape.
+ */
+function buildTxnResponse(
+  txns: IDiscountTxn[],
+  futureTxns: IDiscountTxn[],
+  balance: number,
+): Record<string, object> {
+  return {
+    CurrentAccountLastTransactions: {
+      OperationEntry: txns,
+      CurrentAccountInfo: { AccountBalance: balance },
+      FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
+    },
+  };
+}
+
+/**
  * Mock the transactions API response.
  * @param txns - array of completed transactions.
  * @param futureTxns - array of pending/future transactions.
@@ -114,13 +135,8 @@ function mockTransactions(
   futureTxns: IDiscountTxn[] = [],
   balance = 5000,
 ): boolean {
-  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
-    CurrentAccountLastTransactions: {
-      OperationEntry: txns,
-      CurrentAccountInfo: { AccountBalance: balance },
-      FutureTransactionsBlock: { FutureTransactionEntry: futureTxns },
-    },
-  });
+  const response = buildTxnResponse(txns, futureTxns, balance);
+  (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(response);
   return true;
 }
 
@@ -146,9 +162,7 @@ describe('integration: full scrape flow', () => {
     (LAUNCH_CAMOUFOX.launchCamoufox as jest.Mock).mockResolvedValue(MOCK_BROWSER);
     const mockPage = MOCK_HELPERS.createMockPage();
     MOCK_CONTEXT.newPage.mockResolvedValue(mockPage);
-    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
-      'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
-    );
+    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(DISCOUNT_SUCCESS_URL);
   });
 
   it('happy path: 1 account with completed + pending transactions', async () => {

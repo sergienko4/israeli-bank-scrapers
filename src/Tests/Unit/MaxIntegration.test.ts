@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import type { IScrapedTransaction } from '../../Scrapers/Max/MaxScraper.js';
+import { MAX_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -22,12 +23,10 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il/homepage/personal'),
+  getCurrentUrl: jest.fn().mockResolvedValue(MAX_SUCCESS_URL),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
-
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -35,7 +34,9 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   fixInstallments: jest.fn(<T>(txns: T[]) => txns),
   filterOldTransactions: jest.fn(<T>(txns: T[]) => txns),
   sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
-  getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
+  getRawTransaction: jest.fn(
+    (data: Record<string, string | number>): Record<string, string | number> => data,
+  ),
 }));
 
 jest.unstable_mockModule(
@@ -67,6 +68,8 @@ jest.unstable_mockModule(
   }),
 );
 
+// MOMENT is imported before the Dates mock references it, but jest.unstable_mockModule
+// uses a lazy factory — MOMENT is already bound by the time the mock executes.
 jest.unstable_mockModule('../../Common/Dates.js', () => ({
   default: jest.fn(() => [MOMENT('2024-06-01')]),
 }));
@@ -140,7 +143,7 @@ function rawTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransacti
 beforeEach(() => {
   jest.clearAllMocks();
   const page = CREATE_MOCK_PAGE({
-    url: jest.fn().mockReturnValue('https://www.max.co.il/homepage/personal'),
+    url: jest.fn().mockReturnValue(MAX_SUCCESS_URL),
     waitForURL: jest.fn().mockResolvedValue(undefined),
   });
   MOCK_CONTEXT.newPage.mockResolvedValue(page);
@@ -148,17 +151,16 @@ beforeEach(() => {
   MOCK_BROWSER.newContext.mockResolvedValue(MOCK_CONTEXT);
   MOCK_BROWSER.close.mockResolvedValue(undefined);
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_SUCCESS_URL);
   (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
 /**
- * Set up categories and multi-card transaction mocks for happy path test.
- * @returns true when mocks are configured.
+ * Build multi-card transactions for the happy path test.
+ * @returns array of scraped transactions across two cards.
  */
-function setupHappyPathMocks(): boolean {
-  mockCategories();
-  mockTxnMonth([
+function buildHappyPathTxns(): IScrapedTransaction[] {
+  return [
     rawTxn({
       shortCardNumber: '1111',
       originalAmount: 200,
@@ -180,7 +182,17 @@ function setupHappyPathMocks(): boolean {
       merchantName: 'IKEA',
       categoryId: 1,
     }),
-  ]);
+  ];
+}
+
+/**
+ * Set up categories and multi-card transaction mocks for happy path test.
+ * @returns true when mocks are configured.
+ */
+function setupHappyPathMocks(): boolean {
+  mockCategories();
+  const txns = buildHappyPathTxns();
+  mockTxnMonth(txns);
   return true;
 }
 

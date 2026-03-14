@@ -1,5 +1,7 @@
 import { jest } from '@jest/globals';
 
+import { VISACAL_SUCCESS_URL } from '../TestConstants.js';
+
 jest.unstable_mockModule(
   '../../Common/CamoufoxLauncher.js',
   /**
@@ -57,7 +59,7 @@ jest.unstable_mockModule(
    * @returns Mocked module.
    */
   () => ({
-    getCurrentUrl: jest.fn().mockResolvedValue('https://digital-web.cal-online.co.il/dashboard'),
+    getCurrentUrl: jest.fn().mockResolvedValue(VISACAL_SUCCESS_URL),
     waitForNavigation: jest.fn().mockResolvedValue(undefined),
     waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
     waitForRedirect: jest.fn().mockResolvedValue(undefined),
@@ -82,7 +84,9 @@ jest.unstable_mockModule(
    */
   () => ({
     filterOldTransactions: jest.fn(<T>(txns: T[]): T[] => txns),
-    getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
+    getRawTransaction: jest.fn(
+      (data: Record<string, string | number>): Record<string, string | number> => data,
+    ),
   }),
 );
 
@@ -171,11 +175,11 @@ function visaCalOptions(
 }
 
 /**
- * Set up mocks for VisaCal login and session flow.
- * @returns The mock page object.
+ * Create a mock VisaCal page with login iframe and auth response.
+ * @returns mock page object.
  */
-function setupVisaCalMocks(): ReturnType<typeof CREATE_MOCK_PAGE> {
-  const page = CREATE_MOCK_PAGE({
+function createMockVisaCalPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  return CREATE_MOCK_PAGE({
     frames: jest.fn().mockReturnValue([
       {
         url:
@@ -210,12 +214,24 @@ function setupVisaCalMocks(): ReturnType<typeof CREATE_MOCK_PAGE> {
         }),
     }),
   });
-  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+}
 
+/**
+ * Configure waitUntil to execute its callback immediately.
+ * @returns true when configured.
+ */
+function mockWaitUntil(): boolean {
   (WAIT_UNTIL as jest.Mock).mockImplementation(
     async <T>(func: () => Promise<T>): Promise<T> => func(),
   );
+  return true;
+}
 
+/**
+ * Configure session storage with card and auth data.
+ * @returns true when configured.
+ */
+function mockSessionStorage(): boolean {
   (GET_SESSION_STORAGE as jest.Mock).mockImplementation(
     (_page: ReturnType<typeof CREATE_MOCK_PAGE>, key: string): Promise<ISessionData> => {
       if (key === 'init') {
@@ -229,7 +245,18 @@ function setupVisaCalMocks(): ReturnType<typeof CREATE_MOCK_PAGE> {
       return Promise.resolve(EMPTY_SESSION);
     },
   );
+  return true;
+}
 
+/**
+ * Set up mocks for VisaCal login and session flow.
+ * @returns The mock page object.
+ */
+function setupVisaCalMocks(): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const page = createMockVisaCalPage();
+  FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
+  mockWaitUntil();
+  mockSessionStorage();
   return page;
 }
 
@@ -262,9 +289,7 @@ beforeEach(
     jest.clearAllMocks();
     (FETCH_POST as jest.Mock).mockReset();
     (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(FIXTURES.MOCK_BROWSER);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-      'https://digital-web.cal-online.co.il/dashboard',
-    );
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(VISACAL_SUCCESS_URL);
     (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
     return true;
   },

@@ -1,4 +1,7 @@
 import { jest } from '@jest/globals';
+
+import { LEUMI_SUCCESS_URL } from '../TestConstants.js';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
@@ -14,13 +17,10 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx'),
+  getCurrentUrl: jest.fn().mockResolvedValue(LEUMI_SUCCESS_URL),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
-
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
-
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -29,7 +29,9 @@ jest.unstable_mockModule('../../Common/Browser.js', () => ({
 }));
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
+  getRawTransaction: jest.fn(
+    (data: Record<string, string | number>): Record<string, string | number> => data,
+  ),
 }));
 
 jest.unstable_mockModule(
@@ -102,6 +104,31 @@ function createLeumiResponse(overrides: Record<string, number | string | object[
 }
 
 /**
+ * Build mock page overrides for a Leumi page.
+ * @param accountIds - account IDs from page.evaluate.
+ * @param response - mock API response object.
+ * @param response.json - mock json() method on the response.
+ * @returns partial page mock overrides.
+ */
+function buildLeumiPageMock(
+  accountIds: string[],
+  response: { json: jest.Mock },
+): Record<string, jest.Mock> {
+  return {
+    evaluate: jest.fn().mockResolvedValue(accountIds),
+    goto: jest.fn().mockResolvedValue({
+      ok: jest.fn().mockReturnValue(true),
+      status: jest.fn().mockReturnValue(200),
+    }),
+    waitForResponse: jest.fn().mockResolvedValue(response),
+    waitForSelector: jest.fn().mockResolvedValue(undefined),
+    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
+    focus: jest.fn().mockResolvedValue(undefined),
+    $: jest.fn().mockResolvedValue(null),
+  };
+}
+
+/**
  * Creates a mock Leumi page with default response data.
  * @param accountIds - list of account IDs to return from page.evaluate
  * @returns mock page object
@@ -119,19 +146,8 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
       },
     ],
   });
-
-  return CREATE_MOCK_PAGE({
-    evaluate: jest.fn().mockResolvedValue(accountIds),
-    goto: jest.fn().mockResolvedValue({
-      ok: jest.fn().mockReturnValue(true),
-      status: jest.fn().mockReturnValue(200),
-    }),
-    waitForResponse: jest.fn().mockResolvedValue(mockResponse),
-    waitForSelector: jest.fn().mockResolvedValue(undefined),
-    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
-    focus: jest.fn().mockResolvedValue(undefined),
-    $: jest.fn().mockResolvedValue(null),
-  });
+  const overrides = buildLeumiPageMock(accountIds, mockResponse);
+  return CREATE_MOCK_PAGE(overrides);
 }
 
 beforeEach(() => {
@@ -139,9 +155,7 @@ beforeEach(() => {
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const defaultPage = createLeumiPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
-  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-    'https://hb2.bankleumi.co.il/ebanking/SO/SPA.aspx',
-  );
+  (GET_CURRENT_URL as jest.Mock).mockResolvedValue(LEUMI_SUCCESS_URL);
   (PAGE_EVAL as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/login');
 });
 

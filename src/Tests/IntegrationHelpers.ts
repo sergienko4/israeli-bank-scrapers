@@ -90,6 +90,7 @@ export function assertFailure(
  */
 export function assertEmptyTxns(result: IScraperScrapingResult): boolean {
   expect(result.success).toBe(true);
+  expect(result.accounts).toBeDefined();
   const accounts = result.accounts ?? [];
   const totalTxns = accounts.reduce((sum, acct) => sum + acct.txns.length, 0);
   expect(totalTxns).toBe(0);
