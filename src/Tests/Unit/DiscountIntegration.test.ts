@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import { DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
+import { DISCOUNT_LOGIN_PAGE_URL, DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -95,7 +95,7 @@ function mockAccountsData(
 ): boolean {
   (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce({
     UserAccountsData: {
-      DefaultAccountNumber: accounts[0].AccountID,
+      DefaultAccountNumber: accounts[0]?.AccountID ?? '',
       UserAccounts: accounts.map(acct => ({ NewAccountInfo: acct })),
     },
   });
@@ -192,9 +192,7 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: returns InvalidPassword when URL stays on login page', async () => {
-    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(
-      'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE',
-    );
+    (NAV_MODULE.getCurrentUrl as jest.Mock).mockResolvedValue(DISCOUNT_LOGIN_PAGE_URL);
 
     const scraper = new DISCOUNT_MODULE.default(MOCK_HELPERS.createMockScraperOptions());
     const result = await scraper.scrape(CREDS);

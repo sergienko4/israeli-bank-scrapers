@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import { LEUMI_SUCCESS_URL } from '../TestConstants.js';
+import { LEUMI_LOGIN_URL, LEUMI_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -8,7 +8,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  pageEval: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/login'),
+  pageEval: jest.fn().mockResolvedValue(LEUMI_LOGIN_URL),
   pageEvalAll: jest.fn().mockResolvedValue(''),
 
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
@@ -129,12 +129,11 @@ function buildLeumiPageMock(
 }
 
 /**
- * Creates a mock Leumi page with default response data.
- * @param accountIds - list of account IDs to return from page.evaluate
- * @returns mock page object
+ * Build default Leumi response with one history transaction.
+ * @returns mock response for a standard Leumi page
  */
-function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof CREATE_MOCK_PAGE> {
-  const mockResponse = createLeumiResponse({
+function buildDefaultLeumiResponse(): { json: jest.Mock } {
+  return createLeumiResponse({
     BalanceDisplay: '5000.00',
     HistoryTransactionsItems: [
       {
@@ -146,7 +145,16 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
       },
     ],
   });
-  const overrides = buildLeumiPageMock(accountIds, mockResponse);
+}
+
+/**
+ * Creates a mock Leumi page with default response data.
+ * @param accountIds - list of account IDs to return from page.evaluate
+ * @returns mock page object
+ */
+function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const response = buildDefaultLeumiResponse();
+  const overrides = buildLeumiPageMock(accountIds, response);
   return CREATE_MOCK_PAGE(overrides);
 }
 
@@ -156,7 +164,8 @@ beforeEach(() => {
   const defaultPage = createLeumiPage();
   MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(LEUMI_SUCCESS_URL);
-  (PAGE_EVAL as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/login');
+  (PAGE_EVAL as jest.Mock).mockResolvedValue(LEUMI_LOGIN_URL);
+  (PAGE_EVAL_ALL as jest.Mock).mockResolvedValue('');
 });
 
 describe('integration: full scrape flow', () => {
@@ -214,7 +223,7 @@ describe('integration: full scrape flow', () => {
       '\u05E9\u05DE\u05E1\u05E8\u05EA \u05E9\u05D2\u05D5\u05D9\u05D9\u05DD. ' +
       '\u05E0\u05D9\u05EA\u05DF \u05DC\u05E0\u05E1\u05D5\u05EA \u05E9\u05D5\u05D1';
     (PAGE_EVAL_ALL as jest.Mock).mockResolvedValue(errorMsg);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://hb2.bankleumi.co.il/login');
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(LEUMI_LOGIN_URL);
 
     const scraper = new LEUMI_SCRAPER(CREATE_MOCK_SCRAPER_OPTIONS());
     const result = await scraper.scrape(CREDS);

@@ -1,6 +1,11 @@
 import { jest } from '@jest/globals';
 
-import { VISACAL_SUCCESS_URL } from '../TestConstants.js';
+import {
+  VISACAL_CONNECT_AUTH_URL,
+  VISACAL_CONNECT_LOGIN_URL,
+  VISACAL_LOGIN_URL,
+  VISACAL_SUCCESS_URL,
+} from '../TestConstants.js';
 
 jest.unstable_mockModule(
   '../../Common/CamoufoxLauncher.js',
@@ -45,7 +50,7 @@ jest.unstable_mockModule(
          * Frame URL getter.
          * @returns URL string.
          */
-        (): string => 'https://connect.cal-online.co.il/login',
+        (): string => VISACAL_CONNECT_LOGIN_URL,
     }),
     elementPresentOnPage: jest.fn().mockResolvedValue(false),
     pageEval: jest.fn().mockResolvedValue(''),
@@ -187,7 +192,7 @@ function createMockVisaCalPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
            * Frame URL getter.
            * @returns URL.
            */
-          (): string => 'https://connect.cal-online.co.il/login',
+          (): string => VISACAL_CONNECT_LOGIN_URL,
         waitForSelector: jest.fn().mockResolvedValue(undefined),
       },
     ]),
@@ -198,7 +203,7 @@ function createMockVisaCalPage(): ReturnType<typeof CREATE_MOCK_PAGE> {
          * Response URL getter.
          * @returns URL.
          */
-        (): string => 'https://connect.cal-online.co.il/col-rest/calconnect/authentication/login',
+        (): string => VISACAL_CONNECT_AUTH_URL,
       request:
         /**
          * Request getter.
@@ -314,7 +319,7 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error element in iframe returns InvalidPassword', async () => {
-    const loginUrl = 'https://www.cal-online.co.il/';
+    const loginUrl = VISACAL_LOGIN_URL;
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue(loginUrl),
       waitForURL: jest.fn().mockResolvedValue(undefined),
@@ -325,7 +330,7 @@ describe('integration: full scrape flow', () => {
              * Frame URL getter.
              * @returns URL.
              */
-            (): string => 'https://connect.cal-online.co.il/login',
+            (): string => VISACAL_CONNECT_LOGIN_URL,
           waitForSelector: jest.fn().mockResolvedValue(undefined),
         },
       ]),
@@ -336,7 +341,7 @@ describe('integration: full scrape flow', () => {
            * Response URL getter.
            * @returns URL.
            */
-          (): string => 'https://connect.cal-online.co.il/col-rest/calconnect/authentication/login',
+          (): string => VISACAL_CONNECT_AUTH_URL,
         request:
           /**
            * Request getter.

@@ -12,18 +12,61 @@ import type { ScraperErrorTypes } from '../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import type { ITransactionsAccount } from '../Transactions.js';
 
+/** Generic account mock reusable across banks that use account number + branch format. */
+export interface ITestAccountMock {
+  bankNumber: string;
+  branchNumber: string;
+  accountNumber: string;
+  accountClosingReasonCode: number;
+}
+
+/** Mock browser context shape. */
+export interface IMockContext {
+  newPage: jest.Mock;
+  close: jest.Mock;
+}
+
+/** Mock browser shape. */
+export interface IMockBrowser {
+  newContext: jest.Mock;
+  close: jest.Mock;
+}
+
 /** Browser scaffold with mock browser, context, page wiring. */
 interface IBrowserScaffold {
   /** Mock browser with newContext(). */
-  mockBrowser: { newContext: jest.Mock; close: jest.Mock };
+  mockBrowser: IMockBrowser;
   /** Mock context with newPage(). */
-  mockContext: { newPage: jest.Mock; close: jest.Mock };
+  mockContext: IMockContext;
   /**
    * Wire a mock page into the scaffold.
-   * @param page - mock page to return from newPage()
+   * @param _page - mock page to return from newPage()
    * @returns true when wired
    */
-  wirePage: (page: Record<string, jest.Mock>) => boolean;
+  wirePage: (_page: Record<string, jest.Mock>) => boolean;
+}
+
+/**
+ * Create a mock browser context with newPage() and close().
+ * @returns mock context object
+ */
+export function createMockContext(): IMockContext {
+  return {
+    newPage: jest.fn(),
+    close: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+/**
+ * Create a mock browser wired to a given context.
+ * @param context - mock context to return from newContext()
+ * @returns mock browser object
+ */
+export function createMockBrowser(context: IMockContext): IMockBrowser {
+  return {
+    newContext: jest.fn().mockResolvedValue(context),
+    close: jest.fn().mockResolvedValue(undefined),
+  };
 }
 
 /**
@@ -31,21 +74,15 @@ interface IBrowserScaffold {
  * @returns scaffold with mockBrowser, mockContext, wirePage
  */
 export function createBrowserScaffold(): IBrowserScaffold {
-  const mockContext = {
-    newPage: jest.fn(),
-    close: jest.fn().mockResolvedValue(undefined),
-  };
-  const mockBrowser = {
-    newContext: jest.fn().mockResolvedValue(mockContext),
-    close: jest.fn().mockResolvedValue(undefined),
-  };
+  const mockContext = createMockContext();
+  const mockBrowser = createMockBrowser(mockContext);
   /**
-   * Wire a page into the context.
-   * @param page - mock page
-   * @returns true
+   * Wire a page mock into the context.
+   * @param pg - mock page to wire
+   * @returns true when wired
    */
-  const wirePage = (page: Record<string, jest.Mock>): boolean => {
-    mockContext.newPage.mockResolvedValue(page);
+  const wirePage = (pg: Record<string, jest.Mock>): boolean => {
+    mockContext.newPage.mockResolvedValue(pg);
     return true;
   };
   return { mockBrowser, mockContext, wirePage };

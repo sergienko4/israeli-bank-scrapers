@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
-import { HAPOALIM_SUCCESS_URL } from '../TestConstants.js';
+import type { ITestAccountMock } from '../IntegrationHelpers.js';
+import { HAPOALIM_LOGIN_ERROR_URL, HAPOALIM_SUCCESS_URL } from '../TestConstants.js';
 import type { IHapoalimScrapedTxn } from './HapoalimFixtures.js';
 
 jest.unstable_mockModule(
@@ -168,14 +169,7 @@ const INTEGRATION = await import('../IntegrationHelpers.js');
  * @param accounts - Account list.
  * @returns True when setup complete.
  */
-function mockAccounts(
-  accounts: {
-    bankNumber: string;
-    branchNumber: string;
-    accountNumber: string;
-    accountClosingReasonCode: number;
-  }[] = [],
-): boolean {
+function mockAccounts(accounts: ITestAccountMock[] = []): boolean {
   (FETCH_GET as jest.Mock).mockResolvedValueOnce(accounts);
   return true;
 }
@@ -220,12 +214,7 @@ function setupWaitUntilMock(): boolean {
  * @returns The mock page object.
  */
 function setupMockAccounts(
-  accounts: {
-    bankNumber: string;
-    branchNumber: string;
-    accountNumber: string;
-    accountClosingReasonCode: number;
-  }[],
+  accounts: ITestAccountMock[],
 ): ReturnType<typeof FIXTURES.createHapoalimPage> {
   const page = FIXTURES.createHapoalimPage();
   FIXTURES.MOCK_CONTEXT.newPage.mockResolvedValue(page);
@@ -239,12 +228,7 @@ function setupMockAccounts(
  * @returns The mock page object.
  */
 function setupLoginAndAccounts(
-  accounts: {
-    bankNumber: string;
-    branchNumber: string;
-    accountNumber: string;
-    accountClosingReasonCode: number;
-  }[] = [
+  accounts: ITestAccountMock[] = [
     { bankNumber: '12', branchNumber: '345', accountNumber: '678', accountClosingReasonCode: 0 },
   ],
 ): ReturnType<typeof FIXTURES.createHapoalimPage> {
@@ -299,9 +283,7 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error URL returns InvalidPassword', async () => {
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-      'https://login.bankhapoalim.co.il/AUTHENTICATE/LOGON?flow=AUTHENTICATE&state=LOGON&errorcode=1.6&callme=false',
-    );
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(HAPOALIM_LOGIN_ERROR_URL);
 
     const result = await new HAPOALIM_SCRAPER(CREATE_OPTS()).scrape(FIXTURES.CREDS);
     INTEGRATION.assertFailure(result, SCRAPER_ERROR_TYPES.InvalidPassword);

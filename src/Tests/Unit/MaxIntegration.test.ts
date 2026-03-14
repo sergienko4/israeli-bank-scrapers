@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import type { IScrapedTransaction } from '../../Scrapers/Max/MaxScraper.js';
-import { MAX_SUCCESS_URL } from '../TestConstants.js';
+import { MAX_LOGIN_URL, MAX_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -247,11 +247,11 @@ describe('integration: full scrape flow', () => {
 
   it('invalid login: error popup returns InvalidPassword', async () => {
     const loginPage = CREATE_MOCK_PAGE({
-      url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
+      url: jest.fn().mockReturnValue(MAX_LOGIN_URL),
       waitForURL: jest.fn().mockResolvedValue(undefined),
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_LOGIN_URL);
     (ELEMENT_PRESENT as jest.Mock)
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true)

@@ -10,7 +10,13 @@ import {
   createTransactionsMock,
   createWaitingMock,
 } from '../MockModuleFactories.js';
-import { BEINLEUMI_SUCCESS_URL } from '../TestConstants.js';
+import {
+  BEINLEUMI_BASE_URL,
+  BEINLEUMI_LOGIN_URL,
+  BEINLEUMI_SUCCESS_URL,
+  BEINLEUMI_TEST_BASE_URL,
+  BEINLEUMI_TEST_TRANSACTIONS_URL,
+} from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
@@ -41,14 +47,14 @@ const INTEGRATION = await import('../IntegrationHelpers.js');
 
 /** Test scraper extending the Beinleumi group base. */
 class TestBeinleumiScraper extends BEINLEUMI_GROUP_BASE_SCRAPER {
-  public BASE_URL = 'https://test.fibi.co.il';
-  public TRANSACTIONS_URL = 'https://test.fibi.co.il/transactions';
+  public BASE_URL = BEINLEUMI_TEST_BASE_URL;
+  public TRANSACTIONS_URL = BEINLEUMI_TEST_TRANSACTIONS_URL;
   /**
    * Create test Beinleumi scraper.
    * @param options - Scraper options.
    */
   constructor(options: ScraperOptions) {
-    const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
+    const config = BEINLEUMI_CONFIG(BEINLEUMI_BASE_URL);
     super(options, config);
   }
 }
@@ -131,9 +137,7 @@ describe('integration: full scrape flow', () => {
     expect(accounts[0]?.txns[1]?.originalAmount).toBe(-1800);
   });
   it('invalid login: marketing URL returns InvalidPassword error', async () => {
-    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
-      'https://test.fibi.co.il/FibiMenu/Marketing/Private/Home',
-    );
+    (GET_CURRENT_URL as jest.Mock).mockResolvedValue(BEINLEUMI_LOGIN_URL);
     const result = await new TestBeinleumiScraper(CREATE_OPTS()).scrape(CREDS);
     INTEGRATION.assertFailure(result, SCRAPER_ERROR_TYPES.InvalidPassword);
   });
