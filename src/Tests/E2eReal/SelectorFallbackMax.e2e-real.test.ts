@@ -10,10 +10,25 @@ import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { WRONG_DETAILS_TEXTS } from '../../Scrapers/Max/Config/MaxLoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
+
+/**
+ * Check whether any known error text is visible on the page.
+ * @param opts - Options containing the Playwright page.
+ * @param opts.page - The Playwright page to inspect.
+ * @returns True if any error indicator text is visible.
+ */
+async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
+  const pg = opts?.page;
+  if (!pg) return false;
+  const checks = WRONG_DETAILS_TEXTS.map(t => pg.getByText(t).first().isVisible());
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
+}
 
 const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
@@ -73,8 +88,7 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
-    const errorTexts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
-    const errorWaiters = errorTexts.map(text =>
+    const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
       page.getByText(text).first().waitFor({ state: 'visible', timeout: 20000 }),
     );
     await Promise.race([
@@ -90,26 +104,8 @@ const BASE_CFG: ILoginConfig = {
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
-    invalidPassword: [
-      async (opts): Promise<boolean> => {
-        const pg = opts?.page;
-        if (!pg) return false;
-        const texts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
-        const checks = texts.map(t => pg.getByText(t).first().isVisible());
-        const results = await Promise.all(checks);
-        return results.some(Boolean);
-      },
-    ],
-    unknownError: [
-      async (opts): Promise<boolean> => {
-        const pg = opts?.page;
-        if (!pg) return false;
-        const texts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
-        const checks = texts.map(t => pg.getByText(t).first().isVisible());
-        const results = await Promise.all(checks);
-        return results.some(Boolean);
-      },
-    ],
+    invalidPassword: [isErrorTextOnPage],
+    unknownError: [isErrorTextOnPage],
   },
 };
 
