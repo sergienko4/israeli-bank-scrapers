@@ -293,7 +293,8 @@ interface IFetchByIdOpts {
 async function fetchAccountById(opts: IFetchByIdOpts): Promise<ITransactionsAccount> {
   const { rawAccountId, totalAccounts, page, startDate, options } = opts;
   const didSwitch = await switchToAccount(page, rawAccountId, totalAccounts);
-  LOG.debug('switchToAccount(%s): %s', rawAccountId, didSwitch ? 'switched' : 'skipped');
+  const masked = `***${rawAccountId.slice(-4)}`;
+  LOG.debug('switchToAccount(%s): %s', masked, didSwitch ? 'switched' : 'skipped');
   const accountId = removeSpecialCharacters(rawAccountId);
   return fetchTransactionsForAccount({ page, startDate, accountId, options });
 }

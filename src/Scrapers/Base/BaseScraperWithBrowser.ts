@@ -77,7 +77,8 @@ class BaseScraperWithBrowser<
 
   /**
    * Initialize the browser page and prepare the scraper for login.
-   * @returns True when page is ready, false if page creation failed.
+   * @returns True when page is ready.
+   * @throws ScraperError if page creation fails.
    */
   public async initialize(): Promise<boolean> {
     await super.initialize();
@@ -124,10 +125,9 @@ class BaseScraperWithBrowser<
    * @returns The login configuration for this bank.
    */
   public getLoginOptions(credentials: ScraperCredentials): ILoginOptions {
-    const keyCount = String(Object.keys(credentials).length);
-    throw new ScraperError(
-      `getLoginOptions(${keyCount} keys) is not created in ${this.options.companyId}`,
-    );
+    const keyCount = Object.keys(credentials).length;
+    const company = this.options.companyId;
+    throw new ScraperError(`getLoginOptions(${String(keyCount)} keys) not created in ${company}`);
   }
 
   /**
