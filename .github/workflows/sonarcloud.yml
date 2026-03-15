@@ -38,7 +38,7 @@ jobs:
         uses: ./.github/actions/setup-node-deps
 
       - name: Run unit tests with coverage
-        run: npm run test:unit -- --coverage
+        run: npm run test:unit -- --coverage --testPathIgnorePatterns=E2e
         env:
           NODE_OPTIONS: --experimental-vm-modules
 
