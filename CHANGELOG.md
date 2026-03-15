@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.2.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.1.0...v8.2.0) (2026-03-15)
+
+
+### Features
+
+* add SonarCloud static analysis workflow ([#160](https://github.com/sergienko4/israeli-bank-scrapers/issues/160)) ([3bf3c43](https://github.com/sergienko4/israeli-bank-scrapers/commit/3bf3c43e69af745e8d86d54c5ebb6eeec31d44db))
+
 ## [8.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.6...v8.1.0) (2026-03-14)
 
 
