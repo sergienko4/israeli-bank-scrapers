@@ -1,0 +1,73 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonarcloud.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonarcloud.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node + Dependencies
+        uses: ./.github/actions/setup-node-deps
+
+      - name: Install Camoufox
+        uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ github.token }}
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit -- --coverage
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+
+      - name: Verify SonarCloud secrets
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "${SONAR_TOKEN}" ] && missing="${missing} SONAR_TOKEN"
+          [ -z "${SONAR_ORG}" ] && missing="${missing} SONAR_ORG"
+          [ -z "${SONAR_PROJECT_KEY}" ] && missing="${missing} SONAR_PROJECT_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing secrets:${missing} — add in Settings → Secrets → Actions."
+            exit 1
+          fi
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ secrets.SONAR_ORG }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@aa494459d7c39c106cc77b166de8b4250a32bb97 # v5.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
