@@ -91,12 +91,16 @@ function makeMockLocator(visible = false): {
   isVisible: jest.Mock;
   waitFor: jest.Mock;
   click: jest.Mock;
+  first: jest.Mock;
 } {
-  return {
+  const loc = {
     isVisible: jest.fn().mockResolvedValue(visible),
     waitFor: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
+    first: jest.fn(),
   };
+  loc.first.mockReturnValue(loc);
+  return loc;
 }
 
 const DEFAULT_TEXT_LOCATOR = makeMockLocator(false);

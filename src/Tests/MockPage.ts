@@ -117,15 +117,25 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
       }),
       count: jest.fn().mockResolvedValue(0),
     }),
-    getByText: jest.fn().mockReturnValue({
-      isVisible: jest.fn().mockResolvedValue(false),
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      click: jest.fn().mockResolvedValue(undefined),
+    getByText: jest.fn().mockImplementation(() => {
+      const loc = {
+        isVisible: jest.fn().mockResolvedValue(false),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn(),
+        first: jest.fn(),
+      };
+      loc.first.mockReturnValue(loc);
+      return loc;
     }),
-    getByRole: jest.fn().mockReturnValue({
-      isVisible: jest.fn().mockResolvedValue(false),
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      click: jest.fn().mockResolvedValue(undefined),
+    getByRole: jest.fn().mockImplementation(() => {
+      const loc = {
+        isVisible: jest.fn().mockResolvedValue(false),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn(),
+        first: jest.fn(),
+      };
+      loc.first.mockReturnValue(loc);
+      return loc;
     }),
     ...overrides,
   } as unknown as IMockPage & Page;

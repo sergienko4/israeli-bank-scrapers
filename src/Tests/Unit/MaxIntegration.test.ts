@@ -206,7 +206,9 @@ describe('integration: full scrape flow', () => {
       isVisible: jest.fn().mockResolvedValue(true),
       waitFor: jest.fn().mockResolvedValue(undefined),
       click: jest.fn(),
+      first: jest.fn(),
     };
+    errorLocator.first.mockReturnValue(errorLocator);
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue(MAX_LOGIN_URL),
       waitForURL: jest.fn().mockResolvedValue(undefined),

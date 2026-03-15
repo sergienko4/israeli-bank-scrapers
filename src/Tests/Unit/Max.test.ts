@@ -1,33 +1,24 @@
 import { jest } from '@jest/globals';
 
-import type { IScrapedTransaction } from '../../Scrapers/Max/MaxScraper.js';
-
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
 }));
-
 jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
 }));
-
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
-
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.max.co.il/homepage/personal'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForRedirect: jest.fn().mockResolvedValue(undefined),
-
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -38,34 +29,26 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
 }));
 
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
+jest.unstable_mockModule('../../Common/Debug.js', () => ({
   /**
-   * Mock Debug module.
-   * @returns mocked debug exports
+   * Debug factory.
+   * @returns mock logger
    */
-  () => ({
-    getDebug:
-      /**
-       * Debug factory.
-       * @returns mock logger
-       */
-      (): Record<string, jest.Mock> => ({
-        trace: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
   }),
-);
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+}));
 
 jest.unstable_mockModule('../../Common/Dates.js', () => ({
   default: jest.fn(() => [MOMENT('2024-06-01')]),
@@ -74,8 +57,6 @@ jest.unstable_mockModule('../../Common/Dates.js', () => ({
 const { default: MOMENT } = await import('moment');
 const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
-const { elementPresentOnPage: ELEMENT_PRESENT } =
-  await import('../../Common/ElementsInteractions.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { filterOldTransactions: FILTER_OLD, fixInstallments: FIX_INSTALLMENTS } =
@@ -89,58 +70,14 @@ const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
 
-const MOCK_CONTEXT = { newPage: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
-const MOCK_BROWSER = {
-  newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
-  close: jest.fn().mockResolvedValue(undefined),
-};
-const CREDS = { username: 'testuser', password: 'testpass' };
-
-/**
- * Mocks the categories API call.
- * @returns the fetch mock
- */
-function mockCategories(): typeof FETCH_GET {
-  (FETCH_GET as jest.Mock).mockResolvedValueOnce({
-    result: [{ id: 1, name: 'מזון' }],
-  });
-  return FETCH_GET;
-}
-
-/**
- * Mocks a single month of transaction data.
- * @param txns - transactions to include
- * @returns the fetch mock
- */
-function mockTxnMonth(txns: IScrapedTransaction[] = []): typeof FETCH_GET {
-  (FETCH_GET as jest.Mock).mockResolvedValueOnce({
-    result: { transactions: txns },
-  });
-  return FETCH_GET;
-}
-
-/**
- * Creates a raw Max transaction with sensible defaults.
- * @param overrides - fields to override
- * @returns a scraped transaction
- */
-function rawTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransaction {
-  return {
-    shortCardNumber: '4580',
-    paymentDate: '2024-06-15',
-    purchaseDate: '2024-06-10',
-    actualPaymentAmount: '100',
-    paymentCurrency: 376,
-    originalCurrency: SHEKEL_CURRENCY,
-    originalAmount: 100,
-    planName: 'רגילה',
-    planTypeId: 5,
-    comments: '',
-    merchantName: 'סופר שופ',
-    categoryId: 1,
-    ...overrides,
-  };
-}
+import {
+  CREDS,
+  MOCK_BROWSER,
+  MOCK_CONTEXT,
+  mockCategories,
+  mockTxnMonth,
+  rawTxn,
+} from './MaxFixtures.js';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -154,7 +91,6 @@ beforeEach(() => {
   MOCK_BROWSER.close.mockResolvedValue(undefined);
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
-  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
 describe('getMemo', () => {
@@ -183,8 +119,8 @@ describe('getMemo', () => {
 
 describe('login', () => {
   it('succeeds with valid credentials', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn()]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn()]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(true);
@@ -192,13 +128,14 @@ describe('login', () => {
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {
-    const mockVisible = jest.fn().mockResolvedValue(true);
-    const mockVoid = jest.fn().mockResolvedValue(undefined);
-    const errorLocator = { isVisible: mockVisible, waitFor: mockVoid, click: mockVoid };
+    const vis = jest.fn().mockResolvedValue(true);
+    const noop = jest.fn().mockResolvedValue(undefined);
+    const loc = { isVisible: vis, waitFor: noop, click: noop, first: jest.fn() };
+    loc.first.mockReturnValue(loc);
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-      getByText: jest.fn().mockReturnValue(errorLocator),
+      waitForURL: noop,
+      getByText: jest.fn().mockReturnValue(loc),
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
@@ -224,8 +161,8 @@ describe('login', () => {
 
 describe('fetchData', () => {
   it('fetches and converts normal transactions', async () => {
-    mockCategories();
-    mockTxnMonth([
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
       rawTxn({ originalAmount: 250, actualPaymentAmount: '250', merchantName: 'רמי לוי' }),
     ]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
@@ -244,8 +181,10 @@ describe('fetchData', () => {
   });
 
   it('detects installment transactions from planName', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ planName: 'תשלומים', comments: 'תשלום 3 מתוך 12' })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
+      rawTxn({ planName: 'תשלומים', comments: 'תשלום 3 מתוך 12' }),
+    ]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     const firstTxn = result.accounts?.[0]?.txns[0];
@@ -254,8 +193,10 @@ describe('fetchData', () => {
   });
 
   it('detects installments from planTypeId fallback', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ planName: 'unknown plan', planTypeId: 2, comments: 'תשלום 1 מתוך 6' })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
+      rawTxn({ planName: 'unknown plan', planTypeId: 2, comments: 'תשלום 1 מתוך 6' }),
+    ]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     const firstTxn = result.accounts?.[0]?.txns[0];
@@ -263,23 +204,25 @@ describe('fetchData', () => {
   });
 
   it('marks pending transactions (paymentDate=null)', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ paymentDate: null })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn({ paymentDate: null })]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.status).toBe(TX_STATUSES.Pending);
   });
 
   it('maps currency IDs correctly', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ paymentCurrency: 840, originalCurrency: DOLLAR_CURRENCY })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
+      rawTxn({ paymentCurrency: 840, originalCurrency: DOLLAR_CURRENCY }),
+    ]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.chargedCurrency).toBe(DOLLAR_CURRENCY);
   });
 
   it('handles empty month response', async () => {
-    mockCategories();
+    mockCategories(FETCH_GET as jest.Mock);
     (FETCH_GET as jest.Mock).mockResolvedValueOnce({ result: null });
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
@@ -288,47 +231,47 @@ describe('fetchData', () => {
   });
 
   it('filters out summary rows without planName', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn(), rawTxn({ planName: '' })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn(), rawTxn({ planName: '' })]);
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.accounts?.[0]?.txns).toHaveLength(1);
   });
 
   it('calls fixInstallments when shouldCombineInstallments=false', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn()]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn()]);
     const opts = CREATE_OPTS({ shouldCombineInstallments: false });
     await new MAX_SCRAPER(opts).scrape(CREDS);
     expect(FIX_INSTALLMENTS).toHaveBeenCalled();
   });
 
   it('skips fixInstallments when shouldCombineInstallments=true', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn()]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn()]);
     const opts = CREATE_OPTS({ shouldCombineInstallments: true });
     await new MAX_SCRAPER(opts).scrape(CREDS);
     expect(FIX_INSTALLMENTS).not.toHaveBeenCalled();
   });
 
   it('calls filterOldTransactions by default', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn()]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn()]);
     await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(FILTER_OLD).toHaveBeenCalled();
   });
 
   it('includes rawTransaction when option set', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn()]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn()]);
     const opts = CREATE_OPTS({ includeRawTransaction: true });
     const result = await new MAX_SCRAPER(opts).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.rawTransaction).toBeDefined();
   });
 
   it('builds identifier from ARN and installment number', async () => {
-    mockCategories();
-    mockTxnMonth([
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
       rawTxn({
         planName: 'תשלומים',
         comments: 'תשלום 2 מתוך 5',
@@ -340,15 +283,18 @@ describe('fetchData', () => {
   });
 
   it('uses ARN alone when no installments', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ dealData: { arn: 'ARN456' } })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn({ dealData: { arn: 'ARN456' } })]);
     const result = await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.identifier).toBe('ARN456');
   });
 
   it('groups transactions by card number', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ shortCardNumber: '1111' }), rawTxn({ shortCardNumber: '2222' })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [
+      rawTxn({ shortCardNumber: '1111' }),
+      rawTxn({ shortCardNumber: '2222' }),
+    ]);
     const result = await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts).toHaveLength(2);
     const accountNumbers = result.accounts?.map(acct => acct.accountNumber).sort();
@@ -356,8 +302,8 @@ describe('fetchData', () => {
   });
 
   it('assigns category from loaded categories', async () => {
-    mockCategories();
-    mockTxnMonth([rawTxn({ categoryId: 1 })]);
+    mockCategories(FETCH_GET as jest.Mock);
+    mockTxnMonth(FETCH_GET as jest.Mock, [rawTxn({ categoryId: 1 })]);
     const result = await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.category).toBe('מזון');
   });

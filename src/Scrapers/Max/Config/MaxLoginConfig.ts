@@ -234,7 +234,7 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
   LOG.info('waitForDashboardOrError: url=%s', currentUrl);
   const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
-    page.getByText(text).waitFor({ state: 'visible', timeout: 60000 }),
+    page.getByText(text).first().waitFor({ state: 'visible', timeout: 60000 }),
   );
   await Promise.race([page.waitForURL('**/homepage/**', { timeout: 60000 }), ...errorWaiters]);
 }
@@ -288,7 +288,7 @@ function checkMaxSuccess(opts?: { page?: Page }): boolean {
  * @returns True if any error text from WRONG_DETAILS_TEXTS is visible.
  */
 async function isErrorTextVisible(page: Page): Promise<boolean> {
-  const checks = WRONG_DETAILS_TEXTS.map(text => page.getByText(text).isVisible());
+  const checks = WRONG_DETAILS_TEXTS.map(text => page.getByText(text).first().isVisible());
   const results = await Promise.all(checks);
   return results.some(Boolean);
 }
