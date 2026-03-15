@@ -261,14 +261,14 @@ async function extractAccountIds(page: Page): Promise<string[]> {
  * @param page - The Playwright page instance.
  * @param accountId - The account ID to switch to.
  * @param totalAccounts - The total number of accounts.
- * @returns True after switching completes.
+ * @returns True if account was switched, false if only one account exists.
  */
 async function switchToAccount(
   page: Page,
   accountId: string,
   totalAccounts: number,
 ): Promise<boolean> {
-  if (totalAccounts <= 1) return true;
+  if (totalAccounts <= 1) return false;
   await clickByXPath(page, SEL.accountCombo);
   const accountXpath = `xpath=//span[contains(text(), '${accountId}')]`;
   await clickByXPath(page, accountXpath);

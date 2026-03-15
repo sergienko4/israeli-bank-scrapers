@@ -32,7 +32,7 @@ async function isDropdownOpen(page: Page): Promise<boolean> {
 /**
  * Ensure the account dropdown is open, clicking the trigger if needed.
  * @param page - The Playwright page instance.
- * @returns True when the dropdown is confirmed open.
+ * @returns True if dropdown was already open, false if it had to be opened.
  */
 async function ensureDropdownOpen(page: Page): Promise<boolean> {
   if (await isDropdownOpen(page)) return true;
@@ -45,7 +45,7 @@ async function ensureDropdownOpen(page: Page): Promise<boolean> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  return true;
+  return false;
 }
 
 /**

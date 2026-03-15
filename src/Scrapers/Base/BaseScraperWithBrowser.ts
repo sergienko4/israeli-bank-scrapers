@@ -77,7 +77,7 @@ class BaseScraperWithBrowser<
 
   /**
    * Initialize the browser page and prepare the scraper for login.
-   * @returns True when initialization completes.
+   * @returns True when page is ready, false if page creation failed.
    */
   public async initialize(): Promise<boolean> {
     await super.initialize();
@@ -85,7 +85,7 @@ class BaseScraperWithBrowser<
     const page = await this.initializePage();
     if (!page) {
       this.bankLog.debug('failed to initiate a browser page, exit');
-      return true;
+      return false;
     }
     await this.setupPage(page);
     return true;
@@ -394,10 +394,10 @@ class BaseScraperWithBrowser<
   /**
    * Capture a failure screenshot if configured and the session failed.
    * @param isSuccess - Whether the session was successful.
-   * @returns True after screenshot capture attempt.
+   * @returns True if screenshot was captured, false if skipped or not configured.
    */
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
-    if (isSuccess || !this.options.storeFailureScreenShotPath) return true;
+    if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
     this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
     const bankLogger = this.bankLog;
     await this.page

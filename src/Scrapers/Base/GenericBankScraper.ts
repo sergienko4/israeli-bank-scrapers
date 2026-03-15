@@ -257,17 +257,17 @@ export default class GenericBankScraper<
   /**
    * Discover the form anchor from a resolved input selector.
    * @param result - The resolved field context from selector resolution.
-   * @returns True after discovery attempt completes.
+   * @returns True if form anchor was found or already set, false if discovery failed.
    */
   private async tryDiscoverFormAnchor(result: IFieldContext): Promise<boolean> {
     if (this._formAnchor) return true;
-    if (!result.isResolved) return true;
+    if (!result.isResolved) return false;
     try {
       this._formAnchor = await discoverFormAnchor(result.context, result.selector);
+      return true;
     } catch {
-      // Form anchor is optional — never break the login flow
+      return false;
     }
-    return true;
   }
 
   /**
