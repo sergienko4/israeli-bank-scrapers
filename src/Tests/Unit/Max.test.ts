@@ -58,7 +58,6 @@ jest.unstable_mockModule('../../Common/Dates.js', () => ({
 const { default: MOMENT } = await import('moment');
 const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
-await import('../../Common/ElementsInteractions.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { filterOldTransactions: FILTER_OLD, fixInstallments: FIX_INSTALLMENTS } =

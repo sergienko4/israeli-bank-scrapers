@@ -10,24 +10,24 @@ import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
-import { WRONG_DETAILS_TEXTS } from '../../Scrapers/Max/Config/MaxLoginConfig.js';
+import {
+  isErrorTextVisible,
+  WRONG_DETAILS_TEXTS,
+} from '../../Scrapers/Max/Config/MaxLoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
 
 /**
- * Check whether any known error text is visible on the page.
+ * Adapter: wraps production isErrorTextVisible for possibleResults signature.
  * @param opts - Options containing the Playwright page.
  * @param opts.page - The Playwright page to inspect.
  * @returns True if any error indicator text is visible.
  */
 async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
-  const pg = opts?.page;
-  if (!pg) return false;
-  const checks = WRONG_DETAILS_TEXTS.map(t => pg.getByText(t).first().isVisible());
-  const results = await Promise.all(checks);
-  return results.some(Boolean);
+  if (!opts?.page) return false;
+  return isErrorTextVisible(opts.page);
 }
 
 const BASE_CFG: ILoginConfig = {
