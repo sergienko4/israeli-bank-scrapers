@@ -196,5 +196,5 @@ export function getTransactionIdentifier(row: IScrapedTransaction): string | num
   if (row.TransactionNumber && String(row.TransactionNumber) !== '1') {
     return `${row.MC02AsmahtaMekoritEZ}-${String(row.TransactionNumber)}`;
   }
-  return parseInt(row.MC02AsmahtaMekoritEZ, 10);
+  return Number.parseInt(row.MC02AsmahtaMekoritEZ, 10);
 }

@@ -17,7 +17,7 @@ export class ConcreteGenericScraper<
    * @returns A successful scraping result with no accounts.
    */
   public fetchData(): Promise<IScraperScrapingResult> {
-    void this.options.companyId;
+    this.bankLog.debug('fetchData called for %s — returning empty success', this.options.companyId);
     return Promise.resolve({ success: true, accounts: [] });
   }
 }

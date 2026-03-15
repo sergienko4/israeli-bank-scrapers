@@ -37,7 +37,7 @@ function reverseHebrew(plain: string, ranges: { start: number; end: number }[]):
  */
 export function sanitize(text: string): string {
   if (!text.includes('\u202d')) return text.trim();
-  const plain = text.replace(/\u202d/gi, '').trim();
+  const plain = text.replaceAll(/\u202d/gi, '').trim();
   const ranges = [...plain.matchAll(HEBREW_RE)].map(m => ({
     start: m.index,
     end: m.index + m[0].length,
@@ -52,7 +52,7 @@ export function sanitize(text: string): string {
  */
 export function fallbackBalance(movements: IMovement[]): number {
   if (!movements.length) return 0;
-  return parseFloat(movements[movements.length - 1].runningBalance);
+  return Number.parseFloat(movements[movements.length - 1].runningBalance);
 }
 
 /**

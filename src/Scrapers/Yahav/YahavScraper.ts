@@ -60,7 +60,7 @@ async function getAccountID(page: Page): Promise<string> {
  */
 function getAmountData(amountStr: string): number {
   const amountStrCopy = amountStr.replace(',', '');
-  return parseFloat(amountStrCopy);
+  return Number.parseFloat(amountStrCopy);
 }
 
 /**
@@ -89,7 +89,7 @@ function buildTxnBase(txn: IScrapedTransaction): ITransaction {
   const convertedAmount = getTxnAmount(txn);
   return {
     type: TransactionTypes.Normal,
-    identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
+    identifier: txn.reference ? Number.parseInt(txn.reference, 10) : undefined,
     date: convertedDate,
     processedDate: convertedDate,
     originalAmount: convertedAmount,

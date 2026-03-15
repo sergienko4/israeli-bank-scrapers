@@ -124,8 +124,10 @@ class BaseScraperWithBrowser<
    * @returns The login configuration for this bank.
    */
   public getLoginOptions(credentials: ScraperCredentials): ILoginOptions {
-    void credentials;
-    throw new ScraperError(`getLoginOptions() is not created in ${this.options.companyId}`);
+    const keyCount = String(Object.keys(credentials).length);
+    throw new ScraperError(
+      `getLoginOptions(${keyCount} keys) is not created in ${this.options.companyId}`,
+    );
   }
 
   /**

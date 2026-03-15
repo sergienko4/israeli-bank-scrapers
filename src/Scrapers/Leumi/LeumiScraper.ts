@@ -236,7 +236,7 @@ async function fetchTransactionsForAccount(
   await applyDateFilter(page, startDate);
   const response = await interceptFilteredResponse(page);
   const accountNumber = sanitizeAccountId(accountId);
-  const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
+  const balance = response.BalanceDisplay ? Number.parseFloat(response.BalanceDisplay) : undefined;
   return { accountNumber, balance, txns: buildTxnsFromResponse(response, options) };
 }
 

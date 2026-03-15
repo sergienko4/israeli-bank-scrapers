@@ -49,11 +49,11 @@ function parseCurrencyAmount(amountStrCln: string): { amount: number; currency: 
   for (const [symbol, currency] of CURRENCY_SYMBOLS) {
     if (amountStrCln.includes(symbol)) {
       const cleaned = amountStrCln.replace(symbol, '');
-      return { amount: parseFloat(cleaned), currency };
+      return { amount: Number.parseFloat(cleaned), currency };
     }
   }
   const parts = amountStrCln.split(' ');
-  return { amount: parseFloat(parts[1]), currency: parts[0] };
+  return { amount: Number.parseFloat(parts[1]), currency: parts[0] };
 }
 
 /**
