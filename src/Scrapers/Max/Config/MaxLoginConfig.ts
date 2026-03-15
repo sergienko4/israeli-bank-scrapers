@@ -21,7 +21,7 @@ const DROPDOWN_WAIT_MS = CFG.timing.elementRenderMs ?? 5000;
 const LOGIN_FIELD_WAIT_MS = 15000;
 
 /** Known visible Hebrew texts shown when Max login fails. */
-const WRONG_DETAILS_TEXTS = ['שכחת את הפרטים?', 'או לשחזר בקלות'] as const;
+export const WRONG_DETAILS_TEXTS = ['שכחת את הפרטים?', 'או לשחזר בקלות'] as const;
 
 /**
  * Resolve a login field via SelectorResolver and fill it with the given value.
@@ -294,23 +294,12 @@ function checkMaxSuccess(opts?: { page?: Page }): boolean {
 }
 
 /**
- * Check whether the invalid-password popup is present.
- * @param opts - The possible-result check options with page reference.
- * @param opts.page - The Playwright page to inspect for the popup.
- * @returns True if the wrong-details popup is visible.
- */
-async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
-  if (!opts?.page) return false;
-  return isErrorTextVisible(opts.page);
-}
-
-/**
- * Check whether the card-holders login error popup is present.
+ * Check whether a known error popup is present on the page.
  * @param opts - The possible-result check options with page reference.
  * @param opts.page - The Playwright page to inspect for the error popup.
- * @returns True if the card-holders error popup is visible.
+ * @returns True if any error indicator text is visible.
  */
-async function checkMaxUnknownError(opts?: { page?: Page }): Promise<boolean> {
+async function checkMaxErrorPopup(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
   return isErrorTextVisible(opts.page);
 }
@@ -332,7 +321,7 @@ export const MAX_CONFIG: ILoginConfig = {
   possibleResults: {
     success: [checkMaxSuccess],
     changePassword: [`${CFG.urls.base}/renew-password`],
-    invalidPassword: [checkMaxInvalidPassword],
-    unknownError: [checkMaxUnknownError],
+    invalidPassword: [checkMaxErrorPopup],
+    unknownError: [checkMaxErrorPopup],
   },
 };

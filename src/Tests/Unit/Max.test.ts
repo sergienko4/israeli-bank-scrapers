@@ -25,26 +25,33 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   sortTransactionsByDate: jest.fn(<T>(txns: T[]) => txns),
   getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
 }));
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Debug factory.
-   * @returns mock logger
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+/**
+ * Create a stub logger with all log-level methods mocked.
+ * @returns A record of jest mock functions keyed by log level.
+ */
+function stubLogger(): Record<string, jest.Mock> {
+  return { trace: jest.fn(), debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+}
+/**
+ * Passthrough mock for bank context.
+ * @param _b - Bank name (unused).
+ * @param fn - Function to execute.
+ * @returns The result of fn.
+ */
+function passthroughContext<T>(_b: string, fn: () => T): T {
+  return fn();
+}
+/**
+ * Build a mock Debug module with stub logger and passthrough bank context.
+ * @returns An object matching the Debug module interface.
+ */
+function createMockDebug(): {
+  getDebug: () => Record<string, jest.Mock>;
+  runWithBankContext: <T>(_b: string, fn: () => T) => T;
+} {
+  return { getDebug: stubLogger, runWithBankContext: passthroughContext };
+}
+jest.unstable_mockModule('../../Common/Debug.js', createMockDebug);
 jest.unstable_mockModule('../../Common/Dates.js', () => ({
   default: jest.fn(() => [MOMENT('2024-06-01')]),
 }));
@@ -73,7 +80,6 @@ const MOCK_BROWSER = {
 };
 const CREDS = { username: 'testuser', password: 'testpass' };
 const SUCCESS_URL = 'https://www.max.co.il/homepage/personal';
-
 /**
  * Mock the categories API call.
  * @returns the fetch mock
@@ -82,7 +88,6 @@ function mockCategories(): typeof FETCH_GET {
   (FETCH_GET as jest.Mock).mockResolvedValueOnce({ result: [{ id: 1, name: 'מזון' }] });
   return FETCH_GET;
 }
-
 /**
  * Mock a single month of transaction data.
  * @param txns - transactions to include
@@ -92,7 +97,6 @@ function mockTxnMonth(txns: ReturnType<typeof RAW_TXN>[] = []): typeof FETCH_GET
   (FETCH_GET as jest.Mock).mockResolvedValueOnce({ result: { transactions: txns } });
   return FETCH_GET;
 }
-
 beforeEach(() => {
   jest.clearAllMocks();
   const page = CREATE_MOCK_PAGE({
@@ -104,7 +108,6 @@ beforeEach(() => {
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(SUCCESS_URL);
 });
-
 describe('getMemo', () => {
   type TransactionForMemoTest = Parameters<typeof GET_MEMO>[0];
   test.each<[TransactionForMemoTest, string]>([
@@ -137,7 +140,6 @@ describe('login', () => {
     expect(result.success).toBe(true);
     expect(BUILD_CONTEXT_OPTIONS).toHaveBeenCalled();
   });
-
   it('returns InvalidPassword when error dialog appears', async () => {
     const errorLoc = CREATE_ERROR_LOC();
     const loginPage = CREATE_MOCK_PAGE({
@@ -147,13 +149,11 @@ describe('login', () => {
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
-
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ERROR_TYPES.InvalidPassword);
   });
-
   it('returns ChangePassword for renewal URL', async () => {
     const renewPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue('https://www.max.co.il/renew-password'),
@@ -187,7 +187,6 @@ describe('fetchData', () => {
       type: TX_TYPES.Normal,
     });
   });
-
   it('detects installment transactions from planName', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN({ planName: 'תשלומים', comments: 'תשלום 3 מתוך 12' })]);
@@ -236,7 +235,6 @@ describe('fetchData', () => {
     const result = await scraper.scrape(CREDS);
     expect(result.accounts?.[0]?.txns).toHaveLength(1);
   });
-
   it('calls fixInstallments when shouldCombineInstallments=false', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN()]);
@@ -244,7 +242,6 @@ describe('fetchData', () => {
     await new MAX_SCRAPER(opts).scrape(CREDS);
     expect(FIX_INSTALLMENTS).toHaveBeenCalled();
   });
-
   it('skips fixInstallments when shouldCombineInstallments=true', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN()]);
@@ -259,7 +256,6 @@ describe('fetchData', () => {
     await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(FILTER_OLD).toHaveBeenCalled();
   });
-
   it('includes rawTransaction when option set', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN()]);
@@ -267,7 +263,6 @@ describe('fetchData', () => {
     const result = await new MAX_SCRAPER(opts).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.rawTransaction).toBeDefined();
   });
-
   it('builds identifier from ARN and installment number', async () => {
     mockCategories();
     mockTxnMonth([
@@ -280,14 +275,12 @@ describe('fetchData', () => {
     const result = await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.identifier).toBe('ARN123_2');
   });
-
   it('uses ARN alone when no installments', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN({ dealData: { arn: 'ARN456' } })]);
     const result = await new MAX_SCRAPER(CREATE_OPTS()).scrape(CREDS);
     expect(result.accounts?.[0]?.txns[0]?.identifier).toBe('ARN456');
   });
-
   it('groups transactions by card number', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN({ shortCardNumber: '1111' }), RAW_TXN({ shortCardNumber: '2222' })]);
@@ -296,7 +289,6 @@ describe('fetchData', () => {
     const accountNumbers = result.accounts?.map(acct => acct.accountNumber).sort();
     expect(accountNumbers).toEqual(['1111', '2222']);
   });
-
   it('assigns category from loaded categories', async () => {
     mockCategories();
     mockTxnMonth([RAW_TXN({ categoryId: 1 })]);
