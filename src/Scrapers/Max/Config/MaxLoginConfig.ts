@@ -244,7 +244,7 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
  * @param page - The Playwright page to inspect.
  * @returns True if any error indicator text is visible.
  */
-async function isErrorTextVisible(page: Page): Promise<boolean> {
+export async function isErrorTextVisible(page: Page): Promise<boolean> {
   const checks = WRONG_DETAILS_TEXTS.map(text => page.getByText(text).first().isVisible());
   const results = await Promise.all(checks);
   return results.some(Boolean);
