@@ -13,6 +13,7 @@ import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
+import { CREDS_USERNAME_PASSWORD, CREDS_WRONG } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import {
   buildLoginDashboardPage,
@@ -51,7 +52,7 @@ interface ITestCredentials {
   username: string;
   password: string;
 }
-const TEST_CREDS: ITestCredentials = { username: 'testuser', password: 'testpass' };
+const TEST_CREDS: ITestCredentials = CREDS_USERNAME_PASSWORD;
 
 let browser: Browser;
 
@@ -220,10 +221,7 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape({
-      username: 'wronguser',
-      password: 'wrongpass',
-    } as ITestCredentials);
+    const result = await scraper.scrape(CREDS_WRONG as ITestCredentials);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(retrieverSpy).not.toHaveBeenCalled();

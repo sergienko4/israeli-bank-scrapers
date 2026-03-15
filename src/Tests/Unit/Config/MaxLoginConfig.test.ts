@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
 import type { LifecyclePromise } from '../../../Scrapers/Base/Interfaces/CallbackTypes.js';
+import { CREDS_USERNAME_PASSWORD } from '../../TestConstants.js';
 
 const MOCK_RESOLVE_FIELD_CONTEXT = jest.fn();
 const MOCK_FILL_INPUT = jest.fn().mockResolvedValue(undefined);
@@ -113,21 +114,21 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
   } as unknown as Page;
 }
 
+/**
+ * Build a post-action function from the given credentials.
+ * @param creds - Max credentials with optional ID.
+ * @returns The post-action function bound to those credentials.
+ */
+function buildAction(creds: IMaxCredentials): (_: Page) => LifecyclePromise {
+  return BUILD_MAX_POST_ACTION(creds);
+}
+
 describe('buildMaxPostAction', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  /**
-   * Build a post-action function from the given credentials.
-   * @param creds - Max credentials with optional ID.
-   * @returns The post-action function bound to those credentials.
-   */
-  function buildAction(creds: IMaxCredentials): (page: Page) => LifecyclePromise {
-    return BUILD_MAX_POST_ACTION(creds);
-  }
-
   it('waits for dashboard without resolving fields when credentials.id is absent', async () => {
     const page = makeMockPage('https://www.max.co.il/login');
-    const action = buildAction({ username: 'user', password: 'pass' });
+    const action = buildAction(CREDS_USERNAME_PASSWORD);
     await action(page);
     expect(MOCK_RESOLVE_FIELD_CONTEXT).not.toHaveBeenCalled();
     expect(MOCK_FILL_INPUT).not.toHaveBeenCalled();
@@ -136,7 +137,7 @@ describe('buildMaxPostAction', () => {
 
   it('waits for dashboard without filling when page has no ID text', async () => {
     const page = makeMockPage('https://www.max.co.il/login', 'שם משתמש סיסמה');
-    const action = buildAction({ username: 'user', password: 'pass', id: '123456789' });
+    const action = buildAction({ ...CREDS_USERNAME_PASSWORD, id: '123456789' });
     await action(page);
     expect(MOCK_FILL_INPUT).not.toHaveBeenCalled();
     expect(MOCK_WAIT_FOR_URL).toHaveBeenCalled();
@@ -151,7 +152,7 @@ describe('buildMaxPostAction', () => {
     })
       .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page })
       .mockResolvedValueOnce({ isResolved: true, selector: '#id', context: page });
-    const action = buildAction({ username: 'testuser', password: 'testpass', id: '123456789' });
+    const action = buildAction({ ...CREDS_USERNAME_PASSWORD, id: '123456789' });
     await action(page);
     expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(3);
     expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
@@ -162,7 +163,7 @@ describe('buildMaxPostAction', () => {
     MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({ isResolved: false })
       .mockResolvedValueOnce({ isResolved: true, selector: '#password', context: page })
       .mockResolvedValueOnce({ isResolved: true, selector: '#id', context: page });
-    const action = buildAction({ username: 'u', password: 'p', id: '123' });
+    const action = buildAction({ ...CREDS_USERNAME_PASSWORD, id: '123' });
     await action(page);
     expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(2);
     expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
@@ -177,7 +178,7 @@ describe('buildMaxPostAction', () => {
     })
       .mockResolvedValueOnce({ isResolved: false })
       .mockResolvedValueOnce({ isResolved: true, selector: '#id', context: page });
-    const action = buildAction({ username: 'u', password: 'p', id: '123' });
+    const action = buildAction({ ...CREDS_USERNAME_PASSWORD, id: '123' });
     await action(page);
     expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(2);
     expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
@@ -188,7 +189,7 @@ describe('buildMaxPostAction', () => {
     MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValueOnce({ isResolved: false })
       .mockResolvedValueOnce({ isResolved: false })
       .mockResolvedValueOnce({ isResolved: true, selector: '#id', context: page });
-    const action = buildAction({ username: 'u', password: 'p', id: '123' });
+    const action = buildAction({ ...CREDS_USERNAME_PASSWORD, id: '123' });
     await action(page);
     expect(MOCK_FILL_INPUT).toHaveBeenCalledTimes(1);
     expect(MOCK_CLICK_BUTTON).toHaveBeenCalled();
@@ -196,7 +197,7 @@ describe('buildMaxPostAction', () => {
 
   it('returns immediately when already on homepage', async () => {
     const page = makeMockPage('https://www.max.co.il/homepage/personal');
-    const action = buildAction({ username: 'u', password: 'p' });
+    const action = buildAction(CREDS_USERNAME_PASSWORD);
     await action(page);
     expect(MOCK_WAIT_FOR_URL).not.toHaveBeenCalled();
   });

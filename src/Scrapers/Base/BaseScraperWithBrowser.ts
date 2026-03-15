@@ -77,7 +77,8 @@ class BaseScraperWithBrowser<
 
   /**
    * Initialize the browser page and prepare the scraper for login.
-   * @returns True when initialization completes.
+   * @returns True when page is ready.
+   * @throws ScraperError if page creation fails.
    */
   public async initialize(): Promise<boolean> {
     await super.initialize();
@@ -85,7 +86,7 @@ class BaseScraperWithBrowser<
     const page = await this.initializePage();
     if (!page) {
       this.bankLog.debug('failed to initiate a browser page, exit');
-      return true;
+      throw new ScraperError('Failed to initiate browser page');
     }
     await this.setupPage(page);
     return true;
@@ -124,8 +125,9 @@ class BaseScraperWithBrowser<
    * @returns The login configuration for this bank.
    */
   public getLoginOptions(credentials: ScraperCredentials): ILoginOptions {
-    void credentials;
-    throw new ScraperError(`getLoginOptions() is not created in ${this.options.companyId}`);
+    const keyCount = Object.keys(credentials).length;
+    const company = this.options.companyId;
+    throw new ScraperError(`getLoginOptions(${String(keyCount)} keys) not created in ${company}`);
   }
 
   /**
@@ -191,8 +193,7 @@ class BaseScraperWithBrowser<
    * @returns True when termination completes.
    */
   public async terminate(isSuccess: boolean): Promise<boolean> {
-    const successStr = String(isSuccess);
-    this.bankLog.debug('terminating browser with success = %s', successStr);
+    this.bankLog.debug('terminating browser with success = %s', isSuccess);
     this.emitProgress(ScraperProgressTypes.Terminating);
     await this.captureFailureScreenshot(isSuccess);
     const reversed = this._cleanups.reverse();
@@ -392,19 +393,21 @@ class BaseScraperWithBrowser<
   /**
    * Capture a failure screenshot if configured and the session failed.
    * @param isSuccess - Whether the session was successful.
-   * @returns True after screenshot capture attempt.
+   * @returns True if screenshot was captured, false if skipped or not configured.
    */
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
-    if (isSuccess || !this.options.storeFailureScreenShotPath) return true;
+    if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
     this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+    let didCapture = true;
     const bankLogger = this.bankLog;
     await this.page
       .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
       .catch((caught: unknown) => {
         const errMsg = (caught as Error).message.slice(0, 80);
         bankLogger.debug('screenshot failed: %s', errMsg);
+        didCapture = false;
       });
-    return true;
+    return didCapture;
   }
 }
 

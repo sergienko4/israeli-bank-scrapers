@@ -50,7 +50,7 @@ export function getInstallmentsInfo(txn: IScrapedTransaction): ITransactionInsta
   if (!txn.moreInfo?.includes(INSTALLMENTS_KEYWORD)) return false;
   const matches = txn.moreInfo.match(/\d+/g);
   if (!matches || matches.length < 2) return false;
-  return { number: parseInt(matches[0], 10), total: parseInt(matches[1], 10) };
+  return { number: Number.parseInt(matches[0], 10), total: Number.parseInt(matches[1], 10) };
 }
 
 /**
@@ -112,7 +112,7 @@ export function buildTransactionBase(
   const dates = resolveTxnDates(txn, processedDate);
   return {
     type: getTransactionType(txn),
-    identifier: parseInt(voucherNum, 10),
+    identifier: Number.parseInt(voucherNum, 10),
     ...dates,
     ...buildTxnAmounts(txn),
     description: isOutbound ? txn.fullSupplierNameOutbound : txn.fullSupplierNameHeb,

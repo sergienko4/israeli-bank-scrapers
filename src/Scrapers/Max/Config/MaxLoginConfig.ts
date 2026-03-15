@@ -60,7 +60,7 @@ async function detectIdForm(page: Page): Promise<boolean> {
   await page.waitForTimeout(2000);
   const currentUrl = page.url();
   const bodyText = await page.evaluate(() => document.body.innerText);
-  const snippet = bodyText.slice(0, 200).replace(/\n/g, ' ');
+  const snippet = bodyText.slice(0, 200).replaceAll('\n', ' ');
   const hasIdText = ID_FORM_INDICATORS.some(phrase => bodyText.includes(phrase));
   LOG.info('detectIdForm: url=%s hasIdText=%s snippet="%s"', currentUrl, hasIdText, snippet);
   return hasIdText;

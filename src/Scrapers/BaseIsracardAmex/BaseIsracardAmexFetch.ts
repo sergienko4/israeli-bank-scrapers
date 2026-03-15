@@ -48,7 +48,7 @@ export async function fetchAccounts(
     const { cardsCharges } = dataResult.DashboardMonthBean;
     if (!cardsCharges) return [];
     return cardsCharges.map(cardCharge => ({
-      index: parseInt(cardCharge.cardIndex, 10),
+      index: Number.parseInt(cardCharge.cardIndex, 10),
       accountNumber: cardCharge.cardNumber,
       processedDate: moment(cardCharge.billingDate, ISRACARD_DATE_FORMAT).toISOString(),
     }));

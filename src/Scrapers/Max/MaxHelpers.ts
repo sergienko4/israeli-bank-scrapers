@@ -101,8 +101,8 @@ function getInstallments(comments: string): IInstallmentInfo | INoInstallment {
   const matches = comments.match(/\d+/g);
   if (!matches || matches.length < 2) return { number: undefined, total: undefined };
   return {
-    number: parseInt(matches[0], 10),
-    total: parseInt(matches[1], 10),
+    number: Number.parseInt(matches[0], 10),
+    total: Number.parseInt(matches[1], 10),
   };
 }
 

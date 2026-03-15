@@ -90,12 +90,12 @@ export function extractCredentialKey(selector: string): string {
  * @returns Whether the element was found within the timeout.
  */
 export async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean> {
-  const state = { timer: 0 as unknown as ReturnType<typeof global.setTimeout> };
+  const state = { timer: 0 as unknown as ReturnType<typeof globalThis.setTimeout> };
   const timedOutSentinel = 'timedOut' as const;
   const el = await Promise.race([
     ctx.$(css),
     new Promise<typeof timedOutSentinel>(resolve => {
-      state.timer = global.setTimeout(() => {
+      state.timer = globalThis.setTimeout(() => {
         resolve(timedOutSentinel);
       }, CANDIDATE_TIMEOUT_MS);
     }),

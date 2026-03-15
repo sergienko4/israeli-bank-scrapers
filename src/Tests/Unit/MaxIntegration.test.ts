@@ -10,7 +10,7 @@ import {
   createNavigationMock,
   createTransactionsMock,
 } from '../MockModuleFactories.js';
-import { MAX_LOGIN_URL, MAX_SUCCESS_URL } from '../TestConstants.js';
+import { CREDS_USERNAME_PASSWORD, MAX_LOGIN_URL, MAX_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/Fetch.js', () => {
@@ -47,7 +47,7 @@ const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const CREDS = { username: 'testuser', password: 'testpass' };
+const CREDS = CREDS_USERNAME_PASSWORD;
 
 /**
  * Mocks the categories API call.

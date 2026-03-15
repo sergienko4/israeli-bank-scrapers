@@ -387,6 +387,6 @@ describe('getLoginOptions base', () => {
     const instance = createScraper();
     const creds = { userCode: 'a', password: 'b' };
     const bound = BASE_SCRAPER_WITH_BROWSER.prototype.getLoginOptions.bind(instance);
-    expect(() => bound(creds)).toThrow('getLoginOptions()');
+    expect(() => bound(creds)).toThrow('getLoginOptions(');
   });
 });

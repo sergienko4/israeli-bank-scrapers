@@ -99,7 +99,7 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
       }),
     }),
     frames: jest.fn().mockReturnValue([]),
-  } as Partial<Page> as Page;
+  } as unknown as Page;
 }
 
 describe('MAX_CONFIG preAction force-click fallback', () => {

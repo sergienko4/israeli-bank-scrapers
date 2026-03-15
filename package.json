@@ -53,8 +53,17 @@
   },
   "keywords": [
     "israel",
-    "israeli bank",
-    "israeli bank scraper"
+    "israeli banks",
+    "bank scraper",
+    "scraper",
+    "web-scraping",
+    "playwright",
+    "typescript",
+    "fintech",
+    "financial-automation",
+    "camoufox",
+    "waf-bypass",
+    "cloudflare"
   ],
   "author": "Elad Shaham",
   "license": "MIT",

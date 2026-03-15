@@ -93,7 +93,7 @@ export function mapPendingRow(row: string[]): ITransaction | IEmptyPendingRow {
   const date = moment(row[0], 'DD/MM/YY').toISOString();
   if (!date) return { isEmpty: true };
   const cleaned = row[3].replaceAll(',', '');
-  const amount = parseFloat(cleaned);
+  const amount = Number.parseFloat(cleaned);
   return {
     type: TransactionTypes.Normal,
     date,

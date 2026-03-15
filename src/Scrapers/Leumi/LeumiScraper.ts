@@ -2,6 +2,7 @@ import { type Moment } from 'moment';
 import moment from 'moment';
 import { type Page } from 'playwright-core';
 
+import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
   fillInput,
@@ -24,6 +25,7 @@ import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import LEUMI_CONFIG from './Config/LeumiLoginConfig.js';
 
+const LOG = getDebug('leumi-scraper');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 // Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
@@ -236,7 +238,7 @@ async function fetchTransactionsForAccount(
   await applyDateFilter(page, startDate);
   const response = await interceptFilteredResponse(page);
   const accountNumber = sanitizeAccountId(accountId);
-  const balance = response.BalanceDisplay ? parseFloat(response.BalanceDisplay) : undefined;
+  const balance = response.BalanceDisplay ? Number.parseFloat(response.BalanceDisplay) : undefined;
   return { accountNumber, balance, txns: buildTxnsFromResponse(response, options) };
 }
 
@@ -261,14 +263,14 @@ async function extractAccountIds(page: Page): Promise<string[]> {
  * @param page - The Playwright page instance.
  * @param accountId - The account ID to switch to.
  * @param totalAccounts - The total number of accounts.
- * @returns True after switching completes.
+ * @returns True if account was switched, false if only one account exists.
  */
 async function switchToAccount(
   page: Page,
   accountId: string,
   totalAccounts: number,
 ): Promise<boolean> {
-  if (totalAccounts <= 1) return true;
+  if (totalAccounts <= 1) return false;
   await clickByXPath(page, SEL.accountCombo);
   const accountXpath = `xpath=//span[contains(text(), '${accountId}')]`;
   await clickByXPath(page, accountXpath);
@@ -290,7 +292,9 @@ interface IFetchByIdOpts {
  */
 async function fetchAccountById(opts: IFetchByIdOpts): Promise<ITransactionsAccount> {
   const { rawAccountId, totalAccounts, page, startDate, options } = opts;
-  await switchToAccount(page, rawAccountId, totalAccounts);
+  const didSwitch = await switchToAccount(page, rawAccountId, totalAccounts);
+  const masked = `***${rawAccountId.slice(-4)}`;
+  LOG.debug('switchToAccount(%s): %s', masked, didSwitch ? 'switched' : 'skipped');
   const accountId = removeSpecialCharacters(rawAccountId);
   return fetchTransactionsForAccount({ page, startDate, accountId, options });
 }

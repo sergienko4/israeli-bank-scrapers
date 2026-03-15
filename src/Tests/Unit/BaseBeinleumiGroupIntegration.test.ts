@@ -17,6 +17,7 @@ import {
   BEINLEUMI_SUCCESS_URL,
   BEINLEUMI_TEST_BASE_URL,
   BEINLEUMI_TEST_TRANSACTIONS_URL,
+  CREDS_USERNAME_PASSWORD,
 } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
@@ -62,7 +63,7 @@ const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const CREDS = { username: 'testuser', password: 'testpass' };
+const CREDS = CREDS_USERNAME_PASSWORD;
 // Column classes mirror real Beinleumi HTML: 'reference wrap_normal' holds description text,
 // 'details' holds the numeric reference — names are confusing but match production DOM.
 const COMPLETED_COL = [

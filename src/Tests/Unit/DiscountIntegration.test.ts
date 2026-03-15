@@ -9,7 +9,7 @@ import {
   createNavigationMock,
   createTransactionsMock,
 } from '../MockModuleFactories.js';
-import { DISCOUNT_LOGIN_PAGE_URL, DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
+import { CREDS_DISCOUNT, DISCOUNT_LOGIN_PAGE_URL, DISCOUNT_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
@@ -39,7 +39,7 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { id: '123456789', password: 'pass123', num: '1234' };
+const CREDS = CREDS_DISCOUNT;
 
 interface IDiscountTxn {
   OperationNumber: number;
