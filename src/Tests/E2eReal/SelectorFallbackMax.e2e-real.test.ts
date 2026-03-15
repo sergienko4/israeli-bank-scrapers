@@ -30,6 +30,9 @@ async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
   return isErrorTextVisible(opts.page);
 }
 
+/** No iframe override — preAction runs on the main page. */
+const NO_FRAME: Frame | undefined = ([] as Frame[]).shift();
+
 const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
   fields: [
@@ -79,8 +82,7 @@ const BASE_CFG: ILoginConfig = {
     await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
       visible: true,
     });
-    const noFrame = page.frames().at(-999);
-    return noFrame;
+    return NO_FRAME;
   },
   /**
    * Waits for redirect or error popup after login submission.

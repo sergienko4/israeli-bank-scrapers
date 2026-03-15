@@ -321,6 +321,7 @@ export const MAX_CONFIG: ILoginConfig = {
   possibleResults: {
     success: [checkMaxSuccess],
     changePassword: [`${CFG.urls.base}/renew-password`],
+    // Max shows identical error popup for both cases — same visible Hebrew text
     invalidPassword: [checkMaxErrorPopup],
     unknownError: [checkMaxErrorPopup],
   },
