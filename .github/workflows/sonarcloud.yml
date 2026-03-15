@@ -44,12 +44,18 @@ jobs:
 
       - name: Verify SonarCloud secrets
         run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::error::SONAR_TOKEN secret is not set. Add it in Settings → Secrets → Actions."
+          missing=""
+          [ -z "$SONAR_TOKEN" ] && missing="$missing SONAR_TOKEN"
+          [ -z "$SONAR_ORG" ] && missing="$missing SONAR_ORG"
+          [ -z "$SONAR_PROJECT_KEY" ] && missing="$missing SONAR_PROJECT_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing — add in Settings → Secrets → Actions."
             exit 1
           fi
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ secrets.SONAR_ORG }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@aa494459d7c39c106cc77b166de8b4250a32bb97 # v5.1.0
