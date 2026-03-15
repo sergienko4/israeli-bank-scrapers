@@ -5,19 +5,33 @@ import { jest } from '@jest/globals';
  */
 import { type Frame, type Page } from 'playwright-core';
 
-import {
-  clickButton,
-  elementPresentOnPage,
-  waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
+import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import {
+  isErrorTextVisible,
+  WRONG_DETAILS_TEXTS,
+} from '../../Scrapers/Max/Config/MaxLoginConfig.js';
 import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
+
+/**
+ * Adapter: wraps production isErrorTextVisible for possibleResults signature.
+ * @param opts - Options containing the Playwright page.
+ * @param opts.page - The Playwright page to inspect.
+ * @returns True if any error indicator text is visible.
+ */
+async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
+  if (!opts?.page) return false;
+  return isErrorTextVisible(opts.page);
+}
+
+/** No iframe override — preAction runs on the main page. */
+const NO_FRAME: Frame | undefined = ([] as Frame[]).shift();
 
 const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
@@ -56,18 +70,19 @@ const BASE_CFG: ILoginConfig = {
    * @returns Resolved promise after pre-login navigation completes (no frame override).
    */
   preAction: async (page: Page): Promise<Frame | undefined> => {
-    const isPopupPresent = await elementPresentOnPage(page, '#closePopup');
-    if (isPopupPresent) await clickButton(page, '#closePopup');
+    const closeBtn = page.getByRole('button', { name: /סגור|close/i });
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click();
+    }
     await clickButton(page, '.personal-area > a.go-to-personal-area');
-    const isPrivateLinkPresent = await elementPresentOnPage(page, '.login-link#private');
-    if (isPrivateLinkPresent) await clickButton(page, '.login-link#private');
+    const privateLoc = page.locator('.login-link#private');
+    if ((await privateLoc.count()) > 0) await privateLoc.click();
     await waitUntilElementFound(page, '#login-password-link', { visible: true });
     await clickButton(page, '#login-password-link');
     await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
       visible: true,
     });
-    const noFrame = page.frames().at(-999);
-    return noFrame;
+    return NO_FRAME;
   },
   /**
    * Waits for redirect or error popup after login submission.
@@ -75,13 +90,15 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
+    const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
+      page.getByText(text).first().waitFor({ state: 'visible', timeout: 20000 }),
+    );
     await Promise.race([
       waitForRedirect(page, {
         timeout: 20000,
         ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
       }),
-      page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
-      page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
+      ...errorWaiters,
     ]).catch(() => {
       // Expected: race may reject when none of the conditions match within timeout
     });
@@ -89,13 +106,8 @@ const BASE_CFG: ILoginConfig = {
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
-    invalidPassword: [
-      async (opts): Promise<boolean> => !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
-    ],
-    unknownError: [
-      async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
-    ],
+    invalidPassword: [isErrorTextOnPage],
+    unknownError: [isErrorTextOnPage],
   },
 };
 

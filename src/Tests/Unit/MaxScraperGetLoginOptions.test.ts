@@ -128,8 +128,7 @@ const { default: MOMENT } = await import('moment');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
-const { elementPresentOnPage: ELEMENT_PRESENT } =
-  await import('../../Common/ElementsInteractions.js');
+await import('../../Common/ElementsInteractions.js');
 const { default: MAX_SCRAPER } = await import('../../Scrapers/Max/MaxScraper.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
@@ -161,7 +160,6 @@ beforeEach(() => {
   MOCK_BROWSER.newContext.mockResolvedValue(MOCK_CONTEXT);
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/homepage/personal');
-  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
 describe('MaxScraper.getLoginOptions — postAction override (lines 50-53)', () => {

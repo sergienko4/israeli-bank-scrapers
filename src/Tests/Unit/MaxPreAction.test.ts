@@ -45,6 +45,8 @@ function buildMockPage(locators: LocatorMap): Record<string, jest.Mock> {
       }
       return fallback;
     }),
+    getByText: jest.fn().mockImplementation(() => fallback),
+    getByRole: jest.fn().mockImplementation(() => fallback),
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     waitForURL: jest.fn().mockResolvedValue(undefined),
@@ -55,10 +57,10 @@ function buildMockPage(locators: LocatorMap): Record<string, jest.Mock> {
 }
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
@@ -144,18 +146,18 @@ describe('Max preAction — homepage version detection', () => {
   });
 
   it('closes popup before starting either version flow', async () => {
-    const elements = await import('../../Common/ElementsInteractions.js');
-    (elements.elementPresentOnPage as jest.Mock).mockResolvedValueOnce(true);
+    const closeBtn = createLocator(true);
     const page = buildMockPage({
       'כניסה לאיזור האישי': createLocator(true),
       'לקוחות פרטיים': createLocator(false),
       'כניסה עם סיסמה': createLocator(true),
     });
+    page.getByRole.mockReturnValue(closeBtn);
 
     const preAction = MAX_CONFIG.MAX_CONFIG.preAction;
     if (!preAction) throw new TypeError('preAction missing');
     await preAction(page as never);
 
-    expect(page.$eval).toHaveBeenCalled();
+    expect(closeBtn.click).toHaveBeenCalled();
   });
 });
