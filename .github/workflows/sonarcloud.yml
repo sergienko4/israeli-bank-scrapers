@@ -39,8 +39,8 @@ jobs:
 
       - name: Install Camoufox
         uses: ./.github/actions/install-camoufox
-        env:
-          GH_TOKEN: ${{ github.token }}
+        with:
+          gh-token: ${{ github.token }}
 
       - name: Run unit tests with coverage
         run: npm run test:unit -- --coverage
@@ -49,12 +49,13 @@ jobs:
 
       - name: Verify SonarCloud secrets
         run: |
+          set -euo pipefail
           missing=""
-          [ -z "$SONAR_TOKEN" ] && missing="$missing SONAR_TOKEN"
-          [ -z "$SONAR_ORG" ] && missing="$missing SONAR_ORG"
-          [ -z "$SONAR_PROJECT_KEY" ] && missing="$missing SONAR_PROJECT_KEY"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing secrets:$missing — add in Settings → Secrets → Actions."
+          [ -z "${SONAR_TOKEN}" ] && missing="${missing} SONAR_TOKEN"
+          [ -z "${SONAR_ORG}" ] && missing="${missing} SONAR_ORG"
+          [ -z "${SONAR_PROJECT_KEY}" ] && missing="${missing} SONAR_PROJECT_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing secrets:${missing} — add in Settings → Secrets → Actions."
             exit 1
           fi
         env:
