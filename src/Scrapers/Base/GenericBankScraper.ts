@@ -265,8 +265,8 @@ export default class GenericBankScraper<
     try {
       this._formAnchor = await discoverFormAnchor(result.context, result.selector);
       return true;
-    } catch (caught: unknown) {
-      const msg = caught instanceof Error ? caught.message : String(caught);
+    } catch (error_: unknown) {
+      const msg = error_ instanceof Error ? error_.message : String(error_);
       this.bankLog.debug('form anchor discovery failed: %s', msg);
       return false;
     }

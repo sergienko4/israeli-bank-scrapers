@@ -132,7 +132,7 @@ export const BEINLEUMI_LOGIN_URL = `${BEINLEUMI_TEST_BASE_URL}/FibiMenu/Marketin
 export const CREDS_USERNAME_PASSWORD = {
   username: 'testuser',
   password: 'testpass',
-};
+} as const;
 
 /** Hapoalim-style credentials (userCode). */
 export const CREDS_HAPOALIM = { userCode: 'user123', password: 'pass456' } as const;
