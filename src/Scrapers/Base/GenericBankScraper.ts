@@ -170,6 +170,15 @@ async function fillWithFallback(
 }
 
 /**
+ * Extract a human-readable message from an unknown caught value.
+ * @param caught - The caught value from a try/catch block.
+ * @returns The error message string.
+ */
+function toErrorMessage(caught: unknown): string {
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
+/**
  * A scraper base class driven by a `ILoginConfig` declaration.
  * Handles login via selector resolution (ID, display-name, global dictionary).
  * Extend this class and implement `fetchData()` for each bank.
@@ -265,9 +274,9 @@ export default class GenericBankScraper<
     try {
       this._formAnchor = await discoverFormAnchor(result.context, result.selector);
       return true;
-    } catch (error_: unknown) {
-      const msg = error_ instanceof Error ? error_.message : String(error_);
-      this.bankLog.debug('form anchor discovery failed: %s', msg);
+    } catch (caught: unknown) {
+      const errorMsg = toErrorMessage(caught);
+      this.bankLog.debug('form anchor discovery failed: %s', errorMsg);
       return false;
     }
   }
