@@ -8,6 +8,7 @@ import { type Browser, type Page } from 'playwright-core';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
@@ -83,10 +84,7 @@ describe('labelText false-positive guard', () => {
       fpConfig,
     );
 
-    const result = await scraper.scrape({
-      username: 'testuser',
-      password: 'testpass',
-    } as { username: string; password: string });
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
@@ -162,10 +160,7 @@ describe('labelText in iframe', () => {
       iframeLabelConfig,
     );
 
-    const result = await scraper.scrape({
-      username: 'testuser',
-      password: 'testpass',
-    } as { username: string; password: string });
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
@@ -234,10 +229,7 @@ describe('labelText sibling strategy', () => {
       siblingConfig,
     );
 
-    const result = await scraper.scrape({
-      username: 'testuser',
-      password: 'testpass',
-    } as { username: string; password: string });
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();

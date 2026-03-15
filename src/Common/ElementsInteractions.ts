@@ -24,7 +24,7 @@ const LOG = getDebug('elements');
 export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
   return pageOrFrame
     .evaluate(
-      (limit: number): string => document.body.innerText.replace(/\s+/g, ' ').slice(0, limit),
+      (limit: number): string => document.body.innerText.replaceAll(/\s+/g, ' ').slice(0, limit),
       PAGE_TEXT_CAPTURE_LIMIT,
     )
     .catch(() => '(context unavailable)');

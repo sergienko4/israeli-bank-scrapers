@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import { createMockPage } from '../MockPage.js';
+import { CREDS_HAPOALIM } from '../TestConstants.js';
 
 export interface IHapoalimScrapedTxn {
   serialNumber: number;
@@ -15,7 +16,7 @@ export interface IHapoalimScrapedTxn {
   beneficiaryDetailsData?: Record<string, string | undefined>;
 }
 
-export const CREDS = { userCode: 'user123', password: 'pass456' };
+export const CREDS = CREDS_HAPOALIM;
 
 export const MOCK_CONTEXT = {
   newPage: jest.fn(),

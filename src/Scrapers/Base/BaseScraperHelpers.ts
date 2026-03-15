@@ -22,20 +22,23 @@ enum LoginBaseResults {
   UnknownError = 'UNKNOWN_ERROR',
 }
 
-const {
-  Timeout: EXCLUDED_TIMEOUT,
-  Generic: EXCLUDED_GENERIC,
-  WafBlocked: EXCLUDED_WAF_BLOCKED,
-  ...LOGIN_BASE_ENTRIES
-} = ScraperErrorTypes;
-void EXCLUDED_TIMEOUT;
-void EXCLUDED_GENERIC;
-void EXCLUDED_WAF_BLOCKED;
-
 /** Union of login result constants — excludes Timeout, Generic, and WafBlocked. */
-export const LOGIN_RESULTS = {
-  ...LOGIN_BASE_ENTRIES,
-  ...LoginBaseResults,
+export const LOGIN_RESULTS: {
+  readonly TwoFactorRetrieverMissing: ScraperErrorTypes.TwoFactorRetrieverMissing;
+  readonly InvalidOtp: ScraperErrorTypes.InvalidOtp;
+  readonly InvalidPassword: ScraperErrorTypes.InvalidPassword;
+  readonly ChangePassword: ScraperErrorTypes.ChangePassword;
+  readonly AccountBlocked: ScraperErrorTypes.AccountBlocked;
+  readonly Success: LoginBaseResults.Success;
+  readonly UnknownError: LoginBaseResults.UnknownError;
+} = {
+  TwoFactorRetrieverMissing: ScraperErrorTypes.TwoFactorRetrieverMissing,
+  InvalidOtp: ScraperErrorTypes.InvalidOtp,
+  InvalidPassword: ScraperErrorTypes.InvalidPassword,
+  ChangePassword: ScraperErrorTypes.ChangePassword,
+  AccountBlocked: ScraperErrorTypes.AccountBlocked,
+  Success: LoginBaseResults.Success,
+  UnknownError: LoginBaseResults.UnknownError,
 };
 
 export type LoginResults =

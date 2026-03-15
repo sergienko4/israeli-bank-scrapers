@@ -9,6 +9,7 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 
+/** Hebrew error message displayed when Leumi login credentials are invalid. */
 export const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 

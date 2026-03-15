@@ -23,7 +23,7 @@ type WaitUntilReturn<T> = T extends Falsy ? never : Promise<NonNullable<T>>;
  */
 function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string): Promise<T> {
   const timeout = new Promise((_, reject) => {
-    const id = global.setTimeout(() => {
+    const id = globalThis.setTimeout(() => {
       clearTimeout(id);
       const error = new TimeoutError(description);
       reject(error);
@@ -61,7 +61,7 @@ function makeWaitTick<T>(
     asyncTest()
       .then(value => {
         if (value) cbs.resolve(value as unknown as NonNullable<T>);
-        else global.setTimeout(wait, interval);
+        else globalThis.setTimeout(wait, interval);
       })
       .catch(() => {
         cbs.reject();
@@ -208,7 +208,7 @@ export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
  */
 export function sleep(ms: number): Promise<boolean> {
   return new Promise(resolve => {
-    global.setTimeout(() => {
+    globalThis.setTimeout(() => {
       resolve(true);
     }, ms);
   });
@@ -227,7 +227,7 @@ export function humanDelay(
 ): Promise<boolean> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return new Promise(resolve => {
-    global.setTimeout(() => {
+    globalThis.setTimeout(() => {
       resolve(true);
     }, delay);
   });

@@ -170,6 +170,15 @@ async function fillWithFallback(
 }
 
 /**
+ * Extract a human-readable message from an unknown caught value.
+ * @param caught - The caught value from a try/catch block.
+ * @returns The error message string.
+ */
+function toErrorMessage(caught: unknown): string {
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
+/**
  * A scraper base class driven by a `ILoginConfig` declaration.
  * Handles login via selector resolution (ID, display-name, global dictionary).
  * Extend this class and implement `fetchData()` for each bank.
@@ -257,17 +266,19 @@ export default class GenericBankScraper<
   /**
    * Discover the form anchor from a resolved input selector.
    * @param result - The resolved field context from selector resolution.
-   * @returns True after discovery attempt completes.
+   * @returns True if form anchor was found or already set, false if discovery failed.
    */
   private async tryDiscoverFormAnchor(result: IFieldContext): Promise<boolean> {
     if (this._formAnchor) return true;
-    if (!result.isResolved) return true;
+    if (!result.isResolved) return false;
     try {
       this._formAnchor = await discoverFormAnchor(result.context, result.selector);
-    } catch {
-      // Form anchor is optional — never break the login flow
+      return true;
+    } catch (caught: unknown) {
+      const errorMsg = toErrorMessage(caught);
+      this.bankLog.debug('form anchor discovery failed: %s', errorMsg);
+      return false;
     }
-    return true;
   }
 
   /**
@@ -298,6 +309,27 @@ export default class GenericBankScraper<
   }
 
   /**
+   * Apply resolved field context: discover anchor and fill input.
+   * @param result - The resolved field context.
+   * @param fieldConfig - The field configuration with selectors.
+   * @param value - The value to fill.
+   * @returns True after the field is filled.
+   */
+  private async applyResolvedField(
+    result: IFieldContext,
+    fieldConfig: IFieldConfig,
+    value: string,
+  ): Promise<boolean> {
+    this.activeLoginContext = result.context;
+    const hasAnchor = await this.tryDiscoverFormAnchor(result);
+    if (!hasAnchor) {
+      this.bankLog.debug('form anchor not found for field %s', fieldConfig.credentialKey);
+    }
+    await fillInput(result.context, result.selector, value);
+    return true;
+  }
+
+  /**
    * Resolve the field selector and fill the input value.
    * @param pageOrFrame - The page or frame to search in.
    * @param fieldConfig - The field configuration with selectors.
@@ -316,9 +348,7 @@ export default class GenericBankScraper<
       currentUrl,
     );
     if (result.isResolved) {
-      this.activeLoginContext = result.context;
-      await this.tryDiscoverFormAnchor(result);
-      await fillInput(result.context, result.selector, value);
+      await this.applyResolvedField(result, fieldConfig, value);
     }
     return result;
   }

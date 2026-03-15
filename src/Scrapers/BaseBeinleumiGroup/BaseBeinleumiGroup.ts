@@ -345,7 +345,7 @@ async function getCurrentBalance(page: Page | Frame): Promise<number> {
   });
   const balanceStr = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
   const sanitized = balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', '');
-  return parseFloat(sanitized);
+  return Number.parseFloat(sanitized);
 }
 
 /**

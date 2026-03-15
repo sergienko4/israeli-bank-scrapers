@@ -8,7 +8,7 @@ import {
   createNavigationMock,
   createTransactionsMock,
 } from '../MockModuleFactories.js';
-import { LEUMI_LOGIN_URL, LEUMI_SUCCESS_URL } from '../TestConstants.js';
+import { CREDS_USERNAME_PASSWORD, LEUMI_LOGIN_URL, LEUMI_SUCCESS_URL } from '../TestConstants.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
@@ -46,7 +46,7 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { username: 'testuser', password: 'testpass' };
+const CREDS = CREDS_USERNAME_PASSWORD;
 
 /** Default empty Leumi response shape. */
 const DEFAULT_LEUMI_RESPONSE = { TodayTransactionsItems: [], HistoryTransactionsItems: [] };

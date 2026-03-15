@@ -38,7 +38,7 @@ export const ERROR_MESSAGE_CLASS = 'NO_DATA';
  */
 function getAmountData(amountStr: string): number {
   const cleaned = amountStr.replace(SHEKEL_CURRENCY_SYMBOL, '').replaceAll(',', '');
-  return parseFloat(cleaned);
+  return Number.parseFloat(cleaned);
 }
 
 /**
@@ -73,7 +73,7 @@ function makeTxnFields(txn: IScrapedTransaction): Omit<ITransaction, 'rawTransac
   const amount = getTxnAmount(txn);
   return {
     type: TransactionTypes.Normal,
-    identifier: txn.reference ? parseInt(txn.reference, 10) : undefined,
+    identifier: txn.reference ? Number.parseInt(txn.reference, 10) : undefined,
     date: d,
     processedDate: d,
     originalAmount: amount,

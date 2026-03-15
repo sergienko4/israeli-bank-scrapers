@@ -11,14 +11,14 @@ import {
 import { createMockPage } from '../MockPage.js';
 
 const MOCK_FETCH = jest.fn();
-const ORIGINAL_FETCH = global.fetch;
+const ORIGINAL_FETCH = globalThis.fetch;
 
 beforeAll(() => {
-  global.fetch = MOCK_FETCH;
+  globalThis.fetch = MOCK_FETCH;
 });
 
 afterAll(() => {
-  global.fetch = ORIGINAL_FETCH;
+  globalThis.fetch = ORIGINAL_FETCH;
 });
 
 interface IMockResponse {

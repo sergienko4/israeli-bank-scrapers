@@ -158,12 +158,12 @@ describe('BaseScraper', () => {
   describe('2FA methods', () => {
     it('triggerTwoFactorAuth throws not implemented', () => {
       const scraper = new TestScraper(createMockScraperOptions());
-      expect(() => scraper.triggerTwoFactorAuth('0541234567')).toThrow('triggerOtp()');
+      expect(() => scraper.triggerTwoFactorAuth('0541234567')).toThrow('triggerOtp(');
     });
 
     it('getLongTermTwoFactorToken throws not implemented', () => {
       const scraper = new TestScraper(createMockScraperOptions());
-      expect(() => scraper.getLongTermTwoFactorToken('123456')).toThrow('getPermanentOtpToken()');
+      expect(() => scraper.getLongTermTwoFactorToken('123456')).toThrow('getPermanentOtpToken(');
     });
   });
 });

@@ -192,7 +192,7 @@ export const EMPTY_CARDS_INIT_RESPONSE = {
   result: { cards: [] },
 };
 
-export const CREDS = { username: 'testuser', password: 'testpass' };
+export { CREDS_USERNAME_PASSWORD as CREDS } from '../TestConstants.js';
 
 export const MOCK_CONTEXT = {
   newPage: jest.fn(),

@@ -32,7 +32,7 @@ async function isDropdownOpen(page: Page): Promise<boolean> {
 /**
  * Ensure the account dropdown is open, clicking the trigger if needed.
  * @param page - The Playwright page instance.
- * @returns True when the dropdown is confirmed open.
+ * @returns True if dropdown was already open, false if it had to be opened.
  */
 async function ensureDropdownOpen(page: Page): Promise<boolean> {
   if (await isDropdownOpen(page)) return true;
@@ -45,7 +45,7 @@ async function ensureDropdownOpen(page: Page): Promise<boolean> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  return true;
+  return false;
 }
 
 /**
@@ -55,7 +55,8 @@ async function ensureDropdownOpen(page: Page): Promise<boolean> {
  */
 export async function clickAccountSelectorGetAccountIds(page: Page): Promise<string[]> {
   try {
-    await ensureDropdownOpen(page);
+    const wasOpen = await ensureDropdownOpen(page);
+    LOG.debug('dropdown %s', wasOpen ? 'already open' : 'opened');
     const accountLabels = await page.$$eval(OPTION_SELECTOR, options =>
       options.map(option => option.textContent.trim()).filter(label => label !== ''),
     );

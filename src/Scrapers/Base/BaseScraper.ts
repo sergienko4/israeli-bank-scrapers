@@ -119,8 +119,8 @@ export default class BaseScraper<
    * @returns The trigger result with status.
    */
   public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
-    void phoneNumber;
-    throw new ScraperError(`triggerOtp() is not created in ${this.options.companyId}`);
+    const masked = `***${phoneNumber.slice(-4)}`;
+    throw new ScraperError(`triggerOtp(${masked}) is not created in ${this.options.companyId}`);
   }
 
   /**
@@ -131,8 +131,10 @@ export default class BaseScraper<
   public getLongTermTwoFactorToken(
     otpCode: string,
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    void otpCode;
-    throw new ScraperError(`getPermanentOtpToken() is not created in ${this.options.companyId}`);
+    const codeLength = String(otpCode.length);
+    throw new ScraperError(
+      `getPermanentOtpToken(${codeLength} chars) is not created in ${this.options.companyId}`,
+    );
   }
 
   /**
@@ -151,8 +153,8 @@ export default class BaseScraper<
    * @returns The login result.
    */
   protected login(credentials: TCredentials): Promise<IScraperLoginResult> {
-    void credentials;
-    throw new ScraperError(`login() is not created in ${this.options.companyId}`);
+    const keyCount = String(Object.keys(credentials).length);
+    throw new ScraperError(`login(${keyCount} keys) is not created in ${this.options.companyId}`);
   }
 
   /**
@@ -169,7 +171,7 @@ export default class BaseScraper<
    * @returns True when termination completes.
    */
   protected terminate(isSuccess: boolean): Promise<boolean> {
-    void isSuccess;
+    this.bankLog.trace('terminate called with success=%s', isSuccess);
     this.emitProgress(ScraperProgressTypes.Terminating);
     return Promise.resolve(true);
   }
