@@ -83,6 +83,27 @@ const MOCK_WAIT_FOR_SELECTOR = jest.fn().mockResolvedValue(undefined);
  * @param url - the URL the page should report
  * @returns a mock Page instance
  */
+/**
+ * Create a self-referencing mock locator.
+ * @param visible - Whether isVisible resolves to true.
+ * @returns A mock locator with first() returning self.
+ */
+function makeMockLocator(visible = false): Record<string, jest.Mock> {
+  const loc: Record<string, jest.Mock> = {
+    isVisible: jest.fn().mockResolvedValue(visible),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    first: jest.fn(),
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
+/**
+ * Creates a mock Page with configurable URL.
+ * @param url - the URL the page should report
+ * @returns a mock Page instance
+ */
 function makeMockPage(url = 'https://www.max.co.il/login'): Page {
   return {
     url: jest.fn().mockReturnValue(url),
@@ -98,6 +119,8 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
         count: jest.fn().mockResolvedValue(1),
       }),
     }),
+    getByText: jest.fn().mockImplementation(() => makeMockLocator()),
+    getByRole: jest.fn().mockImplementation(() => makeMockLocator()),
     frames: jest.fn().mockReturnValue([]),
   } as unknown as Page;
 }
@@ -106,7 +129,6 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('falls back to force-click when locator is not visible', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
     const mockClick = jest.fn().mockResolvedValue(undefined);
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
@@ -123,7 +145,6 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
   });
 
   it('skips force-click when element count is zero', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
     const mockClick = jest.fn().mockResolvedValue(undefined);
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
@@ -140,7 +161,6 @@ describe('MAX_CONFIG preAction force-click fallback', () => {
   });
 
   it('handles isVisible rejection gracefully and force-clicks', async () => {
-    MOCK_ELEMENT_PRESENT.mockResolvedValue(false);
     const mockClick = jest.fn().mockResolvedValue(undefined);
     const mockLocator = jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({

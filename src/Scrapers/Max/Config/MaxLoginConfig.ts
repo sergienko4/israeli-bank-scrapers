@@ -1,12 +1,7 @@
 import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
-import {
-  clickButton,
-  elementPresentOnPage,
-  fillInput,
-  waitUntilElementFound,
-} from '../../../Common/ElementsInteractions.js';
+import { clickButton, fillInput } from '../../../Common/ElementsInteractions.js';
 import { resolveFieldContext } from '../../../Common/SelectorResolver.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type IFieldConfig, type ILoginConfig } from '../../Base/Config/LoginConfig.js';
@@ -24,6 +19,9 @@ const MAX_ID_FIELD: IFieldConfig = { credentialKey: 'id', selectors: [] };
 const DROPDOWN_WAIT_MS = CFG.timing.elementRenderMs ?? 5000;
 /** Max preAction timeout for username field to appear after navigation (ms). */
 const LOGIN_FIELD_WAIT_MS = 15000;
+
+/** Known visible Hebrew texts shown when Max login fails. */
+const WRONG_DETAILS_TEXTS = ['שכחת את הפרטים?', 'או לשחזר בקלות'] as const;
 
 /**
  * Resolve a login field via SelectorResolver and fill it with the given value.
@@ -161,11 +159,9 @@ async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> 
  * @returns True after the popup is closed or confirmed absent.
  */
 async function closePopupIfPresent(page: Page): Promise<boolean> {
-  const hasPopup = await elementPresentOnPage(page, '#closePopup');
-  if (hasPopup) {
-    await page.$eval('#closePopup', (el: HTMLElement) => {
-      el.click();
-    });
+  const closeBtn = page.getByRole('button', { name: /סגור|close/i });
+  if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await closeBtn.click();
   }
   return true;
 }
@@ -237,11 +233,21 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const currentUrl = page.url();
   if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
   LOG.info('waitForDashboardOrError: url=%s', currentUrl);
-  await Promise.race([
-    page.waitForURL('**/homepage/**', { timeout: 60000 }),
-    waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
-    waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
-  ]);
+  const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
+    page.getByText(text).first().waitFor({ state: 'visible', timeout: 60000 }),
+  );
+  await Promise.race([page.waitForURL('**/homepage/**', { timeout: 60000 }), ...errorWaiters]);
+}
+
+/**
+ * Check whether any known error text is visible on the page.
+ * @param page - The Playwright page to inspect.
+ * @returns True if any error indicator text is visible.
+ */
+async function isErrorTextVisible(page: Page): Promise<boolean> {
+  const checks = WRONG_DETAILS_TEXTS.map(text => page.getByText(text).first().isVisible());
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
 }
 
 /**
@@ -295,7 +301,7 @@ function checkMaxSuccess(opts?: { page?: Page }): boolean {
  */
 async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupWrongDetails');
+  return isErrorTextVisible(opts.page);
 }
 
 /**
@@ -306,7 +312,7 @@ async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean>
  */
 async function checkMaxUnknownError(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupCardHoldersLoginError');
+  return isErrorTextVisible(opts.page);
 }
 
 export const MAX_CONFIG: ILoginConfig = {
