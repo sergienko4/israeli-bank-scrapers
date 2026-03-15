@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.6...v8.1.0) (2026-03-14)
+
+
+### Features
+
+* add integration test framework with 18 tests for 6 scrapers ([#158](https://github.com/sergienko4/israeli-bank-scrapers/issues/158)) ([a6a4dfe](https://github.com/sergienko4/israeli-bank-scrapers/commit/a6a4dfe451cf4e8b894568c8d4affbaedc728b26))
+
 ## [8.0.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.5...v8.0.6) (2026-03-14)
 
 
