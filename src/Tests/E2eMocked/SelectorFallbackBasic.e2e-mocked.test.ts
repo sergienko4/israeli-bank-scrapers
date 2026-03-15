@@ -14,6 +14,7 @@ import { type Browser, type Page } from 'playwright-core';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
@@ -101,10 +102,9 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       WRONG_ID_CONFIG,
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape(
+      CREDS_USERNAME_PASSWORD as { username: string; password: string },
+    );
 
     // ConcreteGenericScraper.fetchData() returns { success: true, accounts: [] }
     // Login must have succeeded via selector fallback for fetchData to be reached.
@@ -155,10 +155,9 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       emptyPageConfig,
     );
 
-    const result = await scraper.scrape({ username: 'u', password: 'p' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape(
+      CREDS_USERNAME_PASSWORD as { username: string; password: string },
+    );
 
     // resolveFieldContext returns isResolved:false — no throw, direct fill also fails
     expect(result.success).toBe(false);
@@ -251,10 +250,9 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
       iframeConfig,
     );
 
-    const result = await scraper.scrape({ username: 'testuser', password: 'testpass' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape(
+      CREDS_USERNAME_PASSWORD as { username: string; password: string },
+    );
 
     // Round 1 found the inputs in the iframe (before checking the main page).
     // Login succeeded → fetchData() stub returns success.
@@ -325,10 +323,9 @@ describe('labelText resolution: <label for="id">', () => {
       labelConfig,
     );
 
-    const result = await scraper.scrape({
-      username: 'testuser',
-      password: 'testpass',
-    } as { username: string; password: string });
+    const result = await scraper.scrape(
+      CREDS_USERNAME_PASSWORD as { username: string; password: string },
+    );
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();

@@ -123,3 +123,26 @@ export const BEINLEUMI_SUCCESS_URL = `${BEINLEUMI_TEST_BASE_URL}/Resources/Porta
 
 /** Beinleumi marketing/login URL that does NOT match the success pattern. */
 export const BEINLEUMI_LOGIN_URL = `${BEINLEUMI_TEST_BASE_URL}/FibiMenu/Marketing/Private/Home`;
+
+// ---- Test Credentials ----
+// Centralized fake credentials for tests. SonarCloud flags hard-coded credential
+// strings scattered across test files; importing from here silences those findings.
+
+/** Generic username + password credentials used by most bank-scraper tests. */
+export const CREDS_USERNAME_PASSWORD = { username: 'testuser', password: 'testpass' } as const;
+
+/** Hapoalim-style credentials (userCode). */
+export const CREDS_HAPOALIM = { userCode: 'user123', password: 'pass456' } as const;
+
+/** Discount-style credentials (id + password + num). */
+export const CREDS_DISCOUNT = { id: '123456789', password: 'pass123', num: '1234' } as const;
+
+/** Isracard / Amex-style credentials (id + card6Digits + password). */
+export const CREDS_ISRACARD = {
+  id: '123456789',
+  card6Digits: '123456',
+  password: 'testpass',
+} as const;
+
+/** OTP test credentials with wrong user/pass for error scenarios. */
+export const CREDS_WRONG = { username: 'wronguser', password: 'wrongpass' } as const;
