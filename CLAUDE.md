@@ -12,6 +12,46 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - Max 10 lines per method — extract helpers
 - TypeScript strict mode — no `any`, no unused vars
 - Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint 9 flat config
+- Generic over duplication — use factories, shared helpers, config arrays
+- Constants from configuration — never hardcode values inline
+
+## Architecture Rules — ABSOLUTE
+
+### ZERO CSS Selectors
+- **NO** `$eval`, `$$eval`, `page.$()`, `querySelector`, `waitForSelector('#id')`
+- **NO** hardcoded CSS IDs, classes, or attribute selectors anywhere
+- **ONLY** visible text the user can read: `getByText()`, `getByRole()`
+- Text IS the stable anchor — once found, extract all metadata dynamically
+- Use `WELL_KNOWN_LOGIN_SELECTORS` / `WELL_KNOWN_DASHBOARD_SELECTORS` from `WellKnownSelectors.ts`
+- Priority: visible text → semantic HTML → textContent walk-up (down to up)
+
+### Middleware Flow
+- Find element by visible text (what user sees)
+- Collect metadata from DOM element (tag, id, class, parent, attributes)
+- Build selectors dynamically from metadata
+- SelectorResolver + LoginConfig already implement this — REUSE them
+
+### Factories and Generics
+- Use factory functions for test mocks (`makeMockLocator`, `createErrorLocator`)
+- Use config arrays (`WRONG_DETAILS_TEXTS`) mapped with `.map()` — no duplication
+- Tests must NOT duplicate production logic — import shared helpers
+- Use `as const` for literal type narrowing
+
+## Claude Workflow Rules — STRICT
+
+### No Back-and-Forth
+- **NEVER** retry commits blindly — validate first, commit once
+- **NEVER** blame "rate limiting" or "flaky tests" — read the actual error log
+- **NEVER** dismiss test failures without investigating
+- **NEVER** move/rename `.env` — the user's environment is sacred
+- **NEVER** use `taskkill` on user's processes
+- Save ALL output to `/tmp/*.log` files, read ALL logs, fix ALL issues in one pass
+- Self-review before committing: check big picture, factories, DRY, config usage
+
+### Pre-Commit Protocol
+- Run targeted tests first (`npx jest --testPathPatterns=...`) to validate
+- Only attempt full commit when targeted tests pass
+- If commit hook gate 7 (real E2E) fails: READ THE LOG, investigate, don't retry blindly
 
 ## Workflow
 

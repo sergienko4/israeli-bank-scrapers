@@ -231,8 +231,8 @@ describe('MAX_CONFIG', () => {
   describe('possibleResults.success', () => {
     /** First success predicate.
      * @returns The checker function. */
-    function getChecker(): (args: { page?: { url(): string } }) => boolean {
-      return MAX_CONFIG.possibleResults.success[0] as (args: {
+    function getChecker(): (input: { page?: { url(): string } }) => boolean {
+      return MAX_CONFIG.possibleResults.success[0] as (input: {
         page?: { url(): string };
       }) => boolean;
     }
@@ -263,14 +263,14 @@ describe('MAX_CONFIG', () => {
       const errorLoc = makeMockLocator(true);
       MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
-      const checker = invalidPwCheckers[0] as (args: { page: Page }) => Promise<boolean>;
+      const checker = invalidPwCheckers[0] as (input: { page: Page }) => Promise<boolean>;
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(true);
     });
     it('returns false when error text is absent', async () => {
       const page = makeMockPage();
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
-      const checker = invalidPwCheckers[0] as (args: { page: Page }) => Promise<boolean>;
+      const checker = invalidPwCheckers[0] as (input: { page: Page }) => Promise<boolean>;
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(false);
     });
@@ -281,9 +281,16 @@ describe('MAX_CONFIG', () => {
       const errorLoc = makeMockLocator(true);
       MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
-      const checker = unknownErrCheckers[0] as (args: { page: Page }) => Promise<boolean>;
+      const checker = unknownErrCheckers[0] as (input: { page: Page }) => Promise<boolean>;
       const isError = await checker({ page });
       expect(isError).toBe(true);
+    });
+    it('returns false when error text is absent', async () => {
+      const page = makeMockPage();
+      const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
+      const checker = unknownErrCheckers[0] as (input: { page: Page }) => Promise<boolean>;
+      const isError = await checker({ page });
+      expect(isError).toBe(false);
     });
   });
   describe('checkReadiness', () => {
