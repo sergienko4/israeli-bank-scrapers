@@ -56,8 +56,8 @@ const BASE_CFG: ILoginConfig = {
    * @returns Resolved promise after pre-login navigation completes (no frame override).
    */
   preAction: async (page: Page): Promise<Frame | undefined> => {
-    const isPopupPresent = await elementPresentOnPage(page, '#closePopup');
-    if (isPopupPresent) await clickButton(page, '#closePopup');
+    const closeBtn = page.getByRole('button', { name: /סגור|close/i });
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await closeBtn.click();
     await clickButton(page, '.personal-area > a.go-to-personal-area');
     const isPrivateLinkPresent = await elementPresentOnPage(page, '.login-link#private');
     if (isPrivateLinkPresent) await clickButton(page, '.login-link#private');
@@ -75,13 +75,15 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
+    const errorWaiters = (['שכחת את הפרטים?', 'או לשחזר בקלות'] as const).map(text =>
+      page.getByText(text).waitFor({ state: 'visible', timeout: 20000 }),
+    );
     await Promise.race([
       waitForRedirect(page, {
         timeout: 20000,
         ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
       }),
-      page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
-      page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
+      ...errorWaiters,
     ]).catch(() => {
       // Expected: race may reject when none of the conditions match within timeout
     });
@@ -90,11 +92,26 @@ const BASE_CFG: ILoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [
-      async (opts): Promise<boolean> => !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
+      async (opts): Promise<boolean> => {
+        const { page } = opts ?? {};
+        if (!page) return false;
+        const checks = (['שכחת את הפרטים?', 'או לשחזר בקלות'] as const).map(text =>
+          page.getByText(text).isVisible(),
+        );
+        const results = await Promise.all(checks);
+        return results.some(Boolean);
+      },
     ],
     unknownError: [
-      async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
+      async (opts): Promise<boolean> => {
+        const { page } = opts ?? {};
+        if (!page) return false;
+        const checks = (['שכחת את הפרטים?', 'או לשחזר בקלות'] as const).map(text =>
+          page.getByText(text).isVisible(),
+        );
+        const results = await Promise.all(checks);
+        return results.some(Boolean);
+      },
     ],
   },
 };

@@ -51,6 +51,8 @@ function buildMockPage(locators: LocatorMap): Record<string, jest.Mock> {
     url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
     frames: jest.fn().mockReturnValue([]),
     $eval: jest.fn().mockResolvedValue(undefined),
+    getByText: jest.fn().mockReturnValue(fallback),
+    getByRole: jest.fn().mockReturnValue(fallback),
   };
 }
 
@@ -144,18 +146,18 @@ describe('Max preAction — homepage version detection', () => {
   });
 
   it('closes popup before starting either version flow', async () => {
-    const elements = await import('../../Common/ElementsInteractions.js');
-    (elements.elementPresentOnPage as jest.Mock).mockResolvedValueOnce(true);
+    const closeBtn = createLocator(true);
     const page = buildMockPage({
       'כניסה לאיזור האישי': createLocator(true),
       'לקוחות פרטיים': createLocator(false),
       'כניסה עם סיסמה': createLocator(true),
     });
+    page.getByRole.mockReturnValue(closeBtn);
 
     const preAction = MAX_CONFIG.MAX_CONFIG.preAction;
     if (!preAction) throw new TypeError('preAction missing');
     await preAction(page as never);
 
-    expect(page.$eval).toHaveBeenCalled();
+    expect(closeBtn.click).toHaveBeenCalled();
   });
 });

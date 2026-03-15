@@ -7,8 +7,6 @@ import { CREDS_USERNAME_PASSWORD } from '../../TestConstants.js';
 const MOCK_RESOLVE_FIELD_CONTEXT = jest.fn();
 const MOCK_FILL_INPUT = jest.fn().mockResolvedValue(undefined);
 const MOCK_CLICK_BUTTON = jest.fn().mockResolvedValue(undefined);
-const MOCK_ELEMENT_PRESENT_ON_PAGE = jest.fn().mockResolvedValue(false);
-const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
 
 jest.unstable_mockModule(
   '../../../Common/Debug.js',
@@ -44,8 +42,6 @@ jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
 jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   fillInput: MOCK_FILL_INPUT,
   clickButton: MOCK_CLICK_BUTTON,
-  waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
-  elementPresentOnPage: MOCK_ELEMENT_PRESENT_ON_PAGE,
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
@@ -87,6 +83,28 @@ const MOCK_LOCATOR = jest.fn().mockReturnValue({
 });
 
 /**
+ * Creates a mock Playwright Locator with isVisible, waitFor, and click stubs.
+ * @param visible - Whether isVisible() should resolve to true.
+ * @returns A mock locator object.
+ */
+function makeMockLocator(visible = false): {
+  isVisible: jest.Mock;
+  waitFor: jest.Mock;
+  click: jest.Mock;
+} {
+  return {
+    isVisible: jest.fn().mockResolvedValue(visible),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+const DEFAULT_TEXT_LOCATOR = makeMockLocator(false);
+const DEFAULT_ROLE_LOCATOR = makeMockLocator(false);
+const MOCK_GET_BY_TEXT = jest.fn().mockReturnValue(DEFAULT_TEXT_LOCATOR);
+const MOCK_GET_BY_ROLE = jest.fn().mockReturnValue(DEFAULT_ROLE_LOCATOR);
+
+/**
  * Creates a mock Page with configurable URL and stubbed Playwright methods.
  * @param url - The URL the mock page reports.
  * @returns A mock Page instance.
@@ -102,6 +120,12 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
   MOCK_WAIT_FOR_SELECTOR.mockClear();
   MOCK_WAIT_FOR_URL.mockClear();
   MOCK_LOCATOR.mockClear();
+  MOCK_GET_BY_TEXT.mockClear();
+  MOCK_GET_BY_ROLE.mockClear();
+  const defaultTextLoc = makeMockLocator(false);
+  MOCK_GET_BY_TEXT.mockReturnValue(defaultTextLoc);
+  const defaultRoleLoc = makeMockLocator(false);
+  MOCK_GET_BY_ROLE.mockReturnValue(defaultRoleLoc);
   return {
     url: jest.fn().mockReturnValue(url),
     $eval: MOCK_PAGE_EVAL,
@@ -110,6 +134,8 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
     waitForURL: MOCK_WAIT_FOR_URL,
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     locator: MOCK_LOCATOR,
+    getByText: MOCK_GET_BY_TEXT,
+    getByRole: MOCK_GET_BY_ROLE,
     frames: jest.fn().mockReturnValue([]),
   } as unknown as Page;
 }
@@ -255,33 +281,38 @@ describe('MAX_CONFIG', () => {
   });
 
   describe('possibleResults.invalidPassword', () => {
-    it('returns true when popupWrongDetails element present', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
+    it('returns true when error text is visible on page', async () => {
+      const page = makeMockPage();
+      const visibleLocator = makeMockLocator(true);
+      MOCK_GET_BY_TEXT.mockReturnValue(visibleLocator);
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
       const checker = invalidPwCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(true);
+      expect(MOCK_GET_BY_TEXT).toHaveBeenCalled();
     });
 
-    it('returns false when popupWrongDetails element absent', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(false);
+    it('returns false when error text is not visible on page', async () => {
+      const page = makeMockPage();
+      const hiddenLocator = makeMockLocator(false);
+      MOCK_GET_BY_TEXT.mockReturnValue(hiddenLocator);
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
       const checker = invalidPwCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(false);
     });
   });
 
   describe('possibleResults.unknownError', () => {
-    it('returns true when popupCardHoldersLoginError present', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
+    it('returns true when error text is visible on page', async () => {
+      const page = makeMockPage();
+      const visibleLocator = makeMockLocator(true);
+      MOCK_GET_BY_TEXT.mockReturnValue(visibleLocator);
       const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
       const checker = unknownErrCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isError = await checker({ page });
       expect(isError).toBe(true);
+      expect(MOCK_GET_BY_TEXT).toHaveBeenCalled();
     });
   });
 
@@ -299,7 +330,6 @@ describe('MAX_CONFIG', () => {
 
   describe('preAction', () => {
     it('clicks navigation buttons and waits for username input', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(false);
       const page = makeMockPage();
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
@@ -309,13 +339,16 @@ describe('MAX_CONFIG', () => {
     });
 
     it('closes popup if present before navigating', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
+      const closeBtnLocator = makeMockLocator(false);
+      closeBtnLocator.isVisible.mockResolvedValue(true);
+      MOCK_GET_BY_ROLE.mockReturnValue(closeBtnLocator);
       const page = makeMockPage();
+      MOCK_GET_BY_ROLE.mockReturnValue(closeBtnLocator);
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
       await preAction(page);
-      const anyFn = expect.any(Function) as unknown;
-      expect(MOCK_PAGE_EVAL).toHaveBeenCalledWith('#closePopup', anyFn);
+      expect(MOCK_GET_BY_ROLE).toHaveBeenCalledWith('button', expect.anything() as unknown);
+      expect(closeBtnLocator.click).toHaveBeenCalled();
     });
   });
 });

@@ -31,8 +31,6 @@ jest.unstable_mockModule('../../Common/Dates.js', () => ({
 
 const { default: MOMENT } = await import('moment');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
-const { elementPresentOnPage: ELEMENT_PRESENT } =
-  await import('../../Common/ElementsInteractions.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { SHEKEL_CURRENCY } = await import('../../Constants.js');
@@ -126,7 +124,6 @@ beforeEach(() => {
   resetBrowserMocks();
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_SUCCESS_URL);
-  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
 /**
@@ -205,16 +202,21 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error popup returns InvalidPassword', async () => {
+    const errorLocator = {
+      isVisible: jest.fn().mockResolvedValue(true),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn(),
+    };
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue(MAX_LOGIN_URL),
       waitForURL: jest.fn().mockResolvedValue(undefined),
+      getByText: jest.fn().mockReturnValue(errorLocator),
+      getByRole: jest
+        .fn()
+        .mockReturnValue({ isVisible: jest.fn().mockResolvedValue(false), click: jest.fn() }),
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_LOGIN_URL);
-    (ELEMENT_PRESENT as jest.Mock)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
 
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);

@@ -1,12 +1,7 @@
 import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
-import {
-  clickButton,
-  elementPresentOnPage,
-  fillInput,
-  waitUntilElementFound,
-} from '../../../Common/ElementsInteractions.js';
+import { clickButton, fillInput } from '../../../Common/ElementsInteractions.js';
 import { resolveFieldContext } from '../../../Common/SelectorResolver.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type IFieldConfig, type ILoginConfig } from '../../Base/Config/LoginConfig.js';
@@ -19,6 +14,9 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
 const MAX_USERNAME_FIELD: IFieldConfig = { credentialKey: 'username', selectors: [] };
 const MAX_PASSWORD_FIELD: IFieldConfig = { credentialKey: 'password', selectors: [] };
 const MAX_ID_FIELD: IFieldConfig = { credentialKey: 'id', selectors: [] };
+
+/** Known visible Hebrew texts shown when Max login fails. */
+const WRONG_DETAILS_TEXTS = ['שכחת את הפרטים?', 'או לשחזר בקלות'] as const;
 
 /** Max preAction timeout for dropdown visibility detection (ms). */
 const DROPDOWN_WAIT_MS = CFG.timing.elementRenderMs ?? 5000;
@@ -161,11 +159,9 @@ async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> 
  * @returns True after the popup is closed or confirmed absent.
  */
 async function closePopupIfPresent(page: Page): Promise<boolean> {
-  const hasPopup = await elementPresentOnPage(page, '#closePopup');
-  if (hasPopup) {
-    await page.$eval('#closePopup', (el: HTMLElement) => {
-      el.click();
-    });
+  const closeBtn = page.getByRole('button', { name: /סגור|close/i });
+  if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await closeBtn.click();
   }
   return true;
 }
@@ -237,11 +233,10 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const currentUrl = page.url();
   if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
   LOG.info('waitForDashboardOrError: url=%s', currentUrl);
-  await Promise.race([
-    page.waitForURL('**/homepage/**', { timeout: 60000 }),
-    waitUntilElementFound(page, '#popupWrongDetails', { visible: true }),
-    waitUntilElementFound(page, '#popupCardHoldersLoginError', { visible: true }),
-  ]);
+  const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
+    page.getByText(text).waitFor({ state: 'visible', timeout: 60000 }),
+  );
+  await Promise.race([page.waitForURL('**/homepage/**', { timeout: 60000 }), ...errorWaiters]);
 }
 
 /**
@@ -288,25 +283,36 @@ function checkMaxSuccess(opts?: { page?: Page }): boolean {
 }
 
 /**
- * Check whether the invalid-password popup is present.
- * @param opts - The possible-result check options with page reference.
- * @param opts.page - The Playwright page to inspect for the popup.
- * @returns True if the wrong-details popup is visible.
+ * Check if any known error text is visible on the page.
+ * @param page - The Playwright page to inspect.
+ * @returns True if any error text from WRONG_DETAILS_TEXTS is visible.
  */
-async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
-  if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupWrongDetails');
+async function isErrorTextVisible(page: Page): Promise<boolean> {
+  const checks = WRONG_DETAILS_TEXTS.map(text => page.getByText(text).isVisible());
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
 }
 
 /**
- * Check whether the card-holders login error popup is present.
+ * Check whether the invalid-password error text is present.
  * @param opts - The possible-result check options with page reference.
- * @param opts.page - The Playwright page to inspect for the error popup.
- * @returns True if the card-holders error popup is visible.
+ * @param opts.page - The Playwright page to inspect.
+ * @returns True if error text is visible.
+ */
+async function checkMaxInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
+  if (!opts?.page) return false;
+  return isErrorTextVisible(opts.page);
+}
+
+/**
+ * Check whether the card-holders login error text is present.
+ * @param opts - The possible-result check options with page reference.
+ * @param opts.page - The Playwright page to inspect.
+ * @returns True if error text is visible.
  */
 async function checkMaxUnknownError(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return elementPresentOnPage(opts.page, '#popupCardHoldersLoginError');
+  return isErrorTextVisible(opts.page);
 }
 
 export const MAX_CONFIG: ILoginConfig = {

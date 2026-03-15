@@ -192,17 +192,16 @@ describe('login', () => {
   });
 
   it('returns InvalidPassword when error dialog appears', async () => {
+    const mockVisible = jest.fn().mockResolvedValue(true);
+    const mockVoid = jest.fn().mockResolvedValue(undefined);
+    const errorLocator = { isVisible: mockVisible, waitFor: mockVoid, click: mockVoid };
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue('https://www.max.co.il/login'),
       waitForURL: jest.fn().mockResolvedValue(undefined),
+      getByText: jest.fn().mockReturnValue(errorLocator),
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue('https://www.max.co.il/login');
-    (ELEMENT_PRESENT as jest.Mock)
-      .mockResolvedValueOnce(false) // #closePopup
-      .mockResolvedValueOnce(true) // #popupWrongDetails
-      .mockResolvedValueOnce(false); // #popupCardHoldersLoginError
-
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
     expect(result.success).toBe(false);

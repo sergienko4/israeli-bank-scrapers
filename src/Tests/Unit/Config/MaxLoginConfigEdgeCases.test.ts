@@ -84,6 +84,11 @@ const MOCK_WAIT_FOR_SELECTOR = jest.fn().mockResolvedValue(undefined);
  * @returns a mock Page instance
  */
 function makeMockPage(url = 'https://www.max.co.il/login'): Page {
+  const defaultLocator = {
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+  };
   return {
     url: jest.fn().mockReturnValue(url),
     $eval: jest.fn().mockResolvedValue(undefined),
@@ -98,6 +103,8 @@ function makeMockPage(url = 'https://www.max.co.il/login'): Page {
         count: jest.fn().mockResolvedValue(1),
       }),
     }),
+    getByRole: jest.fn().mockReturnValue(defaultLocator),
+    getByText: jest.fn().mockReturnValue(defaultLocator),
     frames: jest.fn().mockReturnValue([]),
   } as unknown as Page;
 }

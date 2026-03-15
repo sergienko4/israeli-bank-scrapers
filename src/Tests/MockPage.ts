@@ -33,6 +33,8 @@ export interface IMockPage {
   focus: jest.Mock;
   click: jest.Mock;
   locator: jest.Mock;
+  getByText: jest.Mock;
+  getByRole: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
 }
@@ -114,6 +116,16 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
         count: jest.fn().mockResolvedValue(1),
       }),
       count: jest.fn().mockResolvedValue(0),
+    }),
+    getByText: jest.fn().mockReturnValue({
+      isVisible: jest.fn().mockResolvedValue(false),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn().mockResolvedValue(undefined),
+    }),
+    getByRole: jest.fn().mockReturnValue({
+      isVisible: jest.fn().mockResolvedValue(false),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn().mockResolvedValue(undefined),
     }),
     ...overrides,
   } as unknown as IMockPage & Page;
