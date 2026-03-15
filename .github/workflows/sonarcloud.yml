@@ -37,8 +37,13 @@ jobs:
       - name: Setup Node + Dependencies
         uses: ./.github/actions/setup-node-deps
 
+      - name: Install Camoufox
+        uses: ./.github/actions/install-camoufox
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Run unit tests with coverage
-        run: npm run test:unit -- --coverage --testPathIgnorePatterns=E2e
+        run: npm run test:unit -- --coverage
         env:
           NODE_OPTIONS: --experimental-vm-modules
 
