@@ -102,9 +102,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       WRONG_ID_CONFIG,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     // ConcreteGenericScraper.fetchData() returns { success: true, accounts: [] }
     // Login must have succeeded via selector fallback for fetchData to be reached.
@@ -155,9 +153,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
       emptyPageConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     // resolveFieldContext returns isResolved:false — no throw, direct fill also fails
     expect(result.success).toBe(false);
@@ -250,9 +246,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
       iframeConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     // Round 1 found the inputs in the iframe (before checking the main page).
     // Login succeeded → fetchData() stub returns success.
@@ -323,9 +317,7 @@ describe('labelText resolution: <label for="id">', () => {
       labelConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();

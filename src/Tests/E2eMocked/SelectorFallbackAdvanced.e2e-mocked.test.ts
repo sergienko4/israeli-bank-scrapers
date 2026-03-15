@@ -84,9 +84,7 @@ describe('labelText false-positive guard', () => {
       fpConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
@@ -162,9 +160,7 @@ describe('labelText in iframe', () => {
       iframeLabelConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
@@ -233,9 +229,7 @@ describe('labelText sibling strategy', () => {
       siblingConfig,
     );
 
-    const result = await scraper.scrape(
-      CREDS_USERNAME_PASSWORD as { username: string; password: string },
-    );
+    const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();

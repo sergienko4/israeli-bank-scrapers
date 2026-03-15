@@ -2,6 +2,7 @@ import { type Moment } from 'moment';
 import moment from 'moment';
 import { type Page } from 'playwright-core';
 
+import { getDebug } from '../../Common/Debug.js';
 import {
   clickButton,
   fillInput,
@@ -24,6 +25,7 @@ import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import LEUMI_CONFIG from './Config/LeumiLoginConfig.js';
 
+const LOG = getDebug('leumi-scraper');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 // Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
@@ -290,7 +292,8 @@ interface IFetchByIdOpts {
  */
 async function fetchAccountById(opts: IFetchByIdOpts): Promise<ITransactionsAccount> {
   const { rawAccountId, totalAccounts, page, startDate, options } = opts;
-  await switchToAccount(page, rawAccountId, totalAccounts);
+  const didSwitch = await switchToAccount(page, rawAccountId, totalAccounts);
+  LOG.debug('switchToAccount(%s): %s', rawAccountId, didSwitch ? 'switched' : 'skipped');
   const accountId = removeSpecialCharacters(rawAccountId);
   return fetchTransactionsForAccount({ page, startDate, accountId, options });
 }

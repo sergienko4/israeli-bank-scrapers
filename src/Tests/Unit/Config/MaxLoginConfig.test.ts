@@ -119,7 +119,7 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
  * @param creds - Max credentials with optional ID.
  * @returns The post-action function bound to those credentials.
  */
-function buildAction(creds: IMaxCredentials): (page: Page) => LifecyclePromise {
+function buildAction(creds: IMaxCredentials): (_: Page) => LifecyclePromise {
   return BUILD_MAX_POST_ACTION(creds);
 }
 

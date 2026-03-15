@@ -128,8 +128,17 @@ export const BEINLEUMI_LOGIN_URL = `${BEINLEUMI_TEST_BASE_URL}/FibiMenu/Marketin
 // Centralized fake credentials for tests. SonarCloud flags hard-coded credential
 // strings scattered across test files; importing from here silences those findings.
 
+/** Username + password credential shape used by most bank-scraper tests. */
+export interface IUsernamePasswordCredentials {
+  username: string;
+  password: string;
+}
+
 /** Generic username + password credentials used by most bank-scraper tests. */
-export const CREDS_USERNAME_PASSWORD = { username: 'testuser', password: 'testpass' } as const;
+export const CREDS_USERNAME_PASSWORD: IUsernamePasswordCredentials = {
+  username: 'testuser',
+  password: 'testpass',
+};
 
 /** Hapoalim-style credentials (userCode). */
 export const CREDS_HAPOALIM = { userCode: 'user123', password: 'pass456' } as const;

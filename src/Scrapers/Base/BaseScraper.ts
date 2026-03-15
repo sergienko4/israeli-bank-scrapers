@@ -119,9 +119,8 @@ export default class BaseScraper<
    * @returns The trigger result with status.
    */
   public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
-    throw new ScraperError(
-      `triggerOtp(${phoneNumber}) is not created in ${this.options.companyId}`,
-    );
+    const masked = `***${phoneNumber.slice(-4)}`;
+    throw new ScraperError(`triggerOtp(${masked}) is not created in ${this.options.companyId}`);
   }
 
   /**
@@ -172,8 +171,7 @@ export default class BaseScraper<
    * @returns True when termination completes.
    */
   protected terminate(isSuccess: boolean): Promise<boolean> {
-    const successStr = String(isSuccess);
-    this.bankLog.trace('terminate called with success=%s', successStr);
+    this.bankLog.trace('terminate called with success=%s', isSuccess);
     this.emitProgress(ScraperProgressTypes.Terminating);
     return Promise.resolve(true);
   }

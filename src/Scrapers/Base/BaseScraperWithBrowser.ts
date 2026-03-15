@@ -85,7 +85,7 @@ class BaseScraperWithBrowser<
     const page = await this.initializePage();
     if (!page) {
       this.bankLog.debug('failed to initiate a browser page, exit');
-      return false;
+      throw new ScraperError('Failed to initiate browser page');
     }
     await this.setupPage(page);
     return true;
@@ -193,8 +193,7 @@ class BaseScraperWithBrowser<
    * @returns True when termination completes.
    */
   public async terminate(isSuccess: boolean): Promise<boolean> {
-    const successStr = String(isSuccess);
-    this.bankLog.debug('terminating browser with success = %s', successStr);
+    this.bankLog.debug('terminating browser with success = %s', isSuccess);
     this.emitProgress(ScraperProgressTypes.Terminating);
     await this.captureFailureScreenshot(isSuccess);
     const reversed = this._cleanups.reverse();
@@ -399,14 +398,16 @@ class BaseScraperWithBrowser<
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
     if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
     this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+    let didCapture = true;
     const bankLogger = this.bankLog;
     await this.page
       .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
       .catch((caught: unknown) => {
         const errMsg = (caught as Error).message.slice(0, 80);
         bankLogger.debug('screenshot failed: %s', errMsg);
+        didCapture = false;
       });
-    return true;
+    return didCapture;
   }
 }
 

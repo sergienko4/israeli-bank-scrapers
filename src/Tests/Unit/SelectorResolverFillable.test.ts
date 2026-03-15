@@ -65,7 +65,7 @@ function makeQuerySelectorWithLabel(): jest.Mock {
  * @returns The enhanced mock with placeholder fallback.
  */
 function addPlaceholderFallback(querySelector: jest.Mock): jest.Mock {
-  const originalImpl = querySelector.getMockImplementation() as (sel: string) => Promise<object>;
+  const originalImpl = querySelector.getMockImplementation() as (_: string) => Promise<object>;
   querySelector.mockImplementation((sel: string) => {
     if (sel.includes('placeholder')) return Promise.resolve({});
     return originalImpl(sel);

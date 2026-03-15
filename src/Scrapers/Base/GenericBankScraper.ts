@@ -265,7 +265,8 @@ export default class GenericBankScraper<
     try {
       this._formAnchor = await discoverFormAnchor(result.context, result.selector);
       return true;
-    } catch {
+    } catch (e: unknown) {
+      this.bankLog.debug('form anchor discovery failed: %s', (e as Error).message);
       return false;
     }
   }
@@ -298,6 +299,27 @@ export default class GenericBankScraper<
   }
 
   /**
+   * Apply resolved field context: discover anchor and fill input.
+   * @param result - The resolved field context.
+   * @param fieldConfig - The field configuration with selectors.
+   * @param value - The value to fill.
+   * @returns True after the field is filled.
+   */
+  private async applyResolvedField(
+    result: IFieldContext,
+    fieldConfig: IFieldConfig,
+    value: string,
+  ): Promise<boolean> {
+    this.activeLoginContext = result.context;
+    const hasAnchor = await this.tryDiscoverFormAnchor(result);
+    if (!hasAnchor) {
+      this.bankLog.debug('form anchor not found for field %s', fieldConfig.credentialKey);
+    }
+    await fillInput(result.context, result.selector, value);
+    return true;
+  }
+
+  /**
    * Resolve the field selector and fill the input value.
    * @param pageOrFrame - The page or frame to search in.
    * @param fieldConfig - The field configuration with selectors.
@@ -316,9 +338,7 @@ export default class GenericBankScraper<
       currentUrl,
     );
     if (result.isResolved) {
-      this.activeLoginContext = result.context;
-      await this.tryDiscoverFormAnchor(result);
-      await fillInput(result.context, result.selector, value);
+      await this.applyResolvedField(result, fieldConfig, value);
     }
     return result;
   }
