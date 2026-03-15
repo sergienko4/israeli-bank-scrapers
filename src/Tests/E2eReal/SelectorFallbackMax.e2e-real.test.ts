@@ -5,11 +5,7 @@ import { jest } from '@jest/globals';
  */
 import { type Frame, type Page } from 'playwright-core';
 
-import {
-  clickButton,
-  elementPresentOnPage,
-  waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
+import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
@@ -56,11 +52,13 @@ const BASE_CFG: ILoginConfig = {
    * @returns Resolved promise after pre-login navigation completes (no frame override).
    */
   preAction: async (page: Page): Promise<Frame | undefined> => {
-    const isPopupPresent = await elementPresentOnPage(page, '#closePopup');
-    if (isPopupPresent) await clickButton(page, '#closePopup');
+    const closeBtn = page.getByRole('button', { name: /סגור|close/i });
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await closeBtn.click();
+    }
     await clickButton(page, '.personal-area > a.go-to-personal-area');
-    const isPrivateLinkPresent = await elementPresentOnPage(page, '.login-link#private');
-    if (isPrivateLinkPresent) await clickButton(page, '.login-link#private');
+    const privateLoc = page.locator('.login-link#private');
+    if ((await privateLoc.count()) > 0) await privateLoc.click();
     await waitUntilElementFound(page, '#login-password-link', { visible: true });
     await clickButton(page, '#login-password-link');
     await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
@@ -75,13 +73,16 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
+    const errorTexts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
+    const errorWaiters = errorTexts.map(text =>
+      page.getByText(text).first().waitFor({ state: 'visible', timeout: 20000 }),
+    );
     await Promise.race([
       waitForRedirect(page, {
         timeout: 20000,
         ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
       }),
-      page.waitForSelector('#popupWrongDetails', { state: 'visible', timeout: 20000 }),
-      page.waitForSelector('#popupCardHoldersLoginError', { state: 'visible', timeout: 20000 }),
+      ...errorWaiters,
     ]).catch(() => {
       // Expected: race may reject when none of the conditions match within timeout
     });
@@ -90,11 +91,24 @@ const BASE_CFG: ILoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [
-      async (opts): Promise<boolean> => !!(opts?.page && (await opts.page.$('#popupWrongDetails'))),
+      async (opts): Promise<boolean> => {
+        const pg = opts?.page;
+        if (!pg) return false;
+        const texts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
+        const checks = texts.map(t => pg.getByText(t).first().isVisible());
+        const results = await Promise.all(checks);
+        return results.some(Boolean);
+      },
     ],
     unknownError: [
-      async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$('#popupCardHoldersLoginError'))),
+      async (opts): Promise<boolean> => {
+        const pg = opts?.page;
+        if (!pg) return false;
+        const texts = ['שכחת את הפרטים?', 'או לשחזר בקלות'];
+        const checks = texts.map(t => pg.getByText(t).first().isVisible());
+        const results = await Promise.all(checks);
+        return results.some(Boolean);
+      },
     ],
   },
 };

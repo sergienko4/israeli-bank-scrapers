@@ -7,8 +7,6 @@ import { CREDS_USERNAME_PASSWORD } from '../../TestConstants.js';
 const MOCK_RESOLVE_FIELD_CONTEXT = jest.fn();
 const MOCK_FILL_INPUT = jest.fn().mockResolvedValue(undefined);
 const MOCK_CLICK_BUTTON = jest.fn().mockResolvedValue(undefined);
-const MOCK_ELEMENT_PRESENT_ON_PAGE = jest.fn().mockResolvedValue(false);
-const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
 
 jest.unstable_mockModule(
   '../../../Common/Debug.js',
@@ -44,8 +42,8 @@ jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
 jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
   fillInput: MOCK_FILL_INPUT,
   clickButton: MOCK_CLICK_BUTTON,
-  waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
-  elementPresentOnPage: MOCK_ELEMENT_PRESENT_ON_PAGE,
+  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
@@ -86,11 +84,33 @@ const MOCK_LOCATOR = jest.fn().mockReturnValue({
   }),
 });
 
+/** Mock locator with first() returning self. */
+interface IMockLocator {
+  isVisible: jest.Mock;
+  waitFor: jest.Mock;
+  click: jest.Mock;
+  first: jest.Mock;
+}
+
 /**
- * Creates a mock Page with configurable URL and stubbed Playwright methods.
- * @param url - The URL the mock page reports.
- * @returns A mock Page instance.
+ * Create a self-referencing mock locator.
+ * @param visible - Whether isVisible resolves to true.
+ * @returns A mock locator with first() returning self.
  */
+function makeMockLocator(visible = false): IMockLocator {
+  const loc: IMockLocator = {
+    isVisible: jest.fn().mockResolvedValue(visible),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    first: jest.fn(),
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
+const MOCK_GET_BY_TEXT = jest.fn().mockImplementation(() => makeMockLocator());
+const MOCK_GET_BY_ROLE = jest.fn().mockImplementation(() => makeMockLocator());
+
 /**
  * Creates a mock Page with configurable URL, body text, and stubbed Playwright methods.
  * @param url - The URL the mock page reports.
@@ -102,6 +122,10 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
   MOCK_WAIT_FOR_SELECTOR.mockClear();
   MOCK_WAIT_FOR_URL.mockClear();
   MOCK_LOCATOR.mockClear();
+  MOCK_GET_BY_TEXT.mockClear();
+  MOCK_GET_BY_ROLE.mockClear();
+  MOCK_GET_BY_TEXT.mockImplementation(() => makeMockLocator());
+  MOCK_GET_BY_ROLE.mockImplementation(() => makeMockLocator());
   return {
     url: jest.fn().mockReturnValue(url),
     $eval: MOCK_PAGE_EVAL,
@@ -110,6 +134,8 @@ function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page 
     waitForURL: MOCK_WAIT_FOR_URL,
     waitForTimeout: jest.fn().mockResolvedValue(undefined),
     locator: MOCK_LOCATOR,
+    getByText: MOCK_GET_BY_TEXT,
+    getByRole: MOCK_GET_BY_ROLE,
     frames: jest.fn().mockReturnValue([]),
   } as unknown as Page;
 }
@@ -255,31 +281,32 @@ describe('MAX_CONFIG', () => {
   });
 
   describe('possibleResults.invalidPassword', () => {
-    it('returns true when popupWrongDetails element present', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
+    it('returns true when error text is visible', async () => {
+      const page = makeMockPage();
+      const errorLoc = makeMockLocator(true);
+      MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
       const checker = invalidPwCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(true);
     });
 
-    it('returns false when popupWrongDetails element absent', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(false);
+    it('returns false when error text is absent', async () => {
+      const page = makeMockPage();
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
       const checker = invalidPwCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(false);
     });
   });
 
   describe('possibleResults.unknownError', () => {
-    it('returns true when popupCardHoldersLoginError present', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
+    it('returns true when error text is visible', async () => {
+      const page = makeMockPage();
+      const errorLoc = makeMockLocator(true);
+      MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
       const checker = unknownErrCheckers[0] as (opts: { page: Page }) => Promise<boolean>;
-      const page = makeMockPage();
       const isError = await checker({ page });
       expect(isError).toBe(true);
     });
@@ -299,7 +326,6 @@ describe('MAX_CONFIG', () => {
 
   describe('preAction', () => {
     it('clicks navigation buttons and waits for username input', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(false);
       const page = makeMockPage();
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
@@ -309,13 +335,13 @@ describe('MAX_CONFIG', () => {
     });
 
     it('closes popup if present before navigating', async () => {
-      MOCK_ELEMENT_PRESENT_ON_PAGE.mockResolvedValue(true);
       const page = makeMockPage();
+      const closeBtn = makeMockLocator(true);
+      MOCK_GET_BY_ROLE.mockReturnValue(closeBtn);
       const preAction =
         MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
       await preAction(page);
-      const anyFn = expect.any(Function) as unknown;
-      expect(MOCK_PAGE_EVAL).toHaveBeenCalledWith('#closePopup', anyFn);
+      expect(closeBtn.click).toHaveBeenCalled();
     });
   });
 });
