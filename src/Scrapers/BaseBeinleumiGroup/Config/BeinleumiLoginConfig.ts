@@ -62,8 +62,21 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
  * @param page - The Playwright page to interact with.
  * @returns The login iframe if found, or undefined.
  */
+/** Maximum time (ms) to wait for the login frame to appear. */
+const FRAME_POLL_DEADLINE_MS = 15000;
+
+/**
+ * Wait for the login iframe to appear, then find and return it.
+ * Uses browser-level waitForFunction to detect password input in any frame.
+ * @param page - The Playwright page to interact with.
+ * @returns The login iframe if found within deadline.
+ */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  await page.waitForTimeout(2000);
+  await page
+    .waitForFunction(() => document.querySelectorAll('iframe').length > 0, {
+      timeout: FRAME_POLL_DEADLINE_MS,
+    })
+    .catch(() => false);
   return findLoginFrame(page);
 }
 

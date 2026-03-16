@@ -39,7 +39,7 @@
         "noUnusedImports": "warn"
       },
       "performance": {
-        "noAccumulatingSpread": "warn"
+        "noAccumulatingSpread": "error"
       },
       "security": {
         "noDangerouslySetInnerHtml": "error"

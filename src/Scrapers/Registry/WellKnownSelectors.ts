@@ -183,7 +183,12 @@ export const WELL_KNOWN_DASHBOARD_SELECTORS = {
     { kind: 'textContent', value: 'התנתקות' },
     { kind: 'textContent', value: 'יציאה מהחשבון' },
   ],
-  /** Error/invalid credentials indicators */
+  /**
+   * Error/invalid credentials indicators.
+   * Note: 'שכחת את הפרטים?' and 'או לשחזר בקלות' are Max-specific post-error help texts
+   * that appear alongside the login error popup — they indicate the error state, not help text
+   * shown during normal login. These are intentionally included as error indicators.
+   */
   errorIndicator: [
     { kind: 'textContent', value: 'פרטים שגויים' },
     { kind: 'textContent', value: 'שכחת את הפרטים?' },

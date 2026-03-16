@@ -91,14 +91,14 @@ describe('beinleumiPreAction — frame detection', () => {
       locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(1) }),
     };
     const page = CREATE_MOCK_PAGE({
-      waitForTimeout: jest.fn().mockResolvedValue(undefined),
+      waitForFunction: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([loginFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
+    expect(page.waitForFunction).toHaveBeenCalled();
     expect(frame).toBe(loginFrame);
   });
 
@@ -108,14 +108,13 @@ describe('beinleumiPreAction — frame detection', () => {
       locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
     const page = CREATE_MOCK_PAGE({
-      waitForTimeout: jest.fn().mockResolvedValue(undefined),
+      waitForFunction: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([nonLoginFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
     expect(frame).toBeUndefined();
   });
 
@@ -125,14 +124,13 @@ describe('beinleumiPreAction — frame detection', () => {
       locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
     const page = CREATE_MOCK_PAGE({
-      waitForTimeout: jest.fn().mockResolvedValue(undefined),
+      waitForFunction: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([loginFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
     expect(frame).toBe(loginFrame);
   });
 });

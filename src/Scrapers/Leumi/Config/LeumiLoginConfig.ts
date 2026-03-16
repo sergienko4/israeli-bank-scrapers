@@ -2,6 +2,7 @@ import { type Page } from 'playwright-core';
 
 import { pageEvalAll, waitUntilElementFound } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
+import { toXpathLiteral } from '../../../Common/SelectorResolver.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
@@ -23,7 +24,7 @@ const LOGIN_LINK_XPATH = buildLoginLinkXpath();
  */
 function buildLoginLinkXpath(): string {
   const texts = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.map(c => c.value);
-  const conditions = texts.map(t => `contains(normalize-space(.), "${t}")`);
+  const conditions = texts.map(t => `contains(normalize-space(.), ${toXpathLiteral(t)})`);
   return 'xpath=//a[' + conditions.join(' or ') + ']';
 }
 
@@ -83,7 +84,8 @@ const SKIP_LINK_XPATH = 'xpath=//a[contains(normalize-space(.), "דלג לחשב
  * @returns True after a post-login indicator is detected.
  */
 async function leumiPostAction(page: Page): LifecyclePromise {
-  const errXpath = 'xpath=//div[contains(string(),"' + LEUMI_INVALID_PASSWORD_MSG + '")]';
+  const errLit = toXpathLiteral(LEUMI_INVALID_PASSWORD_MSG);
+  const errXpath = `xpath=//div[contains(string(), ${errLit})]`;
   await Promise.race([
     waitUntilElementFound(page, SKIP_LINK_XPATH, { visible: true, timeout: 60000 }),
     page.waitForURL('**/ebanking/**', { timeout: 60000 }),

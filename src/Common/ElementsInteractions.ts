@@ -236,6 +236,8 @@ async function pageEvalAll<TResult>(
     if ((await locator.count()) === 0) return defaultResult;
     return await locator.evaluateAll(callback);
   } catch (error: unknown) {
+    // Design: return defaultResult instead of rethrowing to preserve backwards compatibility.
+    // 15+ callers depend on getting defaultResult on failure (scrapers, login configs, helpers).
     const msg = error instanceof Error ? error.message : String(error);
     LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
     return defaultResult;
@@ -259,6 +261,7 @@ async function pageEval<TResult>(
     if ((await locator.count()) === 0) return defaultResult;
     return await locator.first().evaluate(callback);
   } catch (error: unknown) {
+    // Design: return defaultResult instead of rethrowing (same rationale as pageEvalAll).
     const msg = error instanceof Error ? error.message : String(error);
     LOG.debug('pageEval(%s) error: %s', selector, msg);
     return defaultResult;

@@ -130,7 +130,11 @@ async function trySelectorsUntilFound(
   callback: (trs: Element[]) => string[][],
 ): Promise<string[][]> {
   const tasks = PENDING_ROW_SELECTORS.map(async (selector): Promise<string[][]> => {
-    return pageEvalAll(page, { selector, defaultResult: [], callback });
+    try {
+      return await pageEvalAll(page, { selector, defaultResult: [], callback });
+    } catch {
+      return [];
+    }
   });
   const results = await Promise.all(tasks);
   return results.find(r => r.length > 0) ?? [];

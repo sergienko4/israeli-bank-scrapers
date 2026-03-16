@@ -111,10 +111,33 @@ export function buildTxnsFromResponse(
  * @param responseJson.jsonResp - The stringified JSON payload.
  * @returns The parsed ILeumiAccountResponse.
  */
+/**
+ * Validate parsed JSON has Leumi account response fields.
+ * @param parsed - The parsed JSON object.
+ * @returns True if required transaction list fields exist.
+ */
+function hasRequiredFields(parsed: ILeumiAccountResponse): boolean {
+  const today = parsed.TodayTransactionsItems;
+  const history = parsed.HistoryTransactionsItems;
+  const isTodayValid = today === null || Array.isArray(today);
+  const isHistoryValid = history === null || Array.isArray(history);
+  return isTodayValid && isHistoryValid;
+}
+
+/**
+ * Parse the JSON response string into a typed account response.
+ * @param responseJson - The raw response containing a JSON string.
+ * @param responseJson.jsonResp - The stringified JSON payload.
+ * @returns The parsed ILeumiAccountResponse.
+ */
 export function parseAccountResponse(responseJson: { jsonResp: string }): ILeumiAccountResponse {
   try {
-    return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
-  } catch (error: unknown) {
+    const parsed = JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
+    if (!hasRequiredFields(parsed)) {
+      throw new ScraperError('Unexpected Leumi response shape');
+    }
+    return parsed;
+  } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new ScraperError(`Failed to parse Leumi response: ${message}`);
   }

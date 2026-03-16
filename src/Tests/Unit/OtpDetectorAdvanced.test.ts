@@ -299,3 +299,42 @@ describe('findOtpSubmitSelector — frame fallback', () => {
     expect(selector).toBe('');
   });
 });
+
+// ── clickFromCandidates — fallback path coverage ─────────────────────────
+
+describe('clickFromCandidates — fallback selector path', () => {
+  beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
+
+  it('returns false when no text match and no fallback selector found', async () => {
+    const page = makePage('');
+    MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);
+
+    const candidates = [{ kind: 'textContent' as const, value: 'שלח' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(didClick).toBe(false);
+  });
+
+  it('clicks fallback selector in main page when text match fails', async () => {
+    const page = makePage('');
+    MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('#sendBtn');
+
+    const candidates = [{ kind: 'css' as const, value: '#sendBtn' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(page.click).toHaveBeenCalledWith('#sendBtn', { timeout: 5000 });
+    expect(didClick).toBe(true);
+  });
+
+  it('searches child frames for fallback selector', async () => {
+    const childFrame = makeMockFrame('https://bank.test/otp');
+    const page = makePage('', [childFrame]);
+    MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce(null).mockResolvedValueOnce('#frameBtn');
+
+    const candidates = [{ kind: 'css' as const, value: '#frameBtn' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(childFrame.click).toHaveBeenCalledWith('#frameBtn', { timeout: 5000 });
+    expect(didClick).toBe(true);
+  });
+});

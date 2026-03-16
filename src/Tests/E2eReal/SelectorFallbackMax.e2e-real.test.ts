@@ -31,7 +31,7 @@ async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
 }
 
 /** No iframe override — preAction runs on the main page. */
-const NO_FRAME: Frame | undefined = ([] as Frame[]).shift();
+const NO_FRAME: Frame | undefined = undefined;
 
 /**
  * Dismiss the close/popup button if visible on the page.
@@ -144,7 +144,7 @@ const BASE_CFG: ILoginConfig = {
   /**
    * Waits for redirect or error popup after login submission.
    * @param page - Playwright page to wait for post-login navigation.
-   * @returns True when post-login condition is detected.
+   * @returns Resolves when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
     await waitForRedirectOrErrors(page);

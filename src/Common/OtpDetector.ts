@@ -195,20 +195,49 @@ function extractTextValues(candidates: SelectorCandidate[]): string[] {
  * @param candidates - Selector candidates to resolve.
  * @returns True if a fallback selector was found and clicked.
  */
+/**
+ * Try resolving and clicking a fallback selector in a single context.
+ * @param ctx - The Page or Frame context.
+ * @param candidates - Selector candidates to resolve.
+ * @returns True if a selector was found and clicked.
+ */
+async function tryFallbackClick(
+  ctx: Page | Frame,
+  candidates: SelectorCandidate[],
+): Promise<boolean> {
+  const sel = await tryInContext(ctx, candidates);
+  if (!sel) return false;
+  LOG.debug('clickFromCandidates: fallback selector: %s', sel);
+  return ctx
+    .click(sel, { timeout: 5000 })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Try fallback selector resolution across all contexts sequentially.
+ * @param contexts - Ordered list of Page/Frame contexts.
+ * @param candidates - Selector candidates to resolve.
+ * @returns True if a fallback selector was found and clicked.
+ */
 async function tryFallbackInContexts(
   contexts: (Page | Frame)[],
   candidates: SelectorCandidate[],
 ): Promise<boolean> {
-  const tasks = contexts.map(async (ctx): Promise<boolean> => {
-    const sel = await tryInContext(ctx, candidates);
-    if (!sel) return false;
-    LOG.debug('clickFromCandidates: fallback selector: %s', sel);
-    return ctx
-      .click(sel, { timeout: 5000 })
-      .then(() => true)
-      .catch(() => false);
-  });
-  const results = await Promise.all(tasks);
+  const results: boolean[] = [];
+  const reducer = contexts.reduce(
+    (chain, ctx) =>
+      chain.then(async () => {
+        if (results.some(Boolean)) {
+          results.push(false);
+          return;
+        }
+        const didClick = await tryFallbackClick(ctx, candidates);
+        results.push(didClick);
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
   return results.some(Boolean);
 }
 

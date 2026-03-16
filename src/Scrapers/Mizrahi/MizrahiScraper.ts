@@ -33,13 +33,16 @@ import {
 
 const MIZRAHI_SEL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors;
 
-/** CSS selector for account dropdown items (no visible text alternative). */
+// Structural CSS selectors — used in pageEvalAll parsing and frame detection.
+// These are exceptions to the text-first rule per CLAUDE.md (parsing/extraction code).
+
+/** CSS selector for account dropdown items (structural — used in locator.all()). */
 const ACCOUNT_ITEM_CSS = MIZRAHI_SEL.accountDropdownItem[0].value;
 
-/** CSS selector for the account number span (reads title attribute). */
+/** CSS selector for the account number span (structural — reads title attribute via evaluate). */
 const ACCOUNT_NUMBER_CSS = MIZRAHI_SEL.accountNumberSpan[0].value;
 
-/** CSS selector for pending frame identifier (iframe content). */
+/** CSS selector for pending frame identifier (structural — iframe content detection). */
 const PENDING_FRAME_CSS = MIZRAHI_SEL.pendingFrameIdentifier[0].value;
 
 /** Hebrew text for the checking account (OSH) navigation link. */

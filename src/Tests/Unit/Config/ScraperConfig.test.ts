@@ -65,6 +65,12 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn(),
   extractCredentialKey: jest.fn(),
   tryInContext: jest.fn(),
+  /**
+   * Passthrough XPath literal escaper.
+   * @param value - The raw string value.
+   * @returns Quoted string for XPath.
+   */
+  toXpathLiteral: (value: string): string => `"${value}"`,
   resolveDashboardField: jest.fn(),
 }));
 

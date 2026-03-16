@@ -176,10 +176,11 @@ export async function getExtraScrapAccount(
   const formattedMonth = opts.month.format('YYYY-MM');
   const accountTasks = buildAccountEnrichTasks(opts, formattedMonth);
   const enrichedAccounts = await runSerial(accountTasks);
-  return enrichedAccounts.reduce(
-    (m: ScrapedAccountsWithIndex, x) => ({ ...m, [x.accountNumber]: x }),
-    {},
-  );
+  const result: ScrapedAccountsWithIndex = {};
+  for (const account of enrichedAccounts) {
+    result[account.accountNumber] = account;
+  }
+  return result;
 }
 
 /**
