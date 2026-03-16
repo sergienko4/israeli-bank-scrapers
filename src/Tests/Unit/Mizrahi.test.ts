@@ -1,23 +1,21 @@
 import { jest } from '@jest/globals';
-
-import { buildMockLocator, mockFrameLocator } from '../MizrahiFixtures.js';
-
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
-const FRAME_LOC = mockFrameLocator();
-const MOCK_IFRAME = { locator: jest.fn().mockReturnValue(FRAME_LOC) };
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   fillInput: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
   waitUntilElementDisappear: jest.fn().mockResolvedValue(undefined),
-  waitUntilIframeFound: jest.fn().mockResolvedValue(MOCK_IFRAME),
+  waitUntilIframeFound: jest
+    .fn()
+    .mockResolvedValue({ waitForSelector: jest.fn().mockRejectedValue(new Error('not found')) }),
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   pageEvalAll: jest.fn().mockResolvedValue([]),
 }));
-const DASHBOARD_URL = 'https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard';
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
-  getCurrentUrl: jest.fn().mockResolvedValue(DASHBOARD_URL),
+  getCurrentUrl: jest
+    .fn()
+    .mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard'),
   waitForNavigation: jest.fn().mockResolvedValue(undefined),
   waitForUrl: jest.fn().mockResolvedValue(undefined),
   waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
@@ -30,18 +28,24 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: Record<string, string>) => data),
 }));
 /**
- * Creates stub logger for Debug module mock.
- * @returns record of jest.fn() stubs for each log level.
+ * Creates a stub logger for Debug module mock.
+ * @returns record of jest.fn() stubs for each log level
  */
 function stubLogger(): Record<string, jest.Mock> {
-  return { trace: jest.fn(), debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+  return {
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  };
 }
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: stubLogger,
   /**
    * Passthrough mock for bank context.
-   * @param _b - unused.
-   * @param fn - fn to run.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
    * @returns fn result.
    */
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
@@ -57,6 +61,7 @@ const { TransactionStatuses: STATUSES, TransactionTypes: TYPES } =
   await import('../../Transactions.js');
 const { createMockPage: MK_PAGE, createMockScraperOptions: MK_OPTS } =
   await import('../MockPage.js');
+
 const {
   createMizrahiPage: MK_MIZRAHI_PAGE,
   mockApiResponse: API_RESP,
@@ -73,7 +78,7 @@ const CREDS = { username: 'testuser', password: 'testpass' };
 
 /**
  * Creates a Mizrahi mock page using the shared fixture.
- * @returns mock page with Mizrahi-specific stubs.
+ * @returns mock page with Mizrahi-specific stubs
  */
 function buildPage(): ReturnType<typeof MK_PAGE> {
   return MK_MIZRAHI_PAGE(MK_PAGE) as ReturnType<typeof MK_PAGE>;
@@ -84,7 +89,7 @@ beforeEach(() => {
   (LAUNCH as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   const page = buildPage();
   MOCK_CTX.newPage.mockResolvedValue(page);
-  (GET_URL as jest.Mock).mockResolvedValue(DASHBOARD_URL);
+  (GET_URL as jest.Mock).mockResolvedValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
   (EL_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
@@ -122,6 +127,7 @@ describe('fetchData', () => {
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns).toHaveLength(1);
   });
+
   it('returns error when API response is unsuccessful', async () => {
     (FETCH_POST as jest.Mock).mockResolvedValueOnce({
       header: { success: false, messages: [{ text: 'Error occurred' }] },
@@ -131,16 +137,18 @@ describe('fetchData', () => {
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('Error occurred');
   });
+
   it('returns error when account number not found', async () => {
     const page = buildPage();
-    const noAttrLocator = buildMockLocator();
-    noAttrLocator.getAttribute.mockResolvedValue(null);
-    page.locator.mockReturnValue(noAttrLocator);
+    page.$.mockResolvedValue({
+      getProperty: jest.fn().mockResolvedValue({ jsonValue: jest.fn().mockResolvedValue('') }),
+    });
     MOCK_CTX.newPage.mockResolvedValue(page);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('Account number not found');
   });
+
   it('marks today transactions as pending when feature flag enabled', async () => {
     const apiData = API_RESP([TXN({ IsTodayTransaction: true })]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
@@ -148,6 +156,7 @@ describe('fetchData', () => {
     const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].status).toBe(STATUSES.Pending);
   });
+
   it('marks transactions without identifier as pending when feature flag enabled', async () => {
     const apiData = API_RESP([TXN({ MC02AsmahtaMekoritEZ: '' })]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
@@ -155,30 +164,35 @@ describe('fetchData', () => {
     const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].status).toBe(STATUSES.Pending);
   });
+
   it('builds compound identifier with TransactionNumber', async () => {
     const apiData = API_RESP([TXN({ MC02AsmahtaMekoritEZ: '999', TransactionNumber: '5' })]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].identifier).toBe('999-5');
   });
+
   it('parses identifier as integer when no TransactionNumber', async () => {
     const apiData = API_RESP([TXN({ MC02AsmahtaMekoritEZ: '12345', TransactionNumber: null })]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].identifier).toBe(12345);
   });
+
   it('extracts balance from response', async () => {
     const apiData = API_RESP([TXN()], '15000');
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
     expect((result.accounts ?? [])[0].balance).toBe(15000);
   });
+
   it('includes rawTransaction when option set', async () => {
     const apiData = API_RESP([TXN()]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
     const result = await new MIZRAHI_CLS(MK_OPTS({ includeRawTransaction: true })).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
+
   it('returns error when API response is null', async () => {
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(null);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
@@ -187,8 +201,7 @@ describe('fetchData', () => {
 
   it('returns empty accounts when no accounts found in dropdown', async () => {
     const page = buildPage();
-    const emptyLocator = buildMockLocator({ count: 0, all: [] });
-    page.locator.mockReturnValue(emptyLocator);
+    page.$$.mockResolvedValue([]);
     page.url.mockReturnValue('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
     MOCK_CTX.newPage.mockResolvedValue(page);
     const result = await new MIZRAHI_CLS(MK_OPTS()).scrape(CREDS);
@@ -198,11 +211,7 @@ describe('fetchData', () => {
 
   it('handles multiple accounts', async () => {
     const page = buildPage();
-    const multiLocator = buildMockLocator({
-      count: 2,
-      all: [{ click: jest.fn() }, { click: jest.fn() }],
-    });
-    page.locator.mockReturnValue(multiLocator);
+    page.$$.mockResolvedValue([{ click: jest.fn() }, { click: jest.fn() }]);
     MOCK_CTX.newPage.mockResolvedValue(page);
     const acc1 = API_RESP([TXN({ MC02TnuaTeurEZ: 'Acc1' })]);
     const acc2 = API_RESP([TXN({ MC02TnuaTeurEZ: 'Acc2' })]);
@@ -244,9 +253,8 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(mainData)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(detailsData);
-    const result = await new MIZRAHI_CLS(MK_OPTS({ shouldAddTransactionInformation: true })).scrape(
-      CREDS,
-    );
+    const opts = MK_OPTS({ shouldAddTransactionInformation: true });
+    const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     const accounts = result.accounts ?? [];
     expect(accounts[0].txns[0].memo).toContain('John Doe');
     expect(accounts[0].txns[0].memo).toContain('Transfer');
@@ -255,9 +263,8 @@ describe('fetchData', () => {
   it('skips extra details when MC02ShowDetailsEZ is not 1', async () => {
     const apiData = API_RESP([TXN({ MC02ShowDetailsEZ: '0' })]);
     (FETCH_POST as jest.Mock).mockResolvedValueOnce(apiData);
-    const result = await new MIZRAHI_CLS(MK_OPTS({ shouldAddTransactionInformation: true })).scrape(
-      CREDS,
-    );
+    const opts = MK_OPTS({ shouldAddTransactionInformation: true });
+    const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].memo).toBeUndefined();
   });
 
@@ -267,9 +274,8 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(mainData)
       .mockResolvedValueOnce(null)
       .mockRejectedValueOnce(new Error('Network error'));
-    const result = await new MIZRAHI_CLS(MK_OPTS({ shouldAddTransactionInformation: true })).scrape(
-      CREDS,
-    );
+    const opts = MK_OPTS({ shouldAddTransactionInformation: true });
+    const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     expect(result.success).toBe(true);
     expect((result.accounts ?? [])[0].txns[0].memo).toBeUndefined();
   });
@@ -302,9 +308,8 @@ describe('fetchData', () => {
       .mockResolvedValueOnce(mainData)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(detailsData);
-    const result = await new MIZRAHI_CLS(
-      MK_OPTS({ shouldAddTransactionInformation: true, includeRawTransaction: true }),
-    ).scrape(CREDS);
+    const opts = MK_OPTS({ shouldAddTransactionInformation: true, includeRawTransaction: true });
+    const result = await new MIZRAHI_CLS(opts).scrape(CREDS);
     expect((result.accounts ?? [])[0].txns[0].rawTransaction).toBeDefined();
   });
 });

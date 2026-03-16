@@ -66,6 +66,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
   extractCredentialKey: jest.fn((s: string) => s),
   tryInContext: jest.fn().mockResolvedValue(null),
+  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 jest.unstable_mockModule('../../Common/OtpHandler.js', () => ({
