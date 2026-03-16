@@ -3,7 +3,6 @@ import moment from 'moment';
 import { type Page } from 'playwright-core';
 
 import {
-  clickButton,
   pageEvalAll,
   waitUntilElementDisappear,
   waitUntilElementFound,
@@ -240,8 +239,8 @@ interface IScraperSpecificCredentials {
   nationalID: string;
 }
 
-/** XPath for the account details navigation link. */
-const ACCOUNT_DETAILS_XPATH = 'xpath=//*[contains(@class, "account-details")]';
+/** Hebrew text for the account details navigation link. */
+const ACCOUNT_DETAILS_TEXT = 'פרטי חשבון';
 
 /** Yahav bank scraper — fetches transactions from Yahav online banking. */
 class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
@@ -274,8 +273,9 @@ class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns True after navigation completes.
    */
   private async navigateToStatements(): Promise<boolean> {
-    await waitUntilElementFound(this.page, ACCOUNT_DETAILS_XPATH, { visible: true });
-    await clickButton(this.page, ACCOUNT_DETAILS_XPATH);
+    const detailsLoc = this.page.getByText(ACCOUNT_DETAILS_TEXT).first();
+    await detailsLoc.waitFor({ state: 'visible' });
+    await detailsLoc.click();
     const stmtXpath =
       'xpath=//*[contains(@class, "statement-options")]' +
       '//*[contains(@class, "selected-item-top")]';

@@ -55,7 +55,8 @@ export default function discountConfig(loginUrl: string): ILoginConfig {
      */
     checkReadiness: async (page: Page): LifecyclePromise => {
       await page.goto(LOGIN_PORTAL);
-      await page.locator('input[type="password"]').first().waitFor({ state: 'attached' });
+      const passwordField = page.locator('input[type="password"]').first();
+      await passwordField.waitFor({ state: 'attached' });
     },
     postAction: discountPostAction,
     possibleResults: DISCOUNT_POSSIBLE_RESULTS,

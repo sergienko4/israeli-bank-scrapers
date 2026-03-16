@@ -249,7 +249,6 @@ export const WELL_KNOWN_DASHBOARD_SELECTORS = {
   ],
   /** Loading indicator */
   loadingIndicator: [
-    { kind: 'css', value: '[role="progressbar"]' },
     { kind: 'ariaLabel', value: 'טוען' },
     { kind: 'textContent', value: 'טוען' },
   ],

@@ -4,6 +4,7 @@ import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY } from '../../Constants.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
+import ScraperError from '../Base/ScraperError.js';
 
 /** Raw transaction from Leumi API. */
 export interface ILeumiRawTransaction {
@@ -111,5 +112,10 @@ export function buildTxnsFromResponse(
  * @returns The parsed ILeumiAccountResponse.
  */
 export function parseAccountResponse(responseJson: { jsonResp: string }): ILeumiAccountResponse {
-  return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
+  try {
+    return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
+  } catch {
+    const preview = responseJson.jsonResp.slice(0, 100);
+    throw new ScraperError(`Failed to parse Leumi response: ${preview}`);
+  }
 }

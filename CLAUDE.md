@@ -45,7 +45,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - **NEVER** dismiss test failures without investigating
 - **NEVER** move/rename `.env` — the user's environment is sacred
 - **NEVER** use `taskkill` on user's processes
-- Save ALL output to temp log files (`/tmp/*.log` on Unix, `%TEMP%\*.log` on Windows), read ALL logs, fix ALL issues in one pass
+- Save ALL output to temp log files (`/tmp/*.log` on Unix, `%TEMP%\*.log` on Windows), read ALL logs, resolve ALL issues in one pass
 - Self-review before committing: check big picture, factories, DRY, config usage
 
 ### Pre-Commit Protocol

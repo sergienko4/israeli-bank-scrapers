@@ -55,7 +55,13 @@ describe('beinleumiConfig', () => {
     if (otp?.kind !== 'dom') return;
     const triggers = otp.triggerSelectors ?? [];
     expect(triggers.length).toBeGreaterThan(0);
-    const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText', 'placeholder']);
+    const allowedKinds = new Set([
+      'textContent',
+      'clickableText',
+      'ariaLabel',
+      'labelText',
+      'placeholder',
+    ]);
     const isAllAllowed = triggers.every(s => allowedKinds.has(s.kind));
     expect(isAllAllowed).toBe(true);
   });
@@ -69,52 +75,41 @@ describe('beinleumiConfig', () => {
     expect(otp.submitSelectors.length).toBeGreaterThan(0);
   });
 
-  it('submit field is empty — wellKnown __submit__ handles it', () => {
+  it('submit uses clickableText selectors', () => {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
-    expect(config.submit).toEqual([]);
+    const submitArr = Array.isArray(config.submit) ? config.submit : [config.submit];
+    expect(submitArr.length).toBeGreaterThan(0);
+    const isAllClickable = submitArr.every(s => s.kind === 'clickableText');
+    expect(isAllClickable).toBe(true);
   });
 });
 
-describe('beinleumiPreAction — text-based login trigger detection', () => {
-  it('clicks trigger and returns login iframe when trigger text is visible', async () => {
+describe('beinleumiPreAction — frame detection', () => {
+  it('returns login frame when frame has input with placeholder', async () => {
     const loginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
+      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(1) }),
     };
-    const visibleLoc = {
-      first: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(true),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    visibleLoc.first.mockReturnValue(visibleLoc);
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([loginFrame]),
-      getByText: jest.fn().mockReturnValue(visibleLoc),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.getByText).toHaveBeenCalled();
-    expect(visibleLoc.click).toHaveBeenCalled();
     expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
     expect(frame).toBe(loginFrame);
   });
 
-  it('returns undefined when trigger visible but no login iframe found', async () => {
+  it('returns undefined when no frame has input with placeholder and no login URL', async () => {
     const nonLoginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/other'),
+      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
-    const visibleLoc = {
-      first: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(true),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    visibleLoc.first.mockReturnValue(visibleLoc);
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
       frames: jest.fn().mockReturnValue([nonLoginFrame]),
-      getByText: jest.fn().mockReturnValue(visibleLoc),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
@@ -124,9 +119,10 @@ describe('beinleumiPreAction — text-based login trigger detection', () => {
     expect(frame).toBeUndefined();
   });
 
-  it('waits 1000ms when no login trigger text is visible', async () => {
+  it('falls back to frame with login URL when no frame has placeholder inputs', async () => {
     const loginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
+      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
@@ -136,7 +132,7 @@ describe('beinleumiPreAction — text-based login trigger detection', () => {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.waitForTimeout).toHaveBeenCalledWith(1000);
+    expect(page.waitForTimeout).toHaveBeenCalledWith(2000);
     expect(frame).toBe(loginFrame);
   });
 });
@@ -149,9 +145,11 @@ describe('beinleumiPostAction', () => {
   });
 
   it('completes even if all text waiters time out', async () => {
+    const timeoutError = new Error('timeout');
+    timeoutError.name = 'TimeoutError';
     const failLoc = {
       first: jest.fn(),
-      waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
+      waitFor: jest.fn().mockRejectedValue(timeoutError),
     };
     failLoc.first.mockReturnValue(failLoc);
     const page = CREATE_MOCK_PAGE({

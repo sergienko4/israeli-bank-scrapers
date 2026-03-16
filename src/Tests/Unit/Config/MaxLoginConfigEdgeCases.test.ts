@@ -180,27 +180,27 @@ describe('MAX_CONFIG possibleResults edge cases', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('success returns false when opts is undefined', () => {
-    const checker = MAX_CONFIG.possibleResults.success[0] as (opts?: unknown) => boolean;
+    const checker = MAX_CONFIG.possibleResults.success[0] as (_opts?: unknown) => boolean;
     const isMatch = checker(undefined);
     expect(isMatch).toBe(false);
   });
 
   it('success returns false when opts.page is undefined', () => {
-    const checker = MAX_CONFIG.possibleResults.success[0] as (opts?: unknown) => boolean;
+    const checker = MAX_CONFIG.possibleResults.success[0] as (_opts?: unknown) => boolean;
     const isMatch = checker({});
     expect(isMatch).toBe(false);
   });
 
   it('invalidPassword returns false when opts is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.invalidPassword;
-    const checker = checkers?.[0] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[0] as (_opts?: unknown) => Promise<boolean>;
     const isInvalid = await checker(undefined);
     expect(isInvalid).toBe(false);
   });
 
   it('invalidPassword returns false when opts.page is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.invalidPassword;
-    const checker = checkers?.[0] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[0] as (_opts?: unknown) => Promise<boolean>;
     const isInvalid = await checker({});
     expect(isInvalid).toBe(false);
   });
@@ -212,14 +212,14 @@ describe('MAX_CONFIG possibleResults edge cases', () => {
 
   it('unknownError returns false when opts is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.unknownError;
-    const checker = checkers?.[1] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[1] as (_opts?: unknown) => Promise<boolean>;
     const isError = await checker(undefined);
     expect(isError).toBe(false);
   });
 
   it('unknownError returns false when opts.page is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.unknownError;
-    const checker = checkers?.[1] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[1] as (_opts?: unknown) => Promise<boolean>;
     const isError = await checker({});
     expect(isError).toBe(false);
   });

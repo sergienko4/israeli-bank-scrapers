@@ -224,6 +224,6 @@ export async function waitForPostLogin(page: Page): Promise<boolean> {
       await loc.waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
-  await Promise.race(waiters).catch(ignoreTimeout);
-  return true;
+  if (waiters.length === 0) return false;
+  return Promise.race(waiters).catch(ignoreTimeout);
 }

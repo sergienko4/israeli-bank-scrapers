@@ -33,9 +33,9 @@ const BTN_XPATH = '//button[contains(@class, "btn")]';
  * @returns True if dismissed, false if not present.
  */
 async function dismissMessaging(page: Page): Promise<boolean> {
-  const loc = page.locator(MESSAGING_XPATH).first();
+  const loc = page.locator(MESSAGING_XPATH);
   if ((await loc.count()) === 0) return false;
-  const linkLoc = page.locator(MESSAGING_XPATH).locator('a').first();
+  const linkLoc = loc.locator('a').first();
   await linkLoc.click();
   return true;
 }

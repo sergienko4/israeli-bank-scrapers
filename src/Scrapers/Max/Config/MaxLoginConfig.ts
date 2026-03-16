@@ -160,9 +160,11 @@ async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> 
  */
 async function closePopupIfPresent(page: Page): Promise<boolean> {
   const closeEl = page.getByText(/סגור|close/i).first();
-  if (await closeEl.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await closeEl.click();
-  }
+  const hasAppeared = await closeEl
+    .waitFor({ state: 'visible', timeout: 1000 })
+    .then(() => true)
+    .catch(() => false);
+  if (hasAppeared) await closeEl.click();
   return true;
 }
 
@@ -225,6 +227,32 @@ async function maxPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['pr
 }
 
 /**
+ * Build error-text waiters for Max post-login detection.
+ * @param page - The Playwright page to observe.
+ * @returns Array of promises that resolve on error text visibility.
+ */
+function buildErrorWaiters(page: Page): Promise<boolean>[] {
+  return WRONG_DETAILS_TEXTS.map(async text => {
+    await page.getByText(text).first().waitFor({ state: 'visible', timeout: 60000 });
+    return true;
+  });
+}
+
+/**
+ * Race dashboard URLs against error text waiters.
+ * @param page - The Playwright page to observe.
+ * @returns True when any indicator is detected.
+ */
+async function raceForDashboardOrError(page: Page): Promise<boolean> {
+  await Promise.race([
+    page.waitForURL('**/homepage/**', { timeout: 60000 }),
+    page.waitForURL('**/errornew**', { timeout: 60000 }),
+    ...buildErrorWaiters(page),
+  ]);
+  return true;
+}
+
+/**
  * Wait for the Max dashboard or error indicator after submit.
  * @param page - The Playwright page to observe after login submission.
  * @returns True after a post-login indicator is detected.
@@ -233,14 +261,7 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const currentUrl = page.url();
   if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
   LOG.info('waitForDashboardOrError: url=%s', currentUrl);
-  const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
-    page.getByText(text).first().waitFor({ state: 'visible', timeout: 60000 }),
-  );
-  await Promise.race([
-    page.waitForURL('**/homepage/**', { timeout: 60000 }),
-    page.waitForURL('**/errornew**', { timeout: 60000 }),
-    ...errorWaiters,
-  ]);
+  await raceForDashboardOrError(page);
 }
 
 /**

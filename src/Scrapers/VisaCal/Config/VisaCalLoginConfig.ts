@@ -5,6 +5,7 @@ import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import type { ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import ScraperError from '../../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 import {
@@ -26,7 +27,14 @@ async function visaCalCheckReadiness(page: Page): LifecyclePromise {
   const waiters = candidates.map(c =>
     page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 15000 }),
   );
-  await Promise.any(waiters);
+  try {
+    await Promise.any(waiters);
+  } catch (error: unknown) {
+    if (error instanceof AggregateError) {
+      throw new ScraperError('No VisaCal login link found among candidates', { cause: error });
+    }
+    throw error;
+  }
 }
 
 /**

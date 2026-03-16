@@ -4,6 +4,12 @@ import { type Page } from 'playwright-core';
 import { clickButton, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { runSerial } from '../../Common/Waiting.js';
 
+/** Number of year cells in the date picker grid. */
+const YEARS_GRID_SIZE = 12;
+
+/** Number of day cells in the date picker grid. */
+const DAYS_GRID_SIZE = 41;
+
 /** Resolved selectors object type. */
 type SelMap = Record<string, string>;
 
@@ -50,7 +56,10 @@ function buildGridActions(opts: IGridOpts, count: number): (() => Promise<boolea
  * @returns True after selection.
  */
 async function selectYearFromGrid(page: Page, targetYear: string): Promise<boolean> {
-  const actions = buildGridActions({ page, prefix: '.pmu-years', target: targetYear }, 12);
+  const actions = buildGridActions(
+    { page, prefix: '.pmu-years', target: targetYear },
+    YEARS_GRID_SIZE,
+  );
   await runSerial(actions);
   return true;
 }
@@ -62,7 +71,10 @@ async function selectYearFromGrid(page: Page, targetYear: string): Promise<boole
  * @returns True after selection.
  */
 async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean> {
-  const actions = buildGridActions({ page, prefix: '.pmu-days', target: targetDay }, 41);
+  const actions = buildGridActions(
+    { page, prefix: '.pmu-days', target: targetDay },
+    DAYS_GRID_SIZE,
+  );
   await runSerial(actions);
   return true;
 }

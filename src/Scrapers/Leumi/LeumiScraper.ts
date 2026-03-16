@@ -143,10 +143,9 @@ async function fetchTransactionsForAccount(
  * @returns The array of account ID strings.
  */
 async function extractAccountIds(page: Page): Promise<string[]> {
-  const textContentList = await page.evaluate((sel: string) => {
-    const elements = document.querySelectorAll(sel);
-    return Array.from(elements, e => e.textContent);
-  }, SEL.accountListItems);
+  const items = page.locator(SEL.accountListItems);
+  const allTexts = await items.allInnerTexts();
+  const textContentList = allTexts.filter(t => t.trim() !== '');
   if (!textContentList.length) {
     throw new ScraperError('Failed to extract or parse the account number');
   }

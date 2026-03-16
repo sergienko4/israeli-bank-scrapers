@@ -23,7 +23,7 @@ const LOGIN_LINK_XPATH = buildLoginLinkXpath();
  */
 function buildLoginLinkXpath(): string {
   const texts = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.map(c => c.value);
-  const conditions = texts.map(t => `contains(text(), "${t}")`);
+  const conditions = texts.map(t => `contains(normalize-space(.), "${t}")`);
   return 'xpath=//a[' + conditions.join(' or ') + ']';
 }
 
@@ -42,16 +42,41 @@ async function findLoginLinkHref(page: Page): Promise<string> {
  * @param page - The Playwright page to check readiness on.
  * @returns True after the login form is ready.
  */
-async function leumiCheckReadiness(page: Page): LifecyclePromise {
+/**
+ * Navigate to the Leumi login page via the login link.
+ * @param page - The Playwright page instance.
+ * @returns True after navigation completes.
+ */
+async function navigateToLeumiLogin(page: Page): Promise<boolean> {
   await page.getByText('כניסה').first().waitFor({ state: 'visible' });
   const loginUrl = await findLoginLinkHref(page);
   await page.goto(loginUrl);
   await waitForNavigation(page, { waitUntil: 'networkidle' });
+  return true;
+}
+
+/**
+ * Wait for all Leumi login form fields to render.
+ * @param page - The Playwright page instance.
+ * @returns True after all fields are visible.
+ */
+async function waitForLeumiFormFields(page: Page): Promise<boolean> {
   await Promise.all([
-    waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true }),
-    waitUntilElementFound(page, 'input[placeholder="סיסמה"]', { visible: true }),
-    waitUntilElementFound(page, 'button[type="submit"]', { visible: true }),
+    page.getByPlaceholder('שם משתמש').first().waitFor({ state: 'visible' }),
+    page.getByPlaceholder('סיסמה').first().waitFor({ state: 'visible' }),
+    page.locator('button[type="submit"]').first().waitFor({ state: 'visible' }),
   ]);
+  return true;
+}
+
+/**
+ * Navigate to the Leumi login form and wait for all input fields to render.
+ * @param page - The Playwright page to check readiness on.
+ * @returns True after the login form is ready.
+ */
+async function leumiCheckReadiness(page: Page): LifecyclePromise {
+  await navigateToLeumiLogin(page);
+  await waitForLeumiFormFields(page);
 }
 
 /** XPath selector for the skip-to-account link by visible text. */

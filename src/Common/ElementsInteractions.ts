@@ -234,8 +234,9 @@ async function pageEvalAll<TResult>(
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
     result = await page.locator(selector).evaluateAll(callback);
-  } catch {
-    // evaluateAll passes an empty array when no elements match; catch any remaining errors.
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
   }
 
   return result;

@@ -89,6 +89,7 @@ function makeMockFrame(selectorHits: Record<string, boolean> = {}): Frame {
       return Promise.resolve(selectorHits[sel] ? mockElement : null);
     }),
     url: jest.fn().mockReturnValue('https://bank.test/otp-frame'),
+    evaluate: jest.fn().mockResolvedValue('סיסמה חד פעמית'),
     locator: jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         pressSequentially: jest.fn().mockResolvedValue(undefined),

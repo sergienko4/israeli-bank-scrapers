@@ -97,22 +97,6 @@ export async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
 }
 
 /**
- * Check if a single option matches the label and click it.
- * @param option - The Playwright locator for the option.
- * @param accountLabel - The label text to match.
- * @returns True if the option was clicked.
- */
-async function tryClickOption(
-  option: Awaited<ReturnType<ReturnType<Page['locator']>['all']>>[number],
-  accountLabel: string,
-): Promise<boolean> {
-  const text = (await option.innerText()).trim();
-  if (text !== accountLabel) return false;
-  await option.click();
-  return true;
-}
-
-/**
  * Click the dropdown option matching the given account label.
  * @param page - The Playwright page instance.
  * @param accountLabel - The label text to match.
@@ -121,9 +105,12 @@ async function tryClickOption(
 async function clickMatchingOption(page: Page, accountLabel: string): Promise<boolean> {
   const optionsLoc = page.locator(OPTION_SELECTOR);
   const allOptions = await optionsLoc.all();
-  const clickTasks = allOptions.map(o => tryClickOption(o, accountLabel));
-  const results = await Promise.all(clickTasks);
-  return results.some(Boolean);
+  const textPromises = allOptions.map(o => o.innerText());
+  const texts = await Promise.all(textPromises);
+  const matchIdx = texts.findIndex(t => t.trim() === accountLabel);
+  if (matchIdx < 0) return false;
+  await allOptions[matchIdx].click();
+  return true;
 }
 
 /**

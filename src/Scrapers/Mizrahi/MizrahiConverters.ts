@@ -16,8 +16,9 @@ import {
 } from './MizrahiHelpers.js';
 
 /** CSS selector for pending transaction rows (used in browser-context evaluate). */
-const PENDING_ROWS_CSS =
-  SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors.pendingTransactionRows[0].value;
+const PENDING_ROW_CANDIDATES =
+  SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors.pendingTransactionRows;
+const PENDING_ROWS_CSS = PENDING_ROW_CANDIDATES.length > 0 ? PENDING_ROW_CANDIDATES[0].value : '';
 
 /** Options for building a single transaction row. */
 interface IBuildRowOpts {

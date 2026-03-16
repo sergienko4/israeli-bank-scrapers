@@ -58,6 +58,8 @@ function makePage(bodyText?: string): IOtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test'),
+    evaluate: jest.fn().mockResolvedValue(''),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
   } as unknown as Frame;
   return {
     evaluate: jest.fn().mockResolvedValue(bodyText),
@@ -65,6 +67,7 @@ function makePage(bodyText?: string): IOtpMockPage & Page {
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
     frameLocator: jest.fn().mockReturnValue({
       locator: jest.fn().mockReturnValue({
         waitFor: jest.fn().mockRejectedValue(new Error('not found')),
@@ -84,10 +87,14 @@ function makePageWithIframe(bodyText: string): IOtpMockPage & Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test'),
+    evaluate: jest.fn().mockResolvedValue(''),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
   } as unknown as Frame;
   const childFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test/frame'),
+    evaluate: jest.fn().mockResolvedValue(''),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
   } as unknown as Frame;
   return {
     evaluate: jest.fn().mockResolvedValue(bodyText),
@@ -95,6 +102,7 @@ function makePageWithIframe(bodyText: string): IOtpMockPage & Page {
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
     frameLocator: jest.fn().mockReturnValue({
       locator: jest.fn().mockReturnValue({
         waitFor: jest.fn().mockRejectedValue(new Error('not found')),
@@ -238,14 +246,14 @@ describe('clickOtpTriggerIfPresent', () => {
     const page = makePage('לצורך אימות זהותך');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('xpath=//button[contains(.,"שלח")]');
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
-    expect(page.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]');
+    expect(page.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]', { timeout: 5000 });
   });
 
   it('clicks the first matching trigger candidate', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('xpath=//button[contains(.,"SMS")]');
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
-    expect(page.click).toHaveBeenCalledWith('xpath=//button[contains(.,"SMS")]');
+    expect(page.click).toHaveBeenCalledWith('xpath=//button[contains(.,"SMS")]', { timeout: 5000 });
   });
 
   it('is a no-op when no trigger button found (auto-sent SMS or already on entry screen)', async () => {

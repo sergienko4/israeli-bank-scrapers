@@ -251,29 +251,32 @@ describe('MAX_CONFIG', () => {
     expect(submitArr.length).toBeGreaterThan(0);
   });
   describe('possibleResults.success', () => {
+    type SuccessChecker = (_: { page?: { url(): string } }) => boolean;
     /** First success predicate.
      * @returns The checker function. */
-    function getChecker(): (_: { page?: { url(): string } }) => boolean {
-      return MAX_CONFIG.possibleResults.success[0] as (_: { page?: { url(): string } }) => boolean;
+    function getChecker(): SuccessChecker {
+      const checker = MAX_CONFIG.possibleResults.success[0];
+      if (typeof checker !== 'function') throw new TypeError('Expected function');
+      return checker as SuccessChecker;
     }
-    /** Homepage URL stub.
-     * @returns The homepage URL. */
-    function homepageUrl(): string {
-      return 'https://www.max.co.il/homepage/personal';
-    }
-    /** Login URL stub.
-     * @returns The login URL. */
-    function loginUrl(): string {
-      return 'https://www.max.co.il/login';
-    }
+    /**
+     * Homepage URL stub.
+     * @returns The homepage URL.
+     */
+    const homepageUrlFn = (): string => 'https://www.max.co.il/homepage/personal';
+    /**
+     * Login URL stub.
+     * @returns The login page URL.
+     */
+    const loginUrlFn = (): string => 'https://www.max.co.il/login';
     it('returns true when URL starts with homepage', () => {
       const checker = getChecker();
-      const isSuccess = checker({ page: { url: homepageUrl } });
+      const isSuccess = checker({ page: { url: homepageUrlFn } });
       expect(isSuccess).toBe(true);
     });
     it('returns false when URL is not homepage', () => {
       const checker = getChecker();
-      const isSuccess = checker({ page: { url: loginUrl } });
+      const isSuccess = checker({ page: { url: loginUrlFn } });
       expect(isSuccess).toBe(false);
     });
   });

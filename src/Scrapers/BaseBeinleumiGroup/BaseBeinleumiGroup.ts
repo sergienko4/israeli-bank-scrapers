@@ -377,9 +377,9 @@ async function fetchAccountData(
 async function selectAccountBothUIs(page: Page, accountId: string): Promise<boolean> {
   const isAccountSelected = await selectAccountFromDropdown(page, accountId);
   if (!isAccountSelected) {
-    const legacySelect = 'select[id="account_num_select"]';
-    await page.selectOption(legacySelect, accountId);
-    await waitUntilElementFound(page, legacySelect, { visible: true });
+    const legacySelect = page.locator('select').filter({ hasText: accountId }).first();
+    await legacySelect.selectOption(accountId);
+    await legacySelect.waitFor({ state: 'visible' });
   }
   return true;
 }

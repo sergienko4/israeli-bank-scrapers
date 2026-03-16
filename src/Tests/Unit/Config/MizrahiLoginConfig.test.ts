@@ -49,41 +49,52 @@ const { MIZRAHI_CONFIG } = await import('../../../Scrapers/Mizrahi/Config/Mizrah
 const MOCK_GOTO = jest.fn().mockResolvedValue(undefined);
 
 /**
- * Creates a mock locator with standard stubs.
+ * Build locator stubs from visibility and count.
+ * @param isVisible - whether locator reports visible.
+ * @param count - value returned by count/all length.
+ * @returns stub record for locator mock.
+ */
+function locatorStubs(isVisible: boolean, count: number): Record<string, jest.Mock> {
+  const allItems = Array.from({ length: count }, () => ({}));
+  return {
+    click: jest.fn().mockResolvedValue(undefined),
+    isVisible: jest.fn().mockResolvedValue(isVisible),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    all: jest.fn().mockResolvedValue(allItems),
+  };
+}
+
+/**
+ * Creates a self-referencing mock locator.
  * @param opts - visibility and count overrides.
  * @param opts.isVisible - whether locator reports visible.
- * @param opts.count - value returned by count/all length.
+ * @param opts.count - number of matched elements.
  * @returns mock locator for text/css queries.
  */
 function makeMockLocator(
   opts: { isVisible?: boolean; count?: number } = {},
 ): Record<string, jest.Mock> {
-  const allItems = Array.from({ length: opts.count ?? 0 }, () => ({}));
   const loc: Record<string, jest.Mock> = {
     first: jest.fn(),
-    click: jest.fn().mockResolvedValue(undefined),
-    isVisible: jest.fn().mockResolvedValue(opts.isVisible ?? false),
-    waitFor: jest.fn().mockResolvedValue(undefined),
-    all: jest.fn().mockResolvedValue(allItems),
+    ...locatorStubs(opts.isVisible ?? false, opts.count ?? 0),
   };
   loc.first.mockReturnValue(loc);
   return loc;
 }
 
 /**
- * Creates a mock Playwright Page for Mizrahi login config tests.
+ * Creates a mock Playwright Page for Mizrahi tests.
  * @param url - the URL that page.url() returns
  * @returns a mock Page with locator/getByText stubs
  */
 function makeMockPage(url = 'https://mto.mizrahi-tefahot.co.il/OnlineApp/'): Page {
   MOCK_GOTO.mockClear();
   const defaultLocator = makeMockLocator();
-  const defaultGetByText = makeMockLocator();
   return {
     url: jest.fn().mockReturnValue(url),
     goto: MOCK_GOTO,
     locator: jest.fn().mockReturnValue(defaultLocator),
-    getByText: jest.fn().mockReturnValue(defaultGetByText),
+    getByText: jest.fn().mockReturnValue(defaultLocator),
   } as unknown as Page;
 }
 
@@ -178,7 +189,7 @@ describe('MIZRAHI_CONFIG', () => {
     });
 
     it('mizrahiIsLoggedIn returns false when no page', async () => {
-      const fn = MIZRAHI_CONFIG.possibleResults.success[1] as (opts?: {
+      const fn = MIZRAHI_CONFIG.possibleResults.success[1] as (_opts?: {
         page?: Page;
       }) => Promise<boolean>;
       expect(await fn()).toBe(false);

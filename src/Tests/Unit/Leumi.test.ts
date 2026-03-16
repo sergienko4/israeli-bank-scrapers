@@ -133,6 +133,7 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
     }),
     count: jest.fn().mockResolvedValue(1),
     all: jest.fn().mockResolvedValue([]),
+    allInnerTexts: jest.fn().mockResolvedValue(accountIds),
   };
 
   return CREATE_MOCK_PAGE({
@@ -268,8 +269,7 @@ describe('fetchData', () => {
   });
 
   it('throws on empty account IDs', async () => {
-    const page = createLeumiPage();
-    page.evaluate.mockResolvedValue([]);
+    const page = createLeumiPage([]);
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LEUMI_SCRAPER(CREATE_MOCK_SCRAPER_OPTIONS());

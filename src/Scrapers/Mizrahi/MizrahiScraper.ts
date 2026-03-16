@@ -61,14 +61,13 @@ const TXN_LINK_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.transactionsLink.map(c => 
  * @returns True if a click occurred.
  */
 async function clickFirstVisibleText(page: Page, texts: string[]): Promise<boolean> {
-  const attempts = texts.map(async text => {
-    const loc = page.getByText(text).first();
-    const isVisible = await loc.isVisible().catch(() => false);
-    if (!isVisible) throw new ScraperError('not visible');
-    await loc.click();
-    return true;
-  });
-  return Promise.any(attempts).catch(() => false);
+  const locators = texts.map(t => page.getByText(t).first());
+  const visibilityPromises = locators.map(l => l.isVisible().catch(() => false));
+  const checks = await Promise.all(visibilityPromises);
+  const visibleIdx = checks.findIndex(Boolean);
+  if (visibleIdx < 0) return false;
+  await locators[visibleIdx].click();
+  return true;
 }
 
 /** Mizrahi-specific login credentials. */
@@ -103,6 +102,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts or error.
    */
   private async fetchAllAccounts(count: number): Promise<IScraperScrapingResult> {
+    if (count === 0) return { success: true, accounts: [] };
     try {
       const indices = Array.from({ length: count }, (_, idx) => idx);
       const actions = indices.map(

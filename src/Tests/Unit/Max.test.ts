@@ -45,10 +45,16 @@ function passthroughContext<T>(_b: string, fn: () => T): T {
  * Build a mock Debug module with stub logger and passthrough bank context.
  * @returns An object matching the Debug module interface.
  */
-function createMockDebug(): {
+/** Shape of the mocked Debug module. */
+interface IMockDebugModule {
   getDebug: () => Record<string, jest.Mock>;
   runWithBankContext: <T>(_b: string, fn: () => T) => T;
-} {
+}
+/**
+ * Build a mock Debug module with stub logger and passthrough bank context.
+ * @returns An object matching the Debug module interface.
+ */
+function createMockDebug(): IMockDebugModule {
   return { getDebug: stubLogger, runWithBankContext: passthroughContext };
 }
 jest.unstable_mockModule('../../Common/Debug.js', createMockDebug);

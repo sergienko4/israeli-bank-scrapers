@@ -128,7 +128,6 @@ const { default: MOMENT } = await import('moment');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
-await import('../../Common/ElementsInteractions.js');
 const { default: MAX_SCRAPER } = await import('../../Scrapers/Max/MaxScraper.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');

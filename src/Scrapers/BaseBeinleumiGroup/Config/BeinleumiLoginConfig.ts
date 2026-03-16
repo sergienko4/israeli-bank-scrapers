@@ -1,6 +1,7 @@
-import { type Page } from 'playwright-core';
+import { type Frame, type Page } from 'playwright-core';
 
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import type { OptionalFramePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 
@@ -33,8 +34,10 @@ async function beinleumiPostAction(
   page: Page,
 ): ReturnType<NonNullable<ILoginConfig['postAction']>> {
   const waiters = buildDashboardWaiters(page);
-  await Promise.race(waiters).catch(() => {
-    // intentionally ignore timeout — any matched selector is sufficient
+  if (waiters.length === 0) return;
+  await Promise.race(waiters).catch((error: unknown) => {
+    if (error instanceof Error && error.name === 'TimeoutError') return;
+    throw error;
   });
 }
 
@@ -45,7 +48,8 @@ export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
 ];
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
-  // wellKnown __submit__ provides 'המשך'/'כניסה' text-based fallbacks
+  { kind: 'clickableText', value: 'המשך' },
+  { kind: 'clickableText', value: 'כניסה' },
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
@@ -54,44 +58,38 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
 };
 
 /**
- * Check if a single login text candidate is visible and click it.
- * @param page - The Playwright page.
- * @param text - The visible text to search for.
- * @returns True if the text was found and clicked.
- */
-async function tryClickSingleText(page: Page, text: string): Promise<boolean> {
-  const loc = page.getByText(text).first();
-  const isTextVisible = await loc.isVisible().catch(() => false);
-  if (!isTextVisible) return false;
-  await loc.click();
-  return true;
-}
-
-/**
- * Try clicking a login trigger by visible text from WELL_KNOWN loginLink.
- * @param page - The Playwright page.
- * @returns True if a login trigger was found and clicked.
- */
-async function tryClickLoginTrigger(page: Page): Promise<boolean> {
-  const textCandidates = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.filter(
-    c => c.kind === 'textContent',
-  );
-  const loginTexts = textCandidates.map(c => c.value);
-  const clickAttempts = loginTexts.map(t => tryClickSingleText(page, t));
-  const results = await Promise.all(clickAttempts);
-  return results.some(Boolean);
-}
-
-/**
  * Click the login trigger if present, then wait for the form to render.
  * @param page - The Playwright page to interact with.
  * @returns The login iframe if found, or undefined.
  */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  const hasTrigger = await tryClickLoginTrigger(page);
-  const waitMs = hasTrigger ? 2000 : 1000;
-  await page.waitForTimeout(waitMs);
-  return page.frames().find(f => f.url().includes('login'));
+  await page.waitForTimeout(2000);
+  return findLoginFrame(page);
+}
+
+/**
+ * Check if a frame contains a credential input field.
+ * @param frame - The frame to check.
+ * @returns True if the frame has an input with placeholder.
+ */
+async function checkFrameHasInput(frame: Frame): Promise<boolean> {
+  const locator = frame.locator('input[placeholder]');
+  const count = await locator.count().catch((): number => 0);
+  return count > 0;
+}
+
+/**
+ * Find the login iframe by content.
+ * @param page - The Playwright page to search.
+ * @returns The login frame, or undefined if not found.
+ */
+async function findLoginFrame(page: Page): OptionalFramePromise {
+  const frames = page.frames();
+  const tasks = frames.map(checkFrameHasInput);
+  const checks = await Promise.all(tasks);
+  const idx = checks.findIndex(Boolean);
+  if (idx >= 0) return frames[idx];
+  return frames.find(f => f.url().includes('login'));
 }
 
 /**

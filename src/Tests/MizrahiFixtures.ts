@@ -7,6 +7,23 @@ export interface ILocatorOverrides {
   getAttribute?: string;
   count?: number;
   all?: object[];
+  allLength?: number;
+}
+
+/**
+ * Creates a base mock locator with self-referencing first/nth.
+ * @param stubs - method stubs to attach to the locator.
+ * @returns mock locator with first() and nth() returning self.
+ */
+export function createBaseMockLocator(stubs: Record<string, jest.Mock>): Record<string, jest.Mock> {
+  const loc: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    nth: jest.fn(),
+    ...stubs,
+  };
+  loc.first.mockReturnValue(loc);
+  loc.nth.mockReturnValue(loc);
+  return loc;
 }
 
 /**
@@ -15,9 +32,7 @@ export interface ILocatorOverrides {
  * @returns mock locator with all standard stubs.
  */
 export function buildMockLocator(overrides: ILocatorOverrides = {}): Record<string, jest.Mock> {
-  const loc: Record<string, jest.Mock> = {
-    first: jest.fn(),
-    nth: jest.fn(),
+  return createBaseMockLocator({
     click: jest.fn().mockResolvedValue(undefined),
     waitFor: jest.fn().mockResolvedValue(undefined),
     isVisible: jest.fn().mockResolvedValue(overrides.isVisible ?? true),
@@ -26,10 +41,7 @@ export function buildMockLocator(overrides: ILocatorOverrides = {}): Record<stri
     all: jest.fn().mockResolvedValue(overrides.all ?? [{ click: jest.fn() }]),
     evaluate: jest.fn().mockResolvedValue(undefined),
     evaluateAll: jest.fn().mockResolvedValue([]),
-  };
-  loc.first.mockReturnValue(loc);
-  loc.nth.mockReturnValue(loc);
-  return loc;
+  });
 }
 
 /**
@@ -115,24 +127,11 @@ export function mockDetailsResponse(fields: { Label: string; Value: string }[]):
 /**
  * Creates a mock locator with standard stubs.
  * @param opts - optional overrides for locator methods.
- * @param opts.isVisible - whether locator reports visible.
- * @param opts.getAttribute - value returned by getAttribute.
- * @param opts.count - value returned by count().
- * @param opts.allLength - length of the array returned by all().
  * @returns a mock locator object.
  */
-function mockLocator(
-  opts: {
-    isVisible?: boolean;
-    getAttribute?: string;
-    count?: number;
-    allLength?: number;
-  } = {},
-): Record<string, jest.Mock> {
+function mockLocator(opts: ILocatorOverrides = {}): Record<string, jest.Mock> {
   const allItems = Array.from({ length: opts.allLength ?? 1 }, () => ({ click: jest.fn() }));
-  const loc: Record<string, jest.Mock> = {
-    first: jest.fn(),
-    nth: jest.fn(),
+  return createBaseMockLocator({
     click: jest.fn().mockResolvedValue(undefined),
     isVisible: jest.fn().mockResolvedValue(opts.isVisible ?? true),
     waitFor: jest.fn().mockResolvedValue(undefined),
@@ -141,10 +140,7 @@ function mockLocator(
     all: jest.fn().mockResolvedValue(allItems),
     evaluate: jest.fn().mockResolvedValue(undefined),
     evaluateAll: jest.fn().mockResolvedValue([]),
-  };
-  loc.first.mockReturnValue(loc);
-  loc.nth.mockReturnValue(loc);
-  return loc;
+  });
 }
 
 /**

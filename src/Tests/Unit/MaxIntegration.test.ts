@@ -40,6 +40,7 @@ const { default: MAX_SCRAPER } = await import('../../Scrapers/Max/MaxScraper.js'
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
 const INTEGRATION = await import('../IntegrationHelpers.js');
+const { createErrorLocator: CREATE_ERROR_LOC } = await import('./MaxFixtures.js');
 
 const MOCK_CONTEXT = { newPage: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 const MOCK_BROWSER = {
@@ -203,13 +204,7 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error popup returns InvalidPassword', async () => {
-    const errorLoc = {
-      first: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(true),
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    errorLoc.first.mockReturnValue(errorLoc);
+    const errorLoc = CREATE_ERROR_LOC();
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue(MAX_LOGIN_URL),
       waitForURL: jest.fn().mockResolvedValue(undefined),

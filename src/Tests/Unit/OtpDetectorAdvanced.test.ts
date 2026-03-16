@@ -66,6 +66,8 @@ function makeMockFrame(url = 'https://bank.test/child'): IMockFrame {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue(url),
     click: jest.fn().mockResolvedValue(undefined),
+    evaluate: jest.fn().mockResolvedValue(''),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
   } as unknown as IMockFrame;
 }
 
@@ -84,6 +86,7 @@ function makePage(bodyText?: string, childFrames: Frame[] = []): IMockPage {
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
     frameLocator: jest.fn().mockReturnValue({
       locator: jest.fn().mockReturnValue({
         waitFor: jest.fn().mockRejectedValue(new Error('not found')),
@@ -227,7 +230,7 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(childFrame.click).toHaveBeenCalledWith('#sendSms');
+    expect(childFrame.click).toHaveBeenCalledWith('#sendSms', { timeout: 5000 });
   });
 
   it('uses cachedFrames when provided instead of page.frames()', async () => {
@@ -239,7 +242,9 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page, [cachedChild]);
 
-    expect(cachedChild.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]');
+    expect(cachedChild.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]', {
+      timeout: 5000,
+    });
   });
 
   it('prefers main page trigger over child frame trigger', async () => {
@@ -249,7 +254,7 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(page.click).toHaveBeenCalledWith('#sendSms');
+    expect(page.click).toHaveBeenCalledWith('#sendSms', { timeout: 5000 });
     expect(childFrame.click).not.toHaveBeenCalled();
   });
 
