@@ -17,6 +17,33 @@ const LOG = getDebug('otp-detector');
 /** Pre-resolved promise used as initial value for sequential reduce chains. */
 const RESOLVED_PROMISE = Promise.resolve();
 
+/**
+ * Run actions sequentially, short-circuiting after the first success.
+ * @param items - Array of items to process.
+ * @param action - Async action returning true on success.
+ * @returns Array of boolean results (true/false per item).
+ */
+async function runSequential<T>(
+  items: T[],
+  action: (item: T, idx: number) => Promise<boolean>,
+): Promise<boolean[]> {
+  const results: boolean[] = [];
+  const reducer = items.reduce(
+    (chain, item, idx) =>
+      chain.then(async () => {
+        if (results.some(Boolean)) {
+          results.push(false);
+          return;
+        }
+        const didSucceed = await action(item, idx);
+        results.push(didSucceed);
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
+  return results;
+}
+
 export { OTP_SUBMIT_CANDIDATES };
 
 type TextCheckResult = 'otp' | 'clear' | 'unknown';
@@ -218,20 +245,7 @@ async function tryFallbackInContexts(
   contexts: (Page | Frame)[],
   candidates: SelectorCandidate[],
 ): Promise<boolean> {
-  const results: boolean[] = [];
-  const reducer = contexts.reduce(
-    (chain, ctx) =>
-      chain.then(async () => {
-        if (results.some(Boolean)) {
-          results.push(false);
-          return;
-        }
-        const didClick = await tryFallbackClick(ctx, candidates);
-        results.push(didClick);
-      }),
-    RESOLVED_PROMISE,
-  );
-  await reducer;
+  const results = await runSequential(contexts, ctx => tryFallbackClick(ctx, candidates));
   return results.some(Boolean);
 }
 
@@ -299,21 +313,7 @@ async function tryClickTextInSingleContext(
  * @returns Array of results (true/false per text).
  */
 async function sequentialClickAttempts(ctx: Page | Frame, texts: string[]): Promise<boolean[]> {
-  const results: boolean[] = [];
-  const reducer = texts.reduce(
-    (chain, text) =>
-      chain.then(async () => {
-        if (results.some(Boolean)) {
-          results.push(false);
-          return;
-        }
-        const didClick = await tryClickInnermostText(ctx, text);
-        results.push(didClick);
-      }),
-    RESOLVED_PROMISE,
-  );
-  await reducer;
-  return results;
+  return runSequential(texts, text => tryClickInnermostText(ctx, text));
 }
 
 /**
@@ -344,21 +344,7 @@ async function sequentialContextAttempts(
   contexts: (Page | Frame)[],
   texts: string[],
 ): Promise<boolean[]> {
-  const results: boolean[] = [];
-  const reducer = contexts.reduce(
-    (chain, ctx, idx) =>
-      chain.then(async () => {
-        if (results.some(Boolean)) {
-          results.push(false);
-          return;
-        }
-        const didClick = await tryClickTextInSingleContext(ctx, texts, idx === 0);
-        results.push(didClick);
-      }),
-    RESOLVED_PROMISE,
-  );
-  await reducer;
-  return results;
+  return runSequential(contexts, (ctx, idx) => tryClickTextInSingleContext(ctx, texts, idx === 0));
 }
 
 /**
@@ -396,21 +382,7 @@ async function tryClickInnermostText(ctx: Page | Frame, text: string): Promise<b
  * @returns Array of click results (true/false per element).
  */
 async function sequentialForceClicks(matches: IClickable[]): Promise<boolean[]> {
-  const results: boolean[] = [];
-  const reducer = matches.reduce(
-    (chain, match) =>
-      chain.then(async () => {
-        if (results.some(Boolean)) {
-          results.push(false);
-          return;
-        }
-        const didClick = await tryForceClick(match);
-        results.push(didClick);
-      }),
-    RESOLVED_PROMISE,
-  );
-  await reducer;
-  return results;
+  return runSequential(matches, match => tryForceClick(match));
 }
 
 /** Locator with a click method. */

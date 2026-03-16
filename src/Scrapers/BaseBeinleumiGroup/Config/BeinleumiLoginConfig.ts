@@ -33,8 +33,7 @@ function buildDashboardWaiters(page: Page): Promise<boolean>[] {
   const ariaW = all
     .filter(c => c.kind === 'ariaLabel')
     .map(async c => {
-      const loc = page.locator(`[aria-label="${c.value}"]`).first();
-      await loc.waitFor({ state: 'visible', timeout: 30000 });
+      await page.getByLabel(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
   return [...textW, ...ariaW];
@@ -80,19 +79,34 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
 /** Maximum time (ms) to wait for the login frame to appear. */
 const FRAME_POLL_DEADLINE_MS = 15000;
 
+/** Delay before retrying login frame detection (ms). */
+const FRAME_RETRY_DELAY_MS = 2000;
+
 /**
- * Wait for the login iframe to appear, then find and return it.
- * Uses browser-level waitForFunction to detect password input in any frame.
+ * Wait for iframes to appear, then find the login frame with retry.
  * @param page - The Playwright page to interact with.
- * @returns The login iframe if found within deadline.
+ * @returns The login iframe if found, or undefined on timeout.
  */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  await page
+  await waitForAnyIframe(page);
+  const frame = await findLoginFrame(page);
+  if (frame) return frame;
+  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
+  return findLoginFrame(page);
+}
+
+/**
+ * Wait for any iframe to appear in the DOM.
+ * @param page - The Playwright page.
+ * @returns True if an iframe appeared, false on timeout.
+ */
+async function waitForAnyIframe(page: Page): Promise<boolean> {
+  return page
     .waitForFunction(() => document.querySelectorAll('iframe').length > 0, {
       timeout: FRAME_POLL_DEADLINE_MS,
     })
-    .catch(() => false);
-  return findLoginFrame(page);
+    .then((): true => true)
+    .catch((): false => false);
 }
 
 /**

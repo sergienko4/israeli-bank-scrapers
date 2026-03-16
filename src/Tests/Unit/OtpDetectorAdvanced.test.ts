@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
+import { mockToXpathLiteral } from '../MockModuleFactories.js';
+
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
@@ -31,17 +33,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
    * @returns Delegated mock result from MOCK_TRY_IN_CONTEXT.
    */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
-  /**
-   * XPath literal escaper matching production logic.
-   * @param value - The raw string value.
-   * @returns XPath-safe quoted string.
-   */
-  toXpathLiteral: (value: string): string => {
-    if (!value.includes('"')) return `"${value}"`;
-    if (!value.includes("'")) return `'${value}'`;
-    const parts = value.split('"').map((part: string) => `"${part}"`);
-    return `concat(${parts.join(", '\"', ")})`;
-  },
+  toXpathLiteral: mockToXpathLiteral,
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   resolveFieldContext: jest.fn().mockResolvedValue(null),
   resolveFieldWithCache: jest.fn().mockResolvedValue(null),

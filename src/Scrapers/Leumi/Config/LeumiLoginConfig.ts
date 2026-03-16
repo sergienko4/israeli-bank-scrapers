@@ -15,6 +15,9 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 export const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 
+/** Hebrew text for the Leumi login/submit button. */
+const LEUMI_LOGIN_TEXT = 'כניסה';
+
 /** Build a combined XPath matching any WELL_KNOWN loginLink text. */
 const LOGIN_LINK_XPATH = buildLoginLinkXpath();
 
@@ -44,7 +47,7 @@ async function findLoginLinkHref(page: Page): Promise<string> {
  * @returns True after navigation completes.
  */
 async function navigateToLeumiLogin(page: Page): Promise<boolean> {
-  await page.getByText('כניסה').first().waitFor({ state: 'visible' });
+  await page.getByText(LEUMI_LOGIN_TEXT).first().waitFor({ state: 'visible' });
   const loginUrl = await findLoginLinkHref(page);
   await page.goto(loginUrl);
   await waitForNavigation(page, { waitUntil: 'networkidle' });
@@ -161,7 +164,7 @@ const LEUMI_CONFIG: ILoginConfig = {
     { credentialKey: 'username', selectors: [] },
     { credentialKey: 'password', selectors: [] },
   ],
-  submit: [{ kind: 'textContent', value: 'כניסה' }],
+  submit: [{ kind: 'textContent', value: LEUMI_LOGIN_TEXT }],
   checkReadiness: leumiCheckReadiness,
   postAction: leumiPostAction,
   possibleResults: {

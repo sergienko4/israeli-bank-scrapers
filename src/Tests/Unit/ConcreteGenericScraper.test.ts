@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 
 import type { ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import { mockToXpathLiteral } from '../MockModuleFactories.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -58,17 +59,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
-  /**
-   * XPath literal escaper matching production logic.
-   * @param value - The raw string value.
-   * @returns XPath-safe quoted string.
-   */
-  toXpathLiteral: (value: string): string => {
-    if (!value.includes('"')) return `"${value}"`;
-    if (!value.includes("'")) return `'${value}'`;
-    const parts = value.split('"').map((part: string) => `"${part}"`);
-    return `concat(${parts.join(", '\"', ")})`;
-  },
+  toXpathLiteral: mockToXpathLiteral,
   extractCredentialKey: jest.fn((selector: string) => selector),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));

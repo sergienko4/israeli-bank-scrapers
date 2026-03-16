@@ -231,8 +231,7 @@ function buildDashboardWaiters(page: Page): Promise<boolean>[] {
   const ariaWaiters = categories
     .filter(c => c.kind === 'ariaLabel')
     .map(async c => {
-      const loc = page.locator(`[aria-label="${c.value}"]`).first();
-      await loc.waitFor({ state: 'visible', timeout: 30000 });
+      await page.getByLabel(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
   return [...textWaiters, ...ariaWaiters];

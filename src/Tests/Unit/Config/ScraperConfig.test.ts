@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import type { SelectorCandidate } from '../../../Scrapers/Base/Config/LoginConfig.js';
+import { mockToXpathLiteral } from '../../MockModuleFactories.js';
 
 // ── Mocks (required by transitive imports from ILoginConfig files) ────────────
 
@@ -65,17 +66,7 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn(),
   extractCredentialKey: jest.fn(),
   tryInContext: jest.fn(),
-  /**
-   * XPath literal escaper matching production logic.
-   * @param value - The raw string value.
-   * @returns XPath-safe quoted string.
-   */
-  toXpathLiteral: (value: string): string => {
-    if (!value.includes('"')) return `"${value}"`;
-    if (!value.includes("'")) return `'${value}'`;
-    const parts = value.split('"').map((part: string) => `"${part}"`);
-    return `concat(${parts.join(", '\"', ")})`;
-  },
+  toXpathLiteral: mockToXpathLiteral,
   resolveDashboardField: jest.fn(),
 }));
 

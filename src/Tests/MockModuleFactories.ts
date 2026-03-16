@@ -221,3 +221,16 @@ export function createStorageMock(): {
 } {
   return { getFromSessionStorage: jest.fn() };
 }
+
+/**
+ * XPath literal escaper matching production SelectorResolver logic.
+ * Handles single quotes, double quotes, and mixed.
+ * @param value - The raw string value.
+ * @returns XPath-safe quoted string.
+ */
+export function mockToXpathLiteral(value: string): string {
+  if (!value.includes('"')) return `"${value}"`;
+  if (!value.includes("'")) return `'${value}'`;
+  const parts = value.split('"').map((part: string) => `"${part}"`);
+  return `concat(${parts.join(", '\"', ")})`;
+}
