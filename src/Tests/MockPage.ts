@@ -33,11 +33,40 @@ export interface IMockPage {
   focus: jest.Mock;
   click: jest.Mock;
   locator: jest.Mock;
+  getByText: jest.Mock;
+  getByLabel: jest.Mock;
+  getByPlaceholder: jest.Mock;
+  getByRole: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
 }
 
-type MockOverrides = Partial<IMockPage>;
+export type MockOverrides = Partial<IMockPage>;
+
+interface ILocatorMock {
+  first: jest.Mock;
+  isVisible: jest.Mock;
+  waitFor: jest.Mock;
+  click: jest.Mock;
+  fill?: jest.Mock;
+}
+
+/**
+ * Creates a self-referencing locator mock.
+ * @param withFill - whether to include a fill() stub
+ * @returns a mock locator with first() returning self
+ */
+export function makeLocatorMock(withFill = false): ILocatorMock {
+  const loc: ILocatorMock = {
+    first: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+  };
+  if (withFill) loc.fill = jest.fn().mockResolvedValue(undefined);
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
 
 /**
  * Creates a mock Playwright Page with sensible jest.fn() stubs.
@@ -112,9 +141,19 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
         isVisible: jest.fn().mockResolvedValue(true),
         waitFor: jest.fn().mockResolvedValue(undefined),
         count: jest.fn().mockResolvedValue(1),
+        evaluate: jest.fn().mockResolvedValue(undefined),
+        getAttribute: jest.fn().mockResolvedValue(null),
+        innerText: jest.fn().mockResolvedValue(''),
       }),
       count: jest.fn().mockResolvedValue(0),
+      evaluateAll: jest.fn().mockResolvedValue([]),
+      allInnerTexts: jest.fn().mockResolvedValue([]),
+      all: jest.fn().mockResolvedValue([]),
     }),
+    getByText: jest.fn().mockImplementation(() => makeLocatorMock()),
+    getByLabel: jest.fn().mockImplementation(() => makeLocatorMock(true)),
+    getByPlaceholder: jest.fn().mockImplementation(() => makeLocatorMock(true)),
+    getByRole: jest.fn().mockImplementation(() => makeLocatorMock()),
     ...overrides,
   } as unknown as IMockPage & Page;
 }

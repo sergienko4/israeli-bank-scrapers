@@ -1,15 +1,13 @@
 import type { Frame, Page } from 'playwright-core';
 
-import {
-  clickButton,
-  waitUntilElementFound,
-  waitUntilIframeFound,
-} from '../../../Common/ElementsInteractions.js';
+import { waitUntilIframeFound } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import type { ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import ScraperError from '../../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 import {
   CONNECT_IFRAME_OPTS,
   hasChangePasswordForm,
@@ -25,7 +23,18 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
  * @returns True when the login button is found.
  */
 async function visaCalCheckReadiness(page: Page): LifecyclePromise {
-  await waitUntilElementFound(page, '#ccLoginDesktopBtn');
+  const candidates = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.filter(c => c.kind === 'textContent');
+  const waiters = candidates.map(c =>
+    page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 15000 }),
+  );
+  try {
+    await Promise.any(waiters);
+  } catch (error: unknown) {
+    if (error instanceof AggregateError) {
+      throw new ScraperError('No VisaCal login link found among candidates', { cause: error });
+    }
+    throw error;
+  }
 }
 
 /**
@@ -34,13 +43,38 @@ async function visaCalCheckReadiness(page: Page): LifecyclePromise {
  * @returns The iframe Frame containing the login form.
  */
 async function visaCalOpenLoginPopup(page: Page): Promise<Frame> {
-  await waitUntilElementFound(page, '#ccLoginDesktopBtn', { visible: true });
-  await clickButton(page, '#ccLoginDesktopBtn');
+  const loginCandidates = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.filter(
+    c => c.kind === 'textContent',
+  );
+  const loginTexts = loginCandidates.map(c => c.value);
+  await clickFirstLoginText(page, loginTexts);
   const frame = await waitUntilIframeFound(page, isConnectFrame, CONNECT_IFRAME_OPTS);
-  await waitUntilElementFound(frame, '#regular-login', { timeout: 30000 });
-  await clickButton(frame, '#regular-login');
-  await waitUntilElementFound(frame, '[formcontrolname="userName"]', { timeout: 45000 });
+  await clickFirstLoginText(frame, loginTexts);
   return frame;
+}
+
+/**
+ * Click the first visible login text from a list of candidates.
+ * @param ctx - The Playwright Page or Frame to search in.
+ * @param texts - The candidate texts to search for.
+ * @returns True when a match is clicked.
+ */
+async function clickFirstLoginText(ctx: Page | Frame, texts: string[]): Promise<boolean> {
+  const locators = texts.map(t => {
+    const loc = ctx.getByText(t);
+    return loc.first();
+  });
+  const waitForVisible = locators.map(async (loc, i): Promise<number> => {
+    await loc.waitFor({ state: 'visible', timeout: 30000 });
+    return i;
+  });
+  try {
+    const idx = await Promise.any(waitForVisible);
+    await locators[idx].click();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

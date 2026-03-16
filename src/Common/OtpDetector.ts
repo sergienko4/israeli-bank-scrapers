@@ -1,6 +1,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import type { LifecyclePromise } from '../Scrapers/Base/Interfaces/CallbackTypes.js';
 import {
   OTP_INPUT_CANDIDATES,
   OTP_SUBMIT_CANDIDATES,
@@ -154,49 +155,32 @@ export async function clickOtpTriggerIfPresent(
   page: Page,
   cachedFrames?: Frame[],
 ): Promise<boolean> {
+  const textValues = extractTextValues(SMS_TRIGGER_CANDIDATES);
+  const contexts = buildContextList(page, cachedFrames);
+  const didClick = await tryClickTextInContexts(contexts, textValues);
+  if (didClick) return true;
   const trigger = await findSmsTriggerInFrames(page, cachedFrames);
   if (trigger.selector) {
-    LOG.debug('clicking SMS trigger: %s', trigger.selector);
-    await trigger.context.click(trigger.selector);
+    LOG.debug('clicking SMS trigger fallback: %s', trigger.selector);
+    await trigger.context.click(trigger.selector, { timeout: 5000 }).catch(() => false);
   } else {
     LOG.debug('No SMS trigger found — SMS may be auto-sent');
   }
   return true;
 }
 
-/** Result of searching frames for a matching candidate selector. */
-interface IFrameSearchResult {
-  found: true;
-  sel: string;
-  frame: Frame;
-}
-
-/** Negative result when no candidate was found in any frame. */
-interface IFrameSearchMiss {
-  found: false;
-}
+/** Text-based candidate kinds. */
+const TEXT_KINDS = ['textContent', 'clickableText'] as const;
 
 /**
- * Search child frames for the first matching candidate selector.
- * @param page - The Playwright page whose frames to search.
- * @param candidates - Ordered SelectorCandidate list to try in each frame.
- * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns The matched selector and frame, or a miss result if none found.
+ * Extract text values from text-based candidates.
+ * @param candidates - Selector candidates to filter.
+ * @returns Array of text values.
  */
-async function findCandidateInFrames(
-  page: Page,
-  candidates: SelectorCandidate[],
-  cachedFrames?: Frame[],
-): Promise<IFrameSearchResult | IFrameSearchMiss> {
-  const mainFrame = page.mainFrame();
-  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
-  const frameTasks = frames.map(async (frame): Promise<IFrameSearchResult | false> => {
-    const sel = await tryInContext(frame, candidates);
-    return sel ? { found: true, sel, frame } : false;
-  });
-  const results = await Promise.all(frameTasks);
-  const hit = results.find((r): r is IFrameSearchResult => r !== false);
-  return hit ?? { found: false };
+function extractTextValues(candidates: SelectorCandidate[]): string[] {
+  return candidates
+    .filter(c => TEXT_KINDS.includes(c.kind as (typeof TEXT_KINDS)[number]))
+    .map(c => c.value);
 }
 
 /**
@@ -212,18 +196,118 @@ export async function clickFromCandidates(
   candidates: SelectorCandidate[],
   cachedFrames?: Frame[],
 ): Promise<boolean> {
-  const mainSel = await tryInContext(page, candidates);
-  if (mainSel) {
-    LOG.debug('clickFromCandidates: found in main page: %s', mainSel);
-    await page.click(mainSel);
-    return true;
+  const textValues = extractTextValues(candidates);
+  const contexts = buildContextList(page, cachedFrames);
+  const didClick = await tryClickTextInContexts(contexts, textValues);
+  if (didClick) return true;
+  const fallbackSel = await tryInContext(page, candidates);
+  if (fallbackSel) {
+    LOG.debug('clickFromCandidates: fallback selector: %s', fallbackSel);
+    return page
+      .click(fallbackSel, { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
   }
-  const found = await findCandidateInFrames(page, candidates, cachedFrames);
-  if (found.found) {
-    LOG.debug('clickFromCandidates: found in frame: %s', found.sel);
-    await found.frame.click(found.sel);
-    return true;
-  }
-  LOG.debug('clickFromCandidates: no match found');
+  LOG.debug('clickFromCandidates: no clickable match found');
   return false;
+}
+
+/**
+ * Build ordered list of contexts to search: main page then child frames.
+ * @param page - The Playwright page.
+ * @param cachedFrames - Optional cached frames list.
+ * @returns Array of Page/Frame contexts to search.
+ */
+function buildContextList(page: Page, cachedFrames?: Frame[]): (Page | Frame)[] {
+  const mainFrame = page.mainFrame();
+  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
+  return [page, ...frames];
+}
+
+/**
+ * Try clicking visible text in a single context.
+ * @param ctx - Page or Frame to search.
+ * @param texts - Text values to look for.
+ * @param isMain - Whether ctx is the main page.
+ * @returns True if a click succeeded.
+ */
+async function tryClickTextInSingleContext(
+  ctx: Page | Frame,
+  texts: string[],
+  isMain: boolean,
+): Promise<boolean> {
+  const tasks = texts.map(t => tryClickInnermostText(ctx, t));
+  const results = await Promise.all(tasks);
+  const idx = results.findIndex(Boolean);
+  if (idx >= 0) {
+    const label = isMain ? 'main' : 'frame';
+    LOG.debug('clicked "%s" in %s', texts[idx], label);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Try clicking visible text across all contexts.
+ * @param contexts - Ordered list of contexts to search.
+ * @param texts - Text values to look for.
+ * @returns True if a click succeeded.
+ */
+async function tryClickTextInContexts(
+  contexts: (Page | Frame)[],
+  texts: string[],
+): Promise<boolean> {
+  const tasks = contexts.map((ctx, idx) => tryClickTextInSingleContext(ctx, texts, idx === 0));
+  const results = await Promise.all(tasks);
+  const didMatch = results.some(Boolean);
+  if (!didMatch) {
+    LOG.debug('no match in %d contexts for %d texts', contexts.length, texts.length);
+  }
+  return didMatch;
+}
+
+/**
+ * Build an innermost-text XPath for the given visible text.
+ * @param text - The visible text to match.
+ * @returns Playwright XPath selector string.
+ */
+function innermostTextXpath(text: string): string {
+  return [
+    'xpath=//*[not(self::script)',
+    'and not(self::style)',
+    `and contains(., "${text}")`,
+    `and not(.//*[contains(., "${text}")])]`,
+  ].join(' ');
+}
+
+/**
+ * Find the innermost element containing text and click it.
+ * @param ctx - Page or Frame to search.
+ * @param text - Visible text to find.
+ * @returns True if clicked successfully.
+ */
+async function tryClickInnermostText(ctx: Page | Frame, text: string): Promise<boolean> {
+  const xpathSelector = innermostTextXpath(text);
+  const locator = ctx.locator(xpathSelector);
+  const matches = await locator.all();
+  const clickTasks = matches.map(tryForceClick);
+  const results = await Promise.all(clickTasks);
+  return results.some(Boolean);
+}
+
+/** Locator with a click method. */
+interface IClickable {
+  click: (o: { timeout: number; force: boolean }) => LifecyclePromise;
+}
+
+/**
+ * Attempt to force-click a single locator element.
+ * @param loc - The Playwright locator to click.
+ * @returns True if clicked, false on error.
+ */
+async function tryForceClick(loc: IClickable): Promise<boolean> {
+  return loc
+    .click({ timeout: 3000, force: true })
+    .then((): true => true)
+    .catch((): false => false);
 }

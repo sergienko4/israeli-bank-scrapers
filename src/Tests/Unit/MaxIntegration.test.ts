@@ -31,8 +31,7 @@ jest.unstable_mockModule('../../Common/Dates.js', () => ({
 
 const { default: MOMENT } = await import('moment');
 const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
-const { elementPresentOnPage: ELEMENT_PRESENT } =
-  await import('../../Common/ElementsInteractions.js');
+await import('../../Common/ElementsInteractions.js');
 const { fetchGetWithinPage: FETCH_GET } = await import('../../Common/Fetch.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { SHEKEL_CURRENCY } = await import('../../Constants.js');
@@ -41,6 +40,7 @@ const { default: MAX_SCRAPER } = await import('../../Scrapers/Max/MaxScraper.js'
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
 const INTEGRATION = await import('../IntegrationHelpers.js');
+const { createErrorLocator: CREATE_ERROR_LOC } = await import('./MaxFixtures.js');
 
 const MOCK_CONTEXT = { newPage: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 const MOCK_BROWSER = {
@@ -126,7 +126,6 @@ beforeEach(() => {
   resetBrowserMocks();
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_SUCCESS_URL);
-  (ELEMENT_PRESENT as jest.Mock).mockResolvedValue(false);
 });
 
 /**
@@ -205,16 +204,14 @@ describe('integration: full scrape flow', () => {
   });
 
   it('invalid login: error popup returns InvalidPassword', async () => {
+    const errorLoc = CREATE_ERROR_LOC();
     const loginPage = CREATE_MOCK_PAGE({
       url: jest.fn().mockReturnValue(MAX_LOGIN_URL),
       waitForURL: jest.fn().mockResolvedValue(undefined),
+      getByText: jest.fn().mockReturnValue(errorLoc),
     });
     MOCK_CONTEXT.newPage.mockResolvedValue(loginPage);
     (GET_CURRENT_URL as jest.Mock).mockResolvedValue(MAX_LOGIN_URL);
-    (ELEMENT_PRESENT as jest.Mock)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
 
     const scraper = new MAX_SCRAPER(CREATE_OPTS());
     const result = await scraper.scrape(CREDS);
