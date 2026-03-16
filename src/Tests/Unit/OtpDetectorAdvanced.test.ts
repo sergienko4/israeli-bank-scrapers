@@ -31,6 +31,12 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
    * @returns Delegated mock result from MOCK_TRY_IN_CONTEXT.
    */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
+  /**
+   * Passthrough XPath literal escaper.
+   * @param value - The raw string value.
+   * @returns Quoted string for XPath.
+   */
+  toXpathLiteral: (value: string): string => `"${value}"`,
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   resolveFieldContext: jest.fn().mockResolvedValue(null),
   resolveFieldWithCache: jest.fn().mockResolvedValue(null),
@@ -258,13 +264,13 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
     expect(childFrame.click).not.toHaveBeenCalled();
   });
 
-  it('returns true even when no trigger found', async () => {
+  it('returns false when no trigger found', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);
 
     const isHandled = await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(isHandled).toBe(true);
+    expect(isHandled).toBe(false);
   });
 });
 

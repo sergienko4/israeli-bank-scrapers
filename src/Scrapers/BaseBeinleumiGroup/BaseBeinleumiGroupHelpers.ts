@@ -1,7 +1,7 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright-core';
 
-import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions.js';
+import { pageEvalAll } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
@@ -191,11 +191,28 @@ export function extractTransaction(opts: IExtractTxnOpts): boolean {
  * @returns True if the error message is present.
  */
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
-  const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
-  if (!hasErrorInfoElement) return false;
-  const errorLoc = page.locator(`.${ERROR_MESSAGE_CLASS}`).first();
-  const errorText = await errorLoc.innerText();
-  return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
+  return page
+    .getByText(NO_TRANSACTION_IN_DATE_RANGE_TEXT)
+    .first()
+    .isVisible()
+    .catch((): boolean => false);
+}
+
+/**
+ * Build dashboard text waiters from WELL_KNOWN selector categories.
+ * @param page - The Playwright page to create waiters for.
+ * @returns Array of promises that resolve true when a dashboard element is visible.
+ */
+/**
+ * Collect all WELL_KNOWN dashboard selector candidates.
+ * @returns Combined array of dashboard selector candidates.
+ */
+function collectDashboardCandidates(): { kind: string; value: string }[] {
+  return [
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
+  ];
 }
 
 /**
@@ -204,18 +221,21 @@ export async function isNoTransactionInDateRangeError(page: Page | Frame): Promi
  * @returns Array of promises that resolve true when a dashboard element is visible.
  */
 function buildDashboardWaiters(page: Page): Promise<boolean>[] {
-  const categories = [
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
-  ];
-  return categories
+  const categories = collectDashboardCandidates();
+  const textWaiters = categories
     .filter(c => c.kind === 'textContent')
     .map(async c => {
-      const loc = page.getByText(c.value).first();
+      await page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+  const ariaWaiters = categories
+    .filter(c => c.kind === 'ariaLabel')
+    .map(async c => {
+      const loc = page.locator(`[aria-label="${c.value}"]`).first();
       await loc.waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
+  return [...textWaiters, ...ariaWaiters];
 }
 
 /**

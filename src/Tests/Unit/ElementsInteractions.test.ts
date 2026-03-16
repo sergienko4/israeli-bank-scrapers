@@ -145,8 +145,9 @@ describe('pageEval', () => {
   it('returns result of locator evaluate on selector', async () => {
     const evaluate = jest.fn().mockResolvedValue('evaluated');
     const first = jest.fn().mockReturnValue({ evaluate });
+    const count = jest.fn().mockResolvedValue(1);
     const page = createMockPage({
-      locator: jest.fn().mockReturnValue({ first }),
+      locator: jest.fn().mockReturnValue({ first, count }),
     });
     const result = await pageEval(page, {
       selector: '.balance',
@@ -164,8 +165,9 @@ describe('pageEval', () => {
   it('returns default when element not found', async () => {
     const evaluate = jest.fn().mockRejectedValue(new Error('locator resolved to no elements'));
     const first = jest.fn().mockReturnValue({ evaluate });
+    const count = jest.fn().mockResolvedValue(0);
     const page = createMockPage({
-      locator: jest.fn().mockReturnValue({ first }),
+      locator: jest.fn().mockReturnValue({ first, count }),
     });
     const result = await pageEval(page, {
       selector: '.missing',
@@ -184,8 +186,9 @@ describe('pageEval', () => {
 describe('pageEvalAll', () => {
   it('returns result of locator evaluateAll on selector', async () => {
     const evaluateAll = jest.fn().mockResolvedValue(['a', 'b']);
+    const count = jest.fn().mockResolvedValue(2);
     const page = createMockPage({
-      locator: jest.fn().mockReturnValue({ evaluateAll }),
+      locator: jest.fn().mockReturnValue({ evaluateAll, count }),
     });
     const result = await pageEvalAll(page, {
       selector: '.items',
@@ -202,8 +205,9 @@ describe('pageEvalAll', () => {
 
   it('returns default when no elements found', async () => {
     const evaluateAll = jest.fn().mockRejectedValue(new Error('no elements'));
+    const count = jest.fn().mockResolvedValue(0);
     const page = createMockPage({
-      locator: jest.fn().mockReturnValue({ evaluateAll }),
+      locator: jest.fn().mockReturnValue({ evaluateAll, count }),
     });
     const result = await pageEvalAll(page, {
       selector: '.missing',

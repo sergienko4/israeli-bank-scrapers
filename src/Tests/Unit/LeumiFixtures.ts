@@ -14,7 +14,7 @@ export default function buildLocatorMock(accountIds: string[] = []): jest.Mock {
     click: jest.fn().mockResolvedValue(undefined),
     innerText: jest.fn().mockResolvedValue(''),
     count: jest.fn().mockResolvedValue(1),
-    getAttribute: jest.fn().mockResolvedValue(undefined),
+    getAttribute: jest.fn().mockResolvedValue(null),
   };
   return jest.fn().mockReturnValue({
     first: jest.fn().mockReturnValue(firstObj),

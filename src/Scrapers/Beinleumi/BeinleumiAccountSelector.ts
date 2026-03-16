@@ -78,11 +78,14 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
  * @returns Array of account ID strings from the select element.
  */
 async function getAccountIdsOldUI(page: Page): Promise<string[]> {
-  const optionLoc = page.locator('select[id="account_num_select"] option');
+  const selectLoc = page.getByRole('combobox').first();
+  const count = await selectLoc.count().catch((): number => 0);
+  if (count === 0) return [];
+  const optionLoc = selectLoc.locator('option');
   const options = await optionLoc.all();
-  const getValueTasks = options.map(o => o.getAttribute('value'));
-  const values = await Promise.all(getValueTasks);
-  return values.filter((v): v is string => v !== null && v !== '');
+  const getTextTasks = options.map(o => o.innerText());
+  const texts = await Promise.all(getTextTasks);
+  return texts.map(t => t.trim()).filter(t => t.length > 0);
 }
 
 /**

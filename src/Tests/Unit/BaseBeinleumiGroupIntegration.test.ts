@@ -103,12 +103,13 @@ function buildLocator(selector: string): Record<string, jest.Mock> {
     getAttribute: jest.fn().mockResolvedValue(null),
     innerText: jest.fn().mockResolvedValue(resolvedText),
   };
+  const hasMatch = resolvedText.length > 0;
   return {
     first: jest.fn().mockReturnValue(inner),
-    count: jest.fn().mockResolvedValue(0),
-    evaluateAll: jest.fn().mockResolvedValue([]),
-    allInnerTexts: jest.fn().mockResolvedValue([]),
-    all: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(hasMatch ? 1 : 0),
+    evaluateAll: jest.fn().mockResolvedValue(hasMatch ? [inner] : []),
+    allInnerTexts: jest.fn().mockResolvedValue(hasMatch ? [resolvedText] : []),
+    all: jest.fn().mockResolvedValue(hasMatch ? [inner] : []),
   };
 }
 
@@ -120,10 +121,24 @@ function buildLocator(selector: string): Record<string, jest.Mock> {
 function createPage(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const noDataLoc = {
+    first: jest.fn().mockReturnValue({
+      isVisible: jest.fn().mockResolvedValue(false),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+    }),
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+  };
+  const emptyComboLoc = {
+    first: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+    count: jest.fn().mockResolvedValue(0),
+  };
   return CREATE_MOCK_PAGE({
     locator: jest.fn().mockImplementation(buildLocator),
     evaluate: jest.fn().mockResolvedValue([]),
     frames: jest.fn().mockReturnValue([]),
+    getByText: jest.fn().mockReturnValue(noDataLoc),
+    getByRole: jest.fn().mockReturnValue(emptyComboLoc),
     ...overrides,
   });
 }

@@ -34,16 +34,30 @@ const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardS
 >;
 
 /**
+ * Escape a string for safe use as an XPath string literal.
+ * Handles values containing single quotes, double quotes, or both.
+ * @param value - The raw string value.
+ * @returns XPath-safe quoted string.
+ */
+export function toXpathLiteral(value: string): string {
+  if (!value.includes('"')) return `"${value}"`;
+  if (!value.includes("'")) return `'${value}'`;
+  const parts = value.split('"').map(part => `"${part}"`);
+  return `concat(${parts.join(", '\"', ")})`;
+}
+
+/**
  * Build XPath for clickableText — innermost element with text.
  * @param value - The visible text to match.
  * @returns Playwright-compatible XPath selector.
  */
 function clickableTextXpath(value: string): string {
+  const lit = toXpathLiteral(value);
   return [
     'xpath=//*[not(self::script)',
     'and not(self::style)',
-    `and contains(., "${value}")`,
-    `and not(.//*[contains(., "${value}")])]`,
+    `and contains(., ${lit})`,
+    `and not(.//*[contains(., ${lit})])]`,
   ].join(' ');
 }
 
@@ -54,9 +68,10 @@ function clickableTextXpath(value: string): string {
  */
 export function candidateToCss(candidate: SelectorCandidate): string {
   const v = candidate.value;
+  const lit = toXpathLiteral(v);
   if (candidate.kind === 'clickableText') return clickableTextXpath(v);
-  if (candidate.kind === 'labelText') return `xpath=//label[contains(., "${v}")]`;
-  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), "${v}")]`;
+  if (candidate.kind === 'labelText') return `xpath=//label[contains(., ${lit})]`;
+  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), ${lit})]`;
   if (candidate.kind === 'css') return v;
   if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]`;
   if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]`;
@@ -218,11 +233,12 @@ async function probeClickableText(
   candidate: SelectorCandidate,
 ): Promise<IProbeResult> {
   const text = candidate.value;
+  const lit = toXpathLiteral(text);
   const baseXpath = [
     'xpath=//*[not(self::script)',
     'and not(self::style)',
-    `and contains(., "${text}")`,
-    `and not(.//*[contains(., "${text}")])]`,
+    `and contains(., ${lit})`,
+    `and not(.//*[contains(., ${lit})])]`,
   ].join(' ');
   const isFound = await queryWithTimeout(ctx, baseXpath);
   if (!isFound) return { css: '', kind: 'clickableText' };

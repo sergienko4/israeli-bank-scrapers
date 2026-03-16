@@ -10,9 +10,12 @@ import {
   SMS_TRIGGER_CANDIDATES,
 } from './Config/OtpDetectorConfig.js';
 import { getDebug } from './Debug.js';
-import { tryInContext } from './SelectorResolver.js';
+import { toXpathLiteral, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-detector');
+
+/** Pre-resolved promise used as initial value for sequential reduce chains. */
+const RESOLVED_PROMISE = Promise.resolve();
 
 export { OTP_SUBMIT_CANDIDATES };
 
@@ -149,7 +152,7 @@ async function findSmsTriggerInFrames(
  * Click the SMS trigger button if one is found on the page or in frames.
  * @param page - The Playwright page to search for SMS triggers.
  * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns True after the trigger is clicked or skipped.
+ * @returns True if a trigger was clicked, false if none found.
  */
 export async function clickOtpTriggerIfPresent(
   page: Page,
@@ -162,11 +165,14 @@ export async function clickOtpTriggerIfPresent(
   const trigger = await findSmsTriggerInFrames(page, cachedFrames);
   if (trigger.selector) {
     LOG.debug('clicking SMS trigger fallback: %s', trigger.selector);
-    await trigger.context.click(trigger.selector, { timeout: 5000 }).catch(() => false);
-  } else {
-    LOG.debug('No SMS trigger found — SMS may be auto-sent');
+    const isClicked = await trigger.context
+      .click(trigger.selector, { timeout: 5000 })
+      .then((): true => true)
+      .catch((): false => false);
+    return isClicked;
   }
-  return true;
+  LOG.debug('No SMS trigger found — SMS may be auto-sent');
+  return false;
 }
 
 /** Text-based candidate kinds. */
@@ -181,6 +187,29 @@ function extractTextValues(candidates: SelectorCandidate[]): string[] {
   return candidates
     .filter(c => TEXT_KINDS.includes(c.kind as (typeof TEXT_KINDS)[number]))
     .map(c => c.value);
+}
+
+/**
+ * Try fallback selector resolution across all contexts sequentially.
+ * @param contexts - Ordered list of Page/Frame contexts.
+ * @param candidates - Selector candidates to resolve.
+ * @returns True if a fallback selector was found and clicked.
+ */
+async function tryFallbackInContexts(
+  contexts: (Page | Frame)[],
+  candidates: SelectorCandidate[],
+): Promise<boolean> {
+  const tasks = contexts.map(async (ctx): Promise<boolean> => {
+    const sel = await tryInContext(ctx, candidates);
+    if (!sel) return false;
+    LOG.debug('clickFromCandidates: fallback selector: %s', sel);
+    return ctx
+      .click(sel, { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+  });
+  const results = await Promise.all(tasks);
+  return results.some(Boolean);
 }
 
 /**
@@ -200,14 +229,8 @@ export async function clickFromCandidates(
   const contexts = buildContextList(page, cachedFrames);
   const didClick = await tryClickTextInContexts(contexts, textValues);
   if (didClick) return true;
-  const fallbackSel = await tryInContext(page, candidates);
-  if (fallbackSel) {
-    LOG.debug('clickFromCandidates: fallback selector: %s', fallbackSel);
-    return page
-      .click(fallbackSel, { timeout: 5000 })
-      .then(() => true)
-      .catch(() => false);
-  }
+  const hasFallback = await tryFallbackInContexts(contexts, candidates);
+  if (hasFallback) return true;
   LOG.debug('clickFromCandidates: no clickable match found');
   return false;
 }
@@ -236,8 +259,7 @@ async function tryClickTextInSingleContext(
   texts: string[],
   isMain: boolean,
 ): Promise<boolean> {
-  const tasks = texts.map(t => tryClickInnermostText(ctx, t));
-  const results = await Promise.all(tasks);
+  const results = await sequentialClickAttempts(ctx, texts);
   const idx = results.findIndex(Boolean);
   if (idx >= 0) {
     const label = isMain ? 'main' : 'frame';
@@ -245,6 +267,30 @@ async function tryClickTextInSingleContext(
     return true;
   }
   return false;
+}
+
+/**
+ * Try clicking each text sequentially, stopping after first success.
+ * @param ctx - Page or Frame to search.
+ * @param texts - Text values to attempt.
+ * @returns Array of results (true/false per text).
+ */
+async function sequentialClickAttempts(ctx: Page | Frame, texts: string[]): Promise<boolean[]> {
+  const results: boolean[] = [];
+  const reducer = texts.reduce(
+    (chain, text) =>
+      chain.then(async () => {
+        if (results.some(Boolean)) {
+          results.push(false);
+          return;
+        }
+        const didClick = await tryClickInnermostText(ctx, text);
+        results.push(didClick);
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
+  return results;
 }
 
 /**
@@ -257,8 +303,7 @@ async function tryClickTextInContexts(
   contexts: (Page | Frame)[],
   texts: string[],
 ): Promise<boolean> {
-  const tasks = contexts.map((ctx, idx) => tryClickTextInSingleContext(ctx, texts, idx === 0));
-  const results = await Promise.all(tasks);
+  const results = await sequentialContextAttempts(contexts, texts);
   const didMatch = results.some(Boolean);
   if (!didMatch) {
     LOG.debug('no match in %d contexts for %d texts', contexts.length, texts.length);
@@ -267,16 +312,44 @@ async function tryClickTextInContexts(
 }
 
 /**
+ * Try clicking text in each context sequentially, stopping after first success.
+ * @param contexts - Ordered list of contexts.
+ * @param texts - Text values to attempt.
+ * @returns Array of results (true/false per context).
+ */
+async function sequentialContextAttempts(
+  contexts: (Page | Frame)[],
+  texts: string[],
+): Promise<boolean[]> {
+  const results: boolean[] = [];
+  const reducer = contexts.reduce(
+    (chain, ctx, idx) =>
+      chain.then(async () => {
+        if (results.some(Boolean)) {
+          results.push(false);
+          return;
+        }
+        const didClick = await tryClickTextInSingleContext(ctx, texts, idx === 0);
+        results.push(didClick);
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
+  return results;
+}
+
+/**
  * Build an innermost-text XPath for the given visible text.
  * @param text - The visible text to match.
  * @returns Playwright XPath selector string.
  */
 function innermostTextXpath(text: string): string {
+  const escaped = toXpathLiteral(text);
   return [
     'xpath=//*[not(self::script)',
     'and not(self::style)',
-    `and contains(., "${text}")`,
-    `and not(.//*[contains(., "${text}")])]`,
+    `and contains(., ${escaped})`,
+    `and not(.//*[contains(., ${escaped})])]`,
   ].join(' ');
 }
 
@@ -290,9 +363,31 @@ async function tryClickInnermostText(ctx: Page | Frame, text: string): Promise<b
   const xpathSelector = innermostTextXpath(text);
   const locator = ctx.locator(xpathSelector);
   const matches = await locator.all();
-  const clickTasks = matches.map(tryForceClick);
-  const results = await Promise.all(clickTasks);
+  const results = await sequentialForceClicks(matches);
   return results.some(Boolean);
+}
+
+/**
+ * Try force-clicking matched elements sequentially, stopping after first success.
+ * @param matches - Array of locator elements to attempt clicking.
+ * @returns Array of click results (true/false per element).
+ */
+async function sequentialForceClicks(matches: IClickable[]): Promise<boolean[]> {
+  const results: boolean[] = [];
+  const reducer = matches.reduce(
+    (chain, match) =>
+      chain.then(async () => {
+        if (results.some(Boolean)) {
+          results.push(false);
+          return;
+        }
+        const didClick = await tryForceClick(match);
+        results.push(didClick);
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
+  return results;
 }
 
 /** Locator with a click method. */

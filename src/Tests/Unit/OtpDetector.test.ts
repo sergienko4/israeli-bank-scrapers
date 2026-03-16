@@ -31,6 +31,12 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
    * @returns delegated mock result from MOCK_TRY_IN_CONTEXT.
    */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
+  /**
+   * Passthrough XPath literal escaper.
+   * @param value - The raw string value.
+   * @returns Quoted string for XPath.
+   */
+  toXpathLiteral: (value: string): string => `"${value}"`,
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   resolveFieldContext: jest.fn().mockResolvedValue(null),
   resolveFieldWithCache: jest.fn().mockResolvedValue(null),

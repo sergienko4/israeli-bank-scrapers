@@ -166,8 +166,7 @@ async function switchToAccount(
 ): Promise<boolean> {
   if (totalAccounts <= 1) return false;
   await clickBySelector(page, SEL.accountCombo);
-  const accountXpath = `xpath=//span[contains(text(), '${accountId}')]`;
-  await clickBySelector(page, accountXpath);
+  await page.getByText(accountId).first().click();
   return true;
 }
 

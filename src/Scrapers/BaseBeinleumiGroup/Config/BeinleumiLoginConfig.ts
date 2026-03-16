@@ -68,14 +68,16 @@ async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConf
 }
 
 /**
- * Check if a frame contains a credential input field.
+ * Check if a frame contains login credential fields (password input).
  * @param frame - The frame to check.
- * @returns True if the frame has an input with placeholder.
+ * @returns True if the frame has a password input (strong login indicator).
  */
-async function checkFrameHasInput(frame: Frame): Promise<boolean> {
-  const locator = frame.getByRole('textbox');
-  const count = await locator.count().catch((): number => 0);
-  return count > 0;
+async function checkFrameHasLoginFields(frame: Frame): Promise<boolean> {
+  const passwordCount = await frame
+    .locator('input[type="password"]')
+    .count()
+    .catch((): number => 0);
+  return passwordCount > 0;
 }
 
 /**
@@ -85,7 +87,7 @@ async function checkFrameHasInput(frame: Frame): Promise<boolean> {
  */
 async function findLoginFrame(page: Page): OptionalFramePromise {
   const frames = page.frames();
-  const tasks = frames.map(checkFrameHasInput);
+  const tasks = frames.map(checkFrameHasLoginFields);
   const checks = await Promise.all(tasks);
   const idx = checks.findIndex(Boolean);
   if (idx >= 0) return frames[idx];

@@ -58,6 +58,12 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
+  /**
+   * Passthrough XPath literal escaper.
+   * @param value - The raw string value.
+   * @returns Quoted string for XPath.
+   */
+  toXpathLiteral: (value: string): string => `"${value}"`,
   extractCredentialKey: jest.fn((selector: string) => selector),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));

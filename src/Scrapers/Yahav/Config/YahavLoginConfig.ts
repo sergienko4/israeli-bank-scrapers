@@ -1,10 +1,6 @@
 import { type Page } from 'playwright-core';
 
-import {
-  elementPresentOnPage,
-  waitUntilElementDisappear,
-  waitUntilElementFound,
-} from '../../../Common/ElementsInteractions.js';
+import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
@@ -13,30 +9,53 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
-/** XPath for the messaging container. */
-const MSG_CLASS = 'messaging-links-container';
-const MESSAGING_XPATH = 'xpath=//*[contains(@class, "' + MSG_CLASS + '")]';
+/**
+ * No-op catch handler for timeout errors in post-login waits.
+ * @returns False to indicate no indicator was found.
+ */
+function ignoreTimeout(): boolean {
+  return false;
+}
 
-/** XPath for the dashboard account details section. */
-const ACCOUNT_DETAILS_XPATH =
-  'xpath=//*[contains(@class, "account-details")' + ' or @id="AccountDetails"]';
+/** Hebrew text for the account details heading. */
+const ACCOUNT_DETAILS_TEXT = 'פרטי חשבון';
 
-/** XPath for the loader spinner. */
-const LOADER_XPATH = 'xpath=//*[contains(@class, "loader")]';
-
-/** XPath for the submit button. */
-const BTN_XPATH = '//button[contains(@class, "btn")]';
+/** Submit button text on the Yahav login form. */
+const SUBMIT_TEXT = 'כניסה';
 
 /**
  * Dismiss the messaging popup if present by clicking its first link.
  * @param page - The Playwright page instance.
  * @returns True if dismissed, false if not present.
  */
+/** Hebrew dismiss button texts for messaging popups. */
+const DISMISS_TEXTS = ['סגור', 'הבנתי', 'אישור', 'המשך'];
+
+/**
+ * Check visibility of a dismiss text candidate.
+ * @param page - The Playwright page.
+ * @param text - The dismiss text to check.
+ * @returns True if the text is visible.
+ */
+async function isDismissVisible(page: Page, text: string): Promise<boolean> {
+  return page
+    .getByText(text)
+    .first()
+    .isVisible()
+    .catch(() => false);
+}
+
+/**
+ * Dismiss the messaging popup if present by clicking the first visible dismiss text.
+ * @param page - The Playwright page instance.
+ * @returns True if dismissed, false if not present.
+ */
 async function dismissMessaging(page: Page): Promise<boolean> {
-  const loc = page.locator(MESSAGING_XPATH);
-  if ((await loc.count()) === 0) return false;
-  const linkLoc = loc.locator('a').first();
-  await linkLoc.click();
+  const tasks = DISMISS_TEXTS.map(t => isDismissVisible(page, t));
+  const checks = await Promise.all(tasks);
+  const idx = checks.findIndex(Boolean);
+  if (idx < 0) return false;
+  await page.getByText(DISMISS_TEXTS[idx]).first().click();
   return true;
 }
 
@@ -47,15 +66,12 @@ async function dismissMessaging(page: Page): Promise<boolean> {
  */
 async function yahavPostAction(page: Page): LifecyclePromise {
   await waitForNavigation(page);
-  await waitUntilElementDisappear(page, LOADER_XPATH);
+  await page.waitForLoadState('networkidle').catch(ignoreTimeout);
   await dismissMessaging(page);
-  await Promise.race([
-    page.locator(ACCOUNT_DETAILS_XPATH).first().waitFor({ state: 'visible' }),
-    waitUntilElementFound(page, 'input#ef_req_parameter_old_credential', {
-      visible: true,
-      timeout: 60000,
-    }),
-  ]);
+  await Promise.any([
+    page.getByText(ACCOUNT_DETAILS_TEXT).first().waitFor({ state: 'visible', timeout: 60000 }),
+    page.getByText('שינוי סיסמה').first().waitFor({ state: 'visible', timeout: 60000 }),
+  ]).catch(ignoreTimeout);
 }
 
 /** Company type for Yahav — re-exported for module multi-export compliance. */
@@ -69,17 +85,16 @@ export const YAHAV_CONFIG: ILoginConfig = {
     { credentialKey: 'password', selectors: [] },
     { credentialKey: 'nationalID', selectors: [] },
   ],
-  submit: [{ kind: 'xpath', value: BTN_XPATH }],
+  submit: [{ kind: 'textContent', value: SUBMIT_TEXT }],
   /**
    * Wait for login form fields and submit button to appear.
    * @param page - The Playwright page instance.
    * @returns True when login form is ready.
    */
   checkReadiness: async (page: Page): LifecyclePromise => {
-    const btnSelector = 'xpath=' + BTN_XPATH;
-    const idReady = page.locator('input[type="password"]').first().waitFor({ state: 'attached' });
-    const btnReady = waitUntilElementFound(page, btnSelector);
-    await Promise.all([idReady, btnReady]);
+    const pwReady = page.locator('input[type="password"]').first().waitFor({ state: 'visible' });
+    const btnReady = page.getByText(SUBMIT_TEXT).first().waitFor({ state: 'visible' });
+    await Promise.all([pwReady, btnReady]);
   },
   postAction: yahavPostAction,
   possibleResults: {

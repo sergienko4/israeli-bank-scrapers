@@ -26,22 +26,30 @@ const FORM_ANCHOR_MOD = await import('../../Common/FormAnchor.js');
 
 // ── discoverFormAnchor ────────────────────────────────────────────────────
 
+/**
+ * Create a mock page with a locator that resolves count and evaluate.
+ * @param countValue - Value for locator count().
+ * @param evaluateValue - Value for locator evaluate().
+ * @returns Mock page object.
+ */
+function makePageWithLocator(countValue: number, evaluateValue: string): Page {
+  const loc = {
+    count: jest.fn().mockResolvedValue(countValue),
+    evaluate: jest.fn().mockResolvedValue(evaluateValue),
+  };
+  const first = jest.fn().mockReturnValue(loc);
+  return { locator: jest.fn().mockReturnValue({ first }) } as unknown as Page;
+}
+
 describe('discoverFormAnchor', () => {
   it('returns null when the resolved selector is not found', async () => {
-    const loc = { count: jest.fn().mockResolvedValue(0), evaluate: jest.fn() };
-    const first = jest.fn().mockReturnValue(loc);
-    const page = { locator: jest.fn().mockReturnValue({ first }) } as unknown as Page;
+    const page = makePageWithLocator(0, '');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#missing');
     expect(result).toBeNull();
   });
 
   it('returns form anchor when evaluate finds a form with id', async () => {
-    const loc = {
-      count: jest.fn().mockResolvedValue(1),
-      evaluate: jest.fn().mockResolvedValue('#loginForm'),
-    };
-    const first = jest.fn().mockReturnValue(loc);
-    const page = { locator: jest.fn().mockReturnValue({ first }) } as unknown as Page;
+    const page = makePageWithLocator(1, '#loginForm');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#username');
     expect(result).not.toBeNull();
     expect(result?.selector).toBe('#loginForm');
@@ -49,12 +57,7 @@ describe('discoverFormAnchor', () => {
   });
 
   it('returns null when evaluate returns empty (no form found)', async () => {
-    const loc = {
-      count: jest.fn().mockResolvedValue(1),
-      evaluate: jest.fn().mockResolvedValue(''),
-    };
-    const first = jest.fn().mockReturnValue(loc);
-    const page = { locator: jest.fn().mockReturnValue({ first }) } as unknown as Page;
+    const page = makePageWithLocator(1, '');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#username');
     expect(result).toBeNull();
   });

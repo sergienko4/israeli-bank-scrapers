@@ -244,7 +244,7 @@ function buildErrorWaiters(page: Page): Promise<boolean>[] {
  * @returns True when any indicator is detected.
  */
 async function raceForDashboardOrError(page: Page): Promise<boolean> {
-  await Promise.race([
+  await Promise.any([
     page.waitForURL('**/homepage/**', { timeout: 60000 }),
     page.waitForURL('**/errornew**', { timeout: 60000 }),
     ...buildErrorWaiters(page),

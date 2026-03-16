@@ -139,9 +139,19 @@ function yahavLocatorImpl(): Record<string, jest.Mock> {
  * @returns A mock page with Yahav-specific stubs.
  */
 function createYahavPage(): ReturnType<typeof MOCK_PAGE_MOD.createMockPage> {
+  const textLoc = {
+    first: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+  };
+  textLoc.first = jest.fn().mockReturnValue(textLoc);
   return MOCK_PAGE_MOD.createMockPage({
     locator: jest.fn().mockImplementation(yahavLocatorImpl),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
+    getByText: jest.fn().mockReturnValue(textLoc),
+    getByRole: jest.fn().mockReturnValue(textLoc),
+    waitForLoadState: jest.fn().mockResolvedValue(undefined),
   });
 }
 

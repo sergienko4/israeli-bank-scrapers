@@ -155,11 +155,19 @@ describe('getAccountIdsBothUIs', () => {
   it('falls back to old UI when new UI returns empty', async () => {
     const dropdownLoc = makeDropdownLocator(false);
     dropdownLoc.isVisible.mockRejectedValueOnce(new Error('no selector'));
-    const optVal = { getAttribute: jest.fn().mockResolvedValue('333') };
-    const legacyLoc = { all: jest.fn().mockResolvedValue([optVal]) };
+    const optElem = { innerText: jest.fn().mockResolvedValue('333') };
+    const optionLoc = { all: jest.fn().mockResolvedValue([optElem]) };
+    const comboLoc = {
+      first: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(1),
+        locator: jest.fn().mockReturnValue(optionLoc),
+      }),
+      count: jest.fn().mockResolvedValue(1),
+      locator: jest.fn().mockReturnValue(optionLoc),
+    };
+    mockPage.getByRole = jest.fn().mockReturnValue(comboLoc);
     mockPage.locator = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('autocomplete')) return dropdownLoc;
-      if (sel.includes('account_num_select')) return legacyLoc;
       return dropdownLoc;
     });
 
@@ -172,10 +180,13 @@ describe('getAccountIdsBothUIs', () => {
   it('returns empty array when both UIs return nothing', async () => {
     const dropdownLoc = makeDropdownLocator(false);
     dropdownLoc.isVisible.mockRejectedValueOnce(new Error('no selector'));
-    const emptyLoc = { all: jest.fn().mockResolvedValue([]) };
+    const emptyCombo = {
+      first: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      count: jest.fn().mockResolvedValue(0),
+    };
+    mockPage.getByRole = jest.fn().mockReturnValue(emptyCombo);
     mockPage.locator = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('autocomplete')) return dropdownLoc;
-      if (sel.includes('account_num_select')) return emptyLoc;
       return dropdownLoc;
     });
 

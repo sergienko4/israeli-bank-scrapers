@@ -88,7 +88,8 @@ function buildErrorWaiters(page: Page): Promise<boolean>[] {
 /**
  * Race redirect against error text visibility after login submission.
  * @param page - Playwright page to observe after submit.
- * @returns True after a post-login condition is detected or timeout.
+ * @returns True when either redirect or a known error text is detected.
+ * @throws When neither condition is detected before timeout.
  */
 async function waitForRedirectOrErrors(page: Page): Promise<boolean> {
   const redirectPromise = waitForRedirect(page, {
@@ -152,7 +153,7 @@ const BASE_CFG: ILoginConfig = {
     success: ['https://www.max.co.il/homepage/personal'],
     changePassword: ['https://www.max.co.il/renew-password'],
     invalidPassword: [isErrorTextOnPage],
-    unknownError: [isErrorTextOnPage],
+    unknownError: ['https://www.max.co.il/errornew'],
   },
 };
 

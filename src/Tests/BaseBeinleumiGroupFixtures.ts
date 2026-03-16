@@ -84,14 +84,40 @@ export function buildLocator(selector: string): Record<string, jest.Mock> {
  * @param overrides - Mock overrides for the page.
  * @returns Mocked page.
  */
+/**
+ * Build a getByText mock that returns a locator with isVisible().
+ * @returns Mock getByText function returning not-visible locator.
+ */
+function buildGetByText(): jest.Mock {
+  const innerLoc = {
+    first: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+  };
+  innerLoc.first = jest.fn().mockReturnValue(innerLoc);
+  return jest.fn().mockReturnValue(innerLoc);
+}
+
+/**
+ * Create a page mock with standard account selectors.
+ * @param createMockPage - factory to create a mock page.
+ * @param overrides - Mock overrides for the page.
+ * @returns Mocked page.
+ */
 export function createBeinleumiPage(
   createMockPage: (o: MockOverrides) => IMockPage,
   overrides: MockOverrides = {},
 ): IMockPage {
+  const emptyComboLoc = {
+    first: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+    count: jest.fn().mockResolvedValue(0),
+  };
   return createMockPage({
     locator: jest.fn().mockImplementation(buildLocator),
     evaluate: jest.fn().mockResolvedValue([]),
     frames: jest.fn().mockReturnValue([]),
+    getByText: buildGetByText(),
+    getByRole: jest.fn().mockReturnValue(emptyComboLoc),
     ...overrides,
   });
 }

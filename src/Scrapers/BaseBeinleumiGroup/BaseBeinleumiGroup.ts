@@ -37,7 +37,6 @@ import {
   type IScrapedTransaction,
   isNoTransactionInDateRangeError,
   type ITransactionsTr,
-  waitForPostLogin,
 } from './BaseBeinleumiGroupHelpers.js';
 
 const BEINLEUMI_CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Beinleumi];
@@ -457,5 +456,5 @@ abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<IScraperSpec
   }
 }
 
-export { waitForPostLogin };
+export { waitForPostLogin } from './BaseBeinleumiGroupHelpers.js';
 export default BeinleumiGroupBaseScraper;

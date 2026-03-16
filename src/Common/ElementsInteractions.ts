@@ -230,16 +230,16 @@ async function pageEvalAll<TResult>(
   opts: IPageEvalAllOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
-  let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.locator(selector).evaluateAll(callback);
+    const locator = page.locator(selector);
+    if ((await locator.count()) === 0) return defaultResult;
+    return await locator.evaluateAll(callback);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
+    return defaultResult;
   }
-
-  return result;
 }
 
 /**
@@ -253,15 +253,16 @@ async function pageEval<TResult>(
   opts: IPageEvalOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
-  let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.locator(selector).first().evaluate(callback);
-  } catch {
-    // Locator throws when no element matches; return the default result instead.
+    const locator = page.locator(selector);
+    if ((await locator.count()) === 0) return defaultResult;
+    return await locator.first().evaluate(callback);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    LOG.debug('pageEval(%s) error: %s', selector, msg);
+    return defaultResult;
   }
-
-  return result;
 }
 
 /**

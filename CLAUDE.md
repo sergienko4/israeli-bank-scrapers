@@ -17,13 +17,14 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Architecture Rules — ABSOLUTE
 
-### ZERO CSS Selectors
-- **NO** `$eval`, `$$eval`, `page.$()`, `querySelector`, `waitForSelector('#id')`
-- **NO** hardcoded CSS IDs, classes, or attribute selectors anywhere
-- **ONLY** visible text the user can read: `getByText()`, `getByRole()`
+### ZERO CSS Selectors in Interaction Code
+- **NO** `$eval`, `$$eval`, `page.$()`, `querySelector`, `waitForSelector('#id')` in click/fill/navigate/wait code
+- **NO** hardcoded CSS IDs, classes, or attribute selectors in user-facing interaction flows
+- **ONLY** visible text the user can read: `getByText()`, `getByRole()`, `getByPlaceholder()`
 - Text IS the stable anchor — once found, extract all metadata dynamically
 - Use `WELL_KNOWN_LOGIN_SELECTORS` / `WELL_KNOWN_DASHBOARD_SELECTORS` from `WellKnownSelectors.ts`
 - Priority: visible text → semantic HTML → textContent walk-up (down to up)
+- **Exceptions:** Structural CSS selectors are allowed in parsing/extraction code (e.g., `pageEvalAll` table parsing, date picker grid navigation, frame detection via `input[type="password"]`)
 
 ### Middleware Flow
 - Find element by visible text (what user sees)

@@ -16,9 +16,11 @@ import {
 } from './MizrahiHelpers.js';
 
 /** CSS selector for pending transaction rows (used in browser-context evaluate). */
-const PENDING_ROW_CANDIDATES =
-  SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors.pendingTransactionRows;
-const PENDING_ROWS_CSS = PENDING_ROW_CANDIDATES.length > 0 ? PENDING_ROW_CANDIDATES[0].value : '';
+const PENDING_ROW_SELECTORS = SCRAPER_CONFIGURATION.banks[
+  CompanyTypes.Mizrahi
+].selectors.pendingTransactionRows
+  .map(c => c.value)
+  .filter((v): v is string => v.trim().length > 0);
 
 /** Options for building a single transaction row. */
 interface IBuildRowOpts {
@@ -118,6 +120,23 @@ function isValidPendingTxn(row: ITransaction | IEmptyPendingRow): row is ITransa
 }
 
 /**
+ * Try each pending row selector until one returns results.
+ * @param page - The iframe Frame object.
+ * @param callback - The evaluateAll callback to extract cells.
+ * @returns Array of cell text arrays, or empty if no selector matched.
+ */
+async function trySelectorsUntilFound(
+  page: Frame,
+  callback: (trs: Element[]) => string[][],
+): Promise<string[][]> {
+  const tasks = PENDING_ROW_SELECTORS.map(async (selector): Promise<string[][]> => {
+    return pageEvalAll(page, { selector, defaultResult: [], callback });
+  });
+  const results = await Promise.all(tasks);
+  return results.find(r => r.length > 0) ?? [];
+}
+
+/**
  * Extract pending transactions from the iframe.
  * @param page - The iframe Frame object.
  * @returns Array of pending ITransactions.
@@ -133,11 +152,7 @@ export async function extractPendingTxns(page: Frame): Promise<ITransaction[]> {
       const cells = tr.querySelectorAll('td');
       return Array.from(cells, td => td.textContent || '');
     });
-  const rawRows = await pageEvalAll(page, {
-    selector: PENDING_ROWS_CSS,
-    defaultResult: [],
-    callback: extractCells,
-  });
+  const rawRows = await trySelectorsUntilFound(page, extractCells);
   const mapped = rawRows.map(row => mapPendingRow(row));
   return mapped.filter(isValidPendingTxn);
 }

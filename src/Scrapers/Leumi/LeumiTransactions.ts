@@ -116,7 +116,6 @@ export function parseAccountResponse(responseJson: { jsonResp: string }): ILeumi
     return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    const preview = responseJson.jsonResp.slice(0, 100);
-    throw new ScraperError(`Failed to parse Leumi response: ${message} — preview: ${preview}`);
+    throw new ScraperError(`Failed to parse Leumi response: ${message}`);
   }
 }

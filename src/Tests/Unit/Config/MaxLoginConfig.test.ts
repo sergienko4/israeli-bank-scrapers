@@ -83,7 +83,9 @@ interface IMockLocator {
 function makeMockLocator(visible = false): IMockLocator {
   const loc: IMockLocator = {
     isVisible: jest.fn().mockResolvedValue(visible),
-    waitFor: jest.fn().mockResolvedValue(undefined),
+    waitFor: visible
+      ? jest.fn().mockResolvedValue(undefined)
+      : jest.fn().mockRejectedValue(new Error('not visible')),
     click: jest.fn().mockResolvedValue(undefined),
     first: jest.fn(),
   };

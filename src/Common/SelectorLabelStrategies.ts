@@ -18,6 +18,7 @@ export type QueryFn = (context: Page | Frame, css: string) => Promise<boolean>;
  */
 export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
   const loc = ctx.locator(selector).first();
+  if ((await loc.count()) === 0) return false;
   const tagName = await loc.evaluate((el: Element) => el.tagName.toLowerCase());
   if (tagName === 'textarea') return true;
   if (tagName !== 'input') return false;

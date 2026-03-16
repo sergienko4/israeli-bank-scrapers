@@ -101,7 +101,8 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts or error.
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
-    await clickFirstVisibleText(this.page, ACCOUNT_TEXTS);
+    const isOpened = await clickFirstVisibleText(this.page, ACCOUNT_TEXTS);
+    if (!isOpened) throw new ScraperError('Mizrahi account selector not found');
     const items = await this.page.locator(ACCOUNT_ITEM_CSS).all();
     return this.fetchAllAccounts(items.length);
   }

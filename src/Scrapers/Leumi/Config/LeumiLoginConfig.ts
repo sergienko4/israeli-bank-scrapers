@@ -38,11 +38,6 @@ async function findLoginLinkHref(page: Page): Promise<string> {
 }
 
 /**
- * Navigate to the Leumi login form and wait for all input fields to render.
- * @param page - The Playwright page to check readiness on.
- * @returns True after the login form is ready.
- */
-/**
  * Navigate to the Leumi login page via the login link.
  * @param page - The Playwright page instance.
  * @returns True after navigation completes.
