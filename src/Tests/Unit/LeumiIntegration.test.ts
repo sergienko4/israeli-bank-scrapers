@@ -111,15 +111,6 @@ function leumiPageBase(
  * @param response.json - jest mock for json()
  * @returns mock page overrides
  */
-const { default: BUILD_LOCATOR_MOCK } = await import('./LeumiFixtures.js');
-
-/**
- * Build full Leumi page mock with goto and locator.
- * @param accountIds - account IDs
- * @param response - mock response object
- * @param response.json - jest mock for json()
- * @returns mock page overrides
- */
 function buildLeumiPageMock(
   accountIds: string[],
   response: { json: jest.Mock },
@@ -128,7 +119,7 @@ function buildLeumiPageMock(
   return {
     ...leumiPageBase(accountIds, response),
     goto: jest.fn().mockResolvedValue(gotoRes),
-    locator: BUILD_LOCATOR_MOCK(accountIds),
+    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
   };
 }
 

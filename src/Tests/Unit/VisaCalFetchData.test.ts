@@ -38,23 +38,12 @@ jest.unstable_mockModule(
     fillInput: jest.fn().mockResolvedValue(undefined),
     waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
     waitUntilIframeFound: jest.fn().mockResolvedValue({
-      /**
-       * Frame URL getter.
-       * @returns URL string.
-       */
-      url: (): string => 'https://connect.cal-online.co.il/login',
-      waitForSelector: jest.fn().mockResolvedValue(undefined),
-      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
-      getByText: jest.fn().mockImplementation(() => {
-        const loc = {
-          first: jest.fn(),
-          waitFor: jest.fn().mockResolvedValue(undefined),
-          click: jest.fn().mockResolvedValue(undefined),
-          isVisible: jest.fn().mockResolvedValue(false),
-        };
-        loc.first.mockReturnValue(loc);
-        return loc;
-      }),
+      url:
+        /**
+         * Frame URL getter.
+         * @returns URL string.
+         */
+        (): string => 'https://connect.cal-online.co.il/login',
     }),
     elementPresentOnPage: jest.fn().mockResolvedValue(false),
     pageEval: jest.fn().mockResolvedValue(''),

@@ -65,6 +65,7 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn(),
   extractCredentialKey: jest.fn(),
   tryInContext: jest.fn(),
+  toFirstCss: jest.fn(),
   resolveDashboardField: jest.fn(),
 }));
 

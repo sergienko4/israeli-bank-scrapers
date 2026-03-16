@@ -1,7 +1,6 @@
 import moment from 'moment';
-import type { Page } from 'playwright-core';
 
-import { waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
+import { waitUntilElementFound, waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
@@ -15,7 +14,6 @@ import GenericBankScraper from '../Base/GenericBankScraper.js';
 import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
-import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import { MIZRAHI_CONFIG } from './Config/MizrahiLoginConfig.js';
 import { convertTransactions, extractPendingTxns } from './MizrahiConverters.js';
 import {
@@ -30,61 +28,24 @@ import {
   PENDING_TRANSACTIONS_IFRAME,
   TRANSACTIONS_REQUEST_URLS,
 } from './MizrahiHelpers.js';
+import buildSel from './MizrahiSelectors.js';
 
-const MIZRAHI_SEL = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors;
-
-/** CSS selector for account dropdown items (no visible text alternative). */
-const ACCOUNT_ITEM_CSS = MIZRAHI_SEL.accountDropdownItem[0].value;
-
-/** CSS selector for the account number span (reads title attribute). */
-const ACCOUNT_NUMBER_CSS = MIZRAHI_SEL.accountNumberSpan[0].value;
-
-/** CSS selector for pending frame identifier (iframe content). */
-const PENDING_FRAME_CSS = MIZRAHI_SEL.pendingFrameIdentifier[0].value;
-
-/** Hebrew text for the checking account (OSH) navigation link. */
-const OSH_LINK_TEXT = 'עובר ושב';
-
-/** Account selector text values from WELL_KNOWN. */
-const ACCOUNT_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector.map(c => c.value);
-
-/** Pending transactions text values from WELL_KNOWN. */
-const PENDING_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.pendingTransactions.map(c => c.value);
-
-/** Transactions link text values from WELL_KNOWN. */
-const TXN_LINK_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.transactionsLink.map(c => c.value);
-
-/**
- * Check if a locator element is currently visible.
- * @param loc - Locator-like object with isVisible method.
- * @param loc.isVisible - Method that checks element visibility.
- * @returns True if visible, false on error.
- */
-async function checkVisible(loc: { isVisible: () => Promise<boolean> }): Promise<boolean> {
-  return loc.isVisible().catch(() => false);
-}
-
-/**
- * Try to click the first visible text match on the page.
- * @param page - The Playwright page to search.
- * @param texts - Hebrew text candidates to try.
- * @returns True if a click occurred.
- */
-async function clickFirstVisibleText(page: Page, texts: string[]): Promise<boolean> {
-  const locators = texts.map(t => page.getByText(t).first());
-  const visibilityTasks = locators.map(checkVisible);
-  const checks = await Promise.all(visibilityTasks);
-  const visibleIdx = checks.findIndex(Boolean);
-  if (visibleIdx < 0) return false;
-  await locators[visibleIdx].click();
-  return true;
-}
+const SELECTORS = SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors;
+const SEL = buildSel(SELECTORS);
 
 /** Mizrahi-specific login credentials. */
 interface IScraperSpecificCredentials {
   username: string;
   password: string;
 }
+
+/**
+ * Click helper for $eval.
+ * @param el - The DOM element to click.
+ */
+const CLICK_FN = (el: Element): void => {
+  (el as HTMLElement).click();
+};
 
 /** Mizrahi bank scraper implementation. */
 class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
@@ -101,8 +62,8 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts or error.
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
-    await clickFirstVisibleText(this.page, ACCOUNT_TEXTS);
-    const items = await this.page.locator(ACCOUNT_ITEM_CSS).all();
+    await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    const items = await this.page.$$(SEL.accountDropdownItem);
     return this.fetchAllAccounts(items.length);
   }
 
@@ -112,7 +73,6 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts or error.
    */
   private async fetchAllAccounts(count: number): Promise<IScraperScrapingResult> {
-    if (count === 0) return { success: true, accounts: [] };
     try {
       const indices = Array.from({ length: count }, (_, idx) => idx);
       const actions = indices.map(
@@ -135,8 +95,10 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns The account transactions data.
    */
   private async selectAndFetchAccount(index: number): Promise<ITransactionsAccount> {
-    if (index > 0) await clickFirstVisibleText(this.page, ACCOUNT_TEXTS);
-    await this.page.locator(ACCOUNT_ITEM_CSS).nth(index).click();
+    if (index > 0) await this.page.$eval(SEL.accountDropdown, CLICK_FN);
+    const nthChild = String(index + 1);
+    const selector = `${SEL.accountDropdownItem}:nth-child(${nthChild})`;
+    await this.page.$eval(selector, CLICK_FN);
     return this.fetchAccount();
   }
 
@@ -145,14 +107,11 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Array of pending ITransactions.
    */
   private async getPendingTransactions(): Promise<ITransaction[]> {
-    await clickFirstVisibleText(this.page, PENDING_TEXTS);
+    await this.page.$eval(SEL.pendingTransactionsLink, CLICK_FN);
     const frame = await waitUntilIframeFound(this.page, f =>
       f.url().includes(PENDING_TRANSACTIONS_IFRAME),
     );
-    const hasPending = await frame
-      .locator(PENDING_FRAME_CSS)
-      .first()
-      .waitFor({ state: 'attached', timeout: 10000 })
+    const hasPending = await waitUntilElementFound(frame, SEL.pendingFrameIdentifier)
       .then(() => true)
       .catch(() => false);
     if (!hasPending) return [];
@@ -164,9 +123,10 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns True when navigation is complete.
    */
   private async navigateToTransactions(): Promise<boolean> {
-    await this.page.getByText(OSH_LINK_TEXT).first().waitFor({ state: 'visible' });
-    await this.page.getByText(OSH_LINK_TEXT).first().click();
-    await clickFirstVisibleText(this.page, TXN_LINK_TEXTS);
+    await this.page.waitForSelector(SEL.oshLink);
+    await this.page.$eval(SEL.oshLink, CLICK_FN);
+    await waitUntilElementFound(this.page, SEL.transactionsLink);
+    await this.page.$eval(SEL.transactionsLink, CLICK_FN);
     return true;
   }
 
@@ -175,10 +135,11 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns The account number string.
    */
   private async getAccountNumber(): Promise<string> {
-    const loc = this.page.locator(ACCOUNT_NUMBER_CSS).first();
-    const title = await loc.getAttribute('title');
-    if (!title) throw new ScraperError('Account number not found');
-    return title;
+    const el = await this.page.$(SEL.accountNumberSpan);
+    const handle = await el?.getProperty('title');
+    const accountNumber = (await handle?.jsonValue()) as string;
+    if (!accountNumber) throw new ScraperError('Account number not found');
+    return accountNumber;
   }
 
   /**

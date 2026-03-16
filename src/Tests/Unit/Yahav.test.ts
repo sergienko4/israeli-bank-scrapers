@@ -103,44 +103,17 @@ const MOCK_BROWSER = {
 const CREDS = { username: 'testuser', password: 'testpass', nationalID: '123456789' };
 
 /**
- * Build the first-element stub for a Yahav locator.
- * @returns inner element mock with standard stubs.
- */
-function yahavFirstElement(): Record<string, jest.Mock> {
-  return {
-    innerText: jest.fn().mockResolvedValue('ACC-12345'),
-    waitFor: jest.fn().mockResolvedValue(undefined),
-    click: jest.fn().mockResolvedValue(undefined),
-    count: jest.fn().mockResolvedValue(1),
-    evaluate: jest.fn().mockResolvedValue(undefined),
-    getAttribute: jest.fn().mockResolvedValue(null),
-  };
-}
-
-/**
- * Build a nested locator stub for Yahav tests.
- * @returns mock locator with first/count/locator/all.
- */
-function yahavLocatorImpl(): Record<string, jest.Mock> {
-  const firstEl = yahavFirstElement();
-  const subLoc = {
-    first: jest.fn().mockReturnValue({ click: jest.fn().mockResolvedValue(undefined) }),
-  };
-  return {
-    first: jest.fn().mockReturnValue(firstEl),
-    count: jest.fn().mockResolvedValue(1),
-    locator: jest.fn().mockReturnValue(subLoc),
-    all: jest.fn().mockResolvedValue([]),
-  };
-}
-
-/**
- * Creates a mock page for Yahav scraper tests.
- * @returns A mock page with Yahav-specific stubs.
+ * Creates a mock page configured for Yahav scraper tests.
+ * @returns A mock page with Yahav-specific eval behavior.
  */
 function createYahavPage(): ReturnType<typeof MOCK_PAGE_MOD.createMockPage> {
   return MOCK_PAGE_MOD.createMockPage({
-    locator: jest.fn().mockImplementation(yahavLocatorImpl),
+    $eval: jest.fn().mockImplementation((selector: string) => {
+      if (selector.includes('portfolio-value')) return 'ACC-12345';
+      if (selector.includes('.pmu-years')) return '2025';
+      if (selector.includes('.pmu-days')) return '1';
+      return '';
+    }),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
   });
 }

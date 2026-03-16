@@ -8,34 +8,100 @@ import {
   fillInput,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions.js';
-import { candidateToCss } from '../../Common/SelectorResolver.js';
+import { toFirstCss } from '../../Common/SelectorResolver.js';
+import { getRawTransaction } from '../../Common/Transactions.js';
 import { runSerial } from '../../Common/Waiting.js';
+import { SHEKEL_CURRENCY } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
-import { type ITransactionsAccount } from '../../Transactions.js';
+import {
+  type ITransaction,
+  type ITransactionsAccount,
+  TransactionStatuses,
+  TransactionTypes,
+} from '../../Transactions.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import LEUMI_CONFIG from './Config/LeumiLoginConfig.js';
-import {
-  buildTxnsFromResponse,
-  type ILeumiAccountResponse,
-  parseAccountResponse,
-} from './LeumiTransactions.js';
 
 const LOG = getDebug('leumi-scraper');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
-
-/** Resolve each bank selector entry to a Playwright-compatible string. */
-const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(
-  ([k, cs]) => [k, candidateToCss(cs[0])] as const,
-);
+// Phase-1 compat: extract first CSS candidate until full resolveDashboardField() migration
+const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
 const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
-
 const TRANSACTIONS_URL = CFG.urls.transactions;
 const FILTERED_TRANSACTIONS_URL =
   `${CFG.api.base}/ChannelWCF/Broker.svc/ProcessRequest` +
   '?moduleName=UC_SO_27_GetBusinessAccountTrx';
+
+interface ILeumiRawTransaction {
+  DateUTC: string;
+  Description?: string;
+  ReferenceNumberLong?: number;
+  AdditionalData?: string;
+  Amount: number;
+}
+
+/**
+ * Build the base transaction object from a raw Leumi API entry.
+ * @param rawTransaction - The raw transaction from the API.
+ * @param status - The transaction status (pending or completed).
+ * @param date - The ISO date string for the transaction.
+ * @returns The base ITransaction object.
+ */
+function buildTxnBase(
+  rawTransaction: ILeumiRawTransaction,
+  status: TransactionStatuses,
+  date: string,
+): ITransaction {
+  return {
+    status,
+    type: TransactionTypes.Normal,
+    date,
+    processedDate: date,
+    description: rawTransaction.Description ?? '',
+    identifier: rawTransaction.ReferenceNumberLong,
+    memo: rawTransaction.AdditionalData ?? '',
+    originalCurrency: SHEKEL_CURRENCY,
+    chargedAmount: rawTransaction.Amount,
+    originalAmount: rawTransaction.Amount,
+  };
+}
+
+/**
+ * Map a single raw transaction to the standard ITransaction format.
+ * @param rawTransaction - The raw transaction from the API.
+ * @param status - The transaction status.
+ * @param options - Optional scraper options for raw data inclusion.
+ * @returns The mapped ITransaction.
+ */
+function mapOneTxn(
+  rawTransaction: ILeumiRawTransaction,
+  status: TransactionStatuses,
+  options?: ScraperOptions,
+): ITransaction {
+  const date = moment(rawTransaction.DateUTC).milliseconds(0).toISOString();
+  const tx = buildTxnBase(rawTransaction, status, date);
+  if (options?.includeRawTransaction) tx.rawTransaction = getRawTransaction(rawTransaction);
+  return tx;
+}
+
+/**
+ * Extract and convert transactions from a single status group.
+ * @param transactions - The raw transactions array (may be empty).
+ * @param status - The transaction status for this group.
+ * @param options - Optional scraper options.
+ * @returns The converted ITransaction array.
+ */
+function extractTransactionsFromPage(
+  transactions: ILeumiRawTransaction[],
+  status: TransactionStatuses,
+  options?: ScraperOptions,
+): ITransaction[] {
+  if (transactions.length === 0) return [];
+  return transactions.map(rawTransaction => mapOneTxn(rawTransaction, status, options));
+}
 
 /**
  * Wait for a fixed delay using the Playwright page timer.
@@ -49,15 +115,15 @@ async function delayViaPage(page: Page, timeout: number): Promise<boolean> {
 }
 
 /**
- * Click an element located by a Playwright selector (CSS or XPath).
+ * Click an element located by an XPath selector.
  * @param page - The Playwright page instance.
- * @param selector - The Playwright-compatible selector string.
+ * @param xpath - The XPath selector string.
  * @returns True after the click completes.
  */
-async function clickBySelector(page: Page, selector: string): Promise<boolean> {
-  const loc = page.locator(selector).first();
-  await loc.waitFor({ state: 'visible', timeout: 30000 });
-  await loc.click();
+async function clickByXPath(page: Page, xpath: string): Promise<boolean> {
+  await page.waitForSelector(xpath, { timeout: 30000, state: 'visible' });
+  const elm = await page.$$(xpath);
+  await elm[0].click();
   return true;
 }
 
@@ -97,8 +163,47 @@ async function applyDateFilter(page: Page, startDate: Moment): Promise<boolean> 
   return true;
 }
 
+interface ILeumiAccountResponse {
+  BalanceDisplay?: string;
+  TodayTransactionsItems: ILeumiRawTransaction[] | null;
+  HistoryTransactionsItems: ILeumiRawTransaction[] | null;
+}
+
 /**
- * Intercept the filtered transactions API response and parse it.
+ * Parse the JSON response string into a typed account response.
+ * @param responseJson - The raw response containing a JSON string.
+ * @param responseJson.jsonResp - The stringified JSON payload.
+ * @returns The parsed ILeumiAccountResponse.
+ */
+function parseAccountResponse(responseJson: { jsonResp: string }): ILeumiAccountResponse {
+  return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
+}
+
+/**
+ * Build the combined pending and completed transaction list.
+ * @param response - The parsed account response.
+ * @param options - The scraper options.
+ * @returns The merged array of pending and completed transactions.
+ */
+function buildTxnsFromResponse(
+  response: ILeumiAccountResponse,
+  options: ScraperOptions,
+): ITransaction[] {
+  const pending = extractTransactionsFromPage(
+    response.TodayTransactionsItems ?? [],
+    TransactionStatuses.Pending,
+    options,
+  );
+  const completed = extractTransactionsFromPage(
+    response.HistoryTransactionsItems ?? [],
+    TransactionStatuses.Completed,
+    options,
+  );
+  return [...pending, ...completed];
+}
+
+/**
+ * Intercept the filtered transactions API response.
  * @param page - The Playwright page instance.
  * @returns The parsed account response.
  */
@@ -143,9 +248,10 @@ async function fetchTransactionsForAccount(
  * @returns The array of account ID strings.
  */
 async function extractAccountIds(page: Page): Promise<string[]> {
-  const items = page.locator(SEL.accountListItems);
-  const allTexts = await items.allInnerTexts();
-  const textContentList = allTexts.filter(t => t.trim() !== '');
+  const textContentList = await page.evaluate((sel: string) => {
+    const elements = document.querySelectorAll(sel);
+    return Array.from(elements, e => e.textContent);
+  }, SEL.accountListItems);
   if (!textContentList.length) {
     throw new ScraperError('Failed to extract or parse the account number');
   }
@@ -165,9 +271,9 @@ async function switchToAccount(
   totalAccounts: number,
 ): Promise<boolean> {
   if (totalAccounts <= 1) return false;
-  await clickBySelector(page, SEL.accountCombo);
+  await clickByXPath(page, SEL.accountCombo);
   const accountXpath = `xpath=//span[contains(text(), '${accountId}')]`;
-  await clickBySelector(page, accountXpath);
+  await clickByXPath(page, accountXpath);
   return true;
 }
 
