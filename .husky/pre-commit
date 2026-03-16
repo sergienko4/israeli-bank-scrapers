@@ -24,36 +24,40 @@ echo "  See CLEAN_CODE.md for fix strategies" | tee -a "$LOG_FILE"
 echo "══════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔍  [1/8] Type check — strict, no implicit any..." | tee -a "$LOG_FILE"
+echo "🔍  [1/9] Type check — strict, no implicit any..." | tee -a "$LOG_FILE"
 run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧪  [2/8] Unit tests..." | tee -a "$LOG_FILE"
+echo "🧪  [2/9] Unit tests..." | tee -a "$LOG_FILE"
 run_gate npm run test:unit -- --coverage || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🎭  [3/8] Mocked E2E tests..." | tee -a "$LOG_FILE"
+echo "🧬  [3/9] Biome lint (suspicious, complexity, correctness)..." | tee -a "$LOG_FILE"
+run_gate npx biome lint src --max-diagnostics=50 || exit 1
+
+echo "" | tee -a "$LOG_FILE"
+echo "🎭  [4/9] Mocked E2E tests..." | tee -a "$LOG_FILE"
 run_gate npm run test:e2e:mock || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧹  [4/8] Lint + format (all source files, same as CI)..." | tee -a "$LOG_FILE"
+echo "🧹  [5/9] Lint + format (all source files, same as CI)..." | tee -a "$LOG_FILE"
 run_gate npx eslint 'src/**/*.ts' --max-warnings 0 || exit 1
 npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}" --log-level warn 2>&1 | tee -a "$LOG_FILE"
 git add -u
 
 echo "" | tee -a "$LOG_FILE"
-echo "📦  [5/8] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
+echo "📦  [6/9] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
 run_gate npx tsup || exit 1
 npx rimraf lib/Common lib/Scrapers lib/Tests
 test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.cts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔒  [6/8] npm audit (production deps)..." | tee -a "$LOG_FILE"
+echo "🔒  [7/9] npm audit (production deps)..." | tee -a "$LOG_FILE"
 run_gate npm audit --audit-level=high --omit=dev || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🏦  [7/8] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount, VisaCal)..." | tee -a "$LOG_FILE"
+echo "🏦  [8/9] Real E2E — non-OTP banks (Amex, Isracard, Max, Discount, VisaCal)..." | tee -a "$LOG_FILE"
 if [ -f .env ]; then
   npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs 2>/dev/null
   run_gate node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns='/node_modules/' --testPathIgnorePatterns='E2eMocked' \
@@ -64,10 +68,10 @@ else
 fi
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔎  [8/8] Dependency review (informational)..." | tee -a "$LOG_FILE"
+echo "🔎  [9/9] Dependency review (informational)..." | tee -a "$LOG_FILE"
 run_gate npm audit --audit-level=high 2>/dev/null || true
 
 echo "" | tee -a "$LOG_FILE"
 echo "══════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
-echo "✅  ALL 8 GATES PASSED. COMMITTING..." | tee -a "$LOG_FILE"
+echo "✅  ALL 9 GATES PASSED. COMMITTING..." | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
