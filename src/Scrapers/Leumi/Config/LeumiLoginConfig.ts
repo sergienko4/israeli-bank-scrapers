@@ -6,6 +6,7 @@ import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 
@@ -13,22 +14,73 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
 export const LEUMI_INVALID_PASSWORD_MSG = 'אחד או יותר מפרטי ההזדהות שמסרת שגויים. ניתן לנסות שוב';
 const LEUMI_ACCOUNT_BLOCKED_MSG = 'המנוי חסום';
 
+/** Build a combined XPath matching any WELL_KNOWN loginLink text. */
+const LOGIN_LINK_XPATH = buildLoginLinkXpath();
+
+/**
+ * Build an XPath that matches anchor elements containing any login text.
+ * @returns A Playwright xpath= selector string.
+ */
+function buildLoginLinkXpath(): string {
+  const texts = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.map(c => c.value);
+  const conditions = texts.map(t => `contains(normalize-space(.), "${t}")`);
+  return 'xpath=//a[' + conditions.join(' or ') + ']';
+}
+
+/**
+ * Find the login link href using WELL_KNOWN text candidates via combined XPath.
+ * @param page - The Playwright page instance.
+ * @returns The login URL string.
+ */
+async function findLoginLinkHref(page: Page): Promise<string> {
+  const loc = page.locator(LOGIN_LINK_XPATH).first();
+  return loc.evaluate(el => (el as HTMLAnchorElement).href);
+}
+
+/**
+ * Navigate to the Leumi login form and wait for all input fields to render.
+ * @param page - The Playwright page to check readiness on.
+ * @returns True after the login form is ready.
+ */
+/**
+ * Navigate to the Leumi login page via the login link.
+ * @param page - The Playwright page instance.
+ * @returns True after navigation completes.
+ */
+async function navigateToLeumiLogin(page: Page): Promise<boolean> {
+  await page.getByText('כניסה').first().waitFor({ state: 'visible' });
+  const loginUrl = await findLoginLinkHref(page);
+  await page.goto(loginUrl);
+  await waitForNavigation(page, { waitUntil: 'networkidle' });
+  return true;
+}
+
+/**
+ * Wait for all Leumi login form fields to render.
+ * @param page - The Playwright page instance.
+ * @returns True after all fields are visible.
+ */
+async function waitForLeumiFormFields(page: Page): Promise<boolean> {
+  await Promise.all([
+    page.getByPlaceholder('שם משתמש').first().waitFor({ state: 'visible' }),
+    page.getByPlaceholder('סיסמה').first().waitFor({ state: 'visible' }),
+    page.getByRole('button', { name: /כניסה/ }).first().waitFor({ state: 'visible' }),
+  ]);
+  return true;
+}
+
 /**
  * Navigate to the Leumi login form and wait for all input fields to render.
  * @param page - The Playwright page to check readiness on.
  * @returns True after the login form is ready.
  */
 async function leumiCheckReadiness(page: Page): LifecyclePromise {
-  await waitUntilElementFound(page, '.enter_account');
-  const loginUrl = await page.$eval('.enter_account', el => (el as HTMLAnchorElement).href);
-  await page.goto(loginUrl);
-  await waitForNavigation(page, { waitUntil: 'networkidle' });
-  await Promise.all([
-    waitUntilElementFound(page, 'input[placeholder="שם משתמש"]', { visible: true }),
-    waitUntilElementFound(page, 'input[placeholder="סיסמה"]', { visible: true }),
-    waitUntilElementFound(page, 'button[type="submit"]', { visible: true }),
-  ]);
+  await navigateToLeumiLogin(page);
+  await waitForLeumiFormFields(page);
 }
+
+/** XPath selector for the skip-to-account link by visible text. */
+const SKIP_LINK_XPATH = 'xpath=//a[contains(normalize-space(.), "דלג לחשבון")]';
 
 /**
  * Wait for the Leumi post-login page to resolve to a known outcome.
@@ -36,14 +88,12 @@ async function leumiCheckReadiness(page: Page): LifecyclePromise {
  * @returns True after a post-login indicator is detected.
  */
 async function leumiPostAction(page: Page): LifecyclePromise {
+  const errXpath = 'xpath=//div[contains(string(),"' + LEUMI_INVALID_PASSWORD_MSG + '")]';
   await Promise.race([
-    waitUntilElementFound(page, 'a[title="דלג לחשבון"]', { visible: true, timeout: 60000 }),
-    waitUntilElementFound(page, 'div.main-content', { visible: false, timeout: 60000 }),
-    page.waitForSelector(`xpath=//div[contains(string(),"${LEUMI_INVALID_PASSWORD_MSG}")]`),
-    waitUntilElementFound(page, 'form[action="/changepassword"]', {
-      visible: true,
-      timeout: 60000,
-    }),
+    waitUntilElementFound(page, SKIP_LINK_XPATH, { visible: true, timeout: 60000 }),
+    page.waitForURL('**/ebanking/**', { timeout: 60000 }),
+    waitUntilElementFound(page, errXpath, { timeout: 60000 }),
+    page.waitForURL('**/changepassword**', { timeout: 60000 }),
   ]);
 }
 
@@ -72,29 +122,24 @@ async function checkLeumiMessage(page: Page, selector: string, prefix: string): 
   return msg.startsWith(prefix);
 }
 
-/**
- * Extract the sibling text of the Capa SVG icon for password error detection.
- * @param elements - Array of matched SVG elements.
- * @returns The inner text of the sibling element next to the icon.
- */
-function extractCapaSiblingText(elements: Element[]): string {
-  return (elements[0]?.parentElement?.children[1] as HTMLDivElement).innerText;
-}
+/** XPath to find the error message container by its text content. */
+const INVALID_PW_XPATH =
+  'xpath=//*[contains(normalize-space(.), "' + LEUMI_INVALID_PASSWORD_MSG + '")]';
 
 /**
- * Check whether the invalid-password SVG icon and message are visible.
+ * Check whether the invalid-password error message is visible on the page.
  * @param opts - The possible-result check options with page reference.
- * @param opts.page - The Playwright page to inspect for the error icon.
+ * @param opts.page - The Playwright page to inspect for the error message.
  * @returns True if the invalid password message is present.
  */
 async function checkInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  const parentText = await pageEvalAll(opts.page, {
-    selector: 'svg#Capa_1',
+  const text = await pageEvalAll(opts.page, {
+    selector: INVALID_PW_XPATH,
     defaultResult: '',
-    callback: extractCapaSiblingText,
+    callback: extractFirstInnerText,
   });
-  return parentText.startsWith(LEUMI_INVALID_PASSWORD_MSG);
+  return text.startsWith(LEUMI_INVALID_PASSWORD_MSG);
 }
 
 /**
@@ -105,7 +150,11 @@ async function checkInvalidPassword(opts?: { page?: Page }): Promise<boolean> {
  */
 async function checkAccountBlocked(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
-  return checkLeumiMessage(opts.page, '.errHeader', LEUMI_ACCOUNT_BLOCKED_MSG);
+  return checkLeumiMessage(
+    opts.page,
+    `xpath=//*[contains(normalize-space(.), "${LEUMI_ACCOUNT_BLOCKED_MSG}")]`,
+    LEUMI_ACCOUNT_BLOCKED_MSG,
+  );
 }
 
 /** Leumi bank login configuration with field selectors and result detection. */
@@ -115,7 +164,7 @@ const LEUMI_CONFIG: ILoginConfig = {
     { credentialKey: 'username', selectors: [] },
     { credentialKey: 'password', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: "button[type='submit']" }],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
   checkReadiness: leumiCheckReadiness,
   postAction: leumiPostAction,
   possibleResults: {

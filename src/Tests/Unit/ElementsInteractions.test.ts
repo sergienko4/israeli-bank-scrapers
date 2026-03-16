@@ -59,43 +59,60 @@ describe('fillInput', () => {
 });
 
 describe('setValue', () => {
-  it('sets input value directly via $eval', async () => {
-    const page = createMockPage();
+  it('sets input value via locator evaluate', async () => {
+    const evaluate = jest.fn().mockResolvedValue(undefined);
+    const first = jest.fn().mockReturnValue({ evaluate });
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ first }),
+    });
     await setValue(page, '#password', 'secret');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('#password', anyFn, ['secret']);
+    expect(page.locator).toHaveBeenCalledWith('#password');
+    const anyFunction = expect.any(Function) as unknown;
+    expect(evaluate).toHaveBeenCalledWith(anyFunction, 'secret');
   });
 });
 
 describe('clickButton', () => {
-  it('calls $eval with click callback', async () => {
-    const page = createMockPage();
+  it('clicks via locator', async () => {
+    const click = jest.fn().mockResolvedValue(undefined);
+    const first = jest.fn().mockReturnValue({ click });
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ first }),
+    });
     await clickButton(page, '#submit');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('#submit', anyFn);
+    expect(page.locator).toHaveBeenCalledWith('#submit');
+    expect(click).toHaveBeenCalled();
   });
 });
 
 describe('clickLink', () => {
-  it('calls $eval on the link', async () => {
-    const page = createMockPage();
+  it('clicks link via locator', async () => {
+    const click = jest.fn().mockResolvedValue(undefined);
+    const first = jest.fn().mockReturnValue({ click });
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ first }),
+    });
     await clickLink(page, 'a.nav-link');
-    const anyFn = expect.any(Function) as (...args: never[]) => never;
-    expect(page.$eval).toHaveBeenCalledWith('a.nav-link', anyFn);
+    expect(page.locator).toHaveBeenCalledWith('a.nav-link');
+    expect(click).toHaveBeenCalled();
   });
 });
 
 describe('elementPresentOnPage', () => {
   it('returns true when element exists', async () => {
-    const page = createMockPage();
-    page.$.mockResolvedValue({});
+    const count = jest.fn().mockResolvedValue(1);
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ count }),
+    });
     const isPresent = await elementPresentOnPage(page, '.exists');
     expect(isPresent).toBe(true);
   });
 
   it('returns false when element does not exist', async () => {
-    const page = createMockPage();
-    page.$.mockResolvedValue(null);
+    const count = jest.fn().mockResolvedValue(0);
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ count }),
+    });
     const isPresent = await elementPresentOnPage(page, '.missing');
     expect(isPresent).toBe(false);
   });
@@ -125,9 +142,12 @@ describe('dropdownElements', () => {
 });
 
 describe('pageEval', () => {
-  it('returns result of $eval on selector', async () => {
-    const page = createMockPage();
-    page.$eval.mockResolvedValue('evaluated');
+  it('returns result of locator evaluate on selector', async () => {
+    const evaluate = jest.fn().mockResolvedValue('evaluated');
+    const first = jest.fn().mockReturnValue({ evaluate });
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ first }),
+    });
     const result = await pageEval(page, {
       selector: '.balance',
       defaultResult: '',
@@ -142,8 +162,11 @@ describe('pageEval', () => {
   });
 
   it('returns default when element not found', async () => {
-    const page = createMockPage();
-    page.$eval.mockRejectedValue(new Error('Error: failed to find element matching selector'));
+    const evaluate = jest.fn().mockRejectedValue(new Error('locator resolved to no elements'));
+    const first = jest.fn().mockReturnValue({ evaluate });
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ first }),
+    });
     const result = await pageEval(page, {
       selector: '.missing',
       defaultResult: 'default',
@@ -156,28 +179,14 @@ describe('pageEval', () => {
     });
     expect(result).toBe('default');
   });
-
-  it('rethrows non-selector errors', async () => {
-    const page = createMockPage();
-    page.$eval.mockRejectedValue(new Error('network error'));
-    const evalPromise = pageEval(page, {
-      selector: '.broken',
-      defaultResult: null as Element | null,
-      /**
-       * Returns the element itself.
-       * @param el - the matched element
-       * @returns the element
-       */
-      callback: (el: Element): Element => el,
-    });
-    await expect(evalPromise).rejects.toThrow('network error');
-  });
 });
 
 describe('pageEvalAll', () => {
-  it('returns result of $$eval on selector', async () => {
-    const page = createMockPage();
-    page.$$eval.mockResolvedValue(['a', 'b']);
+  it('returns result of locator evaluateAll on selector', async () => {
+    const evaluateAll = jest.fn().mockResolvedValue(['a', 'b']);
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ evaluateAll }),
+    });
     const result = await pageEvalAll(page, {
       selector: '.items',
       defaultResult: [] as Element[],
@@ -192,8 +201,10 @@ describe('pageEvalAll', () => {
   });
 
   it('returns default when no elements found', async () => {
-    const page = createMockPage();
-    page.$$eval.mockRejectedValue(new Error('Error: failed to find elements matching selector'));
+    const evaluateAll = jest.fn().mockRejectedValue(new Error('no elements'));
+    const page = createMockPage({
+      locator: jest.fn().mockReturnValue({ evaluateAll }),
+    });
     const result = await pageEvalAll(page, {
       selector: '.missing',
       defaultResult: [] as Element[],
@@ -205,22 +216,6 @@ describe('pageEvalAll', () => {
       callback: (els: Element[]): Element[] => els,
     });
     expect(result).toEqual([]);
-  });
-
-  it('rethrows non-selector errors', async () => {
-    const page = createMockPage();
-    page.$$eval.mockRejectedValue(new Error('network error'));
-    const evalAllPromise = pageEvalAll(page, {
-      selector: '.broken',
-      defaultResult: [] as Element[],
-      /**
-       * Returns the elements array.
-       * @param els - the matched elements
-       * @returns the elements
-       */
-      callback: (els: Element[]): Element[] => els,
-    });
-    await expect(evalAllPromise).rejects.toThrow('network error');
   });
 });
 

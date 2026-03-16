@@ -90,6 +90,11 @@ const { TransactionStatuses: TX_STATUSES, TransactionTypes: TX_TYPES } =
   await import('../../Transactions.js');
 const { createMockPage: CREATE_MOCK_PAGE, createMockScraperOptions: CREATE_OPTS } =
   await import('../MockPage.js');
+const {
+  COMPLETED_COL,
+  PENDING_COL,
+  createBeinleumiPage: CREATE_BEINLEUMI_PAGE,
+} = await import('../BaseBeinleumiGroupFixtures.js');
 /** Test scraper extending the Beinleumi group base. */
 class TestBeinleumiScraper extends BEINLEUMI_GROUP_BASE_SCRAPER {
   public BASE_URL = 'https://test.fibi.co.il';
@@ -109,49 +114,6 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 const CREDS = { username: 'testuser', password: 'testpass' };
-const NO_DATA_TEXT =
-  '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
-/**
- * Mock $eval to return account number, balance, or no-data text based on selector.
- * @param selector - CSS selector string.
- * @returns Mocked inner text for the matched element.
- */
-function evalBySelector(selector: string): string {
-  if (selector === 'div.fibi_account span.acc_num') return '12/345678';
-  if (selector === '.main_balance') return '\u20AA5,000.00';
-  if (selector === '.NO_DATA') return NO_DATA_TEXT;
-  return '';
-}
-/**
- * Create a page mock with standard account selectors.
- * @param overrides - Mock overrides for the page.
- * @returns Mocked page.
- */
-function createPage(
-  overrides: Record<string, jest.Mock> = {},
-): ReturnType<typeof CREATE_MOCK_PAGE> {
-  return CREATE_MOCK_PAGE({
-    $eval: jest.fn().mockImplementation(evalBySelector),
-    $$eval: jest.fn().mockResolvedValue([]),
-    evaluate: jest.fn().mockResolvedValue([]),
-    frames: jest.fn().mockReturnValue([]),
-    ...overrides,
-  });
-}
-const COMPLETED_COL = [
-  { colClass: 'date first', index: 0 },
-  { colClass: 'reference wrap_normal', index: 1 },
-  { colClass: 'details', index: 2 },
-  { colClass: 'debit', index: 3 },
-  { colClass: 'credit', index: 4 },
-];
-const PENDING_COL = [
-  { colClass: 'first date', index: 0 },
-  { colClass: 'details wrap_normal', index: 1 },
-  { colClass: 'details', index: 2 },
-  { colClass: 'debit', index: 3 },
-  { colClass: 'credit', index: 4 },
-];
 /**
  * Set up pageEvalAll to return standard completed transaction table data.
  * @param rows - Transaction row data.
@@ -170,7 +132,7 @@ beforeEach(() => {
   (PAGE_EVAL_ALL as jest.Mock).mockReset().mockResolvedValue([]);
   (ELEMENT_PRESENT as jest.Mock).mockReset().mockResolvedValue(false);
   (LAUNCH_CAMOUFOX as jest.Mock).mockResolvedValue(MOCK_BROWSER);
-  const defaultPage = createPage();
+  const defaultPage = CREATE_BEINLEUMI_PAGE(CREATE_MOCK_PAGE);
   MOCK_CONTEXT.newPage.mockResolvedValue(defaultPage);
   (GET_CURRENT_URL as jest.Mock).mockResolvedValue(
     'https://test.fibi.co.il/Resources/PortalNG/shell',
