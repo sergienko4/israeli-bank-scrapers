@@ -95,10 +95,7 @@ async function waitForRedirectOrErrors(page: Page): Promise<boolean> {
     timeout: 20000,
     ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
   });
-  const didRedirect = await Promise.race([redirectPromise, ...buildErrorWaiters(page)]).catch(
-    (): false => false,
-  );
-  return didRedirect;
+  return Promise.race([redirectPromise.then((): true => true), ...buildErrorWaiters(page)]);
 }
 
 const BASE_CFG: ILoginConfig = {

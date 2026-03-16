@@ -64,7 +64,7 @@ async function waitForLeumiFormFields(page: Page): Promise<boolean> {
   await Promise.all([
     page.getByPlaceholder('שם משתמש').first().waitFor({ state: 'visible' }),
     page.getByPlaceholder('סיסמה').first().waitFor({ state: 'visible' }),
-    page.locator('button[type="submit"]').first().waitFor({ state: 'visible' }),
+    page.getByRole('button', { name: /כניסה/ }).first().waitFor({ state: 'visible' }),
   ]);
   return true;
 }
@@ -80,7 +80,7 @@ async function leumiCheckReadiness(page: Page): LifecyclePromise {
 }
 
 /** XPath selector for the skip-to-account link by visible text. */
-const SKIP_LINK_XPATH = 'xpath=//a[contains(text(), "דלג לחשבון")]';
+const SKIP_LINK_XPATH = 'xpath=//a[contains(normalize-space(.), "דלג לחשבון")]';
 
 /**
  * Wait for the Leumi post-login page to resolve to a known outcome.
@@ -91,12 +91,9 @@ async function leumiPostAction(page: Page): LifecyclePromise {
   const errXpath = 'xpath=//div[contains(string(),"' + LEUMI_INVALID_PASSWORD_MSG + '")]';
   await Promise.race([
     waitUntilElementFound(page, SKIP_LINK_XPATH, { visible: true, timeout: 60000 }),
-    waitUntilElementFound(page, 'div.main-content', { visible: false, timeout: 60000 }),
+    page.waitForURL('**/ebanking/**', { timeout: 60000 }),
     waitUntilElementFound(page, errXpath, { timeout: 60000 }),
-    waitUntilElementFound(page, 'form[action="/changepassword"]', {
-      visible: true,
-      timeout: 60000,
-    }),
+    page.waitForURL('**/changepassword**', { timeout: 60000 }),
   ]);
 }
 
@@ -127,7 +124,7 @@ async function checkLeumiMessage(page: Page, selector: string, prefix: string): 
 
 /** XPath to find the error message container by its text content. */
 const INVALID_PW_XPATH =
-  'xpath=//*[contains(text(), "' + LEUMI_INVALID_PASSWORD_MSG.slice(0, 20) + '")]';
+  'xpath=//*[contains(normalize-space(.), "' + LEUMI_INVALID_PASSWORD_MSG + '")]';
 
 /**
  * Check whether the invalid-password error message is visible on the page.
@@ -155,7 +152,7 @@ async function checkAccountBlocked(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
   return checkLeumiMessage(
     opts.page,
-    `xpath=//*[contains(text(), "${LEUMI_ACCOUNT_BLOCKED_MSG}")]`,
+    `xpath=//*[contains(normalize-space(.), "${LEUMI_ACCOUNT_BLOCKED_MSG}")]`,
     LEUMI_ACCOUNT_BLOCKED_MSG,
   );
 }
@@ -167,7 +164,7 @@ const LEUMI_CONFIG: ILoginConfig = {
     { credentialKey: 'username', selectors: [] },
     { credentialKey: 'password', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: "button[type='submit']" }],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
   checkReadiness: leumiCheckReadiness,
   postAction: leumiPostAction,
   possibleResults: {

@@ -114,8 +114,9 @@ export function buildTxnsFromResponse(
 export function parseAccountResponse(responseJson: { jsonResp: string }): ILeumiAccountResponse {
   try {
     return JSON.parse(responseJson.jsonResp) as ILeumiAccountResponse;
-  } catch {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     const preview = responseJson.jsonResp.slice(0, 100);
-    throw new ScraperError(`Failed to parse Leumi response: ${preview}`);
+    throw new ScraperError(`Failed to parse Leumi response: ${message} — preview: ${preview}`);
   }
 }

@@ -73,7 +73,7 @@ async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConf
  * @returns True if the frame has an input with placeholder.
  */
 async function checkFrameHasInput(frame: Frame): Promise<boolean> {
-  const locator = frame.locator('input[placeholder]');
+  const locator = frame.getByRole('textbox');
   const count = await locator.count().catch((): number => 0);
   return count > 0;
 }

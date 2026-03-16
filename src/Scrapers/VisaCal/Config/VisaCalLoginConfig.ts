@@ -68,9 +68,13 @@ async function clickFirstLoginText(ctx: Page | Frame, texts: string[]): Promise<
     await loc.waitFor({ state: 'visible', timeout: 30000 });
     return i;
   });
-  const idx = await Promise.any(waitForVisible);
-  await locators[idx].click();
-  return true;
+  try {
+    const idx = await Promise.any(waitForVisible);
+    await locators[idx].click();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

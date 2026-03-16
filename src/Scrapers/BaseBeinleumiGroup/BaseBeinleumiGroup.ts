@@ -377,9 +377,9 @@ async function fetchAccountData(
 async function selectAccountBothUIs(page: Page, accountId: string): Promise<boolean> {
   const isAccountSelected = await selectAccountFromDropdown(page, accountId);
   if (!isAccountSelected) {
-    const legacySelect = page.locator('select').filter({ hasText: accountId }).first();
+    const legacySelect = page.getByRole('combobox').filter({ hasText: accountId }).first();
     await legacySelect.selectOption(accountId);
-    await legacySelect.waitFor({ state: 'visible' });
+    await waitForNavigation(page);
   }
   return true;
 }

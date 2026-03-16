@@ -199,31 +199,37 @@ export async function isNoTransactionInDateRangeError(page: Page | Frame): Promi
 }
 
 /**
- * No-op catch handler — intentionally ignores timeout errors.
- * @returns Always true.
+ * Build dashboard text waiters from WELL_KNOWN selector categories.
+ * @param page - The Playwright page to create waiters for.
+ * @returns Array of promises that resolve true when a dashboard element is visible.
  */
-function ignoreTimeout(): boolean {
-  return true;
-}
-
-/**
- * Wait for the post-login page to finish loading via WELL_KNOWN text detection.
- * @param page - The Playwright page to wait on.
- * @returns True after a post-login element is detected.
- */
-export async function waitForPostLogin(page: Page): Promise<boolean> {
+function buildDashboardWaiters(page: Page): Promise<boolean>[] {
   const categories = [
     ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
     ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
     ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
   ];
-  const waiters = categories
+  return categories
     .filter(c => c.kind === 'textContent')
     .map(async c => {
       const loc = page.getByText(c.value).first();
       await loc.waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
+}
+
+/**
+ * Wait for the post-login page to finish loading via WELL_KNOWN text detection.
+ * @param page - The Playwright page to wait on.
+ * @returns True if a post-login element is detected, false otherwise.
+ */
+export async function waitForPostLogin(page: Page): Promise<boolean> {
+  const waiters = buildDashboardWaiters(page);
   if (waiters.length === 0) return false;
-  return Promise.race(waiters).catch(ignoreTimeout);
+  try {
+    await Promise.any(waiters);
+    return true;
+  } catch {
+    return false;
+  }
 }

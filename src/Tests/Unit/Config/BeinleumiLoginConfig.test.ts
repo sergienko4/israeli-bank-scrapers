@@ -88,7 +88,7 @@ describe('beinleumiPreAction — frame detection', () => {
   it('returns login frame when frame has input with placeholder', async () => {
     const loginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
-      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(1) }),
+      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(1) }),
     };
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
@@ -105,7 +105,7 @@ describe('beinleumiPreAction — frame detection', () => {
   it('returns undefined when no frame has input with placeholder and no login URL', async () => {
     const nonLoginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/other'),
-      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),
@@ -122,7 +122,7 @@ describe('beinleumiPreAction — frame detection', () => {
   it('falls back to frame with login URL when no frame has placeholder inputs', async () => {
     const loginFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
-      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
     const page = CREATE_MOCK_PAGE({
       waitForTimeout: jest.fn().mockResolvedValue(undefined),

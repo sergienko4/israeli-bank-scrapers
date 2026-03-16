@@ -67,13 +67,14 @@ function buildInnerElement(text: string): Record<string, jest.Mock> {
  */
 export function buildLocator(selector: string): Record<string, jest.Mock> {
   const selectorText = textBySelector(selector);
+  const hasMatch = selectorText.length > 0;
   const inner = buildInnerElement(selectorText);
   return {
     first: jest.fn().mockReturnValue(inner),
-    count: jest.fn().mockResolvedValue(0),
-    evaluateAll: resolved([]),
-    allInnerTexts: resolved([]),
-    all: resolved([]),
+    count: jest.fn().mockResolvedValue(hasMatch ? 1 : 0),
+    evaluateAll: resolved(hasMatch ? [inner] : []),
+    allInnerTexts: resolved(hasMatch ? [selectorText] : []),
+    all: resolved(hasMatch ? [inner] : []),
   };
 }
 

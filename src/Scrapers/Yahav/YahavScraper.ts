@@ -7,6 +7,7 @@ import {
   waitUntilElementDisappear,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions.js';
+import { waitForNavigation } from '../../Common/Navigation.js';
 import { candidateToCss } from '../../Common/SelectorResolver.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY } from '../../Constants.js';
@@ -276,10 +277,7 @@ class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
     const detailsLoc = this.page.getByText(ACCOUNT_DETAILS_TEXT).first();
     await detailsLoc.waitFor({ state: 'visible' });
     await detailsLoc.click();
-    const stmtXpath =
-      'xpath=//*[contains(@class, "statement-options")]' +
-      '//*[contains(@class, "selected-item-top")]';
-    await waitUntilElementFound(this.page, stmtXpath, { visible: true });
+    await waitForNavigation(this.page);
     return true;
   }
 }

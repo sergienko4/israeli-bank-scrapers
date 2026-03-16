@@ -55,6 +55,16 @@ const PENDING_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.pendingTransactions.map(c =
 const TXN_LINK_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.transactionsLink.map(c => c.value);
 
 /**
+ * Check if a locator element is currently visible.
+ * @param loc - Locator-like object with isVisible method.
+ * @param loc.isVisible - Method that checks element visibility.
+ * @returns True if visible, false on error.
+ */
+async function checkVisible(loc: { isVisible: () => Promise<boolean> }): Promise<boolean> {
+  return loc.isVisible().catch(() => false);
+}
+
+/**
  * Try to click the first visible text match on the page.
  * @param page - The Playwright page to search.
  * @param texts - Hebrew text candidates to try.
@@ -62,8 +72,8 @@ const TXN_LINK_TEXTS = WELL_KNOWN_DASHBOARD_SELECTORS.transactionsLink.map(c => 
  */
 async function clickFirstVisibleText(page: Page, texts: string[]): Promise<boolean> {
   const locators = texts.map(t => page.getByText(t).first());
-  const visibilityPromises = locators.map(l => l.isVisible().catch(() => false));
-  const checks = await Promise.all(visibilityPromises);
+  const visibilityTasks = locators.map(checkVisible);
+  const checks = await Promise.all(visibilityTasks);
   const visibleIdx = checks.findIndex(Boolean);
   if (visibleIdx < 0) return false;
   await locators[visibleIdx].click();
