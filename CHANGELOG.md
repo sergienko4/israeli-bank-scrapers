@@ -1,5 +1,17 @@
 # Changelog
 
+## [8.2.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.1.0...v8.2.0) (2026-03-16)
+
+
+### Features
+
+* add SonarCloud static analysis workflow ([#160](https://github.com/sergienko4/israeli-bank-scrapers/issues/160)) ([3bf3c43](https://github.com/sergienko4/israeli-bank-scrapers/commit/3bf3c43e69af745e8d86d54c5ebb6eeec31d44db))
+
+
+### Bug Fixes
+
+* replace Max CSS ID selectors with visible Hebrew text ([#163](https://github.com/sergienko4/israeli-bank-scrapers/issues/163)) ([ad2e14a](https://github.com/sergienko4/israeli-bank-scrapers/commit/ad2e14a786fc71d874cc954ee02de404bca36e71))
+
 ## [8.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.0.6...v8.1.0) (2026-03-14)
 
 
