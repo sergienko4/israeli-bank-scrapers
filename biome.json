@@ -35,8 +35,8 @@
       "correctness": {
         "noConstantCondition": "error",
         "noUnreachable": "error",
-        "noUnusedVariables": "warn",
-        "noUnusedImports": "warn"
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error"
       },
       "performance": {
         "noAccumulatingSpread": "error"

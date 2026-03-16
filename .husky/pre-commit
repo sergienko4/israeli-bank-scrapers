@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
@@ -28,21 +28,20 @@ echo "🔍  [1/9] Type check — strict, no implicit any..." | tee -a "$LOG_FILE
 run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "📦  [2/9] Build verification (tsup + publint)..." | tee -a "$LOG_FILE"
-run_gate npx tsup || exit 1
+echo "🧹  [2/9] Prettier format + stage..." | tee -a "$LOG_FILE"
+npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}" --log-level warn 2>&1 | tee -a "$LOG_FILE"
+git add -u
+
+echo "" | tee -a "$LOG_FILE"
+echo "📦  [3/9] Build verification (lint + tsup + publint)..." | tee -a "$LOG_FILE"
+run_gate npm run build || exit 1
 npx rimraf lib/Common lib/Scrapers lib/Tests
 test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.cts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔒  [3/9] npm audit (production deps)..." | tee -a "$LOG_FILE"
+echo "🔒  [4/9] npm audit (production deps)..." | tee -a "$LOG_FILE"
 run_gate npm audit --audit-level=high --omit=dev || exit 1
-
-echo "" | tee -a "$LOG_FILE"
-echo "🧹  [4/9] Lint + format (ESLint + Prettier)..." | tee -a "$LOG_FILE"
-run_gate npx eslint 'src/**/*.ts' --max-warnings 0 || exit 1
-npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}" --log-level warn 2>&1 | tee -a "$LOG_FILE"
-git add -u
 
 echo "" | tee -a "$LOG_FILE"
 echo "🧪  [5/9] Unit tests..." | tee -a "$LOG_FILE"

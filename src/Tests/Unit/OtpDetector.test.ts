@@ -32,11 +32,16 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
    */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
   /**
-   * Passthrough XPath literal escaper.
+   * XPath literal escaper matching production logic.
    * @param value - The raw string value.
-   * @returns Quoted string for XPath.
+   * @returns XPath-safe quoted string.
    */
-  toXpathLiteral: (value: string): string => `"${value}"`,
+  toXpathLiteral: (value: string): string => {
+    if (!value.includes('"')) return `"${value}"`;
+    if (!value.includes("'")) return `'${value}'`;
+    const parts = value.split('"').map((part: string) => `"${part}"`);
+    return `concat(${parts.join(", '\"', ")})`;
+  },
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   resolveFieldContext: jest.fn().mockResolvedValue(null),
   resolveFieldWithCache: jest.fn().mockResolvedValue(null),

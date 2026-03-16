@@ -76,7 +76,7 @@ async function leumiCheckReadiness(page: Page): LifecyclePromise {
 }
 
 /** XPath selector for the skip-to-account link by visible text. */
-const SKIP_LINK_XPATH = 'xpath=//a[contains(normalize-space(.), "דלג לחשבון")]';
+const SKIP_LINK_XPATH = `xpath=//a[contains(normalize-space(.), ${toXpathLiteral('דלג לחשבון')})]`;
 
 /**
  * Wait for the Leumi post-login page to resolve to a known outcome.
@@ -120,8 +120,8 @@ async function checkLeumiMessage(page: Page, selector: string, prefix: string): 
 }
 
 /** XPath to find the error message container by its text content. */
-const INVALID_PW_XPATH =
-  'xpath=//*[contains(normalize-space(.), "' + LEUMI_INVALID_PASSWORD_MSG + '")]';
+const INVALID_PW_LIT = toXpathLiteral(LEUMI_INVALID_PASSWORD_MSG);
+const INVALID_PW_XPATH = `xpath=//*[contains(normalize-space(.), ${INVALID_PW_LIT})]`;
 
 /**
  * Check whether the invalid-password error message is visible on the page.
@@ -149,7 +149,7 @@ async function checkAccountBlocked(opts?: { page?: Page }): Promise<boolean> {
   if (!opts?.page) return false;
   return checkLeumiMessage(
     opts.page,
-    `xpath=//*[contains(normalize-space(.), "${LEUMI_ACCOUNT_BLOCKED_MSG}")]`,
+    `xpath=//*[contains(normalize-space(.), ${toXpathLiteral(LEUMI_ACCOUNT_BLOCKED_MSG)})]`,
     LEUMI_ACCOUNT_BLOCKED_MSG,
   );
 }

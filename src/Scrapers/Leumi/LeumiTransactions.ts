@@ -106,12 +106,6 @@ export function buildTxnsFromResponse(
 }
 
 /**
- * Parse the JSON response string into a typed account response.
- * @param responseJson - The raw response containing a JSON string.
- * @param responseJson.jsonResp - The stringified JSON payload.
- * @returns The parsed ILeumiAccountResponse.
- */
-/**
  * Validate parsed JSON has Leumi account response fields.
  * @param parsed - The parsed JSON object.
  * @returns True if required transaction list fields exist.

@@ -190,12 +190,6 @@ function extractTextValues(candidates: SelectorCandidate[]): string[] {
 }
 
 /**
- * Try fallback selector resolution across all contexts sequentially.
- * @param contexts - Ordered list of Page/Frame contexts.
- * @param candidates - Selector candidates to resolve.
- * @returns True if a fallback selector was found and clicked.
- */
-/**
  * Try resolving and clicking a fallback selector in a single context.
  * @param ctx - The Page or Frame context.
  * @param candidates - Selector candidates to resolve.

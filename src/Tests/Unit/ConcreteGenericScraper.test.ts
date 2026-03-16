@@ -59,11 +59,16 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
   /**
-   * Passthrough XPath literal escaper.
+   * XPath literal escaper matching production logic.
    * @param value - The raw string value.
-   * @returns Quoted string for XPath.
+   * @returns XPath-safe quoted string.
    */
-  toXpathLiteral: (value: string): string => `"${value}"`,
+  toXpathLiteral: (value: string): string => {
+    if (!value.includes('"')) return `"${value}"`;
+    if (!value.includes("'")) return `'${value}'`;
+    const parts = value.split('"').map((part: string) => `"${part}"`);
+    return `concat(${parts.join(", '\"', ")})`;
+  },
   extractCredentialKey: jest.fn((selector: string) => selector),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));

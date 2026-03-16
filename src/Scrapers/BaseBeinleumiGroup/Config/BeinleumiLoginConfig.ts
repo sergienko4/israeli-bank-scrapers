@@ -6,23 +6,38 @@ import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 
 /**
- * Build text-based waiters from WELL_KNOWN dashboard categories.
- * @param page - The Playwright page to build waiters for.
- * @returns Array of promises that resolve when a dashboard element is visible.
+ * Collect all WELL_KNOWN dashboard selector candidates.
+ * @returns Combined array of dashboard selector candidates.
  */
-function buildDashboardWaiters(page: Page): Promise<boolean>[] {
-  const candidates = [
+function collectCandidates(): { kind: string; value: string }[] {
+  return [
     ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
     ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
     ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
   ];
-  return candidates
+}
+
+/**
+ * Build dashboard waiters for text and aria-label candidates.
+ * @param page - The Playwright page to build waiters for.
+ * @returns Array of promises resolving when an indicator is visible.
+ */
+function buildDashboardWaiters(page: Page): Promise<boolean>[] {
+  const all = collectCandidates();
+  const textW = all
     .filter(c => c.kind === 'textContent')
     .map(async c => {
-      const loc = page.getByText(c.value).first();
+      await page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+  const ariaW = all
+    .filter(c => c.kind === 'ariaLabel')
+    .map(async c => {
+      const loc = page.locator(`[aria-label="${c.value}"]`).first();
       await loc.waitFor({ state: 'visible', timeout: 30000 });
       return true;
     });
+  return [...textW, ...ariaW];
 }
 
 /**
