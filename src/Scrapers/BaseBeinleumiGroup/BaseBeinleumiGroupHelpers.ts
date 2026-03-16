@@ -8,7 +8,6 @@ import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
-import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
 import type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
@@ -193,43 +192,9 @@ export function extractTransaction(opts: IExtractTxnOpts): boolean {
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (!hasErrorInfoElement) return false;
-  const errorLoc = page.locator(`.${ERROR_MESSAGE_CLASS}`).first();
-  const errorText = await errorLoc.innerText();
+  const errorText = await page.$eval(
+    `.${ERROR_MESSAGE_CLASS}`,
+    el => (el as HTMLElement).innerText,
+  );
   return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
-}
-
-/**
- * Build dashboard text waiters from WELL_KNOWN selector categories.
- * @param page - The Playwright page to create waiters for.
- * @returns Array of promises that resolve true when a dashboard element is visible.
- */
-function buildDashboardWaiters(page: Page): Promise<boolean>[] {
-  const categories = [
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
-  ];
-  return categories
-    .filter(c => c.kind === 'textContent')
-    .map(async c => {
-      const loc = page.getByText(c.value).first();
-      await loc.waitFor({ state: 'visible', timeout: 30000 });
-      return true;
-    });
-}
-
-/**
- * Wait for the post-login page to finish loading via WELL_KNOWN text detection.
- * @param page - The Playwright page to wait on.
- * @returns True if a post-login element is detected, false otherwise.
- */
-export async function waitForPostLogin(page: Page): Promise<boolean> {
-  const waiters = buildDashboardWaiters(page);
-  if (waiters.length === 0) return false;
-  try {
-    await Promise.any(waiters);
-    return true;
-  } catch {
-    return false;
-  }
 }

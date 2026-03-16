@@ -68,6 +68,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: MOCK_RESOLVE_FIELD_CONTEXT,
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   extractCredentialKey: jest.fn((selector: string) => selector),
+  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
@@ -81,7 +82,6 @@ function makeMockPage(): Page {
   const mainFrame = {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue('https://bank.test/otp'),
-    evaluate: jest.fn().mockResolvedValue('סיסמה חד פעמית'),
     locator: jest.fn().mockReturnValue({
       first: jest.fn().mockReturnValue({
         pressSequentially: jest.fn().mockResolvedValue(undefined),

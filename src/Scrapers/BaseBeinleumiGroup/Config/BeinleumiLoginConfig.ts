@@ -1,29 +1,8 @@
-import { type Frame, type Page } from 'playwright-core';
+import { type Page } from 'playwright-core';
 
+import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
-import type { OptionalFramePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
-import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
-
-/**
- * Build text-based waiters from WELL_KNOWN dashboard categories.
- * @param page - The Playwright page to build waiters for.
- * @returns Array of promises that resolve when a dashboard element is visible.
- */
-function buildDashboardWaiters(page: Page): Promise<boolean>[] {
-  const candidates = [
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
-  ];
-  return candidates
-    .filter(c => c.kind === 'textContent')
-    .map(async c => {
-      const loc = page.getByText(c.value).first();
-      await loc.waitFor({ state: 'visible', timeout: 30000 });
-      return true;
-    });
-}
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -33,11 +12,14 @@ function buildDashboardWaiters(page: Page): Promise<boolean>[] {
 async function beinleumiPostAction(
   page: Page,
 ): ReturnType<NonNullable<ILoginConfig['postAction']>> {
-  const waiters = buildDashboardWaiters(page);
-  if (waiters.length === 0) return;
-  await Promise.race(waiters).catch((error: unknown) => {
-    if (error instanceof Error && error.name === 'TimeoutError') return;
-    throw error;
+  await Promise.race([
+    page.waitForSelector('#card-header'),
+    page.waitForSelector('#account_num'),
+    page.waitForSelector('#matafLogoutLink'),
+    page.waitForSelector('#validationMsg'),
+    page.waitForSelector('[class*="account-summary"]', { timeout: 30000 }),
+  ]).catch(() => {
+    // intentionally ignore timeout — any matched selector is sufficient
   });
 }
 
@@ -48,8 +30,8 @@ export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
 ];
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
-  { kind: 'clickableText', value: 'המשך' },
-  { kind: 'clickableText', value: 'כניסה' },
+  { kind: 'css', value: '#continueBtn' },
+  // textContent 'המשך'/'כניסה' fallback is in wellKnownSelectors.__submit__
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
@@ -63,33 +45,19 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
  * @returns The login iframe if found, or undefined.
  */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  await page.waitForTimeout(2000);
-  return findLoginFrame(page);
-}
-
-/**
- * Check if a frame contains a credential input field.
- * @param frame - The frame to check.
- * @returns True if the frame has an input with placeholder.
- */
-async function checkFrameHasInput(frame: Frame): Promise<boolean> {
-  const locator = frame.getByRole('textbox');
-  const count = await locator.count().catch((): number => 0);
-  return count > 0;
-}
-
-/**
- * Find the login iframe by content.
- * @param page - The Playwright page to search.
- * @returns The login frame, or undefined if not found.
- */
-async function findLoginFrame(page: Page): OptionalFramePromise {
-  const frames = page.frames();
-  const tasks = frames.map(checkFrameHasInput);
-  const checks = await Promise.all(tasks);
-  const idx = checks.findIndex(Boolean);
-  if (idx >= 0) return frames[idx];
-  return frames.find(f => f.url().includes('login'));
+  const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
+  if (hasTrigger) {
+    await page.evaluate(() => {
+      const el = document.querySelector('a.login-trigger');
+      if (el instanceof HTMLElement) el.click();
+    });
+    await page.waitForTimeout(2000);
+    const loginFrame = page.frames().find(f => f.url().includes('login'));
+    return loginFrame;
+  }
+  await page.waitForTimeout(1000);
+  const loginFrame = page.frames().find(f => f.url().includes('login'));
+  return loginFrame;
 }
 
 /**

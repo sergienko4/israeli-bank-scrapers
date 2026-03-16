@@ -205,6 +205,29 @@ describe('resolveFieldContext', () => {
   });
 });
 
+// ── toFirstCss ────────────────────────────────────────────────────────────────
+
+describe('toFirstCss', () => {
+  it('returns the CSS of the first candidate', () => {
+    const candidates = [
+      { kind: 'css' as const, value: '.balance' },
+      { kind: 'ariaLabel' as const, value: 'יתרה' },
+    ];
+    const css = SELECTOR_MOD.toFirstCss(candidates);
+    expect(css).toBe('.balance');
+  });
+
+  it('returns empty string for an empty array', () => {
+    const css = SELECTOR_MOD.toFirstCss([]);
+    expect(css).toBe('');
+  });
+
+  it('converts non-css kinds via candidateToCss', () => {
+    const css = SELECTOR_MOD.toFirstCss([{ kind: 'placeholder', value: 'שם' }]);
+    expect(css).toBe('input[placeholder*="שם"]');
+  });
+});
+
 // ── resolveDashboardField ─────────────────────────────────────────────────────
 
 describe('resolveDashboardField', () => {
@@ -233,9 +256,7 @@ describe('resolveDashboardField', () => {
     });
     expect(result.isResolved).toBe(true);
     expect(result.resolvedVia).toBe('wellKnown');
-    expect(result.selector).toBe(
-      'xpath=//button[.//text()[contains(., "\u05D9\u05EA\u05E8\u05D4")]]',
-    );
+    expect(result.selector).toBe('.balance');
   });
 
   it('resolves in iframe (Round 1) before main page (Round 2)', async () => {

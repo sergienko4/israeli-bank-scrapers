@@ -34,23 +34,13 @@ describe('resolveLabelText strategies', () => {
   /**
    * Creates a mock page with label-text resolution support.
    * @param querySelector - The mock querySelector function.
-   * @param locMock - Optional locator mock for locator-based APIs.
    * @returns A mock Page object.
    */
-  function makeLabelPage(querySelector: jest.Mock, locMock?: jest.Mock): Page {
+  function makeLabelPage(querySelector: jest.Mock): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
     return {
       $: querySelector,
-      locator:
-        locMock ??
-        jest.fn().mockReturnValue({
-          first: jest.fn().mockReturnValue({
-            count: jest.fn().mockResolvedValue(0),
-            getAttribute: jest.fn().mockResolvedValue(null),
-            evaluate: jest.fn().mockResolvedValue('input'),
-          }),
-          count: jest.fn().mockResolvedValue(0),
-        }),
+      $eval: jest.fn(),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -59,28 +49,14 @@ describe('resolveLabelText strategies', () => {
   }
 
   it('Strategy 1: <label for="pw"> → resolves #pw', async () => {
+    const labelEl = { getAttribute: jest.fn().mockResolvedValue('pw') };
+    const inputEl = {};
     const querySelector = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('label') && sel.includes('סיסמה')) return Promise.resolve({});
-      if (sel === '#pw') return Promise.resolve({});
+      if (sel.includes('label') && sel.includes('סיסמה')) return Promise.resolve(labelEl);
+      if (sel === '#pw') return Promise.resolve(inputEl);
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('label') && sel.includes('סיסמה')) {
-        const loc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockResolvedValue('pw'),
-          evaluate: jest.fn().mockResolvedValue('label'),
-        };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      if (sel === '#pw') {
-        const loc = { count: jest.fn().mockResolvedValue(1) };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      const loc = { count: jest.fn().mockResolvedValue(0) };
-      return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(0) };
-    });
-    const page = makeLabelPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('#pw');
@@ -88,56 +64,41 @@ describe('resolveLabelText strategies', () => {
   });
 
   it('Strategy 2: <div>סיסמה<input></div> → resolves nested input', async () => {
+    const divEl = {
+      getAttribute: jest.fn().mockImplementation((attr: string) => {
+        if (attr === 'for') return Promise.resolve(null);
+        if (attr === 'id') return Promise.resolve(null);
+        return Promise.resolve(null);
+      }),
+    };
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('self::label') && sel.includes('סיסמה') && !sel.includes('//input'))
-        return Promise.resolve({});
+        return Promise.resolve(divEl);
       if (sel.includes('סיסמה') && sel.includes('//input')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('self::label') && sel.includes('סיסמה') && !sel.includes('//input')) {
-        const loc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockResolvedValue(null),
-        };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      const inputLoc = {
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('text'),
-      };
-      return { first: jest.fn().mockReturnValue(inputLoc), count: jest.fn().mockResolvedValue(1) };
-    });
-    const page = makeLabelPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
+    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
   });
 
   it('Strategy 3: <span id="lbl">סיסמה</span> + aria-labelledby → resolves input', async () => {
+    const labelEl = {
+      getAttribute: jest.fn().mockImplementation((attr: string) => {
+        if (attr === 'for') return Promise.resolve(null);
+        if (attr === 'id') return Promise.resolve('lbl');
+        return Promise.resolve(null);
+      }),
+    };
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('self::label') && sel.includes('סיסמה') && !sel.includes('//input'))
-        return Promise.resolve({});
+        return Promise.resolve(labelEl);
       if (sel === 'input[aria-labelledby="lbl"]') return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('self::label') && sel.includes('סיסמה')) {
-        const loc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockImplementation((attr: string) => {
-            if (attr === 'for') return Promise.resolve(null);
-            if (attr === 'id') return Promise.resolve('lbl');
-            return Promise.resolve(null);
-          }),
-        };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      const loc = { count: jest.fn().mockResolvedValue(0) };
-      return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(0) };
-    });
-    const page = makeLabelPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('input[aria-labelledby="lbl"]');
@@ -145,6 +106,13 @@ describe('resolveLabelText strategies', () => {
   });
 
   it('Strategy 4: <label>סיסמה</label><input> → resolves sibling input', async () => {
+    const labelEl = {
+      getAttribute: jest.fn().mockImplementation((attr: string) => {
+        if (attr === 'for') return Promise.resolve(null);
+        if (attr === 'id') return Promise.resolve(null);
+        return Promise.resolve(null);
+      }),
+    };
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (
         sel.includes('self::label') &&
@@ -153,28 +121,14 @@ describe('resolveLabelText strategies', () => {
         !sel.includes('following-sibling') &&
         !sel.includes('../')
       )
-        return Promise.resolve({});
+        return Promise.resolve(labelEl);
       if (sel.includes('//input[1]') && !sel.includes('following-sibling') && !sel.includes('../'))
         return Promise.resolve(null);
       if (sel.includes('following-sibling::input')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('self::label') && sel.includes('סיסמה')) {
-        const loc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockResolvedValue(null),
-        };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      const inputLoc = {
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('text'),
-      };
-      return { first: jest.fn().mockReturnValue(inputLoc), count: jest.fn().mockResolvedValue(1) };
-    });
-    const page = makeLabelPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
+    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
@@ -182,16 +136,8 @@ describe('resolveLabelText strategies', () => {
 
   it('returns null when no labeling element found', async () => {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
-    const emptyLoc = {
-      count: jest.fn().mockResolvedValue(0),
-      getAttribute: jest.fn().mockResolvedValue(null),
-    };
     const page = {
       $: jest.fn().mockResolvedValue(null),
-      locator: jest.fn().mockReturnValue({
-        first: jest.fn().mockReturnValue(emptyLoc),
-        count: jest.fn().mockResolvedValue(0),
-      }),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Bank Login'),
@@ -202,39 +148,23 @@ describe('resolveLabelText strategies', () => {
   });
 
   it('skips hidden inputs in nested strategy', async () => {
+    const divEl = {
+      getAttribute: jest.fn().mockImplementation((attr: string) => {
+        if (attr === 'for') return Promise.resolve(null);
+        if (attr === 'id') return Promise.resolve(null);
+        return Promise.resolve(null);
+      }),
+    };
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('self::label') && sel.includes('סיסמה') && !sel.includes('//input'))
-        return Promise.resolve({});
+        return Promise.resolve(divEl);
       if (sel.includes('סיסמה') && sel.includes('//input')) return Promise.resolve({});
       if (sel.includes('following-sibling::input')) return Promise.resolve({});
       if (sel.includes('placeholder')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      const isLabelSel = sel.includes('//label[contains') && !sel.includes('//input');
-      const isDivSpan = sel.includes('self::label') && !sel.includes('//input');
-      if (isLabelSel) {
-        const loc = { count: jest.fn().mockResolvedValue(0) };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(0) };
-      }
-      if (isDivSpan) {
-        const loc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockResolvedValue(null),
-        };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
-      }
-      const hiddenLoc = {
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('hidden'),
-      };
-      return {
-        first: jest.fn().mockReturnValue(hiddenLoc),
-        count: jest.fn().mockResolvedValue(1),
-      };
-    });
-    const page = makeLabelPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
+    (page.$eval as jest.Mock).mockResolvedValue('hidden');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
@@ -249,22 +179,13 @@ describe('div/span strict text fallback', () => {
   /**
    * Creates a mock page for div/span label fallback tests.
    * @param querySelector - The mock querySelector function.
-   * @param locMock - Optional locator mock.
    * @returns A mock Page object.
    */
-  function makeFallbackPage(querySelector: jest.Mock, locMock?: jest.Mock): Page {
+  function makeLabelPage(querySelector: jest.Mock): Page {
     const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
     return {
       $: querySelector,
-      locator:
-        locMock ??
-        jest.fn().mockReturnValue({
-          first: jest.fn().mockReturnValue({
-            count: jest.fn().mockResolvedValue(0),
-            getAttribute: jest.fn().mockResolvedValue(null),
-          }),
-          count: jest.fn().mockResolvedValue(0),
-        }),
+      $eval: jest.fn(),
       frames: jest.fn().mockReturnValue([mainFrame]),
       mainFrame: jest.fn().mockReturnValue(mainFrame),
       title: jest.fn().mockResolvedValue('Login'),
@@ -273,38 +194,21 @@ describe('div/span strict text fallback', () => {
   }
 
   it('finds input via <span>סיסמה</span> when no <label> exists', async () => {
+    const spanEl = {
+      getAttribute: jest.fn().mockImplementation((attr: string) => {
+        if (attr === 'for') return Promise.resolve(null);
+        if (attr === 'id') return Promise.resolve(null);
+        return Promise.resolve(null);
+      }),
+    };
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('//label[contains')) return Promise.resolve(null);
-      if (sel.includes('text()[contains')) return Promise.resolve({});
+      if (sel.includes('text()[contains')) return Promise.resolve(spanEl);
       if (sel.includes('//input')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockImplementation((sel: string) => {
-      if (sel.includes('//label[contains')) {
-        const loc = { count: jest.fn().mockResolvedValue(0) };
-        return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(0) };
-      }
-      if (sel.includes('text()[contains') && !sel.includes('//input')) {
-        const spanLoc = {
-          count: jest.fn().mockResolvedValue(1),
-          getAttribute: jest.fn().mockResolvedValue(null),
-        };
-        return {
-          first: jest.fn().mockReturnValue(spanLoc),
-          count: jest.fn().mockResolvedValue(1),
-        };
-      }
-      const inputLoc = {
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('text'),
-      };
-      return {
-        first: jest.fn().mockReturnValue(inputLoc),
-        count: jest.fn().mockResolvedValue(1),
-      };
-    });
-    const page = makeFallbackPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
+    (page.$eval as jest.Mock).mockResolvedValue('input');
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
@@ -317,14 +221,7 @@ describe('div/span strict text fallback', () => {
       if (sel.includes('placeholder')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const locMock = jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(0),
-        getAttribute: jest.fn().mockResolvedValue(null),
-      }),
-      count: jest.fn().mockResolvedValue(0),
-    });
-    const page = makeFallbackPage(querySelector, locMock);
+    const page = makeLabelPage(querySelector);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');

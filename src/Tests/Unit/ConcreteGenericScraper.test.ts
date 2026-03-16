@@ -59,6 +59,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
   extractCredentialKey: jest.fn((selector: string) => selector),
+  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
