@@ -1,6 +1,5 @@
 import { type Page } from 'playwright-core';
 
-import { waitUntilElementFound } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
 
@@ -56,7 +55,7 @@ export default function discountConfig(loginUrl: string): ILoginConfig {
      */
     checkReadiness: async (page: Page): LifecyclePromise => {
       await page.goto(LOGIN_PORTAL);
-      await waitUntilElementFound(page, '#tzId');
+      await page.getByRole('textbox').first().waitFor({ state: 'attached' });
     },
     postAction: discountPostAction,
     possibleResults: DISCOUNT_POSSIBLE_RESULTS,

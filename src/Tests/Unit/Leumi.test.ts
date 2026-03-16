@@ -122,6 +122,20 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
     ],
   });
 
+  const locatorObj = {
+    first: jest.fn().mockReturnValue({
+      evaluate: jest.fn().mockResolvedValue('https://hb2.bankleumi.co.il/login'),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn().mockResolvedValue(undefined),
+      innerText: jest.fn().mockResolvedValue(''),
+      count: jest.fn().mockResolvedValue(1),
+      getAttribute: jest.fn().mockResolvedValue(undefined),
+    }),
+    count: jest.fn().mockResolvedValue(1),
+    all: jest.fn().mockResolvedValue([]),
+    allInnerTexts: jest.fn().mockResolvedValue(accountIds),
+  };
+
   return CREATE_MOCK_PAGE({
     evaluate: jest.fn().mockResolvedValue(accountIds),
     goto: jest.fn().mockResolvedValue({
@@ -130,9 +144,9 @@ function createLeumiPage(accountIds: string[] = ['123/456']): ReturnType<typeof 
     }),
     waitForResponse: jest.fn().mockResolvedValue(mockResponse),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
-    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
     focus: jest.fn().mockResolvedValue(undefined),
     $: jest.fn().mockResolvedValue(null),
+    locator: jest.fn().mockReturnValue(locatorObj),
   });
 }
 
@@ -255,8 +269,7 @@ describe('fetchData', () => {
   });
 
   it('throws on empty account IDs', async () => {
-    const page = createLeumiPage();
-    page.evaluate.mockResolvedValue([]);
+    const page = createLeumiPage([]);
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
 
     const scraper = new LEUMI_SCRAPER(CREATE_MOCK_SCRAPER_OPTIONS());

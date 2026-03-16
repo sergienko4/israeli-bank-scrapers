@@ -121,11 +121,9 @@ function formWalkEvaluator(input: Element): string {
  * @returns The form CSS selector, or empty string if not found.
  */
 async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Promise<string> {
-  const inputHandle = await ctx.$(resolvedSelector);
-  if (!inputHandle) return '';
-  const hasEvaluate = typeof inputHandle.evaluate === 'function';
-  if (!hasEvaluate) return '';
-  return inputHandle.evaluate(formWalkEvaluator);
+  const loc = ctx.locator(resolvedSelector).first();
+  if ((await loc.count()) === 0) return '';
+  return loc.evaluate(formWalkEvaluator);
 }
 
 /**

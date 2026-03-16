@@ -7,6 +7,7 @@ import type { Page } from 'playwright-core';
 export type SelectorCandidate =
   | { kind: 'labelText'; value: string } // find <label> by text, use for= attr → input
   | { kind: 'textContent'; value: string } // find visible text, walk up DOM to interactive ancestor
+  | { kind: 'clickableText'; value: string } // find innermost element with text — click it directly
   | { kind: 'css'; value: string } // #userCode, .login-input
   | { kind: 'placeholder'; value: string } // input[placeholder*="סיסמה"]
   | { kind: 'ariaLabel'; value: string } // input[aria-label*="משתמש"]
