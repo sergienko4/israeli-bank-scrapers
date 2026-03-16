@@ -186,12 +186,14 @@ async function setValue(
   inputSelector: string,
   inputValue: string,
 ): Promise<boolean> {
-  await pageOrFrame
-    .locator(inputSelector)
-    .first()
-    .evaluate((input: Element, val: string) => {
-      (input as HTMLInputElement).value = val;
-    }, inputValue);
+  await pageOrFrame.$eval(
+    inputSelector,
+    (input: Element, value) => {
+      const inputElement = input;
+      (inputElement as unknown as HTMLInputElement).value = value as unknown as string;
+    },
+    [inputValue],
+  );
   return true;
 }
 
@@ -204,7 +206,9 @@ async function setValue(
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<boolean> {
   LOG.debug('click %s', buttonSelector);
   await humanDelay(CLICK_BUTTON_DELAY_MIN_MS, CLICK_BUTTON_DELAY_MAX_MS);
-  await page.locator(buttonSelector).first().click();
+  await page.$eval(buttonSelector, el => {
+    (el as HTMLElement).click();
+  });
   return true;
 }
 
@@ -215,7 +219,9 @@ async function clickButton(page: Page | Frame, buttonSelector: string): Promise<
  * @returns True after the link is clicked.
  */
 async function clickLink(page: Page, aSelector: string): Promise<boolean> {
-  await page.locator(aSelector).first().click();
+  await page.$eval(aSelector, (el: Element) => {
+    (el as HTMLElement).click();
+  });
   return true;
 }
 
@@ -233,10 +239,12 @@ async function pageEvalAll<TResult>(
   let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.locator(selector).evaluateAll(callback);
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
+    result = await page.$$eval(selector, callback);
+  } catch (e) {
+    // Swallow "no elements found" errors and return the default result instead.
+    if (!(e as Error).message.startsWith('Error: failed to find elements matching selector')) {
+      throw e;
+    }
   }
 
   return result;
@@ -256,9 +264,12 @@ async function pageEval<TResult>(
   let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.locator(selector).first().evaluate(callback);
-  } catch {
-    // Locator throws when no element matches; return the default result instead.
+    result = await page.$eval(selector, callback);
+  } catch (e) {
+    // Swallow "no elements found" errors and return the default result instead.
+    if (!(e as Error).message.startsWith('Error: failed to find element matching selector')) {
+      throw e;
+    }
   }
 
   return result;
@@ -271,7 +282,7 @@ async function pageEval<TResult>(
  * @returns True if the element exists, false otherwise.
  */
 async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string): Promise<boolean> {
-  return (await pageOrFrame.locator(selector).count()) > 0;
+  return (await pageOrFrame.$(selector)) !== null;
 }
 
 /**

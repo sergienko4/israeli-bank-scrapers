@@ -13,33 +13,6 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
-/** XPath for the messaging container. */
-const MSG_CLASS = 'messaging-links-container';
-const MESSAGING_XPATH = 'xpath=//*[contains(@class, "' + MSG_CLASS + '")]';
-
-/** XPath for the dashboard account details section. */
-const ACCOUNT_DETAILS_XPATH =
-  'xpath=//*[contains(@class, "account-details")' + ' or @id="AccountDetails"]';
-
-/** XPath for the loader spinner. */
-const LOADER_XPATH = 'xpath=//*[contains(@class, "loader")]';
-
-/** XPath for the submit button. */
-const BTN_XPATH = '//button[contains(@class, "btn")]';
-
-/**
- * Dismiss the messaging popup if present by clicking its first link.
- * @param page - The Playwright page instance.
- * @returns True if dismissed, false if not present.
- */
-async function dismissMessaging(page: Page): Promise<boolean> {
-  const loc = page.locator(MESSAGING_XPATH);
-  if ((await loc.count()) === 0) return false;
-  const linkLoc = loc.locator('a').first();
-  await linkLoc.click();
-  return true;
-}
-
 /**
  * Yahav post-login action — waits for loader, dismisses messaging, and waits for dashboard.
  * @param page - The Playwright page instance.
@@ -47,14 +20,15 @@ async function dismissMessaging(page: Page): Promise<boolean> {
  */
 async function yahavPostAction(page: Page): LifecyclePromise {
   await waitForNavigation(page);
-  await waitUntilElementDisappear(page, LOADER_XPATH);
-  await dismissMessaging(page);
+  await waitUntilElementDisappear(page, '.loader');
+  if (await elementPresentOnPage(page, '.messaging-links-container')) {
+    await page.$eval('.link-1', el => {
+      (el as HTMLElement).click();
+    });
+  }
   await Promise.race([
-    page.locator(ACCOUNT_DETAILS_XPATH).first().waitFor({ state: 'visible' }),
-    waitUntilElementFound(page, 'input#ef_req_parameter_old_credential', {
-      visible: true,
-      timeout: 60000,
-    }),
+    waitUntilElementFound(page, '#AccountDetails'),
+    waitUntilElementFound(page, 'input#ef_req_parameter_old_credential'),
   ]);
 }
 
@@ -65,21 +39,20 @@ export const YAHAV_COMPANY = CompanyTypes.Yahav;
 export const YAHAV_CONFIG: ILoginConfig = {
   loginUrl: CFG.urls.base,
   fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-    { credentialKey: 'nationalID', selectors: [] },
+    { credentialKey: 'username', selectors: [] }, // wellKnown → #username
+    { credentialKey: 'password', selectors: [] }, // wellKnown → #password
+    { credentialKey: 'nationalID', selectors: [] }, // wellKnown → #pinno
   ],
-  submit: [{ kind: 'xpath', value: BTN_XPATH }],
+  submit: [{ kind: 'css', value: '.btn' }],
   /**
    * Wait for login form fields and submit button to appear.
    * @param page - The Playwright page instance.
    * @returns True when login form is ready.
    */
   checkReadiness: async (page: Page): LifecyclePromise => {
-    const btnSelector = 'xpath=' + BTN_XPATH;
-    const idReady = page.locator('input[type="password"]').first().waitFor({ state: 'attached' });
-    const btnReady = waitUntilElementFound(page, btnSelector);
-    await Promise.all([idReady, btnReady]);
+    const pinnoReady = waitUntilElementFound(page, '#pinno');
+    const btnReady = waitUntilElementFound(page, '.btn');
+    await Promise.all([pinnoReady, btnReady]);
   },
   postAction: yahavPostAction,
   possibleResults: {

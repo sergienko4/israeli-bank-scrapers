@@ -14,11 +14,9 @@ import {
   type IMoreDetails,
   type IScrapedTransaction,
 } from './MizrahiHelpers.js';
+import buildSel from './MizrahiSelectors.js';
 
-/** CSS selector for pending transaction rows (used in browser-context evaluate). */
-const PENDING_ROW_CANDIDATES =
-  SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors.pendingTransactionRows;
-const PENDING_ROWS_CSS = PENDING_ROW_CANDIDATES.length > 0 ? PENDING_ROW_CANDIDATES[0].value : '';
+const SEL = buildSel(SCRAPER_CONFIGURATION.banks[CompanyTypes.Mizrahi].selectors);
 
 /** Options for building a single transaction row. */
 interface IBuildRowOpts {
@@ -134,7 +132,7 @@ export async function extractPendingTxns(page: Frame): Promise<ITransaction[]> {
       return Array.from(cells, td => td.textContent || '');
     });
   const rawRows = await pageEvalAll(page, {
-    selector: PENDING_ROWS_CSS,
+    selector: SEL.pendingTransactionRows,
     defaultResult: [],
     callback: extractCells,
   });

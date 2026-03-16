@@ -17,11 +17,10 @@ export type QueryFn = (context: Page | Frame, css: string) => Promise<boolean>;
  * @returns True if the element is a fillable input or textarea.
  */
 export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
-  const loc = ctx.locator(selector).first();
-  const tagName = await loc.evaluate((el: Element) => el.tagName.toLowerCase());
+  const tagName = await ctx.$eval(selector, (el: Element) => el.tagName.toLowerCase());
   if (tagName === 'textarea') return true;
   if (tagName !== 'input') return false;
-  const type = (await loc.getAttribute('type')) ?? 'text';
+  const type = await ctx.$eval(selector, (el: Element) => el.getAttribute('type') ?? 'text');
   return type !== 'hidden' && type !== 'submit' && type !== 'button';
 }
 
@@ -38,7 +37,7 @@ export async function findInputByForAttr(
   labelValue: string,
 ): Promise<string> {
   const inputSelector = `#${forAttr}`;
-  if ((await ctx.locator(inputSelector).count()) === 0) {
+  if (!(await ctx.$(inputSelector))) {
     LOG.debug('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
     return '';
   }
@@ -279,18 +278,17 @@ interface IResolveLabelTextOpts {
  */
 export async function resolveLabelText(opts: IResolveLabelTextOpts): Promise<string> {
   const { ctx, labelXpath, labelValue, queryFn } = opts;
-  const labelLoc = ctx.locator(labelXpath).first();
-  if ((await labelLoc.count()) > 0) {
-    const labelOpts = { ctx, label: labelLoc, baseXpath: labelXpath, labelValue, queryFn };
-    return resolveLabelStrategies(labelOpts);
+  const label = await ctx.$(labelXpath);
+  if (label) {
+    return resolveLabelStrategies({ ctx, label, baseXpath: labelXpath, labelValue, queryFn });
   }
   const strictXpath = divSpanStrictXpath(labelValue);
-  const divSpanLoc = ctx.locator(strictXpath).first();
-  if ((await divSpanLoc.count()) === 0) return '';
+  const divSpan = await ctx.$(strictXpath);
+  if (!divSpan) return '';
   LOG.debug('labelText "%s" found via div/span fallback', labelValue);
   return resolveLabelStrategies({
     ctx,
-    label: divSpanLoc,
+    label: divSpan,
     baseXpath: strictXpath,
     labelValue,
     queryFn,

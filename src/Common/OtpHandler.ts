@@ -281,64 +281,6 @@ async function verifyOtpAccepted(page: Page): Promise<IScraperScrapingResult> {
 }
 
 /**
- * Check a single frame for OTP indicator text.
- * @param frame - The frame to check.
- * @param indicators - OTP text patterns.
- * @returns True if an OTP indicator was found.
- */
-async function checkFrameForOtp(frame: Frame, indicators: string[]): Promise<boolean> {
-  const text = await frame.evaluate((): string => document.body.innerText).catch((): string => '');
-  const hasOtp = indicators.some(i => text.includes(i));
-  if (hasOtp) {
-    const frameUrl = frame.url().slice(0, 60);
-    LOG.debug('OTP page detected in frame: %s', frameUrl);
-  }
-  return hasOtp;
-}
-
-const OTP_INDICATORS = ['סיסמה חד פעמית', 'קוד חד פעמי', 'אימות זהות', 'קוד SMS'];
-
-/**
- * Check all frames in a single poll iteration.
- * @param page - The Playwright page to poll.
- * @returns True if OTP indicator found in any frame.
- */
-async function pollFramesForOtp(page: Page): Promise<boolean> {
-  const frames = page.frames();
-  const tasks = frames.map(f => checkFrameForOtp(f, OTP_INDICATORS));
-  const results = await Promise.all(tasks);
-  return results.some(Boolean);
-}
-
-/**
- * Recursively poll frames for OTP until deadline.
- * @param page - The Playwright page to poll.
- * @param deadline - Timestamp deadline.
- * @param pollMs - Poll interval in ms.
- * @returns True if OTP page was detected.
- */
-async function pollUntilDeadline(page: Page, deadline: number, pollMs: number): Promise<boolean> {
-  if (Date.now() >= deadline) return false;
-  const isFound = await pollFramesForOtp(page);
-  if (isFound) return true;
-  await page.waitForTimeout(pollMs);
-  return pollUntilDeadline(page, deadline, pollMs);
-}
-
-/**
- * Wait for the OTP page to load in any frame.
- * @param page - The Playwright page to poll.
- * @returns True if OTP page was detected.
- */
-async function waitForOtpPageInFrames(page: Page): Promise<boolean> {
-  const maxWaitMs = 15000;
-  const deadline = Date.now() + maxWaitMs;
-  const isFound = await pollUntilDeadline(page, deadline, 500);
-  if (!isFound) LOG.debug('OTP not detected after %dms', maxWaitMs);
-  return isFound;
-}
-
-/**
  * Confirm OTP delivery — click bank-specific confirm button if provided, then SMS trigger.
  * @param page - The Playwright page instance.
  * @param parsedPage - Optional parsed login page with child frame info.
@@ -350,7 +292,6 @@ export async function handleOtpConfirm(
   parsedPage?: IParsedLoginPage,
   triggerSelectors?: SelectorCandidate[],
 ): Promise<string> {
-  await waitForOtpPageInFrames(page);
   const phoneHint = await extractPhoneHint(page);
   const childFrames = parsedPage?.childFrames;
   if (triggerSelectors) {

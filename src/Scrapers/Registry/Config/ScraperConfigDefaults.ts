@@ -103,22 +103,16 @@ export const NULL_TIMING: IBankScraperConfig['timing'] = {
 export const DOM_OTP: OtpConfig = {
   kind: 'dom',
   triggerSelectors: [
-    { kind: 'clickableText', value: 'שלח קוד' },
-    { kind: 'clickableText', value: 'שלח' },
-    { kind: 'clickableText', value: 'לקבלת סיסמה חד פעמית' },
+    { kind: 'textContent', value: 'שלח' },
     { kind: 'ariaLabel', value: 'שלח' },
-    { kind: 'ariaLabel', value: 'שלח קוד' },
   ],
   inputSelectors: [
     { kind: 'placeholder', value: 'קוד חד פעמי' },
-    { kind: 'placeholder', value: 'סיסמה חד פעמית' },
     { kind: 'placeholder', value: 'קוד SMS' },
     { kind: 'name', value: 'otpCode' },
   ],
   submitSelectors: [
-    { kind: 'clickableText', value: 'אישור' },
-    { kind: 'clickableText', value: 'אשר' },
-    { kind: 'clickableText', value: 'שלח' },
+    { kind: 'textContent', value: 'אישור' },
     { kind: 'ariaLabel', value: 'אישור' },
   ],
   longTermTokenSupported: false,
