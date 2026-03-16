@@ -75,23 +75,42 @@ const COMPLETED_COL = [
 ];
 
 /**
- * Mock $eval to return account number, balance, or no-data text based on selector.
+ * Resolve innerText by selector — used by locator().first().innerText() mock.
  * @param selector - CSS selector string.
  * @returns Mocked inner text for the matched element.
  */
-function evalBySelector(selector: string): string {
+function textBySelector(selector: string): string {
   if (selector === 'div.fibi_account span.acc_num') return '12/345678';
   if (selector === '.main_balance') return '\u20AA5,000.00';
   if (selector === `.${ERROR_MESSAGE_CLASS}`)
     return '\u05DC\u05D0 \u05E0\u05DE\u05E6\u05D0\u05D5 \u05E0\u05EA\u05D5\u05E0\u05D9\u05DD \u05D1\u05E0\u05D5\u05E9\u05D0 \u05D4\u05DE\u05D1\u05D5\u05E7\u05E9';
   return '';
 }
-/** Default page mock methods for Beinleumi tests. */
-const DEFAULT_PAGE_MOCKS = {
-  $$eval: jest.fn().mockResolvedValue([]),
-  evaluate: jest.fn().mockResolvedValue([]),
-  frames: jest.fn().mockReturnValue([]),
-};
+/**
+ * Build a locator mock that returns innerText based on selector.
+ * @param selector - The CSS selector for context.
+ * @returns Mock locator chain with first().innerText().
+ */
+function buildLocator(selector: string): Record<string, jest.Mock> {
+  const resolvedText = textBySelector(selector);
+  const inner = {
+    fill: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    isVisible: jest.fn().mockResolvedValue(true),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    count: jest.fn().mockResolvedValue(1),
+    evaluate: jest.fn().mockResolvedValue(undefined),
+    getAttribute: jest.fn().mockResolvedValue(null),
+    innerText: jest.fn().mockResolvedValue(resolvedText),
+  };
+  return {
+    first: jest.fn().mockReturnValue(inner),
+    count: jest.fn().mockResolvedValue(0),
+    evaluateAll: jest.fn().mockResolvedValue([]),
+    allInnerTexts: jest.fn().mockResolvedValue([]),
+    all: jest.fn().mockResolvedValue([]),
+  };
+}
 
 /**
  * Create a page mock with standard account selectors.
@@ -101,8 +120,12 @@ const DEFAULT_PAGE_MOCKS = {
 function createPage(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
-  const evalMock = jest.fn().mockImplementation(evalBySelector);
-  return CREATE_MOCK_PAGE({ $eval: evalMock, ...DEFAULT_PAGE_MOCKS, ...overrides });
+  return CREATE_MOCK_PAGE({
+    locator: jest.fn().mockImplementation(buildLocator),
+    evaluate: jest.fn().mockResolvedValue([]),
+    frames: jest.fn().mockReturnValue([]),
+    ...overrides,
+  });
 }
 
 /**

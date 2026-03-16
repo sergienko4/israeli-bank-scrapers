@@ -111,6 +111,33 @@ function leumiPageBase(
  * @param response.json - jest mock for json()
  * @returns mock page overrides
  */
+/**
+ * Build a locator mock that returns a login URL from evaluate.
+ * @returns A mock locator chain.
+ */
+function buildLocatorMock(): jest.Mock {
+  const firstObj = {
+    evaluate: jest.fn().mockResolvedValue(LEUMI_LOGIN_URL),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    click: jest.fn().mockResolvedValue(undefined),
+    innerText: jest.fn().mockResolvedValue(''),
+    count: jest.fn().mockResolvedValue(1),
+    getAttribute: jest.fn().mockResolvedValue(undefined),
+  };
+  return jest.fn().mockReturnValue({
+    first: jest.fn().mockReturnValue(firstObj),
+    count: jest.fn().mockResolvedValue(1),
+    all: jest.fn().mockResolvedValue([]),
+  });
+}
+
+/**
+ * Build full Leumi page mock with goto and locator.
+ * @param accountIds - account IDs
+ * @param response - mock response object
+ * @param response.json - jest mock for json()
+ * @returns mock page overrides
+ */
 function buildLeumiPageMock(
   accountIds: string[],
   response: { json: jest.Mock },
@@ -119,7 +146,7 @@ function buildLeumiPageMock(
   return {
     ...leumiPageBase(accountIds, response),
     goto: jest.fn().mockResolvedValue(gotoRes),
-    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
+    locator: buildLocatorMock(),
   };
 }
 

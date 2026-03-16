@@ -146,18 +146,18 @@ describe('Max preAction — homepage version detection', () => {
   });
 
   it('closes popup before starting either version flow', async () => {
-    const closeBtn = createLocator(true);
+    const closeEl = createLocator(true);
     const page = buildMockPage({
       'כניסה לאיזור האישי': createLocator(true),
       'לקוחות פרטיים': createLocator(false),
       'כניסה עם סיסמה': createLocator(true),
     });
-    page.getByRole.mockReturnValue(closeBtn);
+    page.getByText.mockReturnValue(closeEl);
 
     const preAction = MAX_CONFIG.MAX_CONFIG.preAction;
     if (!preAction) throw new TypeError('preAction missing');
     await preAction(page as never);
 
-    expect(closeBtn.click).toHaveBeenCalled();
+    expect(closeEl.click).toHaveBeenCalled();
   });
 });

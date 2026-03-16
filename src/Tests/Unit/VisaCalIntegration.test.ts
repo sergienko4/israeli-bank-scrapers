@@ -48,6 +48,18 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
      * @returns VisaCal connect login URL.
      */
     url: (): string => VISACAL_CONNECT_LOGIN_URL,
+    waitForSelector: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+    getByText: jest.fn().mockImplementation(() => {
+      const loc = {
+        first: jest.fn(),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+        isVisible: jest.fn().mockResolvedValue(false),
+      };
+      loc.first.mockReturnValue(loc);
+      return loc;
+    }),
   }),
 }));
 

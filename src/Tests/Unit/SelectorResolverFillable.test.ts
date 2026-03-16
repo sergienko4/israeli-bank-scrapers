@@ -29,14 +29,14 @@ const SELECTOR_MOD = await import('../../Common/SelectorResolver.js');
 /**
  * Creates a mock page for fillable input validation tests.
  * @param querySelector - The mock querySelector function.
- * @param evalMock - The mock $eval function.
+ * @param locatorMock - The mock locator function.
  * @returns A mock Page object.
  */
-function makeLabelPage(querySelector: jest.Mock, evalMock: jest.Mock): Page {
+function makeLabelPage(querySelector: jest.Mock, locatorMock: jest.Mock): Page {
   const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
   return {
     $: querySelector,
-    $eval: evalMock,
+    locator: locatorMock,
     frames: jest.fn().mockReturnValue([mainFrame]),
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     title: jest.fn().mockResolvedValue('Login'),
@@ -49,13 +49,36 @@ function makeLabelPage(querySelector: jest.Mock, evalMock: jest.Mock): Page {
  * @returns A jest.Mock configured for label-based selector resolution.
  */
 function makeQuerySelectorWithLabel(): jest.Mock {
-  const labelEl = {
-    getAttribute: jest.fn().mockResolvedValue(null),
-  };
   return jest.fn().mockImplementation((sel: string) => {
-    if (sel.includes('//label[contains')) return Promise.resolve(labelEl);
+    if (sel.includes('//label[contains')) return Promise.resolve({});
     if (sel.includes('//input')) return Promise.resolve({});
     return Promise.resolve(null);
+  });
+}
+
+/**
+ * Creates a locator mock for isFillableInput + resolveLabelText tests.
+ * @param tagName - The tag name to return from evaluate.
+ * @param type - The input type to return from getAttribute('type').
+ * @returns A jest.Mock configured as a locator factory.
+ */
+function makeLocatorMock(tagName: string, type?: string): jest.Mock {
+  return jest.fn().mockImplementation((sel: string) => {
+    const isLabelXpath = sel.includes('//label[contains') && !sel.includes('//input');
+    const isStrictText = sel.includes('self::label') && !sel.includes('//input');
+    if (isLabelXpath || isStrictText) {
+      const labelLoc = {
+        count: jest.fn().mockResolvedValue(1),
+        getAttribute: jest.fn().mockResolvedValue(null),
+      };
+      return { first: jest.fn().mockReturnValue(labelLoc), count: jest.fn().mockResolvedValue(1) };
+    }
+    const inputLoc = {
+      count: jest.fn().mockResolvedValue(1),
+      evaluate: jest.fn().mockResolvedValue(tagName),
+      getAttribute: jest.fn().mockResolvedValue(type ?? 'text'),
+    };
+    return { first: jest.fn().mockReturnValue(inputLoc), count: jest.fn().mockResolvedValue(1) };
   });
 }
 
@@ -76,13 +99,14 @@ function addPlaceholderFallback(querySelector: jest.Mock): jest.Mock {
 /**
  * Creates a mock page for textContent strategy tests.
  * @param querySelector - The mock querySelector function.
+ * @param locMock - Optional locator mock for isFillableInput.
  * @returns A mock Page object.
  */
-function makeTextPage(querySelector: jest.Mock): Page {
+function makeTextPage(querySelector: jest.Mock, locMock?: jest.Mock): Page {
   const mainFrame = { url: jest.fn().mockReturnValue('https://bank.test/login') };
   return {
     $: querySelector,
-    $eval: jest.fn(),
+    locator: locMock ?? jest.fn(),
     frames: jest.fn().mockReturnValue([mainFrame]),
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     title: jest.fn().mockResolvedValue('Login'),
@@ -96,48 +120,48 @@ describe('isFillableInput (via nested input strategy)', () => {
   const labelField: IFieldConfig = { credentialKey: 'password', selectors: [] };
 
   it('accepts <input type="text"> (fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('text');
     const labelQuery = makeQuerySelectorWithLabel();
-    const page = makeLabelPage(labelQuery, evalMock);
+    const locMock = makeLocatorMock('input', 'text');
+    const page = makeLabelPage(labelQuery, locMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
   });
 
   it('accepts <textarea> (fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('textarea');
     const labelQuery = makeQuerySelectorWithLabel();
-    const page = makeLabelPage(labelQuery, evalMock);
+    const locMock = makeLocatorMock('textarea');
+    const page = makeLabelPage(labelQuery, locMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('labelText');
   });
 
   it('rejects <input type="submit"> (not fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('submit');
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
-    const page = makeLabelPage(querySelector, evalMock);
+    const locMock = makeLocatorMock('input', 'submit');
+    const page = makeLabelPage(querySelector, locMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
   });
 
   it('rejects <input type="hidden"> (not fillable)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('input').mockResolvedValueOnce('hidden');
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
-    const page = makeLabelPage(querySelector, evalMock);
+    const locMock = makeLocatorMock('input', 'hidden');
+    const page = makeLabelPage(querySelector, locMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
   });
 
   it('rejects <div> element (not input/textarea)', async () => {
-    const evalMock = jest.fn().mockResolvedValueOnce('div');
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
-    const page = makeLabelPage(querySelector, evalMock);
+    const locMock = makeLocatorMock('div');
+    const page = makeLabelPage(querySelector, locMock);
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
@@ -196,8 +220,8 @@ describe('textContent walk-up strategies (imported from SelectorLabelStrategies)
       if (sel.includes('ancestor::*[.//input')) return Promise.resolve({});
       return Promise.resolve(null);
     });
-    const page = makeTextPage(querySelector);
-    (page.$eval as jest.Mock).mockResolvedValueOnce('input').mockResolvedValueOnce('text');
+    const locMock = makeLocatorMock('input', 'text');
+    const page = makeTextPage(querySelector, locMock);
     const inputField: IFieldConfig = {
       credentialKey: 'password',
       selectors: [{ kind: 'textContent', value: 'סיסמה' }],

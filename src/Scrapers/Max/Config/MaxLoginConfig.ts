@@ -159,9 +159,9 @@ async function clickFirstVisible(page: Page, texts: string[]): Promise<boolean> 
  * @returns True after the popup is closed or confirmed absent.
  */
 async function closePopupIfPresent(page: Page): Promise<boolean> {
-  const closeBtn = page.getByRole('button', { name: /סגור|close/i });
-  if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await closeBtn.click();
+  const closeEl = page.getByText(/סגור|close/i).first();
+  if (await closeEl.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await closeEl.click();
   }
   return true;
 }
@@ -236,7 +236,11 @@ async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
     page.getByText(text).first().waitFor({ state: 'visible', timeout: 60000 }),
   );
-  await Promise.race([page.waitForURL('**/homepage/**', { timeout: 60000 }), ...errorWaiters]);
+  await Promise.race([
+    page.waitForURL('**/homepage/**', { timeout: 60000 }),
+    page.waitForURL('**/errornew**', { timeout: 60000 }),
+    ...errorWaiters,
+  ]);
 }
 
 /**
@@ -323,6 +327,6 @@ export const MAX_CONFIG: ILoginConfig = {
     changePassword: [`${CFG.urls.base}/renew-password`],
     // Max shows identical error popup for both cases — same visible Hebrew text
     invalidPassword: [checkMaxErrorPopup],
-    unknownError: [checkMaxErrorPopup],
+    unknownError: [`${CFG.urls.base}/errornew`, checkMaxErrorPopup],
   },
 };

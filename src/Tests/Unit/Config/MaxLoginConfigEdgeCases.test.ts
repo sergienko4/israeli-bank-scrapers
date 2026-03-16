@@ -62,7 +62,6 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
   extractCredentialKey: jest.fn((s: string) => s),
   tryInContext: jest.fn().mockResolvedValue(null),
-  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
@@ -206,16 +205,21 @@ describe('MAX_CONFIG possibleResults edge cases', () => {
     expect(isInvalid).toBe(false);
   });
 
+  it('unknownError includes errornew URL as first entry', () => {
+    const entries = MAX_CONFIG.possibleResults.unknownError ?? [];
+    expect(entries[0]).toContain('errornew');
+  });
+
   it('unknownError returns false when opts is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.unknownError;
-    const checker = checkers?.[0] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[1] as (opts?: unknown) => Promise<boolean>;
     const isError = await checker(undefined);
     expect(isError).toBe(false);
   });
 
   it('unknownError returns false when opts.page is undefined', async () => {
     const checkers = MAX_CONFIG.possibleResults.unknownError;
-    const checker = checkers?.[0] as (opts?: unknown) => Promise<boolean>;
+    const checker = checkers?.[1] as (opts?: unknown) => Promise<boolean>;
     const isError = await checker({});
     expect(isError).toBe(false);
   });

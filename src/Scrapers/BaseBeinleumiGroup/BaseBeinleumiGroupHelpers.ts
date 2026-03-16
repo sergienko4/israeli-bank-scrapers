@@ -8,6 +8,7 @@ import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
 import type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
@@ -192,9 +193,37 @@ export function extractTransaction(opts: IExtractTxnOpts): boolean {
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
   const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
   if (!hasErrorInfoElement) return false;
-  const errorText = await page.$eval(
-    `.${ERROR_MESSAGE_CLASS}`,
-    el => (el as HTMLElement).innerText,
-  );
+  const errorLoc = page.locator(`.${ERROR_MESSAGE_CLASS}`).first();
+  const errorText = await errorLoc.innerText();
   return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
+}
+
+/**
+ * No-op catch handler — intentionally ignores timeout errors.
+ * @returns Always true.
+ */
+function ignoreTimeout(): boolean {
+  return true;
+}
+
+/**
+ * Wait for the post-login page to finish loading via WELL_KNOWN text detection.
+ * @param page - The Playwright page to wait on.
+ * @returns True after a post-login element is detected.
+ */
+export async function waitForPostLogin(page: Page): Promise<boolean> {
+  const categories = [
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
+  ];
+  const waiters = categories
+    .filter(c => c.kind === 'textContent')
+    .map(async c => {
+      const loc = page.getByText(c.value).first();
+      await loc.waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+  await Promise.race(waiters).catch(ignoreTimeout);
+  return true;
 }

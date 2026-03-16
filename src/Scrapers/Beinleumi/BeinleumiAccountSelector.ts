@@ -21,11 +21,9 @@ const LOG = getDebug('beinleumi-account-selector');
  */
 async function isDropdownOpen(page: Page): Promise<boolean> {
   return page
-    .$eval(DROPDOWN_PANEL_SELECTOR, el => {
-      return (
-        window.getComputedStyle(el).display !== 'none' && (el as HTMLElement).offsetParent !== null
-      );
-    })
+    .locator(DROPDOWN_PANEL_SELECTOR)
+    .first()
+    .isVisible()
     .catch(() => false);
 }
 
@@ -49,6 +47,17 @@ async function ensureDropdownOpen(page: Page): Promise<boolean> {
 }
 
 /**
+ * Read non-empty text labels from all account options.
+ * @param page - The Playwright page instance.
+ * @returns Array of trimmed, non-empty option label strings.
+ */
+async function readOptionLabels(page: Page): Promise<string[]> {
+  const loc = page.locator(OPTION_SELECTOR);
+  const allTexts = await loc.allInnerTexts();
+  return allTexts.map(t => t.trim()).filter(t => t !== '');
+}
+
+/**
  * Open the account dropdown and return all visible account labels.
  * @param page - The Playwright page instance.
  * @returns Array of account label strings.
@@ -57,10 +66,7 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
   try {
     const wasOpen = await ensureDropdownOpen(page);
     LOG.debug('dropdown %s', wasOpen ? 'already open' : 'opened');
-    const accountLabels = await page.$$eval(OPTION_SELECTOR, options =>
-      options.map(option => option.textContent.trim()).filter(label => label !== ''),
-    );
-    return accountLabels;
+    return await readOptionLabels(page);
   } catch {
     return [];
   }
@@ -72,11 +78,11 @@ export async function clickAccountSelectorGetAccountIds(page: Page): Promise<str
  * @returns Array of account ID strings from the select element.
  */
 async function getAccountIdsOldUI(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const selectElement = document.getElementById('account_num_select');
-    const options = selectElement ? selectElement.querySelectorAll('option') : [];
-    return Array.from(options, option => option.value);
-  });
+  const optionLoc = page.locator('select[id="account_num_select"] option');
+  const options = await optionLoc.all();
+  const getValueTasks = options.map(o => o.getAttribute('value'));
+  const values = await Promise.all(getValueTasks);
+  return values.filter((v): v is string => v !== null && v !== '');
 }
 
 /**
@@ -91,24 +97,31 @@ export async function getAccountIdsBothUIs(page: Page): Promise<string[]> {
 }
 
 /**
+ * Check if a single option matches the label and click it.
+ * @param option - The Playwright locator for the option.
+ * @param accountLabel - The label text to match.
+ * @returns True if the option was clicked.
+ */
+async function tryClickOption(
+  option: Awaited<ReturnType<ReturnType<Page['locator']>['all']>>[number],
+  accountLabel: string,
+): Promise<boolean> {
+  const text = (await option.innerText()).trim();
+  if (text !== accountLabel) return false;
+  await option.click();
+  return true;
+}
+
+/**
  * Click the dropdown option matching the given account label.
  * @param page - The Playwright page instance.
  * @param accountLabel - The label text to match.
  * @returns True if a matching option was clicked.
  */
 async function clickMatchingOption(page: Page, accountLabel: string): Promise<boolean> {
-  const accountOptions = await page.$$(OPTION_SELECTOR);
-  const clickTasks = accountOptions.map(async option => {
-    const text = await page.evaluate(el => el.textContent.trim(), option);
-    if (text === accountLabel) {
-      const optionHandle = await option.evaluateHandle(el => el as HTMLElement);
-      await page.evaluate((el: HTMLElement) => {
-        el.click();
-      }, optionHandle);
-      return true;
-    }
-    return false;
-  });
+  const optionsLoc = page.locator(OPTION_SELECTOR);
+  const allOptions = await optionsLoc.all();
+  const clickTasks = allOptions.map(o => tryClickOption(o, accountLabel));
   const results = await Promise.all(clickTasks);
   return results.some(Boolean);
 }
@@ -135,37 +148,13 @@ export async function selectAccountFromDropdown(
 type OptionalFrame = Frame | undefined;
 
 /**
- * Try to get a frame from an iframe element handle.
- * @param iframeEl - The element handle for the iframe.
- * @param attempt - Zero-based attempt index for logging.
- * @returns The content frame if available.
- */
-async function tryContentFrame(
-  iframeEl: Awaited<ReturnType<Page['$']>>,
-  attempt: number,
-): Promise<OptionalFrame> {
-  const noFrame: OptionalFrame = undefined;
-  if (!iframeEl) return noFrame;
-  try {
-    const frame = await iframeEl.contentFrame();
-    if (frame) return frame;
-  } catch (e: unknown) {
-    LOG.debug(e, 'attempt %d: iframe element stale or not an iframe', attempt + 1);
-  }
-  return noFrame;
-}
-
-/**
- * Try a single attempt to locate the transactions iframe.
+ * Try a single attempt to locate the transactions iframe by name.
  * @param page - The Playwright page instance.
  * @param attempt - Zero-based attempt index for logging.
  * @returns The frame if found, or undefined if not yet available.
  */
 async function tryGetFrameAttempt(page: Page, attempt: number): Promise<OptionalFrame> {
   await page.waitForTimeout(TRANSACTIONS_FRAME_WAIT_MS);
-  const iframeEl = await page.$(`#${IFRAME_NAME}`).catch(() => null);
-  const fromElement = await tryContentFrame(iframeEl, attempt);
-  if (fromElement) return fromElement;
   const byName = page.frames().find(f => f.name() === IFRAME_NAME);
   if (byName) return byName;
   LOG.debug(

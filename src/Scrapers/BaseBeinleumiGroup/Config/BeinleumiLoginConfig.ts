@@ -1,8 +1,28 @@
 import { type Page } from 'playwright-core';
 
-import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
+
+/**
+ * Build text-based waiters from WELL_KNOWN dashboard categories.
+ * @param page - The Playwright page to build waiters for.
+ * @returns Array of promises that resolve when a dashboard element is visible.
+ */
+function buildDashboardWaiters(page: Page): Promise<boolean>[] {
+  const candidates = [
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
+  ];
+  return candidates
+    .filter(c => c.kind === 'textContent')
+    .map(async c => {
+      const loc = page.getByText(c.value).first();
+      await loc.waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+}
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -12,13 +32,8 @@ import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 async function beinleumiPostAction(
   page: Page,
 ): ReturnType<NonNullable<ILoginConfig['postAction']>> {
-  await Promise.race([
-    page.waitForSelector('#card-header'),
-    page.waitForSelector('#account_num'),
-    page.waitForSelector('#matafLogoutLink'),
-    page.waitForSelector('#validationMsg'),
-    page.waitForSelector('[class*="account-summary"]', { timeout: 30000 }),
-  ]).catch(() => {
+  const waiters = buildDashboardWaiters(page);
+  await Promise.race(waiters).catch(() => {
     // intentionally ignore timeout — any matched selector is sufficient
   });
 }
@@ -30,8 +45,7 @@ export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
 ];
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
-  { kind: 'css', value: '#continueBtn' },
-  // textContent 'המשך'/'כניסה' fallback is in wellKnownSelectors.__submit__
+  // wellKnown __submit__ provides 'המשך'/'כניסה' text-based fallbacks
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
@@ -40,24 +54,44 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
 };
 
 /**
+ * Check if a single login text candidate is visible and click it.
+ * @param page - The Playwright page.
+ * @param text - The visible text to search for.
+ * @returns True if the text was found and clicked.
+ */
+async function tryClickSingleText(page: Page, text: string): Promise<boolean> {
+  const loc = page.getByText(text).first();
+  const isTextVisible = await loc.isVisible().catch(() => false);
+  if (!isTextVisible) return false;
+  await loc.click();
+  return true;
+}
+
+/**
+ * Try clicking a login trigger by visible text from WELL_KNOWN loginLink.
+ * @param page - The Playwright page.
+ * @returns True if a login trigger was found and clicked.
+ */
+async function tryClickLoginTrigger(page: Page): Promise<boolean> {
+  const textCandidates = WELL_KNOWN_DASHBOARD_SELECTORS.loginLink.filter(
+    c => c.kind === 'textContent',
+  );
+  const loginTexts = textCandidates.map(c => c.value);
+  const clickAttempts = loginTexts.map(t => tryClickSingleText(page, t));
+  const results = await Promise.all(clickAttempts);
+  return results.some(Boolean);
+}
+
+/**
  * Click the login trigger if present, then wait for the form to render.
  * @param page - The Playwright page to interact with.
  * @returns The login iframe if found, or undefined.
  */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
-  if (hasTrigger) {
-    await page.evaluate(() => {
-      const el = document.querySelector('a.login-trigger');
-      if (el instanceof HTMLElement) el.click();
-    });
-    await page.waitForTimeout(2000);
-    const loginFrame = page.frames().find(f => f.url().includes('login'));
-    return loginFrame;
-  }
-  await page.waitForTimeout(1000);
-  const loginFrame = page.frames().find(f => f.url().includes('login'));
-  return loginFrame;
+  const hasTrigger = await tryClickLoginTrigger(page);
+  const waitMs = hasTrigger ? 2000 : 1000;
+  await page.waitForTimeout(waitMs);
+  return page.frames().find(f => f.url().includes('login'));
 }
 
 /**

@@ -159,30 +159,117 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
   ],
 } satisfies Record<string, SelectorCandidate[]>;
 
-/** Global dashboard-field fallback dictionary used by resolveDashboardField(). */
+/**
+ * Global dashboard/navigation fallback dictionary.
+ * Used by resolveDashboardField() and bank configs for post-login detection.
+ * Hebrew text first — same concept expressed in all bank variants.
+ */
 export const WELL_KNOWN_DASHBOARD_SELECTORS = {
+  /** Login/enter link — navigate to login page or personal area */
+  loginLink: [
+    { kind: 'textContent', value: 'כניסה רגילה' },
+    { kind: 'textContent', value: 'כניסה עם שם משתמש' },
+    { kind: 'textContent', value: 'כניסה לחשבון' },
+    { kind: 'textContent', value: 'כניסה לאיזור האישי' },
+    { kind: 'textContent', value: 'כניסה והרשמה' },
+    { kind: 'textContent', value: 'התחברות' },
+    { kind: 'textContent', value: 'כניסה' },
+    { kind: 'ariaLabel', value: 'כניסה לחשבון' },
+  ],
+  /** Logout/disconnect link */
+  logoutLink: [
+    { kind: 'textContent', value: 'יציאה' },
+    { kind: 'textContent', value: 'התנתק' },
+    { kind: 'textContent', value: 'התנתקות' },
+    { kind: 'textContent', value: 'יציאה מהחשבון' },
+  ],
+  /** Error/invalid credentials indicators */
+  errorIndicator: [
+    { kind: 'textContent', value: 'פרטים שגויים' },
+    { kind: 'textContent', value: 'שכחת את הפרטים?' },
+    { kind: 'textContent', value: 'שגיאה' },
+    { kind: 'textContent', value: 'או לשחזר בקלות' },
+    { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
+    { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
+  ],
+  /** Close/dismiss popup or overlay */
+  closeElement: [
+    { kind: 'textContent', value: 'סגור' },
+    { kind: 'textContent', value: 'close' },
+    { kind: 'textContent', value: 'ביטול' },
+    { kind: 'textContent', value: '✕' },
+    { kind: 'ariaLabel', value: 'סגור' },
+    { kind: 'ariaLabel', value: 'close' },
+  ],
+  /** Account selector/dropdown */
+  accountSelector: [
+    { kind: 'textContent', value: 'חשבון' },
+    { kind: 'textContent', value: 'בחר חשבון' },
+    { kind: 'textContent', value: 'חשבונות' },
+    { kind: 'ariaLabel', value: 'בחר חשבון' },
+  ],
+  /** Dashboard/homepage indicators — successful login detection */
+  dashboardIndicator: [
+    { kind: 'textContent', value: 'שלום' },
+    { kind: 'textContent', value: 'חשבון עו"ש' },
+    { kind: 'textContent', value: 'תנועות אחרונות' },
+    { kind: 'textContent', value: 'יתרה' },
+    { kind: 'textContent', value: 'סך הכל' },
+  ],
+  /** Password change required indicators */
+  changePasswordIndicator: [
+    { kind: 'textContent', value: 'שינוי סיסמה' },
+    { kind: 'textContent', value: 'חידוש סיסמה' },
+    { kind: 'textContent', value: 'עדכון סיסמה' },
+  ],
+  /** Private customers / personal area navigation */
+  privateCustomers: [
+    { kind: 'textContent', value: 'לקוחות פרטיים' },
+    { kind: 'textContent', value: 'אזור אישי' },
+    { kind: 'textContent', value: 'כניסה עם סיסמה' },
+  ],
+  /** Transactions link/tab */
+  transactionsLink: [
+    { kind: 'textContent', value: 'תנועות' },
+    { kind: 'textContent', value: 'פעולות' },
+    { kind: 'textContent', value: 'תנועות אחרונות' },
+    { kind: 'textContent', value: 'פירוט תנועות' },
+  ],
+  /** Skip/continue navigation */
+  skipLink: [
+    { kind: 'textContent', value: 'דלג' },
+    { kind: 'textContent', value: 'דלג לחשבון' },
+    { kind: 'textContent', value: 'המשך' },
+  ],
+  /** Balance display */
   balance: [
-    { kind: 'css', value: '.balance' },
-    { kind: 'css', value: '[data-testid="balance"]' },
+    { kind: 'textContent', value: 'יתרה' },
+    { kind: 'textContent', value: 'סה"כ' },
     { kind: 'ariaLabel', value: 'יתרה' },
-    { kind: 'ariaLabel', value: 'balance' },
   ],
+  /** Loading indicator */
   loadingIndicator: [
-    { kind: 'css', value: '.react-loading.hide' },
-    { kind: 'css', value: '[data-loading]' },
-    { kind: 'css', value: '.spinner' },
+    { kind: 'css', value: '[role="progressbar"]' },
+    { kind: 'ariaLabel', value: 'טוען' },
+    { kind: 'textContent', value: 'טוען' },
   ],
-  /** Generic date-from filter input — Hebrew placeholder variants + HTML5 date input */
+  /** Date filter input */
   fromDateInput: [
     { kind: 'placeholder', value: 'מתאריך' },
     { kind: 'placeholder', value: 'מהתאריך' },
     { kind: 'placeholder', value: 'תאריך התחלה' },
     { kind: 'css', value: 'input[type="date"]' },
   ],
-  /** Generic loading spinner — Yahav, generic patterns */
-  loadingSpinner: [
-    { kind: 'css', value: '.loading-bar-spinner' },
-    { kind: 'css', value: '.loading' },
-    { kind: 'css', value: '[role="progressbar"]' },
+  /** ID verification form indicators (Max second-login) */
+  idFormIndicator: [
+    { kind: 'textContent', value: 'תעודת הזהות' },
+    { kind: 'textContent', value: 'תעודת זהות' },
+    { kind: 'textContent', value: 'ת.ז.' },
+  ],
+  /** Pending transactions tab/link */
+  pendingTransactions: [
+    { kind: 'textContent', value: 'פעולות עתידיות' },
+    { kind: 'textContent', value: 'תנועות עתידיות' },
+    { kind: 'textContent', value: 'המתנה' },
   ],
 } satisfies Record<string, SelectorCandidate[]>;

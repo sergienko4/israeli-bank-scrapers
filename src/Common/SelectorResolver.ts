@@ -313,15 +313,6 @@ export async function resolveFieldWithCache(opts: ICachedResolveOpts): Promise<I
 }
 
 /**
- * Extract the first CSS string from a SelectorCandidate array.
- * @param candidates - The array of selector candidates to extract from.
- * @returns The first CSS selector string, or empty string if array is empty.
- */
-export function toFirstCss(candidates: SelectorCandidate[]): string {
-  return candidates.length > 0 ? candidateToCss(candidates[0]) : '';
-}
-
-/**
  * Resolve a dashboard data field using the same pipeline as login resolution.
  * @param opts - The dashboard field options including page, field key, candidates, and URL.
  * @returns A IFieldContext with resolution details.

@@ -33,6 +33,74 @@ async function isErrorTextOnPage(opts?: { page?: Page }): Promise<boolean> {
 /** No iframe override — preAction runs on the main page. */
 const NO_FRAME: Frame | undefined = ([] as Frame[]).shift();
 
+/**
+ * Dismiss the close/popup button if visible on the page.
+ * @param page - Playwright page to check for popup.
+ * @returns True if popup was dismissed, false if not present.
+ */
+async function dismissClosePopup(page: Page): Promise<boolean> {
+  const closeEl = page.getByText(/סגור|close/i).first();
+  if (await closeEl.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await closeEl.click();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Navigate to the personal area login page.
+ * @param page - Playwright page to navigate.
+ * @returns True after navigation completes.
+ */
+async function navigateToPersonalArea(page: Page): Promise<boolean> {
+  await clickButton(page, '.personal-area > a.go-to-personal-area');
+  return true;
+}
+
+/**
+ * Select the password login tab and wait for the form.
+ * @param page - Playwright page to interact with.
+ * @returns True after the password tab form is visible.
+ */
+async function selectPasswordTab(page: Page): Promise<boolean> {
+  const privateLoc = page.locator('.login-link#private');
+  if ((await privateLoc.count()) > 0) await privateLoc.click();
+  await waitUntilElementFound(page, '#login-password-link', { visible: true });
+  await clickButton(page, '#login-password-link');
+  await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
+    visible: true,
+  });
+  return true;
+}
+
+/**
+ * Build waitFor promises for each known error text.
+ * @param page - Playwright page to observe.
+ * @returns Array of promises that resolve to true when error text is visible.
+ */
+function buildErrorWaiters(page: Page): Promise<boolean>[] {
+  return WRONG_DETAILS_TEXTS.map(async (text): Promise<boolean> => {
+    await page.getByText(text).first().waitFor({ state: 'visible', timeout: 20000 });
+    return true;
+  });
+}
+
+/**
+ * Race redirect against error text visibility after login submission.
+ * @param page - Playwright page to observe after submit.
+ * @returns True after a post-login condition is detected or timeout.
+ */
+async function waitForRedirectOrErrors(page: Page): Promise<boolean> {
+  const redirectPromise = waitForRedirect(page, {
+    timeout: 20000,
+    ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
+  });
+  await Promise.race([redirectPromise, ...buildErrorWaiters(page)]).catch(() => {
+    // Expected: race may reject when none of the conditions match within timeout
+  });
+  return true;
+}
+
 const BASE_CFG: ILoginConfig = {
   loginUrl: 'https://www.max.co.il/login',
   fields: [
@@ -70,18 +138,9 @@ const BASE_CFG: ILoginConfig = {
    * @returns Resolved promise after pre-login navigation completes (no frame override).
    */
   preAction: async (page: Page): Promise<Frame | undefined> => {
-    const closeBtn = page.getByRole('button', { name: /סגור|close/i });
-    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await closeBtn.click();
-    }
-    await clickButton(page, '.personal-area > a.go-to-personal-area');
-    const privateLoc = page.locator('.login-link#private');
-    if ((await privateLoc.count()) > 0) await privateLoc.click();
-    await waitUntilElementFound(page, '#login-password-link', { visible: true });
-    await clickButton(page, '#login-password-link');
-    await waitUntilElementFound(page, '#login-password.tab-pane.active app-user-login-form', {
-      visible: true,
-    });
+    await dismissClosePopup(page);
+    await navigateToPersonalArea(page);
+    await selectPasswordTab(page);
     return NO_FRAME;
   },
   /**
@@ -90,18 +149,7 @@ const BASE_CFG: ILoginConfig = {
    * @returns True when post-login condition is detected.
    */
   postAction: async (page: Page): Promise<void> => {
-    const errorWaiters = WRONG_DETAILS_TEXTS.map(text =>
-      page.getByText(text).first().waitFor({ state: 'visible', timeout: 20000 }),
-    );
-    await Promise.race([
-      waitForRedirect(page, {
-        timeout: 20000,
-        ignoreList: ['https://www.max.co.il', 'https://www.max.co.il/'],
-      }),
-      ...errorWaiters,
-    ]).catch(() => {
-      // Expected: race may reject when none of the conditions match within timeout
-    });
+    await waitForRedirectOrErrors(page);
   },
   possibleResults: {
     success: ['https://www.max.co.il/homepage/personal'],

@@ -34,6 +34,7 @@ export interface IMockPage {
   click: jest.Mock;
   locator: jest.Mock;
   getByText: jest.Mock;
+  getByLabel: jest.Mock;
   getByRole: jest.Mock;
   cookies?: jest.Mock;
   [key: string]: jest.Mock | undefined;
@@ -114,14 +115,31 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
         isVisible: jest.fn().mockResolvedValue(true),
         waitFor: jest.fn().mockResolvedValue(undefined),
         count: jest.fn().mockResolvedValue(1),
+        evaluate: jest.fn().mockResolvedValue(undefined),
+        getAttribute: jest.fn().mockResolvedValue(null),
+        innerText: jest.fn().mockResolvedValue(''),
       }),
       count: jest.fn().mockResolvedValue(0),
+      evaluateAll: jest.fn().mockResolvedValue([]),
+      allInnerTexts: jest.fn().mockResolvedValue([]),
+      all: jest.fn().mockResolvedValue([]),
     }),
     getByText: jest.fn().mockImplementation(() => {
       const loc = {
         first: jest.fn(),
         isVisible: jest.fn().mockResolvedValue(false),
         waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+      };
+      loc.first.mockReturnValue(loc);
+      return loc;
+    }),
+    getByLabel: jest.fn().mockImplementation(() => {
+      const loc = {
+        first: jest.fn(),
+        isVisible: jest.fn().mockResolvedValue(false),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        fill: jest.fn().mockResolvedValue(undefined),
         click: jest.fn().mockResolvedValue(undefined),
       };
       loc.first.mockReturnValue(loc);

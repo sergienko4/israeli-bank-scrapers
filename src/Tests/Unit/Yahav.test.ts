@@ -108,12 +108,23 @@ const CREDS = { username: 'testuser', password: 'testpass', nationalID: '1234567
  */
 function createYahavPage(): ReturnType<typeof MOCK_PAGE_MOD.createMockPage> {
   return MOCK_PAGE_MOD.createMockPage({
-    $eval: jest.fn().mockImplementation((selector: string) => {
-      if (selector.includes('portfolio-value')) return 'ACC-12345';
-      if (selector.includes('.pmu-years')) return '2025';
-      if (selector.includes('.pmu-days')) return '1';
-      return '';
-    }),
+    locator: jest.fn().mockImplementation(() => ({
+      first: jest.fn().mockReturnValue({
+        innerText: jest.fn().mockResolvedValue('ACC-12345'),
+        waitFor: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+        count: jest.fn().mockResolvedValue(1),
+        evaluate: jest.fn().mockResolvedValue(undefined),
+        getAttribute: jest.fn().mockResolvedValue(null),
+      }),
+      count: jest.fn().mockResolvedValue(1),
+      locator: jest.fn().mockReturnValue({
+        first: jest.fn().mockReturnValue({
+          click: jest.fn().mockResolvedValue(undefined),
+        }),
+      }),
+      all: jest.fn().mockResolvedValue([]),
+    })),
     waitForSelector: jest.fn().mockResolvedValue(undefined),
   });
 }

@@ -45,7 +45,6 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn((c: { value: string }) => c.value),
   extractCredentialKey: jest.fn((s: string) => s),
   tryInContext: jest.fn().mockResolvedValue(null),
-  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
@@ -112,6 +111,40 @@ function resetMocks(): number {
   return ALL_MOCKS.length;
 }
 /**
+ * Build locator-related stubs wired to shared mocks.
+ * @returns Locator, getByText, and getByRole stubs.
+ */
+function makeLocatorStub(): Pick<Page, 'locator' | 'getByText' | 'getByRole'> {
+  return {
+    locator: MOCK_LOCATOR as Page['locator'],
+    getByText: MOCK_GET_BY_TEXT as Page['getByText'],
+    getByRole: MOCK_GET_BY_ROLE as Page['getByRole'],
+  };
+}
+/**
+ * Build core page stubs (url, eval, waitFor*, frames).
+ * @param url - The URL the mock page reports.
+ * @param bodyText - The visible body text for detectIdForm.
+ * @returns Core page stubs.
+ */
+function makePageCoreStub(
+  url: string,
+  bodyText: string,
+): Pick<
+  Page,
+  'url' | '$eval' | 'evaluate' | 'waitForSelector' | 'waitForURL' | 'waitForTimeout' | 'frames'
+> {
+  return {
+    url: jest.fn().mockReturnValue(url) as Page['url'],
+    $eval: MOCK_PAGE_EVAL as Page['$eval'],
+    evaluate: jest.fn().mockResolvedValue(bodyText) as Page['evaluate'],
+    waitForSelector: MOCK_WAIT_FOR_SELECTOR as Page['waitForSelector'],
+    waitForURL: MOCK_WAIT_FOR_URL as Page['waitForURL'],
+    waitForTimeout: jest.fn().mockResolvedValue(undefined) as Page['waitForTimeout'],
+    frames: jest.fn().mockReturnValue([]) as Page['frames'],
+  };
+}
+/**
  * Create a mock Page with configurable URL and body text.
  * @param url - The URL the mock page reports.
  * @param bodyText - The visible body text for detectIdForm.
@@ -119,18 +152,7 @@ function resetMocks(): number {
  */
 function makeMockPage(url = 'https://www.max.co.il/login', bodyText = ''): Page {
   resetMocks();
-  return {
-    url: jest.fn().mockReturnValue(url),
-    $eval: MOCK_PAGE_EVAL,
-    evaluate: jest.fn().mockResolvedValue(bodyText),
-    waitForSelector: MOCK_WAIT_FOR_SELECTOR,
-    waitForURL: MOCK_WAIT_FOR_URL,
-    waitForTimeout: jest.fn().mockResolvedValue(undefined),
-    locator: MOCK_LOCATOR,
-    getByText: MOCK_GET_BY_TEXT,
-    getByRole: MOCK_GET_BY_ROLE,
-    frames: jest.fn().mockReturnValue([]),
-  } as unknown as Page;
+  return { ...makePageCoreStub(url, bodyText), ...makeLocatorStub() } as unknown as Page;
 }
 /**
  * Build a post-action from credentials.
@@ -231,10 +253,8 @@ describe('MAX_CONFIG', () => {
   describe('possibleResults.success', () => {
     /** First success predicate.
      * @returns The checker function. */
-    function getChecker(): (input: { page?: { url(): string } }) => boolean {
-      return MAX_CONFIG.possibleResults.success[0] as (input: {
-        page?: { url(): string };
-      }) => boolean;
+    function getChecker(): (_: { page?: { url(): string } }) => boolean {
+      return MAX_CONFIG.possibleResults.success[0] as (_: { page?: { url(): string } }) => boolean;
     }
     /** Homepage URL stub.
      * @returns The homepage URL. */
@@ -263,14 +283,14 @@ describe('MAX_CONFIG', () => {
       const errorLoc = makeMockLocator(true);
       MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
-      const checker = invalidPwCheckers[0] as (input: { page: Page }) => Promise<boolean>;
+      const checker = invalidPwCheckers[0] as (_: { page: Page }) => Promise<boolean>;
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(true);
     });
     it('returns false when error text is absent', async () => {
       const page = makeMockPage();
       const invalidPwCheckers = MAX_CONFIG.possibleResults.invalidPassword ?? [];
-      const checker = invalidPwCheckers[0] as (input: { page: Page }) => Promise<boolean>;
+      const checker = invalidPwCheckers[0] as (_: { page: Page }) => Promise<boolean>;
       const isInvalid = await checker({ page });
       expect(isInvalid).toBe(false);
     });
@@ -281,14 +301,14 @@ describe('MAX_CONFIG', () => {
       const errorLoc = makeMockLocator(true);
       MOCK_GET_BY_TEXT.mockReturnValue(errorLoc);
       const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
-      const checker = unknownErrCheckers[0] as (input: { page: Page }) => Promise<boolean>;
+      const checker = unknownErrCheckers[1] as (_: { page: Page }) => Promise<boolean>;
       const isError = await checker({ page });
       expect(isError).toBe(true);
     });
     it('returns false when error text is absent', async () => {
       const page = makeMockPage();
       const unknownErrCheckers = MAX_CONFIG.possibleResults.unknownError ?? [];
-      const checker = unknownErrCheckers[0] as (input: { page: Page }) => Promise<boolean>;
+      const checker = unknownErrCheckers[1] as (_: { page: Page }) => Promise<boolean>;
       const isError = await checker({ page });
       expect(isError).toBe(false);
     });
@@ -315,12 +335,11 @@ describe('MAX_CONFIG', () => {
     });
     it('closes popup if present before navigating', async () => {
       const page = makeMockPage();
-      const closeBtn = makeMockLocator(true);
-      MOCK_GET_BY_ROLE.mockReturnValue(closeBtn);
-      const preAction =
-        MAX_CONFIG.preAction ?? ((): Promise<undefined> => Promise.resolve(undefined));
-      await preAction(page);
-      expect(closeBtn.click).toHaveBeenCalled();
+      const closeEl = makeMockLocator(true);
+      MOCK_GET_BY_TEXT.mockReturnValue(closeEl);
+      const preAction = MAX_CONFIG.preAction;
+      if (preAction) await preAction(page);
+      expect(closeEl.click).toHaveBeenCalled();
     });
   });
 });
