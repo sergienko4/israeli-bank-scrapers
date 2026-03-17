@@ -44,24 +44,17 @@ const MOD = await import('../../Scrapers/BaseBeinleumiGroup/BaseBeinleumiGroupHe
 const { TransactionStatuses: TXN_STATUSES } = await import('../../Transactions.js');
 
 describe('getTxnAmount', () => {
-  it('returns credit when debit is NaN', () => {
-    const result = MOD.getTxnAmount({ credit: '100.50', debit: '' } as never);
-    expect(result).toBeCloseTo(100.5);
-  });
+  const cases: readonly [string, string, string, number][] = [
+    ['returns credit when debit is NaN', '100.50', '', 100.5],
+    ['returns negative debit when credit is NaN', '', '200.00', -200],
+    ['returns difference when both are valid', '100', '30', 70],
+    ['returns 0 when both are empty', '', '', 0],
+  ] as const;
 
-  it('returns negative debit when credit is NaN', () => {
-    const result = MOD.getTxnAmount({ credit: '', debit: '200.00' } as never);
-    expect(result).toBeCloseTo(-200);
-  });
-
-  it('returns difference when both are valid', () => {
-    const result = MOD.getTxnAmount({ credit: '100', debit: '30' } as never);
-    expect(result).toBeCloseTo(70);
-  });
-
-  it('returns 0 when both are empty', () => {
-    const result = MOD.getTxnAmount({ credit: '', debit: '' } as never);
-    expect(result).toBe(0);
+  it.each(cases)('%s', (...args) => {
+    const [, credit, debit, expected] = args;
+    const result = MOD.getTxnAmount({ credit, debit } as never);
+    expect(result).toBeCloseTo(expected);
   });
 });
 

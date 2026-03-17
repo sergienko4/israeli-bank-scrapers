@@ -93,42 +93,38 @@ describe('scopeCandidates — array mapping', () => {
   });
 });
 
+/**
+ * Build a mock context for discoverFormAnchor tests.
+ * @param count - Locator element count.
+ * @param evaluateVal - Value returned by evaluate().
+ * @returns Mock context object.
+ */
+function makeDiscoverCtx(count: number, evaluateVal: string): Record<string, jest.Mock> {
+  return {
+    locator: jest.fn().mockReturnValue({
+      first: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(count),
+        evaluate: jest.fn().mockResolvedValue(evaluateVal),
+      }),
+    }),
+  };
+}
+
 describe('discoverFormAnchor', () => {
   it('returns null when locator count is 0', async () => {
-    const ctx = {
-      locator: jest.fn().mockReturnValue({
-        first: jest.fn().mockReturnValue({
-          count: jest.fn().mockResolvedValue(0),
-          evaluate: jest.fn(),
-        }),
-      }),
-    };
+    const ctx = makeDiscoverCtx(0, '');
     const result = await DISCOVER_FORM_ANCHOR(ctx as never, '#nonexistent');
     expect(result).toBeNull();
   });
 
   it('returns null when evaluate returns empty string', async () => {
-    const ctx = {
-      locator: jest.fn().mockReturnValue({
-        first: jest.fn().mockReturnValue({
-          count: jest.fn().mockResolvedValue(1),
-          evaluate: jest.fn().mockResolvedValue(''),
-        }),
-      }),
-    };
+    const ctx = makeDiscoverCtx(1, '');
     const result = await DISCOVER_FORM_ANCHOR(ctx as never, '#input');
     expect(result).toBeNull();
   });
 
   it('returns form anchor when evaluate returns a selector', async () => {
-    const ctx = {
-      locator: jest.fn().mockReturnValue({
-        first: jest.fn().mockReturnValue({
-          count: jest.fn().mockResolvedValue(1),
-          evaluate: jest.fn().mockResolvedValue('#loginForm'),
-        }),
-      }),
-    };
+    const ctx = makeDiscoverCtx(1, '#loginForm');
     const result = await DISCOVER_FORM_ANCHOR(ctx as never, '#input');
     expect(result).toBeDefined();
     expect(result?.selector).toBe('#loginForm');

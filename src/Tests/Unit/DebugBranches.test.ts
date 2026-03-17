@@ -29,12 +29,12 @@ describe('Bank Context Execution', () => {
     expect(outer).toBe('outer-inner');
   });
 
-  it('returns undefined from void function', () => {
-    let callResult: string | undefined;
+  it('executes the callback (verified via sentinel)', () => {
+    let callResult = 'not-called';
     runWithBankContext('max', () => {
-      callResult = undefined;
+      callResult = 'was-called';
     });
-    expect(callResult).toBeUndefined();
+    expect(callResult).toBe('was-called');
   });
 });
 

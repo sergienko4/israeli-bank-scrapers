@@ -38,13 +38,13 @@ describe('isAuthModule — additional branch coverage', () => {
     expect(isAuth).toBe(true);
   });
 
-  it('returns false for zero number input', () => {
-    const isAuth = isAuthModule(0);
-    expect(isAuth).toBe(false);
-  });
+  const falsyCases = [
+    ['zero number', 0],
+    ['false boolean', false],
+  ] as const;
 
-  it('returns false for false boolean', () => {
-    const isAuth = isAuthModule(false);
+  it.each(falsyCases)('returns false for %s input', (_label, input) => {
+    const isAuth = isAuthModule(input);
     expect(isAuth).toBe(false);
   });
 });

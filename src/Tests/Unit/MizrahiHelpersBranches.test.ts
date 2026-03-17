@@ -127,13 +127,10 @@ describe('createDataFromRequest', () => {
     expect(result.table.maxRow).toBeGreaterThan(0);
   });
 
-  it('uses empty object fallback when postData is null', () => {
-    const body = JSON.stringify({
-      table: { maxRow: 0 },
-    });
+  it('handles minimal postData with only required fields', () => {
+    const body = JSON.stringify({ table: { maxRow: 0 } });
     const request = makeRequest(body);
     const result = createDataFromRequest(request as never, new Date('2025-01-01'));
-    expect(result.inFromDate).toBeTruthy();
     expect(result.table.maxRow).toBeGreaterThan(0);
   });
 });

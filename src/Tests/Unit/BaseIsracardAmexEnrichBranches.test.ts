@@ -4,6 +4,7 @@
  * Header.Status missing, getAdditionalTransactionInformation enrichment path.
  */
 import { jest } from '@jest/globals';
+import type { Page } from 'playwright-core';
 
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import type { IScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes.js';
@@ -108,7 +109,7 @@ function makeTxn(overrides: Partial<IScrapedTransaction> = {}): IScrapedTransact
  */
 function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
-    companyId: 'hapoalim' as ScraperOptions['companyId'],
+    companyId: 'isracard' as ScraperOptions['companyId'],
     startDate: new Date('2024-01-01'),
     ...overrides,
   } as ScraperOptions;
@@ -124,7 +125,7 @@ describe('getExtraScrapTransaction — null response', () => {
   it('returns original transaction when fetchGetWithinPage returns null', async () => {
     (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValueOnce(null);
     const result = await ENRICH_MODULE.getExtraScrapTransaction({
-      page: page as never,
+      page: page as unknown as Page,
       options: { servicesUrl: 'https://example.com/api', companyCode: '11' },
       month: MOMENT_MODULE.default('2024-06-01'),
       accountIndex: 0,
@@ -145,7 +146,7 @@ describe('fetchTransactionsForMonth — missing CardsTransactionsListBean', () =
       Header: { Status: '1' },
     });
     const opts = {
-      page: page as never,
+      page: page as unknown as Page,
       options: makeOptions(),
       companyServiceOptions: { servicesUrl: 'https://example.com', companyCode: '11' },
       startMoment: MOMENT_MODULE.default('2024-01-01'),
@@ -169,7 +170,7 @@ describe('getAdditionalTransactionInformation — enrichment path', () => {
     const result = await ENRICH_MODULE.getAdditionalTransactionInformation({
       scraperOptions: makeOptions({ shouldAddTransactionInformation: true }),
       accountsWithIndex: [accountMap],
-      page: page as never,
+      page: page as unknown as Page,
       options: { servicesUrl: 'https://example.com', companyCode: '11' },
       allMonths: [MOMENT_MODULE.default('2024-06-01')],
     });

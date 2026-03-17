@@ -257,10 +257,8 @@ describe('setupResponseLogging — coverage', () => {
     const page = CREATE_MOCK_PAGE();
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
     await new TestAmexScraper().scrape(CREDS);
-    const calls = page.on.mock.calls as [
-      string,
-      (r: { url: () => string; status: () => number }) => string,
-    ][];
+    type ResponseHandler = (_r: { url: () => string; status: () => number }) => string;
+    const calls = page.on.mock.calls as [string, ResponseHandler][];
     const onCall = calls.find(c => c[0] === 'response');
     expect(onCall).toBeDefined();
     const handler = onCall?.[1];

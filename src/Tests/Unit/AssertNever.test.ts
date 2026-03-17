@@ -8,6 +8,7 @@ describe('assertNever', () => {
   });
 
   it('throws ScraperError with custom message when provided', () => {
+    expect(() => assertNever('bad' as never, 'Custom error')).toThrow(ScraperError);
     expect(() => assertNever('bad' as never, 'Custom error')).toThrow('Custom error');
   });
 });

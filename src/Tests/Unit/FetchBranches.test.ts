@@ -1,53 +1,41 @@
 import { detectWafBlock } from '../../Common/Fetch.js';
 
 describe('detectWafBlock', () => {
-  it('detects WAF by status 429', () => {
-    const result = detectWafBlock(429, '');
-    expect(result).toBe('HTTP 429');
+  const wafCases = [
+    ['detects WAF by status 429', 429, '', 'HTTP 429'],
+    ['detects WAF by status 503', 503, '', 'HTTP 503'],
+    [
+      'detects "block automation"',
+      200,
+      '<html>Please Block Automation detected</html>',
+      'block automation',
+    ],
+    [
+      'detects "attention required"',
+      200,
+      '<title>Attention Required! | Cloudflare</title>',
+      'attention required',
+    ],
+    ['detects "just a moment"', 200, '<h1>Just a moment...</h1>', 'just a moment'],
+    ['detects "access denied"', 200, '<h1>Access Denied</h1>', 'access denied'],
+  ] as const;
+
+  it.each(wafCases)('%s', (...args) => {
+    const [, status, body, expected] = args;
+    const result = detectWafBlock(status, body);
+    expect(result).toContain(expected);
   });
 
-  it('detects WAF by status 503', () => {
-    const result = detectWafBlock(503, '');
-    expect(result).toBe('HTTP 503');
-  });
+  const cleanCases = [
+    ['returns empty for 200 with clean body', 200, '{"data": "ok"}'],
+    ['returns empty for 200 with empty body', 200, ''],
+    ['returns empty for 200 with unrelated body', 200, '<html><body>Hello World</body></html>'],
+    ['returns empty for 204 No Content', 204, ''],
+  ] as const;
 
-  it('returns empty for normal 200 status with clean body', () => {
-    const result = detectWafBlock(200, '{"data": "ok"}');
-    expect(result).toBe('');
-  });
-
-  it('returns empty for normal 200 status with empty body', () => {
-    const result = detectWafBlock(200, '');
-    expect(result).toBe('');
-  });
-
-  it('detects WAF by "block automation" in body', () => {
-    const result = detectWafBlock(200, '<html>Please Block Automation detected</html>');
-    expect(result).toContain('block automation');
-  });
-
-  it('detects WAF by "attention required" in body', () => {
-    const result = detectWafBlock(200, '<title>Attention Required! | Cloudflare</title>');
-    expect(result).toContain('attention required');
-  });
-
-  it('detects WAF by "just a moment" in body', () => {
-    const result = detectWafBlock(200, '<h1>Just a moment...</h1>');
-    expect(result).toContain('just a moment');
-  });
-
-  it('detects WAF by "access denied" in body', () => {
-    const result = detectWafBlock(200, '<h1>Access Denied</h1>');
-    expect(result).toContain('access denied');
-  });
-
-  it('returns empty for 200 with unrelated body', () => {
-    const result = detectWafBlock(200, '<html><body>Hello World</body></html>');
-    expect(result).toBe('');
-  });
-
-  it('returns empty for 204 No Content', () => {
-    const result = detectWafBlock(204, '');
+  it.each(cleanCases)('%s', (...args) => {
+    const [, status, body] = args;
+    const result = detectWafBlock(status, body);
     expect(result).toBe('');
   });
 });

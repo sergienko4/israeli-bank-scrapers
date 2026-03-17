@@ -93,7 +93,7 @@ else
 fi
 
 AI_GUARD_MODEL="qwen2.5-coder:7b"
-if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf http://localhost:11434/api/tags | grep -q "$AI_GUARD_MODEL"; then
+if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf --max-time 3 http://localhost:11434/api/tags | grep -qF "\"name\":\"$AI_GUARD_MODEL\""; then
   bg_gate "ai-guard" bash -c "
     OUTPUT=\$(env AI_PROVIDER=ollama AI_MODEL=$AI_GUARD_MODEL AI_GUARD_TIMEOUT=120000 OLLAMA_NUM_GPU=0 npx ai-commit-guard 2>&1)
     EXIT_CODE=\$?

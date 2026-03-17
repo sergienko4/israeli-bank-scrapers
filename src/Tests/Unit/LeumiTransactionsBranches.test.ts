@@ -3,6 +3,7 @@
  * Targets: buildTxnsFromResponse, parseAccountResponse, extractGroup,
  * hasRequiredFields, buildTxnBase optional fields.
  */
+import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import {
   buildTxnsFromResponse,
   type ILeumiAccountResponse,
@@ -28,7 +29,10 @@ function makeRawTxn(overrides: Partial<ILeumiRawTransaction> = {}): ILeumiRawTra
 }
 
 describe('buildTxnsFromResponse', () => {
-  const defaultOptions = { companyId: 'leumi', startDate: new Date('2024-01-01') } as never;
+  const defaultOptions = {
+    companyId: 'leumi',
+    startDate: new Date('2024-01-01'),
+  } as unknown as ScraperOptions;
 
   it('returns empty array when both groups are null', () => {
     const response: ILeumiAccountResponse = {
@@ -87,7 +91,7 @@ describe('buildTxnsFromResponse', () => {
       companyId: 'leumi',
       startDate: new Date('2024-01-01'),
       includeRawTransaction: true,
-    } as never;
+    } as unknown as ScraperOptions;
     const txns = buildTxnsFromResponse(response, opts);
     expect(txns[0].rawTransaction).toBeDefined();
   });
@@ -121,19 +125,16 @@ describe('parseAccountResponse', () => {
     );
   });
 
-  it('throws when TodayTransactionsItems is not array or null', () => {
-    const jsonResp = JSON.stringify({
-      TodayTransactionsItems: 'invalid',
-      HistoryTransactionsItems: [],
-    });
-    expect(() => parseAccountResponse({ jsonResp })).toThrow('Unexpected Leumi response shape');
-  });
+  const invalidShapeCases = [
+    ['TodayTransactionsItems', { TodayTransactionsItems: 'invalid', HistoryTransactionsItems: [] }],
+    [
+      'HistoryTransactionsItems',
+      { TodayTransactionsItems: null, HistoryTransactionsItems: 'invalid' },
+    ],
+  ] as const;
 
-  it('throws when HistoryTransactionsItems is not array or null', () => {
-    const jsonResp = JSON.stringify({
-      TodayTransactionsItems: null,
-      HistoryTransactionsItems: 'invalid',
-    });
+  test.each(invalidShapeCases)('throws when %s is not array or null', (_field, payload) => {
+    const jsonResp = JSON.stringify(payload);
     expect(() => parseAccountResponse({ jsonResp })).toThrow('Unexpected Leumi response shape');
   });
 

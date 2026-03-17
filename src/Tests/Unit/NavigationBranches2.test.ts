@@ -29,19 +29,47 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 
 const NAV = await import('../../Common/Navigation.js');
 
+/**
+ * Create a mock page with optional method overrides.
+ * @param overrides - Partial mock methods to merge.
+ * @returns Mock page object.
+ */
+function makeMockPage(overrides: Record<string, jest.Mock> = {}): Record<string, jest.Mock> {
+  return {
+    url: jest.fn().mockReturnValue('about:blank'),
+    evaluate: jest.fn().mockResolvedValue(''),
+    waitForURL: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock page whose url() returns initial on first call, then target.
+ * @param initial - URL returned on the first call.
+ * @param target - URL returned on subsequent calls.
+ * @returns Mock page object with changing url().
+ */
+function createChangingUrlPage(initial: string, target: string): Record<string, jest.Mock> {
+  let callCount = 0;
+  return makeMockPage({
+    url: jest.fn().mockImplementation((): string => {
+      callCount += 1;
+      return callCount > 1 ? target : initial;
+    }),
+  });
+}
+
 describe('getCurrentUrl', () => {
   it('returns url() directly when isClientSide is false', () => {
-    const page = {
-      url: jest.fn().mockReturnValue('https://bank.co.il/home'),
-    };
+    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/home') });
     const result = NAV.getCurrentUrl(page as never, false);
     expect(result).toBe('https://bank.co.il/home');
   });
 
   it('calls evaluate for client-side URL when isClientSide is true', async () => {
-    const page = {
+    const page = makeMockPage({
       evaluate: jest.fn().mockResolvedValue('https://bank.co.il/spa'),
-    };
+    });
     const result = await NAV.getCurrentUrl(page as never, true);
     expect(result).toBe('https://bank.co.il/spa');
     expect(page.evaluate).toHaveBeenCalled();
@@ -50,9 +78,7 @@ describe('getCurrentUrl', () => {
 
 describe('waitForNavigation', () => {
   it('calls waitForURL with provided options', async () => {
-    const page = {
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-    };
+    const page = makeMockPage();
     const didNavigate = await NAV.waitForNavigation(page as never, {
       waitUntil: 'domcontentloaded',
     });
@@ -63,9 +89,7 @@ describe('waitForNavigation', () => {
 
 describe('waitForNavigationAndDomLoad', () => {
   it('waits with domcontentloaded', async () => {
-    const page = {
-      waitForURL: jest.fn().mockResolvedValue(undefined),
-    };
+    const page = makeMockPage();
     const didLoad = await NAV.waitForNavigationAndDomLoad(page as never);
     expect(didLoad).toBe(true);
   });
@@ -73,33 +97,13 @@ describe('waitForNavigationAndDomLoad', () => {
 
 describe('waitForRedirect', () => {
   it('resolves when URL changes with default opts', async () => {
-    let callCount = 0;
-    const page = {
-      /**
-       * Returns URL that changes after first call.
-       * @returns changing URL string.
-       */
-      url: jest.fn().mockImplementation((): string => {
-        callCount += 1;
-        return callCount > 1 ? 'https://bank.co.il/dashboard' : 'https://bank.co.il/login';
-      }),
-    };
+    const page = createChangingUrlPage('https://bank.co.il/login', 'https://bank.co.il/dashboard');
     const didRedirect = await NAV.waitForRedirect(page as never);
     expect(didRedirect).toBe(true);
   });
 
   it('resolves with explicit isClientSide and ignoreList', async () => {
-    let callCount = 0;
-    const page = {
-      /**
-       * Returns URL that changes after first call.
-       * @returns changing URL string.
-       */
-      url: jest.fn().mockImplementation((): string => {
-        callCount += 1;
-        return callCount > 1 ? 'https://bank.co.il/dashboard' : 'https://bank.co.il/login';
-      }),
-    };
+    const page = createChangingUrlPage('https://bank.co.il/login', 'https://bank.co.il/dashboard');
     const didRedirect = await NAV.waitForRedirect(page as never, {
       timeout: 5000,
       isClientSide: false,
@@ -109,9 +113,7 @@ describe('waitForRedirect', () => {
   });
 
   it('throws on timeout when URL never changes', async () => {
-    const page = {
-      url: jest.fn().mockReturnValue('https://bank.co.il/login'),
-    };
+    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/login') });
     const promise = NAV.waitForRedirect(page as never, { timeout: 500 });
     await expect(promise).rejects.toThrow();
   });
@@ -119,41 +121,22 @@ describe('waitForRedirect', () => {
 
 describe('waitForUrl', () => {
   it('resolves when URL matches string target with default opts', async () => {
-    let callCount = 0;
-    const page = {
-      /**
-       * Returns URL that matches after first call.
-       * @returns changing URL string.
-       */
-      url: jest.fn().mockImplementation((): string => {
-        callCount += 1;
-        return callCount > 1 ? 'https://bank.co.il/target' : 'https://bank.co.il/loading';
-      }),
-    };
+    const page = createChangingUrlPage('https://bank.co.il/loading', 'https://bank.co.il/target');
     const didMatch = await NAV.waitForUrl(page as never, 'https://bank.co.il/target');
     expect(didMatch).toBe(true);
   });
 
   it('resolves when URL matches regex target', async () => {
-    let callCount = 0;
-    const page = {
-      /**
-       * Returns URL matching regex after first call.
-       * @returns changing URL string.
-       */
-      url: jest.fn().mockImplementation((): string => {
-        callCount += 1;
-        return callCount > 1 ? 'https://bank.co.il/dashboard/123' : 'https://bank.co.il/loading';
-      }),
-    };
+    const page = createChangingUrlPage(
+      'https://bank.co.il/loading',
+      'https://bank.co.il/dashboard/123',
+    );
     const didMatchRegex = await NAV.waitForUrl(page as never, /dashboard\/\d+/, { timeout: 5000 });
     expect(didMatchRegex).toBe(true);
   });
 
   it('throws on timeout when URL never matches', async () => {
-    const page = {
-      url: jest.fn().mockReturnValue('https://bank.co.il/stuck'),
-    };
+    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/stuck') });
     const promise = NAV.waitForUrl(page as never, 'https://bank.co.il/target', { timeout: 500 });
     await expect(promise).rejects.toThrow();
   });

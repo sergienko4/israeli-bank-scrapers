@@ -31,6 +31,7 @@ const MOD = await import('../../Common/SelectorLabelStrategies.js');
 
 /**
  * Build a mock context where locator returns configurable count/evaluate/getAttribute.
+ * Intentionally local — shared `makeMockLocator` does not support count+evaluate+getAttribute config.
  * @param count - Locator element count.
  * @param tagName - Tag name evaluate returns.
  * @param typeAttr - Input type getAttribute returns.
@@ -65,29 +66,47 @@ describe('resolveByContainerInput — success path', () => {
     const result = await MOD.resolveByContainerInput(ctx as never, 'Secret', queryFn);
     expect(result).toBe('');
   });
+
+  it('returns empty for radio input (non-fillable)', async () => {
+    const ctx = makeCtx(1, 'input', 'radio');
+    const queryFn = jest.fn().mockResolvedValue(true);
+    const result = await MOD.resolveByContainerInput(ctx as never, 'OTP Method', queryFn);
+    expect(result).toBe('');
+  });
+
+  it('returns empty for checkbox input (non-fillable)', async () => {
+    const ctx = makeCtx(1, 'input', 'checkbox');
+    const queryFn = jest.fn().mockResolvedValue(true);
+    const result = await MOD.resolveByContainerInput(ctx as never, 'Remember', queryFn);
+    expect(result).toBe('');
+  });
 });
 
+/**
+ * Build a queryFn mock that returns false N times, then true.
+ * @param falseCount - Number of false responses before true.
+ * @returns Mocked query function.
+ */
+function buildQueryFn(falseCount: number): jest.Mock {
+  const fn = jest.fn();
+  for (let i = 0; i < falseCount; i += 1) {
+    fn.mockResolvedValueOnce(false);
+  }
+  fn.mockResolvedValueOnce(true);
+  return fn;
+}
+
 describe('resolveByAncestorWalkUp — button found first', () => {
-  it('returns button xpath when button ancestor found', async () => {
-    const queryFn = jest.fn().mockResolvedValueOnce(true);
-    const result = await MOD.resolveByAncestorWalkUp(makeCtx() as never, 'Submit', queryFn);
-    expect(result).toContain('//button[');
-  });
+  const ancestorCases = [
+    { label: 'button (1st try)', falseCount: 0, text: 'Submit', expected: '//button[' },
+    { label: 'link (2nd try)', falseCount: 1, text: 'Click', expected: '//a[' },
+    { label: 'select (3rd try)', falseCount: 2, text: 'Choose', expected: '//select[' },
+  ] as const;
 
-  it('returns a xpath when link ancestor found (2nd try)', async () => {
-    const queryFn = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-    const result = await MOD.resolveByAncestorWalkUp(makeCtx() as never, 'Click', queryFn);
-    expect(result).toContain('//a[');
-  });
-
-  it('returns select xpath when select ancestor found (3rd try)', async () => {
-    const queryFn = jest
-      .fn()
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
-    const result = await MOD.resolveByAncestorWalkUp(makeCtx() as never, 'Choose', queryFn);
-    expect(result).toContain('//select[');
+  it.each(ancestorCases)('returns $label xpath', async ({ falseCount, text, expected }) => {
+    const queryFn = buildQueryFn(falseCount);
+    const result = await MOD.resolveByAncestorWalkUp(makeCtx() as never, text, queryFn);
+    expect(result).toContain(expected);
   });
 });
 

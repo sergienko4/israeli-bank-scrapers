@@ -67,7 +67,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: RESOLVE_FIELD_CONTEXT_MOCK,
   candidateToCss: CANDIDATE_TO_CSS_MOCK,
-  getWellKnownCandidates: jest.fn().mockReturnValue([]),
+  getWellKnownCandidates: jest.fn().mockReturnValue([{ kind: 'labelText', value: 'סיסמה' }]),
   tryInContext: jest.fn().mockResolvedValue(null),
   toXpathLiteral: mockToXpathLiteral,
   extractCredentialKey: jest.fn((selector: string) => selector),
@@ -75,10 +75,11 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
 }));
 
 const DISCOVER_FORM_ANCHOR_MOCK = jest.fn();
+const SCOPE_CANDIDATES_MOCK = jest.fn((_sel: string, cands: SelectorCandidate[]) => cands);
 
 jest.unstable_mockModule('../../Common/FormAnchor.js', () => ({
   discoverFormAnchor: DISCOVER_FORM_ANCHOR_MOCK,
-  scopeCandidates: jest.fn((_sel: string, cands: SelectorCandidate[]) => cands),
+  scopeCandidates: SCOPE_CANDIDATES_MOCK,
 }));
 
 jest.unstable_mockModule('../../Common/Waiting.js', () => ({
@@ -270,6 +271,38 @@ describe('GenericBankScraper branch coverage', () => {
       );
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('scopeFieldConfig — wellKnown fallback with form anchor', () => {
+    it('injects wellKnown candidates when bank selectors empty and form anchor exists', async () => {
+      const config = makeConfig({
+        fields: [
+          { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user' }] },
+          { credentialKey: 'password', selectors: [] },
+        ],
+      });
+      RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
+        isResolved: true,
+        selector: '#user',
+        context: mockPage,
+      });
+      DISCOVER_FORM_ANCHOR_MOCK.mockResolvedValue({ selector: 'form#login', context: mockPage });
+      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
+        MOCK_MOD.createMockScraperOptions(),
+        config,
+      );
+      const result = await scraper.scrape(CREDS);
+      expect(result.success).toBe(true);
+      const scopeCall = SCOPE_CANDIDATES_MOCK.mock.calls.find(
+        (call: [string, SelectorCandidate[]]) => call[0] === 'form#login',
+      ) as [string, SelectorCandidate[]] | undefined;
+      expect(scopeCall).toBeDefined();
+      const scopedCandidates = scopeCall?.[1] ?? [];
+      const hasLabelText = scopedCandidates.some(
+        c => c.kind === 'labelText' && c.value === 'סיסמה',
+      );
+      expect(hasLabelText).toBe(true);
     });
   });
 });

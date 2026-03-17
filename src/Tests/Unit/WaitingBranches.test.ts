@@ -63,23 +63,13 @@ describe('waitUntil — timeout message includes last seen value', () => {
 });
 
 describe('waitUntil — safeStringify fallback for circular objects', () => {
-  it('handles circular reference in last polled value gracefully', async () => {
-    interface ICircular {
-      self?: ICircular;
-    }
-    const circular: ICircular = {};
-    circular.self = circular;
-    let callCount = 0;
-    const promise = waitUntil(
-      () => {
-        callCount += 1;
-        /* Store circular as side-effect so safeStringify sees it at timeout */
-        return Promise.resolve(callCount > 1000 ? circular : null) as Promise<never>;
-      },
-      'circular-test',
-      { timeout: 50, interval: 5 },
-    );
+  it('includes last polled value in timeout error message via safeStringify', async () => {
+    const promise = waitUntil(() => Promise.resolve(null) as Promise<never>, 'circular-test', {
+      timeout: 50,
+      interval: 5,
+    });
     await expect(promise).rejects.toThrow(TimeoutError);
+    await expect(promise).rejects.toThrow(/last:.*null/);
   });
 });
 

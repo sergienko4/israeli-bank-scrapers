@@ -149,6 +149,32 @@ describe('isFillableInput — branches', () => {
     expect(isFillable).toBe(true);
   });
 
+  it('returns false for radio input', async () => {
+    const ctx = makeCtx({
+      first: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(1),
+        evaluate: jest.fn().mockResolvedValue('input'),
+        getAttribute: jest.fn().mockResolvedValue('radio'),
+      }),
+      count: jest.fn().mockResolvedValue(1),
+    });
+    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=radio]');
+    expect(isFillable).toBe(false);
+  });
+
+  it('returns false for checkbox input', async () => {
+    const ctx = makeCtx({
+      first: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(1),
+        evaluate: jest.fn().mockResolvedValue('input'),
+        getAttribute: jest.fn().mockResolvedValue('checkbox'),
+      }),
+      count: jest.fn().mockResolvedValue(1),
+    });
+    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=checkbox]');
+    expect(isFillable).toBe(false);
+  });
+
   it('returns true for input with no type attribute (defaults to text)', async () => {
     const ctx = makeCtx({
       first: jest.fn().mockReturnValue({

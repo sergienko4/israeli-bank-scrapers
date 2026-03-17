@@ -276,8 +276,8 @@ describe('buildMonthRange', () => {
   it('builds correct number of months', async () => {
     const moment = (await import('moment')).default;
     const now = moment();
-    const start = now.subtract(2, 'months');
+    const start = now.clone().subtract(2, 'months');
     const range = VISA_CAL_FETCH.buildMonthRange(start, 0);
-    expect(range.length).toBeGreaterThanOrEqual(2);
+    expect(range).toHaveLength(3);
   });
 });
