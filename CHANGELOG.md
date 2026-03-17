@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.2.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.0...v8.2.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* replace CSS/ID selectors with visible Hebrew text ([#168](https://github.com/sergienko4/israeli-bank-scrapers/issues/168)) ([dc87d2b](https://github.com/sergienko4/israeli-bank-scrapers/commit/dc87d2bbac1f226b143f618a3d155dfe0187b239))
+
 ## [8.2.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.1.0...v8.2.0) (2026-03-16)
 
 
