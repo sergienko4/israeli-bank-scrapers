@@ -23,7 +23,7 @@ import { type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { YAHAV_CONFIG } from './Config/YahavLoginConfig.js';
-import searchByDates from './YahavDatePicker.js';
+import searchByDates, { type IYahavDateSelectors } from './YahavDatePicker.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 
@@ -31,7 +31,7 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(
   ([k, cs]) => [k, candidateToCss(cs[0])] as const,
 );
-const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
+const SEL = Object.fromEntries(SELECTOR_ENTRIES) as IYahavDateSelectors & Record<string, string>;
 
 interface IScrapedTransaction {
   credit: string;

@@ -10,8 +10,17 @@ const YEARS_GRID_SIZE = 12;
 /** Number of day cells in the date picker grid. */
 const DAYS_GRID_SIZE = 41;
 
-/** Resolved selectors object type. */
-type SelMap = Record<string, string>;
+/** Typed selector keys required by the Yahav date picker. */
+export interface IYahavDateSelectors {
+  datePickerOpener: string;
+  daysGridCheck: string;
+  daysGridPrefix: string;
+  monthPickerBtn: string;
+  monthsGridCheck: string;
+  monthsGridPrefix: string;
+  yearsGridCheck: string;
+  yearsGridPrefix: string;
+}
 
 interface IGridOpts {
   page: Page;
@@ -41,12 +50,14 @@ async function tryClickGridCell(page: Page, selector: string, target: string): P
  */
 function buildGridActions(opts: IGridOpts, count: number): (() => Promise<boolean>)[] {
   const { page, prefix, target } = opts;
-  return Array.from(
-    { length: count },
-    (_, i): (() => Promise<boolean>) =>
-      () =>
-        tryClickGridCell(page, `${prefix} > div:nth-child(${String(i + 1)})`, target),
-  );
+  let isClicked = false;
+  return Array.from({ length: count }, (_, i): (() => Promise<boolean>) => async () => {
+    if (isClicked) return false;
+    const sel = `${prefix} > div:nth-child(${String(i + 1)})`;
+    const didClick = await tryClickGridCell(page, sel, target);
+    if (didClick) isClicked = true;
+    return didClick;
+  });
 }
 
 /**
@@ -56,7 +67,11 @@ function buildGridActions(opts: IGridOpts, count: number): (() => Promise<boolea
  * @param targetYear - The year string to select.
  * @returns True if the target year was found and clicked.
  */
-async function selectYearFromGrid(page: Page, sel: SelMap, targetYear: string): Promise<boolean> {
+async function selectYearFromGrid(
+  page: Page,
+  sel: IYahavDateSelectors,
+  targetYear: string,
+): Promise<boolean> {
   const actions = buildGridActions(
     { page, prefix: sel.yearsGridPrefix, target: targetYear },
     YEARS_GRID_SIZE,
@@ -72,7 +87,11 @@ async function selectYearFromGrid(page: Page, sel: SelMap, targetYear: string): 
  * @param targetDay - The day string to select.
  * @returns True if the target day was found and clicked.
  */
-async function selectDayFromGrid(page: Page, sel: SelMap, targetDay: string): Promise<boolean> {
+async function selectDayFromGrid(
+  page: Page,
+  sel: IYahavDateSelectors,
+  targetDay: string,
+): Promise<boolean> {
   const actions = buildGridActions(
     { page, prefix: sel.daysGridPrefix, target: targetDay },
     DAYS_GRID_SIZE,
@@ -87,7 +106,7 @@ async function selectDayFromGrid(page: Page, sel: SelMap, targetDay: string): Pr
  * @param sel - The resolved selectors map.
  * @returns True after the picker is open.
  */
-async function openDatePicker(page: Page, sel: SelMap): Promise<boolean> {
+async function openDatePicker(page: Page, sel: IYahavDateSelectors): Promise<boolean> {
   await waitUntilElementFound(page, sel.datePickerOpener, { visible: true });
   await clickButton(page, sel.datePickerOpener);
   await waitUntilElementFound(page, sel.daysGridCheck, { visible: true });
@@ -102,7 +121,7 @@ async function openDatePicker(page: Page, sel: SelMap): Promise<boolean> {
  * @param sel - The resolved selectors map.
  * @returns True after navigation.
  */
-async function navigateToYearView(page: Page, sel: SelMap): Promise<boolean> {
+async function navigateToYearView(page: Page, sel: IYahavDateSelectors): Promise<boolean> {
   await waitUntilElementFound(page, sel.monthPickerBtn, { visible: true });
   await clickButton(page, sel.monthPickerBtn);
   await waitUntilElementFound(page, sel.monthsGridCheck, { visible: true });
@@ -122,7 +141,7 @@ async function navigateToYearView(page: Page, sel: SelMap): Promise<boolean> {
 export default async function searchByDates(
   page: Page,
   startDate: Moment,
-  sel: SelMap,
+  sel: IYahavDateSelectors,
 ): Promise<boolean> {
   const day = startDate.format('D');
   const month = startDate.format('M');
@@ -134,5 +153,6 @@ export default async function searchByDates(
   await waitUntilElementFound(page, sel.monthsGridCheck, { visible: true });
   const monthCell = `${sel.monthsGridPrefix} > div:nth-child(${month})`;
   await clickButton(page, monthCell);
+  await waitUntilElementFound(page, sel.daysGridCheck, { visible: true });
   return selectDayFromGrid(page, sel, day);
 }
