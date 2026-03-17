@@ -87,10 +87,17 @@ bg_gate "build"    bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers 
 
 if command -v semgrep &>/dev/null; then
   bg_gate "semgrep" semgrep --config=p/typescript --config=p/owasp-top-ten --config=p/nodejs src/ --error --max-target-bytes=500000
+else
+  log "  ❌ semgrep not installed (pip install semgrep)"
+  exit 1
 fi
 
-if command -v ai-commit-guard &>/dev/null && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
   bg_gate "ai-guard" npx ai-commit-guard
+else
+  log "  ❌ ai-commit-guard or Ollama not available"
+  log "     Install: npm i -D ai-commit-guard && ollama pull qwen2.5-coder:14b"
+  exit 1
 fi
 
 wait_all
