@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
+import { mockToXpathLiteral } from '../MockModuleFactories.js';
+
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
@@ -31,11 +33,11 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
    * @returns Delegated mock result from MOCK_TRY_IN_CONTEXT.
    */
   tryInContext: (...args: unknown[]): unknown => MOCK_TRY_IN_CONTEXT(...args),
+  toXpathLiteral: mockToXpathLiteral,
   candidateToCss: jest.fn((candidate: { value: string }) => candidate.value),
   resolveFieldContext: jest.fn().mockResolvedValue(null),
   resolveFieldWithCache: jest.fn().mockResolvedValue(null),
   extractCredentialKey: jest.fn((selector: string) => selector),
-  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
@@ -67,6 +69,8 @@ function makeMockFrame(url = 'https://bank.test/child'): IMockFrame {
     $: jest.fn().mockResolvedValue(null),
     url: jest.fn().mockReturnValue(url),
     click: jest.fn().mockResolvedValue(undefined),
+    evaluate: jest.fn().mockResolvedValue(''),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
   } as unknown as IMockFrame;
 }
 
@@ -85,6 +89,7 @@ function makePage(bodyText?: string, childFrames: Frame[] = []): IMockPage {
     mainFrame: jest.fn().mockReturnValue(mainFrame),
     url: jest.fn().mockReturnValue('https://bank.test'),
     click: jest.fn().mockResolvedValue(undefined),
+    locator: jest.fn().mockReturnValue({ all: jest.fn().mockResolvedValue([]) }),
     frameLocator: jest.fn().mockReturnValue({
       locator: jest.fn().mockReturnValue({
         waitFor: jest.fn().mockRejectedValue(new Error('not found')),
@@ -228,7 +233,7 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(childFrame.click).toHaveBeenCalledWith('#sendSms');
+    expect(childFrame.click).toHaveBeenCalledWith('#sendSms', { timeout: 5000 });
   });
 
   it('uses cachedFrames when provided instead of page.frames()', async () => {
@@ -240,7 +245,9 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page, [cachedChild]);
 
-    expect(cachedChild.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]');
+    expect(cachedChild.click).toHaveBeenCalledWith('xpath=//button[contains(.,"שלח")]', {
+      timeout: 5000,
+    });
   });
 
   it('prefers main page trigger over child frame trigger', async () => {
@@ -250,17 +257,17 @@ describe('clickOtpTriggerIfPresent — trigger in iframe', () => {
 
     await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(page.click).toHaveBeenCalledWith('#sendSms');
+    expect(page.click).toHaveBeenCalledWith('#sendSms', { timeout: 5000 });
     expect(childFrame.click).not.toHaveBeenCalled();
   });
 
-  it('returns true even when no trigger found', async () => {
+  it('returns false when no trigger found', async () => {
     const page = makePage('');
     MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);
 
     const isHandled = await OTP_MODULE.clickOtpTriggerIfPresent(page);
 
-    expect(isHandled).toBe(true);
+    expect(isHandled).toBe(false);
   });
 });
 
@@ -287,5 +294,44 @@ describe('findOtpSubmitSelector — frame fallback', () => {
     const selector = await OTP_MODULE.findOtpSubmitSelector(page);
 
     expect(selector).toBe('');
+  });
+});
+
+// ── clickFromCandidates — fallback path coverage ─────────────────────────
+
+describe('clickFromCandidates — fallback selector path', () => {
+  beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
+
+  it('returns false when no text match and no fallback selector found', async () => {
+    const page = makePage('');
+    MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);
+
+    const candidates = [{ kind: 'textContent' as const, value: 'שלח' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(didClick).toBe(false);
+  });
+
+  it('clicks fallback selector in main page when text match fails', async () => {
+    const page = makePage('');
+    MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce('#sendBtn');
+
+    const candidates = [{ kind: 'css' as const, value: '#sendBtn' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(page.click).toHaveBeenCalledWith('#sendBtn', { timeout: 5000 });
+    expect(didClick).toBe(true);
+  });
+
+  it('searches child frames for fallback selector', async () => {
+    const childFrame = makeMockFrame('https://bank.test/otp');
+    const page = makePage('', [childFrame]);
+    MOCK_TRY_IN_CONTEXT.mockResolvedValueOnce(null).mockResolvedValueOnce('#frameBtn');
+
+    const candidates = [{ kind: 'css' as const, value: '#frameBtn' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(childFrame.click).toHaveBeenCalledWith('#frameBtn', { timeout: 5000 });
+    expect(didClick).toBe(true);
   });
 });

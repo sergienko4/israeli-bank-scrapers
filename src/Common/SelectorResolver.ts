@@ -34,27 +34,49 @@ const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardS
 >;
 
 /**
- * Convert a SelectorCandidate to a Playwright-compatible selector string.
+ * Escape a string for safe use as an XPath string literal.
+ * Handles values containing single quotes, double quotes, or both.
+ * @param value - The raw string value.
+ * @returns XPath-safe quoted string.
+ */
+export function toXpathLiteral(value: string): string {
+  if (!value.includes('"')) return `"${value}"`;
+  if (!value.includes("'")) return `'${value}'`;
+  const parts = value.split('"').map(part => `"${part}"`);
+  return `concat(${parts.join(", '\"', ")})`;
+}
+
+/**
+ * Build XPath for clickableText — innermost element with text.
+ * @param value - The visible text to match.
+ * @returns Playwright-compatible XPath selector.
+ */
+function clickableTextXpath(value: string): string {
+  const lit = toXpathLiteral(value);
+  return [
+    'xpath=//*[not(self::script)',
+    'and not(self::style)',
+    `and contains(., ${lit})`,
+    `and not(.//*[contains(., ${lit})])]`,
+  ].join(' ');
+}
+
+/**
+ * Convert a SelectorCandidate to a Playwright-compatible selector.
  * @param candidate - The selector candidate to convert.
  * @returns A Playwright-compatible CSS or XPath selector string.
  */
 export function candidateToCss(candidate: SelectorCandidate): string {
-  switch (candidate.kind) {
-    case 'labelText':
-      return `xpath=//label[contains(., "${candidate.value}")]`;
-    case 'textContent':
-      return `xpath=//*[contains(text(), "${candidate.value}")]`;
-    case 'css':
-      return candidate.value;
-    case 'placeholder':
-      return `input[placeholder*="${candidate.value}"]`;
-    case 'ariaLabel':
-      return `input[aria-label="${candidate.value}"]`;
-    case 'name':
-      return `[name="${candidate.value}"]`;
-    case 'xpath':
-      return `xpath=${candidate.value}`;
-  }
+  const v = candidate.value;
+  const lit = toXpathLiteral(v);
+  if (candidate.kind === 'clickableText') return clickableTextXpath(v);
+  if (candidate.kind === 'labelText') return `xpath=//label[contains(., ${lit})]`;
+  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), ${lit})]`;
+  if (candidate.kind === 'css') return v;
+  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]`;
+  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]`;
+  if (candidate.kind === 'name') return `[name="${v}"]`;
+  return `xpath=${v}`;
 }
 
 /**
@@ -191,11 +213,37 @@ async function probeCandidate(
   try {
     if (candidate.kind === 'labelText') return await probeLabelText(ctx, candidate);
     if (candidate.kind === 'textContent') return await probeTextContent(ctx, candidate);
+    if (candidate.kind === 'clickableText') return await probeClickableText(ctx, candidate);
     return await probeStandardCandidate(ctx, candidate);
   } catch {
     debugCandidateSkipped(candidate);
   }
   return { css: '', kind: candidate.kind };
+}
+
+/**
+ * Probe a clickableText candidate: find innermost element with text and return it.
+ * Any visible element is clickable — we don't assume a specific tag.
+ * @param ctx - The Page or Frame context to query in.
+ * @param candidate - The clickableText selector candidate.
+ * @returns The probe result targeting the first visible text element.
+ */
+async function probeClickableText(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+): Promise<IProbeResult> {
+  const text = candidate.value;
+  const lit = toXpathLiteral(text);
+  const baseXpath = [
+    'xpath=//*[not(self::script)',
+    'and not(self::style)',
+    `and contains(., ${lit})`,
+    `and not(.//*[contains(., ${lit})])]`,
+  ].join(' ');
+  const isFound = await queryWithTimeout(ctx, baseXpath);
+  if (!isFound) return { css: '', kind: 'clickableText' };
+  LOG.debug('resolved clickableText "%s" → %s', text, baseXpath);
+  return { css: baseXpath, kind: 'clickableText' };
 }
 
 /**
@@ -310,15 +358,6 @@ export async function resolveFieldWithCache(opts: ICachedResolveOpts): Promise<I
     bankCandidates: [...opts.field.selectors],
     wellKnownCandidates: [...(WELL_KNOWN_SELECTORS[opts.field.credentialKey] ?? [])],
   });
-}
-
-/**
- * Extract the first CSS string from a SelectorCandidate array.
- * @param candidates - The array of selector candidates to extract from.
- * @returns The first CSS selector string, or empty string if array is empty.
- */
-export function toFirstCss(candidates: SelectorCandidate[]): string {
-  return candidates.length > 0 ? candidateToCss(candidates[0]) : '';
 }
 
 /**

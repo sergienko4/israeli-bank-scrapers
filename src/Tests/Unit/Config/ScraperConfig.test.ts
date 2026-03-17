@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import type { SelectorCandidate } from '../../../Scrapers/Base/Config/LoginConfig.js';
+import { mockToXpathLiteral } from '../../MockModuleFactories.js';
 
 // ── Mocks (required by transitive imports from ILoginConfig files) ────────────
 
@@ -65,7 +66,7 @@ jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
   candidateToCss: jest.fn(),
   extractCredentialKey: jest.fn(),
   tryInContext: jest.fn(),
-  toFirstCss: jest.fn(),
+  toXpathLiteral: mockToXpathLiteral,
   resolveDashboardField: jest.fn(),
 }));
 

@@ -58,6 +58,7 @@ export function assertFailedLogin(result: IScraperScrapingResult): boolean {
  */
 export function lastMonthStartDate(): Date {
   const startDate = new Date();
+  startDate.setDate(1);
   startDate.setMonth(startDate.getMonth() - 1);
   return startDate;
 }

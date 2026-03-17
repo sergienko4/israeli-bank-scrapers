@@ -1,13 +1,14 @@
 import moment from 'moment';
 import { type Frame, type Page } from 'playwright-core';
 
-import { elementPresentOnPage, pageEvalAll } from '../../Common/ElementsInteractions.js';
+import { pageEvalAll } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY, SHEKEL_CURRENCY_SYMBOL } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import type { TransactionsColsTypes, TransactionsTrTds } from './BaseBeinleumiGroupBaseTypes.js';
 import type { IExtractTxnOpts } from './Interfaces/ExtractTxnOpts.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
@@ -190,11 +191,65 @@ export function extractTransaction(opts: IExtractTxnOpts): boolean {
  * @returns True if the error message is present.
  */
 export async function isNoTransactionInDateRangeError(page: Page | Frame): Promise<boolean> {
-  const hasErrorInfoElement = await elementPresentOnPage(page, `.${ERROR_MESSAGE_CLASS}`);
-  if (!hasErrorInfoElement) return false;
-  const errorText = await page.$eval(
-    `.${ERROR_MESSAGE_CLASS}`,
-    el => (el as HTMLElement).innerText,
-  );
-  return errorText.trim() === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
+  return page
+    .getByText(NO_TRANSACTION_IN_DATE_RANGE_TEXT)
+    .first()
+    .isVisible()
+    .catch((): boolean => false);
+}
+
+/**
+ * Build dashboard text waiters from WELL_KNOWN selector categories.
+ * @param page - The Playwright page to create waiters for.
+ * @returns Array of promises that resolve true when a dashboard element is visible.
+ */
+/**
+ * Collect all WELL_KNOWN dashboard selector candidates.
+ * @returns Combined array of dashboard selector candidates.
+ */
+function collectDashboardCandidates(): { kind: string; value: string }[] {
+  return [
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
+    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
+  ];
+}
+
+/**
+ * Build dashboard text waiters from WELL_KNOWN selector categories.
+ * @param page - The Playwright page to create waiters for.
+ * @returns Array of promises that resolve true when a dashboard element is visible.
+ */
+export function buildDashboardWaiters(page: Page): Promise<boolean>[] {
+  const categories = collectDashboardCandidates();
+  const textWaiters = categories
+    .filter(c => c.kind === 'textContent')
+    .map(async c => {
+      await page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+  const ariaWaiters = categories
+    .filter(c => c.kind === 'ariaLabel')
+    .map(async c => {
+      await page.getByLabel(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
+      return true;
+    });
+  return [...textWaiters, ...ariaWaiters];
+}
+
+/**
+ * Wait for the post-login page to finish loading via WELL_KNOWN text detection.
+ * @param page - The Playwright page to wait on.
+ * @returns True if a post-login element is detected, false otherwise.
+ */
+export async function waitForPostLogin(page: Page): Promise<boolean> {
+  const waiters = buildDashboardWaiters(page);
+  if (waiters.length === 0) return false;
+  try {
+    await Promise.any(waiters);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof AggregateError) return false;
+    throw error;
+  }
 }

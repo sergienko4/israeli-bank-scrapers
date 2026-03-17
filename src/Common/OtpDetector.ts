@@ -1,6 +1,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import type { LifecyclePromise } from '../Scrapers/Base/Interfaces/CallbackTypes.js';
 import {
   OTP_INPUT_CANDIDATES,
   OTP_SUBMIT_CANDIDATES,
@@ -9,9 +10,38 @@ import {
   SMS_TRIGGER_CANDIDATES,
 } from './Config/OtpDetectorConfig.js';
 import { getDebug } from './Debug.js';
-import { tryInContext } from './SelectorResolver.js';
+import { toXpathLiteral, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-detector');
+
+/** Pre-resolved promise used as initial value for sequential reduce chains. */
+const RESOLVED_PROMISE = Promise.resolve();
+
+/**
+ * Run actions sequentially, short-circuiting after the first success.
+ * @param items - Array of items to process.
+ * @param action - Async action returning true on success.
+ * @returns Array of boolean results (true/false per item).
+ */
+async function runSequential<T>(
+  items: T[],
+  action: (item: T, idx: number) => Promise<boolean>,
+): Promise<boolean[]> {
+  const state = { done: false };
+  const results = items.map(() => false);
+  const reducer = items.reduce(
+    (chain, item, idx) =>
+      chain.then(async () => {
+        if (state.done) return;
+        const didSucceed = await action(item, idx);
+        results[idx] = didSucceed;
+        if (didSucceed) state.done = true;
+      }),
+    RESOLVED_PROMISE,
+  );
+  await reducer;
+  return results;
+}
 
 export { OTP_SUBMIT_CANDIDATES };
 
@@ -115,88 +145,83 @@ export async function findOtpSubmitSelector(page: Page): Promise<string> {
   return results.find(sel => sel.length > 0) ?? '';
 }
 
-/** Result of an SMS trigger search with selector and context. */
-interface ISmsTriggerResult {
-  selector: string;
-  context: Page | Frame;
-}
-
-/**
- * Search all frames for an SMS trigger button.
- * @param page - The Playwright page to search.
- * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns The trigger selector and context, or empty selector if not found.
- */
-async function findSmsTriggerInFrames(
-  page: Page,
-  cachedFrames?: Frame[],
-): Promise<ISmsTriggerResult> {
-  const mainSel = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
-  if (mainSel) return { selector: mainSel, context: page };
-  const mainFrame = page.mainFrame();
-  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
-  const frameTasks = frames.map(async (frame): Promise<ISmsTriggerResult | false> => {
-    const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
-    return sel ? { selector: sel, context: frame } : false;
-  });
-  const results = await Promise.all(frameTasks);
-  const found = results.find((r): r is ISmsTriggerResult => r !== false);
-  return found ?? { selector: '', context: page };
-}
-
 /**
  * Click the SMS trigger button if one is found on the page or in frames.
  * @param page - The Playwright page to search for SMS triggers.
  * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns True after the trigger is clicked or skipped.
+ * @returns True if a trigger was clicked, false if none found.
  */
 export async function clickOtpTriggerIfPresent(
   page: Page,
   cachedFrames?: Frame[],
 ): Promise<boolean> {
-  const trigger = await findSmsTriggerInFrames(page, cachedFrames);
-  if (trigger.selector) {
-    LOG.debug('clicking SMS trigger: %s', trigger.selector);
-    await trigger.context.click(trigger.selector);
-  } else {
-    LOG.debug('No SMS trigger found — SMS may be auto-sent');
-  }
-  return true;
-}
-
-/** Result of searching frames for a matching candidate selector. */
-interface IFrameSearchResult {
-  found: true;
-  sel: string;
-  frame: Frame;
-}
-
-/** Negative result when no candidate was found in any frame. */
-interface IFrameSearchMiss {
-  found: false;
+  const textValues = extractTextValues(SMS_TRIGGER_CANDIDATES);
+  const contexts = buildContextList(page, cachedFrames);
+  const didClick = await tryClickTextInContexts(contexts, textValues);
+  if (didClick) return true;
+  const hasFallback = await tryFallbackInAllContexts(contexts);
+  if (hasFallback) return true;
+  LOG.debug('No SMS trigger found — SMS may be auto-sent');
+  return false;
 }
 
 /**
- * Search child frames for the first matching candidate selector.
- * @param page - The Playwright page whose frames to search.
- * @param candidates - Ordered SelectorCandidate list to try in each frame.
- * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns The matched selector and frame, or a miss result if none found.
+ * Try SMS trigger fallback across all contexts sequentially.
+ * @param contexts - Ordered list of Page/Frame contexts.
+ * @returns True if a trigger was found and clicked.
  */
-async function findCandidateInFrames(
-  page: Page,
+async function tryFallbackInAllContexts(contexts: (Page | Frame)[]): Promise<boolean> {
+  const results = await runSequential(contexts, ctx =>
+    tryFallbackClick(ctx, SMS_TRIGGER_CANDIDATES),
+  );
+  return results.some(Boolean);
+}
+
+/** Text-based candidate kinds. */
+const TEXT_KINDS = ['textContent', 'clickableText'] as const;
+
+/**
+ * Extract text values from text-based candidates.
+ * @param candidates - Selector candidates to filter.
+ * @returns Array of text values.
+ */
+function extractTextValues(candidates: SelectorCandidate[]): string[] {
+  return candidates
+    .filter(c => TEXT_KINDS.includes(c.kind as (typeof TEXT_KINDS)[number]))
+    .map(c => c.value);
+}
+
+/**
+ * Try resolving and clicking a fallback selector in a single context.
+ * @param ctx - The Page or Frame context.
+ * @param candidates - Selector candidates to resolve.
+ * @returns True if a selector was found and clicked.
+ */
+async function tryFallbackClick(
+  ctx: Page | Frame,
   candidates: SelectorCandidate[],
-  cachedFrames?: Frame[],
-): Promise<IFrameSearchResult | IFrameSearchMiss> {
-  const mainFrame = page.mainFrame();
-  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
-  const frameTasks = frames.map(async (frame): Promise<IFrameSearchResult | false> => {
-    const sel = await tryInContext(frame, candidates);
-    return sel ? { found: true, sel, frame } : false;
-  });
-  const results = await Promise.all(frameTasks);
-  const hit = results.find((r): r is IFrameSearchResult => r !== false);
-  return hit ?? { found: false };
+): Promise<boolean> {
+  const sel = await tryInContext(ctx, candidates);
+  if (!sel) return false;
+  LOG.debug('clickFromCandidates: fallback selector: %s', sel);
+  return ctx
+    .click(sel, { timeout: 5000 })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Try fallback selector resolution across all contexts sequentially.
+ * @param contexts - Ordered list of Page/Frame contexts.
+ * @param candidates - Selector candidates to resolve.
+ * @returns True if a fallback selector was found and clicked.
+ */
+async function tryFallbackInContexts(
+  contexts: (Page | Frame)[],
+  candidates: SelectorCandidate[],
+): Promise<boolean> {
+  const results = await runSequential(contexts, ctx => tryFallbackClick(ctx, candidates));
+  return results.some(Boolean);
 }
 
 /**
@@ -212,18 +237,148 @@ export async function clickFromCandidates(
   candidates: SelectorCandidate[],
   cachedFrames?: Frame[],
 ): Promise<boolean> {
-  const mainSel = await tryInContext(page, candidates);
-  if (mainSel) {
-    LOG.debug('clickFromCandidates: found in main page: %s', mainSel);
-    await page.click(mainSel);
-    return true;
-  }
-  const found = await findCandidateInFrames(page, candidates, cachedFrames);
-  if (found.found) {
-    LOG.debug('clickFromCandidates: found in frame: %s', found.sel);
-    await found.frame.click(found.sel);
-    return true;
-  }
-  LOG.debug('clickFromCandidates: no match found');
+  const textValues = extractTextValues(candidates);
+  const contexts = buildContextList(page, cachedFrames);
+  const didClick = await tryClickTextInContexts(contexts, textValues);
+  if (didClick) return true;
+  const hasFallback = await tryFallbackInContexts(contexts, candidates);
+  if (hasFallback) return true;
+  LOG.debug('clickFromCandidates: no clickable match found');
   return false;
+}
+
+/**
+ * Build ordered list of contexts to search: main page then child frames.
+ * @param page - The Playwright page.
+ * @param cachedFrames - Optional cached frames list.
+ * @returns Array of Page/Frame contexts to search.
+ */
+function buildContextList(page: Page, cachedFrames?: Frame[]): (Page | Frame)[] {
+  const mainFrame = page.mainFrame();
+  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
+  return [page, ...frames];
+}
+
+/**
+ * Try clicking visible text in a single context.
+ * @param ctx - Page or Frame to search.
+ * @param texts - Text values to look for.
+ * @param isMain - Whether ctx is the main page.
+ * @returns True if a click succeeded.
+ */
+async function tryClickTextInSingleContext(
+  ctx: Page | Frame,
+  texts: string[],
+  isMain: boolean,
+): Promise<boolean> {
+  const results = await sequentialClickAttempts(ctx, texts);
+  const idx = results.findIndex(Boolean);
+  if (idx >= 0) {
+    const label = isMain ? 'main' : 'frame';
+    LOG.debug('clicked "%s" in %s', texts[idx], label);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Try clicking each text sequentially, stopping after first success.
+ * @param ctx - Page or Frame to search.
+ * @param texts - Text values to attempt.
+ * @returns Array of results (true/false per text).
+ */
+async function sequentialClickAttempts(ctx: Page | Frame, texts: string[]): Promise<boolean[]> {
+  return runSequential(texts, text => tryClickInnermostText(ctx, text));
+}
+
+/**
+ * Try clicking visible text across all contexts.
+ * @param contexts - Ordered list of contexts to search.
+ * @param texts - Text values to look for.
+ * @returns True if a click succeeded.
+ */
+async function tryClickTextInContexts(
+  contexts: (Page | Frame)[],
+  texts: string[],
+): Promise<boolean> {
+  const results = await sequentialContextAttempts(contexts, texts);
+  const didMatch = results.some(Boolean);
+  if (!didMatch) {
+    LOG.debug('no match in %d contexts for %d texts', contexts.length, texts.length);
+  }
+  return didMatch;
+}
+
+/**
+ * Try clicking text in each context sequentially, stopping after first success.
+ * @param contexts - Ordered list of contexts.
+ * @param texts - Text values to attempt.
+ * @returns Array of results (true/false per context).
+ */
+async function sequentialContextAttempts(
+  contexts: (Page | Frame)[],
+  texts: string[],
+): Promise<boolean[]> {
+  return runSequential(contexts, (ctx, idx) => tryClickTextInSingleContext(ctx, texts, idx === 0));
+}
+
+/** XPath predicate restricting matches to interactive elements. */
+const INTERACTIVE_FILTER = [
+  '(self::button or self::a or self::input',
+  'or self::select or self::textarea',
+  'or @role="button" or @role="link")',
+].join(' ');
+
+/**
+ * Build an XPath matching the innermost interactive element with text.
+ * @param text - The visible text to match.
+ * @returns Playwright XPath selector for clickable elements only.
+ */
+function innermostTextXpath(text: string): string {
+  const escaped = toXpathLiteral(text);
+  return [
+    `xpath=//*[${INTERACTIVE_FILTER}`,
+    `and contains(., ${escaped})`,
+    `and not(.//*[contains(., ${escaped})])]`,
+  ].join(' ');
+}
+
+/**
+ * Find the innermost element containing text and click it.
+ * @param ctx - Page or Frame to search.
+ * @param text - Visible text to find.
+ * @returns True if clicked successfully.
+ */
+async function tryClickInnermostText(ctx: Page | Frame, text: string): Promise<boolean> {
+  const xpathSelector = innermostTextXpath(text);
+  const locator = ctx.locator(xpathSelector);
+  const matches = await locator.all();
+  const results = await sequentialForceClicks(matches);
+  return results.some(Boolean);
+}
+
+/**
+ * Try force-clicking matched elements sequentially, stopping after first success.
+ * @param matches - Array of locator elements to attempt clicking.
+ * @returns Array of click results (true/false per element).
+ */
+async function sequentialForceClicks(matches: IClickable[]): Promise<boolean[]> {
+  return runSequential(matches, match => tryForceClick(match));
+}
+
+/** Locator with a click method. */
+interface IClickable {
+  click: (o: { timeout: number; force: boolean }) => LifecyclePromise;
+}
+
+/**
+ * Attempt to force-click a single locator element.
+ * @param loc - The Playwright locator to click.
+ * @returns True if clicked, false on error.
+ */
+async function tryForceClick(loc: IClickable): Promise<boolean> {
+  return loc
+    .click({ timeout: 3000, force: true })
+    .then((): true => true)
+    .catch((): false => false);
 }

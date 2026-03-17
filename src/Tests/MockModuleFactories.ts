@@ -221,3 +221,18 @@ export function createStorageMock(): {
 } {
   return { getFromSessionStorage: jest.fn() };
 }
+
+/**
+ * XPath literal escaper matching production SelectorResolver.toXpathLiteral.
+ * This is a deliberate copy — cannot import the production module because
+ * test files use this inside jest.unstable_mockModule('SelectorResolver', ...)
+ * which replaces the real module. Importing would defeat the mock.
+ * @param value - The raw string value.
+ * @returns XPath-safe quoted string.
+ */
+export function mockToXpathLiteral(value: string): string {
+  if (!value.includes('"')) return `"${value}"`;
+  if (!value.includes("'")) return `'${value}'`;
+  const parts = value.split('"').map((part: string) => `"${part}"`);
+  return `concat(${parts.join(", '\"', ")})`;
+}

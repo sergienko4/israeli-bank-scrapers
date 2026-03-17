@@ -14,38 +14,38 @@ export const OTP_TEXT_PATTERNS = [
   'SMS code',
 ] as const;
 
-/** Selector candidates for locating OTP input fields on a page. */
+/** Selector candidates for locating OTP input fields — text-first. */
 export const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
   { kind: 'placeholder', value: 'קוד חד פעמי' },
+  { kind: 'placeholder', value: 'סיסמה חד פעמית' },
   { kind: 'placeholder', value: 'קוד SMS' },
   { kind: 'placeholder', value: 'קוד אימות' },
   { kind: 'placeholder', value: 'הזן קוד' },
   { kind: 'ariaLabel', value: 'קוד' },
+  { kind: 'ariaLabel', value: 'סיסמה חד פעמית' },
   { kind: 'name', value: 'otpCode' },
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'css', value: '#codeinput' },
 ];
 
 /** Regex to detect masked phone number hints on OTP screens (e.g. ****1234). */
 export const PHONE_PATTERN = /[*]{4,}\d{2,4}/;
 
-/** Selector candidates for locating the OTP submit/confirm button. */
+/** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
 export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'xpath', value: '//button[contains(.,"אשר")]' },
-  { kind: 'xpath', value: '//button[contains(.,"המשך")]' },
-  { kind: 'xpath', value: '//button[contains(.,"אישור")]' },
-  { kind: 'xpath', value: '//button[contains(.,"כניסה")]' },
+  { kind: 'textContent', value: 'אישור' },
+  { kind: 'textContent', value: 'אשר' },
+  { kind: 'textContent', value: 'המשך' },
+  { kind: 'textContent', value: 'כניסה' },
+  { kind: 'ariaLabel', value: 'אישור' },
   { kind: 'ariaLabel', value: 'כניסה' },
-  { kind: 'css', value: 'button[type="submit"]' },
-  { kind: 'css', value: 'input[type="button"]' },
 ];
 
-/** Selector candidates for locating the SMS trigger button. */
+/** Selector candidates for the SMS send/trigger button — text-first, no element assumption. */
 export const SMS_TRIGGER_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'css', value: '#sendSms' },
-  { kind: 'xpath', value: '//button[contains(.,"SMS")]' },
-  { kind: 'ariaLabel', value: 'שלח SMS' },
-  { kind: 'css', value: 'input[type="radio"][value="SMS"]' },
-  { kind: 'xpath', value: '//button[contains(.,"שלח")]' },
-  { kind: 'xpath', value: '//button[contains(.,"קבל קוד")]' },
+  { kind: 'textContent', value: 'שלח קוד' },
+  { kind: 'textContent', value: 'שלח' },
+  { kind: 'textContent', value: 'קבל קוד' },
+  { kind: 'textContent', value: 'לקבלת סיסמה חד פעמית' },
+  { kind: 'textContent', value: 'שלח SMS' },
+  { kind: 'ariaLabel', value: 'שלח' },
+  { kind: 'ariaLabel', value: 'שלח קוד' },
 ];

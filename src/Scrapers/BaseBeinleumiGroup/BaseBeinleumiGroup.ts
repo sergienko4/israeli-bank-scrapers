@@ -180,7 +180,7 @@ async function getAccountNumber(page: Page | Frame): Promise<string> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  const text = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
+  const text = await r.context.locator(r.selector).first().innerText();
   return text.replace('/', '_').trim();
 }
 
@@ -343,24 +343,9 @@ async function getCurrentBalance(page: Page | Frame): Promise<number> {
     visible: true,
     timeout: ELEMENT_RENDER_TIMEOUT_MS,
   });
-  const balanceStr = await r.context.$eval(r.selector, el => (el as HTMLElement).innerText);
+  const balanceStr = await r.context.locator(r.selector).first().innerText();
   const sanitized = balanceStr.replace(/[^0-9.,-]/g, '').replaceAll(',', '');
   return Number.parseFloat(sanitized);
-}
-
-/**
- * Wait for the post-login page to finish loading.
- * @param page - The Playwright page to wait on.
- * @returns True after a post-login element is detected.
- */
-export async function waitForPostLogin(page: Page): Promise<boolean> {
-  await Promise.race([
-    waitUntilElementFound(page, '#card-header', { visible: false }),
-    waitUntilElementFound(page, '#account_num', { visible: true }),
-    waitUntilElementFound(page, '#matafLogoutLink', { visible: true }),
-    waitUntilElementFound(page, '#validationMsg', { visible: true }),
-  ]);
-  return true;
 }
 
 /**
@@ -391,8 +376,9 @@ async function fetchAccountData(
 async function selectAccountBothUIs(page: Page, accountId: string): Promise<boolean> {
   const isAccountSelected = await selectAccountFromDropdown(page, accountId);
   if (!isAccountSelected) {
-    await page.selectOption('#account_num_select', accountId);
-    await waitUntilElementFound(page, '#account_num_select', { visible: true });
+    const legacySelect = page.getByRole('combobox').filter({ hasText: accountId }).first();
+    await legacySelect.selectOption({ label: accountId });
+    await waitForNavigation(page);
   }
   return true;
 }
@@ -470,4 +456,5 @@ abstract class BeinleumiGroupBaseScraper extends GenericBankScraper<IScraperSpec
   }
 }
 
+export { waitForPostLogin } from './BaseBeinleumiGroupHelpers.js';
 export default BeinleumiGroupBaseScraper;

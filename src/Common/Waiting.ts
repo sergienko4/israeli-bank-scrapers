@@ -194,7 +194,7 @@ export function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeoutResu
  * @returns An array of all action results in order.
  */
 export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
-  const initialValue = Promise.resolve<T[]>(new Array<T>());
+  const initialValue = Promise.resolve<T[]>([]);
   return actions.reduce(
     (memo, action) => memo.then(async accumulated => [...accumulated, await action()]),
     initialValue,

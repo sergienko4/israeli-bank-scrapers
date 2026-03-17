@@ -26,25 +26,38 @@ const FORM_ANCHOR_MOD = await import('../../Common/FormAnchor.js');
 
 // ── discoverFormAnchor ────────────────────────────────────────────────────
 
+/**
+ * Create a mock page with a locator that resolves count and evaluate.
+ * @param countValue - Value for locator count().
+ * @param evaluateValue - Value for locator evaluate().
+ * @returns Mock page object.
+ */
+function makePageWithLocator(countValue: number, evaluateValue: string): Page {
+  const loc = {
+    count: jest.fn().mockResolvedValue(countValue),
+    evaluate: jest.fn().mockResolvedValue(evaluateValue),
+  };
+  const first = jest.fn().mockReturnValue(loc);
+  return { locator: jest.fn().mockReturnValue({ first }) } as unknown as Page;
+}
+
 describe('discoverFormAnchor', () => {
   it('returns null when the resolved selector is not found', async () => {
-    const page = { $: jest.fn().mockResolvedValue(null) } as unknown as Page;
+    const page = makePageWithLocator(0, '');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#missing');
     expect(result).toBeNull();
   });
 
-  it('returns form anchor when inputHandle.evaluate finds a form with id', async () => {
-    const inputHandle = { evaluate: jest.fn().mockResolvedValue('#loginForm') };
-    const page = { $: jest.fn().mockResolvedValue(inputHandle) } as unknown as Page;
+  it('returns form anchor when evaluate finds a form with id', async () => {
+    const page = makePageWithLocator(1, '#loginForm');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#username');
     expect(result).not.toBeNull();
     expect(result?.selector).toBe('#loginForm');
     expect(result?.context).toBe(page);
   });
 
-  it('returns null when evaluate returns null (no form found)', async () => {
-    const inputHandle = { evaluate: jest.fn().mockResolvedValue(null) };
-    const page = { $: jest.fn().mockResolvedValue(inputHandle) } as unknown as Page;
+  it('returns null when evaluate returns empty (no form found)', async () => {
+    const page = makePageWithLocator(1, '');
     const result = await FORM_ANCHOR_MOD.discoverFormAnchor(page, '#username');
     expect(result).toBeNull();
   });

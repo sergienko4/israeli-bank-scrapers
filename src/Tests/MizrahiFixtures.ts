@@ -2,6 +2,63 @@ import { jest } from '@jest/globals';
 
 import { type IMockPage } from './MockPage.js';
 
+export interface ILocatorOverrides {
+  isVisible?: boolean;
+  getAttribute?: string;
+  count?: number;
+  all?: object[];
+  allLength?: number;
+}
+
+/**
+ * Creates a base mock locator with self-referencing first/nth.
+ * @param stubs - method stubs to attach to the locator.
+ * @returns mock locator with first() and nth() returning self.
+ */
+export function createBaseMockLocator(stubs: Record<string, jest.Mock>): Record<string, jest.Mock> {
+  const loc: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    nth: jest.fn(),
+    ...stubs,
+  };
+  loc.first.mockReturnValue(loc);
+  loc.nth.mockReturnValue(loc);
+  return loc;
+}
+
+/**
+ * Creates a mock locator for Mizrahi page tests.
+ * @param overrides - partial locator method overrides.
+ * @returns mock locator with all standard stubs.
+ */
+export function buildMockLocator(overrides: ILocatorOverrides = {}): Record<string, jest.Mock> {
+  const allLength = overrides.allLength ?? 1;
+  const allItems = overrides.all ?? Array.from({ length: allLength }, () => ({ click: jest.fn() }));
+  return createBaseMockLocator({
+    click: jest.fn().mockResolvedValue(undefined),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    isVisible: jest.fn().mockResolvedValue(overrides.isVisible ?? true),
+    getAttribute: jest.fn().mockResolvedValue(overrides.getAttribute ?? 'ACC-12345'),
+    count: jest.fn().mockResolvedValue(overrides.count ?? 1),
+    all: jest.fn().mockResolvedValue(allItems),
+    evaluate: jest.fn().mockResolvedValue(undefined),
+    evaluateAll: jest.fn().mockResolvedValue([]),
+  });
+}
+
+/**
+ * Creates a mock frame locator that rejects waitFor.
+ * @returns mock locator with rejected waitFor.
+ */
+export function mockFrameLocator(): Record<string, jest.Mock> {
+  const loc: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    waitFor: jest.fn().mockRejectedValue(new Error('not found')),
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
 /** Scraped transaction shape from Mizrahi API. */
 export interface IMizrahiScrapedTxn {
   RecTypeSpecified: boolean;
@@ -70,6 +127,15 @@ export function mockDetailsResponse(fields: { Label: string; Value: string }[]):
 }
 
 /**
+ * Creates a mock locator with standard stubs. Delegates to buildMockLocator.
+ * @param opts - optional overrides for locator methods.
+ * @returns a mock locator object.
+ */
+function mockLocator(opts: ILocatorOverrides = {}): Record<string, jest.Mock> {
+  return buildMockLocator(opts);
+}
+
+/**
  * Creates a mock Mizrahi page with default request/selector stubs.
  * @param createMockPage - factory function to create a mock page with overrides.
  * @returns configured mock page for Mizrahi scraper tests.
@@ -95,15 +161,12 @@ export function createMizrahiPage(
     headers: headersFn,
   };
 
+  const defaultLoc = mockLocator();
+  const getByTextLoc = mockLocator();
+
   return createMockPage({
-    $eval: jest.fn().mockResolvedValue(undefined),
-    $$: jest.fn().mockResolvedValue([{ click: jest.fn() }]),
-    $: jest.fn().mockResolvedValue({
-      getProperty: jest.fn().mockResolvedValue({
-        jsonValue: jest.fn().mockResolvedValue('ACC-12345'),
-      }),
-    }),
+    locator: jest.fn().mockReturnValue(defaultLoc),
+    getByText: jest.fn().mockReturnValue(getByTextLoc),
     waitForRequest: jest.fn().mockResolvedValue(mockRequest),
-    waitForSelector: jest.fn().mockResolvedValue(undefined),
   });
 }

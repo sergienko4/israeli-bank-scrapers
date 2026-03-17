@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 
 import type { ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import { mockToXpathLiteral } from '../MockModuleFactories.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
@@ -58,8 +59,8 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
   tryInContext: jest.fn().mockResolvedValue(null),
+  toXpathLiteral: mockToXpathLiteral,
   extractCredentialKey: jest.fn((selector: string) => selector),
-  toFirstCss: jest.fn(() => ''),
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 

@@ -1,5 +1,7 @@
 import { jest } from '@jest/globals';
 
+import { createIframeLocatorMock } from './VisaCalFixtures.js';
+
 jest.unstable_mockModule(
   '../../Common/CamoufoxLauncher.js',
   /**
@@ -43,6 +45,9 @@ jest.unstable_mockModule(
        * @returns URL string.
        */
       url: (): string => 'https://connect.cal-online.co.il/login',
+      waitForSelector: jest.fn().mockResolvedValue(undefined),
+      locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      getByText: createIframeLocatorMock(),
     }),
     elementPresentOnPage: jest.fn().mockResolvedValue(false),
     pageEval: jest.fn().mockResolvedValue(''),

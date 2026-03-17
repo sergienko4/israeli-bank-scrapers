@@ -1,8 +1,9 @@
-import { type Page } from 'playwright-core';
+import { type Frame, type Page } from 'playwright-core';
 
-import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import type { OptionalFramePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
+import { buildDashboardWaiters } from '../BaseBeinleumiGroupHelpers.js';
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -12,14 +13,11 @@ import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 async function beinleumiPostAction(
   page: Page,
 ): ReturnType<NonNullable<ILoginConfig['postAction']>> {
-  await Promise.race([
-    page.waitForSelector('#card-header'),
-    page.waitForSelector('#account_num'),
-    page.waitForSelector('#matafLogoutLink'),
-    page.waitForSelector('#validationMsg'),
-    page.waitForSelector('[class*="account-summary"]', { timeout: 30000 }),
-  ]).catch(() => {
-    // intentionally ignore timeout — any matched selector is sufficient
+  const waiters = buildDashboardWaiters(page);
+  if (waiters.length === 0) return;
+  await Promise.race(waiters).catch((error: unknown) => {
+    if (error instanceof Error && error.name === 'TimeoutError') return;
+    throw error;
   });
 }
 
@@ -30,8 +28,8 @@ export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
 ];
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
-  { kind: 'css', value: '#continueBtn' },
-  // textContent 'המשך'/'כניסה' fallback is in wellKnownSelectors.__submit__
+  { kind: 'clickableText', value: 'המשך' },
+  { kind: 'clickableText', value: 'כניסה' },
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
@@ -44,20 +42,68 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
  * @param page - The Playwright page to interact with.
  * @returns The login iframe if found, or undefined.
  */
+/** Maximum time (ms) to wait for the login frame to appear. */
+const FRAME_POLL_DEADLINE_MS = 15000;
+
+/** Delay before retrying login frame detection (ms). */
+const FRAME_RETRY_DELAY_MS = 2000;
+
+/**
+ * Wait for iframes to appear, then find the login frame with up to 3 retries.
+ * @param page - The Playwright page to interact with.
+ * @returns The login iframe if found, or undefined on timeout.
+ */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  const hasTrigger = await elementPresentOnPage(page, 'a.login-trigger');
-  if (hasTrigger) {
-    await page.evaluate(() => {
-      const el = document.querySelector('a.login-trigger');
-      if (el instanceof HTMLElement) el.click();
-    });
-    await page.waitForTimeout(2000);
-    const loginFrame = page.frames().find(f => f.url().includes('login'));
-    return loginFrame;
-  }
-  await page.waitForTimeout(1000);
-  const loginFrame = page.frames().find(f => f.url().includes('login'));
-  return loginFrame;
+  await waitForAnyIframe(page);
+  const first = await findLoginFrame(page);
+  if (first) return first;
+  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
+  const second = await findLoginFrame(page);
+  if (second) return second;
+  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
+  return findLoginFrame(page);
+}
+
+/**
+ * Wait for any iframe to appear in the DOM.
+ * @param page - The Playwright page.
+ * @returns True if an iframe appeared, false on timeout.
+ */
+async function waitForAnyIframe(page: Page): Promise<boolean> {
+  return page
+    .waitForFunction(() => document.querySelectorAll('iframe').length > 0, {
+      timeout: FRAME_POLL_DEADLINE_MS,
+    })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Check if a frame contains login credential fields.
+ * Detects login frames by presence of 2+ text inputs (username + password).
+ * @param frame - The frame to check.
+ * @returns True if the frame has multiple credential inputs.
+ */
+async function checkFrameHasLoginFields(frame: Frame): Promise<boolean> {
+  const count = await frame
+    .getByRole('textbox')
+    .count()
+    .catch((): number => 0);
+  return count >= 2;
+}
+
+/**
+ * Find the login iframe by content.
+ * @param page - The Playwright page to search.
+ * @returns The login frame, or undefined if not found.
+ */
+async function findLoginFrame(page: Page): OptionalFramePromise {
+  const frames = page.frames();
+  const tasks = frames.map(checkFrameHasLoginFields);
+  const checks = await Promise.all(tasks);
+  const idx = checks.findIndex(Boolean);
+  if (idx >= 0) return frames[idx];
+  return frames.find(f => f.url().includes('login'));
 }
 
 /**

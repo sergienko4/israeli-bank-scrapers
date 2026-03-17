@@ -1,19 +1,41 @@
 import { type Page } from 'playwright-core';
 
-import {
-  waitUntilElementDisappear,
-  waitUntilElementFound,
-} from '../../../Common/ElementsInteractions.js';
+import { waitUntilElementDisappear } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
+import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 
 const MIZRAHI_CHECKING_ACCOUNT_HE = 'עובר ושב';
 const MIZRAHI_CHECKING_ACCOUNT_EN = 'Checking IAccount';
-const MIZRAHI_INVALID_SELECTOR =
-  'a[href*="https://sc.mizrahi-tefahot.co.il/SCServices/SC/P010.aspx"]';
+
+/** Hebrew text fragments indicating invalid credentials on Mizrahi. */
+const ERROR_TEXT_CANDIDATES = WELL_KNOWN_DASHBOARD_SELECTORS.errorIndicator.map(c => c.value);
+
+/** WELL_KNOWN account selector text candidates for post-login detection. */
+const ACCOUNT_TEXT_CANDIDATES = WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector
+  .filter((c): c is typeof c & { kind: 'textContent' } => c.kind === 'textContent')
+  .map(c => c.value);
+
+/**
+ * Check if any text candidate is visible on the page.
+ * @param page - The Playwright page to check.
+ * @param texts - Array of Hebrew text strings to look for.
+ * @returns True if any text is visible.
+ */
+async function isAnyTextVisible(page: Page, texts: string[]): Promise<boolean> {
+  const checks = texts.map(t =>
+    page
+      .getByText(t)
+      .first()
+      .isVisible()
+      .catch(() => false),
+  );
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
+}
 
 /**
  * Check if the Mizrahi dashboard is already showing a checking account link.
@@ -26,7 +48,19 @@ async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
   const heOrEn =
     `"${MIZRAHI_CHECKING_ACCOUNT_HE}") or contains(., ` + `"${MIZRAHI_CHECKING_ACCOUNT_EN}"`;
   const xpath = `//a//span[contains(., ${heOrEn})]`;
-  return (await opts.page.$$(`xpath=${xpath}`)).length > 0;
+  return (await opts.page.locator(`xpath=${xpath}`).all()).length > 0;
+}
+
+/**
+ * Build text-based waiters for post-login detection.
+ * @param page - The Playwright page instance.
+ * @returns Array of promises that resolve when text is found.
+ */
+function buildPostLoginWaiters(page: Page): Promise<boolean>[] {
+  return ACCOUNT_TEXT_CANDIDATES.map(async text => {
+    await page.getByText(text).first().waitFor({ state: 'visible', timeout: 30000 });
+    return true;
+  });
 }
 
 /**
@@ -35,11 +69,11 @@ async function mizrahiIsLoggedIn(opts?: { page?: Page }): Promise<boolean> {
  * @returns True when a post-login element or navigation completes.
  */
 async function mizrahiPostAction(page: Page): LifecyclePromise {
-  await Promise.race([
-    waitUntilElementFound(page, '#dropdownBasic'),
-    waitUntilElementFound(page, MIZRAHI_INVALID_SELECTOR),
-    waitForNavigation(page),
-  ]);
+  const errorWaiters = ERROR_TEXT_CANDIDATES.map(async text => {
+    await page.getByText(text).first().waitFor({ state: 'visible', timeout: 30000 });
+    return true;
+  });
+  await Promise.race([...buildPostLoginWaiters(page), ...errorWaiters, waitForNavigation(page)]);
 }
 
 /** Declarative login configuration for Mizrahi-Tefahot. */
@@ -64,8 +98,10 @@ const MIZRAHI_CONFIG: ILoginConfig = {
   possibleResults: {
     success: [/https:\/\/mto\.mizrahi-tefahot\.co\.il\/OnlineApp\/.*/i, mizrahiIsLoggedIn],
     invalidPassword: [
-      async (opts): Promise<boolean> =>
-        !!(opts?.page && (await opts.page.$(MIZRAHI_INVALID_SELECTOR))),
+      async (opts): Promise<boolean> => {
+        if (!opts?.page) return false;
+        return isAnyTextVisible(opts.page, ERROR_TEXT_CANDIDATES);
+      },
     ],
     changePassword: [/https:\/\/www\.mizrahi-tefahot\.co\.il\/login\/index\.html#\/change-pass/],
   },

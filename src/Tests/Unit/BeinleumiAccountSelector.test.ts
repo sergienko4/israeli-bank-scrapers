@@ -4,11 +4,8 @@ import type { Page } from 'playwright-core';
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
   waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-
   fillInput: jest.fn().mockResolvedValue(undefined),
-
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
@@ -47,6 +44,37 @@ const MOCK_PAGE_MODULE = await import('../MockPage.js');
 
 let mockPage: ReturnType<typeof MOCK_PAGE_MODULE.createMockPage>;
 
+/**
+ * Build a locator mock for the dropdown panel visibility check.
+ * @param isVis - Whether the panel should appear visible.
+ * @returns Mock locator chain.
+ */
+function makeDropdownLocator(isVis: boolean): { first: jest.Mock; isVisible: jest.Mock } {
+  const loc = {
+    first: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(isVis),
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
+/**
+ * Build a locator mock that returns allInnerTexts for option labels.
+ * @param labels - The labels to return from allInnerTexts.
+ * @returns Mock locator with allInnerTexts.
+ */
+function makeOptionLocator(labels: string[]): {
+  allInnerTexts: jest.Mock;
+  all: jest.Mock;
+  count: jest.Mock;
+} {
+  return {
+    allInnerTexts: jest.fn().mockResolvedValue(labels),
+    all: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(labels.length),
+  };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockPage = MOCK_PAGE_MODULE.createMockPage();
@@ -54,8 +82,12 @@ beforeEach(() => {
 
 describe('clickAccountSelectorGetAccountIds', () => {
   it('returns account labels when dropdown is visible', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['account-1', 'account-2']);
+    const dropdownLoc = makeDropdownLocator(true);
+    const optionLoc = makeOptionLocator(['account-1', 'account-2']);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -64,8 +96,12 @@ describe('clickAccountSelectorGetAccountIds', () => {
   });
 
   it('opens dropdown if not already open before reading options', async () => {
-    mockPage.$eval.mockResolvedValueOnce(false);
-    mockPage.$$eval.mockResolvedValueOnce(['account-3']);
+    const dropdownLoc = makeDropdownLocator(false);
+    const optionLoc = makeOptionLocator(['account-3']);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -74,7 +110,9 @@ describe('clickAccountSelectorGetAccountIds', () => {
   });
 
   it('returns empty array when an error is thrown', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('page crash'));
+    const dropdownLoc = makeDropdownLocator(false);
+    dropdownLoc.isVisible.mockRejectedValueOnce(new Error('page crash'));
+    mockPage.locator = jest.fn().mockReturnValue(dropdownLoc);
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -82,9 +120,15 @@ describe('clickAccountSelectorGetAccountIds', () => {
     expect(accounts).toEqual([]);
   });
 
-  it('returns empty array when $$eval throws', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockRejectedValueOnce(new Error('no elements'));
+  it('returns empty array when allInnerTexts throws', async () => {
+    const dropdownLoc = makeDropdownLocator(true);
+    const brokenOptionLoc = {
+      allInnerTexts: jest.fn().mockRejectedValue(new Error('no elements')),
+    };
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return brokenOptionLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.clickAccountSelectorGetAccountIds(
       mockPage as unknown as Page,
@@ -95,8 +139,12 @@ describe('clickAccountSelectorGetAccountIds', () => {
 
 describe('getAccountIdsBothUIs', () => {
   it('returns new UI accounts when present', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['111', '222']);
+    const dropdownLoc = makeDropdownLocator(true);
+    const optionLoc = makeOptionLocator(['111', '222']);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
       mockPage as unknown as Page,
@@ -105,8 +153,23 @@ describe('getAccountIdsBothUIs', () => {
   });
 
   it('falls back to old UI when new UI returns empty', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
-    mockPage.evaluate.mockResolvedValueOnce(['333']);
+    const dropdownLoc = makeDropdownLocator(false);
+    dropdownLoc.isVisible.mockRejectedValueOnce(new Error('no selector'));
+    const optElem = { innerText: jest.fn().mockResolvedValue('333') };
+    const optionLoc = { all: jest.fn().mockResolvedValue([optElem]) };
+    const comboLoc = {
+      first: jest.fn().mockReturnValue({
+        count: jest.fn().mockResolvedValue(1),
+        locator: jest.fn().mockReturnValue(optionLoc),
+      }),
+      count: jest.fn().mockResolvedValue(1),
+      locator: jest.fn().mockReturnValue(optionLoc),
+    };
+    mockPage.getByRole = jest.fn().mockReturnValue(comboLoc);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return dropdownLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
       mockPage as unknown as Page,
@@ -115,8 +178,17 @@ describe('getAccountIdsBothUIs', () => {
   });
 
   it('returns empty array when both UIs return nothing', async () => {
-    mockPage.$eval.mockRejectedValueOnce(new Error('no selector'));
-    mockPage.evaluate.mockResolvedValueOnce([]);
+    const dropdownLoc = makeDropdownLocator(false);
+    dropdownLoc.isVisible.mockRejectedValueOnce(new Error('no selector'));
+    const emptyCombo = {
+      first: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+      count: jest.fn().mockResolvedValue(0),
+    };
+    mockPage.getByRole = jest.fn().mockReturnValue(emptyCombo);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return dropdownLoc;
+    });
 
     const accounts = await ACCOUNT_SELECTOR_MODULE.getAccountIdsBothUIs(
       mockPage as unknown as Page,
@@ -127,8 +199,12 @@ describe('getAccountIdsBothUIs', () => {
 
 describe('selectAccountFromDropdown', () => {
   it('returns false when account is not in available list', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
+    const dropdownLoc = makeDropdownLocator(true);
+    const optionLoc = makeOptionLocator(['acc-1', 'acc-2']);
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLoc;
+    });
 
     const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
       mockPage as unknown as Page,
@@ -138,31 +214,44 @@ describe('selectAccountFromDropdown', () => {
   });
 
   it('returns true when account is found and clicked', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1', 'acc-2']);
-
-    const mockOptionEl = {
-      evaluateHandle: jest.fn().mockResolvedValue({}),
+    const dropdownLoc = makeDropdownLocator(true);
+    const optionLoc = makeOptionLocator(['acc-1', 'acc-2']);
+    const clickableOption = {
+      innerText: jest.fn().mockResolvedValue('acc-1'),
+      click: jest.fn().mockResolvedValue(undefined),
     };
-    mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
-    mockPage.evaluate.mockResolvedValueOnce('acc-1').mockResolvedValueOnce(undefined);
+    const optionLocAll = {
+      ...optionLoc,
+      all: jest.fn().mockResolvedValue([clickableOption]),
+    };
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLocAll;
+    });
 
     const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
       mockPage as unknown as Page,
       'acc-1',
     );
     expect(isSelected).toBe(true);
+    expect(clickableOption.click).toHaveBeenCalled();
   });
 
   it('returns false when no matching option found in DOM', async () => {
-    mockPage.$eval.mockResolvedValueOnce(true);
-    mockPage.$$eval.mockResolvedValueOnce(['acc-1']);
-
-    const mockOptionEl = {
-      evaluateHandle: jest.fn().mockResolvedValue({}),
+    const dropdownLoc = makeDropdownLocator(true);
+    const optionLoc = makeOptionLocator(['acc-1']);
+    const nonMatchOption = {
+      innerText: jest.fn().mockResolvedValue('acc-different'),
+      click: jest.fn().mockResolvedValue(undefined),
     };
-    mockPage.$$.mockResolvedValueOnce([mockOptionEl]);
-    mockPage.evaluate.mockResolvedValueOnce('acc-different');
+    const optionLocAll = {
+      ...optionLoc,
+      all: jest.fn().mockResolvedValue([nonMatchOption]),
+    };
+    mockPage.locator = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('autocomplete')) return dropdownLoc;
+      return optionLocAll;
+    });
 
     const isSelected = await ACCOUNT_SELECTOR_MODULE.selectAccountFromDropdown(
       mockPage as unknown as Page,
@@ -173,52 +262,32 @@ describe('selectAccountFromDropdown', () => {
 });
 
 describe('getTransactionsFrame', () => {
-  it('returns null after all attempts fail', async () => {
-    mockPage.$.mockResolvedValue(null);
+  it('returns undefined after all attempts fail', async () => {
     mockPage.frames.mockReturnValue([]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBeUndefined();
   });
 
-  it('returns frame found via iframe element contentFrame', async () => {
-    const mockFrame = { name: jest.fn().mockReturnValue('') };
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockResolvedValue(mockFrame),
-    };
-    mockPage.$.mockResolvedValueOnce(mockIframeEl);
-
-    const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
-    expect(frame).toBe(mockFrame);
-  });
-
   it('returns frame found via page.frames() by name', async () => {
     const mockFrame = { name: jest.fn().mockReturnValue('iframe-old-pages') };
-    mockPage.$.mockResolvedValueOnce(null);
-    mockPage.frames.mockReturnValueOnce([mockFrame]);
+    mockPage.frames.mockReturnValue([mockFrame]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBe(mockFrame);
   });
 
   it('retries and returns frame on second attempt', async () => {
-    const mockFrame = { name: jest.fn().mockReturnValue('') };
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockResolvedValue(mockFrame),
-    };
-    mockPage.$.mockResolvedValueOnce(null).mockResolvedValueOnce(mockIframeEl);
-    mockPage.frames.mockReturnValue([]);
+    const mockFrame = { name: jest.fn().mockReturnValue('iframe-old-pages') };
+    mockPage.frames.mockReturnValueOnce([]).mockReturnValueOnce([mockFrame]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBe(mockFrame);
   });
 
-  it('handles stale iframe element (contentFrame throws)', async () => {
-    const mockIframeEl = {
-      contentFrame: jest.fn().mockRejectedValue(new Error('stale element')),
-    };
-    mockPage.$.mockResolvedValue(mockIframeEl);
-    mockPage.frames.mockReturnValue([]);
+  it('returns undefined when frames have wrong names', async () => {
+    const wrongFrame = { name: jest.fn().mockReturnValue('some-other-frame') };
+    mockPage.frames.mockReturnValue([wrongFrame]);
 
     const frame = await ACCOUNT_SELECTOR_MODULE.getTransactionsFrame(mockPage as unknown as Page);
     expect(frame).toBeUndefined();

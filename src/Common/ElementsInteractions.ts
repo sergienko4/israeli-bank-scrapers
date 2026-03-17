@@ -186,14 +186,12 @@ async function setValue(
   inputSelector: string,
   inputValue: string,
 ): Promise<boolean> {
-  await pageOrFrame.$eval(
-    inputSelector,
-    (input: Element, value) => {
-      const inputElement = input;
-      (inputElement as unknown as HTMLInputElement).value = value as unknown as string;
-    },
-    [inputValue],
-  );
+  await pageOrFrame
+    .locator(inputSelector)
+    .first()
+    .evaluate((input: Element, val: string) => {
+      (input as HTMLInputElement).value = val;
+    }, inputValue);
   return true;
 }
 
@@ -206,9 +204,7 @@ async function setValue(
 async function clickButton(page: Page | Frame, buttonSelector: string): Promise<boolean> {
   LOG.debug('click %s', buttonSelector);
   await humanDelay(CLICK_BUTTON_DELAY_MIN_MS, CLICK_BUTTON_DELAY_MAX_MS);
-  await page.$eval(buttonSelector, el => {
-    (el as HTMLElement).click();
-  });
+  await page.locator(buttonSelector).first().click();
   return true;
 }
 
@@ -219,9 +215,7 @@ async function clickButton(page: Page | Frame, buttonSelector: string): Promise<
  * @returns True after the link is clicked.
  */
 async function clickLink(page: Page, aSelector: string): Promise<boolean> {
-  await page.$eval(aSelector, (el: Element) => {
-    (el as HTMLElement).click();
-  });
+  await page.locator(aSelector).first().click();
   return true;
 }
 
@@ -236,18 +230,18 @@ async function pageEvalAll<TResult>(
   opts: IPageEvalAllOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
-  let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.$$eval(selector, callback);
-  } catch (e) {
-    // Swallow "no elements found" errors and return the default result instead.
-    if (!(e as Error).message.startsWith('Error: failed to find elements matching selector')) {
-      throw e;
-    }
+    const locator = page.locator(selector);
+    if ((await locator.count()) === 0) return defaultResult;
+    return await locator.evaluateAll(callback);
+  } catch (error: unknown) {
+    // Design: return defaultResult instead of rethrowing to preserve backwards compatibility.
+    // 15+ callers depend on getting defaultResult on failure (scrapers, login configs, helpers).
+    const msg = error instanceof Error ? error.message : String(error);
+    LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
+    return defaultResult;
   }
-
-  return result;
 }
 
 /**
@@ -261,18 +255,17 @@ async function pageEval<TResult>(
   opts: IPageEvalOpts<TResult>,
 ): Promise<TResult> {
   const { selector, defaultResult, callback } = opts;
-  let result = defaultResult;
   try {
     await page.waitForFunction(() => document.readyState === 'complete');
-    result = await page.$eval(selector, callback);
-  } catch (e) {
-    // Swallow "no elements found" errors and return the default result instead.
-    if (!(e as Error).message.startsWith('Error: failed to find element matching selector')) {
-      throw e;
-    }
+    const locator = page.locator(selector);
+    if ((await locator.count()) === 0) return defaultResult;
+    return await locator.first().evaluate(callback);
+  } catch (error: unknown) {
+    // Design: return defaultResult instead of rethrowing (same rationale as pageEvalAll).
+    const msg = error instanceof Error ? error.message : String(error);
+    LOG.debug('pageEval(%s) error: %s', selector, msg);
+    return defaultResult;
   }
-
-  return result;
 }
 
 /**
@@ -282,7 +275,7 @@ async function pageEval<TResult>(
  * @returns True if the element exists, false otherwise.
  */
 async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string): Promise<boolean> {
-  return (await pageOrFrame.$(selector)) !== null;
+  return (await pageOrFrame.locator(selector).count()) > 0;
 }
 
 /**

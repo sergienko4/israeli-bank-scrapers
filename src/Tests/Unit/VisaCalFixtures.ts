@@ -203,3 +203,20 @@ export const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CONTEXT),
   close: jest.fn().mockResolvedValue(undefined),
 };
+
+/**
+ * Create a mock iframe locator chain (getByText → first → waitFor/click/isVisible).
+ * @returns A mock getByText implementation for iframe-like contexts.
+ */
+export function createIframeLocatorMock(): jest.Mock {
+  return jest.fn().mockImplementation(() => {
+    const loc = {
+      first: jest.fn(),
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn().mockResolvedValue(undefined),
+      isVisible: jest.fn().mockResolvedValue(false),
+    };
+    loc.first.mockReturnValue(loc);
+    return loc;
+  });
+}

@@ -3,14 +3,13 @@ import moment from 'moment';
 import { type Page } from 'playwright-core';
 
 import {
-  clickButton,
   pageEvalAll,
   waitUntilElementDisappear,
   waitUntilElementFound,
 } from '../../Common/ElementsInteractions.js';
-import { toFirstCss } from '../../Common/SelectorResolver.js';
+import { waitForNavigation } from '../../Common/Navigation.js';
+import { candidateToCss } from '../../Common/SelectorResolver.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
-import { runSerial } from '../../Common/Waiting.js';
 import { SHEKEL_CURRENCY } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
 import {
@@ -24,10 +23,15 @@ import { type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { YAHAV_CONFIG } from './Config/YahavLoginConfig.js';
+import searchByDates, { type IYahavDateSelectors } from './YahavDatePicker.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Yahav];
-const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
-const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
+
+/** Resolve each bank selector entry to a Playwright-compatible string. */
+const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(
+  ([k, cs]) => [k, candidateToCss(cs[0])] as const,
+);
+const SEL = Object.fromEntries(SELECTOR_ENTRIES) as IYahavDateSelectors & Record<string, string>;
 
 interface IScrapedTransaction {
   credit: string;
@@ -46,10 +50,10 @@ interface IScrapedTransaction {
  */
 async function getAccountID(page: Page): Promise<string> {
   try {
-    return await page.$eval(SEL.accountId, (element: Element) => element.textContent);
+    return await page.locator(SEL.accountId).first().innerText();
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    throw new ScraperError(`Failed to retrieve account ID. Selector '${SEL.accountId}': ${msg}`);
+    throw new ScraperError(`Failed to retrieve account ID: ${msg}`);
   }
 }
 
@@ -193,100 +197,6 @@ async function getAccountTransactions(
   return convertTransactions(txns, options);
 }
 
-/**
- * Try clicking a grid cell that matches the target text.
- * @param page - The Playwright page instance.
- * @param selector - The CSS selector for the cell.
- * @param target - The target text to match.
- * @returns True if the cell was clicked, false otherwise.
- */
-async function tryClickGridCell(page: Page, selector: string, target: string): Promise<boolean> {
-  const text = await page.$eval(selector, el => (el as HTMLElement).innerText);
-  if (target !== text) return false;
-  await clickButton(page, selector);
-  return true;
-}
-
-/**
- * Select a year from the date picker grid.
- * @param page - The Playwright page instance.
- * @param targetYear - The year string to select.
- * @returns True after selection.
- */
-async function selectYearFromGrid(page: Page, targetYear: string): Promise<boolean> {
-  const actions = Array.from(
-    { length: 12 },
-    (_, i): (() => Promise<boolean>) =>
-      () =>
-        tryClickGridCell(page, `.pmu-years > div:nth-child(${String(i + 1)})`, targetYear),
-  );
-  await runSerial(actions);
-  return true;
-}
-
-/**
- * Select a day from the date picker grid.
- * @param page - The Playwright page instance.
- * @param targetDay - The day string to select.
- * @returns True after selection.
- */
-async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean> {
-  const actions = Array.from(
-    { length: 41 },
-    (_, i): (() => Promise<boolean>) =>
-      () =>
-        tryClickGridCell(page, `.pmu-days > div:nth-child(${String(i + 1)})`, targetDay),
-  );
-  await runSerial(actions);
-  return true;
-}
-
-/**
- * Open the date picker widget.
- * @param page - The Playwright page instance.
- * @returns True after the picker is open.
- */
-async function openDatePicker(page: Page): Promise<boolean> {
-  await waitUntilElementFound(page, SEL.datePickerOpener, { visible: true });
-  await clickButton(page, SEL.datePickerOpener);
-  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
-  return true;
-}
-
-/**
- * Navigate the date picker to the year/month view.
- * @param page - The Playwright page instance.
- * @returns True after navigation.
- */
-async function navigateToYearView(page: Page): Promise<boolean> {
-  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
-  await clickButton(page, SEL.monthPickerBtn);
-  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
-  await waitUntilElementFound(page, SEL.monthPickerBtn, { visible: true });
-  await clickButton(page, SEL.monthPickerBtn);
-  await waitUntilElementFound(page, SEL.yearsGridCheck, { visible: true });
-  return true;
-}
-
-/**
- * Search transactions by start date using the date picker.
- * @param page - The Playwright page instance.
- * @param startDate - The start date for filtering.
- * @returns True after search is applied.
- */
-async function searchByDates(page: Page, startDate: Moment): Promise<boolean> {
-  const day = startDate.format('D');
-  const month = startDate.format('M');
-  const year = startDate.format('Y');
-  await openDatePicker(page);
-  await navigateToYearView(page);
-  await selectYearFromGrid(page, year);
-  await waitUntilElementFound(page, SEL.monthsGridCheck, { visible: true });
-  await clickButton(page, `.pmu-months > div:nth-child(${month})`);
-  await selectDayFromGrid(page, day);
-  return true;
-}
-
 interface IFetchAccountDataOpts {
   page: Page;
   startDate: Moment;
@@ -302,7 +212,7 @@ interface IFetchAccountDataOpts {
 async function fetchAccountData(opts: IFetchAccountDataOpts): Promise<ITransactionsAccount> {
   const { page, startDate, accountID, options } = opts;
   await waitUntilElementDisappear(page, SEL.loadingSpinner);
-  await searchByDates(page, startDate);
+  await searchByDates(page, startDate, SEL);
   await waitUntilElementDisappear(page, SEL.loadingSpinner);
   const txns = await getAccountTransactions(page, options);
   return { accountNumber: accountID, txns };
@@ -321,13 +231,7 @@ async function fetchAccounts(
   options?: ScraperOptions,
 ): Promise<ITransactionsAccount[]> {
   const accountID = await getAccountID(page);
-  const accountData = await fetchAccountData({
-    page,
-    startDate,
-    accountID,
-    options,
-  });
-  return [accountData];
+  return [await fetchAccountData({ page, startDate, accountID, options })];
 }
 
 interface IScraperSpecificCredentials {
@@ -335,6 +239,9 @@ interface IScraperSpecificCredentials {
   password: string;
   nationalID: string;
 }
+
+/** Hebrew text for the account details navigation link. */
+const ACCOUNT_DETAILS_TEXT = 'פרטי חשבון';
 
 /** Yahav bank scraper — fetches transactions from Yahav online banking. */
 class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
@@ -367,11 +274,10 @@ class YahavScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns True after navigation completes.
    */
   private async navigateToStatements(): Promise<boolean> {
-    await waitUntilElementFound(this.page, SEL.accountDetails, { visible: true });
-    await clickButton(this.page, SEL.accountDetails);
-    await waitUntilElementFound(this.page, '.statement-options .selected-item-top', {
-      visible: true,
-    });
+    const detailsLoc = this.page.getByText(ACCOUNT_DETAILS_TEXT).first();
+    await detailsLoc.waitFor({ state: 'visible' });
+    await detailsLoc.click();
+    await waitForNavigation(this.page);
     return true;
   }
 }

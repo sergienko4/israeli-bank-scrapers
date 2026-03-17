@@ -55,8 +55,8 @@ concurrency:
 # Architecture: 2 parallel jobs
 #
 #   validate    — single job: npm ci once → lint → tsc → audit →
-#                 unit tests → e2e smoke → e2e mocked → e2e real →
-#                 build → upload artifacts
+#                 unit tests → e2e smoke (invalid creds) → e2e mocked →
+#                 e2e full (real creds) → build → upload artifacts
 #   dep-review  — no packages needed, PR-only
 # ──────────────────────────────────────────────────────────────
 
@@ -97,20 +97,24 @@ jobs:
 
       # ── Unit Tests ──
       - name: Unit tests with coverage
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/'
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'
 
-      # ── E2E Smoke Tests ──
-      - name: E2E smoke tests
+      # ── E2E Factory Tests ──
+      - name: E2E factory tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose --forceExit
+
+      # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
+      - name: E2E smoke tests (invalid credentials)
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eSmoke' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
       # ── E2E Mocked Tests ──
       - name: E2E mocked tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
-      # ── E2E Real Bank Tests (conditional — same-repo PRs and manual dispatch only) ──
-      - name: E2E real bank tests
+      # ── E2E Full Bank Tests (real credentials — same-repo PRs and manual dispatch only) ──
+      - name: E2E full bank tests (real credentials)
         if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2eReal' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eFull' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           AMEX_ID: ${{ secrets.AMEX_ID }}

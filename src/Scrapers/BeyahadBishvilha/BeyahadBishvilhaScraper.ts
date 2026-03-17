@@ -3,7 +3,7 @@ import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
 import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
-import { toFirstCss } from '../../Common/SelectorResolver.js';
+import { candidateToCss } from '../../Common/SelectorResolver.js';
 import { filterOldTransactions, getRawTransaction } from '../../Common/Transactions.js';
 import {
   DOLLAR_CURRENCY,
@@ -23,7 +23,9 @@ import { BEYAHAD_CONFIG } from './Config/BeyahadBishvilhaLoginConfig.js';
 const LOG = getDebug('beyahadBishvilha');
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.BeyahadBishvilha];
-const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(([k, cs]) => [k, toFirstCss(cs)]);
+const SELECTOR_ENTRIES = Object.entries(CFG.selectors)
+  .filter(([, cs]) => cs.length > 0)
+  .map(([k, cs]) => [k, candidateToCss(cs[0])]);
 const SEL = Object.fromEntries(SELECTOR_ENTRIES) as Record<string, string>;
 
 interface IScrapedTransaction {
