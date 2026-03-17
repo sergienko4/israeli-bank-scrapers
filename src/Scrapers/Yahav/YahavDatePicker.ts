@@ -8,7 +8,7 @@ import { runSerial } from '../../Common/Waiting.js';
 const YEARS_GRID_SIZE = 12;
 
 /** Number of day cells in the date picker grid. */
-const DAYS_GRID_SIZE = 41;
+const DAYS_GRID_SIZE = 42;
 
 /** Typed selector keys required by the Yahav date picker. */
 export interface IYahavDateSelectors {

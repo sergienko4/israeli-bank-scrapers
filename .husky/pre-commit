@@ -25,11 +25,11 @@ echo "  See CLEAN_CODE.md for fix strategies" | tee -a "$LOG_FILE"
 echo "══════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔍  [1/10] Type check — strict, no implicit any..." | tee -a "$LOG_FILE"
+echo "🔍  [1/11] Type check — strict, no implicit any..." | tee -a "$LOG_FILE"
 run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧹  [2/10] Prettier format + re-stage..." | tee -a "$LOG_FILE"
+echo "🧹  [2/11] Prettier format + re-stage..." | tee -a "$LOG_FILE"
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
   echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
@@ -41,27 +41,31 @@ if [ -n "$STAGED_SRC" ]; then
 fi
 
 echo "" | tee -a "$LOG_FILE"
-echo "📦  [3/10] Build verification (lint + tsup + publint)..." | tee -a "$LOG_FILE"
+echo "📦  [3/11] Build verification (lint + tsup + publint)..." | tee -a "$LOG_FILE"
 run_gate npm run build || exit 1
 npx rimraf lib/Common lib/Scrapers lib/Tests
 test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.cts || { echo "❌ Build output missing" | tee -a "$LOG_FILE"; exit 1; }
 run_gate npm run check-exports || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔒  [4/10] npm audit (production deps)..." | tee -a "$LOG_FILE"
+echo "🔒  [4/11] npm audit (production deps)..." | tee -a "$LOG_FILE"
 run_gate npm audit --audit-level=high --omit=dev || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧪  [5/10] Unit tests..." | tee -a "$LOG_FILE"
+echo "🧪  [5/11] Unit tests..." | tee -a "$LOG_FILE"
 run_gate npm run test:unit -- --coverage || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🧬  [6/10] Biome lint (suspicious, complexity, correctness)..." | tee -a "$LOG_FILE"
+echo "🧬  [6/11] Biome lint (suspicious, complexity, correctness)..." | tee -a "$LOG_FILE"
 run_gate npx biome lint src --max-diagnostics=50 || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🛡️  [7/10] Semgrep security + logic scan (OWASP, Node.js, TypeScript)..." | tee -a "$LOG_FILE"
-export PATH="$PATH:$HOME/AppData/Roaming/Python/Python313/Scripts:$HOME/.local/bin"
+echo "🛡️  [7/11] Semgrep security + logic scan (OWASP, Node.js, TypeScript)..." | tee -a "$LOG_FILE"
+# Add pip script locations (Windows user installs vary by Python version)
+for pydir in "$HOME/AppData/Roaming/Python"/Python3*/Scripts; do
+  [ -d "$pydir" ] && export PATH="$PATH:$pydir"
+done
+export PATH="$PATH:$HOME/.local/bin"
 if command -v semgrep &>/dev/null; then
   run_gate semgrep --config=p/typescript --config=p/owasp-top-ten --config=p/nodejs src/ --error --max-target-bytes=500000 || exit 1
 else
@@ -69,15 +73,24 @@ else
 fi
 
 echo "" | tee -a "$LOG_FILE"
-echo "🎭  [8/10] Mocked E2E tests..." | tee -a "$LOG_FILE"
+echo "🤖  [8/11] AI code review (ai-commit-guard + Ollama)..." | tee -a "$LOG_FILE"
+export PATH="$PATH:$HOME/AppData/Local/Programs/Ollama"
+if command -v ai-commit-guard &>/dev/null && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+  run_gate npx ai-commit-guard || exit 1
+else
+  echo "  ⚠️  ai-commit-guard or Ollama not available — skipping" | tee -a "$LOG_FILE"
+fi
+
+echo "" | tee -a "$LOG_FILE"
+echo "🎭  [9/11] Mocked E2E tests..." | tee -a "$LOG_FILE"
 run_gate npm run test:e2e:mock || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🔥  [9/10] E2E smoke tests (invalid creds, all banks)..." | tee -a "$LOG_FILE"
+echo "🔥  [10/11] E2E smoke tests (invalid creds, all banks)..." | tee -a "$LOG_FILE"
 run_gate npm run test:e2e:smoke || exit 1
 
 echo "" | tee -a "$LOG_FILE"
-echo "🏦  [10/10] E2E full — real credentials (requires .env)..." | tee -a "$LOG_FILE"
+echo "🏦  [11/11] E2E full — real credentials (requires .env)..." | tee -a "$LOG_FILE"
 if [ -f .env ]; then
   npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs 2>/dev/null
   run_gate npm run test:e2e:full -- --verbose || exit 1
@@ -87,5 +100,5 @@ fi
 
 echo "" | tee -a "$LOG_FILE"
 echo "══════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
-echo "✅  ALL 10 GATES PASSED. COMMITTING..." | tee -a "$LOG_FILE"
+echo "✅  ALL 11 GATES PASSED. COMMITTING..." | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"

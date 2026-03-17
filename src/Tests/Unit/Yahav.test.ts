@@ -121,6 +121,15 @@ function yahavFirstElement(): Record<string, jest.Mock> {
  * Build a nested locator stub for Yahav tests.
  * @returns mock locator with first/count/locator/all.
  */
+/**
+ * Return the expected innerText for a date picker grid cell selector.
+ * @param sel - The CSS selector for the grid cell.
+ * @returns The text value to match during grid scanning.
+ */
+/**
+ * Build a nested locator stub for Yahav tests.
+ * @returns mock locator with first/count/locator/all.
+ */
 function yahavLocatorImpl(): Record<string, jest.Mock> {
   const firstEl = yahavFirstElement();
   const subLoc = {
