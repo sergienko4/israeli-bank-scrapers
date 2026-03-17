@@ -54,15 +54,15 @@ function buildGridActions(opts: IGridOpts, count: number): (() => Promise<boolea
  * @param page - The Playwright page instance.
  * @param sel - The resolved selectors map.
  * @param targetYear - The year string to select.
- * @returns True after selection.
+ * @returns True if the target year was found and clicked.
  */
 async function selectYearFromGrid(page: Page, sel: SelMap, targetYear: string): Promise<boolean> {
   const actions = buildGridActions(
     { page, prefix: sel.yearsGridPrefix, target: targetYear },
     YEARS_GRID_SIZE,
   );
-  await runSerial(actions);
-  return true;
+  const results = await runSerial(actions);
+  return results.some(Boolean);
 }
 
 /**
@@ -70,15 +70,15 @@ async function selectYearFromGrid(page: Page, sel: SelMap, targetYear: string): 
  * @param page - The Playwright page instance.
  * @param sel - The resolved selectors map.
  * @param targetDay - The day string to select.
- * @returns True after selection.
+ * @returns True if the target day was found and clicked.
  */
 async function selectDayFromGrid(page: Page, sel: SelMap, targetDay: string): Promise<boolean> {
   const actions = buildGridActions(
     { page, prefix: sel.daysGridPrefix, target: targetDay },
     DAYS_GRID_SIZE,
   );
-  await runSerial(actions);
-  return true;
+  const results = await runSerial(actions);
+  return results.some(Boolean);
 }
 
 /**
@@ -96,6 +96,8 @@ async function openDatePicker(page: Page, sel: SelMap): Promise<boolean> {
 
 /**
  * Navigate the date picker to the year/month view.
+ * Pickmeup cycles: days → months → years on repeated header clicks.
+ * First click opens months grid; second click opens years grid.
  * @param page - The Playwright page instance.
  * @param sel - The resolved selectors map.
  * @returns True after navigation.
@@ -115,7 +117,7 @@ async function navigateToYearView(page: Page, sel: SelMap): Promise<boolean> {
  * @param page - The Playwright page instance.
  * @param startDate - The start date for filtering.
  * @param sel - The resolved selectors map.
- * @returns True after search is applied.
+ * @returns True if all date components were selected successfully.
  */
 export default async function searchByDates(
   page: Page,
@@ -127,10 +129,10 @@ export default async function searchByDates(
   const year = startDate.format('Y');
   await openDatePicker(page, sel);
   await navigateToYearView(page, sel);
-  await selectYearFromGrid(page, sel, year);
+  const didSelectYear = await selectYearFromGrid(page, sel, year);
+  if (!didSelectYear) return false;
   await waitUntilElementFound(page, sel.monthsGridCheck, { visible: true });
   const monthCell = `${sel.monthsGridPrefix} > div:nth-child(${month})`;
   await clickButton(page, monthCell);
-  await selectDayFromGrid(page, sel, day);
-  return true;
+  return selectDayFromGrid(page, sel, day);
 }

@@ -33,6 +33,10 @@ echo "🧹  [2/8] Prettier format + re-stage..." | tee -a "$LOG_FILE"
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
   echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    echo "❌ Prettier --write failed" | tee -a "$LOG_FILE"
+    exit 1
+  fi
   echo "$STAGED_SRC" | xargs git add
 fi
 

@@ -19,7 +19,7 @@ export default {
   transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/'],
+  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eSmoke/', 'E2eFull/'],
   collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
   coverageThreshold: {
     global: {

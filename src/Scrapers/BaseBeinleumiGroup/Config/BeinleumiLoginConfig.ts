@@ -49,14 +49,17 @@ const FRAME_POLL_DEADLINE_MS = 15000;
 const FRAME_RETRY_DELAY_MS = 2000;
 
 /**
- * Wait for iframes to appear, then find the login frame with retry.
+ * Wait for iframes to appear, then find the login frame with up to 3 retries.
  * @param page - The Playwright page to interact with.
  * @returns The login iframe if found, or undefined on timeout.
  */
 async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
   await waitForAnyIframe(page);
-  const frame = await findLoginFrame(page);
-  if (frame) return frame;
+  const first = await findLoginFrame(page);
+  if (first) return first;
+  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
+  const second = await findLoginFrame(page);
+  if (second) return second;
   await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
   return findLoginFrame(page);
 }
