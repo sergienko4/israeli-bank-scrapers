@@ -145,35 +145,6 @@ export async function findOtpSubmitSelector(page: Page): Promise<string> {
   return results.find(sel => sel.length > 0) ?? '';
 }
 
-/** Result of an SMS trigger search with selector and context. */
-interface ISmsTriggerResult {
-  selector: string;
-  context: Page | Frame;
-}
-
-/**
- * Search all frames for an SMS trigger button.
- * @param page - The Playwright page to search.
- * @param cachedFrames - Optional pre-filtered list of child frames.
- * @returns The trigger selector and context, or empty selector if not found.
- */
-async function findSmsTriggerInFrames(
-  page: Page,
-  cachedFrames?: Frame[],
-): Promise<ISmsTriggerResult> {
-  const mainSel = await tryInContext(page, SMS_TRIGGER_CANDIDATES);
-  if (mainSel) return { selector: mainSel, context: page };
-  const mainFrame = page.mainFrame();
-  const frames = cachedFrames ?? page.frames().filter(f => f !== mainFrame);
-  const frameTasks = frames.map(async (frame): Promise<ISmsTriggerResult | false> => {
-    const sel = await tryInContext(frame, SMS_TRIGGER_CANDIDATES);
-    return sel ? { selector: sel, context: frame } : false;
-  });
-  const results = await Promise.all(frameTasks);
-  const found = results.find((r): r is ISmsTriggerResult => r !== false);
-  return found ?? { selector: '', context: page };
-}
-
 /**
  * Click the SMS trigger button if one is found on the page or in frames.
  * @param page - The Playwright page to search for SMS triggers.
@@ -188,17 +159,22 @@ export async function clickOtpTriggerIfPresent(
   const contexts = buildContextList(page, cachedFrames);
   const didClick = await tryClickTextInContexts(contexts, textValues);
   if (didClick) return true;
-  const trigger = await findSmsTriggerInFrames(page, cachedFrames);
-  if (trigger.selector) {
-    LOG.debug('clicking SMS trigger fallback: %s', trigger.selector);
-    const isClicked = await trigger.context
-      .click(trigger.selector, { timeout: 5000 })
-      .then((): true => true)
-      .catch((): false => false);
-    return isClicked;
-  }
+  const hasFallback = await tryFallbackInAllContexts(contexts);
+  if (hasFallback) return true;
   LOG.debug('No SMS trigger found — SMS may be auto-sent');
   return false;
+}
+
+/**
+ * Try SMS trigger fallback across all contexts sequentially.
+ * @param contexts - Ordered list of Page/Frame contexts.
+ * @returns True if a trigger was found and clicked.
+ */
+async function tryFallbackInAllContexts(contexts: (Page | Frame)[]): Promise<boolean> {
+  const results = await runSequential(contexts, ctx =>
+    tryFallbackClick(ctx, SMS_TRIGGER_CANDIDATES),
+  );
+  return results.some(Boolean);
 }
 
 /** Text-based candidate kinds. */
@@ -346,16 +322,22 @@ async function sequentialContextAttempts(
   return runSequential(contexts, (ctx, idx) => tryClickTextInSingleContext(ctx, texts, idx === 0));
 }
 
+/** XPath predicate restricting matches to interactive elements. */
+const INTERACTIVE_FILTER = [
+  '(self::button or self::a or self::input',
+  'or self::select or self::textarea',
+  'or @role="button" or @role="link")',
+].join(' ');
+
 /**
- * Build an innermost-text XPath for the given visible text.
+ * Build an XPath matching the innermost interactive element with text.
  * @param text - The visible text to match.
- * @returns Playwright XPath selector string.
+ * @returns Playwright XPath selector for clickable elements only.
  */
 function innermostTextXpath(text: string): string {
   const escaped = toXpathLiteral(text);
   return [
-    'xpath=//*[not(self::script)',
-    'and not(self::style)',
+    `xpath=//*[${INTERACTIVE_FILTER}`,
     `and contains(., ${escaped})`,
     `and not(.//*[contains(., ${escaped})])]`,
   ].join(' ');

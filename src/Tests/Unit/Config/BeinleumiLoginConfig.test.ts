@@ -142,7 +142,7 @@ describe('beinleumiPostAction', () => {
     await expect(config.postAction?.(page)).resolves.toBeUndefined();
   });
 
-  it('completes even if all text waiters time out', async () => {
+  it('completes even if all text and label waiters time out', async () => {
     const timeoutError = new Error('timeout');
     timeoutError.name = 'TimeoutError';
     const failLoc = {
@@ -152,6 +152,7 @@ describe('beinleumiPostAction', () => {
     failLoc.first.mockReturnValue(failLoc);
     const page = CREATE_MOCK_PAGE({
       getByText: jest.fn().mockReturnValue(failLoc),
+      getByLabel: jest.fn().mockReturnValue(failLoc),
     });
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     await expect(config.postAction?.(page)).resolves.toBeUndefined();

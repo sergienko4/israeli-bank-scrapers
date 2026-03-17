@@ -249,6 +249,9 @@ export const SCRAPER_CONFIGURATION = {
               'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)',
           },
         ],
+        // Pickmeup date picker: structural CSS exception — 3rd-party widget
+        // has no ARIA roles, labels, or text alternatives on grid containers.
+        // Only CSS class + nth-child can navigate the year/month/day grids.
         monthPickerBtn: [{ kind: 'css', value: '.pmu-month' }],
         loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
         monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],

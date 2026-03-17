@@ -223,8 +223,10 @@ export function createStorageMock(): {
 }
 
 /**
- * XPath literal escaper matching production SelectorResolver logic.
- * Handles single quotes, double quotes, and mixed.
+ * XPath literal escaper matching production SelectorResolver.toXpathLiteral.
+ * This is a deliberate copy — cannot import the production module because
+ * test files use this inside jest.unstable_mockModule('SelectorResolver', ...)
+ * which replaces the real module. Importing would defeat the mock.
  * @param value - The raw string value.
  * @returns XPath-safe quoted string.
  */

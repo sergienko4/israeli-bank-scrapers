@@ -27,8 +27,8 @@ interface IGridOpts {
  * @returns True if the cell was clicked, false otherwise.
  */
 async function tryClickGridCell(page: Page, selector: string, target: string): Promise<boolean> {
-  const text = await page.locator(selector).first().innerText();
-  if (target !== text) return false;
+  const raw = await page.locator(selector).first().innerText();
+  if (target !== raw.trim()) return false;
   await clickButton(page, selector);
   return true;
 }
