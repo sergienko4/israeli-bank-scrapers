@@ -28,11 +28,24 @@ function makeRawTxn(overrides: Partial<ILeumiRawTransaction> = {}): ILeumiRawTra
   };
 }
 
-describe('buildTxnsFromResponse', () => {
-  const defaultOptions = {
-    companyId: 'leumi',
+/** Minimal scraper options sufficient for Leumi transaction building. */
+type TestScraperOptions = Pick<ScraperOptions, 'companyId' | 'startDate' | 'includeRawTransaction'>;
+
+/**
+ * Build test scraper options with overrides.
+ * @param overrides - partial option fields.
+ * @returns scraper options cast for production use.
+ */
+function makeTestOptions(overrides: Partial<TestScraperOptions> = {}): ScraperOptions {
+  return {
+    companyId: 'leumi' as ScraperOptions['companyId'],
     startDate: new Date('2024-01-01'),
-  } as unknown as ScraperOptions;
+    ...overrides,
+  } as ScraperOptions;
+}
+
+describe('buildTxnsFromResponse', () => {
+  const defaultOptions = makeTestOptions();
 
   it('returns empty array when both groups are null', () => {
     const response: ILeumiAccountResponse = {
@@ -87,11 +100,7 @@ describe('buildTxnsFromResponse', () => {
       TodayTransactionsItems: null,
       HistoryTransactionsItems: [makeRawTxn()],
     };
-    const opts = {
-      companyId: 'leumi',
-      startDate: new Date('2024-01-01'),
-      includeRawTransaction: true,
-    } as unknown as ScraperOptions;
+    const opts = makeTestOptions({ includeRawTransaction: true });
     const txns = buildTxnsFromResponse(response, opts);
     expect(txns[0].rawTransaction).toBeDefined();
   });

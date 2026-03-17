@@ -1,23 +1,25 @@
 /**
  * Waiting module branch-coverage tests.
- * Covers: raceTimeout with non-TimeoutError rejection, waitUntil with
- * non-TimeoutError in catch, safeStringify edge cases (circular, undefined),
- * buildWaitPromise rejection path, createTrackingTest state update.
+ * Covers: raceTimeout (non-TimeoutError propagation, slow/instant promise),
+ * waitUntil (non-TimeoutError catch, timeout last-seen stringification for
+ * null/undefined/zero/empty-string, first-truthy resolution, default opts).
  */
 import { RACE_TIMED_OUT, raceTimeout, TimeoutError, waitUntil } from '../../Common/Waiting.js';
 
 describe('raceTimeout — non-TimeoutError propagation', () => {
-  it('propagates TypeError from the racing promise', async () => {
-    const badPromise = Promise.reject(new TypeError('type mismatch'));
-    const racePromise = raceTimeout(5000, badPromise);
-    await expect(racePromise).rejects.toThrow(TypeError);
-  });
+  const rejectionCases = [
+    ['TypeError', TypeError, 'type mismatch'],
+    ['RangeError', RangeError, 'out of range'],
+  ] as const;
 
-  it('propagates RangeError from the racing promise', async () => {
-    const badPromise = Promise.reject(new RangeError('out of range'));
-    const racePromise = raceTimeout(5000, badPromise);
-    await expect(racePromise).rejects.toThrow(RangeError);
-  });
+  it.each(rejectionCases)(
+    'propagates %s from the racing promise',
+    async (_label, errorClass, msg) => {
+      const badPromise = Promise.reject(new errorClass(msg));
+      const racePromise = raceTimeout(5000, badPromise);
+      await expect(racePromise).rejects.toThrow(errorClass);
+    },
+  );
 
   it('returns RACE_TIMED_OUT for slow promise', async () => {
     const slow = new Promise<string>(resolve => {
@@ -49,27 +51,40 @@ describe('waitUntil — non-TimeoutError in catch path', () => {
 
 describe('waitUntil — timeout message includes last seen value', () => {
   it('appends last polled value to timeout message', async () => {
-    let callCount = 0;
-    const promise = waitUntil(
-      () => {
-        callCount += 1;
-        return Promise.resolve(callCount < 1000 ? null : 'done');
-      },
-      'test-last-seen',
-      { timeout: 50, interval: 5 },
-    );
+    const promise = waitUntil(() => Promise.resolve(null), 'test-last-seen', {
+      timeout: 50,
+      interval: 5,
+    });
     await expect(promise).rejects.toThrow(/last:/);
   });
 });
 
-describe('waitUntil — safeStringify fallback for circular objects', () => {
-  it('includes last polled value in timeout error message via safeStringify', async () => {
-    const promise = waitUntil(() => Promise.resolve(null) as Promise<never>, 'circular-test', {
+describe('waitUntil — timeout error includes stringified last-seen value', () => {
+  it('appends stringified undefined to timeout message', async () => {
+    const promise = waitUntil(() => Promise.resolve(undefined) as Promise<never>, 'undef-test', {
       timeout: 50,
       interval: 5,
     });
     await expect(promise).rejects.toThrow(TimeoutError);
-    await expect(promise).rejects.toThrow(/last:.*null/);
+    await expect(promise).rejects.toThrow(/last:.*undefined/);
+  });
+
+  it('appends stringified zero to timeout message', async () => {
+    const promise = waitUntil(() => Promise.resolve(0) as Promise<never>, 'zero-test', {
+      timeout: 50,
+      interval: 5,
+    });
+    await expect(promise).rejects.toThrow(TimeoutError);
+    await expect(promise).rejects.toThrow(/last:.*0/);
+  });
+
+  it('appends stringified empty-string to timeout message', async () => {
+    const promise = waitUntil(() => Promise.resolve('') as Promise<never>, 'empty-test', {
+      timeout: 50,
+      interval: 5,
+    });
+    await expect(promise).rejects.toThrow(TimeoutError);
+    await expect(promise).rejects.toThrow(/last:.*""/);
   });
 });
 

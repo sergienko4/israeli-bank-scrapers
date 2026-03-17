@@ -8,7 +8,7 @@ import { jest } from '@jest/globals';
 
 import type { ILoginConfig, SelectorCandidate } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import { mockToXpathLiteral } from '../MockModuleFactories.js';
+import { createDebugMock, mockToXpathLiteral } from '../MockModuleFactories.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({
   launchCamoufox: jest.fn(),
@@ -37,26 +37,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger with all methods stubbed.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const RESOLVE_FIELD_CONTEXT_MOCK = jest.fn();
 const CANDIDATE_TO_CSS_MOCK = jest.fn((candidate: SelectorCandidate) => candidate.value);
@@ -149,43 +130,14 @@ beforeEach(() => {
 
 describe('GenericBankScraper branch coverage', () => {
   describe('mapPossibleResults optional branches', () => {
-    it('includes changePassword when provided', async () => {
-      const config = makeConfig({
-        possibleResults: {
-          success: [SUCCESS_URL],
-          changePassword: ['https://bank.example.com/change'],
-        },
-      });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
-      const result = await scraper.scrape(CREDS);
-      expect(result.success).toBe(true);
-    });
+    const optionalResultCases = [
+      ['changePassword', 'https://bank.example.com/change'],
+      ['accountBlocked', 'https://bank.example.com/blocked'],
+      ['unknownError', 'https://bank.example.com/error'],
+    ] as const;
 
-    it('includes accountBlocked when provided', async () => {
-      const config = makeConfig({
-        possibleResults: {
-          success: [SUCCESS_URL],
-          accountBlocked: ['https://bank.example.com/blocked'],
-        },
-      });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
-      const result = await scraper.scrape(CREDS);
-      expect(result.success).toBe(true);
-    });
-
-    it('includes unknownError when provided', async () => {
-      const config = makeConfig({
-        possibleResults: {
-          success: [SUCCESS_URL],
-          unknownError: ['https://bank.example.com/error'],
-        },
-      });
+    it.each(optionalResultCases)('includes %s when provided', async (key, url) => {
+      const config = makeConfig({ possibleResults: { success: [SUCCESS_URL], [key]: [url] } });
       const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
         MOCK_MOD.createMockScraperOptions(),
         config,
@@ -294,14 +246,11 @@ describe('GenericBankScraper branch coverage', () => {
       );
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
-      const scopeCall = SCOPE_CANDIDATES_MOCK.mock.calls.find(
-        (call: [string, SelectorCandidate[]]) => call[0] === 'form#login',
-      ) as [string, SelectorCandidate[]] | undefined;
-      expect(scopeCall).toBeDefined();
-      const scopedCandidates = scopeCall?.[1] ?? [];
-      const hasLabelText = scopedCandidates.some(
-        c => c.kind === 'labelText' && c.value === 'סיסמה',
-      );
+      const allScopeCalls = SCOPE_CANDIDATES_MOCK.mock.calls as [string, SelectorCandidate[]][];
+      const formLoginCalls = allScopeCalls.filter(call => call[0] === 'form#login');
+      expect(formLoginCalls.length).toBeGreaterThan(0);
+      const allScoped = formLoginCalls.flatMap(call => call[1]);
+      const hasLabelText = allScoped.some(c => c.kind === 'labelText' && c.value === 'סיסמה');
       expect(hasLabelText).toBe(true);
     });
   });

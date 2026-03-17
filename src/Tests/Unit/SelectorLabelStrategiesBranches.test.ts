@@ -1,26 +1,14 @@
+/**
+ * Branch coverage tests for SelectorLabelStrategies.ts.
+ * Targets: findInputByForAttr (found/not-found), isFillableInput (all tag+type combos),
+ * resolveBySibling (non-fillable/not-found), resolveByProximity (non-fillable/not-found).
+ */
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns A mock debug logger object.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+import { createDebugMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const LABEL_MOD = await import('../../Common/SelectorLabelStrategies.js');
 
@@ -71,122 +59,34 @@ describe('isFillableInput — branches', () => {
     expect(isFillable).toBe(false);
   });
 
-  it('returns true for textarea', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('textarea'),
-        getAttribute: jest.fn().mockResolvedValue(null),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'textarea#notes');
-    expect(isFillable).toBe(true);
-  });
+  const fillableCases = [
+    ['textarea', 'textarea', null, true],
+    ['div (non-input)', 'div', null, false],
+    ['hidden input', 'input', 'hidden', false],
+    ['submit input', 'input', 'submit', false],
+    ['button input', 'input', 'button', false],
+    ['radio input', 'input', 'radio', false],
+    ['checkbox input', 'input', 'checkbox', false],
+    ['text input', 'input', 'text', true],
+    ['no type (defaults to text)', 'input', null, true],
+  ] as const;
 
-  it('returns false for non-input element (e.g. div)', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
+  it.each(fillableCases)(
+    'returns correct result for %s',
+    async (...args: [string, string, string | null, boolean]) => {
+      const [, tagName, typeAttr, isExpectedFillable] = args;
+      const ctx = makeCtx({
+        first: jest.fn().mockReturnValue({
+          count: jest.fn().mockResolvedValue(1),
+          evaluate: jest.fn().mockResolvedValue(tagName),
+          getAttribute: jest.fn().mockResolvedValue(typeAttr),
+        }),
         count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('div'),
-        getAttribute: jest.fn().mockResolvedValue(null),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'div.field');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns false for hidden input', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('hidden'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=hidden]');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns false for submit input', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('submit'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=submit]');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns false for button input', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('button'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=button]');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns true for text input (type=text)', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('text'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=text]');
-    expect(isFillable).toBe(true);
-  });
-
-  it('returns false for radio input', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('radio'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=radio]');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns false for checkbox input', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue('checkbox'),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input[type=checkbox]');
-    expect(isFillable).toBe(false);
-  });
-
-  it('returns true for input with no type attribute (defaults to text)', async () => {
-    const ctx = makeCtx({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(1),
-        evaluate: jest.fn().mockResolvedValue('input'),
-        getAttribute: jest.fn().mockResolvedValue(null),
-      }),
-      count: jest.fn().mockResolvedValue(1),
-    });
-    const isFillable = await LABEL_MOD.isFillableInput(ctx, 'input');
-    expect(isFillable).toBe(true);
-  });
+      });
+      const isFillable = await LABEL_MOD.isFillableInput(ctx, `${tagName}#test`);
+      expect(isFillable).toBe(isExpectedFillable);
+    },
+  );
 });
 
 // ── resolveBySibling — non-fillable input branch ─────────────────────────────

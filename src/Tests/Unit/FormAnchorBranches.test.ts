@@ -5,26 +5,9 @@
  */
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+import { createDebugMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const {
   discoverFormAnchor: DISCOVER_FORM_ANCHOR,
@@ -73,6 +56,12 @@ describe('scopeCandidate — all kinds', () => {
 
   it('returns clickableText kind unchanged (not scopable)', () => {
     const candidate = { kind: 'clickableText' as const, value: 'Submit' };
+    const result = SCOPE_CANDIDATE(formSelector, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('returns xpath candidate unchanged (not scopable)', () => {
+    const candidate = { kind: 'xpath' as const, value: '//button[@id="submit"]' };
     const result = SCOPE_CANDIDATE(formSelector, candidate);
     expect(result).toBe(candidate);
   });

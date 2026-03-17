@@ -1,133 +1,37 @@
+/**
+ * Branch coverage tests for VisaCalFetch.ts.
+ * Targets: fetchMonthData null/error responses, fetchPendingData status branches,
+ * fetchCards null/mapped responses, fetchFrames null response,
+ * buildApiHeaders field values, buildMonthRange length.
+ */
 import { jest } from '@jest/globals';
 
-const MOCK_FETCH_POST = jest.fn();
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createDebugMock,
+  createElementsMock,
+  createFetchMock,
+  createNavigationMock,
+  createStorageMock,
+  createTransactionsMock,
+  createWaitingMock,
+} from '../MockModuleFactories.js';
 
-jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
-  /**
-   * Mocked CamoufoxLauncher module.
-   * @returns Mocked CamoufoxLauncher.
-   */
-  () => ({ launchCamoufox: jest.fn() }),
-);
+const FETCH_MOCK = createFetchMock();
+const MOCK_FETCH_POST = FETCH_MOCK.fetchPostWithinPage;
 
-jest.unstable_mockModule(
-  '../../Common/Fetch.js',
-  /**
-   * Mocked Fetch module.
-   * @returns Mocked Fetch.
-   */
-  () => ({
-    fetchPostWithinPage: MOCK_FETCH_POST,
-    fetchGetWithinPage: jest.fn(),
-  }),
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', () => FETCH_MOCK);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock('https://test.cal'),
 );
-
-jest.unstable_mockModule(
-  '../../Common/Browser.js',
-  /**
-   * Mocked Browser module.
-   * @returns Mocked Browser.
-   */
-  () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Navigation.js',
-  /**
-   * Mocked Navigation module.
-   * @returns Mocked Navigation.
-   */
-  () => ({
-    getCurrentUrl: jest.fn().mockResolvedValue('https://test.cal'),
-    waitForNavigation: jest.fn().mockResolvedValue(undefined),
-    waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
-    waitForRedirect: jest.fn().mockResolvedValue(undefined),
-    waitForUrl: jest.fn().mockResolvedValue(undefined),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
-  /**
-   * Mocked ElementsInteractions module.
-   * @returns Mocked ElementsInteractions.
-   */
-  () => ({
-    clickButton: jest.fn().mockResolvedValue(undefined),
-    fillInput: jest.fn().mockResolvedValue(undefined),
-    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-    elementPresentOnPage: jest.fn().mockResolvedValue(false),
-    waitUntilIframeFound: jest.fn().mockResolvedValue(undefined),
-    pageEval: jest.fn().mockResolvedValue(''),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Storage.js',
-  /**
-   * Mocked Storage module.
-   * @returns Mocked Storage.
-   */
-  () => ({ getFromSessionStorage: jest.fn() }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Waiting.js',
-  /**
-   * Mocked Waiting module.
-   * @returns Mocked Waiting.
-   */
-  () => ({
-    waitUntil: jest.fn().mockResolvedValue(undefined),
-    sleep: jest.fn().mockResolvedValue(undefined),
-    humanDelay: jest.fn().mockResolvedValue(undefined),
-    runSerial: jest.fn().mockResolvedValue([]),
-    TimeoutError: class TimeoutError extends Error {},
-    SECOND: 1000,
-    raceTimeout: jest.fn().mockResolvedValue(undefined),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Transactions.js',
-  /**
-   * Mocked Transactions module.
-   * @returns Mocked Transactions.
-   */
-  () => ({
-    filterOldTransactions: jest.fn(<T>(txns: T[]): T[] => txns),
-    getRawTransaction: jest.fn(),
-  }),
-);
-
-jest.unstable_mockModule(
-  '../../Common/Debug.js',
-  /**
-   * Mocked Debug module.
-   * @returns Mocked Debug.
-   */
-  () => ({
-    /**
-     * Creates a mock debug logger.
-     * @returns Mock logger with all levels.
-     */
-    getDebug: (): Record<string, jest.Mock> => ({
-      trace: jest.fn(),
-      debug: jest.fn(),
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-    }),
-    /**
-     * Passthrough mock for bank context.
-     * @param _b - Bank name (unused).
-     * @param fn - Function to execute.
-     * @returns fn result.
-     */
-    runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-  }),
-);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
+jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const VISA_CAL_FETCH = await import('../../Scrapers/VisaCal/VisaCalFetch.js');
 
@@ -215,21 +119,21 @@ describe('fetchPendingData — branches', () => {
     expect(result.statusCode).toBe(99);
   });
 
-  it('returns pending details for valid response', async () => {
-    const validResp = { statusCode: 1, result: { pendingTransactions: [] } };
-    MOCK_FETCH_POST.mockResolvedValue(validResp);
-    const page = makePage();
-    const result = await VISA_CAL_FETCH.fetchPendingData(page as never, CARD, {});
-    expect(result.statusCode).toBe(1);
-  });
+  const successStatusCodes = [
+    [1, 'primary success'],
+    [96, 'alternate success'],
+  ] as const;
 
-  it('returns response with statusCode 96 (alternate success)', async () => {
-    const resp = { statusCode: 96, result: { pendingTransactions: [] } };
-    MOCK_FETCH_POST.mockResolvedValue(resp);
-    const page = makePage();
-    const result = await VISA_CAL_FETCH.fetchPendingData(page as never, CARD, {});
-    expect(result.statusCode).toBe(96);
-  });
+  it.each(successStatusCodes)(
+    'returns pending details for statusCode %i (%s)',
+    async statusCode => {
+      const resp = { statusCode, result: { pendingTransactions: [] } };
+      MOCK_FETCH_POST.mockResolvedValue(resp);
+      const page = makePage();
+      const result = await VISA_CAL_FETCH.fetchPendingData(page as never, CARD, {});
+      expect(result.statusCode).toBe(statusCode);
+    },
+  );
 });
 
 describe('fetchCards — branches', () => {

@@ -1,8 +1,7 @@
 /**
  * Branch coverage tests for Debug.ts.
- * Targets: censor (accountNumber branch, amount keys branch, default),
- * getBankMixin (with/without store), getDebug child creation,
- * runWithBankContext execution and nesting.
+ * Targets: runWithBankContext (sync, async, nesting, sentinel verification),
+ * getDebug (all log levels, distinct module loggers).
  */
 import { getDebug, runWithBankContext } from '../../Common/Debug.js';
 
@@ -39,25 +38,12 @@ describe('Bank Context Execution', () => {
 });
 
 describe('getDebug — child logger module name', () => {
-  it('creates loggers that can log at all levels without error', () => {
+  const logLevels = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const;
+
+  it.each(logLevels)('logs at %s level without error', level => {
     const log = getDebug('branch-test');
     expect(() => {
-      log.trace('trace');
-    }).not.toThrow();
-    expect(() => {
-      log.debug({ key: 'val' }, 'debug');
-    }).not.toThrow();
-    expect(() => {
-      log.info('info');
-    }).not.toThrow();
-    expect(() => {
-      log.warn('warn');
-    }).not.toThrow();
-    expect(() => {
-      log.error('error');
-    }).not.toThrow();
-    expect(() => {
-      log.fatal('fatal');
+      (log[level] as (...args: unknown[]) => string)('test');
     }).not.toThrow();
   });
 

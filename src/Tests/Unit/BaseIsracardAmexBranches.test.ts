@@ -62,7 +62,7 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
 }));
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: MOCK_LOGGER,
+  getDebug: jest.fn().mockImplementation(MOCK_LOGGER),
   /**
    * Passthrough mock for bank context.
    * @param _b - Bank name (unused).
@@ -249,7 +249,17 @@ describe('setupResponseLogging — coverage', () => {
     expect(page.on).toHaveBeenCalledWith('response', anyFn);
   });
 
-  it('logs ProxyRequestHandler URLs via response callback', async () => {
+  it('logs ProxyRequestHandler and personalarea URLs via response callback', async () => {
+    const debugSpy = jest.fn();
+    const loggerWithSpy = {
+      trace: jest.fn(),
+      debug: debugSpy,
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    const { getDebug } = await import('../../Common/Debug.js');
+    (getDebug as jest.Mock).mockReturnValue(loggerWithSpy);
     mockValidate('1');
     mockLogin('1');
     mockAccounts();
@@ -264,29 +274,32 @@ describe('setupResponseLogging — coverage', () => {
     const handler = onCall?.[1];
     if (handler === undefined) return;
     /**
-     * Proxy URL getter.
-     * @returns Proxy URL.
+     * Status helper.
+     * @returns HTTP 200 status code.
+     */
+    const ok = (): number => 200;
+    /**
+     * Proxy endpoint URL helper.
+     * @returns The proxy URL string.
      */
     const proxyUrl = (): string => 'https://example.com/ProxyRequestHandler?x=1';
     /**
-     * Personal area URL getter.
-     * @returns Personal area URL.
+     * Personal area endpoint URL helper.
+     * @returns The personal area URL string.
      */
-    const areaUrl = (): string => 'https://example.com/personalarea/data';
+    const personalUrl = (): string => 'https://example.com/personalarea/data';
     /**
-     * Other URL getter.
-     * @returns Other URL.
+     * Other endpoint URL helper.
+     * @returns The other URL string.
      */
     const otherUrl = (): string => 'https://example.com/other/path';
-    /**
-     * Status getter.
-     * @returns Status 200.
-     */
-    const ok = (): number => 200;
+    debugSpy.mockClear();
     handler({ url: proxyUrl, status: ok });
-    handler({ url: areaUrl, status: ok });
+    handler({ url: personalUrl, status: ok });
     handler({ url: otherUrl, status: ok });
-    expect(true).toBe(true);
+    const rawCalls = debugSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    const responseLogs = rawCalls.filter((m: string) => m.includes('response:'));
+    expect(responseLogs).toHaveLength(2);
   });
 });
 
@@ -301,6 +314,7 @@ describe('login — userName null fallback', () => {
     mockTxns();
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(true);
+    expect(FETCH_POST).toHaveBeenCalledTimes(2); // validate + login with empty-string userName
   });
 });
 

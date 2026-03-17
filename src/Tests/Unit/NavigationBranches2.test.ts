@@ -1,31 +1,14 @@
 /**
  * Additional branch coverage tests for Navigation.ts.
- * Targets: getCurrentUrl isClientSide branch, safeGetUrl error catch,
+ * Targets: getCurrentUrl isClientSide branch,
  * waitForRedirect timeout path, waitForUrl timeout path,
  * pollForRedirect ignoreList branch.
  */
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+import { createDebugMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const NAV = await import('../../Common/Navigation.js');
 
@@ -55,6 +38,22 @@ function createChangingUrlPage(initial: string, target: string): Record<string, 
     url: jest.fn().mockImplementation((): string => {
       callCount += 1;
       return callCount > 1 ? target : initial;
+    }),
+  });
+}
+
+/**
+ * Create a mock page that cycles through provided URLs on each url() call.
+ * @param urls - Sequence of URLs to return; last URL repeats indefinitely.
+ * @returns Mock page object.
+ */
+function createMultiUrlPage(urls: readonly string[]): Record<string, jest.Mock> {
+  let idx = 0;
+  return makeMockPage({
+    url: jest.fn().mockImplementation((): string => {
+      const current = urls[Math.min(idx, urls.length - 1)];
+      idx += 1;
+      return current;
     }),
   });
 }
@@ -102,12 +101,11 @@ describe('waitForRedirect', () => {
     expect(didRedirect).toBe(true);
   });
 
-  it('resolves with explicit isClientSide and ignoreList', async () => {
+  it('resolves with explicit isClientSide and timeout options', async () => {
     const page = createChangingUrlPage('https://bank.co.il/login', 'https://bank.co.il/dashboard');
     const didRedirect = await NAV.waitForRedirect(page as never, {
       timeout: 5000,
       isClientSide: false,
-      ignoreList: ['https://bank.co.il/logout'],
     });
     expect(didRedirect).toBe(true);
   });
@@ -116,6 +114,19 @@ describe('waitForRedirect', () => {
     const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/login') });
     const promise = NAV.waitForRedirect(page as never, { timeout: 500 });
     await expect(promise).rejects.toThrow();
+  });
+
+  it('skips ignored intermediate URL and resolves on final redirect', async () => {
+    const page = createMultiUrlPage([
+      'https://bank.co.il/login', // call 1: captured as initial
+      'https://bank.co.il/processing', // call 2: in ignoreList → keep waiting
+      'https://bank.co.il/dashboard', // call 3+: not in ignoreList → done
+    ]);
+    const didRedirect = await NAV.waitForRedirect(page as never, {
+      ignoreList: ['https://bank.co.il/processing'],
+      timeout: 5000,
+    });
+    expect(didRedirect).toBe(true);
   });
 });
 

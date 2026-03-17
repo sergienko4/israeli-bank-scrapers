@@ -1,13 +1,15 @@
 /**
- * Additional branch coverage tests for BaseIsracardAmexEnrich.ts.
- * Targets: getExtraScrapTransaction null data, fetchTransactionsForMonth
- * Header.Status missing, getAdditionalTransactionInformation enrichment path.
+ * Branch coverage tests for BaseIsracardAmexEnrich.ts.
+ * Targets: getExtraScrapTransaction null response fallback,
+ * fetchTransactionsForMonth missing CardsTransactionsListBean,
+ * getAdditionalTransactionInformation enrichment with fetchGetWithinPage.
  */
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import type { IScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes.js';
+import { createDebugMock } from '../MockModuleFactories.js';
 
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({
   fetchGetWithinPage: jest.fn(),
@@ -19,26 +21,7 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: unknown) => data),
 }));
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
@@ -175,5 +158,10 @@ describe('getAdditionalTransactionInformation — enrichment path', () => {
       allMonths: [MOMENT_MODULE.default('2024-06-01')],
     });
     expect(result).toHaveLength(1);
+    const enriched = result[0];
+    expect(enriched).toBeDefined();
+    expect(enriched['1234']).toBeDefined();
+    expect(enriched['1234'].txns).toHaveLength(1);
+    expect(FETCH_MODULE.fetchGetWithinPage).toHaveBeenCalled();
   });
 });
