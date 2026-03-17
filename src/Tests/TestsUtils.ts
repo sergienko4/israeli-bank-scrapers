@@ -99,10 +99,7 @@ export function maybeTestCompanyAPI(
     getTestsConfig();
   }
   const hasCredentials = scraperId in (testsConfig?.credentials ?? {});
-  return testsConfig &&
-    testsConfig.companyAPI.enabled &&
-    hasCredentials &&
-    (!filter || filter(testsConfig))
+  return testsConfig?.companyAPI.enabled && hasCredentials && (!filter || filter(testsConfig))
     ? test
     : test.skip;
 }

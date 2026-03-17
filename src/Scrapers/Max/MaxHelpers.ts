@@ -75,7 +75,7 @@ async function loadCategories(page: Page): Promise<boolean> {
   const res = await fetchGetWithinPage<ICategoryResult>(page, catUrl);
   if (res && Array.isArray(res.result)) {
     LOG.debug(`${String(res.result.length)} categories loaded`);
-    res.result.forEach(e => CATEGORIES.set(e.id, e.name));
+    for (const e of res.result) CATEGORIES.set(e.id, e.name);
   }
   return true;
 }
@@ -232,10 +232,11 @@ async function fetchMonth(
   const result: Record<string, ITransaction[]> = {};
   if (!data?.result) return result;
   const valid = data.result.transactions.filter(t => !!t.planName);
-  valid.forEach(t => {
+  for (const t of valid) {
     const mapped = mapTxn(t, opts);
-    (result[t.shortCardNumber] ??= []).push(mapped);
-  });
+    const key = t.shortCardNumber;
+    result[key] = [...(result[key] ?? []), mapped];
+  }
   return result;
 }
 
@@ -250,9 +251,9 @@ function mergeResults(
   part: Record<string, ITransaction[]>,
 ): Record<string, ITransaction[]> {
   const out: Record<string, ITransaction[]> = { ...all };
-  Object.keys(part).forEach(k => {
-    (out[k] ??= []).push(...part[k]);
-  });
+  for (const k of Object.keys(part)) {
+    out[k] = [...(out[k] ?? []), ...part[k]];
+  }
   return out;
 }
 

@@ -11,38 +11,17 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
-      "suspicious": {
-        "noExplicitAny": "error",
-        "noRedeclare": "error",
-        "noFallthroughSwitchClause": "error",
-        "noSelfCompare": "error",
-        "noDoubleEquals": "error",
-        "noShadowRestrictedNames": "error",
-        "useIsArray": "error"
-      },
+      "recommended": true,
       "complexity": {
         "noExcessiveCognitiveComplexity": {
           "level": "error",
           "options": { "maxAllowedComplexity": 15 }
-        },
-        "noUselessSwitchCase": "error",
-        "noUselessConstructor": "error",
-        "noUselessLabel": "error",
-        "noUselessRename": "error",
-        "noUselessTypeConstraint": "error"
+        }
       },
-      "correctness": {
-        "noConstantCondition": "error",
-        "noUnreachable": "error",
-        "noUnusedVariables": "error",
-        "noUnusedImports": "error"
-      },
-      "performance": {
-        "noAccumulatingSpread": "error"
-      },
-      "security": {
-        "noDangerouslySetInnerHtml": "error"
+      "style": {
+        "useImportType": "off",
+        "useNodejsImportProtocol": "off",
+        "useTemplate": "off"
       }
     }
   },
