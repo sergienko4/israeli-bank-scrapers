@@ -27,6 +27,15 @@ const WELL_KNOWN_SELECTORS = SCRAPER_CONFIGURATION.wellKnownSelectors as Record<
   SelectorCandidate[]
 >;
 
+/**
+ * Return the wellKnown login-field candidates for a given credential key.
+ * @param credentialKey - The field name (e.g. 'username', 'password').
+ * @returns The wellKnown candidates array, or empty array if none exist.
+ */
+export function getWellKnownCandidates(credentialKey: string): SelectorCandidate[] {
+  return [...(WELL_KNOWN_SELECTORS[credentialKey] ?? [])];
+}
+
 /** Global dashboard-field fallback dictionary — sourced from central ScraperConfig. */
 const WELL_KNOWN_DASHBOARD_SELECTORS = SCRAPER_CONFIGURATION.wellKnownDashboardSelectors as Record<
   string,

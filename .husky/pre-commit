@@ -92,11 +92,21 @@ else
   exit 1
 fi
 
-if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
-  bg_gate "ai-guard" npx ai-commit-guard
+AI_GUARD_MODEL="qwen2.5-coder:7b"
+if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf http://localhost:11434/api/tags | grep -q "$AI_GUARD_MODEL"; then
+  bg_gate "ai-guard" bash -c "
+    OUTPUT=\$(env AI_PROVIDER=ollama AI_MODEL=$AI_GUARD_MODEL AI_GUARD_TIMEOUT=120000 OLLAMA_NUM_GPU=0 npx ai-commit-guard 2>&1)
+    EXIT_CODE=\$?
+    echo \"\$OUTPUT\"
+    if echo \"\$OUTPUT\" | grep -qi 'Review failed\|timed out'; then
+      echo '❌ ai-guard: review failed or timed out'
+      exit 1
+    fi
+    exit \$EXIT_CODE
+  "
 else
-  log "  ❌ ai-commit-guard or Ollama not available"
-  log "     Install: npm i -D ai-commit-guard && ollama pull qwen2.5-coder:14b"
+  log "  ❌ ai-commit-guard or Ollama model $AI_GUARD_MODEL not available"
+  log "     Install: npm i -D ai-commit-guard && ollama pull $AI_GUARD_MODEL"
   exit 1
 fi
 

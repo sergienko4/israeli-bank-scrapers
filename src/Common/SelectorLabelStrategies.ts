@@ -23,7 +23,13 @@ export async function isFillableInput(ctx: Page | Frame, selector: string): Prom
   if (tagName === 'textarea') return true;
   if (tagName !== 'input') return false;
   const type = (await loc.getAttribute('type')) ?? 'text';
-  return type !== 'hidden' && type !== 'submit' && type !== 'button';
+  return (
+    type !== 'hidden' &&
+    type !== 'submit' &&
+    type !== 'button' &&
+    type !== 'radio' &&
+    type !== 'checkbox'
+  );
 }
 
 /**
@@ -163,7 +169,8 @@ export async function resolveLabelStrategies(opts: ILabelStrategyOpts): Promise<
 }
 
 /** XPath filter to exclude hidden, submit, and button inputs. */
-const NON_FILLABLE_FILTER = 'not(@type="hidden") and not(@type="submit") and not(@type="button")';
+const NON_FILLABLE_FILTER =
+  'not(@type="hidden") and not(@type="submit") and not(@type="button") and not(@type="radio") and not(@type="checkbox")';
 
 /** Interactive ancestor tags that a text node can walk up to. */
 const INTERACTIVE_ANCESTORS = ['button', 'a', 'select'] as const;

@@ -4,6 +4,7 @@ import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../../Common/FormAnchor.js';
 import {
   candidateToCss,
+  getWellKnownCandidates,
   type IFieldContext,
   resolveFieldContext,
 } from '../../Common/SelectorResolver.js';
@@ -254,12 +255,18 @@ export default class GenericBankScraper<
 
   /**
    * Scope a field config to the discovered form anchor, if available.
+   * When bank selectors are empty, injects wellKnown candidates and scopes them
+   * so the resolver searches inside the form — not the entire page.
    * @param fieldConfig - The original field configuration.
    * @returns A form-scoped field config, or the original if no anchor exists.
    */
   private scopeFieldConfig(fieldConfig: IFieldConfig): IFieldConfig {
     if (!this._formAnchor) return fieldConfig;
-    const scoped = scopeCandidates(this._formAnchor.selector, fieldConfig.selectors);
+    const candidates =
+      fieldConfig.selectors.length > 0
+        ? fieldConfig.selectors
+        : getWellKnownCandidates(fieldConfig.credentialKey);
+    const scoped = scopeCandidates(this._formAnchor.selector, candidates);
     return { credentialKey: fieldConfig.credentialKey, selectors: scoped };
   }
 

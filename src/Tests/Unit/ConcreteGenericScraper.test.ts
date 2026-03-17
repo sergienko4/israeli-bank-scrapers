@@ -58,6 +58,7 @@ jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),
   resolveFieldContext: jest.fn().mockResolvedValue({ selector: '#user', context: {} }),
   candidateToCss: jest.fn((candidate: { kind: string; value: string }) => candidate.value),
+  getWellKnownCandidates: jest.fn().mockReturnValue([]),
   tryInContext: jest.fn().mockResolvedValue(null),
   toXpathLiteral: mockToXpathLiteral,
   extractCredentialKey: jest.fn((selector: string) => selector),
