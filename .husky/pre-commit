@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
@@ -29,7 +30,7 @@ run_gate npx tsc --noEmit || exit 1
 
 echo "" | tee -a "$LOG_FILE"
 echo "🧹  [2/8] Prettier format + re-stage..." | tee -a "$LOG_FILE"
-STAGED_SRC=$(git diff --cached --name-only -- 'src/')
+STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
   echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
   echo "$STAGED_SRC" | xargs git add

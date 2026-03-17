@@ -3,41 +3,7 @@ import { type Frame, type Page } from 'playwright-core';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { OptionalFramePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
-import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
-
-/**
- * Collect all WELL_KNOWN dashboard selector candidates.
- * @returns Combined array of dashboard selector candidates.
- */
-function collectCandidates(): { kind: string; value: string }[] {
-  return [
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.logoutLink,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.accountSelector,
-    ...WELL_KNOWN_DASHBOARD_SELECTORS.dashboardIndicator,
-  ];
-}
-
-/**
- * Build dashboard waiters for text and aria-label candidates.
- * @param page - The Playwright page to build waiters for.
- * @returns Array of promises resolving when an indicator is visible.
- */
-function buildDashboardWaiters(page: Page): Promise<boolean>[] {
-  const all = collectCandidates();
-  const textW = all
-    .filter(c => c.kind === 'textContent')
-    .map(async c => {
-      await page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
-      return true;
-    });
-  const ariaW = all
-    .filter(c => c.kind === 'ariaLabel')
-    .map(async c => {
-      await page.getByLabel(c.value).first().waitFor({ state: 'visible', timeout: 30000 });
-      return true;
-    });
-  return [...textW, ...ariaW];
-}
+import { buildDashboardWaiters } from '../BaseBeinleumiGroupHelpers.js';
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -110,16 +76,17 @@ async function waitForAnyIframe(page: Page): Promise<boolean> {
 }
 
 /**
- * Check if a frame contains login credential fields (password input).
+ * Check if a frame contains login credential fields.
+ * Detects login frames by presence of 2+ text inputs (username + password).
  * @param frame - The frame to check.
- * @returns True if the frame has a password input (strong login indicator).
+ * @returns True if the frame has multiple credential inputs.
  */
 async function checkFrameHasLoginFields(frame: Frame): Promise<boolean> {
-  const passwordCount = await frame
-    .locator('input[type="password"]')
+  const count = await frame
+    .getByRole('textbox')
     .count()
     .catch((): number => 0);
-  return passwordCount > 0;
+  return count >= 2;
 }
 
 /**

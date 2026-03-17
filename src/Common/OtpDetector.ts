@@ -27,16 +27,15 @@ async function runSequential<T>(
   items: T[],
   action: (item: T, idx: number) => Promise<boolean>,
 ): Promise<boolean[]> {
-  const results: boolean[] = [];
+  const state = { done: false };
+  const results = items.map(() => false);
   const reducer = items.reduce(
     (chain, item, idx) =>
       chain.then(async () => {
-        if (results.some(Boolean)) {
-          results.push(false);
-          return;
-        }
+        if (state.done) return;
         const didSucceed = await action(item, idx);
-        results.push(didSucceed);
+        results[idx] = didSucceed;
+        if (didSucceed) state.done = true;
       }),
     RESOLVED_PROMISE,
   );

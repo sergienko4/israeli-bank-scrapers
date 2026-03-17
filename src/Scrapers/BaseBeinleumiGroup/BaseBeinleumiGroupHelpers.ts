@@ -220,7 +220,7 @@ function collectDashboardCandidates(): { kind: string; value: string }[] {
  * @param page - The Playwright page to create waiters for.
  * @returns Array of promises that resolve true when a dashboard element is visible.
  */
-function buildDashboardWaiters(page: Page): Promise<boolean>[] {
+export function buildDashboardWaiters(page: Page): Promise<boolean>[] {
   const categories = collectDashboardCandidates();
   const textWaiters = categories
     .filter(c => c.kind === 'textContent')
@@ -248,7 +248,8 @@ export async function waitForPostLogin(page: Page): Promise<boolean> {
   try {
     await Promise.any(waiters);
     return true;
-  } catch {
-    return false;
+  } catch (error: unknown) {
+    if (error instanceof AggregateError) return false;
+    throw error;
   }
 }

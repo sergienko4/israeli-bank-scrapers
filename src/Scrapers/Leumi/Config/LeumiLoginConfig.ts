@@ -63,7 +63,7 @@ async function waitForLeumiFormFields(page: Page): Promise<boolean> {
   await Promise.all([
     page.getByPlaceholder('שם משתמש').first().waitFor({ state: 'visible' }),
     page.getByPlaceholder('סיסמה').first().waitFor({ state: 'visible' }),
-    page.getByRole('button', { name: /כניסה/ }).first().waitFor({ state: 'visible' }),
+    page.getByRole('button', { name: LEUMI_LOGIN_TEXT }).first().waitFor({ state: 'visible' }),
   ]);
   return true;
 }
