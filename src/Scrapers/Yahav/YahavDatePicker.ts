@@ -52,12 +52,13 @@ function buildGridActions(opts: IGridOpts, count: number): (() => Promise<boolea
 /**
  * Select a year from the date picker grid.
  * @param page - The Playwright page instance.
+ * @param sel - The resolved selectors map.
  * @param targetYear - The year string to select.
  * @returns True after selection.
  */
-async function selectYearFromGrid(page: Page, targetYear: string): Promise<boolean> {
+async function selectYearFromGrid(page: Page, sel: SelMap, targetYear: string): Promise<boolean> {
   const actions = buildGridActions(
-    { page, prefix: '.pmu-years', target: targetYear },
+    { page, prefix: sel.yearsGridPrefix, target: targetYear },
     YEARS_GRID_SIZE,
   );
   await runSerial(actions);
@@ -67,12 +68,13 @@ async function selectYearFromGrid(page: Page, targetYear: string): Promise<boole
 /**
  * Select a day from the date picker grid.
  * @param page - The Playwright page instance.
+ * @param sel - The resolved selectors map.
  * @param targetDay - The day string to select.
  * @returns True after selection.
  */
-async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean> {
+async function selectDayFromGrid(page: Page, sel: SelMap, targetDay: string): Promise<boolean> {
   const actions = buildGridActions(
-    { page, prefix: '.pmu-days', target: targetDay },
+    { page, prefix: sel.daysGridPrefix, target: targetDay },
     DAYS_GRID_SIZE,
   );
   await runSerial(actions);
@@ -88,7 +90,7 @@ async function selectDayFromGrid(page: Page, targetDay: string): Promise<boolean
 async function openDatePicker(page: Page, sel: SelMap): Promise<boolean> {
   await waitUntilElementFound(page, sel.datePickerOpener, { visible: true });
   await clickButton(page, sel.datePickerOpener);
-  await waitUntilElementFound(page, '.pmu-days > div:nth-child(1)', { visible: true });
+  await waitUntilElementFound(page, sel.daysGridCheck, { visible: true });
   return true;
 }
 
@@ -125,9 +127,10 @@ export default async function searchByDates(
   const year = startDate.format('Y');
   await openDatePicker(page, sel);
   await navigateToYearView(page, sel);
-  await selectYearFromGrid(page, year);
+  await selectYearFromGrid(page, sel, year);
   await waitUntilElementFound(page, sel.monthsGridCheck, { visible: true });
-  await clickButton(page, `.pmu-months > div:nth-child(${month})`);
-  await selectDayFromGrid(page, day);
+  const monthCell = `${sel.monthsGridPrefix} > div:nth-child(${month})`;
+  await clickButton(page, monthCell);
+  await selectDayFromGrid(page, sel, day);
   return true;
 }

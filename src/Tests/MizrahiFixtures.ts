@@ -125,22 +125,13 @@ export function mockDetailsResponse(fields: { Label: string; Value: string }[]):
 }
 
 /**
- * Creates a mock locator with standard stubs.
+ * Creates a mock locator with standard stubs. Delegates to buildMockLocator.
  * @param opts - optional overrides for locator methods.
  * @returns a mock locator object.
  */
 function mockLocator(opts: ILocatorOverrides = {}): Record<string, jest.Mock> {
   const allItems = Array.from({ length: opts.allLength ?? 1 }, () => ({ click: jest.fn() }));
-  return createBaseMockLocator({
-    click: jest.fn().mockResolvedValue(undefined),
-    isVisible: jest.fn().mockResolvedValue(opts.isVisible ?? true),
-    waitFor: jest.fn().mockResolvedValue(undefined),
-    getAttribute: jest.fn().mockResolvedValue(opts.getAttribute ?? 'ACC-12345'),
-    count: jest.fn().mockResolvedValue(opts.count ?? 1),
-    all: jest.fn().mockResolvedValue(allItems),
-    evaluate: jest.fn().mockResolvedValue(undefined),
-    evaluateAll: jest.fn().mockResolvedValue([]),
-  });
+  return buildMockLocator({ ...opts, all: allItems });
 }
 
 /**

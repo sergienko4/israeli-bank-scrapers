@@ -16,6 +16,7 @@ import {
   VISACAL_LOGIN_URL,
   VISACAL_SUCCESS_URL,
 } from '../TestConstants.js';
+import { createIframeLocatorMock } from './VisaCalFixtures.js';
 
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
@@ -50,16 +51,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
     url: (): string => VISACAL_CONNECT_LOGIN_URL,
     waitForSelector: jest.fn().mockResolvedValue(undefined),
     locator: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
-    getByText: jest.fn().mockImplementation(() => {
-      const loc = {
-        first: jest.fn(),
-        waitFor: jest.fn().mockResolvedValue(undefined),
-        click: jest.fn().mockResolvedValue(undefined),
-        isVisible: jest.fn().mockResolvedValue(false),
-      };
-      loc.first.mockReturnValue(loc);
-      return loc;
-    }),
+    getByText: createIframeLocatorMock(),
   }),
 }));
 

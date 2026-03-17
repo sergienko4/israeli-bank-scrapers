@@ -252,7 +252,11 @@ export const SCRAPER_CONFIGURATION = {
         monthPickerBtn: [{ kind: 'css', value: '.pmu-month' }],
         loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
         monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],
+        monthsGridPrefix: [{ kind: 'css', value: '.pmu-months' }],
         yearsGridCheck: [{ kind: 'css', value: '.pmu-years > div:nth-child(1)' }],
+        yearsGridPrefix: [{ kind: 'css', value: '.pmu-years' }],
+        daysGridPrefix: [{ kind: 'css', value: '.pmu-days' }],
+        daysGridCheck: [{ kind: 'css', value: '.pmu-days > div:nth-child(1)' }],
       },
     },
     [CompanyTypes.OneZero]: {
