@@ -72,7 +72,7 @@ describe('waitForNavigationAndDomLoad', () => {
 });
 
 describe('waitForRedirect', () => {
-  it('resolves when URL changes', async () => {
+  it('resolves when URL changes with default opts', async () => {
     let callCount = 0;
     const page = {
       /**
@@ -84,7 +84,27 @@ describe('waitForRedirect', () => {
         return callCount > 1 ? 'https://bank.co.il/dashboard' : 'https://bank.co.il/login';
       }),
     };
-    const didRedirect = await NAV.waitForRedirect(page as never, { timeout: 5000 });
+    const didRedirect = await NAV.waitForRedirect(page as never);
+    expect(didRedirect).toBe(true);
+  });
+
+  it('resolves with explicit isClientSide and ignoreList', async () => {
+    let callCount = 0;
+    const page = {
+      /**
+       * Returns URL that changes after first call.
+       * @returns changing URL string.
+       */
+      url: jest.fn().mockImplementation((): string => {
+        callCount += 1;
+        return callCount > 1 ? 'https://bank.co.il/dashboard' : 'https://bank.co.il/login';
+      }),
+    };
+    const didRedirect = await NAV.waitForRedirect(page as never, {
+      timeout: 5000,
+      isClientSide: false,
+      ignoreList: ['https://bank.co.il/logout'],
+    });
     expect(didRedirect).toBe(true);
   });
 
@@ -98,7 +118,7 @@ describe('waitForRedirect', () => {
 });
 
 describe('waitForUrl', () => {
-  it('resolves when URL matches string target', async () => {
+  it('resolves when URL matches string target with default opts', async () => {
     let callCount = 0;
     const page = {
       /**
@@ -110,9 +130,7 @@ describe('waitForUrl', () => {
         return callCount > 1 ? 'https://bank.co.il/target' : 'https://bank.co.il/loading';
       }),
     };
-    const didMatch = await NAV.waitForUrl(page as never, 'https://bank.co.il/target', {
-      timeout: 5000,
-    });
+    const didMatch = await NAV.waitForUrl(page as never, 'https://bank.co.il/target');
     expect(didMatch).toBe(true);
   });
 
