@@ -1,13 +1,13 @@
 import { type BrowserContextOptions } from 'playwright-core';
 
-import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
+import { DEFAULT_VIEWPORT, ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
-export { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
+export { DEFAULT_VIEWPORT, ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
 /**
  * Build Playwright browser context options with Israeli bank-friendly defaults.
- * Camoufox handles UA, viewport, screen, and client hints at the C++ level,
- * so we only need locale and timezone here.
+ * Camoufox handles UA, screen, and client hints at the C++ level.
+ * Viewport is a fixed 1920×1080 from BrowserConfig — required by banks that hide login at smaller sizes.
  * @returns BrowserContextOptions configured for Israeli locale and timezone.
  */
 export function buildContextOptions(): BrowserContextOptions {
@@ -15,6 +15,6 @@ export function buildContextOptions(): BrowserContextOptions {
     locale: ISRAEL_LOCALE,
     timezoneId: ISRAEL_TIMEZONE,
     javaScriptEnabled: true,
-    viewport: { width: 1920, height: 1080 },
+    viewport: DEFAULT_VIEWPORT,
   };
 }

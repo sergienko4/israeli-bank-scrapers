@@ -38,10 +38,10 @@ type TestScraperOptions = Pick<ScraperOptions, 'companyId' | 'startDate' | 'incl
  */
 function makeTestOptions(overrides: Partial<TestScraperOptions> = {}): ScraperOptions {
   return {
-    companyId: 'leumi' as unknown as ScraperOptions['companyId'],
+    companyId: 'leumi' as ScraperOptions['companyId'],
     startDate: new Date('2024-01-01'),
     ...overrides,
-  } as unknown as ScraperOptions;
+  } as ScraperOptions;
 }
 
 describe('buildTxnsFromResponse', () => {

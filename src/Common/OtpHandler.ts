@@ -8,6 +8,7 @@ import {
   OTP_ANIMATION_DELAY_MS,
   OTP_CHAR_INPUT_DELAY_MS,
   OTP_FILL_INPUT_SELECTORS,
+  OTP_INPUT_VISIBILITY_TIMEOUT_MS,
   OTP_TRIGGER_DELAY_MS,
   OTP_VERIFY_DELAY_MS,
 } from './Config/OtpConfig.js';
@@ -164,24 +165,28 @@ async function typeOtpCode(frame: Frame, code: string): Promise<boolean> {
 }
 
 /**
+ * Try to find and click the OTP submit button in a given context.
+ * @param ctx - Frame or Page to search within.
+ * @param label - Label for debug logging ('frame' or 'page').
+ * @returns True if submit button was found and clicked.
+ */
+async function tryClickSubmit(ctx: Frame | Page, label: string): Promise<boolean> {
+  const sel = await tryInContext(ctx, OTP_SUBMIT_CANDIDATES);
+  if (!sel) return false;
+  LOG.debug('OTP submit found in %s: %s', label, sel);
+  await clickButton(ctx, sel);
+  return true;
+}
+
+/**
  * Click the OTP submit button ("אישור") via resolver — searches frame then page.
  * @param page - The Playwright page.
  * @param frame - The frame where OTP was filled.
  * @returns True after clicking.
  */
 async function clickOtpSubmit(page: Page, frame: Frame): Promise<boolean> {
-  const frameSel = await tryInContext(frame, OTP_SUBMIT_CANDIDATES);
-  if (frameSel) {
-    LOG.debug('OTP submit found in frame: %s', frameSel);
-    await clickButton(frame, frameSel);
-    return true;
-  }
-  const pageSel = await tryInContext(page, OTP_SUBMIT_CANDIDATES);
-  if (pageSel) {
-    LOG.debug('OTP submit found on page: %s', pageSel);
-    await clickButton(page, pageSel);
-    return true;
-  }
+  if (await tryClickSubmit(frame, 'frame')) return true;
+  if (await tryClickSubmit(page, 'page')) return true;
   LOG.debug('no OTP submit button found — bank may auto-submit');
   return true;
 }
@@ -204,6 +209,26 @@ async function fillOtpViaResolver(page: Page, code: string): Promise<boolean> {
 }
 
 /**
+ * Fill OTP code in a frame via resolver or CSS scan fallback.
+ * @param frame - The frame containing the OTP input.
+ * @param code - The OTP code to fill.
+ * @returns True after filling the code.
+ */
+async function fillOtpInFrame(frame: Frame, code: string): Promise<boolean> {
+  const inputSel = await tryInContext(frame, OTP_INPUT_CANDIDATES);
+  if (inputSel) {
+    LOG.debug('OTP input found via resolver: %s — waiting for visibility', inputSel);
+    const locator = frame.locator(inputSel).first();
+    await locator.waitFor({ state: 'visible', timeout: OTP_INPUT_VISIBILITY_TIMEOUT_MS });
+    await fillInput(frame, inputSel, code);
+  } else {
+    LOG.debug('OTP input not found via resolver — falling back to CSS scan');
+    await typeOtpCode(frame, code);
+  }
+  return true;
+}
+
+/**
  * Fill the OTP code and submit, searching frames then falling back to resolveFieldContext.
  * @param page - The Playwright page to search for OTP fields.
  * @param code - The OTP code to fill and submit.
@@ -218,15 +243,7 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<boolean> 
   const frame: Frame = frameResult;
   const frameUrl = frame.url().slice(-60);
   LOG.debug('filling OTP in frame: %s', frameUrl);
-  const inputSel = await tryInContext(frame, OTP_INPUT_CANDIDATES);
-  if (inputSel) {
-    LOG.debug('OTP input found via resolver: %s — waiting for visibility', inputSel);
-    await frame.locator(inputSel).first().waitFor({ state: 'visible', timeout: 15000 });
-    await fillInput(frame, inputSel, code);
-  } else {
-    LOG.debug('OTP input not found via resolver — falling back to CSS scan');
-    await typeOtpCode(frame, code);
-  }
+  await fillOtpInFrame(frame, code);
   return clickOtpSubmit(page, frame);
 }
 
@@ -331,12 +348,11 @@ export async function handleOtpConfirm(
   if (triggerSelectors) {
     LOG.debug('OTP confirm — clicking bank-specific confirm button (phone: %s)', phoneHint);
     await clickFromCandidates(page, triggerSelectors, childFrames);
-    await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   } else {
     LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
     await clickOtpTriggerIfPresent(page, childFrames);
-    await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   }
+  await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   return phoneHint;
 }
 

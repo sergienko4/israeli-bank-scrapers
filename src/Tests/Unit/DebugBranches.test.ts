@@ -86,7 +86,7 @@ describe('getDebug — child logger module name', () => {
   it.each(logLevels)('logs at %s level without error', level => {
     const log = getDebug('branch-test');
     expect(() => {
-      (log[level] as (...a: unknown[]) => string)('test');
+      (log[level] as (..._a: unknown[]) => string)('test');
     }).not.toThrow();
   });
 

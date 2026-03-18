@@ -114,6 +114,19 @@ function buildLocator(selector: string): Record<string, jest.Mock> {
 }
 
 /**
+ * Create a minimal mock locator with standard stubs.
+ * @param overrides - optional method overrides.
+ * @returns Mock locator object.
+ */
+function makeMockLocator(overrides: Record<string, jest.Mock> = {}): Record<string, jest.Mock> {
+  return {
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+/**
  * Create a page mock with standard account selectors.
  * @param overrides - Mock overrides for the page.
  * @returns Mocked page.
@@ -121,16 +134,11 @@ function buildLocator(selector: string): Record<string, jest.Mock> {
 function createPage(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
-  const innerLoc = {
-    isVisible: jest.fn().mockResolvedValue(false),
-    waitFor: jest.fn().mockResolvedValue(undefined),
-  };
-  const noDataLoc = {
+  const innerLoc = makeMockLocator();
+  const noDataLoc = makeMockLocator({
     first: jest.fn().mockReturnValue(innerLoc),
     last: jest.fn().mockReturnValue(innerLoc),
-    isVisible: jest.fn().mockResolvedValue(false),
-    waitFor: jest.fn().mockResolvedValue(undefined),
-  };
+  });
   const emptyComboLoc = {
     first: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     count: jest.fn().mockResolvedValue(0),

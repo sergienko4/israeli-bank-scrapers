@@ -85,17 +85,31 @@ describe('beinleumiConfig', () => {
   });
 });
 
+/**
+ * Create a mock login link locator with configurable visibility.
+ * @param isVisible - Whether the login button is visible.
+ * @returns Mock login link with last/isVisible/click methods.
+ */
+function makeLoginLinkMock(isVisible: boolean): {
+  last: jest.Mock;
+  isVisible: jest.Mock;
+  click: jest.Mock;
+} {
+  const link = {
+    last: jest.fn(),
+    isVisible: jest.fn().mockResolvedValue(isVisible),
+    click: jest.fn().mockResolvedValue(undefined),
+  };
+  link.last.mockReturnValue(link);
+  return link;
+}
+
 describe('beinleumiPreAction — activateLoginArea + waitForLoginFrame', () => {
   it('clicks login button and returns Mataf frame when found', async () => {
     const matafFrame = {
       url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafLoginService/login'),
     };
-    const loginLink = {
-      last: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(true),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    loginLink.last.mockReturnValue(loginLink);
+    const loginLink = makeLoginLinkMock(true);
     const page = CREATE_MOCK_PAGE({
       getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockResolvedValue(undefined),
@@ -113,12 +127,7 @@ describe('beinleumiPreAction — activateLoginArea + waitForLoginFrame', () => {
     const nonMatafFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/other'),
     };
-    const loginLink = {
-      last: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(true),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    loginLink.last.mockReturnValue(loginLink);
+    const loginLink = makeLoginLinkMock(true);
     const page = CREATE_MOCK_PAGE({
       getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockRejectedValue(new Error('timeout')),
@@ -135,12 +144,7 @@ describe('beinleumiPreAction — activateLoginArea + waitForLoginFrame', () => {
     const matafFrame = {
       url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafLoginService/login'),
     };
-    const loginLink = {
-      last: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(false),
-      click: jest.fn().mockResolvedValue(undefined),
-    };
-    loginLink.last.mockReturnValue(loginLink);
+    const loginLink = makeLoginLinkMock(false);
     const page = CREATE_MOCK_PAGE({
       getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockResolvedValue(undefined),
@@ -158,12 +162,7 @@ describe('beinleumiPreAction — activateLoginArea + waitForLoginFrame', () => {
     const approveFrame = {
       url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafMobileApproveServlet/otp'),
     };
-    const loginLink = {
-      last: jest.fn(),
-      isVisible: jest.fn().mockResolvedValue(false),
-      click: jest.fn(),
-    };
-    loginLink.last.mockReturnValue(loginLink);
+    const loginLink = makeLoginLinkMock(false);
     const page = CREATE_MOCK_PAGE({
       getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockResolvedValue(undefined),

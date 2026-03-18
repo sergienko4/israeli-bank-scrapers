@@ -8,20 +8,26 @@ import { jest } from '@jest/globals';
 
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import type { IScrapedTransaction } from '../../Scrapers/BaseIsracardAmex/BaseIsracardAmexTypes.js';
-import type { ITransaction } from '../../Transactions.js';
+import {
+  createBrowserMock,
+  createCamoufoxMock,
+  createFetchMock,
+  createTransactionsMock,
+  createWaitingMock,
+} from '../MockModuleFactories.js';
 import MockTimeoutError from '../Mocks/MockTimeoutError.js';
 
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', createFetchMock);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+  ...createWaitingMock(),
+  TimeoutError: MockTimeoutError,
+}));
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
 /**
- * Create a mock that resolves to the given value.
- * @param resolvedValue - The value to resolve.
- * @returns Mocked function.
- */
-const MOCK_RESOLVED = (resolvedValue?: unknown): jest.Mock =>
-  jest.fn().mockResolvedValue(resolvedValue);
-
-/**
- * Create a mock logger with all levels.
- * @returns Mock logger with trace/debug/info/warn/error.
+ * Mock logger factory for all pino levels.
+ * @returns mock logger with trace/debug/info/warn/error.
  */
 const MOCK_LOGGER = (): Record<string, jest.Mock> => ({
   trace: jest.fn(),
@@ -30,37 +36,6 @@ const MOCK_LOGGER = (): Record<string, jest.Mock> => ({
   warn: jest.fn(),
   error: jest.fn(),
 });
-
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({
-  launchCamoufox: jest.fn(),
-}));
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({
-  fetchGetWithinPage: jest.fn(),
-  fetchPostWithinPage: jest.fn(),
-}));
-jest.unstable_mockModule('../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-}));
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
-  sleep: MOCK_RESOLVED(),
-  humanDelay: MOCK_RESOLVED(),
-  runSerial: jest.fn(<T>(actions: (() => Promise<T>)[]): Promise<T[]> => {
-    const seed = Promise.resolve([] as T[]);
-    return actions.reduce(
-      (p: Promise<T[]>, act: () => Promise<T>) => p.then(async (r: T[]) => [...r, await act()]),
-      seed,
-    );
-  }),
-  waitUntil: MOCK_RESOLVED(),
-  raceTimeout: MOCK_RESOLVED(),
-  TimeoutError: MockTimeoutError,
-  SECOND: 1000,
-}));
-jest.unstable_mockModule('../../Common/Transactions.js', () => ({
-  fixInstallments: jest.fn((txns: ITransaction[]) => txns),
-  filterOldTransactions: jest.fn((txns: ITransaction[]) => txns),
-  getRawTransaction: jest.fn((data: Record<string, number>): Record<string, number> => data),
-}));
 jest.unstable_mockModule('../../Common/Debug.js', () => ({
   getDebug: jest.fn().mockImplementation(MOCK_LOGGER),
   /**

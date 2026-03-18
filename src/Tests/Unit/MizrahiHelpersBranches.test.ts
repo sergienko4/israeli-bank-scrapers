@@ -15,7 +15,7 @@ import {
 
 /**
  * Build a mock Playwright Request with postData and headers.
- * @param postData - JSON string or null for request body.
+ * @param postData - JSON string for request body.
  * @param headers - Request headers map.
  * @returns A mock request object.
  */

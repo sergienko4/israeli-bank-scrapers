@@ -148,19 +148,22 @@ describe('waitForRedirect', () => {
   });
 });
 
+/** Target URL for waitForUrl tests. */
+const TARGET_URL = 'https://bank.co.il/target';
+/** Intermediate loading URL for waitForUrl tests. */
+const LOADING_URL = 'https://bank.co.il/loading';
+/** URL that never matches a target, for timeout tests. */
+const STUCK_URL = 'https://bank.co.il/stuck';
+
 describe('waitForUrl', () => {
   it('resolves when URL matches string target', async () => {
-    const target = 'https://bank.co.il/target';
-    const page = makeChangingUrlPage('https://bank.co.il/loading', target);
-    const didMatch = await NAV.waitForUrl(page as never, target);
+    const page = makeChangingUrlPage(LOADING_URL, TARGET_URL);
+    const didMatch = await NAV.waitForUrl(page as never, TARGET_URL);
     expect(didMatch).toBe(true);
   });
 
   it('resolves when URL matches regex target', async () => {
-    const page = makeChangingUrlPage(
-      'https://bank.co.il/loading',
-      'https://bank.co.il/dashboard/123',
-    );
+    const page = makeChangingUrlPage(LOADING_URL, 'https://bank.co.il/dashboard/123');
     const didMatchRegex = await NAV.waitForUrl(page as never, /dashboard\/\d+/, {
       timeout: POLL_TIMEOUT_MS,
     });
@@ -169,9 +172,9 @@ describe('waitForUrl', () => {
 
   it('throws on timeout when URL never matches', async () => {
     const page = makeMockPage({
-      url: jest.fn().mockReturnValue('https://bank.co.il/stuck'),
+      url: jest.fn().mockReturnValue(STUCK_URL),
     });
-    const promise = NAV.waitForUrl(page as never, 'https://bank.co.il/target', {
+    const promise = NAV.waitForUrl(page as never, TARGET_URL, {
       timeout: SHORT_TIMEOUT_MS,
     });
     await expect(promise).rejects.toThrow();
@@ -179,7 +182,7 @@ describe('waitForUrl', () => {
 });
 
 describe('safeGetUrl — error catch path', () => {
-  it('returns ? when getCurrentUrl throws', async () => {
+  it('rejects when getCurrentUrl throws', async () => {
     const page = makeMockPage({
       url: jest.fn().mockImplementation(() => {
         throw new ScraperError('detached');

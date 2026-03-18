@@ -7,8 +7,11 @@
  */
 import { RACE_TIMED_OUT, raceTimeout, TimeoutError, waitUntil } from '../../Common/Waiting.js';
 
+/** Error constructor accepting a message string. */
+type ErrorCtorWithMsg = new (msg: string) => Error;
+
 describe('raceTimeout — non-TimeoutError propagation', () => {
-  const rejectionCases: readonly (readonly [string, new (m: string) => Error, string])[] = [
+  const rejectionCases: readonly (readonly [string, ErrorCtorWithMsg, string])[] = [
     ['TypeError', TypeError, 'type mismatch'],
     ['RangeError', RangeError, 'out of range'],
     ['SyntaxError', SyntaxError, 'bad syntax'],
@@ -16,7 +19,7 @@ describe('raceTimeout — non-TimeoutError propagation', () => {
 
   it.each(rejectionCases)(
     'propagates %s from the racing promise',
-    async (...args: readonly [string, new (m: string) => Error, string]) => {
+    async (...args: readonly [string, ErrorCtorWithMsg, string]) => {
       const [, errorClass, msg] = args;
       const errorInstance = new errorClass(msg);
       const badPromise = Promise.reject(errorInstance);

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import pino, { type Logger } from 'pino';
+import pino, { type Level, type Logger } from 'pino';
 
 import { AMOUNT_KEYS, SENSITIVE_PATHS } from './Config/DebugConfig.js';
 
@@ -38,23 +38,37 @@ const PINO_BASE_OPTS = {
 };
 
 /**
+ * Build a multistream destination that tees to stdout and a log file.
+ * @param logFile - Absolute path to the log file.
+ * @param level - The minimum log level for both streams.
+ * @returns A pino multistream destination.
+ */
+function buildFileStream(logFile: string, level: Level): pino.MultiStreamRes {
+  return pino.multistream([
+    { stream: pino.destination(1), level },
+    { stream: pino.destination(logFile), level },
+  ]);
+}
+
+/** pino-pretty transport config for local development. */
+const DEV_TRANSPORT: pino.TransportSingleOptions = {
+  target: 'pino-pretty',
+  options: { colorize: true },
+};
+
+/**
  * Create the root logger — with file tee if PINO_LOG_FILE is set.
  * @returns A configured pino Logger instance.
  */
 function createRootLogger(): Logger {
   const logFile = process.env.PINO_LOG_FILE;
   if (logFile && !isDevMode) {
-    const streamLevel = process.env.LOG_LEVEL ?? 'info';
-    const dest = pino.multistream([
-      { stream: pino.destination(1), level: streamLevel },
-      { stream: pino.destination(logFile), level: streamLevel },
-    ]);
-    return pino(PINO_BASE_OPTS, dest);
+    const level = (process.env.LOG_LEVEL ?? 'info') as Level;
+    const fileStream = buildFileStream(logFile, level);
+    return pino(PINO_BASE_OPTS, fileStream);
   }
-  return pino({
-    ...PINO_BASE_OPTS,
-    transport: isDevMode ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
-  });
+  const transport = isDevMode ? DEV_TRANSPORT : undefined;
+  return pino({ ...PINO_BASE_OPTS, transport });
 }
 
 const ROOT_LOGGER = createRootLogger();

@@ -10,6 +10,9 @@ export const OTP_TRIGGER_DELAY_MS = 2000;
 /** Delay between individual key presses when typing OTP code (ms). */
 export const OTP_CHAR_INPUT_DELAY_MS = 80;
 
+/** Timeout for OTP input field visibility check (ms). */
+export const OTP_INPUT_VISIBILITY_TIMEOUT_MS = 15000;
+
 /** CSS selectors to try when locating the OTP code input field. */
 export const OTP_FILL_INPUT_SELECTORS = [
   '#codeinput',

@@ -150,10 +150,13 @@ describe('handleOtpConfirm', () => {
     MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(undefined);
     const page = makeMockPage();
     const triggers = [{ kind: 'textContent' as const, value: 'שלח קוד' }];
+    const { clickFromCandidates: mockClickFromCandidates } =
+      await import('../../Common/OtpDetector.js');
 
     await OTP_HANDLER_MOD.handleOtpConfirm(page, undefined, triggers);
 
     expect(MOCK_CLICK_OTP_TRIGGER_IF_PRESENT).not.toHaveBeenCalled();
+    expect(mockClickFromCandidates).toHaveBeenCalledWith(page, triggers, undefined);
   });
 
   it('clicks SMS trigger when triggerSelectors is undefined', async () => {

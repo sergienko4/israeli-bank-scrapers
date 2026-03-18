@@ -21,26 +21,17 @@ import {
 const FETCH_MOCK = createFetchMock();
 const MOCK_FETCH_POST = FETCH_MOCK.fetchPostWithinPage;
 
-/**
- * Register all VisaCal common module mocks in one place.
- * @returns true when all mocks are registered.
- */
-function registerVisaCalMocks(): boolean {
-  jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
-  jest.unstable_mockModule('../../Common/Fetch.js', () => FETCH_MOCK);
-  jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
-  jest.unstable_mockModule('../../Common/Navigation.js', () =>
-    createNavigationMock('https://test.cal'),
-  );
-  jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
-  jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
-  jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
-  jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
-  jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
-  return true;
-}
-
-registerVisaCalMocks();
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+jest.unstable_mockModule('../../Common/Fetch.js', () => FETCH_MOCK);
+jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+jest.unstable_mockModule('../../Common/Navigation.js', () =>
+  createNavigationMock('https://test.cal'),
+);
+jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
+jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const VISA_CAL_FETCH = await import('../../Scrapers/VisaCal/VisaCalFetch.js');
 
