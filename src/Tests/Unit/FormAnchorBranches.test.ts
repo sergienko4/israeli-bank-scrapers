@@ -42,26 +42,15 @@ describe('scopeCandidate — all kinds', () => {
     expect(result.value).toContain('name=');
   });
 
-  it('returns labelText kind unchanged (not scopable)', () => {
-    const candidate = { kind: 'labelText' as const, value: 'Username' };
-    const result = SCOPE_CANDIDATE(formSelector, candidate);
-    expect(result).toBe(candidate);
-  });
+  const unscopableKinds = [
+    ['labelText', 'Username'],
+    ['textContent', 'Login'],
+    ['clickableText', 'Submit'],
+    ['xpath', '//button[@id="submit"]'],
+  ] as const;
 
-  it('returns textContent kind unchanged (not scopable)', () => {
-    const candidate = { kind: 'textContent' as const, value: 'Login' };
-    const result = SCOPE_CANDIDATE(formSelector, candidate);
-    expect(result).toBe(candidate);
-  });
-
-  it('returns clickableText kind unchanged (not scopable)', () => {
-    const candidate = { kind: 'clickableText' as const, value: 'Submit' };
-    const result = SCOPE_CANDIDATE(formSelector, candidate);
-    expect(result).toBe(candidate);
-  });
-
-  it('returns xpath candidate unchanged (not scopable)', () => {
-    const candidate = { kind: 'xpath' as const, value: '//button[@id="submit"]' };
+  it.each(unscopableKinds)('returns %s kind unchanged (not scopable)', (kind, value) => {
+    const candidate = { kind, value };
     const result = SCOPE_CANDIDATE(formSelector, candidate);
     expect(result).toBe(candidate);
   });
@@ -82,6 +71,9 @@ describe('scopeCandidates — array mapping', () => {
   });
 });
 
+/** Re-export shared factory with evaluate override for form discovery. */
+const { createLabelCtx: CREATE_LABEL_CTX } = await import('../MockModuleFactories.js');
+
 /**
  * Build a mock context for discoverFormAnchor tests.
  * @param count - Locator element count.
@@ -89,14 +81,7 @@ describe('scopeCandidates — array mapping', () => {
  * @returns Mock context object.
  */
 function makeDiscoverCtx(count: number, evaluateVal: string): Record<string, jest.Mock> {
-  return {
-    locator: jest.fn().mockReturnValue({
-      first: jest.fn().mockReturnValue({
-        count: jest.fn().mockResolvedValue(count),
-        evaluate: jest.fn().mockResolvedValue(evaluateVal),
-      }),
-    }),
-  };
+  return CREATE_LABEL_CTX({ count, tagName: evaluateVal });
 }
 
 describe('discoverFormAnchor', () => {

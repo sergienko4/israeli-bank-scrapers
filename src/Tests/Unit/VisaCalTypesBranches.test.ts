@@ -50,13 +50,16 @@ describe('isAuthModule — additional branch coverage', () => {
 });
 
 describe('authModuleOrUndefined — additional branches', () => {
-  it('returns undefined for boolean false', () => {
-    const authMod = authModuleOrUndefined(false);
-    expect(authMod).toBeUndefined();
-  });
+  /** Falsy inputs that should all return undefined: [label, value]. */
+  const falsyCases = [
+    ['boolean false', false],
+    ['zero', 0],
+    ['object with null auth', { auth: null }],
+    ['array', [1, 2, 3]],
+  ] as const;
 
-  it('returns undefined for zero', () => {
-    const authMod = authModuleOrUndefined(0);
+  it.each(falsyCases)('returns undefined for %s', (_label, input) => {
+    const authMod = authModuleOrUndefined(input);
     expect(authMod).toBeUndefined();
   });
 
@@ -64,16 +67,6 @@ describe('authModuleOrUndefined — additional branches', () => {
     const mod = { auth: { calConnectToken: ' valid ' } };
     const authMod = authModuleOrUndefined(mod);
     expect(authMod).toBe(mod);
-  });
-
-  it('returns undefined for object with null auth', () => {
-    const authMod = authModuleOrUndefined({ auth: null });
-    expect(authMod).toBeUndefined();
-  });
-
-  it('returns undefined for array', () => {
-    const authMod = authModuleOrUndefined([1, 2, 3]);
-    expect(authMod).toBeUndefined();
   });
 });
 

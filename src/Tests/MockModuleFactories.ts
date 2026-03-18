@@ -222,6 +222,36 @@ export function createStorageMock(): {
   return { getFromSessionStorage: jest.fn() };
 }
 
+/** Options for label strategy mock context. */
+interface ILabelCtxOptions {
+  count?: number;
+  tagName?: string;
+  typeAttr?: string | null;
+  locatorOverrides?: Record<string, jest.Mock>;
+}
+
+/**
+ * Create a mock page/frame context for label strategy tests.
+ * Supports count, evaluate (tagName), getAttribute (type).
+ * @param opts - configurable locator behavior
+ * @returns mock context castable to Page
+ */
+export function createLabelCtx(opts: ILabelCtxOptions = {}): Record<string, jest.Mock> {
+  const { count = 0, tagName = 'div', typeAttr = null, locatorOverrides = {} } = opts;
+  const defaultFirst = {
+    count: jest.fn().mockResolvedValue(count),
+    getAttribute: jest.fn().mockResolvedValue(typeAttr),
+    evaluate: jest.fn().mockResolvedValue(tagName),
+  };
+  return {
+    locator: jest.fn().mockReturnValue({
+      first: jest.fn().mockReturnValue(defaultFirst),
+      count: jest.fn().mockResolvedValue(count),
+      ...locatorOverrides,
+    }),
+  };
+}
+
 /**
  * XPath literal escaper matching production SelectorResolver.toXpathLiteral.
  * This is a deliberate copy — cannot import the production module because

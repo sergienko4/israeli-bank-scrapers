@@ -1,7 +1,7 @@
 /**
  * Branch coverage tests for MizrahiHelpers.ts and MizrahiScraper.ts.
  * Targets: getStartMoment, getTransactionIdentifier, createDataFromRequest,
- * createHeadersFromRequest, parseDetailsFields, buildExtraDetailsParams.
+ * createHeadersFromRequest.
  */
 import moment from 'moment';
 
@@ -15,14 +15,17 @@ import {
 
 /**
  * Build a mock Playwright Request with postData and headers.
- * @param postData - JSON string for request body.
+ * @param postData - JSON string or null for request body.
  * @param headers - Request headers map.
  * @returns A mock request object.
  */
 function makeRequest(
   postData: string,
   headers: Record<string, string> = {},
-): { postData: () => string; headers: () => Record<string, string> } {
+): {
+  postData: () => string;
+  headers: () => Record<string, string>;
+} {
   return {
     /**
      * Returns the request body.
@@ -82,34 +85,18 @@ describe('getStartMoment', () => {
 });
 
 describe('getTransactionIdentifier', () => {
-  it('returns empty string when MC02AsmahtaMekoritEZ is empty', () => {
-    const row = makeRow({ MC02AsmahtaMekoritEZ: '' });
-    const identifier = getTransactionIdentifier(row);
-    expect(identifier).toBe('');
-  });
+  const cases = [
+    ['empty asmahtaMekorit', { MC02AsmahtaMekoritEZ: '' }, ''],
+    ['TransactionNumber=5 (number)', { TransactionNumber: 5 }, '123456-5'],
+    ['TransactionNumber=1 (number)', { TransactionNumber: 1 }, 123456],
+    ['TransactionNumber="3" (string)', { TransactionNumber: '3' }, '123456-3'],
+    ['TransactionNumber="1" (string)', { TransactionNumber: '1' }, 123456],
+  ] as const;
 
-  it('returns composite key when TransactionNumber is not 1', () => {
-    const row = makeRow({ TransactionNumber: 5 });
+  it.each(cases)('returns correct identifier for %s', (_label, overrides, expected) => {
+    const row = makeRow(overrides);
     const identifier = getTransactionIdentifier(row);
-    expect(identifier).toBe('123456-5');
-  });
-
-  it('returns parsed integer when TransactionNumber is 1', () => {
-    const row = makeRow({ TransactionNumber: 1 });
-    const identifier = getTransactionIdentifier(row);
-    expect(identifier).toBe(123456);
-  });
-
-  it('returns composite key when TransactionNumber is string not "1"', () => {
-    const row = makeRow({ TransactionNumber: '3' });
-    const identifier = getTransactionIdentifier(row);
-    expect(identifier).toBe('123456-3');
-  });
-
-  it('returns parsed integer when TransactionNumber is string "1"', () => {
-    const row = makeRow({ TransactionNumber: '1' });
-    const identifier = getTransactionIdentifier(row);
-    expect(identifier).toBe(123456);
+    expect(identifier).toBe(expected);
   });
 });
 
@@ -132,6 +119,23 @@ describe('createDataFromRequest', () => {
     const request = makeRequest(body);
     const result = createDataFromRequest(request as never, new Date('2025-01-01'));
     expect(result.table.maxRow).toBeGreaterThan(0);
+  });
+
+  it('throws when postData is null (no table property)', () => {
+    /**
+     * Simulates missing post data.
+     * @returns null cast as string.
+     */
+    const nullPostData = (): string => null as unknown as string;
+    /**
+     * Simulates empty headers.
+     * @returns empty headers map.
+     */
+    const emptyHeaders = (): Record<string, string> => ({});
+    const nullPostDataRequest = { postData: nullPostData, headers: emptyHeaders };
+    expect(() =>
+      createDataFromRequest(nullPostDataRequest as never, new Date('2025-01-01')),
+    ).toThrow();
   });
 });
 

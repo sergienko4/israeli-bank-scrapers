@@ -6,26 +6,9 @@
  */
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
+import { createDebugMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: Record<string, string>) => data),
@@ -51,7 +34,7 @@ describe('getTxnAmount', () => {
     ['returns 0 when both are empty', '', '', 0],
   ] as const;
 
-  it.each(cases)('%s', (...args) => {
+  it.each(cases)('%s', (...args: readonly [string, string, string, number]) => {
     const [, credit, debit, expected] = args;
     const result = MOD.getTxnAmount({ credit, debit } as never);
     expect(result).toBeCloseTo(expected);

@@ -203,12 +203,12 @@ describe('performLogin — login status variants', () => {
     expect(result.errorType).toBe(ERROR_TYPES.ChangePassword);
   });
 
-  it('returns InvalidPassword for login status=7', async () => {
+  it('returns AccountBlocked for login status=7', async () => {
     mockValidate('1');
     mockLogin('7');
     const result = await new TestAmexScraper().scrape(CREDS);
     expect(result.success).toBe(false);
-    expect(result.errorType).toBe(ERROR_TYPES.InvalidPassword);
+    expect(result.errorType).toBe(ERROR_TYPES.AccountBlocked);
   });
 });
 
@@ -267,7 +267,7 @@ describe('setupResponseLogging — coverage', () => {
     const page = CREATE_MOCK_PAGE();
     MOCK_CONTEXT.newPage.mockResolvedValue(page);
     await new TestAmexScraper().scrape(CREDS);
-    type ResponseHandler = (_r: { url: () => string; status: () => number }) => string;
+    type ResponseHandler = (_response: { url: () => string; status: () => number }) => boolean;
     const calls = page.on.mock.calls as [string, ResponseHandler][];
     const onCall = calls.find(c => c[0] === 'response');
     expect(onCall).toBeDefined();

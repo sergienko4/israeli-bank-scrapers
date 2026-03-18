@@ -1,8 +1,10 @@
 /**
  * Branch coverage tests for GenericBankScraper.
- * Targets: toErrorMessage (non-Error), mapPossibleResults optional branches,
- * scopeFieldConfig with/without anchor, fillFieldWithFallback paths,
- * tryDiscoverFormAnchor error catch, buildSubmitButtonFunction fallback.
+ * Targets: toErrorMessage (non-Error), mapPossibleResults optional branches
+ * (it.each table-driven), scopeFieldConfig with/without anchor and wellKnown
+ * fallback, fillFieldWithFallback paths, tryDiscoverFormAnchor error catch,
+ * buildSubmitButtonFunction fallback, checkReadiness callback,
+ * buildFieldList empty selectors.
  */
 import { jest } from '@jest/globals';
 
@@ -98,14 +100,75 @@ const CREDS: ScraperCredentials = { username: 'u', password: 'p' };
 function makeConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://bank.example.com/login',
-    fields: [
-      { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user' }] },
-      { credentialKey: 'password', selectors: [{ kind: 'css', value: '#pass' }] },
-    ],
+    fields: makeDefaultFields(),
     submit: { kind: 'css', value: '#submit' },
     possibleResults: { success: [SUCCESS_URL] },
     ...overrides,
   };
+}
+
+/**
+ * Build default field config with username and password.
+ * @returns field array for login config.
+ */
+function makeDefaultFields(): ILoginConfig['fields'] {
+  return [
+    { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user' }] },
+    { credentialKey: 'password', selectors: [{ kind: 'css', value: '#pass' }] },
+  ];
+}
+
+/**
+ * Build a new scraper instance with default config + overrides.
+ * @param configOverrides - partial login config fields to override.
+ * @returns scraper instance ready for testing.
+ */
+function buildScraper(
+  configOverrides: Partial<ILoginConfig> = {},
+): InstanceType<typeof SCRAPER_MOD.ConcreteGenericScraper> {
+  return new SCRAPER_MOD.ConcreteGenericScraper(
+    MOCK_MOD.createMockScraperOptions(),
+    makeConfig(configOverrides),
+  );
+}
+
+/**
+ * Set up standard resolved mock state for field context.
+ * @returns true when mock is configured.
+ */
+function mockResolvedField(): boolean {
+  RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
+    isResolved: true,
+    selector: '#user',
+    context: mockPage,
+  });
+  return true;
+}
+
+/**
+ * Set up unresolved mock state for field context.
+ * @returns true when mock is configured.
+ */
+function mockUnresolvedField(): boolean {
+  RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
+    isResolved: false,
+    selector: '',
+    context: mockPage,
+  });
+  return true;
+}
+
+/**
+ * Set up form anchor mock with given selector.
+ * @param selector - CSS selector for form anchor.
+ * @returns true when mock is configured.
+ */
+function mockFormAnchor(selector: string): boolean {
+  DISCOVER_FORM_ANCHOR_MOCK.mockResolvedValue({
+    selector,
+    context: mockPage,
+  });
+  return true;
 }
 
 let mockPage: ReturnType<typeof MOCK_MOD.createMockPage>;
@@ -117,15 +180,8 @@ beforeEach(() => {
   const mockBrowser = MOCK_MOD.createMockBrowser(mockContext);
   (LAUNCH_MOD.launchCamoufox as jest.Mock).mockResolvedValue(mockBrowser);
   (NAV_MOD.getCurrentUrl as jest.Mock).mockResolvedValue(SUCCESS_URL);
-  RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
-    isResolved: true,
-    selector: '#user',
-    context: mockPage,
-  });
-  DISCOVER_FORM_ANCHOR_MOCK.mockResolvedValue({
-    selector: 'form',
-    element: {},
-  });
+  mockResolvedField();
+  mockFormAnchor('form');
 });
 
 describe('GenericBankScraper branch coverage', () => {
@@ -137,11 +193,9 @@ describe('GenericBankScraper branch coverage', () => {
     ] as const;
 
     it.each(optionalResultCases)('includes %s when provided', async (key, url) => {
-      const config = makeConfig({ possibleResults: { success: [SUCCESS_URL], [key]: [url] } });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
+      const scraper = buildScraper({
+        possibleResults: { success: [SUCCESS_URL], [key]: [url] },
+      });
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
     });
@@ -149,15 +203,8 @@ describe('GenericBankScraper branch coverage', () => {
 
   describe('fillFieldWithFallback — resolver unresolved path', () => {
     it('uses CSS fallback when resolver returns unresolved', async () => {
-      RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
-        isResolved: false,
-        selector: '',
-        context: mockPage,
-      });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        makeConfig(),
-      );
+      mockUnresolvedField();
+      const scraper = buildScraper();
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
       expect(FILL_INPUT_SPY).toHaveBeenCalled();
@@ -167,26 +214,16 @@ describe('GenericBankScraper branch coverage', () => {
   describe('tryDiscoverFormAnchor — error path', () => {
     it('catches form anchor discovery error and continues', async () => {
       DISCOVER_FORM_ANCHOR_MOCK.mockRejectedValue('string error thrown');
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        makeConfig(),
-      );
+      const scraper = buildScraper();
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
     });
   });
 
   describe('buildSubmitButtonFunction — fallback path', () => {
-    it('uses fallback CSS when submit resolver returns unresolved', async () => {
-      RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
-        isResolved: false,
-        selector: '',
-        context: mockPage,
-      });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        makeConfig(),
-      );
+    it('uses fallback CSS when submit resolver is unresolved', async () => {
+      mockUnresolvedField();
+      const scraper = buildScraper();
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
       expect(CLICK_BUTTON_SPY).toHaveBeenCalled();
@@ -196,11 +233,7 @@ describe('GenericBankScraper branch coverage', () => {
   describe('checkReadiness callback', () => {
     it('invokes checkReadiness when provided in config', async () => {
       const readinessSpy = jest.fn().mockResolvedValue(undefined);
-      const config = makeConfig({ checkReadiness: readinessSpy });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
+      const scraper = buildScraper({ checkReadiness: readinessSpy });
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
       expect(readinessSpy).toHaveBeenCalled();
@@ -209,49 +242,58 @@ describe('GenericBankScraper branch coverage', () => {
 
   describe('buildFieldList — empty selectors', () => {
     it('uses empty string selector when field has no selectors', async () => {
-      const config = makeConfig({
+      mockUnresolvedField();
+      const scraper = buildScraper({
         fields: [{ credentialKey: 'username', selectors: [] }],
       });
-      RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
-        isResolved: false,
-        selector: '',
-        context: mockPage,
-      });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
     });
   });
 
   describe('scopeFieldConfig — wellKnown fallback with form anchor', () => {
-    it('injects wellKnown candidates when bank selectors empty and form anchor exists', async () => {
-      const config = makeConfig({
+    it('injects wellKnown candidates when bank selectors empty', async () => {
+      mockResolvedField();
+      mockFormAnchor('form#login');
+      const scraper = buildScraper({
         fields: [
           { credentialKey: 'username', selectors: [{ kind: 'css', value: '#user' }] },
           { credentialKey: 'password', selectors: [] },
         ],
       });
-      RESOLVE_FIELD_CONTEXT_MOCK.mockResolvedValue({
-        isResolved: true,
-        selector: '#user',
-        context: mockPage,
-      });
-      DISCOVER_FORM_ANCHOR_MOCK.mockResolvedValue({ selector: 'form#login', context: mockPage });
-      const scraper = new SCRAPER_MOD.ConcreteGenericScraper(
-        MOCK_MOD.createMockScraperOptions(),
-        config,
-      );
       const result = await scraper.scrape(CREDS);
       expect(result.success).toBe(true);
-      const allScopeCalls = SCOPE_CANDIDATES_MOCK.mock.calls as [string, SelectorCandidate[]][];
-      const formLoginCalls = allScopeCalls.filter(call => call[0] === 'form#login');
-      expect(formLoginCalls.length).toBeGreaterThan(0);
-      const allScoped = formLoginCalls.flatMap(call => call[1]);
-      const hasLabelText = allScoped.some(c => c.kind === 'labelText' && c.value === 'סיסמה');
-      expect(hasLabelText).toBe(true);
+      assertWellKnownScoped('form#login');
+    });
+
+    it('scopes non-empty wellKnown candidates through form anchor', async () => {
+      mockResolvedField();
+      mockFormAnchor('form#main');
+      const scraper = buildScraper({
+        fields: [
+          { credentialKey: 'username', selectors: [] },
+          { credentialKey: 'password', selectors: [] },
+        ],
+      });
+      const result = await scraper.scrape(CREDS);
+      expect(result.success).toBe(true);
+      assertWellKnownScoped('form#main');
     });
   });
 });
+
+/**
+ * Assert that scopeCandidates was called with wellKnown labelText
+ * candidates scoped to the given form selector.
+ * @param formSelector - Expected form CSS selector.
+ * @returns true when all assertions pass.
+ */
+function assertWellKnownScoped(formSelector: string): boolean {
+  const allCalls = SCOPE_CANDIDATES_MOCK.mock.calls as [string, SelectorCandidate[]][];
+  const formCalls = allCalls.filter(c => c[0] === formSelector);
+  expect(formCalls.length).toBeGreaterThan(0);
+  const allCandidates = formCalls.flatMap(c => c[1]);
+  const hasLabel = allCandidates.some(c => c.kind === 'labelText' && c.value === 'סיסמה');
+  expect(hasLabel).toBe(true);
+  return true;
+}

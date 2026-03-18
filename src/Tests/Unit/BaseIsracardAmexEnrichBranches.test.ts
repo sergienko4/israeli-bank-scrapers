@@ -1,8 +1,8 @@
 /**
  * Branch coverage tests for BaseIsracardAmexEnrich.ts.
- * Targets: getExtraScrapTransaction null response fallback,
+ * Covers: getExtraScrapTransaction null/empty response fallback,
  * fetchTransactionsForMonth missing CardsTransactionsListBean,
- * getAdditionalTransactionInformation enrichment with fetchGetWithinPage.
+ * getAdditionalTransactionInformation enrichment path with PirteyIska_204 API.
  */
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
@@ -146,10 +146,15 @@ describe('getAdditionalTransactionInformation — enrichment path', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('enriches when shouldAddTransactionInformation is true', async () => {
-    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValue({});
+    const enrichmentResponse = {
+      PirteyIska_204Bean: { sector: 'Groceries' },
+    };
+    (FETCH_MODULE.fetchGetWithinPage as jest.Mock).mockResolvedValue(enrichmentResponse);
     const txnRaw = makeTxn();
     const txn = TXN_CONVERT.buildTransaction(txnRaw, '2024-06-15T00:00:00.000Z');
-    const accountMap = { '1234': { accountNumber: '1234', index: 0, txns: [txn] } };
+    const accountMap = {
+      '1234': { accountNumber: '1234', index: 0, txns: [txn] },
+    };
     const result = await ENRICH_MODULE.getAdditionalTransactionInformation({
       scraperOptions: makeOptions({ shouldAddTransactionInformation: true }),
       accountsWithIndex: [accountMap],
@@ -162,6 +167,7 @@ describe('getAdditionalTransactionInformation — enrichment path', () => {
     expect(enriched).toBeDefined();
     expect(enriched['1234']).toBeDefined();
     expect(enriched['1234'].txns).toHaveLength(1);
+    expect(enriched['1234'].txns[0].category).toBe('Groceries');
     expect(FETCH_MODULE.fetchGetWithinPage).toHaveBeenCalled();
   });
 });

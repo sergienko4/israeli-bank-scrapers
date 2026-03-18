@@ -1,3 +1,9 @@
+/**
+ * Branch coverage tests for Fetch.ts detectWafBlock.
+ * Targets: WAF detection by status code (429/503), body pattern matching
+ * (block automation, attention required, just a moment, access denied),
+ * and clean response passthrough.
+ */
 import { detectWafBlock } from '../../Common/Fetch.js';
 
 describe('detectWafBlock', () => {
@@ -20,10 +26,10 @@ describe('detectWafBlock', () => {
     ['detects "access denied"', 200, '<h1>Access Denied</h1>', 'access denied'],
   ] as const;
 
-  it.each(wafCases)('%s', (...args) => {
+  it.each(wafCases)('%s', (...args: readonly [string, number, string, string]) => {
     const [, status, body, expected] = args;
-    const result = detectWafBlock(status, body);
-    expect(result).toContain(expected);
+    const wafResult = detectWafBlock(status, body);
+    expect(wafResult).toContain(expected);
   });
 
   const cleanCases = [
@@ -33,8 +39,7 @@ describe('detectWafBlock', () => {
     ['returns empty for 204 No Content', 204, ''],
   ] as const;
 
-  it.each(cleanCases)('%s', (...args) => {
-    const [, status, body] = args;
+  it.each(cleanCases)('%s', (_label, status, body) => {
     const result = detectWafBlock(status, body);
     expect(result).toBe('');
   });

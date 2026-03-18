@@ -21,17 +21,26 @@ import {
 const FETCH_MOCK = createFetchMock();
 const MOCK_FETCH_POST = FETCH_MOCK.fetchPostWithinPage;
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
-jest.unstable_mockModule('../../Common/Fetch.js', () => FETCH_MOCK);
-jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
-jest.unstable_mockModule('../../Common/Navigation.js', () =>
-  createNavigationMock('https://test.cal'),
-);
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
-jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
-jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
-jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
-jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+/**
+ * Register all VisaCal common module mocks in one place.
+ * @returns true when all mocks are registered.
+ */
+function registerVisaCalMocks(): boolean {
+  jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
+  jest.unstable_mockModule('../../Common/Fetch.js', () => FETCH_MOCK);
+  jest.unstable_mockModule('../../Common/Browser.js', createBrowserMock);
+  jest.unstable_mockModule('../../Common/Navigation.js', () =>
+    createNavigationMock('https://test.cal'),
+  );
+  jest.unstable_mockModule('../../Common/ElementsInteractions.js', createElementsMock);
+  jest.unstable_mockModule('../../Common/Storage.js', createStorageMock);
+  jest.unstable_mockModule('../../Common/Waiting.js', createWaitingMock);
+  jest.unstable_mockModule('../../Common/Transactions.js', createTransactionsMock);
+  jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+  return true;
+}
+
+registerVisaCalMocks();
 
 const VISA_CAL_FETCH = await import('../../Scrapers/VisaCal/VisaCalFetch.js');
 
@@ -52,48 +61,40 @@ function makePage(): Record<string, jest.Mock> {
 /** Standard card fixture. */
 const CARD = { cardUniqueId: 'card-123', last4Digits: '4567' };
 
+/** Error cases for fetchMonthData: [label, response, expectedError]. */
+const FETCH_MONTH_ERROR_CASES = [
+  ['null response', null, 'null response'],
+  [
+    'validation failure (statusCode 2)',
+    { statusCode: 2, title: 'Card blocked' },
+    'failed to fetch transactions for card 4567',
+  ],
+] as const;
+
 describe('fetchMonthData — error branches', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('throws when fetch returns null', async () => {
-    MOCK_FETCH_POST.mockResolvedValue(null);
+  it.each(FETCH_MONTH_ERROR_CASES)('throws for %s', async (_label, response, expectedError) => {
+    MOCK_FETCH_POST.mockResolvedValue(response);
     const moment = (await import('moment')).default;
-    const page = makePage();
-    const month = moment('2024-06');
+    const month = moment('2024-06').clone();
 
     const fetchPromise = VISA_CAL_FETCH.fetchMonthData({
-      page: page as never,
+      page: makePage() as never,
       card: CARD,
       month,
       hdrs: {},
     });
-    await expect(fetchPromise).rejects.toThrow('null response');
-  });
-
-  it('throws when statusCode is not 1 (validation failure)', async () => {
-    MOCK_FETCH_POST.mockResolvedValue({ statusCode: 2, title: 'Card blocked' });
-    const moment = (await import('moment')).default;
-    const page = makePage();
-    const month = moment('2024-06');
-
-    const fetchPromise = VISA_CAL_FETCH.fetchMonthData({
-      page: page as never,
-      card: CARD,
-      month,
-      hdrs: {},
-    });
-    await expect(fetchPromise).rejects.toThrow('failed to fetch transactions for card 4567');
+    await expect(fetchPromise).rejects.toThrow(expectedError);
   });
 
   it('returns transaction details for valid response', async () => {
-    const validResponse = { statusCode: 1, result: { transactions: [] } };
-    MOCK_FETCH_POST.mockResolvedValue(validResponse);
+    MOCK_FETCH_POST.mockResolvedValue({ statusCode: 1, result: { transactions: [] } });
     const moment = (await import('moment')).default;
-    const page = makePage();
-    const month = moment('2024-06');
+    const month = moment('2024-06').clone();
 
     const result = await VISA_CAL_FETCH.fetchMonthData({
-      page: page as never,
+      page: makePage() as never,
       card: CARD,
       month,
       hdrs: {},
@@ -168,18 +169,22 @@ describe('fetchFrames — branches', () => {
 });
 
 describe('buildApiHeaders', () => {
-  it('returns headers with auth and site id', () => {
+  it('returns headers with auth, site id, and default headers', () => {
     const hdrs = VISA_CAL_FETCH.buildApiHeaders('Bearer token123', 'site-42');
     expect(hdrs.authorization).toBe('Bearer token123');
     expect(hdrs['X-Site-Id']).toBe('site-42');
     expect(hdrs['Content-Type']).toBe('application/json');
+    expect(hdrs).toHaveProperty('User-Agent');
+    expect(hdrs).toHaveProperty('Accept-Language');
+    expect(hdrs).toHaveProperty('Origin');
+    expect(hdrs).toHaveProperty('Referer');
   });
 });
 
 describe('buildMonthRange', () => {
   it('builds correct number of months', async () => {
     const moment = (await import('moment')).default;
-    const now = moment();
+    const now = moment().clone();
     const start = now.clone().subtract(2, 'months');
     const range = VISA_CAL_FETCH.buildMonthRange(start, 0);
     expect(range).toHaveLength(3);

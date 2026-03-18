@@ -2,15 +2,29 @@
  * Additional branch coverage tests for Navigation.ts.
  * Targets: getCurrentUrl isClientSide branch,
  * waitForRedirect timeout path, waitForUrl timeout path,
- * pollForRedirect ignoreList branch.
+ * pollForRedirect ignoreList branch, safeGetUrl error catch.
  */
 import { jest } from '@jest/globals';
 
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import { createDebugMock } from '../MockModuleFactories.js';
 
 jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
 
 const NAV = await import('../../Common/Navigation.js');
+
+/** Default timeout for redirect/url polling tests (ms). */
+const POLL_TIMEOUT_MS = 5000;
+/** Short timeout to trigger timeout errors quickly (ms). */
+const SHORT_TIMEOUT_MS = 500;
+/** Bank login URL used across tests. */
+const LOGIN_URL = 'https://bank.co.il/login';
+/** Bank dashboard URL used across tests. */
+const DASHBOARD_URL = 'https://bank.co.il/dashboard';
+/** Bank SPA URL used for client-side tests. */
+const SPA_URL = 'https://bank.co.il/spa';
+/** Intermediate processing URL for ignoreList tests. */
+const PROCESSING_URL = 'https://bank.co.il/processing';
 
 /**
  * Create a mock page with optional method overrides.
@@ -27,12 +41,12 @@ function makeMockPage(overrides: Record<string, jest.Mock> = {}): Record<string,
 }
 
 /**
- * Create a mock page whose url() returns initial on first call, then target.
+ * Create a mock page whose url() changes from initial to target.
  * @param initial - URL returned on the first call.
  * @param target - URL returned on subsequent calls.
  * @returns Mock page object with changing url().
  */
-function createChangingUrlPage(initial: string, target: string): Record<string, jest.Mock> {
+function makeChangingUrlPage(initial: string, target: string): Record<string, jest.Mock> {
   let callCount = 0;
   return makeMockPage({
     url: jest.fn().mockImplementation((): string => {
@@ -43,11 +57,11 @@ function createChangingUrlPage(initial: string, target: string): Record<string, 
 }
 
 /**
- * Create a mock page that cycles through provided URLs on each url() call.
- * @param urls - Sequence of URLs to return; last URL repeats indefinitely.
+ * Create a mock page that cycles through provided URLs.
+ * @param urls - Sequence of URLs; last URL repeats indefinitely.
  * @returns Mock page object.
  */
-function createMultiUrlPage(urls: readonly string[]): Record<string, jest.Mock> {
+function makeMultiUrlPage(urls: readonly string[]): Record<string, jest.Mock> {
   let idx = 0;
   return makeMockPage({
     url: jest.fn().mockImplementation((): string => {
@@ -60,17 +74,19 @@ function createMultiUrlPage(urls: readonly string[]): Record<string, jest.Mock> 
 
 describe('getCurrentUrl', () => {
   it('returns url() directly when isClientSide is false', () => {
-    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/home') });
+    const page = makeMockPage({
+      url: jest.fn().mockReturnValue('https://bank.co.il/home'),
+    });
     const result = NAV.getCurrentUrl(page as never, false);
     expect(result).toBe('https://bank.co.il/home');
   });
 
-  it('calls evaluate for client-side URL when isClientSide is true', async () => {
+  it('calls evaluate for client-side URL', async () => {
     const page = makeMockPage({
-      evaluate: jest.fn().mockResolvedValue('https://bank.co.il/spa'),
+      evaluate: jest.fn().mockResolvedValue(SPA_URL),
     });
     const result = await NAV.getCurrentUrl(page as never, true);
-    expect(result).toBe('https://bank.co.il/spa');
+    expect(result).toBe(SPA_URL);
     expect(page.evaluate).toHaveBeenCalled();
   });
 });
@@ -82,7 +98,9 @@ describe('waitForNavigation', () => {
       waitUntil: 'domcontentloaded',
     });
     expect(didNavigate).toBe(true);
-    expect(page.waitForURL).toHaveBeenCalledWith('**', { waitUntil: 'domcontentloaded' });
+    expect(page.waitForURL).toHaveBeenCalledWith('**', {
+      waitUntil: 'domcontentloaded',
+    });
   });
 });
 
@@ -96,59 +114,81 @@ describe('waitForNavigationAndDomLoad', () => {
 
 describe('waitForRedirect', () => {
   it('resolves when URL changes with default opts', async () => {
-    const page = createChangingUrlPage('https://bank.co.il/login', 'https://bank.co.il/dashboard');
+    const page = makeChangingUrlPage(LOGIN_URL, DASHBOARD_URL);
     const didRedirect = await NAV.waitForRedirect(page as never);
     expect(didRedirect).toBe(true);
   });
 
-  it('resolves with explicit isClientSide and timeout options', async () => {
-    const page = createChangingUrlPage('https://bank.co.il/login', 'https://bank.co.il/dashboard');
+  it('resolves with explicit isClientSide and timeout', async () => {
+    const page = makeChangingUrlPage(LOGIN_URL, DASHBOARD_URL);
     const didRedirect = await NAV.waitForRedirect(page as never, {
-      timeout: 5000,
+      timeout: POLL_TIMEOUT_MS,
       isClientSide: false,
     });
     expect(didRedirect).toBe(true);
   });
 
   it('throws on timeout when URL never changes', async () => {
-    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/login') });
-    const promise = NAV.waitForRedirect(page as never, { timeout: 500 });
+    const page = makeMockPage({
+      url: jest.fn().mockReturnValue(LOGIN_URL),
+    });
+    const promise = NAV.waitForRedirect(page as never, {
+      timeout: SHORT_TIMEOUT_MS,
+    });
     await expect(promise).rejects.toThrow();
   });
 
-  it('skips ignored intermediate URL and resolves on final redirect', async () => {
-    const page = createMultiUrlPage([
-      'https://bank.co.il/login', // call 1: captured as initial
-      'https://bank.co.il/processing', // call 2: in ignoreList → keep waiting
-      'https://bank.co.il/dashboard', // call 3+: not in ignoreList → done
-    ]);
+  it('skips ignored URL and resolves on final redirect', async () => {
+    const page = makeMultiUrlPage([LOGIN_URL, LOGIN_URL, PROCESSING_URL, DASHBOARD_URL]);
     const didRedirect = await NAV.waitForRedirect(page as never, {
-      ignoreList: ['https://bank.co.il/processing'],
-      timeout: 5000,
+      ignoreList: [PROCESSING_URL],
+      timeout: POLL_TIMEOUT_MS,
     });
     expect(didRedirect).toBe(true);
   });
 });
 
 describe('waitForUrl', () => {
-  it('resolves when URL matches string target with default opts', async () => {
-    const page = createChangingUrlPage('https://bank.co.il/loading', 'https://bank.co.il/target');
-    const didMatch = await NAV.waitForUrl(page as never, 'https://bank.co.il/target');
+  it('resolves when URL matches string target', async () => {
+    const target = 'https://bank.co.il/target';
+    const page = makeChangingUrlPage('https://bank.co.il/loading', target);
+    const didMatch = await NAV.waitForUrl(page as never, target);
     expect(didMatch).toBe(true);
   });
 
   it('resolves when URL matches regex target', async () => {
-    const page = createChangingUrlPage(
+    const page = makeChangingUrlPage(
       'https://bank.co.il/loading',
       'https://bank.co.il/dashboard/123',
     );
-    const didMatchRegex = await NAV.waitForUrl(page as never, /dashboard\/\d+/, { timeout: 5000 });
+    const didMatchRegex = await NAV.waitForUrl(page as never, /dashboard\/\d+/, {
+      timeout: POLL_TIMEOUT_MS,
+    });
     expect(didMatchRegex).toBe(true);
   });
 
   it('throws on timeout when URL never matches', async () => {
-    const page = makeMockPage({ url: jest.fn().mockReturnValue('https://bank.co.il/stuck') });
-    const promise = NAV.waitForUrl(page as never, 'https://bank.co.il/target', { timeout: 500 });
+    const page = makeMockPage({
+      url: jest.fn().mockReturnValue('https://bank.co.il/stuck'),
+    });
+    const promise = NAV.waitForUrl(page as never, 'https://bank.co.il/target', {
+      timeout: SHORT_TIMEOUT_MS,
+    });
+    await expect(promise).rejects.toThrow();
+  });
+});
+
+describe('safeGetUrl — error catch path', () => {
+  it('returns ? when getCurrentUrl throws', async () => {
+    const page = makeMockPage({
+      url: jest.fn().mockImplementation(() => {
+        throw new ScraperError('detached');
+      }),
+      evaluate: jest.fn().mockRejectedValue(new Error('detached')),
+    });
+    const promise = NAV.waitForRedirect(page as never, {
+      timeout: SHORT_TIMEOUT_MS,
+    });
     await expect(promise).rejects.toThrow();
   });
 });

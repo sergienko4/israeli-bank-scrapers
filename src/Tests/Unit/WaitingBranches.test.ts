@@ -1,23 +1,27 @@
 /**
  * Waiting module branch-coverage tests.
- * Covers: raceTimeout (non-TimeoutError propagation, slow/instant promise),
- * waitUntil (non-TimeoutError catch, timeout last-seen stringification for
- * null/undefined/zero/empty-string, first-truthy resolution, default opts).
+ * Covers: raceTimeout (non-TimeoutError propagation via it.each,
+ * slow/instant promise), waitUntil (non-TimeoutError catch,
+ * timeout last-seen stringification for null/undefined/zero/empty-string/
+ * circular-object, first-truthy resolution, default opts).
  */
 import { RACE_TIMED_OUT, raceTimeout, TimeoutError, waitUntil } from '../../Common/Waiting.js';
 
 describe('raceTimeout — non-TimeoutError propagation', () => {
-  const rejectionCases = [
+  const rejectionCases: readonly (readonly [string, new (m: string) => Error, string])[] = [
     ['TypeError', TypeError, 'type mismatch'],
     ['RangeError', RangeError, 'out of range'],
-  ] as const;
+    ['SyntaxError', SyntaxError, 'bad syntax'],
+  ];
 
   it.each(rejectionCases)(
     'propagates %s from the racing promise',
-    async (_label, errorClass, msg) => {
-      const badPromise = Promise.reject(new errorClass(msg));
-      const racePromise = raceTimeout(5000, badPromise);
-      await expect(racePromise).rejects.toThrow(errorClass);
+    async (...args: readonly [string, new (m: string) => Error, string]) => {
+      const [, errorClass, msg] = args;
+      const errorInstance = new errorClass(msg);
+      const badPromise = Promise.reject(errorInstance);
+      const raceResult = raceTimeout(5000, badPromise);
+      await expect(raceResult).rejects.toThrow(errorClass);
     },
   );
 
@@ -60,31 +64,53 @@ describe('waitUntil — timeout message includes last seen value', () => {
 });
 
 describe('waitUntil — timeout error includes stringified last-seen value', () => {
-  it('appends stringified undefined to timeout message', async () => {
-    const promise = waitUntil(() => Promise.resolve(undefined) as Promise<never>, 'undef-test', {
-      timeout: 50,
-      interval: 5,
-    });
-    await expect(promise).rejects.toThrow(TimeoutError);
-    await expect(promise).rejects.toThrow(/last:.*undefined/);
-  });
+  /**
+   * Poll returning undefined for timeout test.
+   * @returns resolved undefined as never.
+   */
+  const pollUndefined = (): Promise<never> => Promise.resolve(undefined) as Promise<never>;
+  /**
+   * Poll returning zero for timeout test.
+   * @returns resolved zero as never.
+   */
+  const pollZero = (): Promise<never> => Promise.resolve(0) as Promise<never>;
+  /**
+   * Poll returning empty string for timeout test.
+   * @returns resolved empty string as never.
+   */
+  const pollEmpty = (): Promise<never> => Promise.resolve('') as Promise<never>;
 
-  it('appends stringified zero to timeout message', async () => {
-    const promise = waitUntil(() => Promise.resolve(0) as Promise<never>, 'zero-test', {
-      timeout: 50,
-      interval: 5,
-    });
+  /** Table-driven falsy-value cases for timeout message. */
+  const lastSeenCases: readonly (readonly [string, () => Promise<never>, RegExp])[] = [
+    ['undefined', pollUndefined, /last:.*undefined/],
+    ['zero', pollZero, /last:.*0/],
+    ['empty-string', pollEmpty, /last:.*""/],
+  ];
+
+  it.each(lastSeenCases)(
+    'appends stringified %s to timeout message',
+    async (...args: readonly [string, () => Promise<never>, RegExp]) => {
+      const [label, poller, pattern] = args;
+      const promise = waitUntil(poller, `${label}-test`, {
+        timeout: 50,
+        interval: 5,
+      });
+      await expect(promise).rejects.toThrow(TimeoutError);
+      await expect(promise).rejects.toThrow(pattern);
+    },
+  );
+
+  it('falls back to String() when JSON.stringify throws', async () => {
+    const promise = waitUntil(
+      () => {
+        const bigZero = BigInt(0);
+        return Promise.resolve(bigZero) as Promise<never>;
+      },
+      'bigint-test',
+      { timeout: 50, interval: 5 },
+    );
     await expect(promise).rejects.toThrow(TimeoutError);
     await expect(promise).rejects.toThrow(/last:.*0/);
-  });
-
-  it('appends stringified empty-string to timeout message', async () => {
-    const promise = waitUntil(() => Promise.resolve('') as Promise<never>, 'empty-test', {
-      timeout: 50,
-      interval: 5,
-    });
-    await expect(promise).rejects.toThrow(TimeoutError);
-    await expect(promise).rejects.toThrow(/last:.*""/);
   });
 });
 

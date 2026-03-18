@@ -176,6 +176,31 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser<IScraperSpecificCre
       this.emitProgress(ScraperProgressTypes.ChangePassword);
       return createChangePasswordError('Isracard/Amex: password change required (status=3)');
     }
+    if (status === '7') {
+      return this.buildAccountBlockedResult();
+    }
+    return this.buildInvalidPasswordResult(status);
+  }
+
+  /**
+   * Build an account-blocked result and emit failure progress.
+   * @returns scraping result with AccountBlocked error.
+   */
+  private buildAccountBlockedResult(): IScraperScrapingResult {
+    this.emitProgress(ScraperProgressTypes.LoginFailed);
+    return {
+      success: false,
+      errorType: ScraperErrorTypes.AccountBlocked,
+      errorMessage: 'Isracard/Amex: account locked (status=7)',
+    };
+  }
+
+  /**
+   * Build an invalid-password result and emit failure progress.
+   * @param status - the login status code.
+   * @returns scraping result with InvalidPassword error.
+   */
+  private buildInvalidPasswordResult(status: string | undefined): IScraperScrapingResult {
     this.emitProgress(ScraperProgressTypes.LoginFailed);
     return {
       success: false,

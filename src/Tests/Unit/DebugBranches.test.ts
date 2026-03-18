@@ -1,8 +1,11 @@
 /**
  * Branch coverage tests for Debug.ts.
- * Targets: runWithBankContext (sync, async, nesting, sentinel verification),
- * getDebug (all log levels, distinct module loggers).
+ * Targets: runWithBankContext (sync return, async return, nesting,
+ * callback-execution proof via spy), getDebug (all 6 log levels via
+ * it.each, distinct module loggers).
  */
+import { jest } from '@jest/globals';
+
 import { getDebug, runWithBankContext } from '../../Common/Debug.js';
 
 describe('Bank Context Execution', () => {
@@ -28,12 +31,11 @@ describe('Bank Context Execution', () => {
     expect(outer).toBe('outer-inner');
   });
 
-  it('executes the callback (verified via sentinel)', () => {
-    let callResult = 'not-called';
-    runWithBankContext('max', () => {
-      callResult = 'was-called';
-    });
-    expect(callResult).toBe('was-called');
+  it('proves callback executed via spy', () => {
+    const spy = jest.fn(() => 'spy-result');
+    const result = runWithBankContext('max', spy);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(result).toBe('spy-result');
   });
 });
 
@@ -43,7 +45,7 @@ describe('getDebug — child logger module name', () => {
   it.each(logLevels)('logs at %s level without error', level => {
     const log = getDebug('branch-test');
     expect(() => {
-      (log[level] as (...args: unknown[]) => string)('test');
+      (log[level] as (...a: unknown[]) => string)('test');
     }).not.toThrow();
   });
 
