@@ -1,11 +1,9 @@
 import { DASHBOARD_STEP } from '../../../../Scrapers/Pipeline/Phases/DashboardPhase.js';
 import { DECLARATIVE_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/DirectPostLoginPhase.js';
-import { INIT_STEP } from '../../../../Scrapers/Pipeline/Phases/InitPhase.js';
 import { NATIVE_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/NativeLoginPhase.js';
 import { OTP_STEP } from '../../../../Scrapers/Pipeline/Phases/OtpPhase.js';
 import { SCRAPE_STEP } from '../../../../Scrapers/Pipeline/Phases/ScrapePhase.js';
-import { TERMINATE_STEP } from '../../../../Scrapers/Pipeline/Phases/TerminatePhase.js';
 import { PIPELINE_REGISTRY } from '../../../../Scrapers/Pipeline/PipelineRegistry.js';
 import type { IPipelineStep } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -14,24 +12,22 @@ import { makeMockContext } from './MockFactories.js';
 /** Step entry for parameterized tests: [name, step]. */
 type StepEntry = [string, IPipelineStep<IPipelineContext, IPipelineContext>];
 
-/** All phase steps — single source of truth for both test blocks. */
-const ALL_STEPS: StepEntry[] = [
-  ['init-browser', INIT_STEP],
+/** Phase steps that are still stubs (init + terminate have real implementations). */
+const STUB_STEPS: StepEntry[] = [
   ['declarative-login', DECLARATIVE_LOGIN_STEP],
   ['direct-post-login', DIRECT_POST_LOGIN_STEP],
   ['native-login', NATIVE_LOGIN_STEP],
   ['otp', OTP_STEP],
   ['dashboard', DASHBOARD_STEP],
   ['scrape', SCRAPE_STEP],
-  ['terminate', TERMINATE_STEP],
 ];
 
 describe('Phase stubs', () => {
-  it.each(ALL_STEPS)('%s step has correct name', (expectedName, step) => {
+  it.each(STUB_STEPS)('%s step has correct name', (expectedName, step) => {
     expect(step.name).toBe(expectedName);
   });
 
-  it.each(ALL_STEPS)('%s step returns succeed(input)', async (expectedName, step) => {
+  it.each(STUB_STEPS)('%s step returns succeed(input)', async (expectedName, step) => {
     const ctx = makeMockContext();
     const result = await step.execute(ctx, ctx);
     expect(result.ok).toBe(true);

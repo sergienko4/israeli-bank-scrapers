@@ -13,51 +13,30 @@ describe('createElementMediator', () => {
 });
 
 describe('ElementMediator/resolveField', () => {
-  it('returns failure Procedure (stub)', async () => {
+  it('returns failure when page has no DOM (catches error)', async () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveField('username', []);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('stub');
-      expect(result.errorMessage).toContain('resolveField');
-    }
   });
 
-  it('includes field key in error message', async () => {
+  it('returns failure with error message', async () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveField('password', []);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errorMessage).toContain('password');
-    }
-  });
-
-  it('includes candidate count in error message', async () => {
-    const candidates = [
-      { kind: 'labelText' as const, value: 'Username' },
-      { kind: 'placeholder' as const, value: 'Enter username' },
-    ];
-    const page = makeMockPage();
-    const mediator = createElementMediator(page);
-    const result = await mediator.resolveField('username', candidates);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('2 candidates');
+      expect(result.errorMessage.length).toBeGreaterThan(0);
     }
   });
 });
 
 describe('ElementMediator/resolveClickable', () => {
-  it('returns failure Procedure (stub)', async () => {
+  it('returns failure when page has no DOM', async () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveClickable([]);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('resolveClickable');
-    }
   });
 });
 

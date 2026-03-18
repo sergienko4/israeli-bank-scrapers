@@ -1,23 +1,40 @@
 import { type CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
+import { PIPELINE_REGISTRY } from '../Pipeline/PipelineRegistry.js';
+import { PipelineScraper } from '../Pipeline/PipelineScraper.js';
 import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
   type ScraperFactory,
 } from './ScraperRegistryAmexToIsracard.js';
 import SCRAPER_REGISTRY_LEUMI_TO_YAHAV from './ScraperRegistryLeumiToYahav.js';
 
-/** Combined registry of all supported bank scrapers. */
+/** Combined registry of all supported bank scrapers (legacy). */
 const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
   ...SCRAPER_REGISTRY_AMEX_TO_ISRACARD,
   ...SCRAPER_REGISTRY_LEUMI_TO_YAHAV,
 };
 
 /**
+ * Try creating a pipeline scraper if usePipeline is enabled.
+ * @param options - Scraper configuration.
+ * @returns A PipelineScraper if the bank is migrated, false otherwise.
+ */
+function tryPipeline(options: ScraperOptions): IScraper<ScraperCredentials> | false {
+  if (!options.usePipeline) return false;
+  const pipelineFactory = PIPELINE_REGISTRY[options.companyId];
+  if (!pipelineFactory) return false;
+  return new PipelineScraper(options, pipelineFactory);
+}
+
+/**
  * Create a scraper instance for the given company.
+ * Routes to Pipeline if usePipeline is true and bank is migrated.
  * @param options - Scraper configuration including company ID and credentials.
  * @returns A scraper instance ready to scrape transactions.
  */
 export default function createScraper(options: ScraperOptions): IScraper<ScraperCredentials> {
+  const pipelineScraper = tryPipeline(options);
+  if (pipelineScraper) return pipelineScraper;
   const factory = SCRAPER_REGISTRY[options.companyId];
   if (factory) return factory(options);
   throw new ScraperError(`unknown company id ${options.companyId}`);

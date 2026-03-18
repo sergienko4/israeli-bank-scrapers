@@ -3,58 +3,28 @@ import { GraphQLFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Gra
 import { NativeFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/NativeFetchStrategy.js';
 import { makeMockPage } from './MockFactories.js';
 
-describe('BrowserFetchStrategy/fetchPost', () => {
-  it('returns failure Procedure (stub)', async () => {
+describe('BrowserFetchStrategy/error-handling', () => {
+  it('catches page.evaluate errors and returns failure', async () => {
     const page = makeMockPage();
     const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test/post', { key: 'val' });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('stub');
-      expect(result.errorMessage).toContain('POST');
-    }
   });
 
-  it('includes URL in error message', async () => {
-    const page = makeMockPage();
-    const strategy = new BrowserFetchStrategy(page);
-    const result = await strategy.fetchPost('https://api.test/endpoint', {});
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('api.test/endpoint');
-    }
-  });
-
-  it('includes data key count in error message', async () => {
-    const page = makeMockPage();
-    const strategy = new BrowserFetchStrategy(page);
-    const result = await strategy.fetchPost('https://api.test', { a: '1', b: '2' });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('2 keys');
-    }
-  });
-});
-
-describe('BrowserFetchStrategy/fetchGet', () => {
-  it('returns failure Procedure (stub)', async () => {
+  it('catches fetchGet errors and returns failure', async () => {
     const page = makeMockPage();
     const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.test/get');
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errorMessage).toContain('stub');
-      expect(result.errorMessage).toContain('GET');
-    }
   });
 
-  it('includes page URL in error message', async () => {
+  it('returns error message from caught exception', async () => {
     const page = makeMockPage();
     const strategy = new BrowserFetchStrategy(page);
-    const result = await strategy.fetchGet('https://api.test');
+    const result = await strategy.fetchPost('https://api.test', {});
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errorMessage).toContain('bank.example.com');
+      expect(result.errorMessage.length).toBeGreaterThan(0);
     }
   });
 });

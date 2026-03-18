@@ -1,6 +1,7 @@
 /**
  * Terminate phase — cleanup browser resources in LIFO order.
- * Stub: returns succeed(input) until Step 3.
+ * Extracted from BaseScraperWithBrowser.terminate().
+ * Never fails the pipeline — cleanup errors are logged and swallowed.
  */
 
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -9,17 +10,58 @@ import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 
 /**
- * Stub: run reverse-order cleanup handlers.
- * @param _ctx - Pipeline context (unused in stub).
- * @param input - Input context to pass through.
- * @returns Success with unchanged context.
+ * Run a single cleanup handler, swallowing any error.
+ * @param cleanup - The cleanup function to run.
+ * @param logger - Logger for error reporting.
+ * @returns True if cleanup succeeded, false if it threw.
  */
-function executeTerminate(
+async function runCleanup(
+  cleanup: () => Promise<boolean>,
+  logger: IPipelineContext['logger'],
+): Promise<boolean> {
+  try {
+    await cleanup();
+    return true;
+  } catch (error) {
+    const msg = (error as Error).message.slice(0, 80);
+    logger.debug('cleanup error (swallowed): %s', msg);
+    return false;
+  }
+}
+
+/**
+ * Run cleanups recursively in LIFO order (index decreasing).
+ * @param cleanups - Cleanup functions registered during init.
+ * @param logger - Logger for error reporting.
+ * @param index - Current index (starts at last element).
+ * @returns Count of successful cleanups.
+ */
+async function runCleanupsRecursive(
+  cleanups: readonly (() => Promise<boolean>)[],
+  logger: IPipelineContext['logger'],
+  index: number,
+): Promise<number> {
+  if (index < 0) return 0;
+  const didSucceed = await runCleanup(cleanups[index], logger);
+  const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
+  return didSucceed ? restCount + 1 : restCount;
+}
+
+/**
+ * Execute the terminate phase — LIFO cleanup, never fails.
+ * @param _ctx - Current pipeline context (unused).
+ * @param input - Input context with browser state.
+ * @returns Always succeed(input).
+ */
+async function executeTerminate(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const result = succeed(input);
-  return Promise.resolve(result);
+  if (!input.browser.has) return succeed(input);
+  const cleanups = input.browser.value.cleanups;
+  const lastIndex = cleanups.length - 1;
+  await runCleanupsRecursive(cleanups, input.logger, lastIndex);
+  return succeed(input);
 }
 
 /** Terminate step — runs reverse-order cleanup handlers. */

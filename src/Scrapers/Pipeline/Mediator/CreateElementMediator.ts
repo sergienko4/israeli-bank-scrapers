@@ -1,123 +1,111 @@
 /**
  * Factory for IElementMediator — wraps SelectorResolver + FormAnchor.
- * Stub: all methods return fail('NOT_IMPLEMENTED') until Step 3.
+ * Black box for HTML resolution — scrapers describe WHAT, mediator finds HOW.
  */
 
 import type { Page } from 'playwright-core';
 
+import { getDebug } from '../../../Common/Debug.js';
+import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.js';
+import { resolveFieldContext, tryInContext } from '../../../Common/SelectorResolver.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import { none } from '../Types/Option.js';
-import type { Procedure } from '../Types/Procedure.js';
-import { fail } from '../Types/Procedure.js';
+import { none, some } from '../Types/Option.js';
+import { fail, succeed } from '../Types/Procedure.js';
 import type { IElementMediator } from './ElementMediator.js';
 
-const STUB_PREFIX = 'ElementMediator stub';
+const LOG = getDebug('element-mediator');
+
+/** Cached form selector — shared across calls within one mediator. */
+let cachedFormSelector = '';
 
 /**
- * Build a stub "not implemented" message with context.
- * @param method - The method name.
- * @param detail - Additional context info.
- * @returns Formatted stub message.
- */
-function stubMessage(method: string, detail: string): string {
-  return `${STUB_PREFIX}: ${method}(${detail})`;
-}
-
-/**
- * Stub: resolve a field (not implemented).
- * @param pageUrl - URL of the page for diagnostics.
- * @param fieldKey - Credential key to resolve.
- * @param candidates - Selector candidates.
- * @returns Failure Procedure.
- */
-function stubResolveField(
-  pageUrl: string,
-  fieldKey: string,
-  candidates: readonly SelectorCandidate[],
-): Promise<Procedure<IFieldContext>> {
-  const count = String(candidates.length);
-  const msg = stubMessage('resolveField', `${fieldKey}, ${count} candidates, ${pageUrl}`);
-  const result = fail(ScraperErrorTypes.Generic, msg);
-  return Promise.resolve(result);
-}
-
-/**
- * Stub: resolve a clickable element (not implemented).
- * @param pageUrl - URL of the page for diagnostics.
- * @param candidates - Selector candidates.
- * @returns Failure Procedure.
- */
-function stubResolveClickable(
-  pageUrl: string,
-  candidates: readonly SelectorCandidate[],
-): Promise<Procedure<string>> {
-  const count = String(candidates.length);
-  const msg = stubMessage('resolveClickable', `${count} candidates, ${pageUrl}`);
-  const result = fail(ScraperErrorTypes.Generic, msg);
-  return Promise.resolve(result);
-}
-
-/**
- * Stub: scope candidates to form (passthrough).
- * @param candidates - Candidates to scope.
- * @returns The same candidates unchanged.
- */
-function stubScopeToForm(candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[] {
-  return candidates;
-}
-
-/**
- * Build a discoverForm stub bound to a page.
- * @param page - The Playwright page for live URL reads.
- * @returns A discoverForm function that always returns none().
- */
-function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
-  return (resolvedContext: IFieldContext) => {
-    const url = page.url();
-    stubMessage('discoverForm', `${resolvedContext.selector}, ${url}`);
-    const result = none();
-    return Promise.resolve(result);
-  };
-}
-
-/**
- * Build a resolveField stub bound to a page.
- * @param page - The Playwright page for live URL reads.
- * @returns A resolveField function.
+ * Build resolveField method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveField function.
  */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return (fk, c) => {
-    const url = page.url();
-    return stubResolveField(url, fk, c);
+  return async (fieldKey, candidates) => {
+    const pageUrl = page.url();
+    const field = { credentialKey: fieldKey, selectors: [...candidates] };
+    try {
+      const ctx = await resolveFieldContext(page, field, pageUrl);
+      if (ctx.isResolved) return succeed(ctx);
+      const msg = `Field not found: ${fieldKey} on ${pageUrl}`;
+      return fail(ScraperErrorTypes.Generic, msg);
+    } catch (error) {
+      const msg = (error as Error).message;
+      return fail(ScraperErrorTypes.Generic, msg);
+    }
   };
 }
 
 /**
- * Build a resolveClickable stub bound to a page.
- * @param page - The Playwright page for live URL reads.
- * @returns A resolveClickable function.
+ * Build resolveClickable method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveClickable function.
  */
 function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
-  return c => {
-    const url = page.url();
-    return stubResolveClickable(url, c);
+  return async candidates => {
+    try {
+      const mutableCandidates = [...candidates];
+      const css = await tryInContext(page, mutableCandidates);
+      if (css) return succeed(css);
+      return fail(ScraperErrorTypes.Generic, 'Clickable not found');
+    } catch (error) {
+      const msg = (error as Error).message;
+      return fail(ScraperErrorTypes.Generic, msg);
+    }
   };
 }
 
 /**
- * Create an ElementMediator for the given page (stub).
- * Uses page.url() at call time, not factory time.
+ * Build discoverForm method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator discoverForm function.
+ */
+function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
+  return async (resolvedContext: IFieldContext) => {
+    try {
+      const anchor = await discoverFormAnchor(page, resolvedContext.selector);
+      if (anchor) {
+        cachedFormSelector = anchor.selector;
+        return some(anchor);
+      }
+      return none();
+    } catch (error) {
+      const msg = (error as Error).message.slice(0, 60);
+      LOG.debug('discoverForm failed (non-fatal): %s', msg);
+      return none();
+    }
+  };
+}
+
+/**
+ * Scope candidates to the cached form anchor.
+ * @param candidates - Candidates to scope.
+ * @returns Scoped candidates (or original if no form cached).
+ */
+function scopeToForm(candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[] {
+  if (!cachedFormSelector) return candidates;
+  const mutable = [...candidates];
+  return scopeCandidates(cachedFormSelector, mutable);
+}
+
+/**
+ * Create an ElementMediator for the given page.
+ * Delegates to SelectorResolver + FormAnchor.
  * @param page - The Playwright page to resolve elements on.
- * @returns An IElementMediator with stub implementations.
+ * @returns An IElementMediator with real implementations.
  */
 function createElementMediator(page: Page): IElementMediator {
+  cachedFormSelector = '';
   return {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
     discoverForm: buildDiscoverForm(page),
-    scopeToForm: stubScopeToForm,
+    scopeToForm,
   };
 }
 
