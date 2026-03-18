@@ -5,11 +5,24 @@
 
 import type { Procedure } from '../Types/Procedure.js';
 
+/** Optional fetch configuration. */
+interface IFetchOpts {
+  /** Additional HTTP headers to include in the request. */
+  readonly extraHeaders: Record<string, string>;
+}
+
+/** Default fetch options — no extra headers. */
+const DEFAULT_FETCH_OPTS: IFetchOpts = { extraHeaders: {} };
+
 /** Fetch strategy interface — all fetches return strong-typed Procedure. */
 interface IFetchStrategy {
-  fetchPost<T>(url: string, data: Record<string, string>): Promise<Procedure<T>>;
-  fetchGet<T>(url: string): Promise<Procedure<T>>;
+  /** POST with optional extra headers. */
+  fetchPost<T>(url: string, data: Record<string, string>, opts: IFetchOpts): Promise<Procedure<T>>;
+
+  /** GET with optional extra headers. */
+  fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>>;
 }
 
 export default IFetchStrategy;
-export type { IFetchStrategy };
+export type { IFetchOpts, IFetchStrategy };
+export { DEFAULT_FETCH_OPTS };

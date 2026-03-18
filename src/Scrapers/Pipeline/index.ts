@@ -19,7 +19,8 @@ export { fail, failWithDetails, fromLegacy, isOk, succeed, toLegacy } from './Ty
 
 // Strategy
 export { BrowserFetchStrategy } from './Strategy/BrowserFetchStrategy.js';
-export type { IFetchStrategy } from './Strategy/FetchStrategy.js';
+export type { IFetchOpts, IFetchStrategy } from './Strategy/FetchStrategy.js';
+export { DEFAULT_FETCH_OPTS } from './Strategy/FetchStrategy.js';
 export { GraphQLFetchStrategy } from './Strategy/GraphQLFetchStrategy.js';
 export { NativeFetchStrategy } from './Strategy/NativeFetchStrategy.js';
 
