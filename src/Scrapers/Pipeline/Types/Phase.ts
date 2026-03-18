@@ -7,7 +7,7 @@ import type { Option } from './Option.js';
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
-/** The five standard pipeline phases. */
+/** The six standard pipeline phases. */
 type PhaseName = 'init' | 'login' | 'otp' | 'dashboard' | 'scrape' | 'terminate';
 
 /** A single executable step within a phase. */

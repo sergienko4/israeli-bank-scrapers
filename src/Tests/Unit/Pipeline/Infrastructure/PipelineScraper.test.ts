@@ -1,23 +1,17 @@
 import { jest } from '@jest/globals';
 
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { PipelineScraper } from '../../../../Scrapers/Pipeline/PipelineScraper.js';
+import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 
-/** Minimal ScraperOptions. */
-const MOCK_OPTIONS = {
-  companyId: 'testBank',
-  startDate: new Date('2024-01-01'),
-} as never;
-
-/** Minimal credentials. */
-const MOCK_CREDENTIALS = { username: 'user', password: 'pass' };
+const MOCK_OPTIONS = makeMockOptions({ companyId: 'testBank' as never });
+const MOCK_CREDENTIALS = makeMockCredentials();
 
 /**
  * Stub pipeline builder.
  * @returns Minimal pipeline descriptor.
  */
-function mockBuildPipeline(): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases: [] };
+function mockBuildPipeline(): ReturnType<typeof makeMockDescriptor> {
+  return makeMockDescriptor(MOCK_OPTIONS);
 }
 
 describe('PipelineScraper/scrape', () => {

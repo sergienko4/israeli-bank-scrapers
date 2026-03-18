@@ -83,25 +83,40 @@ function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
 }
 
 /**
+ * Build a resolveField stub bound to a page.
+ * @param page - The Playwright page for live URL reads.
+ * @returns A resolveField function.
+ */
+function buildResolveField(page: Page): IElementMediator['resolveField'] {
+  return (fk, c) => {
+    const url = page.url();
+    return stubResolveField(url, fk, c);
+  };
+}
+
+/**
+ * Build a resolveClickable stub bound to a page.
+ * @param page - The Playwright page for live URL reads.
+ * @returns A resolveClickable function.
+ */
+function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
+  return c => {
+    const url = page.url();
+    return stubResolveClickable(url, c);
+  };
+}
+
+/**
  * Create an ElementMediator for the given page (stub).
  * Uses page.url() at call time, not factory time.
  * @param page - The Playwright page to resolve elements on.
  * @returns An IElementMediator with stub implementations.
  */
 function createElementMediator(page: Page): IElementMediator {
-  const discoverForm = buildDiscoverForm(page);
   return {
-    /** @inheritdoc */
-    resolveField: (fk, c): ReturnType<IElementMediator['resolveField']> => {
-      const url = page.url();
-      return stubResolveField(url, fk, c);
-    },
-    /** @inheritdoc */
-    resolveClickable: (c): ReturnType<IElementMediator['resolveClickable']> => {
-      const url = page.url();
-      return stubResolveClickable(url, c);
-    },
-    discoverForm,
+    resolveField: buildResolveField(page),
+    resolveClickable: buildResolveClickable(page),
+    discoverForm: buildDiscoverForm(page),
     scopeToForm: stubScopeToForm,
   };
 }

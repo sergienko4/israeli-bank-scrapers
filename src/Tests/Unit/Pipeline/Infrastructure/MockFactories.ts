@@ -34,22 +34,28 @@ function makeMockCredentials(): ScraperCredentials {
   return { username: 'testuser', password: 'testpass' } as ScraperCredentials;
 }
 
-/** Internal URL tracker for mock page. */
-let mockPageUrl = 'https://bank.example.com/login';
-
 /**
- * Create a minimal mock Playwright Page.
- * @param url - The URL the page should report.
- * @returns A Page-compatible mock.
+ * Create a minimal mock Playwright Page with isolated URL state.
+ * @param initialUrl - The URL the page should report.
+ * @returns A Page-compatible mock with its own URL closure.
  */
-function makeMockPage(url = 'https://bank.example.com/login'): Page {
-  mockPageUrl = url;
+function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
+  let currentUrl = initialUrl;
   return {
     /**
-     * Return the current mock page URL.
+     * Return this mock page's URL.
      * @returns The mock URL.
      */
-    url: (): string => mockPageUrl,
+    url: (): string => currentUrl,
+    /**
+     * Simulate navigation by updating the URL.
+     * @param newUrl - The new URL after navigation.
+     * @returns The updated URL.
+     */
+    goto: (newUrl: string): string => {
+      currentUrl = newUrl;
+      return currentUrl;
+    },
   } as unknown as Page;
 }
 
