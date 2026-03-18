@@ -113,8 +113,6 @@ log ""
 log "🧪 Phase 3a: Pipeline infrastructure (unit + coverage)..."
 $JEST_CMD \
   --testPathPatterns='Pipeline/Infrastructure' \
-  --coverage \
-  --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
   2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then

@@ -1,6 +1,7 @@
 /**
- * Declarative login phase — wraps LoginChainBuilder for form-based login.
- * Stub: returns succeed(input) until Step 4.
+ * Declarative login phase — calls a bank-provided login function.
+ * The bank's pipeline config provides the login logic; this phase just invokes it.
+ * Default stub passes through for testing.
  */
 
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -8,13 +9,29 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 
+/** Bank-provided login function signature. */
+type LoginFn = (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>>;
+
 /**
- * Stub: declarative form-based login.
- * @param _ctx - Pipeline context (unused in stub).
- * @param input - Input context to pass through.
+ * Create a login step bound to a bank-provided function.
+ * @param loginFn - The bank's login function.
+ * @returns A pipeline step for login.
+ */
+function createLoginStep(loginFn: LoginFn): IPipelineStep<IPipelineContext, IPipelineContext> {
+  return {
+    name: 'declarative-login',
+    /** @inheritdoc */
+    execute: (_ctx, input) => loginFn(input),
+  };
+}
+
+/**
+ * Default stub — passes through for testing.
+ * @param _ctx - Unused.
+ * @param input - Passed through.
  * @returns Success with unchanged context.
  */
-function executeDeclarativeLogin(
+function stubLogin(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
@@ -22,11 +39,12 @@ function executeDeclarativeLogin(
   return Promise.resolve(result);
 }
 
-/** Declarative login step — fills form fields via SelectorResolver. */
+/** Default stub step (used when builder hasn't wired a real login fn). */
 const DECLARATIVE_LOGIN_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'declarative-login',
-  execute: executeDeclarativeLogin,
+  execute: stubLogin,
 };
 
+export type { LoginFn };
 export default DECLARATIVE_LOGIN_STEP;
-export { DECLARATIVE_LOGIN_STEP };
+export { createLoginStep, DECLARATIVE_LOGIN_STEP };

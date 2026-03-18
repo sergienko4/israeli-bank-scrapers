@@ -12,6 +12,8 @@ import type { CompanyTypes } from '../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import type { IFetchStrategy } from '../Strategy/FetchStrategy.js';
 import type { Option } from './Option.js';
 
 /** Browser lifecycle context — absent for API-only scrapers. */
@@ -58,6 +60,8 @@ interface IPipelineContext {
   readonly logger: ScraperLogger;
   readonly diagnostics: IDiagnosticsState;
   readonly config: IBankScraperConfig;
+  readonly fetchStrategy: Option<IFetchStrategy>;
+  readonly mediator: Option<IElementMediator>;
   readonly browser: Option<IBrowserState>;
   readonly login: Option<ILoginState>;
   readonly dashboard: Option<IDashboardState>;

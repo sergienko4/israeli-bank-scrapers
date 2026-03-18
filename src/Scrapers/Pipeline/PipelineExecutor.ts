@@ -3,8 +3,10 @@
  * Each phase runs: pre → action → post. Failure at any step skips the rest.
  */
 
+import { getDebug } from '../../Common/Debug.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import { none } from './Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';
@@ -67,23 +69,38 @@ function createDiagnostics(credKeyCount: string): IDiagnosticsState {
 }
 
 /**
+ * Resolve DI dependencies for the initial context.
+ * @param descriptor - The pipeline descriptor.
+ * @param credentials - User credentials.
+ * @returns Core context fields: companyId, logger, config, credentials.
+ */
+function resolveCoreDeps(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Pick<IPipelineContext, 'options' | 'credentials' | 'companyId' | 'logger' | 'config'> {
+  const companyId = descriptor.options.companyId;
+  const logger = getDebug(`pipeline-${companyId}`);
+  const config = SCRAPER_CONFIGURATION.banks[companyId];
+  return { options: descriptor.options, credentials, companyId, logger, config };
+}
+
+/**
  * Build the initial pipeline context from descriptor.
  * @param descriptor - The pipeline descriptor.
  * @param credentials - User credentials.
- * @returns The initial context with all fields set to none().
+ * @returns The initial context with all phase fields set to none().
  */
 function buildInitialContext(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
 ): IPipelineContext {
   const credKeyCount = String(Object.keys(credentials).length);
+  const core = resolveCoreDeps(descriptor, credentials);
   return {
-    options: descriptor.options,
-    credentials,
-    companyId: descriptor.options.companyId,
-    logger: {} as never,
+    ...core,
     diagnostics: createDiagnostics(credKeyCount),
-    config: {} as never,
+    fetchStrategy: none(),
+    mediator: none(),
     browser: none(),
     login: none(),
     dashboard: none(),

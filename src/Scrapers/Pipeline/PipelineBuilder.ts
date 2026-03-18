@@ -9,12 +9,12 @@ import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../Base/ScraperError.js';
 import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
-import { DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
+import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
 import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
 import { OTP_STEP } from './Phases/OtpPhase.js';
-import { SCRAPE_STEP } from './Phases/ScrapePhase.js';
+import { createScrapeStep, SCRAPE_STEP } from './Phases/ScrapePhase.js';
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import { none } from './Types/Option.js';
@@ -72,9 +72,13 @@ class PipelineBuilder {
 
   private _loginFn: DirectPostLoginFn | NativeLoginFn | false = false;
 
+  private _otpConfig: OtpConfig | false = false;
+
   private _hasOtp = false;
 
   private _hasDashboard = false;
+
+  private _scrapeFn: ScrapeFn | false = false;
 
   private _hasScraper = false;
 
@@ -98,14 +102,19 @@ class PipelineBuilder {
   }
 
   /**
-   * Use declarative form-based login (SelectorResolver).
-   * @param config - Bank's ILoginConfig.
+   * Use declarative form-based login.
+   * Accepts either a login function or an ILoginConfig (for backward compat).
+   * @param configOrFn - Bank's login function or ILoginConfig.
    * @returns This builder for chaining.
    */
-  public withDeclarativeLogin(config: ILoginConfig): this {
+  public withDeclarativeLogin(configOrFn: ILoginConfig | DirectPostLoginFn): this {
     this.assertNoLoginMode();
     this._loginMode = 'declarative';
-    this._loginConfig = config;
+    if (typeof configOrFn === 'function') {
+      this._loginFn = configOrFn;
+    } else {
+      this._loginConfig = configOrFn;
+    }
     return this;
   }
 
@@ -140,7 +149,7 @@ class PipelineBuilder {
    */
   public withOtp(config: OtpConfig): this {
     this._hasOtp = true;
-    this._loginConfig = this._loginConfig || (config as never);
+    this._otpConfig = config;
     return this;
   }
 
@@ -160,7 +169,7 @@ class PipelineBuilder {
    */
   public withScraper(fn: ScrapeFn): this {
     this._hasScraper = true;
-    this._loginFn = this._loginFn || (fn as never);
+    this._scrapeFn = fn;
     return this;
   }
 
@@ -201,6 +210,39 @@ class PipelineBuilder {
   }
 
   /**
+   * Resolve the login step — uses stored fn if available, else static stub.
+   * @returns The login pipeline step.
+   */
+  private resolveLoginStep(): CtxPhase['action'] {
+    const fn = this._loginFn;
+    const hasConfig = Boolean(this._loginConfig);
+    const hasOtpConfig = Boolean(this._otpConfig);
+    if (fn) {
+      /**
+       * Adapt 2-param login fn to 1-param LoginFn.
+       * @param ctx - Pipeline context with credentials.
+       * @returns Login result procedure.
+       */
+      const adapted = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+        const creds = ctx.credentials as Record<string, string>;
+        return fn(ctx, creds);
+      };
+      return createLoginStep(adapted);
+    }
+    if (hasConfig || hasOtpConfig) return DECLARATIVE_LOGIN_STEP;
+    return LOGIN_STEPS[this._loginMode];
+  }
+
+  /**
+   * Resolve the scrape step — uses stored fn if available, else static stub.
+   * @returns The scrape pipeline step.
+   */
+  private resolveScrapeStep(): CtxPhase['action'] {
+    if (this._scrapeFn) return createScrapeStep(this._scrapeFn);
+    return SCRAPE_STEP;
+  }
+
+  /**
    * Add browser init, login, and terminate phases.
    * @param phases - Mutable phase array to append to.
    * @returns The number of phases added.
@@ -210,7 +252,7 @@ class PipelineBuilder {
       const initPhase = actionOnly('init', INIT_STEP);
       phases.push(initPhase);
     }
-    const loginStep = LOGIN_STEPS[this._loginMode];
+    const loginStep = this.resolveLoginStep();
     const loginPhase = actionOnly('login', loginStep);
     phases.push(loginPhase);
     if (this._hasBrowser) {
@@ -229,7 +271,8 @@ class PipelineBuilder {
     const insertIdx = this._hasBrowser ? phases.length - 1 : phases.length;
     const otpPhase = actionOnly('otp', OTP_STEP);
     const dashPhase = actionOnly('dashboard', DASHBOARD_STEP);
-    const scrapePhase = actionOnly('scrape', SCRAPE_STEP);
+    const scrapeStep = this.resolveScrapeStep();
+    const scrapePhase = actionOnly('scrape', scrapeStep);
     const optional: CtxPhase[] = [];
     if (this._hasOtp) optional.push(otpPhase);
     if (this._hasDashboard) optional.push(dashPhase);

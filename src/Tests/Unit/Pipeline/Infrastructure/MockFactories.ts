@@ -80,6 +80,8 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       warnings: [],
     },
     config: {} as never,
+    fetchStrategy: none(),
+    mediator: none(),
     browser: none(),
     login: none(),
     dashboard: none(),
