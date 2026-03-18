@@ -87,25 +87,80 @@ fi
 
 wait_all
 
-# ── Phase 3: Pipeline tests only (unit + coverage ≥95%) ──
-# Runs ONLY our Pipeline infrastructure + bank tests.
-# Old bank tests are untouched code — they don't run here.
-# When we migrate a bank, we add its tests to this path.
-log ""
-log "🧪 Phase 3: Pipeline tests (unit + coverage)..."
+# ── Phase 3: Pipeline tests — layered by type ──
+# Each layer runs independently so failures are easy to trace.
+# When a bank is migrated, add it to MIGRATED_BANKS below.
+#
+# Test structure:
+#   Unit/Pipeline/Infrastructure/     ← core infra (always)
+#   Unit/Pipeline/bank/<Bank>/        ← unit per bank (when migrated)
+#   E2eMocked/Pipeline/bank/<Bank>/   ← mocked E2E per bank
+#   E2eSmoke/Pipeline/bank/<Bank>/    ← smoke E2E per bank (invalid creds)
+#   E2eFull/Pipeline/bank/<Bank>/     ← full E2E per bank (real creds, .env)
+#
+# Each bank has: login.test.ts, otp.test.ts, dashboard.test.ts, trx.test.ts
+# Run by action: --testPathPatterns='Pipeline/bank/.*/login'
+# Run by bank:   --testPathPatterns='Pipeline/bank/Hapoalim'
+# Run by layer:  --testPathPatterns='E2eSmoke/Pipeline'
 
 JEST_CMD="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
-# Run Pipeline infrastructure tests with coverage
+# ── Banks migrated to Pipeline (add here as you go) ──
+MIGRATED_BANKS=""
+# Example after Step 3: MIGRATED_BANKS="Hapoalim|Behatsdaa"
+
+log ""
+log "🧪 Phase 3a: Pipeline infrastructure (unit + coverage)..."
 $JEST_CMD \
-  --testPathPatterns='Pipeline/' \
+  --testPathPatterns='Pipeline/Infrastructure' \
   --coverage \
   --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
   2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Pipeline tests FAILED"
+  log "❌ Pipeline infrastructure tests FAILED"
   exit 1
+fi
+
+# ── Phase 3b: Migrated bank unit tests ──
+if [ -n "$MIGRATED_BANKS" ]; then
+  log ""
+  log "🧪 Phase 3b: Migrated bank unit tests ($MIGRATED_BANKS)..."
+  $JEST_CMD \
+    --testPathPatterns="Unit/Pipeline/bank/($MIGRATED_BANKS)" \
+    2>&1 | tee -a "$LOG_FILE"
+
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log "❌ Bank unit tests FAILED"
+    exit 1
+  fi
+
+  # ── Phase 3c: Migrated bank mocked E2E ──
+  log ""
+  log "🧪 Phase 3c: Migrated bank mocked E2E ($MIGRATED_BANKS)..."
+  $JEST_CMD \
+    --testPathPatterns="E2eMocked/Pipeline/bank/($MIGRATED_BANKS)" \
+    2>&1 | tee -a "$LOG_FILE"
+
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log "❌ Bank mocked E2E tests FAILED"
+    exit 1
+  fi
+
+  # ── Phase 3d: Migrated bank smoke E2E (real browsers, invalid creds) ──
+  log ""
+  log "🔥 Phase 3d: Migrated bank smoke E2E ($MIGRATED_BANKS)..."
+  $JEST_CMD \
+    --testPathPatterns="E2eSmoke/Pipeline/bank/($MIGRATED_BANKS)" \
+    2>&1 | tee -a "$LOG_FILE"
+
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log "❌ Bank smoke E2E tests FAILED"
+    exit 1
+  fi
+else
+  log ""
+  log "⏭️  No migrated banks yet — skipping bank tests"
 fi
 
 log ""
