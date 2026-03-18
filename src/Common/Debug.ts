@@ -13,7 +13,7 @@ const BANK_CONTEXT = new AsyncLocalStorage<{ bank: string }>();
  * @param path - The JSON path segments leading to this value.
  * @returns A censored string replacement.
  */
-function censor(value: unknown, path: string[]): string {
+export function censor(value: unknown, path: string[]): string {
   const key = path[path.length - 1];
   if (key === 'accountNumber') return '****' + String(value).slice(-4);
   if (AMOUNT_KEYS.has(key)) return (value as number) > 0 ? '+***' : '-***';

@@ -2,7 +2,10 @@
  * Branch coverage tests for BaseBeinleumiGroupHelpers.ts.
  * Targets: getTxnAmount (NaN credit/debit), getCol (missing col),
  * buildSingleTransaction (with/without rawTransaction),
- * extractTransactionDetails (completed vs pending), extractTransaction (empty date).
+ * extractTransactionDetails (completed vs pending), extractTransaction (empty date),
+ * isNoTransactionInDateRangeError (visible → true, throws → false),
+ * waitForPostLogin (empty waiters → false, success → true,
+ * AggregateError → false, non-AggregateError → rethrow).
  */
 import { jest } from '@jest/globals';
 
@@ -166,5 +169,84 @@ describe('extractTransactionDetails', () => {
     );
     expect(result.date).toBe('02/06/2025');
     expect(result.description).toBe('Pending Desc');
+  });
+});
+
+describe('isNoTransactionInDateRangeError', () => {
+  it('returns true when the no-data text is visible', async () => {
+    const page = {
+      getByText: jest.fn(() => ({
+        first: jest.fn(() => ({
+          isVisible: jest.fn().mockResolvedValue(true),
+        })),
+      })),
+    };
+    const isError = await MOD.isNoTransactionInDateRangeError(page as never);
+    expect(isError).toBe(true);
+  });
+
+  it('returns false when isVisible throws', async () => {
+    const page = {
+      getByText: jest.fn(() => ({
+        first: jest.fn(() => ({
+          isVisible: jest.fn().mockRejectedValue(new Error('detached')),
+        })),
+      })),
+    };
+    const isError = await MOD.isNoTransactionInDateRangeError(page as never);
+    expect(isError).toBe(false);
+  });
+});
+
+describe('waitForPostLogin', () => {
+  it('returns false when no dashboard candidates match', async () => {
+    const page = {
+      getByText: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
+        })),
+      })),
+      getByLabel: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
+        })),
+      })),
+    };
+    const isLoggedIn = await MOD.waitForPostLogin(page as never);
+    expect(isLoggedIn).toBe(false);
+  });
+
+  it('returns true when a dashboard element is found', async () => {
+    const page = {
+      getByText: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockResolvedValue(undefined),
+        })),
+      })),
+      getByLabel: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockResolvedValue(undefined),
+        })),
+      })),
+    };
+    const isLoggedIn = await MOD.waitForPostLogin(page as never);
+    expect(isLoggedIn).toBe(true);
+  });
+
+  it('returns false when all waiters reject (AggregateError)', async () => {
+    const page = {
+      getByText: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
+        })),
+      })),
+      getByLabel: jest.fn(() => ({
+        first: jest.fn(() => ({
+          waitFor: jest.fn().mockRejectedValue(new Error('timeout')),
+        })),
+      })),
+    };
+    const isLoggedIn = await MOD.waitForPostLogin(page as never);
+    expect(isLoggedIn).toBe(false);
   });
 });

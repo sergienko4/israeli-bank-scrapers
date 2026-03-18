@@ -1,12 +1,53 @@
 /**
  * Branch coverage tests for Debug.ts.
- * Targets: runWithBankContext (sync return, async return, nesting,
- * callback-execution proof via spy), getDebug (all 6 log levels via
+ * Targets: censor (accountNumber, positive amount, zero/negative amount,
+ * default redaction — it.each), runWithBankContext (sync return, async return,
+ * nesting, callback-execution proof via spy), getDebug (all 6 log levels via
  * it.each, distinct module loggers).
  */
 import { jest } from '@jest/globals';
 
-import { getDebug, runWithBankContext } from '../../Common/Debug.js';
+import { censor, getDebug, runWithBankContext } from '../../Common/Debug.js';
+
+describe('censor branches', () => {
+  const cases = [
+    {
+      label: 'masks accountNumber to last 4',
+      value: '1234567890' as unknown,
+      path: ['accountNumber'],
+      expected: '****7890',
+    },
+    {
+      label: 'masks positive amount to +***',
+      value: 500 as unknown,
+      path: ['balance'],
+      expected: '+***',
+    },
+    {
+      label: 'masks zero amount to -***',
+      value: 0 as unknown,
+      path: ['chargedAmount'],
+      expected: '-***',
+    },
+    {
+      label: 'masks negative amount to -***',
+      value: -200 as unknown,
+      path: ['originalAmount'],
+      expected: '-***',
+    },
+    {
+      label: 'redacts unknown sensitive key',
+      value: 'secret' as unknown,
+      path: ['password'],
+      expected: '[REDACTED]',
+    },
+  ];
+
+  it.each(cases)('$label', ({ value, path, expected }) => {
+    const censored = censor(value, path);
+    expect(censored).toBe(expected);
+  });
+});
 
 describe('Bank Context Execution', () => {
   it('executes function within bank context and returns result', () => {
