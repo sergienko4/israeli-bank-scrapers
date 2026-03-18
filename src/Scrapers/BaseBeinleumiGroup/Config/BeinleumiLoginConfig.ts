@@ -1,9 +1,22 @@
 import { type Frame, type Page } from 'playwright-core';
 
+import { getDebug } from '../../../Common/Debug.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { OptionalFramePromise } from '../../Base/Interfaces/CallbackTypes.js';
 import { DOM_OTP } from '../../Registry/Config/ScraperConfigDefaults.js';
 import { buildDashboardWaiters } from '../BaseBeinleumiGroupHelpers.js';
+
+const LOG = getDebug('beinleumi-login');
+
+/** Maximum time (ms) to wait for the login frame to appear. */
+const FRAME_POLL_DEADLINE_MS = 15000;
+
+/** Hebrew text of the login button on the homepage. */
+const LOGIN_BUTTON_TEXT = 'כניסה לחשבונך';
+
+/** URL fragments that identify Mataf login/OTP iframes. */
+const MATAF_LOGIN_URL = 'MatafLoginService';
+const MATAF_APPROVE_URL = 'MatafMobileApproveServlet';
 
 /**
  * Wait for any of the known post-login dashboard selectors to appear.
@@ -21,15 +34,16 @@ async function beinleumiPostAction(
   });
 }
 
-/** Login field declarations for Beinleumi — wellKnown resolves #username and #password. */
+/** Login field declarations for Beinleumi — wellKnown resolves via "קוד משתמש" and "סיסמה". */
 export const BEINLEUMI_FIELDS: ILoginConfig['fields'] = [
-  { credentialKey: 'username', selectors: [] }, // wellKnown → #username
-  { credentialKey: 'password', selectors: [] }, // wellKnown → #password
+  { credentialKey: 'username', selectors: [] },
+  { credentialKey: 'password', selectors: [] },
 ];
 
 const BEINLEUMI_SUBMIT: ILoginConfig['submit'] = [
-  { kind: 'clickableText', value: 'המשך' },
+  { kind: 'ariaLabel', value: 'כניסה' },
   { kind: 'clickableText', value: 'כניסה' },
+  { kind: 'clickableText', value: 'המשך' },
 ];
 
 const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
@@ -38,72 +52,96 @@ const BEINLEUMI_POSSIBLE_RESULTS: ILoginConfig['possibleResults'] = {
 };
 
 /**
- * Click the login trigger if present, then wait for the form to render.
+ * Click "כניסה לחשבונך" on the homepage to load the Mataf login iframe.
+ * The homepage at fibi.co.il/private/ has this as an `<a href="#">` link.
  * @param page - The Playwright page to interact with.
- * @returns The login iframe if found, or undefined.
+ * @returns True if the login button was clicked.
  */
-/** Maximum time (ms) to wait for the login frame to appear. */
-const FRAME_POLL_DEADLINE_MS = 15000;
-
-/** Delay before retrying login frame detection (ms). */
-const FRAME_RETRY_DELAY_MS = 2000;
-
-/**
- * Wait for iframes to appear, then find the login frame with up to 3 retries.
- * @param page - The Playwright page to interact with.
- * @returns The login iframe if found, or undefined on timeout.
- */
-async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
-  await waitForAnyIframe(page);
-  const first = await findLoginFrame(page);
-  if (first) return first;
-  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
-  const second = await findLoginFrame(page);
-  if (second) return second;
-  await page.waitForTimeout(FRAME_RETRY_DELAY_MS);
-  return findLoginFrame(page);
+async function activateLoginArea(page: Page): Promise<boolean> {
+  const pageUrl = page.url().slice(0, 60);
+  LOG.debug('activating login on %s', pageUrl);
+  const link = page.getByText(LOGIN_BUTTON_TEXT, { exact: true }).last();
+  const isVisible = await link.isVisible().catch((): boolean => false);
+  if (!isVisible) {
+    LOG.debug('login button not found on homepage');
+    return false;
+  }
+  LOG.debug('clicking "%s"', LOGIN_BUTTON_TEXT);
+  await link.click();
+  await page.waitForTimeout(2000);
+  return true;
 }
 
 /**
- * Wait for any iframe to appear in the DOM.
- * @param page - The Playwright page.
- * @returns True if an iframe appeared, false on timeout.
+ * Browser-side predicate: does any iframe src contain one of the URL fragments?
+ * Passed to page.waitForFunction to poll without await-in-loop.
+ * @param urls - The URL fragments to search for.
+ * @returns True if any iframe matches.
  */
-async function waitForAnyIframe(page: Page): Promise<boolean> {
-  return page
-    .waitForFunction(() => document.querySelectorAll('iframe').length > 0, {
-      timeout: FRAME_POLL_DEADLINE_MS,
-    })
+function hasIframeMatchingAny(urls: string[]): boolean {
+  const nodeList = document.querySelectorAll('iframe');
+  const iframes = Array.from(nodeList);
+  return iframes.some(f => urls.some(u => f.src.includes(u)));
+}
+
+/** Both Mataf URL fragments to watch for. */
+const MATAF_URLS = [MATAF_LOGIN_URL, MATAF_APPROVE_URL];
+
+/**
+ * Check if a frame URL matches any Mataf pattern.
+ * @param frameUrl - The frame URL to check.
+ * @returns True if it matches a Mataf URL.
+ */
+function isMatafUrl(frameUrl: string): boolean {
+  return MATAF_URLS.some(u => frameUrl.includes(u));
+}
+
+/**
+ * Get the first Mataf frame from the page.
+ * @param page - The Playwright page.
+ * @returns The Mataf frame if found, otherwise the find() result when no match.
+ */
+function findMatafFrame(page: Page): ReturnType<Frame[]['find']> {
+  const frames = page.frames();
+  return frames.find(f => {
+    const url = f.url();
+    return isMatafUrl(url);
+  });
+}
+
+/**
+ * Wait for the Mataf login iframe to appear, then return it.
+ * If no Mataf frame appears, returns undefined — the SelectorResolverPipeline
+ * will search all iframes automatically in Round 1.
+ * @param page - The Playwright page.
+ * @returns The Mataf login frame or undefined.
+ */
+async function waitForLoginFrame(page: Page): OptionalFramePromise {
+  const existing = findMatafFrame(page);
+  if (existing) return existing;
+  await page
+    .waitForFunction(hasIframeMatchingAny, MATAF_URLS, { timeout: FRAME_POLL_DEADLINE_MS })
     .then((): true => true)
     .catch((): false => false);
+  const result = findMatafFrame(page);
+  if (result) {
+    const frameUrl = result.url().slice(0, 80);
+    LOG.debug('found login frame: %s', frameUrl);
+  } else {
+    LOG.debug('Mataf frame not found — resolver will search all frames');
+  }
+  return result;
 }
 
 /**
- * Check if a frame contains login credential fields.
- * Detects login frames by presence of 2+ text inputs (username + password).
- * @param frame - The frame to check.
- * @returns True if the frame has multiple credential inputs.
+ * Activate login area, then find the login iframe.
+ * Flow: homepage → click "כניסה לחשבונך" → wait for Mataf login iframe.
+ * @param page - The Playwright page to interact with.
+ * @returns The login iframe for credential filling.
  */
-async function checkFrameHasLoginFields(frame: Frame): Promise<boolean> {
-  const count = await frame
-    .getByRole('textbox')
-    .count()
-    .catch((): number => 0);
-  return count >= 2;
-}
-
-/**
- * Find the login iframe by content.
- * @param page - The Playwright page to search.
- * @returns The login frame, or undefined if not found.
- */
-async function findLoginFrame(page: Page): OptionalFramePromise {
-  const frames = page.frames();
-  const tasks = frames.map(checkFrameHasLoginFields);
-  const checks = await Promise.all(tasks);
-  const idx = checks.findIndex(Boolean);
-  if (idx >= 0) return frames[idx];
-  return frames.find(f => f.url().includes('login'));
+async function beinleumiPreAction(page: Page): ReturnType<NonNullable<ILoginConfig['preAction']>> {
+  await activateLoginArea(page);
+  return waitForLoginFrame(page);
 }
 
 /**

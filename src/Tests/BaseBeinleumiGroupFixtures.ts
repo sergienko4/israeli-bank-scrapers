@@ -91,10 +91,12 @@ export function buildLocator(selector: string): Record<string, jest.Mock> {
 function buildGetByText(): jest.Mock {
   const innerLoc = {
     first: jest.fn(),
+    last: jest.fn(),
     isVisible: jest.fn().mockResolvedValue(false),
     waitFor: jest.fn().mockResolvedValue(undefined),
   };
   innerLoc.first = jest.fn().mockReturnValue(innerLoc);
+  innerLoc.last = jest.fn().mockReturnValue(innerLoc);
   return jest.fn().mockReturnValue(innerLoc);
 }
 

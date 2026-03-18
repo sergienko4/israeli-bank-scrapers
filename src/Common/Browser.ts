@@ -15,5 +15,6 @@ export function buildContextOptions(): BrowserContextOptions {
     locale: ISRAEL_LOCALE,
     timezoneId: ISRAEL_TIMEZONE,
     javaScriptEnabled: true,
+    viewport: { width: 1920, height: 1080 },
   };
 }

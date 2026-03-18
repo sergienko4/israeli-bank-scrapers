@@ -45,6 +45,7 @@ export type MockOverrides = Partial<IMockPage>;
 
 interface ILocatorMock {
   first: jest.Mock;
+  last: jest.Mock;
   isVisible: jest.Mock;
   waitFor: jest.Mock;
   click: jest.Mock;
@@ -54,17 +55,19 @@ interface ILocatorMock {
 /**
  * Creates a self-referencing locator mock.
  * @param withFill - whether to include a fill() stub
- * @returns a mock locator with first() returning self
+ * @returns a mock locator with first()/last() returning self
  */
 export function makeLocatorMock(withFill = false): ILocatorMock {
   const loc: ILocatorMock = {
     first: jest.fn(),
+    last: jest.fn(),
     isVisible: jest.fn().mockResolvedValue(false),
     waitFor: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
   };
   if (withFill) loc.fill = jest.fn().mockResolvedValue(undefined);
   loc.first.mockReturnValue(loc);
+  loc.last.mockReturnValue(loc);
   return loc;
 }
 

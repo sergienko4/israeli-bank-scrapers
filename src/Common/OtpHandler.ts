@@ -11,6 +11,7 @@ import {
   OTP_TRIGGER_DELAY_MS,
   OTP_VERIFY_DELAY_MS,
 } from './Config/OtpConfig.js';
+import { OTP_INPUT_CANDIDATES } from './Config/OtpDetectorConfig.js';
 import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
@@ -21,7 +22,7 @@ import {
   extractPhoneHint,
   OTP_SUBMIT_CANDIDATES,
 } from './OtpDetector.js';
-import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
+import { resolveFieldContext, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-handler');
 
@@ -163,59 +164,26 @@ async function typeOtpCode(frame: Frame, code: string): Promise<boolean> {
 }
 
 /**
- * Check a single OTP submit candidate in the frame.
- * @param frame - The frame to search within.
- * @param candidate - The selector candidate to test.
- * @returns The matched selector and element, or false if not found.
+ * Click the OTP submit button ("אישור") via resolver — searches frame then page.
+ * @param page - The Playwright page.
+ * @param frame - The frame where OTP was filled.
+ * @returns True after clicking.
  */
-async function checkSubmitCandidate(
-  frame: Frame,
-  candidate: (typeof OTP_SUBMIT_CANDIDATES)[number],
-): Promise<{ sel: string; el: NonNullable<Awaited<ReturnType<Frame['$']>>> } | false> {
-  const sel = candidateToCss(candidate);
-  const el = await frame.$(sel).catch(() => null);
-  return el ? { sel, el } : false;
-}
-
-/**
- * Click the matched OTP submit button via evaluate.
- * @param el - The element handle to click.
- * @param sel - The CSS selector string for logging.
- * @returns True after the button is clicked.
- */
-async function clickOtpSubmitButton(
-  el: NonNullable<Awaited<ReturnType<Frame['$']>>>,
-  sel: string,
-): Promise<boolean> {
-  const didClick = await el.evaluate((btn: HTMLElement) => {
-    btn.removeAttribute('disabled');
-    const win = window as Window &
-      typeof globalThis & { $?: (s: string) => { trigger: (e: string) => boolean } };
-    if (win.$ && btn.id) win.$(`#${btn.id}`).trigger('click');
-    else btn.click();
-    return true;
-  });
-  LOG.debug('clicked OTP submit button via evaluate: %s', sel);
-  return didClick;
-}
-
-/**
- * Submit the OTP form by clicking the submit button in the frame.
- * @param frame - The frame containing the OTP submit button.
- * @returns True after submission attempt completes.
- */
-async function submitOtpInFrame(frame: Frame): Promise<boolean> {
-  const candidateChecks = OTP_SUBMIT_CANDIDATES.map(candidate =>
-    checkSubmitCandidate(frame, candidate),
-  );
-  const candidateMatches = await Promise.all(candidateChecks);
-  const matched = candidateMatches.find((m): m is Exclude<typeof m, false> => m !== false);
-  if (!matched) {
-    const frameUrl = frame.url().slice(-60);
-    LOG.debug('no OTP submit button found in frame %s', frameUrl);
+async function clickOtpSubmit(page: Page, frame: Frame): Promise<boolean> {
+  const frameSel = await tryInContext(frame, OTP_SUBMIT_CANDIDATES);
+  if (frameSel) {
+    LOG.debug('OTP submit found in frame: %s', frameSel);
+    await clickButton(frame, frameSel);
     return true;
   }
-  return clickOtpSubmitButton(matched.el, matched.sel);
+  const pageSel = await tryInContext(page, OTP_SUBMIT_CANDIDATES);
+  if (pageSel) {
+    LOG.debug('OTP submit found on page: %s', pageSel);
+    await clickButton(page, pageSel);
+    return true;
+  }
+  LOG.debug('no OTP submit button found — bank may auto-submit');
+  return true;
 }
 
 /**
@@ -250,9 +218,16 @@ async function fillAndSubmitOtpCode(page: Page, code: string): Promise<boolean> 
   const frame: Frame = frameResult;
   const frameUrl = frame.url().slice(-60);
   LOG.debug('filling OTP in frame: %s', frameUrl);
-  await typeOtpCode(frame, code);
-  await submitOtpInFrame(frame);
-  return true;
+  const inputSel = await tryInContext(frame, OTP_INPUT_CANDIDATES);
+  if (inputSel) {
+    LOG.debug('OTP input found via resolver: %s — waiting for visibility', inputSel);
+    await frame.locator(inputSel).first().waitFor({ state: 'visible', timeout: 15000 });
+    await fillInput(frame, inputSel, code);
+  } else {
+    LOG.debug('OTP input not found via resolver — falling back to CSS scan');
+    await typeOtpCode(frame, code);
+  }
+  return clickOtpSubmit(page, frame);
 }
 
 const OTP_ACCEPTED_RESULT: IScraperScrapingResult = {
@@ -357,10 +332,11 @@ export async function handleOtpConfirm(
     LOG.debug('OTP confirm — clicking bank-specific confirm button (phone: %s)', phoneHint);
     await clickFromCandidates(page, triggerSelectors, childFrames);
     await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
+  } else {
+    LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
+    await clickOtpTriggerIfPresent(page, childFrames);
+    await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   }
-  LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
-  await clickOtpTriggerIfPresent(page, childFrames);
-  await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   return phoneHint;
 }
 

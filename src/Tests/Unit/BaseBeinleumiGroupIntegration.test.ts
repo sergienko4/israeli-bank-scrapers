@@ -121,11 +121,13 @@ function buildLocator(selector: string): Record<string, jest.Mock> {
 function createPage(
   overrides: Record<string, jest.Mock> = {},
 ): ReturnType<typeof CREATE_MOCK_PAGE> {
+  const innerLoc = {
+    isVisible: jest.fn().mockResolvedValue(false),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+  };
   const noDataLoc = {
-    first: jest.fn().mockReturnValue({
-      isVisible: jest.fn().mockResolvedValue(false),
-      waitFor: jest.fn().mockResolvedValue(undefined),
-    }),
+    first: jest.fn().mockReturnValue(innerLoc),
+    last: jest.fn().mockReturnValue(innerLoc),
     isVisible: jest.fn().mockResolvedValue(false),
     waitFor: jest.fn().mockResolvedValue(undefined),
   };

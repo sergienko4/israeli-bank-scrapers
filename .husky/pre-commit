@@ -139,7 +139,9 @@ if [ -f .env ]; then
     exit 1
   fi
 else
-  log "  ⚠️  No .env file — skipping E2E full (CI will run them)"
+  log "  ❌ No .env file — E2E full is MANDATORY"
+  log "     Create .env with real bank credentials to enable E2E full tests"
+  exit 1
 fi
 
 log ""

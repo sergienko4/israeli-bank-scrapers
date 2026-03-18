@@ -30,12 +30,34 @@ function getBankMixin(): Record<string, string> {
   return BANK_CONTEXT.getStore() ?? {};
 }
 
-const ROOT_LOGGER = pino({
+/** Shared pino options for both logger configurations. */
+const PINO_BASE_OPTS = {
   level: process.env.LOG_LEVEL ?? 'info',
-  transport: isDevMode ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
   redact: { paths: SENSITIVE_PATHS, censor },
   mixin: getBankMixin,
-});
+};
+
+/**
+ * Create the root logger — with file tee if PINO_LOG_FILE is set.
+ * @returns A configured pino Logger instance.
+ */
+function createRootLogger(): Logger {
+  const logFile = process.env.PINO_LOG_FILE;
+  if (logFile && !isDevMode) {
+    const streamLevel = process.env.LOG_LEVEL ?? 'info';
+    const dest = pino.multistream([
+      { stream: pino.destination(1), level: streamLevel },
+      { stream: pino.destination(logFile), level: streamLevel },
+    ]);
+    return pino(PINO_BASE_OPTS, dest);
+  }
+  return pino({
+    ...PINO_BASE_OPTS,
+    transport: isDevMode ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
+  });
+}
+
+const ROOT_LOGGER = createRootLogger();
 
 export type ScraperLogger = Logger;
 

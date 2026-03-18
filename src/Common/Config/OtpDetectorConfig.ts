@@ -18,12 +18,14 @@ export const OTP_TEXT_PATTERNS = [
 export const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
   { kind: 'placeholder', value: 'קוד חד פעמי' },
   { kind: 'placeholder', value: 'סיסמה חד פעמית' },
+  { kind: 'placeholder', value: 'יש להקליד סיסמה' },
   { kind: 'placeholder', value: 'קוד SMS' },
   { kind: 'placeholder', value: 'קוד אימות' },
   { kind: 'placeholder', value: 'הזן קוד' },
   { kind: 'ariaLabel', value: 'קוד' },
   { kind: 'ariaLabel', value: 'סיסמה חד פעמית' },
   { kind: 'name', value: 'otpCode' },
+  { kind: 'name', value: 'codeinput' },
 ];
 
 /** Regex to detect masked phone number hints on OTP screens (e.g. ****1234). */

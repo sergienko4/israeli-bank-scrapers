@@ -75,41 +75,54 @@ describe('beinleumiConfig', () => {
     expect(otp.submitSelectors.length).toBeGreaterThan(0);
   });
 
-  it('submit uses clickableText selectors', () => {
+  it('submit uses only text-based selector kinds', () => {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const submitArr = Array.isArray(config.submit) ? config.submit : [config.submit];
     expect(submitArr.length).toBeGreaterThan(0);
-    const isAllClickable = submitArr.every(s => s.kind === 'clickableText');
-    expect(isAllClickable).toBe(true);
+    const allowedKinds = new Set(['clickableText', 'ariaLabel', 'textContent']);
+    const isAllAllowed = submitArr.every(s => allowedKinds.has(s.kind));
+    expect(isAllAllowed).toBe(true);
   });
 });
 
-describe('beinleumiPreAction — frame detection', () => {
-  it('returns login frame when frame has input with placeholder', async () => {
-    const loginFrame = {
-      url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
-      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(2) }),
+describe('beinleumiPreAction — activateLoginArea + waitForLoginFrame', () => {
+  it('clicks login button and returns Mataf frame when found', async () => {
+    const matafFrame = {
+      url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafLoginService/login'),
     };
+    const loginLink = {
+      last: jest.fn(),
+      isVisible: jest.fn().mockResolvedValue(true),
+      click: jest.fn().mockResolvedValue(undefined),
+    };
+    loginLink.last.mockReturnValue(loginLink);
     const page = CREATE_MOCK_PAGE({
+      getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockResolvedValue(undefined),
-      frames: jest.fn().mockReturnValue([loginFrame]),
+      frames: jest.fn().mockReturnValue([matafFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(page.waitForFunction).toHaveBeenCalled();
-    expect(frame).toBe(loginFrame);
+    expect(loginLink.click).toHaveBeenCalled();
+    expect(frame).toBe(matafFrame);
   });
 
-  it('returns undefined when no frame has input with placeholder and no login URL', async () => {
-    const nonLoginFrame = {
+  it('returns undefined when no Mataf frame found after polling', async () => {
+    const nonMatafFrame = {
       url: jest.fn().mockReturnValue('https://www.fibi.co.il/other'),
-      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
     };
+    const loginLink = {
+      last: jest.fn(),
+      isVisible: jest.fn().mockResolvedValue(true),
+      click: jest.fn().mockResolvedValue(undefined),
+    };
+    loginLink.last.mockReturnValue(loginLink);
     const page = CREATE_MOCK_PAGE({
-      waitForFunction: jest.fn().mockResolvedValue(undefined),
-      frames: jest.fn().mockReturnValue([nonLoginFrame]),
+      getByText: jest.fn().mockReturnValue(loginLink),
+      waitForFunction: jest.fn().mockRejectedValue(new Error('timeout')),
+      frames: jest.fn().mockReturnValue([nonMatafFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
@@ -118,20 +131,49 @@ describe('beinleumiPreAction — frame detection', () => {
     expect(frame).toBeUndefined();
   });
 
-  it('falls back to frame with login URL when no frame has placeholder inputs', async () => {
-    const loginFrame = {
-      url: jest.fn().mockReturnValue('https://www.fibi.co.il/login'),
-      getByRole: jest.fn().mockReturnValue({ count: jest.fn().mockResolvedValue(0) }),
+  it('skips login button click when button is not visible', async () => {
+    const matafFrame = {
+      url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafLoginService/login'),
     };
+    const loginLink = {
+      last: jest.fn(),
+      isVisible: jest.fn().mockResolvedValue(false),
+      click: jest.fn().mockResolvedValue(undefined),
+    };
+    loginLink.last.mockReturnValue(loginLink);
     const page = CREATE_MOCK_PAGE({
+      getByText: jest.fn().mockReturnValue(loginLink),
       waitForFunction: jest.fn().mockResolvedValue(undefined),
-      frames: jest.fn().mockReturnValue([loginFrame]),
+      frames: jest.fn().mockReturnValue([matafFrame]),
     });
 
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const frame = await config.preAction?.(page);
 
-    expect(frame).toBe(loginFrame);
+    expect(loginLink.click).not.toHaveBeenCalled();
+    expect(frame).toBe(matafFrame);
+  });
+
+  it('returns MatafMobileApproveServlet frame for OTP', async () => {
+    const approveFrame = {
+      url: jest.fn().mockReturnValue('https://mataf.fibi.co.il/MatafMobileApproveServlet/otp'),
+    };
+    const loginLink = {
+      last: jest.fn(),
+      isVisible: jest.fn().mockResolvedValue(false),
+      click: jest.fn(),
+    };
+    loginLink.last.mockReturnValue(loginLink);
+    const page = CREATE_MOCK_PAGE({
+      getByText: jest.fn().mockReturnValue(loginLink),
+      waitForFunction: jest.fn().mockResolvedValue(undefined),
+      frames: jest.fn().mockReturnValue([approveFrame]),
+    });
+
+    const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
+    const frame = await config.preAction?.(page);
+
+    expect(frame).toBe(approveFrame);
   });
 });
 

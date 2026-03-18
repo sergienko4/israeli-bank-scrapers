@@ -144,6 +144,27 @@ describe('handleOtpConfirm', () => {
 
     expect(hint).toBe('');
   });
+
+  it('clicks bank-specific triggerSelectors instead of SMS trigger when provided', async () => {
+    MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('******5100');
+    MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(undefined);
+    const page = makeMockPage();
+    const triggers = [{ kind: 'textContent' as const, value: 'שלח קוד' }];
+
+    await OTP_HANDLER_MOD.handleOtpConfirm(page, undefined, triggers);
+
+    expect(MOCK_CLICK_OTP_TRIGGER_IF_PRESENT).not.toHaveBeenCalled();
+  });
+
+  it('clicks SMS trigger when triggerSelectors is undefined', async () => {
+    MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('******5100');
+    MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(undefined);
+    const page = makeMockPage();
+
+    await OTP_HANDLER_MOD.handleOtpConfirm(page, undefined, undefined);
+
+    expect(MOCK_CLICK_OTP_TRIGGER_IF_PRESENT).toHaveBeenCalledWith(page, undefined);
+  });
 });
 
 describe('handleOtpCode', () => {

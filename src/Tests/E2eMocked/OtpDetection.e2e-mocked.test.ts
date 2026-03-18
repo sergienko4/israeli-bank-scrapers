@@ -178,7 +178,7 @@ describe('OTP detection', () => {
     expect(firstCall[0]).toBe('*****5100');
   }, 30000);
 
-  it('Test 6: No confirm button on page — triggerSelectors miss gracefully, SMS trigger still works', async () => {
+  it('Test 6: triggerSelectors miss — no SMS fallback, OTP flow fails gracefully', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
     const scraper = new ConcreteGenericScraper(
       {
@@ -202,8 +202,7 @@ describe('OTP detection', () => {
     );
 
     const result = await scraper.scrape(TEST_CREDS);
-    expect(result.success).toBe(true);
-    expect(retrieverSpy).toHaveBeenCalledTimes(1);
+    expect(result.success).toBe(false);
   }, 30000);
 
   it('Test 7: Login error page — false-positive guard, no OTP triggered', async () => {
