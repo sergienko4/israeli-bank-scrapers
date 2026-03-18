@@ -1,17 +1,10 @@
 import { createElementMediator } from '../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js';
-
-/** Minimal mock Page for createElementMediator. */
-const MOCK_PAGE = {
-  /**
-   * Stub url method.
-   * @returns Stub URL string.
-   */
-  url: () => 'https://bank.example.com/login',
-} as never;
+import { makeMockPage } from './MockFactories.js';
 
 describe('createElementMediator', () => {
   it('returns an object with all IElementMediator methods', () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     expect(typeof mediator.resolveField).toBe('function');
     expect(typeof mediator.resolveClickable).toBe('function');
     expect(typeof mediator.discoverForm).toBe('function');
@@ -21,7 +14,8 @@ describe('createElementMediator', () => {
 
 describe('ElementMediator/resolveField', () => {
   it('returns failure Procedure (stub)', async () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const result = await mediator.resolveField('username', []);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -31,8 +25,10 @@ describe('ElementMediator/resolveField', () => {
   });
 
   it('includes field key in error message', async () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const result = await mediator.resolveField('password', []);
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('password');
     }
@@ -43,8 +39,10 @@ describe('ElementMediator/resolveField', () => {
       { kind: 'labelText' as const, value: 'Username' },
       { kind: 'placeholder' as const, value: 'Enter username' },
     ];
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const result = await mediator.resolveField('username', candidates);
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('2 candidates');
     }
@@ -53,7 +51,8 @@ describe('ElementMediator/resolveField', () => {
 
 describe('ElementMediator/resolveClickable', () => {
   it('returns failure Procedure (stub)', async () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const result = await mediator.resolveClickable([]);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -64,11 +63,12 @@ describe('ElementMediator/resolveClickable', () => {
 
 describe('ElementMediator/discoverForm', () => {
   it('returns None option (stub)', async () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const mockContext = {
       isResolved: true,
       selector: '#login-form input',
-      context: MOCK_PAGE,
+      context: page,
       resolvedVia: 'bankConfig' as const,
       round: 'mainPage' as const,
     };
@@ -79,14 +79,16 @@ describe('ElementMediator/discoverForm', () => {
 
 describe('ElementMediator/scopeToForm', () => {
   it('returns candidates unchanged (passthrough stub)', () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const candidates = [{ kind: 'labelText' as const, value: 'Password' }];
     const scoped = mediator.scopeToForm(candidates);
     expect(scoped).toBe(candidates);
   });
 
   it('returns empty array for empty input', () => {
-    const mediator = createElementMediator(MOCK_PAGE);
+    const page = makeMockPage();
+    const mediator = createElementMediator(page);
     const scoped = mediator.scopeToForm([]);
     expect(scoped).toEqual([]);
   });

@@ -10,7 +10,7 @@ import type { ScraperLogger } from '../../../Common/Debug.js';
 import type { IFormAnchor } from '../../../Common/FormAnchor.js';
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
-import type { ScraperOptions } from '../../Base/Interface.js';
+import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
 import type { Option } from './Option.js';
 
@@ -53,6 +53,7 @@ interface IDiagnosticsState {
 /** Read-only context accumulated through the pipeline. */
 interface IPipelineContext {
   readonly options: ScraperOptions;
+  readonly credentials: ScraperCredentials;
   readonly companyId: CompanyTypes;
   readonly logger: ScraperLogger;
   readonly diagnostics: IDiagnosticsState;

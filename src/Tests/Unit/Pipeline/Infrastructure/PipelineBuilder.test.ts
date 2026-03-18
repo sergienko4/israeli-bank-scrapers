@@ -310,4 +310,43 @@ describe('PipelineBuilder/phase-assembly', () => {
     expect(descriptor.phases.length).toBe(1);
     expect(descriptor.phases[0].name).toBe('login');
   });
+
+  it('withBrowser adds terminate phase at the end', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withBrowser()
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    const lastPhase = names.at(-1);
+    expect(lastPhase).toBe('terminate');
+  });
+
+  it('optional phases are inserted before terminate', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withBrowser()
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withOtp(MOCK_OTP_CONFIG)
+      .withDashboard()
+      .withScraper(MOCK_SCRAPE)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    const terminateIdx = names.lastIndexOf('terminate');
+    const scrapeIdx = names.indexOf('scrape');
+    expect(scrapeIdx).toBeLessThan(terminateIdx);
+  });
+});
+
+describe('PipelineBuilder/behavioral', () => {
+  it('built phases are executable and return success', async () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .build();
+    const phase = descriptor.phases[0];
+    const mockCtx = {} as never;
+    const result = await phase.action.execute(mockCtx, mockCtx);
+    expect(result.ok).toBe(true);
+  });
 });

@@ -1,19 +1,12 @@
 import { BrowserFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/GraphQLFetchStrategy.js';
 import { NativeFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/NativeFetchStrategy.js';
-
-/** Minimal mock Page for BrowserFetchStrategy constructor. */
-const MOCK_PAGE = {
-  /**
-   * Stub url method.
-   * @returns Stub URL string.
-   */
-  url: () => 'https://bank.example.com/login',
-} as never;
+import { makeMockPage } from './MockFactories.js';
 
 describe('BrowserFetchStrategy/fetchPost', () => {
   it('returns failure Procedure (stub)', async () => {
-    const strategy = new BrowserFetchStrategy(MOCK_PAGE);
+    const page = makeMockPage();
+    const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test/post', { key: 'val' });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -23,16 +16,20 @@ describe('BrowserFetchStrategy/fetchPost', () => {
   });
 
   it('includes URL in error message', async () => {
-    const strategy = new BrowserFetchStrategy(MOCK_PAGE);
+    const page = makeMockPage();
+    const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test/endpoint', {});
+    expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.errorMessage).toContain('https://api.test/endpoint');
+      expect(result.errorMessage).toContain('api.test/endpoint');
     }
   });
 
   it('includes data key count in error message', async () => {
-    const strategy = new BrowserFetchStrategy(MOCK_PAGE);
+    const page = makeMockPage();
+    const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test', { a: '1', b: '2' });
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('2 keys');
     }
@@ -41,7 +38,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
 
 describe('BrowserFetchStrategy/fetchGet', () => {
   it('returns failure Procedure (stub)', async () => {
-    const strategy = new BrowserFetchStrategy(MOCK_PAGE);
+    const page = makeMockPage();
+    const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.test/get');
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -51,8 +49,10 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   });
 
   it('includes page URL in error message', async () => {
-    const strategy = new BrowserFetchStrategy(MOCK_PAGE);
+    const page = makeMockPage();
+    const strategy = new BrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.test');
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('bank.example.com');
     }
@@ -72,6 +72,7 @@ describe('NativeFetchStrategy/fetchPost', () => {
   it('includes base URL in error message', async () => {
     const strategy = new NativeFetchStrategy('https://my-api.com');
     const result = await strategy.fetchPost('https://my-api.com/auth', {});
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('my-api.com');
     }
@@ -99,9 +100,9 @@ describe('GraphQLFetchStrategy/query', () => {
 
   it('includes query preview in error message', async () => {
     const strategy = new GraphQLFetchStrategy('https://gql.example.com');
-    const longQuery =
-      'query GetTransactions($from: Date!) { transactions(from: $from) { id amount } }';
+    const longQuery = 'query GetTransactions($from: Date!) { transactions(from: $from) { id } }';
     const result = await strategy.query(longQuery, { from: '2024-01-01' });
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('GetTransactions');
     }
@@ -110,6 +111,7 @@ describe('GraphQLFetchStrategy/query', () => {
   it('includes variable count in error message', async () => {
     const strategy = new GraphQLFetchStrategy('https://gql.example.com');
     const result = await strategy.query('query { x }', { a: '1', b: '2', c: '3' });
+    expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toContain('3 vars');
     }

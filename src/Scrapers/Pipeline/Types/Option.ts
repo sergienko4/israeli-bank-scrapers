@@ -3,7 +3,7 @@
  * Use `some(value)` for present values, `none()` for absent.
  */
 
-/** A present value. */
+/** A present value — T must be non-null/non-undefined. */
 interface ISome<T> {
   readonly has: true;
   readonly value: T;
@@ -17,12 +17,15 @@ interface INone {
 /** Discriminated union: value is either present (Some) or absent (None). */
 type Option<T> = ISome<T> | INone;
 
+/** Allowed types for Option values — everything except null/undefined. */
+type NonNullish = object | string | number | boolean | symbol | bigint;
+
 /**
- * Wrap a value as present.
- * @param value - The value to wrap.
+ * Wrap a non-null/non-undefined value as present.
+ * @param value - The value to wrap (must not be null or undefined).
  * @returns An Option with `has: true`.
  */
-function some<T>(value: T): ISome<T> {
+function some<T extends NonNullish>(value: T): ISome<T> {
   return { has: true, value };
 }
 
@@ -56,5 +59,5 @@ function unwrapOr<T>(opt: Option<T>, fallback: T): T {
   return opt.has ? opt.value : fallback;
 }
 
-export type { INone, ISome, Option };
+export type { INone, ISome, NonNullish, Option };
 export { isSome, none, some, unwrapOr };

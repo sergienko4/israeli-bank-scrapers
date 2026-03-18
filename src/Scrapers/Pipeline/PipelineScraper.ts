@@ -76,7 +76,8 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
   public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
     const bank = this._options.companyId;
     const masked = `***${phoneNumber.slice(-4)}`;
-    throw new ScraperError(`triggerOtp(${masked}) not implemented for ${bank}`);
+    const error = new ScraperError(`triggerOtp(${masked}) not implemented for ${bank}`);
+    return Promise.reject(error);
   }
 
   /**
@@ -89,7 +90,9 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
   ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
     const bank = this._options.companyId;
     const codeLength = String(otpCode.length);
-    throw new ScraperError(`getPermanentOtpToken(${codeLength} chars) not implemented for ${bank}`);
+    const msg = `getPermanentOtpToken(${codeLength} chars) not implemented for ${bank}`;
+    const error = new ScraperError(msg);
+    return Promise.reject(error);
   }
 }
 

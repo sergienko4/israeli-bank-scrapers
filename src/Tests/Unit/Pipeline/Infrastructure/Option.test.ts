@@ -73,7 +73,9 @@ describe('Option/isSome', () => {
 
   it('narrows type so value is accessible', () => {
     const opt = some(99);
-    if (isSome(opt)) {
+    const hasValue = isSome(opt);
+    expect(hasValue).toBe(true);
+    if (hasValue) {
       expect(opt.value).toBe(99);
     }
   });

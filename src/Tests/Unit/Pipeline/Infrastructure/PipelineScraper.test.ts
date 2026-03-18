@@ -44,25 +44,29 @@ describe('PipelineScraper/onProgress', () => {
 });
 
 describe('PipelineScraper/triggerTwoFactorAuth', () => {
-  it('throws with masked phone number', () => {
+  it('rejects with masked phone number', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    expect(() => scraper.triggerTwoFactorAuth('0501234567')).toThrow('***4567');
+    const promise = scraper.triggerTwoFactorAuth('0501234567');
+    await expect(promise).rejects.toThrow('***4567');
   });
 
-  it('includes bank name in error message', () => {
+  it('includes bank name in rejection', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    expect(() => scraper.triggerTwoFactorAuth('0501234567')).toThrow('testBank');
+    const promise = scraper.triggerTwoFactorAuth('0501234567');
+    await expect(promise).rejects.toThrow('testBank');
   });
 });
 
 describe('PipelineScraper/getLongTermTwoFactorToken', () => {
-  it('throws with code length', () => {
+  it('rejects with code length', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    expect(() => scraper.getLongTermTwoFactorToken('123456')).toThrow('6 chars');
+    const promise = scraper.getLongTermTwoFactorToken('123456');
+    await expect(promise).rejects.toThrow('6 chars');
   });
 
-  it('includes bank name in error message', () => {
+  it('includes bank name in rejection', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    expect(() => scraper.getLongTermTwoFactorToken('1234')).toThrow('testBank');
+    const promise = scraper.getLongTermTwoFactorToken('1234');
+    await expect(promise).rejects.toThrow('testBank');
   });
 });

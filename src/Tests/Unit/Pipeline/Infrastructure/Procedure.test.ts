@@ -93,6 +93,7 @@ describe('Procedure/isOk', () => {
 
   it('narrows type to access value', () => {
     const result = succeed(42);
+    expect(result.ok).toBe(true);
     if (isOk(result)) {
       expect(result.value).toBe(42);
     }
@@ -126,6 +127,7 @@ describe('Procedure/fromLegacy', () => {
   it('defaults missing errorType to Generic', () => {
     const legacy: IScraperScrapingResult = { success: false };
     const result = fromLegacy(legacy);
+    expect(result.ok).toBe(false);
     if (!isOk(result)) {
       expect(result.errorType).toBe(ScraperErrorTypes.Generic);
     }
@@ -134,6 +136,7 @@ describe('Procedure/fromLegacy', () => {
   it('defaults missing errorMessage to Unknown error', () => {
     const legacy: IScraperScrapingResult = { success: false };
     const result = fromLegacy(legacy);
+    expect(result.ok).toBe(false);
     if (!isOk(result)) {
       expect(result.errorMessage).toBe('Unknown error');
     }
@@ -154,6 +157,7 @@ describe('Procedure/fromLegacy', () => {
       errorDetails: details,
     };
     const result = fromLegacy(legacy);
+    expect(result.ok).toBe(false);
     if (!isOk(result)) {
       expect(result.errorDetails.has).toBe(true);
     }
@@ -166,6 +170,7 @@ describe('Procedure/fromLegacy', () => {
       errorMessage: 'err',
     };
     const result = fromLegacy(legacy);
+    expect(result.ok).toBe(false);
     if (!isOk(result)) {
       expect(result.errorDetails.has).toBe(false);
     }

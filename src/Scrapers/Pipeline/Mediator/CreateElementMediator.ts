@@ -5,11 +5,9 @@
 
 import type { Page } from 'playwright-core';
 
-import type { IFormAnchor } from '../../../Common/FormAnchor.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import type { Option } from '../Types/Option.js';
 import { none } from '../Types/Option.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail } from '../Types/Procedure.js';
@@ -62,18 +60,6 @@ function stubResolveClickable(
 }
 
 /**
- * Stub: discover form anchor (not implemented).
- * @param resolvedContext - The resolved field context.
- * @returns None option (no form discovered).
- */
-function stubDiscoverForm(resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> {
-  const selector = resolvedContext.selector;
-  stubMessage('discoverForm', selector);
-  const result = none();
-  return Promise.resolve(result);
-}
-
-/**
  * Stub: scope candidates to form (passthrough).
  * @param candidates - Candidates to scope.
  * @returns The same candidates unchanged.
@@ -83,18 +69,39 @@ function stubScopeToForm(candidates: readonly SelectorCandidate[]): readonly Sel
 }
 
 /**
+ * Build a discoverForm stub bound to a page.
+ * @param page - The Playwright page for live URL reads.
+ * @returns A discoverForm function that always returns none().
+ */
+function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
+  return (resolvedContext: IFieldContext) => {
+    const url = page.url();
+    stubMessage('discoverForm', `${resolvedContext.selector}, ${url}`);
+    const result = none();
+    return Promise.resolve(result);
+  };
+}
+
+/**
  * Create an ElementMediator for the given page (stub).
+ * Uses page.url() at call time, not factory time.
  * @param page - The Playwright page to resolve elements on.
  * @returns An IElementMediator with stub implementations.
  */
 function createElementMediator(page: Page): IElementMediator {
-  const pageUrl = page.url();
+  const discoverForm = buildDiscoverForm(page);
   return {
     /** @inheritdoc */
-    resolveField: (fk, c) => stubResolveField(pageUrl, fk, c),
+    resolveField: (fk, c): ReturnType<IElementMediator['resolveField']> => {
+      const url = page.url();
+      return stubResolveField(url, fk, c);
+    },
     /** @inheritdoc */
-    resolveClickable: c => stubResolveClickable(pageUrl, c),
-    discoverForm: stubDiscoverForm,
+    resolveClickable: (c): ReturnType<IElementMediator['resolveClickable']> => {
+      const url = page.url();
+      return stubResolveClickable(url, c);
+    },
+    discoverForm,
     scopeToForm: stubScopeToForm,
   };
 }

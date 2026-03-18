@@ -214,7 +214,7 @@ class PipelineBuilder {
     const loginPhase = actionOnly('login', loginStep);
     phases.push(loginPhase);
     if (this._hasBrowser) {
-      const terminatePhase = actionOnly('scrape', TERMINATE_STEP);
+      const terminatePhase = actionOnly('terminate', TERMINATE_STEP);
       phases.push(terminatePhase);
     }
     return phases.length;

@@ -40,11 +40,13 @@ async function executePhase(
 ): Promise<Procedure<IPipelineContext>> {
   const preResult = await runOptionalStep(phase.pre, ctx, ctx);
   if (!isOk(preResult)) return preResult;
+  const preCtx = preResult.value;
 
-  const actionResult = await phase.action.execute(ctx, preResult.value);
+  const actionResult = await phase.action.execute(preCtx, preCtx);
   if (!isOk(actionResult)) return actionResult;
+  const actionCtx = actionResult.value;
 
-  return runOptionalStep(phase.post, ctx, actionResult.value);
+  return runOptionalStep(phase.post, actionCtx, actionCtx);
 }
 
 /**
@@ -77,6 +79,7 @@ function buildInitialContext(
   const credKeyCount = String(Object.keys(credentials).length);
   return {
     options: descriptor.options,
+    credentials,
     companyId: descriptor.options.companyId,
     logger: {} as never,
     diagnostics: createDiagnostics(credKeyCount),
@@ -118,6 +121,30 @@ function wrapError(error: Error): Procedure<IPipelineContext> {
 }
 
 /**
+ * Extract scrape results from a successful pipeline context.
+ * @param ctx - The final pipeline context after all phases.
+ * @returns Legacy result with accounts and OTP token.
+ */
+function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
+  const accounts = ctx.scrape.has ? [...ctx.scrape.value.accounts] : [];
+  const base: IScraperScrapingResult = { success: true, accounts };
+  if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
+    base.persistentOtpToken = ctx.login.value.persistentOtpToken.value;
+  }
+  return base;
+}
+
+/**
+ * Convert a pipeline result to the legacy result shape.
+ * @param result - The pipeline Procedure result.
+ * @returns Legacy IScraperScrapingResult.
+ */
+function toResult(result: Procedure<IPipelineContext>): IScraperScrapingResult {
+  if (result.ok) return extractSuccess(result.value);
+  return toLegacy(result);
+}
+
+/**
  * Execute a pipeline descriptor against credentials.
  * @param descriptor - The pipeline to execute.
  * @param credentials - User bank credentials.
@@ -134,7 +161,7 @@ async function executePipeline(
   } catch (error) {
     result = wrapError(error as Error);
   }
-  return toLegacy(result);
+  return toResult(result);
 }
 
 export default executePipeline;
