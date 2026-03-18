@@ -1,6 +1,7 @@
 /**
  * Factory for IElementMediator — wraps SelectorResolver + FormAnchor.
  * Black box for HTML resolution — scrapers describe WHAT, mediator finds HOW.
+ * Each mediator instance has its own form anchor cache (no shared mutable state).
  */
 
 import type { Page } from 'playwright-core';
@@ -17,8 +18,10 @@ import type { IElementMediator } from './ElementMediator.js';
 
 const LOG = getDebug('element-mediator');
 
-/** Cached form selector — shared across calls within one mediator. */
-let cachedFormSelector = '';
+/** Per-instance mutable cache for the form anchor selector. */
+interface IFormCache {
+  selector: string;
+}
 
 /**
  * Build resolveField method bound to a page.
@@ -61,16 +64,17 @@ function buildResolveClickable(page: Page): IElementMediator['resolveClickable']
 }
 
 /**
- * Build discoverForm method bound to a page.
+ * Build discoverForm method with per-instance cache.
  * @param page - The Playwright page.
+ * @param cache - Mutable form cache owned by this mediator instance.
  * @returns Mediator discoverForm function.
  */
-function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
+function buildDiscoverForm(page: Page, cache: IFormCache): IElementMediator['discoverForm'] {
   return async (resolvedContext: IFieldContext) => {
     try {
       const anchor = await discoverFormAnchor(page, resolvedContext.selector);
       if (anchor) {
-        cachedFormSelector = anchor.selector;
+        cache.selector = anchor.selector;
         return some(anchor);
       }
       return none();
@@ -83,29 +87,31 @@ function buildDiscoverForm(page: Page): IElementMediator['discoverForm'] {
 }
 
 /**
- * Scope candidates to the cached form anchor.
- * @param candidates - Candidates to scope.
- * @returns Scoped candidates (or original if no form cached).
+ * Build scopeToForm method with per-instance cache.
+ * @param cache - Mutable form cache owned by this mediator instance.
+ * @returns Mediator scopeToForm function.
  */
-function scopeToForm(candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[] {
-  if (!cachedFormSelector) return candidates;
-  const mutable = [...candidates];
-  return scopeCandidates(cachedFormSelector, mutable);
+function buildScopeToForm(cache: IFormCache): IElementMediator['scopeToForm'] {
+  return (candidates: readonly SelectorCandidate[]) => {
+    if (!cache.selector) return candidates;
+    const mutable = [...candidates];
+    return scopeCandidates(cache.selector, mutable);
+  };
 }
 
 /**
  * Create an ElementMediator for the given page.
- * Delegates to SelectorResolver + FormAnchor.
+ * Each instance has its own form anchor cache — safe for concurrent use.
  * @param page - The Playwright page to resolve elements on.
  * @returns An IElementMediator with real implementations.
  */
 function createElementMediator(page: Page): IElementMediator {
-  cachedFormSelector = '';
+  const cache: IFormCache = { selector: '' };
   return {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
-    discoverForm: buildDiscoverForm(page),
-    scopeToForm,
+    discoverForm: buildDiscoverForm(page, cache),
+    scopeToForm: buildScopeToForm(cache),
   };
 }
 

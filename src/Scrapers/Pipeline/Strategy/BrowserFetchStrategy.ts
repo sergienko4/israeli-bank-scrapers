@@ -10,7 +10,7 @@ import { fetchGetWithinPage, fetchPostWithinPage } from '../../../Common/Fetch.j
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
-import type { IFetchStrategy } from './FetchStrategy.js';
+import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
 /**
  * Build a failure for an empty fetch response.
@@ -47,11 +47,19 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * POST via browser page session.
    * @param url - Target URL.
    * @param data - POST body key-value pairs.
+   * @param opts - Optional fetch config (extraHeaders).
    * @returns Procedure with parsed response or failure.
    */
-  public async fetchPost<T>(url: string, data: Record<string, string>): Promise<Procedure<T>> {
+  public async fetchPost<T>(
+    url: string,
+    data: Record<string, string>,
+    opts: IFetchOpts,
+  ): Promise<Procedure<T>> {
     try {
-      const result = await fetchPostWithinPage<T>(this._page, url, { data });
+      const result = await fetchPostWithinPage<T>(this._page, url, {
+        data,
+        extraHeaders: opts.extraHeaders,
+      });
       if (result) return succeed(result);
       return emptyResponseError(url);
     } catch (error) {
@@ -62,11 +70,14 @@ class BrowserFetchStrategy implements IFetchStrategy {
   /**
    * GET via browser page session.
    * @param url - Target URL.
+   * @param opts - Optional fetch config (extraHeaders).
    * @returns Procedure with parsed response or failure.
    */
-  public async fetchGet<T>(url: string): Promise<Procedure<T>> {
+  public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     try {
-      const result = await fetchGetWithinPage<T>(this._page, url);
+      const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
+      const shouldIgnoreErrors = hasHeaders;
+      const result = await fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors);
       if (result) return succeed(result);
       return emptyResponseError(url);
     } catch (error) {
