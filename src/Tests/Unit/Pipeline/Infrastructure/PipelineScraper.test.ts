@@ -26,6 +26,7 @@ describe('PipelineScraper/scrape', () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, buildSpy);
     await scraper.scrape(MOCK_CREDENTIALS);
     expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(buildSpy).toHaveBeenCalledWith(MOCK_OPTIONS);
   });
 });
 

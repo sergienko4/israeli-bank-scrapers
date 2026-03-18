@@ -48,13 +48,13 @@ function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
      */
     url: (): string => currentUrl,
     /**
-     * Simulate navigation by updating the URL.
+     * Simulate navigation by updating the URL (async like Playwright).
      * @param newUrl - The new URL after navigation.
-     * @returns The updated URL.
+     * @returns Resolved null (matches Playwright Response | null).
      */
-    goto: (newUrl: string): string => {
+    goto: (newUrl: string): Promise<string> => {
       currentUrl = newUrl;
-      return currentUrl;
+      return Promise.resolve(currentUrl);
     },
   } as unknown as Page;
 }
