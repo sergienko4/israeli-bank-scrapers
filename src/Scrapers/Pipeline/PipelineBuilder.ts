@@ -1,15 +1,24 @@
 /**
  * Pipeline builder — fluent builder that constructs IPipelineDescriptor.
  * Banks declare their pipeline via this builder.
- * Stub: build() returns minimal descriptor until Step 2.
+ * build() assembles IPhaseDefinitions in order: init → login → otp → dashboard → scrape.
  */
 
 import type { OtpConfig } from '../Base/Config/LoginConfigTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../Base/ScraperError.js';
+import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
+import { DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
+import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
+import { INIT_STEP } from './Phases/InitPhase.js';
+import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
+import { OTP_STEP } from './Phases/OtpPhase.js';
+import { SCRAPE_STEP } from './Phases/ScrapePhase.js';
+import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
-import type { IPhaseDefinition } from './Types/Phase.js';
+import { none } from './Types/Option.js';
+import type { IPhaseDefinition, PhaseName } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 
@@ -31,6 +40,26 @@ type ScrapeFn = (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>>;
 /** Login mode discriminator. */
 type LoginMode = 'none' | 'declarative' | 'directPost' | 'native';
 
+/** Shorthand for a phase with IPipelineContext as both in and out. */
+type CtxPhase = IPhaseDefinition<IPipelineContext, IPipelineContext>;
+
+/**
+ * Create a phase with only an action step (no pre/post).
+ * @param name - The phase name.
+ * @param action - The action step.
+ * @returns A phase definition with pre and post set to none().
+ */
+function actionOnly(name: PhaseName, action: CtxPhase['action']): CtxPhase {
+  return { name, pre: none(), action, post: none() };
+}
+
+/** Login step lookup map. */
+const LOGIN_STEPS: Record<string, CtxPhase['action']> = {
+  declarative: DECLARATIVE_LOGIN_STEP,
+  directPost: DIRECT_POST_LOGIN_STEP,
+  native: NATIVE_LOGIN_STEP,
+};
+
 /** Fluent builder for pipeline descriptors. */
 class PipelineBuilder {
   private _options: ScraperOptions | false = false;
@@ -43,13 +72,9 @@ class PipelineBuilder {
 
   private _loginFn: DirectPostLoginFn | NativeLoginFn | false = false;
 
-  private _otpConfig: OtpConfig | false = false;
-
   private _hasOtp = false;
 
   private _hasDashboard = false;
-
-  private _scrapeFn: ScrapeFn | false = false;
 
   private _hasScraper = false;
 
@@ -85,14 +110,14 @@ class PipelineBuilder {
   }
 
   /**
-   * Use direct POST login (browser + API POST, e.g. Amex/Isracard).
+   * Use direct POST login (browser + API POST).
    * @param fn - Login function.
    * @returns This builder for chaining.
    */
   public withDirectPostLogin(fn: DirectPostLoginFn): this {
     this.assertNoLoginMode();
     this._loginMode = 'directPost';
-    this.storeLoginFn(fn);
+    this._loginFn = fn;
     return this;
   }
 
@@ -104,7 +129,7 @@ class PipelineBuilder {
   public withNativeLogin(fn: NativeLoginFn): this {
     this.assertNoLoginMode();
     this._loginMode = 'native';
-    this.storeLoginFn(fn);
+    this._loginFn = fn;
     return this;
   }
 
@@ -115,7 +140,7 @@ class PipelineBuilder {
    */
   public withOtp(config: OtpConfig): this {
     this._hasOtp = true;
-    this.storeOtpConfig(config);
+    this._loginConfig = this._loginConfig || (config as never);
     return this;
   }
 
@@ -135,38 +160,82 @@ class PipelineBuilder {
    */
   public withScraper(fn: ScrapeFn): this {
     this._hasScraper = true;
-    this.storeScrapeFn(fn);
+    this._loginFn = this._loginFn || (fn as never);
     return this;
   }
 
   /**
-   * Build the pipeline descriptor.
+   * Build the pipeline descriptor with ordered phases.
    * @returns The assembled pipeline descriptor.
    */
   public build(): IPipelineDescriptor {
+    this.assertRequiredFields();
+    const phases = this.assemblePhases();
+    return { options: this._options as ScraperOptions, phases };
+  }
+
+  /**
+   * Validate required fields are set.
+   * @returns True if valid.
+   * @throws If options or login mode missing.
+   */
+  private assertRequiredFields(): true {
     if (this._options === false) {
       throw new ScraperError('PipelineBuilder: withOptions() is required');
     }
     if (this._loginMode === 'none') {
       throw new ScraperError('PipelineBuilder: a login mode is required');
     }
-    this.validateConfig();
-    const phases: IPhaseDefinition<IPipelineContext, IPipelineContext>[] = [];
-    return { options: this._options, phases };
+    return true;
   }
 
   /**
-   * Validate that stored config references are consistent.
-   * @returns The count of configured phases.
+   * Assemble ordered phases from configuration.
+   * @returns Ordered array of phase definitions.
    */
-  private validateConfig(): number {
-    const hasBrowser = this._hasBrowser;
-    const hasLogin = this._loginConfig || this._loginFn;
-    const hasOtp = this._hasOtp && this._otpConfig;
-    const hasDashboard = this._hasDashboard;
-    const hasScraper = this._hasScraper && this._scrapeFn;
-    const configs = [hasBrowser, hasLogin, hasOtp, hasDashboard, hasScraper];
-    return configs.filter(Boolean).length;
+  private assemblePhases(): CtxPhase[] {
+    const phases: CtxPhase[] = [];
+    this.addBrowserPhases(phases);
+    this.addOptionalPhases(phases);
+    return phases;
+  }
+
+  /**
+   * Add browser init, login, and terminate phases.
+   * @param phases - Mutable phase array to append to.
+   * @returns The number of phases added.
+   */
+  private addBrowserPhases(phases: CtxPhase[]): number {
+    if (this._hasBrowser) {
+      const initPhase = actionOnly('init', INIT_STEP);
+      phases.push(initPhase);
+    }
+    const loginStep = LOGIN_STEPS[this._loginMode];
+    const loginPhase = actionOnly('login', loginStep);
+    phases.push(loginPhase);
+    if (this._hasBrowser) {
+      const terminatePhase = actionOnly('scrape', TERMINATE_STEP);
+      phases.push(terminatePhase);
+    }
+    return phases.length;
+  }
+
+  /**
+   * Insert optional phases (otp, dashboard, scrape) before terminate.
+   * @param phases - Mutable phase array to insert into.
+   * @returns The number of optional phases added.
+   */
+  private addOptionalPhases(phases: CtxPhase[]): number {
+    const insertIdx = this._hasBrowser ? phases.length - 1 : phases.length;
+    const otpPhase = actionOnly('otp', OTP_STEP);
+    const dashPhase = actionOnly('dashboard', DASHBOARD_STEP);
+    const scrapePhase = actionOnly('scrape', SCRAPE_STEP);
+    const optional: CtxPhase[] = [];
+    if (this._hasOtp) optional.push(otpPhase);
+    if (this._hasDashboard) optional.push(dashPhase);
+    if (this._hasScraper) optional.push(scrapePhase);
+    phases.splice(insertIdx, 0, ...optional);
+    return optional.length;
   }
 
   /**
@@ -178,36 +247,6 @@ class PipelineBuilder {
     if (this._loginMode !== 'none') {
       throw new ScraperError('PipelineBuilder: login mode already set — only one allowed');
     }
-    return true;
-  }
-
-  /**
-   * Store a login function reference for later phase construction.
-   * @param fn - The login function to store.
-   * @returns True after storing.
-   */
-  private storeLoginFn(fn: DirectPostLoginFn | NativeLoginFn): true {
-    this._loginFn = fn;
-    return true;
-  }
-
-  /**
-   * Store an OTP config reference for later phase construction.
-   * @param config - The OTP config to store.
-   * @returns True after storing.
-   */
-  private storeOtpConfig(config: OtpConfig): true {
-    this._otpConfig = config;
-    return true;
-  }
-
-  /**
-   * Store a scrape function reference for later phase construction.
-   * @param fn - The scrape function to store.
-   * @returns True after storing.
-   */
-  private storeScrapeFn(fn: ScrapeFn): true {
-    this._scrapeFn = fn;
     return true;
   }
 }

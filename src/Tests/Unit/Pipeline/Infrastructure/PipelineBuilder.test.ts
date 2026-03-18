@@ -221,3 +221,93 @@ describe('PipelineBuilder/descriptor-shape', () => {
     expect(descriptor.options).toBe(MOCK_OPTIONS);
   });
 });
+
+describe('PipelineBuilder/phase-assembly', () => {
+  it('declarative login produces a login phase', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).toContain('login');
+  });
+
+  it('withBrowser adds init phase at the start', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withBrowser()
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .build();
+    const firstPhase = descriptor.phases[0];
+    expect(firstPhase.name).toBe('init');
+  });
+
+  it('withOtp adds otp phase after login', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withOtp(MOCK_OTP_CONFIG)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    const loginIdx = names.indexOf('login');
+    const otpIdx = names.indexOf('otp');
+    expect(otpIdx).toBeGreaterThan(loginIdx);
+  });
+
+  it('withDashboard adds dashboard phase', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withDashboard()
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).toContain('dashboard');
+  });
+
+  it('withScraper adds scrape phase', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withScraper(MOCK_SCRAPE)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).toContain('scrape');
+  });
+
+  it('phases are ordered: init → login → otp → dashboard → scrape', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withBrowser()
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withOtp(MOCK_OTP_CONFIG)
+      .withDashboard()
+      .withScraper(MOCK_SCRAPE)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    const initIdx = names.indexOf('init');
+    const loginIdx = names.indexOf('login');
+    const otpIdx = names.indexOf('otp');
+    const dashIdx = names.indexOf('dashboard');
+    expect(initIdx).toBeLessThan(loginIdx);
+    expect(loginIdx).toBeLessThan(otpIdx);
+    expect(otpIdx).toBeLessThan(dashIdx);
+  });
+
+  it('without browser, no init phase', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withNativeLogin(MOCK_NATIVE_LOGIN)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).not.toContain('init');
+  });
+
+  it('login-only produces exactly 1 phase', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
+      .build();
+    expect(descriptor.phases.length).toBe(1);
+    expect(descriptor.phases[0].name).toBe('login');
+  });
+});
