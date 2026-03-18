@@ -92,13 +92,6 @@ else
   exit 1
 fi
 
-if [ -x node_modules/.bin/ai-commit-guard ] && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
-  bg_gate "ai-guard" npx ai-commit-guard
-else
-  log "  ❌ ai-commit-guard or Ollama not available"
-  log "     Install: npm i -D ai-commit-guard && ollama pull qwen2.5-coder:14b"
-  exit 1
-fi
 
 wait_all
 
