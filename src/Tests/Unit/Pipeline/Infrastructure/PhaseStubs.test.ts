@@ -39,8 +39,8 @@ describe('Phase stubs', () => {
 });
 
 describe('PipelineRegistry', () => {
-  it('is an empty object initially', () => {
+  it('contains migrated banks', () => {
     const keyCount = Object.keys(PIPELINE_REGISTRY).length;
-    expect(keyCount).toBe(0);
+    expect(keyCount).toBeGreaterThanOrEqual(1);
   });
 });
