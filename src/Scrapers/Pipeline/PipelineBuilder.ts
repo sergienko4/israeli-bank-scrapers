@@ -12,6 +12,7 @@ import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
 import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
+import { createLoginPhase } from './Phases/LoginSteps.js';
 import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
 import { OTP_STEP } from './Phases/OtpPhase.js';
 import {
@@ -21,7 +22,7 @@ import {
 } from './Phases/ScrapePhase.js';
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
-import { none } from './Types/Option.js';
+import { none, some } from './Types/Option.js';
 import type { IPhaseDefinition, PhaseName } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
@@ -235,7 +236,6 @@ class PipelineBuilder {
    */
   private resolveLoginStep(): CtxPhase['action'] {
     const fn = this._loginFn;
-    const hasConfig = Boolean(this._loginConfig);
     const hasOtpConfig = Boolean(this._otpConfig);
     if (fn) {
       /**
@@ -249,7 +249,7 @@ class PipelineBuilder {
       };
       return createLoginStep(adapted);
     }
-    if (hasConfig || hasOtpConfig) return DECLARATIVE_LOGIN_STEP;
+    if (hasOtpConfig) return DECLARATIVE_LOGIN_STEP;
     return LOGIN_STEPS[this._loginMode];
   }
 
@@ -264,6 +264,19 @@ class PipelineBuilder {
   }
 
   /**
+   * Build the login phase with pre/action/post when config available.
+   * @returns Full phase definition for login.
+   */
+  private buildLoginPhase(): CtxPhase {
+    if (this._loginConfig) {
+      const phase = createLoginPhase(this._loginConfig);
+      return { name: 'login', pre: some(phase.pre), action: phase.action, post: some(phase.post) };
+    }
+    const loginStep = this.resolveLoginStep();
+    return actionOnly('login', loginStep);
+  }
+
+  /**
    * Add browser init, login, and terminate phases.
    * @param phases - Mutable phase array to append to.
    * @returns The number of phases added.
@@ -273,8 +286,7 @@ class PipelineBuilder {
       const initPhase = actionOnly('init', INIT_STEP);
       phases.push(initPhase);
     }
-    const loginStep = this.resolveLoginStep();
-    const loginPhase = actionOnly('login', loginStep);
+    const loginPhase = this.buildLoginPhase();
     phases.push(loginPhase);
     if (this._hasBrowser) {
       const terminatePhase = actionOnly('terminate', TERMINATE_STEP);

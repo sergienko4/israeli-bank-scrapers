@@ -157,7 +157,11 @@ const DISCOUNT_LOGIN: ILoginConfig = {
     { credentialKey: 'password', selectors: [] },
     { credentialKey: 'num', selectors: [] },
   ],
-  submit: [{ kind: 'css', value: '.sendBtn' }],
+  submit: [
+    { kind: 'ariaLabel', value: 'כניסה' },
+    { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
+    { kind: 'textContent', value: 'כניסה' },
+  ],
   /**
    * Navigate to Discount login portal and wait for ID field.
    * @param page - The Playwright page instance.

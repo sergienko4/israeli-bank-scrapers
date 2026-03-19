@@ -340,9 +340,10 @@ describe('PipelineBuilder/phase-assembly', () => {
 
 describe('PipelineBuilder/behavioral', () => {
   it('built phases are executable and return success', async () => {
+    // Use function form (stub) so action runs without requiring preLogin context.
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
       .build();
     const phase = descriptor.phases[0];
     const mockCtx = {} as never;
