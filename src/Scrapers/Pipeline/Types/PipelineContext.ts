@@ -7,7 +7,6 @@
 import type { BrowserContext, Frame, Page } from 'playwright-core';
 
 import type { ScraperLogger } from '../../../Common/Debug.js';
-import type { IFormAnchor } from '../../../Common/FormAnchor.js';
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
@@ -26,7 +25,6 @@ interface IBrowserState {
 /** Login phase result context. */
 interface ILoginState {
   readonly activeFrame: Page | Frame;
-  readonly formAnchor: Option<IFormAnchor>;
   readonly persistentOtpToken: Option<string>;
 }
 

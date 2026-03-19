@@ -3,24 +3,21 @@
  * Generic for ALL banks. Bank provides only ILoginConfig.
  *
  * preLogin:    navigate + checkReadiness + preAction (open form)
- * loginAction: PURE fill fields + click submit (via Mediator)
- * postLogin:   wait + check result + postAction
+ * loginAction: PURE fill fields + click submit — via ctx.mediator (black box)
+ * postLogin:   wait for settle + mediator.discoverErrors + postAction
+ *
+ * ARCHITECTURE: LoginSteps NEVER imports HTML utilities directly.
+ * All HTML resolution flows through ctx.mediator (injected by InitPhase).
  */
 
 import type { Frame, Page } from 'playwright-core';
 
 import { fillInput } from '../../../Common/ElementsInteractions.js';
-import { tryInContext } from '../../../Common/SelectorResolver.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
-import { discoverFormErrors } from '../Mediator/FormErrorDiscovery.js';
-import { resolveFieldPipeline } from '../Mediator/PipelineFieldResolver.js';
-import {
-  PIPELINE_WELL_KNOWN_DASHBOARD,
-  PIPELINE_WELL_KNOWN_LOGIN,
-} from '../Registry/PipelineWellKnown.js';
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -87,7 +84,7 @@ async function executePreLogin(
   await navigateToLogin(page, config.loginUrl);
   await runCheckReadiness(page, config);
   const activeFrame = await runPreAction(page, config);
-  const loginState = { activeFrame, formAnchor: none(), persistentOtpToken: none() };
+  const loginState = { activeFrame, persistentOtpToken: none() };
   return succeed({ ...input, login: some(loginState) });
 }
 
@@ -119,15 +116,19 @@ function createPreLoginStep(
 // ── loginAction helpers ────────────────────────────────────
 
 /**
- * Fill one credential field using SelectorResolver.
- * @param frameOrPage - The context to fill in.
+ * Fill one credential field via mediator (black box — no direct HTML access).
+ * @param mediator - IElementMediator from pipeline context.
  * @param opts - Fill options: credentialKey, value, selectors.
- * @returns True after filling.
+ * @returns Procedure<boolean> — fails if field not found.
  */
-async function fillOneField(frameOrPage: Page | Frame, opts: IFillOpts): Promise<boolean> {
-  const resolved = await resolveFieldPipeline(frameOrPage, opts.credentialKey, opts.selectors);
-  if (resolved.isResolved) await fillInput(resolved.context, resolved.selector, opts.value);
-  return true;
+async function fillOneField(
+  mediator: IElementMediator,
+  opts: IFillOpts,
+): Promise<Procedure<boolean>> {
+  const result = await mediator.resolveField(opts.credentialKey, opts.selectors);
+  if (!result.ok) return result;
+  await fillInput(result.value.context, result.value.selector, opts.value);
+  return succeed(true);
 }
 
 /**
@@ -142,24 +143,26 @@ function buildFillOpts(field: IFieldConfig, creds: Record<string, string>): IFil
 }
 
 /**
- * Fill all credential fields sequentially.
- * @param frameOrPage - The context to fill in.
+ * Fill all credential fields sequentially via mediator.
+ * Short-circuits on first field failure — does not attempt remaining fields.
+ * @param mediator - IElementMediator from pipeline context.
  * @param fields - Field configs from login config.
  * @param creds - Credentials map.
- * @returns True after all fields are filled.
+ * @returns Procedure<boolean> — fails if any field is not found.
  */
 async function fillAllFields(
-  frameOrPage: Page | Frame,
+  mediator: IElementMediator,
   fields: ILoginConfig['fields'],
   creds: Record<string, string>,
-): Promise<boolean> {
-  const initial: Promise<boolean> = Promise.resolve(true);
-  await fields.reduce<Promise<boolean>>(async (prev, field) => {
-    await prev;
+): Promise<Procedure<boolean>> {
+  const firstResult = succeed(true);
+  const initial: Promise<Procedure<boolean>> = Promise.resolve(firstResult);
+  return fields.reduce<Promise<Procedure<boolean>>>(async (prev, field) => {
+    const prevResult = await prev;
+    if (!prevResult.ok) return prevResult;
     const opts = buildFillOpts(field, creds);
-    return fillOneField(frameOrPage, opts);
+    return fillOneField(mediator, opts);
   }, initial);
-  return true;
 }
 
 /**
@@ -173,49 +176,50 @@ function normalizeSubmit(submit: ILoginConfig['submit']): SelectorCandidate[] {
 }
 
 /**
- * Click the submit button.
- * @param frameOrPage - The context containing the button.
- * @param submitCandidates - Selector candidates for submit.
- * @returns True after clicking.
+ * Click the submit button via mediator (black box — searches iframes automatically).
+ * WellKnown __submit__ fallback is handled internally by the mediator.
+ * @param mediator - IElementMediator from pipeline context.
+ * @param submitCandidates - Bank-provided submit selector candidates.
+ * @returns Procedure<boolean> — fails if submit button not found.
  */
 async function clickSubmit(
-  frameOrPage: Page | Frame,
+  mediator: IElementMediator,
   submitCandidates: SelectorCandidate[],
-): Promise<boolean> {
-  const wkSubmit = [...PIPELINE_WELL_KNOWN_LOGIN.__submit__];
-  const allCandidates = [...submitCandidates, ...wkSubmit];
-  const css = await tryInContext(frameOrPage, allCandidates);
-  if (css) {
-    const locator = frameOrPage.locator(css);
-    const btn = locator.first();
-    await btn.click();
-  }
-  return true;
+): Promise<Procedure<boolean>> {
+  const result = await mediator.resolveClickable(submitCandidates);
+  if (!result.ok) return result;
+  const locator = result.value.context.locator(result.value.selector);
+  const btn = locator.first();
+  await btn.click();
+  return succeed(true);
 }
 
 /**
  * Execute the loginAction step body.
  * @param config - Bank's login config.
  * @param input - Context with login.activeFrame from preLogin.
- * @returns Same context after filling + submitting.
+ * @returns Same context after filling + submitting, or failure.
  */
 async function executeLoginAction(
   config: ILoginConfig,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login context from preLogin');
-  const activeFrame = input.login.value.activeFrame;
+  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator in context');
+  const mediator = input.mediator.value;
   const creds = input.credentials as Record<string, string>;
-  await fillAllFields(activeFrame, config.fields, creds);
+  const fillResult = await fillAllFields(mediator, config.fields, creds);
+  if (!fillResult.ok) return fillResult;
   const submitCandidates = normalizeSubmit(config.submit);
-  await clickSubmit(activeFrame, submitCandidates);
+  const clickResult = await clickSubmit(mediator, submitCandidates);
+  if (!clickResult.ok) return clickResult;
   return succeed(input);
 }
 
 /**
  * Create the loginAction step.
  * @param config - Bank's login config.
- * @returns Pipeline step: fill fields + click submit.
+ * @returns Pipeline step: fill fields + click submit via mediator.
  */
 function createLoginActionStep(
   config: ILoginConfig,
@@ -239,45 +243,6 @@ function createLoginActionStep(
 
 // ── postLogin helpers ──────────────────────────────────────
 
-/** Result of checking the login form area for visible error text. */
-export interface IFrameErrorResult {
-  readonly found: boolean;
-  readonly text: string;
-}
-
-/** Negative result — no error found. */
-const NO_ERROR: IFrameErrorResult = { found: false, text: '' };
-
-/**
- * Check one WellKnown error candidate for visibility in a frame.
- * @param frameOrPage - Page or frame where the form was submitted.
- * @param value - The error text to look for.
- * @returns IFrameErrorResult with found=true if the error is visible.
- */
-async function checkOneError(frameOrPage: Page | Frame, value: string): Promise<IFrameErrorResult> {
-  const locator = frameOrPage.getByText(value);
-  const first = locator.first();
-  const isErrorVisible = await first.isVisible().catch(() => false);
-  return isErrorVisible ? { found: true, text: value } : NO_ERROR;
-}
-
-/**
- * Search the active frame for WellKnown error indicators.
- * Generic for ALL banks — WellKnown owns the error text, banks provide nothing.
- * Handles detached frames gracefully (isVisible catch → not found).
- * @param frameOrPage - Page or frame where the login form was submitted.
- * @returns IFrameErrorResult with the first visible error text, or found=false.
- */
-export async function checkFrameForErrors(frameOrPage: Page | Frame): Promise<IFrameErrorResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator;
-  const initial: Promise<IFrameErrorResult> = Promise.resolve(NO_ERROR);
-  return candidates.reduce<Promise<IFrameErrorResult>>(async (prev, candidate) => {
-    const result = await prev;
-    if (result.found) return result;
-    return checkOneError(frameOrPage, candidate.value);
-  }, initial);
-}
-
 /**
  * Wait for the page to reach networkidle after form submission.
  * Uses networkidle instead of waitForURL('**') to avoid SPA hash-routing false positives
@@ -289,7 +254,7 @@ export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
   try {
     await page.waitForLoadState('networkidle', { timeout: 15000 });
   } catch {
-    // Timeout is OK — SPA may stay "loading"; proceed and check frame for errors
+    // Timeout is OK — SPA may stay "loading"; proceed and check for errors
   }
   return true;
 }
@@ -307,7 +272,7 @@ async function runPostAction(page: Page, config: ILoginConfig): Promise<boolean>
 
 /**
  * Execute the postLogin step body.
- * Generic: wait for settle → check frame for errors via WellKnown → run bank postAction.
+ * Generic: wait for settle → mediator.discoverErrors (Layer1+Layer2) → postAction.
  * @param config - Bank's login config.
  * @param input - Context from loginAction.
  * @returns Success or login error.
@@ -317,19 +282,15 @@ async function executePostLogin(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for postLogin');
-  const page = input.browser.value.page;
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login state for postLogin');
+  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for postLogin');
+  const page = input.browser.value.page;
   const activeFrame = input.login.value.activeFrame;
+  const mediator = input.mediator.value;
   await waitForSubmitToSettle(page);
-  // Layer 1: dynamic DOM scan — catches any visible form error regardless of text
-  const domScan = await discoverFormErrors(activeFrame);
-  if (domScan.hasErrors) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${domScan.summary}`);
-  }
-  // Layer 2: WellKnown text fallback — catches banks without standard error markup
-  const frameError = await checkFrameForErrors(activeFrame);
-  if (frameError.found) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Login error: ${frameError.text}`);
+  const errors = await mediator.discoverErrors(activeFrame);
+  if (errors.hasErrors) {
+    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${errors.summary}`);
   }
   await runPostAction(page, config);
   return succeed(input);
@@ -338,7 +299,7 @@ async function executePostLogin(
 /**
  * Create the postLogin step.
  * @param config - Bank's login config.
- * @returns Pipeline step: wait + check result + postAction.
+ * @returns Pipeline step: wait + mediator error check + postAction.
  */
 function createPostLoginStep(
   config: ILoginConfig,
@@ -346,7 +307,7 @@ function createPostLoginStep(
   return {
     name: 'post-login',
     /**
-     * Execute postLogin: wait for navigation, check result, run postAction.
+     * Execute postLogin: wait for settle, check errors via mediator, run postAction.
      * @param _ctx - Unused pipeline context.
      * @param input - Context from loginAction.
      * @returns Success or login error procedure.

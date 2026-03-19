@@ -6,10 +6,8 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import {
-  checkFrameForErrors,
-  waitForSubmitToSettle,
-} from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
+import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 
 // ── Mock helpers ───────────────────────────────────────────
 
@@ -100,43 +98,44 @@ function makeTimeoutPage(): Page {
 }
 
 // ── checkFrameForErrors ────────────────────────────────────
+// Returns IFormErrorScanResult { hasErrors, summary } (not IFrameErrorResult)
 
 describe('checkFrameForErrors', () => {
-  it('returns found=false when no WellKnown error text is visible', async () => {
+  it('returns hasErrors=false when no WellKnown error text is visible', async () => {
     const frame = makeMockFrame([]);
     const errorResult = await checkFrameForErrors(frame);
-    expect(errorResult.found).toBe(false);
-    expect(errorResult.text).toBe('');
+    expect(errorResult.hasErrors).toBe(false);
+    expect(errorResult.summary).toBe('');
   });
 
-  it('returns found=true for Discount error text "פרטים שגויים"', async () => {
+  it('returns hasErrors=true for Discount error text "פרטים שגויים"', async () => {
     const frame = makeMockFrame(['פרטים שגויים']);
     const errorResult = await checkFrameForErrors(frame);
-    expect(errorResult.found).toBe(true);
-    expect(errorResult.text).toBe('פרטים שגויים');
+    expect(errorResult.hasErrors).toBe(true);
+    expect(errorResult.summary).toBe('פרטים שגויים');
   });
 
-  it('returns found=true for VisaCal error "שם המשתמש או הסיסמה שהוזנו שגויים"', async () => {
+  it('returns hasErrors=true for VisaCal error "שם המשתמש או הסיסמה שהוזנו שגויים"', async () => {
     const visaCalError = 'שם המשתמש או הסיסמה שהוזנו שגויים';
     const frame = makeMockFrame([visaCalError]);
     const errorResult = await checkFrameForErrors(frame);
-    expect(errorResult.found).toBe(true);
-    expect(errorResult.text).toBe(visaCalError);
+    expect(errorResult.hasErrors).toBe(true);
+    expect(errorResult.summary).toBe(visaCalError);
   });
 
-  it('returns found=false when frame is detached (isVisible throws)', async () => {
+  it('returns hasErrors=false when frame is detached (isVisible throws)', async () => {
     const frame = makeDetachedFrame();
     const errorResult = await checkFrameForErrors(frame);
-    expect(errorResult.found).toBe(false);
-    expect(errorResult.text).toBe('');
+    expect(errorResult.hasErrors).toBe(false);
+    expect(errorResult.summary).toBe('');
   });
 
   it('stops on first match and returns that candidate', async () => {
     // Both "פרטים שגויים" and "שגיאה" visible — WellKnown order determines first
     const frame = makeMockFrame(['פרטים שגויים', 'שגיאה']);
     const errorResult = await checkFrameForErrors(frame);
-    expect(errorResult.found).toBe(true);
-    expect(errorResult.text).toBe('פרטים שגויים');
+    expect(errorResult.hasErrors).toBe(true);
+    expect(errorResult.summary).toBe('פרטים שגויים');
   });
 });
 
