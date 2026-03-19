@@ -1,20 +1,24 @@
 /**
- * Factory for IElementMediator — wraps SelectorResolver + FormAnchor.
- * Black box for HTML resolution — scrapers describe WHAT, mediator finds HOW.
+ * Factory for IElementMediator — wraps SelectorResolver + FormAnchor + FormErrorDiscovery.
+ * Black box for ALL HTML resolution — scrapers describe WHAT, mediator finds HOW.
  * Each mediator instance has its own form anchor cache (no shared mutable state).
  */
 
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
 import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.js';
-import { tryInContext } from '../../../Common/SelectorResolver.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { none, some } from '../Types/Option.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import type { IElementMediator } from './ElementMediator.js';
+import {
+  checkFrameForErrors,
+  discoverFormErrors,
+  type IFormErrorScanResult,
+} from './FormErrorDiscovery.js';
 import { resolveFieldPipeline } from './PipelineFieldResolver.js';
 
 const LOG = getDebug('element-mediator');
@@ -26,6 +30,7 @@ interface IFormCache {
 
 /**
  * Build resolveField method bound to a page.
+ * Searches main page + all child iframes via resolveFieldPipeline.
  * @param page - The Playwright page.
  * @returns Mediator resolveField function.
  */
@@ -45,20 +50,36 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
 
 /**
  * Build resolveClickable method bound to a page.
+ * Uses '__submit__' as the fieldKey so WellKnown.__submit__ is the automatic fallback.
+ * Searches main page + child iframes (via resolveFieldPipeline) — correct for iframe forms.
+ * Returns IFieldContext so caller can click in the correct frame/page context.
  * @param page - The Playwright page.
  * @returns Mediator resolveClickable function.
  */
 function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
   return async candidates => {
     try {
-      const mutableCandidates = [...candidates];
-      const css = await tryInContext(page, mutableCandidates);
-      if (css) return succeed(css);
+      const ctx = await resolveFieldPipeline(page, '__submit__', candidates);
+      if (ctx.isResolved) return succeed<IFieldContext>(ctx);
       return fail(ScraperErrorTypes.Generic, 'Clickable not found');
     } catch (error) {
       const msg = (error as Error).message;
       return fail(ScraperErrorTypes.Generic, msg);
     }
+  };
+}
+
+/**
+ * Build discoverErrors method.
+ * Runs Layer 1 (DOM structural scan) then Layer 2 (WellKnown text) if needed.
+ * The frame parameter lets callers target the specific context (e.g., connect iframe).
+ * @returns Mediator discoverErrors function.
+ */
+function buildDiscoverErrors(): IElementMediator['discoverErrors'] {
+  return async (frame: Page | Frame): Promise<IFormErrorScanResult> => {
+    const layer1 = await discoverFormErrors(frame);
+    if (layer1.hasErrors) return layer1;
+    return checkFrameForErrors(frame);
   };
 }
 
@@ -109,6 +130,7 @@ function createElementMediator(page: Page): IElementMediator {
   return {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
+    discoverErrors: buildDiscoverErrors(),
     discoverForm: buildDiscoverForm(page, cache),
     scopeToForm: buildScopeToForm(cache),
   };

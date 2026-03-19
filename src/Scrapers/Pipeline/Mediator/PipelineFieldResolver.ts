@@ -89,7 +89,9 @@ async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promi
  */
 async function enrichWithMetadata(result: IFieldContext): Promise<IPipelineFieldContext> {
   if (!result.isResolved) return result;
-  const metadata = await extractMetadata(result.context, result.selector);
+  // Skip metadata extraction for non-CSS selectors (xpath=, labelText walk-up, etc.)
+  // document.querySelector inside extractMetadata doesn't handle Playwright-specific formats.
+  const metadata = await extractMetadata(result.context, result.selector).catch(() => undefined);
   return { ...result, metadata };
 }
 
