@@ -1,6 +1,7 @@
 /**
  * Unit tests for MetadataExtractors.ts.
  * Mocks ctx.evaluate and locator.isVisible to test all paths.
+ * JSDOM evaluate-callback tests use manual JSDOM instance for branch coverage.
  */
 
 import type { Frame, Page } from 'playwright-core';
@@ -147,5 +148,103 @@ describe('extractMetadata/error-handling', () => {
     const ctx = makeMockCtx(FULL_PROPS, true, true);
     const meta = await extractMetadata(ctx, '#mat-input-2');
     expect(meta.isVisible).toBe(false);
+  });
+});
+
+// ── JSDOM evaluate-callback branches ─────────────────────
+
+// ── JSDOM evaluate-callback branches ─────────────────────
+
+const { JSDOM } = await import('jsdom');
+
+/**
+ * Build a mock ctx whose evaluate RUNS the callback with a JSDOM document.
+ * Injects JSDOM globals so the evaluate callback branches get covered.
+ * @param html - HTML to populate the JSDOM body.
+ * @param isVisible - Whether locator.isVisible returns true.
+ * @returns Mock Page that executes evaluate in JSDOM.
+ */
+function makeJsdomCtx(html: string, isVisible = true): Page | Frame {
+  const dom = new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`);
+  const domDoc = dom.window.document;
+  return {
+    /**
+     * Execute callback with JSDOM document injected as global.
+     * @param fn - Evaluate callback.
+     * @param arg - Callback argument.
+     * @returns Resolved callback result.
+     */
+    evaluate: <T>(fn: (arg: never) => T, arg: never): Promise<T> => {
+      const prevDoc = globalThis.document;
+      Object.defineProperty(globalThis, 'document', {
+        value: domDoc,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        const result = fn(arg);
+        return Promise.resolve(result);
+      } finally {
+        Object.defineProperty(globalThis, 'document', {
+          value: prevDoc,
+          writable: true,
+          configurable: true,
+        });
+      }
+    },
+    /**
+     * Return locator mock.
+     * @returns Locator with first().isVisible().
+     */
+    locator: (): object => ({
+      /**
+       * Return first-element locator.
+       * @returns First locator.
+       */
+      first: (): object => ({
+        /**
+         * Return visibility state.
+         * @returns Promise<boolean>.
+         */
+        isVisible: (): Promise<boolean> => Promise.resolve(isVisible),
+      }),
+    }),
+  } as unknown as Page;
+}
+
+describe('extractMetadata/jsdom-evaluate', () => {
+  it('returns empty props when element not found (querySelector null)', async () => {
+    const ctx = makeJsdomCtx('', false);
+    const meta = await extractMetadata(ctx, '#nonexistent');
+    expect(meta.id).toBe('');
+    expect(meta.tagName).toBe('');
+    expect(meta.isVisible).toBe(false);
+  });
+
+  it('extracts all properties from real DOM input element', async () => {
+    const html =
+      '<form id="login"><input id="user" class="mat" type="text" name="username" placeholder="Enter" aria-label="User"></form>';
+    const ctx = makeJsdomCtx(html, true);
+    const meta = await extractMetadata(ctx, '#user');
+    expect(meta.id).toBe('user');
+    expect(meta.className).toBe('mat');
+    expect(meta.tagName).toBe('input');
+    expect(meta.type).toBe('text');
+    expect(meta.name).toBe('username');
+    expect(meta.formId).toBe('login');
+    expect(meta.ariaLabel).toBe('User');
+    expect(meta.placeholder).toBe('Enter');
+  });
+
+  it('returns empty formId when no ancestor form', async () => {
+    const ctx = makeJsdomCtx('<input id="orphan" type="text">', true);
+    const meta = await extractMetadata(ctx, '#orphan');
+    expect(meta.formId).toBe('');
+  });
+
+  it('returns empty ariaLabel when attribute absent', async () => {
+    const ctx = makeJsdomCtx('<input id="nolabel" type="text">', true);
+    const meta = await extractMetadata(ctx, '#nolabel');
+    expect(meta.ariaLabel).toBe('');
   });
 });

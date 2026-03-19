@@ -2,6 +2,7 @@
  * Unit tests for FormErrorDiscovery.ts — both layers.
  * Layer 1: discoverFormErrors (DOM structural scan via evaluate).
  * Layer 2: checkFrameForErrors (WellKnown text scan via getByText).
+ * JSDOM evaluate-callback tests use manual JSDOM instance for branch coverage.
  */
 
 import type { Page } from 'playwright-core';
@@ -277,5 +278,118 @@ describe('checkFrameForErrors/found', () => {
     const scan = await checkFrameForErrors(frame);
     expect(scan.errors[0].selector).toBe('wellKnown');
     expect(scan.errors[0].kind).toBe('authError');
+  });
+
+  it('finds error on mid-list WellKnown candidate (3rd entry)', async () => {
+    const frame = MAKE_FRAME_L2(['שגיאה']);
+    const scan = await checkFrameForErrors(frame);
+    expect(scan.hasErrors).toBe(true);
+    expect(scan.summary).toBe('שגיאה');
+  });
+
+  it('finds error on last WellKnown candidate', async () => {
+    const lastErr = 'שם המשתמש או הסיסמה שהוזנו שגויים';
+    const frame = MAKE_FRAME_L2([lastErr]);
+    const scan = await checkFrameForErrors(frame);
+    expect(scan.hasErrors).toBe(true);
+    expect(scan.summary).toBe(lastErr);
+  });
+});
+
+// ── Layer 1 selector building ────────────────────────────
+
+describe('discoverFormErrors/selector-building', () => {
+  it('builds selector with first CSS class from cls', async () => {
+    const item: IDomItem = { tag: 'div', cls: 'error-msg other', text: 'err', isHidden: false };
+    const ctx = MAKE_CTX_L1([item]);
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.errors[0].selector).toBe('div.error-msg');
+  });
+});
+
+// ── JSDOM evaluate-callback branches ─────────────────────
+
+const { JSDOM } = await import('jsdom');
+
+/**
+ * Build a mock ctx whose evaluate RUNS the callback with a JSDOM document.
+ * Injects JSDOM globals so the evaluate callback branches get covered by Istanbul.
+ * @param html - HTML to populate the JSDOM body with.
+ * @returns Mock Page that executes the evaluate callback in JSDOM.
+ */
+const MAKE_EXEC_CTX = (html: string): Page => {
+  const dom = new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`);
+  const domDoc = dom.window.document;
+  const domWin = dom.window;
+  return {
+    /**
+     * Execute the callback with JSDOM document/window injected as globals.
+     * @param fn - The evaluate callback.
+     * @param arg - The argument passed to the callback.
+     * @returns Resolved callback result.
+     */
+    evaluate: <T>(fn: (arg: never) => T, arg: never): Promise<T> => {
+      const prevDoc = globalThis.document;
+      const prevWin = globalThis.window;
+      Object.defineProperty(globalThis, 'document', {
+        value: domDoc,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'window', {
+        value: domWin,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        const result = fn(arg);
+        return Promise.resolve(result);
+      } finally {
+        Object.defineProperty(globalThis, 'document', {
+          value: prevDoc,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(globalThis, 'window', {
+          value: prevWin,
+          writable: true,
+          configurable: true,
+        });
+      }
+    },
+  } as unknown as Page;
+};
+
+describe('discoverFormErrors/jsdom-evaluate', () => {
+  it('detects visible mat-error in real DOM', async () => {
+    const ctx = MAKE_EXEC_CTX('<mat-error>שגיאה</mat-error>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(true);
+    expect(scan.errors[0].text).toBe('שגיאה');
+  });
+
+  it('filters element hidden via display:none', async () => {
+    const ctx = MAKE_EXEC_CTX('<mat-error style="display:none">Hidden</mat-error>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(false);
+  });
+
+  it('filters element hidden via visibility:hidden', async () => {
+    const ctx = MAKE_EXEC_CTX('<div role="alert" style="visibility:hidden">Hidden</div>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(false);
+  });
+
+  it('handles element with empty className', async () => {
+    const ctx = MAKE_EXEC_CTX('<div role="alert">visible error</div>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(true);
+    expect(scan.errors[0].text).toBe('visible error');
+  });
+
+  it('returns empty when no elements match error selectors', async () => {
+    const ctx = MAKE_EXEC_CTX('<p>just text</p>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(false);
   });
 });

@@ -181,6 +181,20 @@ describe('resolveFieldPipeline/not-found', () => {
   });
 });
 
+describe('resolveFieldPipeline/frame-context', () => {
+  it('resolves field when context is a Frame (no url property)', async () => {
+    const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
+    isPageFn.mockReturnValue(false);
+    const probeMain = SRP_MOD.probeMainPage as jest.Mock;
+    probeMain.mockResolvedValue(RESOLVED_CTX);
+    const metaFn = META_MOD.extractMetadata as jest.Mock;
+    metaFn.mockResolvedValue(MOCK_META);
+    const mockFrame = {} as unknown as Page;
+    const result = await RESOLVER_MOD.resolveFieldPipeline(mockFrame, 'username', []);
+    expect(result.isResolved).toBe(true);
+  });
+});
+
 describe('resolveFieldPipeline/wellKnown-lookup', () => {
   it('uses WellKnown candidates for known field key (e.g. username)', async () => {
     const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
