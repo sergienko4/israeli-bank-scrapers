@@ -8,13 +8,14 @@ import type { Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
 import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.js';
-import { resolveFieldContext, tryInContext } from '../../../Common/SelectorResolver.js';
+import { tryInContext } from '../../../Common/SelectorResolver.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { none, some } from '../Types/Option.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import type { IElementMediator } from './ElementMediator.js';
+import { resolveFieldPipeline } from './PipelineFieldResolver.js';
 
 const LOG = getDebug('element-mediator');
 
@@ -30,12 +31,10 @@ interface IFormCache {
  */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
   return async (fieldKey, candidates) => {
-    const pageUrl = page.url();
-    const field = { credentialKey: fieldKey, selectors: [...candidates] };
     try {
-      const ctx = await resolveFieldContext(page, field, pageUrl);
-      if (ctx.isResolved) return succeed(ctx);
-      const msg = `Field not found: ${fieldKey} on ${pageUrl}`;
+      const ctx = await resolveFieldPipeline(page, fieldKey, candidates);
+      if (ctx.isResolved) return succeed<IFieldContext>(ctx);
+      const msg = `Field not found: ${fieldKey} on ${page.url()}`;
       return fail(ScraperErrorTypes.Generic, msg);
     } catch (error) {
       const msg = (error as Error).message;
