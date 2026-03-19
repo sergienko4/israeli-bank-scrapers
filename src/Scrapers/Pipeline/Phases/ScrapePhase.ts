@@ -1,23 +1,40 @@
 /**
- * Scrape phase — calls a bank-provided scrape function.
- * Each bank extracts its fetchData() into a standalone function.
- * Default stub passes through for testing.
+ * Scrape phase — fetches accounts + transactions.
+ * Supports two modes:
+ *   1. IScrapeConfig — generic: bank provides URLs + mappers, executor does fetch
+ *   2. CustomScrapeFn — edge cases: bank provides full function
  */
 
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
-
-/** Bank-provided scrape function signature. */
-type ScrapeFn = (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>>;
+import type { CustomScrapeFn, IScrapeConfig } from '../Types/ScrapeConfig.js';
+import { executeScrape } from './ScrapeExecutor.js';
 
 /**
- * Create a scrape step bound to a bank-provided function.
- * @param scrapeFn - The bank's transaction fetching function.
+ * Create a scrape step from an IScrapeConfig (generic mode).
+ * @param config - The bank's scrape configuration.
+ * @returns A pipeline step that fetches and maps transactions.
+ */
+function createConfigScrapeStep<TA, TT>(
+  config: IScrapeConfig<TA, TT>,
+): IPipelineStep<IPipelineContext, IPipelineContext> {
+  return {
+    name: 'scrape',
+    /** @inheritdoc */
+    execute: (_ctx, input) => executeScrape(input, config),
+  };
+}
+
+/**
+ * Create a scrape step from a custom function (edge case mode).
+ * @param scrapeFn - The bank's custom scrape function.
  * @returns A pipeline step for scraping.
  */
-function createScrapeStep(scrapeFn: ScrapeFn): IPipelineStep<IPipelineContext, IPipelineContext> {
+function createCustomScrapeStep(
+  scrapeFn: CustomScrapeFn,
+): IPipelineStep<IPipelineContext, IPipelineContext> {
   return {
     name: 'scrape',
     /** @inheritdoc */
@@ -45,6 +62,6 @@ const SCRAPE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   execute: stubScrape,
 };
 
-export type { ScrapeFn };
+export type { CustomScrapeFn };
 export default SCRAPE_STEP;
-export { createScrapeStep, SCRAPE_STEP };
+export { createConfigScrapeStep, createCustomScrapeStep, SCRAPE_STEP };

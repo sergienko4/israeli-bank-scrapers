@@ -14,13 +14,18 @@ import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
 import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
 import { OTP_STEP } from './Phases/OtpPhase.js';
-import { createScrapeStep, SCRAPE_STEP } from './Phases/ScrapePhase.js';
+import {
+  createConfigScrapeStep,
+  createCustomScrapeStep,
+  SCRAPE_STEP,
+} from './Phases/ScrapePhase.js';
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import { none } from './Types/Option.js';
 import type { IPhaseDefinition, PhaseName } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
+import type { IScrapeConfig, IScrapeConfigBase } from './Types/ScrapeConfig.js';
 
 /** Function signature for direct-POST login (Amex/Isracard). */
 type DirectPostLoginFn = (
@@ -79,6 +84,8 @@ class PipelineBuilder {
   private _hasDashboard = false;
 
   private _scrapeFn: ScrapeFn | false = false;
+
+  private _scrapeConfig: IScrapeConfigBase | false = false;
 
   private _hasScraper = false;
 
@@ -174,6 +181,19 @@ class PipelineBuilder {
   }
 
   /**
+   * Set generic scrape config (URLs + mappers, pipeline handles fetch).
+   * @param config - The bank's IScrapeConfig.
+   * @returns This builder for chaining.
+   */
+  public withScrapeConfig<TA extends object, TT extends object>(
+    config: IScrapeConfig<TA, TT>,
+  ): this {
+    this._hasScraper = true;
+    this._scrapeConfig = config as IScrapeConfigBase;
+    return this;
+  }
+
+  /**
    * Build the pipeline descriptor with ordered phases.
    * @returns The assembled pipeline descriptor.
    */
@@ -238,7 +258,8 @@ class PipelineBuilder {
    * @returns The scrape pipeline step.
    */
   private resolveScrapeStep(): CtxPhase['action'] {
-    if (this._scrapeFn) return createScrapeStep(this._scrapeFn);
+    if (this._scrapeConfig) return createConfigScrapeStep(this._scrapeConfig);
+    if (this._scrapeFn) return createCustomScrapeStep(this._scrapeFn);
     return SCRAPE_STEP;
   }
 
