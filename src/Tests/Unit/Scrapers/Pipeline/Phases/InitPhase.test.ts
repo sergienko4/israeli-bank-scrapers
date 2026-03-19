@@ -192,6 +192,31 @@ describe('InitPhase/success', () => {
   });
 });
 
+describe('InitPhase/cleanups', () => {
+  it('cleanup functions close page, context, browser', async () => {
+    const { mockBrowser, mockContext, mockPage } = MAKE_BROWSER_MOCK();
+    const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+    launchFn.mockResolvedValue(mockBrowser);
+    const ctx = MAKE_MOCK_CONTEXT();
+    const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const browserState = result.value.browser;
+    if (!browserState.has) return;
+    const cleanups = browserState.value.cleanups;
+    expect(cleanups).toHaveLength(3);
+    const didClosePage = await cleanups[0]();
+    expect(didClosePage).toBe(true);
+    expect(mockPage.close).toHaveBeenCalled();
+    const didCloseContext = await cleanups[1]();
+    expect(didCloseContext).toBe(true);
+    expect(mockContext.close).toHaveBeenCalled();
+    const didCloseBrowser = await cleanups[2]();
+    expect(didCloseBrowser).toBe(true);
+    expect(mockBrowser.close).toHaveBeenCalled();
+  });
+});
+
 describe('InitPhase/error', () => {
   it('returns fail when launchCamoufox throws', async () => {
     const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;

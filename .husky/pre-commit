@@ -112,7 +112,8 @@ MIGRATED_BANKS=""
 log ""
 log "🧪 Phase 3a: Pipeline infrastructure (unit + coverage)..."
 $JEST_CMD \
-  --testPathPatterns='Pipeline/Infrastructure' \
+  --testPathPatterns='Pipeline' \
+  --coverage --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
   2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
@@ -125,7 +126,7 @@ if [ -n "$MIGRATED_BANKS" ]; then
   log ""
   log "🧪 Phase 3b: Migrated bank unit tests ($MIGRATED_BANKS)..."
   $JEST_CMD \
-    --testPathPatterns="Unit/Pipeline/bank/($MIGRATED_BANKS)" \
+    --testPathPatterns="Unit/Pipeline/bank/($MIGRATED_BANKS)" --coverage \
     2>&1 | tee -a "$LOG_FILE"
 
   if [ "${PIPESTATUS[0]}" -ne 0 ]; then

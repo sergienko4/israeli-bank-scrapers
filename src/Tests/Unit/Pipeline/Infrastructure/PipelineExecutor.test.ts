@@ -240,3 +240,29 @@ describe('PipelineExecutor/returns-promise', () => {
     expect(promise).toBeInstanceOf(Promise);
   });
 });
+
+describe('PipelineExecutor/persistentOtpToken', () => {
+  it('includes persistentOtpToken in result when login state has it', async () => {
+    /**
+     * Set login.persistentOtpToken in context.
+     * @param _ctx - Pipeline context (unused).
+     * @param input - Input to extend with OTP token.
+     * @returns Context with persistentOtpToken set.
+     */
+    const setOtpExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+      const loginState = { activeFrame: {} as never, persistentOtpToken: some('TOKEN123') };
+      const result = succeed({ ...input, login: some(loginState) });
+      return Promise.resolve(result);
+    };
+    const phase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: { name: 'login-action', execute: setOtpExecute },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([phase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.persistentOtpToken).toBe('TOKEN123');
+  });
+});
