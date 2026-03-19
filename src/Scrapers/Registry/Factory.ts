@@ -16,13 +16,18 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
 
 /**
  * Try creating a pipeline scraper if usePipeline is enabled.
+ * Throws if the bank is not registered — no silent fallback to old code.
  * @param options - Scraper configuration.
- * @returns A PipelineScraper if the bank is migrated, false otherwise.
+ * @returns A PipelineScraper for the registered bank.
+ * @throws ScraperError if usePipeline is true but the bank has no pipeline factory.
  */
 function tryPipeline(options: ScraperOptions): IScraper<ScraperCredentials> | false {
   if (!options.usePipeline) return false;
   const pipelineFactory = PIPELINE_REGISTRY[options.companyId];
-  if (!pipelineFactory) return false;
+  if (!pipelineFactory) {
+    const id = options.companyId as string;
+    throw new ScraperError(`Bank '${id}' is not in PIPELINE_REGISTRY — migrate it first`);
+  }
   return new PipelineScraper(options, pipelineFactory);
 }
 

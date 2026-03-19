@@ -1,6 +1,7 @@
 /**
  * Real E2E test — runs Discount + VisaCal through the new Pipeline architecture.
- * Usage: npx tsx scripts/pipeline-e2e.ts
+ * Usage: npx tsx scripts/pipeline-e2e.ts [bank]
+ * [bank]: optional — 'discount', 'visacal', or omit to run both.
  */
 
 import 'dotenv/config';
@@ -65,30 +66,38 @@ async function runBank(
 }
 
 async function main(): Promise<void> {
-  const discountId = process.env['DISCOUNT_ID'] ?? '';
-  const discountPw = process.env['DISCOUNT_PASSWORD'] ?? '';
-  const discountNum = process.env['DISCOUNT_NUM'] ?? '';
+  const bankFilter = (process.argv[2] ?? 'all').toLowerCase();
+  const runDiscount = bankFilter === 'all' || bankFilter === 'discount';
+  const runVisaCal = bankFilter === 'all' || bankFilter === 'visacal';
 
-  if (discountId && discountPw && discountNum) {
-    await runBank('Discount', CompanyTypes.Discount, {
-      id: discountId,
-      password: discountPw,
-      num: discountNum,
-    });
-  } else {
-    console.log('Skipping Discount — missing DISCOUNT_ID/PASSWORD/NUM in .env');
+  if (runDiscount) {
+    const discountId = process.env['DISCOUNT_ID'] ?? '';
+    const discountPw = process.env['DISCOUNT_PASSWORD'] ?? '';
+    const discountNum = process.env['DISCOUNT_NUM'] ?? '';
+
+    if (discountId && discountPw && discountNum) {
+      await runBank('Discount', CompanyTypes.Discount, {
+        id: discountId,
+        password: discountPw,
+        num: discountNum,
+      });
+    } else {
+      console.log('Skipping Discount — missing DISCOUNT_ID/PASSWORD/NUM in .env');
+    }
   }
 
-  const visaCalUser = process.env['VISACAL_USERNAME'] ?? '';
-  const visaCalPw = process.env['VISACAL_PASSWORD'] ?? '';
+  if (runVisaCal) {
+    const visaCalUser = process.env['VISACAL_USERNAME'] ?? '';
+    const visaCalPw = process.env['VISACAL_PASSWORD'] ?? '';
 
-  if (visaCalUser && visaCalPw) {
-    await runBank('VisaCal', CompanyTypes.VisaCal, {
-      username: visaCalUser,
-      password: visaCalPw,
-    });
-  } else {
-    console.log('Skipping VisaCal — missing VISACAL_USERNAME/PASSWORD in .env');
+    if (visaCalUser && visaCalPw) {
+      await runBank('VisaCal', CompanyTypes.VisaCal, {
+        username: visaCalUser,
+        password: visaCalPw,
+      });
+    } else {
+      console.log('Skipping VisaCal — missing VISACAL_USERNAME/PASSWORD in .env');
+    }
   }
 }
 

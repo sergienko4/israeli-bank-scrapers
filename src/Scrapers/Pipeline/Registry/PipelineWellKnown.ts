@@ -170,6 +170,8 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
     { kind: 'textContent', value: 'או לשחזר בקלות' },
     { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
     { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
+    // VisaCal connect-iframe error
+    { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
   ],
   closeElement: [
     { kind: 'textContent', value: 'סגור' },
