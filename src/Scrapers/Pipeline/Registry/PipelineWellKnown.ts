@@ -124,6 +124,11 @@ export const PIPELINE_WELL_KNOWN_LOGIN = {
     { kind: 'textContent', value: 'קוד חד פעמי' },
     { kind: 'textContent', value: 'קוד אימות' },
   ],
+  /** Login method selection tab — click to navigate to username+password form. */
+  loginMethodTab: [
+    { kind: 'textContent', value: 'כניסה עם שם משתמש' },
+    { kind: 'textContent', value: 'כניסה עם סיסמה' },
+  ],
   /** Universal submit-button fallback — visible text only, zero CSS. */
   __submit__: [
     // --- visible text ---

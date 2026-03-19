@@ -5,7 +5,10 @@
  *
  * Login flow:
  *   checkReadiness: wait for "כניסה לחשבון" link (WellKnown)
- *   preAction:      click link → connect iframe appears → click inside to open form
+ *   preAction:      click homepage link → connect iframe appears (returned as activeFrame)
+ *   preLogin:       generic tryClickLoginMethodTab — if iframe is on send-otp, clicks
+ *                   "כניסה עם שם משתמש" tab to navigate to credentials form; skips if
+ *                   iframe is already on regular-login (A/B test — both paths handled)
  *   loginAction:    fill username + password via WellKnown labelText → click submit
  *   postLogin:      generic checkFrameForErrors (WellKnown errorIndicator in frame)
  *                   + postAction waits for page to settle after auth
@@ -90,7 +93,9 @@ const VISACAL_LOGIN: ILoginConfig = {
     await checkReadiness(page);
   },
   /**
-   * Click login link → wait for connect iframe → click inside to open form.
+   * Click homepage login link → wait for connect iframe → return iframe as activeFrame.
+   * Tab navigation (send-otp → regular-login) is handled generically by tryClickLoginMethodTab
+   * in executePreLogin after this callback returns.
    * @param page - Browser page.
    * @returns The connect iframe as activeFrame for field resolution.
    */
@@ -104,7 +109,6 @@ const VISACAL_LOGIN: ILoginConfig = {
     const isConnect = (f: Frame): boolean => f.url().includes('connect');
     const iframeOpts = { timeout: 45000, description: 'connect iframe' };
     const frame = await waitUntilIframeFound(page, isConnect, iframeOpts);
-    await openLoginForm(frame);
     return frame;
   },
   /**

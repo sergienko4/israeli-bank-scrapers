@@ -18,6 +18,7 @@ import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -70,6 +71,32 @@ async function runPreAction(page: Page, config: ILoginConfig): Promise<Page | Fr
 }
 
 /**
+ * Try to click the login method selection tab if present on the current page.
+ * Generic for ALL banks — banks without a method-selection page: all candidates
+ * reject within 2s (timeout) and the function silently returns false.
+ * Banks with a tab (e.g. VisaCal send-otp): clicks "כניסה עם שם משתמש" or
+ * "כניסה עם סיסמה" and returns true, navigating to the credentials form.
+ * Uses PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab — zero CSS, visible text only.
+ * @param activeFrame - Page or iframe returned by preAction.
+ * @returns True if a tab was found and clicked, false if not present.
+ */
+export async function tryClickLoginMethodTab(activeFrame: Page | Frame): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
+  const locators = candidates.map(c => activeFrame.getByText(c.value).first());
+  try {
+    const waiters = locators.map(async (loc, i): Promise<number> => {
+      await loc.waitFor({ state: 'visible', timeout: 2000 });
+      return i;
+    });
+    const idx = await Promise.any(waiters);
+    await locators[idx].click();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Execute the preLogin step body.
  * @param config - Bank's login config.
  * @param input - Current pipeline context.
@@ -84,6 +111,7 @@ async function executePreLogin(
   await navigateToLogin(page, config.loginUrl);
   await runCheckReadiness(page, config);
   const activeFrame = await runPreAction(page, config);
+  await tryClickLoginMethodTab(activeFrame);
   const loginState = { activeFrame, persistentOtpToken: none() };
   return succeed({ ...input, login: some(loginState) });
 }
