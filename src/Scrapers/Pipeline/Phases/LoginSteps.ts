@@ -15,9 +15,12 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
-import type { ILoginPossibleResults } from '../../Base/Interfaces/LoginPossibleResults.js';
+import { discoverFormErrors } from '../Mediator/FormErrorDiscovery.js';
 import { resolveFieldPipeline } from '../Mediator/PipelineFieldResolver.js';
-import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
+import {
+  PIPELINE_WELL_KNOWN_DASHBOARD,
+  PIPELINE_WELL_KNOWN_LOGIN,
+} from '../Registry/PipelineWellKnown.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -27,14 +30,11 @@ import { fail, succeed } from '../Types/Procedure.js';
 // ── Types ──────────────────────────────────────────────────
 
 /** Options for filling a single credential field. */
-interface IFillOpts {
+export interface IFillOpts {
   readonly credentialKey: string;
   readonly value: string;
   readonly selectors: readonly SelectorCandidate[];
 }
-
-/** Condition type alias for possible login result checks. */
-type ResultCondition = NonNullable<ILoginPossibleResults['invalidPassword']>[number];
 
 // ── preLogin helpers ───────────────────────────────────────
 
@@ -239,16 +239,57 @@ function createLoginActionStep(
 
 // ── postLogin helpers ──────────────────────────────────────
 
+/** Result of checking the login form area for visible error text. */
+export interface IFrameErrorResult {
+  readonly found: boolean;
+  readonly text: string;
+}
+
+/** Negative result — no error found. */
+const NO_ERROR: IFrameErrorResult = { found: false, text: '' };
+
 /**
- * Wait for page URL to settle after form submit.
- * @param page - Browser page.
- * @returns True after wait completes.
+ * Check one WellKnown error candidate for visibility in a frame.
+ * @param frameOrPage - Page or frame where the form was submitted.
+ * @param value - The error text to look for.
+ * @returns IFrameErrorResult with found=true if the error is visible.
  */
-async function waitAfterSubmit(page: Page): Promise<boolean> {
+async function checkOneError(frameOrPage: Page | Frame, value: string): Promise<IFrameErrorResult> {
+  const locator = frameOrPage.getByText(value);
+  const first = locator.first();
+  const isErrorVisible = await first.isVisible().catch(() => false);
+  return isErrorVisible ? { found: true, text: value } : NO_ERROR;
+}
+
+/**
+ * Search the active frame for WellKnown error indicators.
+ * Generic for ALL banks — WellKnown owns the error text, banks provide nothing.
+ * Handles detached frames gracefully (isVisible catch → not found).
+ * @param frameOrPage - Page or frame where the login form was submitted.
+ * @returns IFrameErrorResult with the first visible error text, or found=false.
+ */
+export async function checkFrameForErrors(frameOrPage: Page | Frame): Promise<IFrameErrorResult> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator;
+  const initial: Promise<IFrameErrorResult> = Promise.resolve(NO_ERROR);
+  return candidates.reduce<Promise<IFrameErrorResult>>(async (prev, candidate) => {
+    const result = await prev;
+    if (result.found) return result;
+    return checkOneError(frameOrPage, candidate.value);
+  }, initial);
+}
+
+/**
+ * Wait for the page to reach networkidle after form submission.
+ * Uses networkidle instead of waitForURL('**') to avoid SPA hash-routing false positives
+ * (Angular/React apps already have a '#' URL before the form is submitted).
+ * @param page - Browser main page.
+ * @returns True after settling or timeout.
+ */
+export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
   try {
-    await page.waitForURL('**', { timeout: 15000, waitUntil: 'commit' });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
   } catch {
-    // Navigation may already have happened
+    // Timeout is OK — SPA may stay "loading"; proceed and check frame for errors
   }
   return true;
 }
@@ -265,66 +306,8 @@ async function runPostAction(page: Page, config: ILoginConfig): Promise<boolean>
 }
 
 /**
- * Test a single result condition against URL/page.
- * @param condition - String, RegExp, or async function.
- * @param url - Current page URL.
- * @param page - Browser page (for function conditions).
- * @returns True if condition matches.
- */
-async function testCondition(
-  condition: ResultCondition,
-  url: string,
-  page: Page,
-): Promise<boolean> {
-  if (typeof condition === 'string') {
-    const urlLower = url.toLowerCase();
-    const condLower = condition.toLowerCase();
-    return urlLower.includes(condLower);
-  }
-  if (condition instanceof RegExp) return condition.test(url);
-  const isMatch = condition({ page });
-  return isMatch;
-}
-
-/**
- * Check a list of conditions sequentially, returning true on first match.
- * @param conditions - Array of result conditions to test.
- * @param url - Current page URL.
- * @param page - Browser page.
- * @returns True if any condition matches.
- */
-async function checkConditions(
-  conditions: readonly ResultCondition[],
-  url: string,
-  page: Page,
-): Promise<boolean> {
-  const initial = Promise.resolve(false);
-  return conditions.reduce<Promise<boolean>>(async (prev, cond) => {
-    if (await prev) return true;
-    return testCondition(cond, url, page);
-  }, initial);
-}
-
-/**
- * Check possibleResults against current page state.
- * @param page - Browser page.
- * @param config - Login config with possibleResults.
- * @returns Procedure — success or specific error type.
- */
-async function checkResult(page: Page, config: ILoginConfig): Promise<Procedure<boolean>> {
-  const url = page.url();
-  const { invalidPassword = [], changePassword = [] } = config.possibleResults;
-  if (await checkConditions(invalidPassword, url, page)) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Login failed: ${url}`);
-  }
-  if (await checkConditions(changePassword, url, page)) {
-    return fail(ScraperErrorTypes.ChangePassword, `Password change required: ${url}`);
-  }
-  return succeed(true);
-}
-
-/**
  * Execute the postLogin step body.
+ * Generic: wait for settle → check frame for errors via WellKnown → run bank postAction.
  * @param config - Bank's login config.
  * @param input - Context from loginAction.
  * @returns Success or login error.
@@ -335,9 +318,19 @@ async function executePostLogin(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for postLogin');
   const page = input.browser.value.page;
-  await waitAfterSubmit(page);
-  const resultCheck = await checkResult(page, config);
-  if (!resultCheck.ok) return resultCheck;
+  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login state for postLogin');
+  const activeFrame = input.login.value.activeFrame;
+  await waitForSubmitToSettle(page);
+  // Layer 1: dynamic DOM scan — catches any visible form error regardless of text
+  const domScan = await discoverFormErrors(activeFrame);
+  if (domScan.hasErrors) {
+    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${domScan.summary}`);
+  }
+  // Layer 2: WellKnown text fallback — catches banks without standard error markup
+  const frameError = await checkFrameForErrors(activeFrame);
+  if (frameError.found) {
+    return fail(ScraperErrorTypes.InvalidPassword, `Login error: ${frameError.text}`);
+  }
   await runPostAction(page, config);
   return succeed(input);
 }
