@@ -203,6 +203,7 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
     { kind: 'textContent', value: 'שינוי סיסמה' },
     { kind: 'textContent', value: 'חידוש סיסמה' },
     { kind: 'textContent', value: 'עדכון סיסמה' },
+    { kind: 'textContent', value: 'סיסמה פגה' },
   ],
   privateCustomers: [
     { kind: 'textContent', value: 'לקוחות פרטיים' },

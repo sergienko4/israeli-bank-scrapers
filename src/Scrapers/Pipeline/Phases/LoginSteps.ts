@@ -336,6 +336,7 @@ async function executePostLogin(
   const activeFrame = input.login.value.activeFrame;
   const mediator = input.mediator.value;
   await waitForSubmitToSettle(page);
+  await mediator.waitForLoadingDone(activeFrame);
   const errors = await mediator.discoverErrors(activeFrame);
   if (errors.hasErrors) {
     return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${errors.summary}`);

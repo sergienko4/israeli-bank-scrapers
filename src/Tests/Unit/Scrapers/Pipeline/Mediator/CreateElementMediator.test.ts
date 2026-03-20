@@ -251,3 +251,36 @@ describe('createElementMediator/scopeToForm', () => {
     expect(result).toEqual([scopedCandidate]);
   });
 });
+
+// ── waitForLoadingDone ───────────────────────────────────
+
+describe('createElementMediator/waitForLoadingDone', () => {
+  it('returns immediately when no loading indicator is visible', async () => {
+    const page = FACTORY.makeMockFullPage();
+    const mediator = MED_MOD.createElementMediator(page);
+    const isDone = await mediator.waitForLoadingDone(page);
+    expect(isDone).toBe(true);
+  });
+
+  it.each([
+    { label: 'clears after retry', visibleUntil: 2 },
+    { label: 'proceeds after max retries', visibleUntil: 999 },
+  ] as const)(
+    /**
+     * Parametrized: loading indicator visible until call N, then hidden.
+     * @param label - Test description.
+     * @param visibleUntil - Number of isVisible calls that return true.
+     */
+    '$label',
+    async ({ visibleUntil }) => {
+      let callCount = 0;
+      const page = FACTORY.makeMockLoadingPage(() => {
+        callCount++;
+        return callCount <= visibleUntil;
+      });
+      const mediator = MED_MOD.createElementMediator(page);
+      const isDone = await mediator.waitForLoadingDone(page);
+      expect(isDone).toBe(true);
+    },
+  );
+});

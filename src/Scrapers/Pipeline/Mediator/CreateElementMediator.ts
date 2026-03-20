@@ -11,6 +11,7 @@ import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, some } from '../Types/Option.js';
 import { fail, succeed } from '../Types/Procedure.js';
@@ -84,6 +85,56 @@ function buildDiscoverErrors(): IElementMediator['discoverErrors'] {
   };
 }
 
+/** Delay between loading indicator checks in milliseconds. */
+const LOADING_DELAY_MS = 2000;
+
+/**
+ * Check if any WellKnown loading indicator is currently visible.
+ * Probes all candidates in parallel via Promise.all.
+ * @param frame - Page or Frame to check.
+ * @returns True if a loading indicator is visible.
+ */
+async function isAnyLoadingVisible(frame: Page | Frame): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loadingIndicator;
+  const checks = candidates.map(c => {
+    const locator = frame.getByText(c.value).first();
+    return locator.isVisible().catch(() => false);
+  });
+  const results = await Promise.all(checks);
+  return results.some(Boolean);
+}
+
+/**
+ * Wait once for loading indicators to disappear, then re-check.
+ * @param frame - Page or Frame.
+ * @param attempt - Current attempt number (for logging).
+ * @returns True if loading is gone, false if still present.
+ */
+async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise<boolean> {
+  const isLoading = await isAnyLoadingVisible(frame);
+  if (!isLoading) return true;
+  LOG.debug('loading indicator visible, waiting %dms (attempt %d)', LOADING_DELAY_MS, attempt);
+  await frame.waitForTimeout(LOADING_DELAY_MS);
+  return false;
+}
+
+/**
+ * Build waitForLoadingDone method.
+ * Checks WellKnown loadingIndicator candidates, waits up to 2×2s for them to disappear.
+ * Uses recursive check instead of await-in-loop.
+ * @returns Mediator waitForLoadingDone function.
+ */
+function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
+  return async (frame: Page | Frame): Promise<boolean> => {
+    const isDone1 = await waitOnceForLoading(frame, 1);
+    if (isDone1) return true;
+    const isDone2 = await waitOnceForLoading(frame, 2);
+    if (isDone2) return true;
+    await waitOnceForLoading(frame, 3);
+    return true;
+  };
+}
+
 /**
  * Build discoverForm method with per-instance cache.
  * @param page - The Playwright page.
@@ -132,6 +183,7 @@ function createElementMediator(page: Page): IElementMediator {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
     discoverErrors: buildDiscoverErrors(),
+    waitForLoadingDone: buildWaitForLoadingDone(),
     discoverForm: buildDiscoverForm(page, cache),
     scopeToForm: buildScopeToForm(cache),
   };

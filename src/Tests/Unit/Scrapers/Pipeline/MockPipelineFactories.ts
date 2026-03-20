@@ -129,6 +129,44 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
 }
 
 /**
+ * Create a mock Page where getByText().isVisible() is controlled by a callback.
+ * Used for testing waitForLoadingDone retry logic.
+ * @param isVisibleFn - Returns true when loading indicator should appear visible.
+ * @returns Mock Page with controllable loading visibility.
+ */
+export function makeMockLoadingPage(isVisibleFn: () => boolean): Page {
+  const base = makeMockFullPage();
+  return {
+    ...base,
+    /**
+     * Return locator whose isVisible delegates to isVisibleFn.
+     * @returns GetByText mock with controllable visibility.
+     */
+    getByText: (): typeof MOCK_GET_BY_TEXT => ({
+      /**
+       * Return first locator with controllable isVisible.
+       * @returns Locator mock.
+       */
+      first: (): object => ({
+        /**
+         * Delegate visibility to the provided callback.
+         * @returns Whether loading indicator should appear visible.
+         */
+        isVisible: (): Promise<boolean> => {
+          const isVisible = isVisibleFn();
+          return Promise.resolve(isVisible);
+        },
+      }),
+    }),
+    /**
+     * No-op timeout mock for retry delays.
+     * @returns Resolved true.
+     */
+    waitForTimeout: (): Promise<boolean> => Promise.resolve(true),
+  } as unknown as Page;
+}
+
+/**
  * Create a mock BrowserContext.
  * @param page - The page returned by newPage().
  * @returns Mock BrowserContext.
@@ -266,6 +304,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns No-errors scan result.
      */
     discoverErrors: (): Promise<IFormErrorScanResult> => Promise.resolve(MEDIATOR_NO_ERRORS),
+    /**
+     * Loading done immediately — no spinners in tests.
+     * @returns Resolved true.
+     */
+    waitForLoadingDone: (): Promise<boolean> => Promise.resolve(true),
     /**
      * Return none option.
      * @returns Resolved none.

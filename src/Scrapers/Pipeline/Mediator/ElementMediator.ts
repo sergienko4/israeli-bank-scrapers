@@ -47,6 +47,13 @@ interface IElementMediator {
    */
   discoverErrors(frame: Page | Frame): Promise<IFormErrorScanResult>;
 
+  /**
+   * Wait for loading indicators to disappear from the given frame.
+   * Uses WellKnown loadingIndicator candidates. Retries up to 2 times with 2s delay.
+   * Generic — works for any bank after form submit, OTP, or dashboard navigation.
+   */
+  waitForLoadingDone(frame: Page | Frame): Promise<boolean>;
+
   /** Discover and cache the form anchor from a resolved field. */
   discoverForm(resolvedContext: IFieldContext): Promise<Option<IFormAnchor>>;
 
