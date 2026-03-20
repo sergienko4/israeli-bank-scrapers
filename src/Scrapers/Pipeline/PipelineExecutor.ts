@@ -144,7 +144,8 @@ function wrapError(error: unknown): Procedure<IPipelineContext> {
  * @returns Legacy result with accounts and OTP token.
  */
 function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
-  const accounts = ctx.scrape.has ? [...ctx.scrape.value.accounts] : [];
+  const hasScrape = ctx.scrape.has;
+  const accounts = hasScrape ? [...ctx.scrape.value.accounts] : [];
   const base: IScraperScrapingResult = { success: true, accounts };
   if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
     base.persistentOtpToken = ctx.login.value.persistentOtpToken.value;

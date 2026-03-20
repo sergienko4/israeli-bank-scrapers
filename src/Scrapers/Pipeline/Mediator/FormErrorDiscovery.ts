@@ -90,12 +90,11 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
       return els.map(el => {
         const cs = window.getComputedStyle(el);
         const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-        return {
-          tag: el.tagName.toLowerCase(),
-          cls: el.className || '',
-          text: (el.textContent || '').trim(),
-          isHidden,
-        };
+        const rawCls = el.className;
+        const cls = rawCls || '';
+        const rawText = el.textContent;
+        const text = rawText ? rawText.trim() : '';
+        return { tag: el.tagName.toLowerCase(), cls, text, isHidden };
       });
     },
     { sel: ERROR_SELECTOR },
