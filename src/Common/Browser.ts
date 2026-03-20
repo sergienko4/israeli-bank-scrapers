@@ -1,6 +1,11 @@
 import { type BrowserContextOptions } from 'playwright-core';
 
-import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
+import {
+  DESKTOP_VIEWPORT_HEIGHT,
+  DESKTOP_VIEWPORT_WIDTH,
+  ISRAEL_LOCALE,
+  ISRAEL_TIMEZONE,
+} from './Config/BrowserConfig.js';
 
 export { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from './Config/BrowserConfig.js';
 
@@ -15,6 +20,6 @@ export function buildContextOptions(): BrowserContextOptions {
     locale: ISRAEL_LOCALE,
     timezoneId: ISRAEL_TIMEZONE,
     javaScriptEnabled: true,
-    viewport: { width: 1920, height: 1080 },
+    viewport: { width: DESKTOP_VIEWPORT_WIDTH, height: DESKTOP_VIEWPORT_HEIGHT },
   };
 }
