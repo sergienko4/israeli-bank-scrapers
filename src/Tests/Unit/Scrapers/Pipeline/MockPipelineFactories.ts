@@ -386,7 +386,6 @@ export function makeMockScrapeConfig(
      * @returns Empty headers object.
      */
     extraHeaders: () => ({}),
-    fetchMode: 'sequential',
   };
 }
 

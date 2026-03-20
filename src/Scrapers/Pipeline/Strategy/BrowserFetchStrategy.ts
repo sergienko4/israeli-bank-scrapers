@@ -78,6 +78,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     try {
       const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
+      // FUTURE: pass opts.extraHeaders to fetchGetWithinPage when Common/Fetch supports GET headers
       const shouldIgnoreErrors = hasHeaders;
       const result = await fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors);
       if (result) return succeed(result);

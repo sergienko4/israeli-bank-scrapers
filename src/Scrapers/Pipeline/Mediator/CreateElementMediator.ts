@@ -137,14 +137,15 @@ function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
 
 /**
  * Build discoverForm method with per-instance cache.
- * @param page - The Playwright page.
+ * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
  * @param cache - Mutable form cache owned by this mediator instance.
  * @returns Mediator discoverForm function.
  */
-function buildDiscoverForm(page: Page, cache: IFormCache): IElementMediator['discoverForm'] {
+function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
   return async (resolvedContext: IFieldContext) => {
     try {
-      const anchor = await discoverFormAnchor(page, resolvedContext.selector);
+      const ctx = resolvedContext.context;
+      const anchor = await discoverFormAnchor(ctx, resolvedContext.selector);
       if (anchor) {
         cache.selector = anchor.selector;
         return some(anchor);
@@ -184,7 +185,7 @@ function createElementMediator(page: Page): IElementMediator {
     resolveClickable: buildResolveClickable(page),
     discoverErrors: buildDiscoverErrors(),
     waitForLoadingDone: buildWaitForLoadingDone(),
-    discoverForm: buildDiscoverForm(page, cache),
+    discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
   };
 }

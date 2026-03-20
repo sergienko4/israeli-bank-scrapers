@@ -85,7 +85,6 @@ describe('PipelineBuilder/withScrapeConfig', () => {
        * @returns Empty object.
        */
       extraHeaders: (): Record<string, string> => ({}),
-      fetchMode: 'sequential' as const,
     };
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)

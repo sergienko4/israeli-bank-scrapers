@@ -71,8 +71,6 @@ interface IScrapeConfig<TAccountsRaw, TTxnRaw> {
   readonly defaultCurrency: string;
   /** Extra HTTP headers for API calls (e.g., auth tokens). */
   readonly extraHeaders: (ctx: IPipelineContext) => Record<string, string>;
-  /** Whether to fetch accounts sequentially or in parallel. */
-  readonly fetchMode: 'sequential' | 'parallel';
 }
 
 /**

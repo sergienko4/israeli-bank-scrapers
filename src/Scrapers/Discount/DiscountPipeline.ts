@@ -143,7 +143,6 @@ const DISCOUNT_SCRAPE_CONFIG: IScrapeConfig<IDiscountAccountsRaw, IDiscountTxnRa
    * @returns Empty headers object.
    */
   extraHeaders: () => ({}),
-  fetchMode: 'sequential',
 };
 
 /** Discount login portal URL. */

@@ -41,12 +41,6 @@ interface IRawDomProps {
   placeholder: string;
 }
 
-/** Evaluate argument combining the selector and fallback empty props. */
-interface IEvalArg {
-  sel: string;
-  empty: IRawDomProps;
-}
-
 /** Empty DOM props used as fallback when element is not found. */
 const EMPTY_DOM_PROPS: IRawDomProps = {
   id: '',
@@ -63,31 +57,29 @@ const EMPTY_DOM_PROPS: IRawDomProps = {
 export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible: false };
 
 /**
- * Extract raw DOM properties from an element via page.evaluate.
- * Passes an empty fallback to avoid returning null from the browser-side callback.
+ * Extract raw DOM properties from a resolved element via locator.evaluate.
+ * Uses Playwright locator (not querySelector) — works for any selector type including xpath.
  * @param ctx - Page or Frame containing the element.
- * @param selector - CSS selector identifying the element.
- * @returns Raw DOM properties object.
+ * @param selector - Any Playwright selector (CSS, xpath, text, etc.).
+ * @returns Raw DOM properties object, or empty props if element not found.
  */
 async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRawDomProps> {
-  return ctx.evaluate(
-    ({ sel, empty }: IEvalArg): IRawDomProps => {
-      const el = document.querySelector(sel);
-      if (!el) return empty;
-      const input = el as HTMLInputElement;
-      return {
-        id: el.id,
-        className: el.className,
-        tagName: el.tagName.toLowerCase(),
-        type: input.type,
-        name: input.name,
-        formId: el.closest('form')?.id ?? '',
-        ariaLabel: el.getAttribute('aria-label') ?? '',
-        placeholder: input.placeholder,
-      };
-    },
-    { sel: selector, empty: EMPTY_DOM_PROPS },
-  );
+  const locator = ctx.locator(selector).first();
+  const isAttached = await locator.isVisible().catch(() => false);
+  if (!isAttached) return EMPTY_DOM_PROPS;
+  return locator.evaluate((el: Element): IRawDomProps => {
+    const input = el as HTMLInputElement;
+    return {
+      id: el.id,
+      className: el.className,
+      tagName: el.tagName.toLowerCase(),
+      type: input.type,
+      name: input.name,
+      formId: el.closest('form')?.id ?? '',
+      ariaLabel: el.getAttribute('aria-label') ?? '',
+      placeholder: input.placeholder,
+    };
+  });
 }
 
 /**

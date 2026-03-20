@@ -156,6 +156,7 @@ class PipelineBuilder {
    */
   public withOtp(config: OtpConfig): this {
     this._hasOtp = true;
+    // FUTURE: wire _otpConfig to createOtpStep when real OTP is implemented
     this._otpConfig = config;
     return this;
   }

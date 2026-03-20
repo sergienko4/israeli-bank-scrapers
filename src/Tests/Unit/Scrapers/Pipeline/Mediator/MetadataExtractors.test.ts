@@ -59,28 +59,28 @@ const EMPTY_PROPS: IRawProps = {
 function makeMockCtx(props: IRawProps, isVisible = true, visibleThrows = false): Page | Frame {
   return {
     /**
-     * Return evaluate result from mock.
-     * @returns Resolved props.
-     */
-    evaluate: (): Promise<IRawProps> => Promise.resolve(props),
-    /**
-     * Return a minimal locator mock.
-     * @returns Locator with first().isVisible().
+     * Return a mock locator with isVisible + evaluate support.
+     * @returns Locator mock matching Playwright API.
      */
     locator: () => ({
       /**
        * Return first-element locator.
-       * @returns First locator with isVisible.
+       * @returns First locator with isVisible and evaluate.
        */
       first: () => ({
         /**
          * Return isVisible based on test setup.
-         * @returns Promise<boolean>.
+         * @returns Promise boolean.
          */
         isVisible: (): Promise<boolean> =>
           visibleThrows
             ? Promise.reject(new Error('locator detached'))
             : Promise.resolve(isVisible),
+        /**
+         * Return mock props as if extracted from DOM.
+         * @returns Resolved props.
+         */
+        evaluate: (): Promise<IRawProps> => Promise.resolve(props),
       }),
     }),
   } as unknown as Page;
@@ -194,17 +194,33 @@ function makeJsdomCtx(html: string, isVisible = true): Page | Frame {
      * Return locator mock.
      * @returns Locator with first().isVisible().
      */
-    locator: (): object => ({
+    /**
+     * Return locator that resolves against JSDOM document.
+     * @param selector - CSS selector to locate.
+     * @returns Locator mock with first().isVisible() and first().evaluate().
+     */
+    locator: (selector: string): object => ({
       /**
-       * Return first-element locator.
-       * @returns First locator.
+       * Return first-element locator with evaluate and isVisible.
+       * @returns First locator mock.
        */
       first: (): object => ({
         /**
-         * Return visibility state.
-         * @returns Promise<boolean>.
+         * Return visibility based on test setup.
+         * @returns Visibility state.
          */
         isVisible: (): Promise<boolean> => Promise.resolve(isVisible),
+        /**
+         * Run callback with the matched DOM element.
+         * @param fn - Callback receiving the DOM element.
+         * @returns Resolved callback result.
+         */
+        evaluate: <T>(fn: (el: Element) => T): Promise<T> => {
+          const el = domDoc.querySelector(selector);
+          if (!el) return Promise.reject(new TypeError('Element not found'));
+          const result = fn(el);
+          return Promise.resolve(result);
+        },
       }),
     }),
   } as unknown as Page;
