@@ -5,7 +5,8 @@
 
 import { jest } from '@jest/globals';
 
-// Static import of non-mocked factory — safe because MockPipelineFactories has no mocked deps.
+// Static imports of non-mocked factories — safe with jest.unstable_mockModule.
+import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
 jest.unstable_mockModule('../../../../../Common/CamoufoxLauncher.js', () => ({
@@ -108,11 +109,7 @@ describe('InitPhase/headless', () => {
     const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT({
-      options: {
-        companyId: 'test' as never,
-        startDate: new Date(),
-        shouldShowBrowser: true,
-      } as never,
+      options: makeMockOptions({ shouldShowBrowser: true }),
     });
     await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(launchFn).toHaveBeenCalledWith(false);
@@ -126,11 +123,7 @@ describe('InitPhase/prepareBrowser', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const prepBrowser = jest.fn().mockResolvedValue(undefined);
     const ctx = MAKE_MOCK_CONTEXT({
-      options: {
-        companyId: 'test' as never,
-        startDate: new Date(),
-        prepareBrowser: prepBrowser,
-      } as never,
+      options: makeMockOptions({ prepareBrowser: prepBrowser }),
     });
     await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(prepBrowser).toHaveBeenCalledWith(mockBrowser);
@@ -152,11 +145,7 @@ describe('InitPhase/setupPage', () => {
     const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT({
-      options: {
-        companyId: 'test' as never,
-        startDate: new Date(),
-        defaultTimeout: 30000,
-      } as never,
+      options: makeMockOptions({ defaultTimeout: 30000 }),
     });
     await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(mockPage.setDefaultTimeout).toHaveBeenCalledWith(30000);
@@ -177,11 +166,7 @@ describe('InitPhase/setupPage', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const prepPage = jest.fn().mockResolvedValue(undefined);
     const ctx = MAKE_MOCK_CONTEXT({
-      options: {
-        companyId: 'test' as never,
-        startDate: new Date(),
-        preparePage: prepPage,
-      } as never,
+      options: makeMockOptions({ preparePage: prepPage }),
     });
     await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(prepPage).toHaveBeenCalled();
