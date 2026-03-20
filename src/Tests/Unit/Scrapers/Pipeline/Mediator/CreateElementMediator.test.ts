@@ -246,7 +246,8 @@ describe('createElementMediator/scopeToForm', () => {
     const mediator = MED_MOD.createElementMediator(page);
     await mediator.discoverForm(RESOLVED_CTX);
     const candidates = [{ kind: 'labelText' as const, value: 'שם משתמש' }];
-    mediator.scopeToForm(candidates);
+    const result = mediator.scopeToForm(candidates);
     expect(scopeFn).toHaveBeenCalled();
+    expect(result).toEqual([scopedCandidate]);
   });
 });

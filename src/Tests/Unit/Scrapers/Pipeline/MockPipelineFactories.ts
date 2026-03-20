@@ -20,7 +20,11 @@ import type {
   IRawAccount,
   IScrapeConfig,
 } from '../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';
-import type { ITransaction } from '../../../../Transactions.js';
+import {
+  type ITransaction,
+  TransactionStatuses,
+  TransactionTypes,
+} from '../../../../Transactions.js';
 import { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/MockFactories.js';
 
 export { makeMockContext, makeMockPage };
@@ -287,7 +291,7 @@ export const MOCK_RAW_ACCOUNT: IRawAccount = { accountId: 'ACC001', balance: 100
 
 /** Mock transaction returned by the scrape config mapper. */
 const MOCK_TXN: ITransaction = {
-  type: 'normal' as never,
+  type: TransactionTypes.Normal,
   identifier: 1,
   date: '2025-01-01T00:00:00.000Z',
   processedDate: '2025-01-01T00:00:00.000Z',
@@ -295,7 +299,7 @@ const MOCK_TXN: ITransaction = {
   originalCurrency: 'ILS',
   chargedAmount: -100,
   description: 'Test transaction',
-  status: 'completed' as never,
+  status: TransactionStatuses.Completed,
 };
 
 /**

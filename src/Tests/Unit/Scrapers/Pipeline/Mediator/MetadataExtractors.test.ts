@@ -153,8 +153,6 @@ describe('extractMetadata/error-handling', () => {
 
 // ── JSDOM evaluate-callback branches ─────────────────────
 
-// ── JSDOM evaluate-callback branches ─────────────────────
-
 const { JSDOM } = await import('jsdom');
 
 /**
@@ -174,7 +172,7 @@ function makeJsdomCtx(html: string, isVisible = true): Page | Frame {
      * @param arg - Callback argument.
      * @returns Resolved callback result.
      */
-    evaluate: <T>(fn: (arg: never) => T, arg: never): Promise<T> => {
+    evaluate: <T>(fn: (arg: unknown) => T, arg: unknown): Promise<T> => {
       const prevDoc = globalThis.document;
       Object.defineProperty(globalThis, 'document', {
         value: domDoc,

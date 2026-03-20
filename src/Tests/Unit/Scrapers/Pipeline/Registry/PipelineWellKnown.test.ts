@@ -11,17 +11,20 @@ import {
 // ── LOGIN dictionary ──────────────────────────────────────
 
 describe('PIPELINE_WELL_KNOWN_LOGIN/structure', () => {
-  it('contains all 9 expected credential keys', () => {
-    const keys = Object.keys(PIPELINE_WELL_KNOWN_LOGIN);
-    expect(keys).toContain('username');
-    expect(keys).toContain('userCode');
-    expect(keys).toContain('password');
-    expect(keys).toContain('id');
-    expect(keys).toContain('nationalID');
-    expect(keys).toContain('card6Digits');
-    expect(keys).toContain('num');
-    expect(keys).toContain('otpCode');
-    expect(keys).toContain('__submit__');
+  it('contains exactly the expected credential + control keys', () => {
+    const keys = Object.keys(PIPELINE_WELL_KNOWN_LOGIN).sort();
+    expect(keys).toEqual([
+      '__submit__',
+      'card6Digits',
+      'id',
+      'loginMethodTab',
+      'nationalID',
+      'num',
+      'otpCode',
+      'password',
+      'userCode',
+      'username',
+    ]);
   });
 });
 
@@ -100,7 +103,7 @@ describe('PIPELINE_WELL_KNOWN_DASHBOARD/errorIndicator', () => {
     expect(texts).toContain('פרטים שגויים');
   });
 
-  it('all errorIndicator entries use textContent kind', () => {
+  it('all errorIndicator entries use text-based kinds (no CSS)', () => {
     const kinds = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator.map(c => c.kind);
     const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText']);
     const hasOnlyTextKinds = kinds.every(k => allowedKinds.has(k));

@@ -339,15 +339,14 @@ describe('PipelineBuilder/phase-assembly', () => {
 });
 
 describe('PipelineBuilder/behavioral', () => {
-  it('built phases are executable and return success', async () => {
-    // Use function form (stub) so action runs without requiring preLogin context.
+  it('declarative login with ILoginConfig builds pre+action+post steps', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    const phase = descriptor.phases[0];
-    const mockCtx = {} as never;
-    const result = await phase.action.execute(mockCtx, mockCtx);
-    expect(result.ok).toBe(true);
+    const loginPhase = descriptor.phases[0];
+    expect(loginPhase.pre.has).toBe(true);
+    expect(loginPhase.action.name).toBe('login-action');
+    expect(loginPhase.post.has).toBe(true);
   });
 });

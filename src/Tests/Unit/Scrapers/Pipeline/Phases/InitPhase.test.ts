@@ -21,10 +21,20 @@ jest.unstable_mockModule('../../../../../Common/Browser.js', () => ({
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js',
   () => ({
-    createElementMediator: jest
-      .fn()
-      .mockReturnValue({ resolveField: jest.fn(), resolveClickable: jest.fn() }),
-    default: jest.fn().mockReturnValue({}),
+    createElementMediator: jest.fn().mockReturnValue({
+      resolveField: jest.fn(),
+      resolveClickable: jest.fn(),
+      discoverErrors: jest.fn(),
+      discoverForm: jest.fn(),
+      scopeToForm: jest.fn(),
+    }),
+    default: jest.fn().mockReturnValue({
+      resolveField: jest.fn(),
+      resolveClickable: jest.fn(),
+      discoverErrors: jest.fn(),
+      discoverForm: jest.fn(),
+      scopeToForm: jest.fn(),
+    }),
   }),
 );
 

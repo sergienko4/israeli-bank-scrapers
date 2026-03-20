@@ -21,6 +21,11 @@ const { DEFAULT_FETCH_OPTS } =
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
 
+beforeEach(() => {
+  (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockReset();
+  (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockReset();
+});
+
 // ── fetchPost ─────────────────────────────────────────────
 
 describe('BrowserFetchStrategy/fetchPost', () => {

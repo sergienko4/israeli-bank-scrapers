@@ -328,7 +328,7 @@ const MAKE_EXEC_CTX = (html: string): Page => {
      * @param arg - The argument passed to the callback.
      * @returns Resolved callback result.
      */
-    evaluate: <T>(fn: (arg: never) => T, arg: never): Promise<T> => {
+    evaluate: <T>(fn: (arg: unknown) => T, arg: unknown): Promise<T> => {
       const prevDoc = globalThis.document;
       const prevWin = globalThis.window;
       Object.defineProperty(globalThis, 'document', {

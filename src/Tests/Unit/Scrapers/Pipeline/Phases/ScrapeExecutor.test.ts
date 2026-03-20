@@ -3,6 +3,8 @@
  * Covers all fetch paths, error propagation, date computation, empty accounts.
  */
 
+import moment from 'moment';
+
 import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
 import { DEFAULT_FETCH_OPTS } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -102,10 +104,6 @@ describe('ScrapeExecutor/accounts', () => {
         method: 'POST' as const,
         path: '/api/accounts-post',
         postData: { key: 'val' },
-        /**
-         * Map accounts response.
-         * @returns MOCK_RAW_ACCOUNT array.
-         */
         /**
          * Map accounts response.
          * @returns MOCK_RAW_ACCOUNT array.
@@ -318,62 +316,63 @@ describe('ScrapeExecutor/buildFetchOpts', () => {
 describe('ScrapeExecutor/computeStartDate', () => {
   it('uses provided startDate when within 1 year', async () => {
     const recentDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const capturedPaths: string[] = [];
-    const strategy = {
-      /**
-       * Capture path and return succeed.
-       * @param path - URL path.
-       * @returns Succeed procedure.
-       */
-      fetchGet: <T>(path: string) => {
-        capturedPaths.push(path);
-        const r = succeed({} as T);
-        return Promise.resolve(r);
+    const capturedDates: string[] = [];
+    const strategy = makeMockFetchStrategy();
+    const base = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
+    const config = {
+      ...base,
+      transactions: {
+        ...base.transactions,
+        /**
+         * Capture startDate passed by executor.
+         * @param acctId - Account ID.
+         * @param startDate - Computed start date.
+         * @returns Request path and empty postData.
+         */
+        buildRequest: (
+          acctId: string,
+          startDate: string,
+        ): { path: string; postData: Record<string, string> } => {
+          capturedDates.push(startDate);
+          return { path: `/api/txns/${acctId}`, postData: {} };
+        },
       },
-      /**
-       * Stub fetchPost.
-       * @returns Succeed procedure.
-       */
-      fetchPost: <T>() => {
-        const r = succeed({} as T);
-        return Promise.resolve(r);
-      },
-    } as never;
-    const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
+    };
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const opts = { ...ctx.options, startDate: recentDate };
     await executeScrape({ ...ctx, options: opts }, config);
-    const txnPath = capturedPaths.find(p => p.includes('/api/txns/'));
-    expect(txnPath).toBeDefined();
+    const expectedDate = moment(recentDate).format('YYYYMMDD');
+    expect(capturedDates[0]).toBe(expectedDate);
   });
 
   it('caps startDate at 1 year when date is older', async () => {
     const oldDate = new Date('2000-01-01');
-    const capturedPaths: string[] = [];
-    const strategy = {
-      /**
-       * Capture path and return succeed.
-       * @param path - URL path.
-       * @returns Succeed procedure.
-       */
-      fetchGet: <T>(path: string) => {
-        capturedPaths.push(path);
-        const r = succeed({} as T);
-        return Promise.resolve(r);
+    const capturedDates: string[] = [];
+    const strategy = makeMockFetchStrategy();
+    const base = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
+    const config = {
+      ...base,
+      transactions: {
+        ...base.transactions,
+        /**
+         * Capture startDate passed by executor.
+         * @param acctId - Account ID.
+         * @param startDate - Computed start date.
+         * @returns Request path and empty postData.
+         */
+        buildRequest: (
+          acctId: string,
+          startDate: string,
+        ): { path: string; postData: Record<string, string> } => {
+          capturedDates.push(startDate);
+          return { path: `/api/txns/${acctId}`, postData: {} };
+        },
       },
-      /**
-       * Stub fetchPost.
-       * @returns Succeed procedure.
-       */
-      fetchPost: <T>() => {
-        const r = succeed({} as T);
-        return Promise.resolve(r);
-      },
-    } as never;
-    const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
+    };
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const opts = { ...ctx.options, startDate: oldDate };
     await executeScrape({ ...ctx, options: opts }, config);
-    expect(capturedPaths.length).toBeGreaterThan(0);
+    const cappedDate = moment().subtract(1, 'years').format('YYYYMMDD');
+    expect(capturedDates[0]).toBe(cappedDate);
   });
 });
