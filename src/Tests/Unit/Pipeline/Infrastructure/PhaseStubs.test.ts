@@ -39,8 +39,10 @@ describe('Phase stubs', () => {
 });
 
 describe('PipelineRegistry', () => {
-  it('contains migrated banks', () => {
-    const keyCount = Object.keys(PIPELINE_REGISTRY).length;
-    expect(keyCount).toBeGreaterThanOrEqual(1);
+  it('contains Discount and VisaCal', () => {
+    const keys = Object.keys(PIPELINE_REGISTRY);
+    expect(keys).toContain('discount');
+    expect(keys).toContain('visaCal');
+    expect(keys).toHaveLength(2);
   });
 });

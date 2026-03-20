@@ -324,6 +324,8 @@ const MAKE_EXEC_CTX = (html: string): Page => {
   return {
     /**
      * Execute the callback with JSDOM document/window injected as globals.
+     * Jest runs tests within a file sequentially — globalThis swap is safe.
+     * The finally block guarantees restoration even on callback errors.
      * @param fn - The evaluate callback.
      * @param arg - The argument passed to the callback.
      * @returns Resolved callback result.

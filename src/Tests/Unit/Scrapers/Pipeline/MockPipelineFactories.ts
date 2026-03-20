@@ -6,6 +6,7 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
@@ -15,7 +16,7 @@ import type {
   ILoginState,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type {
   IRawAccount,
   IScrapeConfig,
@@ -274,11 +275,7 @@ export function makeMockFetchStrategy(data: object = {}): IFetchStrategy {
 const MEDIATOR_NO_ERRORS: IFormErrorScanResult = { hasErrors: false, errors: [], summary: '' };
 
 /** Failure result for mock resolveField/resolveClickable (field not found). */
-const MEDIATOR_FAIL_RESULT = {
-  ok: false as const,
-  errorType: 'GENERIC',
-  errorMessage: 'mock: not found',
-};
+const MEDIATOR_FAIL_RESULT = fail(ScraperErrorTypes.Generic, 'mock: not found');
 
 /**
  * Create a mock IElementMediator.
@@ -293,12 +290,12 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * Failure — field not found. Override for success tests.
      * @returns Failure procedure.
      */
-    resolveField: () => Promise.resolve(MEDIATOR_FAIL_RESULT as never),
+    resolveField: () => Promise.resolve(MEDIATOR_FAIL_RESULT),
     /**
      * Failure — clickable not found. Override for success tests.
      * @returns Failure procedure.
      */
-    resolveClickable: () => Promise.resolve(MEDIATOR_FAIL_RESULT as never),
+    resolveClickable: () => Promise.resolve(MEDIATOR_FAIL_RESULT),
     /**
      * Return no-errors result.
      * @returns No-errors scan result.
