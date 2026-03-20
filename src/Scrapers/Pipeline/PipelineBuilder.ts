@@ -120,9 +120,9 @@ class PipelineBuilder {
     this._loginMode = 'declarative';
     if (typeof configOrFn === 'function') {
       this._loginFn = configOrFn;
-    } else {
-      this._loginConfig = configOrFn;
+      return this;
     }
+    this._loginConfig = configOrFn;
     return this;
   }
 
@@ -302,7 +302,7 @@ class PipelineBuilder {
    * @returns The number of optional phases added.
    */
   private addOptionalPhases(phases: CtxPhase[]): number {
-    const insertIdx = this._hasBrowser ? phases.length - 1 : phases.length;
+    const insertIdx = phases.length - Number(this._hasBrowser);
     const otpPhase = actionOnly('otp', OTP_STEP);
     const dashPhase = actionOnly('dashboard', DASHBOARD_STEP);
     const scrapeStep = this.resolveScrapeStep();

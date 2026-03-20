@@ -5,7 +5,7 @@
 
 import moment from 'moment';
 
-import { buildMonths } from '../../../../Scrapers/VisaCal/Pipeline/VisaCalScrape.js';
+import { buildMonths } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScrape.js';
 
 describe('buildMonths', () => {
   it.each([

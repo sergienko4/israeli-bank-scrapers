@@ -7,22 +7,23 @@
 import moment from 'moment';
 import type { Page } from 'playwright-core';
 
-import { filterOldTransactions } from '../../../Common/Transactions.js';
-import { CompanyTypes } from '../../../Definitions.js';
+import { filterOldTransactions } from '../../../../Common/Transactions.js';
+import { CompanyTypes } from '../../../../Definitions.js';
+import type { ITransactionsAccount } from '../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { ScraperOptions } from '../../../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import type { IFetchOpts, IFetchStrategy } from '../../Strategy/FetchStrategy.js';
+import { some } from '../../Types/Option.js';
+import type { IPipelineContext } from '../../Types/PipelineContext.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import {
-  type ITransaction,
-  type ITransactionsAccount,
-  TransactionStatuses,
-  TransactionTypes,
-} from '../../../Transactions.js';
-import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import type { ScraperOptions } from '../../Base/Interface.js';
-import type { IFetchOpts, IFetchStrategy } from '../../Pipeline/Strategy/FetchStrategy.js';
-import { some } from '../../Pipeline/Types/Option.js';
-import type { IPipelineContext } from '../../Pipeline/Types/PipelineContext.js';
-import type { Procedure } from '../../Pipeline/Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Pipeline/Types/Procedure.js';
-import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
+  type IRawPendingTxn,
+  type IRawTxn,
+  mapCompleted,
+  mapPendingResults,
+} from './VisaCalMappers.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
@@ -48,39 +49,7 @@ interface ICardFrame {
   readonly nextTotalDebit: number;
 }
 
-/** Completed transaction from /transactions. */
-interface IRawTxn {
-  readonly trnIntId: string;
-  readonly trnPurchaseDate: string;
-  readonly debCrdDate: string;
-  readonly trnAmt: number;
-  readonly amtBeforeConvAndIndex: number;
-  readonly trnCurrencySymbol: string;
-  readonly debCrdCurrencySymbol: string;
-  readonly merchantName: string;
-  readonly transTypeCommentDetails: string;
-  readonly branchCodeDesc: string;
-  readonly trnTypeCode: number;
-  readonly numOfPayments: number;
-  readonly curPaymentNum: number;
-}
-
-/** Pending transaction from /pending. */
-interface IRawPendingTxn {
-  readonly trnPurchaseDate: string;
-  readonly trnAmt: number;
-  readonly trnCurrencySymbol: string;
-  readonly merchantName: string;
-  readonly transTypeCommentDetails: string;
-  readonly branchCodeDesc: string;
-  readonly trnTypeCode: number;
-  readonly numberOfPayments: number;
-}
-
-/** Type codes. */
-const TRN_REGULAR = 5;
-const TRN_CREDIT = 6;
-const TRN_STANDING = 9;
+// Types + mappers extracted to VisaCalMappers.ts
 
 // ── Headers ────────────────────────────────────────────────
 
@@ -124,7 +93,7 @@ async function getAuth(page: Page): Promise<string> {
   if (!raw) return '';
   const parsed = JSON.parse(raw) as IAuthShape;
   const auth = parsed.auth;
-  const token = auth ? (auth.calConnectToken ?? '') : '';
+  const token = auth?.calConnectToken ?? '';
   return `CALAuthScheme ${token}`;
 }
 
@@ -184,67 +153,7 @@ async function fetchFrames(
   return succeed(frames);
 }
 
-// ── Transaction mapping ────────────────────────────────────
-
-/**
- * Map completed transaction amounts.
- * @param txn - Raw completed transaction.
- * @returns Amount fields for ITransaction.
- */
-function mapCompletedAmounts(txn: IRawTxn): Pick<ITransaction, 'originalAmount' | 'chargedAmount'> {
-  const isCredit = txn.trnTypeCode === TRN_CREDIT;
-  return {
-    originalAmount: txn.trnAmt * (isCredit ? 1 : -1),
-    chargedAmount: txn.amtBeforeConvAndIndex * -1,
-  };
-}
-
-/**
- * Map a completed transaction.
- * @param txn - Raw transaction from API.
- * @returns Mapped ITransaction.
- */
-function mapCompleted(txn: IRawTxn): ITransaction {
-  const isNormal = txn.trnTypeCode === TRN_REGULAR || txn.trnTypeCode === TRN_STANDING;
-  const amounts = mapCompletedAmounts(txn);
-  return {
-    identifier: txn.trnIntId,
-    type: isNormal ? TransactionTypes.Normal : TransactionTypes.Installments,
-    status: TransactionStatuses.Completed,
-    date: moment(txn.trnPurchaseDate).toISOString(),
-    processedDate: new Date(txn.debCrdDate).toISOString(),
-    ...amounts,
-    originalCurrency: txn.trnCurrencySymbol,
-    chargedCurrency: txn.debCrdCurrencySymbol,
-    description: txn.merchantName,
-    memo: txn.transTypeCommentDetails,
-    category: txn.branchCodeDesc,
-    installments: txn.numOfPayments
-      ? { number: txn.curPaymentNum, total: txn.numOfPayments }
-      : undefined,
-  };
-}
-
-/**
- * Map a pending transaction.
- * @param txn - Raw pending transaction.
- * @returns Mapped ITransaction.
- */
-function mapPending(txn: IRawPendingTxn): ITransaction {
-  const date = moment(txn.trnPurchaseDate).toISOString();
-  return {
-    type: TransactionTypes.Normal,
-    status: TransactionStatuses.Pending,
-    date,
-    processedDate: date,
-    originalAmount: txn.trnAmt * -1,
-    originalCurrency: txn.trnCurrencySymbol,
-    chargedAmount: txn.trnAmt * -1,
-    description: txn.merchantName,
-    memo: txn.transTypeCommentDetails,
-    category: txn.branchCodeDesc,
-  };
-}
+// Transaction mappers extracted to VisaCalMappers.ts
 
 // ── Monthly fetch ──────────────────────────────────────────
 
@@ -376,7 +285,7 @@ async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAc
   const monthsResult = await fetchMonthsRecursive(monthCtx, ctx.months, 0);
   const pendingResult = await fetchPending(ctx.strategy, ctx.opts, card);
   const completed = monthsResult.txns.map(mapCompleted);
-  const pending = isOk(pendingResult) ? pendingResult.value.map(mapPending) : [];
+  const pending = mapPendingResults(pendingResult);
   const allTxns = [...completed, ...pending];
   const isCombine = ctx.options.shouldCombineInstallments ?? false;
   const startMoment = moment(ctx.options.startDate);

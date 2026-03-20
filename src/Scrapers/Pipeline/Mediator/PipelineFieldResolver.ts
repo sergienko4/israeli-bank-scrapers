@@ -42,7 +42,8 @@ interface IFieldCandidates {
  * @returns URL string, or empty string for frames.
  */
 function getContextUrl(pageOrFrame: Page | Frame): string {
-  return 'url' in pageOrFrame ? (pageOrFrame as Page).url() : '';
+  if (!('url' in pageOrFrame)) return '';
+  return (pageOrFrame as Page).url();
 }
 
 /**
@@ -72,11 +73,31 @@ function buildResolveOpts(
  * @param opts - Pre-built resolve options.
  * @returns Resolved IFieldContext (may have isResolved=false on failure).
  */
+/**
+ * Try iframe resolution first (only for Page, not Frame).
+ * @param pageOrFrame - Page or Frame.
+ * @param opts - Resolve options.
+ * @returns Resolved context from iframe, or null if not found.
+ */
+async function tryIframeProbe(
+  pageOrFrame: Page | Frame,
+  opts: IResolveAllOpts,
+): Promise<IFieldContext | null> {
+  if (!isPage(pageOrFrame)) return null;
+  const result = await probeIframes(pageOrFrame, opts);
+  if ('isResolved' in result) return result;
+  return null;
+}
+
+/**
+ * Run the resolution pipeline: iframes first, then main page.
+ * @param pageOrFrame - Page or Frame to search in.
+ * @param opts - Pre-built resolve options.
+ * @returns Resolved IFieldContext (may have isResolved=false on failure).
+ */
 async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promise<IFieldContext> {
-  if (isPage(pageOrFrame)) {
-    const iframeResult = await probeIframes(pageOrFrame, opts);
-    if ('isResolved' in iframeResult) return iframeResult;
-  }
+  const iframeResult = await tryIframeProbe(pageOrFrame, opts);
+  if (iframeResult) return iframeResult;
   const mainResult = await probeMainPage(opts);
   if ('isResolved' in mainResult) return mainResult;
   return buildNotFoundContext(opts);

@@ -7,8 +7,8 @@
 import type { CompanyTypes } from '../../Definitions.js';
 import { CompanyTypes as CT } from '../../Definitions.js';
 import type { ScraperOptions } from '../Base/Interface.js';
-import { buildDiscountPipeline } from '../Discount/DiscountPipeline.js';
-import { buildVisaCalPipeline } from '../VisaCal/VisaCalPipeline.js';
+import { buildDiscountPipeline } from './Banks/Discount/DiscountPipeline.js';
+import { buildVisaCalPipeline } from './Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /** Factory that builds a pipeline descriptor for a specific bank. */

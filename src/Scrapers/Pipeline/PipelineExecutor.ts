@@ -143,10 +143,23 @@ function wrapError(error: unknown): Procedure<IPipelineContext> {
  * @param ctx - The final pipeline context after all phases.
  * @returns Legacy result with accounts and OTP token.
  */
+/**
+ * Extract accounts array from scrape state — empty if no scrape phase ran.
+ * @param ctx - The pipeline context.
+ * @returns Array of transaction accounts.
+ */
+function extractAccounts(ctx: IPipelineContext): IScraperScrapingResult['accounts'] {
+  if (!ctx.scrape.has) return [];
+  return [...ctx.scrape.value.accounts];
+}
+
+/**
+ * Extract scrape results from a successful pipeline context.
+ * @param ctx - The final pipeline context after all phases.
+ * @returns Legacy result with accounts and OTP token.
+ */
 function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
-  const hasScrape = ctx.scrape.has;
-  const accounts = hasScrape ? [...ctx.scrape.value.accounts] : [];
-  const base: IScraperScrapingResult = { success: true, accounts };
+  const base: IScraperScrapingResult = { success: true, accounts: extractAccounts(ctx) };
   if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
     base.persistentOtpToken = ctx.login.value.persistentOtpToken.value;
   }

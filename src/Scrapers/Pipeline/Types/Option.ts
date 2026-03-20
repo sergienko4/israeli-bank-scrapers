@@ -56,7 +56,8 @@ function isSome<T>(opt: Option<T>): opt is ISome<T> {
  * @returns The wrapped value or the fallback.
  */
 function unwrapOr<T>(opt: Option<T>, fallback: T): T {
-  return opt.has ? opt.value : fallback;
+  if (!opt.has) return fallback;
+  return opt.value;
 }
 
 export type { INone, ISome, NonNullish, Option };

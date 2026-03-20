@@ -6,14 +6,18 @@
 
 import moment from 'moment';
 
-import { CompanyTypes } from '../../Definitions.js';
-import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
-import type { ScraperOptions } from '../Base/Interface.js';
-import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
-import { PipelineBuilder } from '../Pipeline/PipelineBuilder.js';
-import type { IPipelineDescriptor } from '../Pipeline/PipelineDescriptor.js';
-import type { IRawAccount, IScrapeConfig } from '../Pipeline/Types/ScrapeConfig.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { CompanyTypes } from '../../../../Definitions.js';
+import {
+  type ITransaction,
+  TransactionStatuses,
+  TransactionTypes,
+} from '../../../../Transactions.js';
+import type { ScraperOptions } from '../../../Base/Interface.js';
+import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import { PipelineBuilder } from '../../PipelineBuilder.js';
+import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import type { IRawAccount, IScrapeConfig } from '../../Types/ScrapeConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 const DATE_FORMAT = CFG.format.date || 'YYYYMMDD';

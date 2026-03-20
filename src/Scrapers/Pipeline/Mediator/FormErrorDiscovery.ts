@@ -93,7 +93,7 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
         const rawCls = el.className;
         const cls = rawCls || '';
         const rawText = el.textContent;
-        const text = rawText ? rawText.trim() : '';
+        const text = (rawText || '').trim();
         return { tag: el.tagName.toLowerCase(), cls, text, isHidden };
       });
     },
@@ -117,7 +117,7 @@ function classifyByTag(tag: string): FormErrorKind {
  * @returns Typed IFormError with selector, text, and kind.
  */
 function toFormError(item: IRawDomItem): IFormError {
-  const firstCls = item.cls ? `.${item.cls.split(' ')[0]}` : '';
+  const firstCls = (item.cls && `.${item.cls.split(' ')[0]}`) || '';
   const selector = `${item.tag}${firstCls}`;
   const kind = classifyByTag(item.tag);
   return { selector, text: item.text, kind };

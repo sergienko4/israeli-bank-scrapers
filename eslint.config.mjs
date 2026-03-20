@@ -638,7 +638,29 @@ export default tseslint.config(
     },
 
   },
+  {
+    files: ["src/Scrapers/Pipeline/**/*.ts"],
+    rules: {
+      // 1. Block 'if' ONLY if it has an 'else' block
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "IfStatement[alternate]",
+          "message": "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses) instead."
+        },
+        {
+          "selector": "ConditionalExpression",
+          "message": "🚫 Ternary operators are disallowed. Use logical expressions or lookups."
+        }
+      ],
+      // 2. Built-in rule to ensure if you return in an 'if', 
+      // you don't follow it with an unnecessary 'else' logic.
+      "no-else-return": ["error", { "allowElseIf": false }],
 
+      // 3. Prevent deep nesting (enforces flattening the logic)
+      "max-depth": ["error", 1]
+    }
+  },
 
   // 5. SPECIAL ENTRY POINTS (LOWERCASE EXEMPTIONS)
 

@@ -45,7 +45,8 @@ async function runCleanupsRecursive(
   if (index < 0) return 0;
   const didSucceed = await runCleanup(cleanups[index], logger);
   const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
-  return didSucceed ? restCount + 1 : restCount;
+  if (!didSucceed) return restCount;
+  return restCount + 1;
 }
 
 /**

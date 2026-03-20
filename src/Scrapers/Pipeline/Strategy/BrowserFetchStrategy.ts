@@ -28,6 +28,22 @@ function emptyResponseError(url: string): Procedure<never> {
  * @param error - The caught error.
  * @returns A Generic failure Procedure.
  */
+/**
+ * Convert a nullable fetch result to a Procedure.
+ * @param result - The fetch result (null if empty).
+ * @param url - The URL for error reporting.
+ * @returns Succeed with data, or empty-response failure.
+ */
+function resultToProcedure<T>(result: T | null, url: string): Procedure<T> {
+  if (result) return succeed(result);
+  return emptyResponseError(url) as Procedure<T>;
+}
+
+/**
+ * Build a failure from a caught fetch exception.
+ * @param error - The caught error.
+ * @returns A Generic failure Procedure.
+ */
 function catchError(error: unknown): Procedure<never> {
   const message = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, message);
@@ -57,16 +73,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
     data: Record<string, string>,
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
-    try {
-      const result = await fetchPostWithinPage<T>(this._page, url, {
-        data,
-        extraHeaders: opts.extraHeaders,
-      });
-      if (result) return succeed(result);
-      return emptyResponseError(url);
-    } catch (error) {
-      return catchError(error);
-    }
+    return fetchPostWithinPage<T>(this._page, url, { data, extraHeaders: opts.extraHeaders })
+      .then(result => resultToProcedure(result, url))
+      .catch(catchError);
   }
 
   /**
@@ -76,16 +85,11 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
-    try {
-      const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
-      // FUTURE: pass opts.extraHeaders to fetchGetWithinPage when Common/Fetch supports GET headers
-      const shouldIgnoreErrors = hasHeaders;
-      const result = await fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors);
-      if (result) return succeed(result);
-      return emptyResponseError(url);
-    } catch (error) {
-      return catchError(error);
-    }
+    const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
+    const shouldIgnoreErrors = hasHeaders;
+    return fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors)
+      .then(result => resultToProcedure(result, url))
+      .catch(catchError);
   }
 }
 

@@ -16,16 +16,16 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
-import { waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
-import { CompanyTypes } from '../../Definitions.js';
-import type { SelectorCandidate } from '../Base/Config/LoginConfigTypes.js';
-import type { ScraperOptions } from '../Base/Interface.js';
-import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
-import { PipelineBuilder } from '../Pipeline/PipelineBuilder.js';
-import type { IPipelineDescriptor } from '../Pipeline/PipelineDescriptor.js';
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Pipeline/Registry/PipelineWellKnown.js';
-import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
-import { visaCalFetchData } from './Pipeline/VisaCalScrape.js';
+import { waitUntilIframeFound } from '../../../../Common/ElementsInteractions.js';
+import { CompanyTypes } from '../../../../Definitions.js';
+import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
+import type { ScraperOptions } from '../../../Base/Interface.js';
+import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
+import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import { PipelineBuilder } from '../../PipelineBuilder.js';
+import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../Registry/PipelineWellKnown.js';
+import { visaCalFetchData } from './VisaCalScrape.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 

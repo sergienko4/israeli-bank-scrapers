@@ -50,6 +50,26 @@ function computeStartDate(ctx: IPipelineContext, dateFormat: string): string {
   return start.format(dateFormat);
 }
 
+/** Fetch dispatch arguments. */
+interface IDispatchArgs {
+  readonly strategy: IFetchStrategy;
+  readonly method: string;
+  readonly path: string;
+  readonly postData: Record<string, string>;
+  readonly opts: IFetchOpts;
+}
+
+/**
+ * Dispatch a fetch call by HTTP method.
+ * @param args - Bundled fetch arguments.
+ * @returns Procedure with the response.
+ */
+function dispatchFetch<TResult>(args: IDispatchArgs): Promise<Procedure<TResult>> {
+  if (args.method === 'POST')
+    return args.strategy.fetchPost<TResult>(args.path, args.postData, args.opts);
+  return args.strategy.fetchGet<TResult>(args.path, args.opts);
+}
+
 /**
  * Fetch the account list from the bank API.
  * @param ops - Bundled scrape operations.
@@ -59,10 +79,13 @@ async function fetchAccountList<TA, TT>(
   ops: IScrapeOps<TA, TT>,
 ): Promise<Procedure<readonly IRawAccount[]>> {
   const acctCfg = ops.config.accounts;
-  const isPost = acctCfg.method === 'POST';
-  const raw = isPost
-    ? await ops.strategy.fetchPost<TA>(acctCfg.path, acctCfg.postData, ops.opts)
-    : await ops.strategy.fetchGet<TA>(acctCfg.path, ops.opts);
+  const raw = await dispatchFetch<TA>({
+    strategy: ops.strategy,
+    method: acctCfg.method,
+    path: acctCfg.path,
+    postData: acctCfg.postData,
+    opts: ops.opts,
+  });
   if (!isOk(raw)) return raw;
   try {
     const accounts = acctCfg.mapper(raw.value);
@@ -105,10 +128,13 @@ async function fetchRawTxns<TA, TT>(
   ops: IScrapeOps<TA, TT>,
   req: IBuiltRequest,
 ): Promise<Procedure<TT>> {
-  const isPost = ops.config.transactions.method === 'POST';
-  return isPost
-    ? ops.strategy.fetchPost<TT>(req.path, req.postData, ops.opts)
-    : ops.strategy.fetchGet<TT>(req.path, ops.opts);
+  return dispatchFetch<TT>({
+    strategy: ops.strategy,
+    method: ops.config.transactions.method,
+    path: req.path,
+    postData: req.postData,
+    opts: ops.opts,
+  });
 }
 
 /**

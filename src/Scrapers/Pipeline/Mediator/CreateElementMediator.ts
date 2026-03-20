@@ -7,14 +7,18 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
-import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.js';
+import {
+  discoverFormAnchor,
+  type IFormAnchor,
+  scopeCandidates,
+} from '../../../Common/FormAnchor.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
-import { none, some } from '../Types/Option.js';
-import { fail, succeed } from '../Types/Procedure.js';
+import { none, type Option, some } from '../Types/Option.js';
+import { fail, type Procedure, succeed } from '../Types/Procedure.js';
 import type { IElementMediator } from './ElementMediator.js';
 import {
   checkFrameForErrors,
@@ -36,18 +40,38 @@ interface IFormCache {
  * @param page - The Playwright page.
  * @returns Mediator resolveField function.
  */
+/** Options for resolveFieldToProcedure. */
+interface IResolveOpts {
+  readonly page: Page;
+  readonly fieldKey: string;
+  readonly candidates: readonly SelectorCandidate[];
+  readonly notFoundMsg: string;
+}
+
+/**
+ * Resolve a field and convert to Procedure — no try/catch (caller handles).
+ * @param opts - Resolution options.
+ * @returns Success or failure Procedure.
+ */
+async function resolveFieldToProcedure(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
+  const ctx = await resolveFieldPipeline(opts.page, opts.fieldKey, opts.candidates);
+  if (ctx.isResolved) return succeed<IFieldContext>(ctx);
+  return fail(ScraperErrorTypes.Generic, opts.notFoundMsg);
+}
+
+/**
+ * Build resolveField method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveField function.
+ */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return async (fieldKey, candidates) => {
-    try {
-      const ctx = await resolveFieldPipeline(page, fieldKey, candidates);
-      if (ctx.isResolved) return succeed<IFieldContext>(ctx);
-      const msg = `Field not found: ${fieldKey} on ${page.url()}`;
-      return fail(ScraperErrorTypes.Generic, msg);
-    } catch (error) {
-      const msg = toErrorMessage(error);
-      return fail(ScraperErrorTypes.Generic, msg);
-    }
-  };
+  return (fieldKey, candidates) =>
+    resolveFieldToProcedure({
+      page,
+      fieldKey,
+      candidates,
+      notFoundMsg: `Field not found: ${fieldKey} on ${page.url()}`,
+    }).catch((error: unknown) => fail(ScraperErrorTypes.Generic, toErrorMessage(error)));
 }
 
 /**
@@ -59,16 +83,13 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
  * @returns Mediator resolveClickable function.
  */
 function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
-  return async candidates => {
-    try {
-      const ctx = await resolveFieldPipeline(page, '__submit__', candidates);
-      if (ctx.isResolved) return succeed<IFieldContext>(ctx);
-      return fail(ScraperErrorTypes.Generic, 'Clickable not found');
-    } catch (error) {
-      const msg = toErrorMessage(error);
-      return fail(ScraperErrorTypes.Generic, msg);
-    }
-  };
+  return candidates =>
+    resolveFieldToProcedure({
+      page,
+      fieldKey: '__submit__',
+      candidates,
+      notFoundMsg: 'Clickable not found',
+    }).catch((error: unknown) => fail(ScraperErrorTypes.Generic, toErrorMessage(error)));
 }
 
 /**
@@ -141,22 +162,35 @@ function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
  * @param cache - Mutable form cache owned by this mediator instance.
  * @returns Mediator discoverForm function.
  */
+/**
+ * Discover form anchor and update cache — no try/catch (caller handles).
+ * @param cache - Form cache to update.
+ * @param resolvedContext - Resolved field context.
+ * @returns Option with form anchor.
+ */
+async function discoverFormCore(
+  cache: IFormCache,
+  resolvedContext: IFieldContext,
+): Promise<Option<IFormAnchor>> {
+  const ctx = resolvedContext.context;
+  const anchor = await discoverFormAnchor(ctx, resolvedContext.selector);
+  if (!anchor) return none();
+  cache.selector = anchor.selector;
+  return some(anchor);
+}
+
+/**
+ * Build discoverForm method with per-instance cache.
+ * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
+ * @param cache - Mutable form cache owned by this mediator instance.
+ * @returns Mediator discoverForm function.
+ */
 function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
-  return async (resolvedContext: IFieldContext) => {
-    try {
-      const ctx = resolvedContext.context;
-      const anchor = await discoverFormAnchor(ctx, resolvedContext.selector);
-      if (anchor) {
-        cache.selector = anchor.selector;
-        return some(anchor);
-      }
+  return (resolvedContext: IFieldContext) =>
+    discoverFormCore(cache, resolvedContext).catch((error: unknown) => {
+      LOG.debug('discoverForm failed (non-fatal): %s', toErrorMessage(error).slice(0, 60));
       return none();
-    } catch (error) {
-      const msg = toErrorMessage(error).slice(0, 60);
-      LOG.debug('discoverForm failed (non-fatal): %s', msg);
-      return none();
-    }
-  };
+    });
 }
 
 /**
