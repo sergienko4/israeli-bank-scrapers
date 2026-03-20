@@ -460,7 +460,24 @@ export default tseslint.config(
 
 
       // ── Structural & Naming ──────────────────────────────────────────────
-      // ── Naming & Structure (Enforcing your new Test Folders) ──────────────
+      //
+      // Source structure:
+      //   Scrapers/Pipeline/
+      //     Banks/<Bank>/              ← bank config + mappers
+      //     Mediator/                  ← HTML resolution (black box)
+      //     Phases/                    ← init, login, otp, dashboard, scrape, terminate
+      //     Strategy/                  ← fetch strategies (browser, native, graphql)
+      //     Registry/                  ← PipelineWellKnown (text-based selectors)
+      //     Types/                     ← Procedure, Option, PipelineContext, ScrapeConfig
+      //
+      // Test structure:
+      //   Tests/Unit/Pipeline/Infrastructure/<Group>/
+      //   Tests/Unit/Pipeline/Bank/<Bank>/<Group>/
+      //
+      //   Tests/E2E/Pipeline/E2eMocked/<Bank>/<Group>/
+      //   Tests/E2E/Pipeline/E2eSmoke/bank/<Bank>/<Group>/
+      //   Tests/E2E/Pipeline/Scredentials/bank/<Bank>/<Group>/
+      //
       'check-file/filename-naming-convention': ['error', { 'src/**/*.{ts,tsx}': 'PASCAL_CASE' }],
       'check-file/folder-naming-convention': ['error', { 'src/**/': 'PASCAL_CASE' }],
 
@@ -638,12 +655,37 @@ export default tseslint.config(
     },
 
   },
+
+  // ── Pipeline Tests: Structure Enforcement ──────────────────────────
   {
-    files: ["src/Scrapers/Pipeline/**/*.ts"],
+    files: ['src/Tests/**/Pipeline/**/*.ts'],
+    rules: {
+      // Rule 1: PascalCase for Pipeline test files (e.g., DiscountLogin.test.ts)
+      'check-file/filename-naming-convention': [
+        'error',
+        { 'src/Tests/**/*.{test,spec}.ts': 'PASCAL_CASE' },
+        { ignoreMiddleExtensions: true },
+      ],
+      // Rule 2: PascalCase for <Bank> and <Group> folders
+      'check-file/folder-naming-convention': [
+        'error',
+        { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' },
+      ],
+      // Rule 3: Pipeline .test files must be inside Pipeline test paths
+      'check-file/folder-match-with-fex': [
+        'error',
+        { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' },
+      ],
+    },
+  },
+
+  // ── Pipeline: Logic & Branch Coverage (Mediator, Phases, Strategy) ──
+  {
+    files: ['src/Scrapers/Pipeline/**/*.ts'],
     rules: {
       // 1. Block 'if' ONLY if it has an 'else' block
-      "no-restricted-syntax": [
-        "error",
+      'no-restricted-syntax': [
+        'error',
         {
           "selector": "IfStatement[alternate]",
           "message": "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses) instead."
@@ -660,6 +702,19 @@ export default tseslint.config(
       // 3. Prevent deep nesting (enforces flattening the logic)
       "max-depth": ["error", 1]
     }
+  },
+
+  // ── Pipeline Banks: Boundary Protection (cross-import restrictions) ──
+  {
+    files: ['src/Scrapers/Pipeline/Banks/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/Mediator/**'],
+          message: '🚫 Banks must not import Mediator internals. Use ctx.mediator (black box) instead.',
+        }],
+      }],
+    },
   },
 
   // 5. SPECIAL ENTRY POINTS (LOWERCASE EXEMPTIONS)

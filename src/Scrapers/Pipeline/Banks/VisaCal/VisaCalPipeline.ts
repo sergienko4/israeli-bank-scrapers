@@ -155,4 +155,4 @@ function buildVisaCalPipeline(options: ScraperOptions): IPipelineDescriptor {
 }
 
 export default buildVisaCalPipeline;
-export { buildVisaCalPipeline };
+export { buildLocator, buildVisaCalPipeline, VISACAL_LOGIN };

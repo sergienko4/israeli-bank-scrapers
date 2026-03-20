@@ -210,4 +210,4 @@ function buildDiscountPipeline(options: ScraperOptions): IPipelineDescriptor {
     .build();
 }
 
-export { buildDiscountPipeline, DISCOUNT_SCRAPE_CONFIG };
+export { buildDiscountPipeline, DISCOUNT_LOGIN, DISCOUNT_SCRAPE_CONFIG };
