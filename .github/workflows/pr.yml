@@ -97,7 +97,7 @@ jobs:
 
       # ── Unit Tests ──
       - name: Unit tests with coverage
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'
 
       # ── E2E Factory Tests ──
       - name: E2E factory tests
