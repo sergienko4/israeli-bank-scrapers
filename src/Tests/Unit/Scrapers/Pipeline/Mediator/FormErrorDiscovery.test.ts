@@ -382,11 +382,20 @@ describe('discoverFormErrors/jsdom-evaluate', () => {
     expect(scan.hasErrors).toBe(false);
   });
 
-  it('handles element with empty className', async () => {
+  it('handles element with empty className (falsy || fallback)', async () => {
     const ctx = MAKE_EXEC_CTX('<div role="alert">visible error</div>');
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(true);
     expect(scan.errors[0].text).toBe('visible error');
+    expect(scan.errors[0].selector).toBe('div');
+  });
+
+  it('handles element with multi-word className', async () => {
+    const html = '<div role="alert" class="err-box ng-invalid">bad input</div>';
+    const ctx = MAKE_EXEC_CTX(html);
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(true);
+    expect(scan.errors[0].selector).toBe('div.err-box');
   });
 
   it('handles element with null-ish textContent (empty after trim)', async () => {

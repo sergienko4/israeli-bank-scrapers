@@ -311,4 +311,28 @@ describe('PipelineExecutor/persistentOtpToken', () => {
     expect(result.success).toBe(true);
     expect(result.persistentOtpToken).toBe('TOKEN123');
   });
+
+  it('omits persistentOtpToken when login state has none', async () => {
+    /**
+     * Set login state with persistentOtpToken=none().
+     * @param _ctx - Pipeline context (unused).
+     * @param input - Input to extend with login state.
+     * @returns Context with login but no OTP token.
+     */
+    const setLoginExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+      const loginState = { activeFrame: {} as never, persistentOtpToken: none() };
+      const result = succeed({ ...input, login: some(loginState) });
+      return Promise.resolve(result);
+    };
+    const phase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: { name: 'login-action', execute: setLoginExecute },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([phase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.persistentOtpToken).toBeUndefined();
+  });
 });
