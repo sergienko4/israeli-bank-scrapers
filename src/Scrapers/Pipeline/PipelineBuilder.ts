@@ -61,6 +61,7 @@ function actionOnly(name: PhaseName, action: CtxPhase['action']): CtxPhase {
 
 /** Login step lookup map for non-ILoginConfig login modes. */
 const LOGIN_STEPS: Record<string, CtxPhase['action']> = {
+  declarative: DECLARATIVE_LOGIN_STEP,
   directPost: DIRECT_POST_LOGIN_STEP,
   native: NATIVE_LOGIN_STEP,
 };

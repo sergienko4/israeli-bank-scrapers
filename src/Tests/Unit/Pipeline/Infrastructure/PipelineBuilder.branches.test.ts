@@ -117,6 +117,29 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
     expect(names).toContain('login');
   });
 
+  it('executes the adapted fn when withDeclarativeLogin receives a function', async () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
+      .build();
+    const loginPhase = descriptor.phases[0];
+    expect(loginPhase.action.name).toBe('declarative-login');
+    const mockCtx = { credentials: { user: 'test' } } as never;
+    const result = await loginPhase.action.execute(mockCtx, mockCtx);
+    expect(result.ok).toBe(true);
+  });
+
+  it('uses fn-adapted step when withDeclarativeLogin(fn) + OTP', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
+      .withOtp(MOCK_OTP_CONFIG)
+      .build();
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).toContain('login');
+    expect(names).toContain('otp');
+  });
+
   it('uses LOGIN_STEPS map for native login mode', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)

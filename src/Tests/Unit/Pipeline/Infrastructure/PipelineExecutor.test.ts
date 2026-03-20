@@ -241,6 +241,52 @@ describe('PipelineExecutor/returns-promise', () => {
   });
 });
 
+describe('PipelineExecutor/wrapError', () => {
+  it('catches phase that throws Error and returns failure', async () => {
+    const throwPhase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: {
+        name: 'login-action',
+        /**
+         * Throws an Error to test wrapError.
+         * @returns Never — always throws.
+         */
+        execute: (): Promise<Procedure<Ctx>> => {
+          throw new ScraperError('crash!');
+        },
+      },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([throwPhase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('crash!');
+  });
+
+  it('produces "Unknown pipeline error" when thrown value has empty message', async () => {
+    const throwPhase: Phase = {
+      name: 'scrape',
+      pre: none(),
+      action: {
+        name: 'scrape-action',
+        /**
+         * Throws an Error with empty message.
+         * @returns Never — always throws.
+         */
+        execute: (): Promise<Procedure<Ctx>> => {
+          throw new ScraperError('');
+        },
+      },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([throwPhase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Unknown pipeline error');
+  });
+});
+
 describe('PipelineExecutor/persistentOtpToken', () => {
   it('includes persistentOtpToken in result when login state has it', async () => {
     /**

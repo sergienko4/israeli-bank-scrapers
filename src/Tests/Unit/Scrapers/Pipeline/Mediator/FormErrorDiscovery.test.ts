@@ -389,6 +389,12 @@ describe('discoverFormErrors/jsdom-evaluate', () => {
     expect(scan.errors[0].text).toBe('visible error');
   });
 
+  it('handles element with null-ish textContent (empty after trim)', async () => {
+    const ctx = MAKE_EXEC_CTX('<div role="alert">   </div>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(false);
+  });
+
   it('returns empty when no elements match error selectors', async () => {
     const ctx = MAKE_EXEC_CTX('<p>just text</p>');
     const scan = await discoverFormErrors(ctx);
