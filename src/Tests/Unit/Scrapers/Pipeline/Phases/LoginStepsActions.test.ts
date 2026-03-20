@@ -159,7 +159,7 @@ describe('LoginSteps/loginAction', () => {
     });
     const mediatorSome = some(mediator);
     const withMediator = { ...ctx, mediator: mediatorSome };
-    const config = MAKE_LOGIN_CONFIG({ fields: [{ credentialKey: 'id', selectors: [] }] });
+    const config = MAKE_LOGIN_CONFIG({ fields: [{ credentialKey: 'username', selectors: [] }] });
     const phase = createLoginPhase(config);
     await phase.action.execute(withMediator, withMediator);
     expect(isClickableCalled).toBe(true);

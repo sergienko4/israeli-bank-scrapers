@@ -9,6 +9,7 @@ import type { ITransactionsAccount } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFetchOpts, IFetchStrategy } from '../Strategy/FetchStrategy.js';
 import { DEFAULT_FETCH_OPTS } from '../Strategy/FetchStrategy.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -63,8 +64,51 @@ async function fetchAccountList<TA, TT>(
     ? await ops.strategy.fetchPost<TA>(acctCfg.path, acctCfg.postData, ops.opts)
     : await ops.strategy.fetchGet<TA>(acctCfg.path, ops.opts);
   if (!isOk(raw)) return raw;
-  const accounts = acctCfg.mapper(raw.value);
-  return succeed(accounts);
+  try {
+    const accounts = acctCfg.mapper(raw.value);
+    return succeed(accounts);
+  } catch (error) {
+    const msg = toErrorMessage(error);
+    return fail(ScraperErrorTypes.Generic, `Account mapper failed: ${msg}`);
+  }
+}
+
+/**
+ * Safely call a bank-provided callback, wrapping thrown errors as Procedure failure.
+ * @param fn - The bank callback to execute.
+ * @param label - Error label for diagnostics (e.g. 'buildRequest').
+ * @returns Procedure with the callback result or a failure.
+ */
+function safeCall<T>(fn: () => T, label: string): Procedure<T> {
+  try {
+    const result = fn();
+    return succeed(result);
+  } catch (error) {
+    const msg = toErrorMessage(error);
+    return fail(ScraperErrorTypes.Generic, `${label} failed: ${msg}`);
+  }
+}
+
+/** Built request from bank's buildRequest callback. */
+interface IBuiltRequest {
+  readonly path: string;
+  readonly postData: Record<string, string>;
+}
+
+/**
+ * Fetch raw transaction data for one account via strategy.
+ * @param ops - Bundled scrape operations.
+ * @param req - Built request from buildRequest callback.
+ * @returns Procedure with raw response or failure.
+ */
+async function fetchRawTxns<TA, TT>(
+  ops: IScrapeOps<TA, TT>,
+  req: IBuiltRequest,
+): Promise<Procedure<TT>> {
+  const isPost = ops.config.transactions.method === 'POST';
+  return isPost
+    ? ops.strategy.fetchPost<TT>(req.path, req.postData, ops.opts)
+    : ops.strategy.fetchGet<TT>(req.path, ops.opts);
 }
 
 /**
@@ -78,18 +122,17 @@ async function fetchOneAccount<TA, TT>(
   account: IRawAccount,
 ): Promise<Procedure<ITransactionsAccount>> {
   const txnCfg = ops.config.transactions;
-  const req = txnCfg.buildRequest(account.accountId, ops.startDate);
-  const isPost = txnCfg.method === 'POST';
-  const raw = isPost
-    ? await ops.strategy.fetchPost<TT>(req.path, req.postData, ops.opts)
-    : await ops.strategy.fetchGet<TT>(req.path, ops.opts);
+  const reqResult = safeCall(
+    () => txnCfg.buildRequest(account.accountId, ops.startDate),
+    'buildRequest',
+  );
+  if (!isOk(reqResult)) return reqResult;
+  const raw = await fetchRawTxns(ops, reqResult.value);
   if (!isOk(raw)) return raw;
-  const txns = txnCfg.mapper(raw.value);
-  return succeed({
-    accountNumber: account.accountId,
-    balance: account.balance,
-    txns: [...txns],
-  });
+  const mapped = safeCall(() => txnCfg.mapper(raw.value), 'Transaction mapper');
+  if (!isOk(mapped)) return mapped;
+  const txns = [...mapped.value];
+  return succeed({ accountNumber: account.accountId, balance: account.balance, txns });
 }
 
 /**

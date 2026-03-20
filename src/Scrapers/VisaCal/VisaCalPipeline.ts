@@ -14,10 +14,11 @@
  *                   + postAction waits for page to settle after auth
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';
+import type { SelectorCandidate } from '../Base/Config/LoginConfigTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import { PipelineBuilder } from '../Pipeline/PipelineBuilder.js';
@@ -29,6 +30,19 @@ import { visaCalFetchData } from './Pipeline/VisaCalScrape.js';
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
 /**
+ * Build a Playwright locator from a SelectorCandidate based on its kind.
+ * Supports all text-based kinds: textContent, ariaLabel, placeholder, name.
+ * @param ctx - Page or Frame to build the locator on.
+ * @param candidate - The selector candidate.
+ * @returns First-match Playwright Locator.
+ */
+function buildLocator(ctx: Page | Frame, candidate: SelectorCandidate): Locator {
+  if (candidate.kind === 'ariaLabel') return ctx.getByLabel(candidate.value).first();
+  if (candidate.kind === 'placeholder') return ctx.getByPlaceholder(candidate.value).first();
+  return ctx.getByText(candidate.value).first();
+}
+
+/**
  * Wait for the login button to be visible on the VisaCal homepage.
  * Uses PIPELINE_WELL_KNOWN_DASHBOARD.loginLink — bank provides no text.
  * @param page - Browser page.
@@ -36,9 +50,8 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
  */
 async function checkReadiness(page: Page): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
-  const textCandidates = candidates.filter(c => c.kind === 'textContent');
-  const waiters = textCandidates.map(c =>
-    page.getByText(c.value).first().waitFor({ state: 'visible', timeout: 30000 }),
+  const waiters = candidates.map(c =>
+    buildLocator(page, c).waitFor({ state: 'visible', timeout: 30000 }),
   );
   await Promise.any(waiters);
   return true;
@@ -62,8 +75,7 @@ async function postAction(page: Page): Promise<boolean> {
  */
 async function openLoginForm(pageOrFrame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
-  const textCandidates = candidates.filter(c => c.kind === 'textContent');
-  const locators = textCandidates.map(c => pageOrFrame.getByText(c.value).first());
+  const locators = candidates.map(c => buildLocator(pageOrFrame, c));
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout: 15000 });
     return i;

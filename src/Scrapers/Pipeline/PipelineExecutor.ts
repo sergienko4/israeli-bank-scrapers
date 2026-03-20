@@ -8,6 +8,7 @@ import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';
 import type { IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
@@ -132,8 +133,8 @@ async function reducePhases(
  * @param error - The caught error.
  * @returns A failure Procedure with Generic error type.
  */
-function wrapError(error: Error): Procedure<IPipelineContext> {
-  const message = error.message || 'Unknown pipeline error';
+function wrapError(error: unknown): Procedure<IPipelineContext> {
+  const message = toErrorMessage(error) || 'Unknown pipeline error';
   return fail(ScraperErrorTypes.Generic, message);
 }
 
@@ -176,7 +177,7 @@ async function executePipeline(
   try {
     result = await reducePhases(descriptor.phases, initialCtx, 0);
   } catch (error) {
-    result = wrapError(error as Error);
+    result = wrapError(error);
   }
   return toResult(result);
 }

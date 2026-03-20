@@ -11,6 +11,7 @@ import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../Base/Interface.js';
 import createElementMediator from '../Mediator/CreateElementMediator.js';
 import { BrowserFetchStrategy } from '../Strategy/BrowserFetchStrategy.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IBrowserState, IPipelineContext } from '../Types/PipelineContext.js';
@@ -133,7 +134,7 @@ async function executeInit(
     const result = wireComponents(input, { browser, context, page });
     return succeed(result);
   } catch (error) {
-    const msg = (error as Error).message;
+    const msg = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `InitPhase failed: ${msg}`);
   }
 }

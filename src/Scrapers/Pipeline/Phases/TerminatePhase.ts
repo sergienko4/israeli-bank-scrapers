@@ -4,6 +4,7 @@
  * Never fails the pipeline — cleanup errors are logged and swallowed.
  */
 
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -23,7 +24,7 @@ async function runCleanup(
     await cleanup();
     return true;
   } catch (error) {
-    const msg = (error as Error).message.slice(0, 80);
+    const msg = toErrorMessage(error).slice(0, 80);
     logger.debug('cleanup error (swallowed): %s', msg);
     return false;
   }

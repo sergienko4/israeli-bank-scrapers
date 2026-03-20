@@ -8,6 +8,7 @@ import type { Page } from 'playwright-core';
 
 import { fetchGetWithinPage, fetchPostWithinPage } from '../../../Common/Fetch.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
@@ -27,8 +28,9 @@ function emptyResponseError(url: string): Procedure<never> {
  * @param error - The caught error.
  * @returns A Generic failure Procedure.
  */
-function catchError(error: Error): Procedure<never> {
-  return fail(ScraperErrorTypes.Generic, error.message);
+function catchError(error: unknown): Procedure<never> {
+  const message = toErrorMessage(error);
+  return fail(ScraperErrorTypes.Generic, message);
 }
 
 /** Browser fetch — delegates to fetchPostWithinPage/fetchGetWithinPage. */
@@ -63,7 +65,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
       if (result) return succeed(result);
       return emptyResponseError(url);
     } catch (error) {
-      return catchError(error as Error);
+      return catchError(error);
     }
   }
 
@@ -81,7 +83,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
       if (result) return succeed(result);
       return emptyResponseError(url);
     } catch (error) {
-      return catchError(error as Error);
+      return catchError(error);
     }
   }
 }

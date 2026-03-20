@@ -160,13 +160,31 @@ async function fillOneField(
 }
 
 /**
+ * Validate all required credentials are present and non-empty.
+ * @param fields - Field configs from login config.
+ * @param creds - Credentials map.
+ * @returns Success if all present, failure listing missing keys.
+ */
+function validateCredentials(
+  fields: ILoginConfig['fields'],
+  creds: Record<string, string>,
+): Procedure<boolean> {
+  const missing = fields.filter(f => !creds[f.credentialKey]).map(f => f.credentialKey);
+  if (missing.length > 0) {
+    const keys = missing.join(', ');
+    return fail(ScraperErrorTypes.Generic, `Missing credentials: ${keys}`);
+  }
+  return succeed(true);
+}
+
+/**
  * Build fill options for a single credential field.
  * @param field - Field config from login config.
- * @param creds - Credentials map.
+ * @param creds - Credentials map (validated non-empty by validateCredentials).
  * @returns Fill options with credentialKey, value, and selectors.
  */
 function buildFillOpts(field: IFieldConfig, creds: Record<string, string>): IFillOpts {
-  const value = creds[field.credentialKey] ?? '';
+  const value = creds[field.credentialKey];
   return { credentialKey: field.credentialKey, value, selectors: field.selectors };
 }
 
@@ -183,6 +201,8 @@ async function fillAllFields(
   fields: ILoginConfig['fields'],
   creds: Record<string, string>,
 ): Promise<Procedure<boolean>> {
+  const validation = validateCredentials(fields, creds);
+  if (!validation.ok) return validation;
   const firstResult = succeed(true);
   const initial: Promise<Procedure<boolean>> = Promise.resolve(firstResult);
   return fields.reduce<Promise<Procedure<boolean>>>(async (prev, field) => {

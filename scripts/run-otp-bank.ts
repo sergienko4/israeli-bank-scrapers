@@ -136,52 +136,54 @@ for (const bank of banks) {
   const logPath = `C:/tmp/scrape-${bank}.log`;
   fs.writeFileSync(logPath, `=== ${bank} scrape started at ${new Date().toISOString()} ===\n`);
   const cleanup = installTee(logPath);
+  try {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 30);
+    console.log(`\n🏦 Scraping ${bank} (last 30 days from ${startDate.toISOString().slice(0, 10)})`);
+    console.log(`📄 Full trace log: ${logPath}\n`);
 
-  console.log(`\n🏦 Scraping ${bank} (last 30 days from ${startDate.toISOString().slice(0, 10)})`);
-  console.log(`📄 Full trace log: ${logPath}\n`);
-
-  const credentials = getCredentials(bank);
-  const missingKeys = Object.entries(credentials).filter(([, v]) => !v).map(([k]) => k);
-  if (missingKeys.length > 0) {
-    console.error(`❌ Missing env vars for ${bank}: ${missingKeys.join(', ')}`);
-    continue;
-  }
-
-  const scraper = createScraper({
-    companyId: BANK_MAP[bank] as never,
-    startDate,
-    shouldShowBrowser: true,
-    otpCodeRetriever: askOtp,
-  });
-
-  const result = await scraper.scrape(credentials);
-
-  if (result.success) {
-    console.log(`\n✅ ${bank} — Success! ${result.accounts?.length ?? 0} account(s)\n`);
-    for (const account of result.accounts ?? []) {
-      console.log(`  📋 Account: ${account.accountNumber} (${account.txns.length} txns)`);
-      for (const txn of account.txns.slice(0, 15)) {
-        const date = txn.date ? new Date(txn.date).toLocaleDateString('he-IL') : '?';
-        const amount = String(txn.chargedAmount ?? txn.originalAmount ?? 0);
-        const currency = txn.originalCurrency ?? '';
-        const desc = txn.description ?? txn.memo ?? '—';
-        console.log(`    ${date.padEnd(12)} ${amount.padStart(10)} ${currency.padEnd(4)} ${desc}`);
-      }
-      if (account.txns.length > 15) {
-        console.log(`    ... and ${account.txns.length - 15} more`);
-      }
-      console.log('');
+    const credentials = getCredentials(bank);
+    const missingKeys = Object.entries(credentials).filter(([, v]) => !v).map(([k]) => k);
+    if (missingKeys.length > 0) {
+      console.error(`❌ Missing env vars for ${bank}: ${missingKeys.join(', ')}`);
+      continue;
     }
-  } else {
-    console.error(`\n❌ ${bank} — Failed: ${result.errorType} — ${result.errorMessage}\n`);
-  }
 
-  console.log(`\n=== ${bank} scrape finished at ${new Date().toISOString()} ===`);
-  console.log(`📄 Full trace log saved: ${logPath}\n`);
-  cleanup();
+    const scraper = createScraper({
+      companyId: BANK_MAP[bank] as never,
+      startDate,
+      shouldShowBrowser: true,
+      otpCodeRetriever: askOtp,
+    });
+
+    const result = await scraper.scrape(credentials);
+
+    if (result.success) {
+      console.log(`\n✅ ${bank} — Success! ${result.accounts?.length ?? 0} account(s)\n`);
+      for (const account of result.accounts ?? []) {
+        console.log(`  📋 Account: ${account.accountNumber} (${account.txns.length} txns)`);
+        for (const txn of account.txns.slice(0, 15)) {
+          const date = txn.date ? new Date(txn.date).toLocaleDateString('he-IL') : '?';
+          const amount = String(txn.chargedAmount ?? txn.originalAmount ?? 0);
+          const currency = txn.originalCurrency ?? '';
+          const desc = txn.description ?? txn.memo ?? '—';
+          console.log(`    ${date.padEnd(12)} ${amount.padStart(10)} ${currency.padEnd(4)} ${desc}`);
+        }
+        if (account.txns.length > 15) {
+          console.log(`    ... and ${account.txns.length - 15} more`);
+        }
+        console.log('');
+      }
+    } else {
+      console.error(`\n❌ ${bank} — Failed: ${result.errorType} — ${result.errorMessage}\n`);
+    }
+
+    console.log(`\n=== ${bank} scrape finished at ${new Date().toISOString()} ===`);
+    console.log(`📄 Full trace log saved: ${logPath}\n`);
+  } finally {
+    cleanup();
+  }
 }
 
 process.exit(0);

@@ -11,6 +11,7 @@ import { discoverFormAnchor, scopeCandidates } from '../../../Common/FormAnchor.
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, some } from '../Types/Option.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import type { IElementMediator } from './ElementMediator.js';
@@ -42,7 +43,7 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
       const msg = `Field not found: ${fieldKey} on ${page.url()}`;
       return fail(ScraperErrorTypes.Generic, msg);
     } catch (error) {
-      const msg = (error as Error).message;
+      const msg = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, msg);
     }
   };
@@ -63,7 +64,7 @@ function buildResolveClickable(page: Page): IElementMediator['resolveClickable']
       if (ctx.isResolved) return succeed<IFieldContext>(ctx);
       return fail(ScraperErrorTypes.Generic, 'Clickable not found');
     } catch (error) {
-      const msg = (error as Error).message;
+      const msg = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, msg);
     }
   };
@@ -99,7 +100,7 @@ function buildDiscoverForm(page: Page, cache: IFormCache): IElementMediator['dis
       }
       return none();
     } catch (error) {
-      const msg = (error as Error).message.slice(0, 60);
+      const msg = toErrorMessage(error).slice(0, 60);
       LOG.debug('discoverForm failed (non-fatal): %s', msg);
       return none();
     }

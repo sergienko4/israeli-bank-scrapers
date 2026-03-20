@@ -272,41 +272,54 @@ interface IMonthFetchCtx {
  * Fetch one month of transactions.
  * @param ctx - Month fetch context.
  * @param month - Month moment.
- * @returns Raw transactions for the month.
+ * @returns Procedure with raw transactions or failure.
  */
 async function fetchOneMonth(
   ctx: IMonthFetchCtx,
   month: moment.Moment,
-): Promise<readonly IRawTxn[]> {
+): Promise<Procedure<readonly IRawTxn[]>> {
   const body = {
     cardUniqueId: ctx.card.cardUniqueId,
     month: month.format('M'),
     year: month.format('YYYY'),
   };
   const raw = await ctx.strategy.fetchPost<ITxnResp>(TXN_URL, body as never, ctx.opts);
-  if (!isOk(raw)) return [];
+  if (!isOk(raw)) return raw;
   const banks = raw.value.result.bankAccounts;
   const debits = banks.flatMap(b => b.debitDates);
   const immediates = banks.flatMap(b => b.immidiateDebits.debitDays);
-  return [...debits, ...immediates].flatMap(d => d.transactions);
+  const txns = [...debits, ...immediates].flatMap(d => d.transactions);
+  return succeed(txns);
+}
+
+/** Accumulated result from multi-month fetch with soft failures. */
+interface IMonthsResult {
+  readonly txns: readonly IRawTxn[];
+  readonly warnings: readonly string[];
 }
 
 /**
- * Fetch all months recursively.
+ * Fetch all months recursively — soft fail per month.
+ * On month failure: logs warning, continues with remaining months.
  * @param ctx - Month fetch context.
  * @param months - Month array.
  * @param index - Current index.
- * @returns All raw transactions.
+ * @returns Accumulated transactions and warnings.
  */
 async function fetchMonthsRecursive(
   ctx: IMonthFetchCtx,
   months: readonly moment.Moment[],
   index: number,
-): Promise<readonly IRawTxn[]> {
-  if (index >= months.length) return [];
-  const txns = await fetchOneMonth(ctx, months[index]);
+): Promise<IMonthsResult> {
+  if (index >= months.length) return { txns: [], warnings: [] };
+  const monthResult = await fetchOneMonth(ctx, months[index]);
   const rest = await fetchMonthsRecursive(ctx, months, index + 1);
-  return [...txns, ...rest];
+  if (!isOk(monthResult)) {
+    const label = months[index].format('YYYY-MM');
+    const warning = `Month ${label} fetch failed: ${monthResult.errorMessage}`;
+    return { txns: rest.txns, warnings: [warning, ...rest.warnings] };
+  }
+  return { txns: [...monthResult.value, ...rest.txns], warnings: rest.warnings };
 }
 
 // ── Pending fetch ──────────────────────────────────────────
@@ -326,18 +339,19 @@ interface IPendingResp {
  * @param strategy - Fetch strategy.
  * @param opts - Headers.
  * @param card - Card info.
- * @returns Pending transactions.
+ * @returns Procedure with pending transactions or failure.
  */
 async function fetchPending(
   strategy: IFetchStrategy,
   opts: IFetchOpts,
   card: ICard,
-): Promise<readonly IRawPendingTxn[]> {
+): Promise<Procedure<readonly IRawPendingTxn[]>> {
   const body = { cardUniqueIDArray: [card.cardUniqueId] };
   const raw = await strategy.fetchPost<IPendingResp>(PENDING_URL, body as never, opts);
-  if (!isOk(raw)) return [];
-  if (!raw.value.result) return [];
-  return raw.value.result.cardsList.flatMap(c => c.authDetalisList);
+  if (!isOk(raw)) return raw;
+  if (!raw.value.result) return succeed([]);
+  const txns = raw.value.result.cardsList.flatMap(c => c.authDetalisList);
+  return succeed(txns);
 }
 
 // ── Card assembly ──────────────────────────────────────────
@@ -352,17 +366,17 @@ interface ICardCtx {
 }
 
 /**
- * Fetch and map one card's data.
+ * Fetch and map one card's data. Soft fail: pending failure is a warning, not fatal.
  * @param card - Card info.
  * @param ctx - Card context.
  * @returns Account with transactions.
  */
 async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAccount> {
   const monthCtx: IMonthFetchCtx = { strategy: ctx.strategy, opts: ctx.opts, card };
-  const rawTxns = await fetchMonthsRecursive(monthCtx, ctx.months, 0);
-  const rawPending = await fetchPending(ctx.strategy, ctx.opts, card);
-  const completed = rawTxns.map(mapCompleted);
-  const pending = rawPending.map(mapPending);
+  const monthsResult = await fetchMonthsRecursive(monthCtx, ctx.months, 0);
+  const pendingResult = await fetchPending(ctx.strategy, ctx.opts, card);
+  const completed = monthsResult.txns.map(mapCompleted);
+  const pending = isOk(pendingResult) ? pendingResult.value.map(mapPending) : [];
   const allTxns = [...completed, ...pending];
   const isCombine = ctx.options.shouldCombineInstallments ?? false;
   const startMoment = moment(ctx.options.startDate);
@@ -381,9 +395,10 @@ async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAc
  * @returns Month array.
  */
 function buildMonths(start: moment.Moment, futureMonths: number): readonly moment.Moment[] {
-  const final = moment().add(futureMonths, 'month');
-  const count = final.diff(start, 'months');
-  return Array.from({ length: count + 1 }, (_, i) => final.clone().subtract(i, 'months'));
+  const startMonth = start.clone().startOf('month');
+  const endMonth = moment().add(futureMonths, 'month').startOf('month');
+  const count = endMonth.diff(startMonth, 'months');
+  return Array.from({ length: count + 1 }, (_, i) => startMonth.clone().add(i, 'months'));
 }
 
 /** Bundled API deps for building card context. */
@@ -440,4 +455,4 @@ async function visaCalFetchData(ctx: IPipelineContext): Promise<Procedure<IPipel
   return succeed({ ...ctx, scrape: some({ accounts }) });
 }
 
-export { getAuth, visaCalFetchData };
+export { buildMonths, getAuth, visaCalFetchData };
