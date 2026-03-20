@@ -8,6 +8,10 @@ import type { Frame, Page } from 'playwright-core';
 
 import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+
+/** First WellKnown error text — used for test assertions. */
+const FIRST_ERROR_TEXT = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[0].value;
 
 // ── Mock helpers ───────────────────────────────────────────
 
@@ -108,11 +112,11 @@ describe('checkFrameForErrors', () => {
     expect(errorResult.summary).toBe('');
   });
 
-  it('returns hasErrors=true for Discount error text "פרטים שגויים"', async () => {
-    const frame = makeMockFrame(['פרטים שגויים']);
+  it('returns hasErrors=true for first WellKnown error text', async () => {
+    const frame = makeMockFrame([FIRST_ERROR_TEXT]);
     const errorResult = await checkFrameForErrors(frame);
     expect(errorResult.hasErrors).toBe(true);
-    expect(errorResult.summary).toBe('פרטים שגויים');
+    expect(errorResult.summary).toBe(FIRST_ERROR_TEXT);
   });
 
   it('returns hasErrors=true for VisaCal error "שם המשתמש או הסיסמה שהוזנו שגויים"', async () => {
@@ -131,11 +135,12 @@ describe('checkFrameForErrors', () => {
   });
 
   it('stops on first match and returns that candidate', async () => {
-    // Both "פרטים שגויים" and "שגיאה" visible — WellKnown order determines first
-    const frame = makeMockFrame(['פרטים שגויים', 'שגיאה']);
+    // Both first and second WellKnown texts visible — order determines first match
+    const secondText = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[1].value;
+    const frame = makeMockFrame([FIRST_ERROR_TEXT, secondText]);
     const errorResult = await checkFrameForErrors(frame);
     expect(errorResult.hasErrors).toBe(true);
-    expect(errorResult.summary).toBe('פרטים שגויים');
+    expect(errorResult.summary).toBe(FIRST_ERROR_TEXT);
   });
 });
 

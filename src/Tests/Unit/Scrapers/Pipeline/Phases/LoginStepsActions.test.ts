@@ -3,7 +3,10 @@
  * preLogin and error-detection tests are in LoginSteps.test.ts.
  */
 
+import type { Page } from 'playwright-core';
+
 import type { IFieldContext } from '../../../../../Common/SelectorResolverPipeline.js';
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { LifecyclePromise } from '../../../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
@@ -25,20 +28,19 @@ import {
  * @param overrides - Optional field overrides.
  * @returns Minimal ILoginConfig.
  */
-const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig =>
-  ({
-    loginUrl: 'https://bank.test/login',
-    fields: [],
-    submit: [{ kind: 'textContent', value: 'כניסה' }],
-    possibleResults: {},
-    ...overrides,
-  }) as never;
+const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig => ({
+  loginUrl: 'https://bank.test/login',
+  fields: [],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
+  possibleResults: { success: [] },
+  ...overrides,
+});
 
 /** Minimal success IFieldContext for mediator mock return. */
 const SUCCESS_FIELD_CTX: IFieldContext = {
   isResolved: true,
   selector: '#field',
-  context: makeMockFullPage() as never,
+  context: makeMockFullPage() as unknown as Page,
   resolvedVia: 'wellKnown',
   round: 'mainPage',
 };
@@ -117,7 +119,7 @@ describe('LoginSteps/loginAction', () => {
        */
       resolveField: (key: string) => {
         resolvedFields.push(key);
-        const r = fail('GENERIC' as never, `field ${key} not found`);
+        const r = fail(ScraperErrorTypes.Generic, `field ${key} not found`);
         return Promise.resolve(r);
       },
     });
@@ -181,7 +183,7 @@ describe('LoginSteps/loginAction', () => {
        * @returns Fail procedure.
        */
       resolveClickable: () => {
-        const r = fail('GENERIC' as never, 'submit not found');
+        const r = fail(ScraperErrorTypes.Generic, 'submit not found');
         return Promise.resolve(r);
       },
     });

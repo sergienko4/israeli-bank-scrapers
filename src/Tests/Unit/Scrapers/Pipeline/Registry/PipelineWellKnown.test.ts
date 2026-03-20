@@ -37,23 +37,18 @@ describe('PIPELINE_WELL_KNOWN_LOGIN/zero-css', () => {
 });
 
 describe('PIPELINE_WELL_KNOWN_LOGIN/text-candidates', () => {
-  it('__submit__ has ariaLabel candidates', () => {
-    const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
-    const hasAriaLabel = submit.some(c => c.kind === 'ariaLabel');
-    expect(hasAriaLabel).toBe(true);
-  });
-
-  it('__submit__ has xpath candidates', () => {
-    const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
-    const hasXpath = submit.some(c => c.kind === 'xpath');
-    expect(hasXpath).toBe(true);
-  });
-
-  it('__submit__ has textContent candidates', () => {
-    const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
-    const hasText = submit.some(c => c.kind === 'textContent');
-    expect(hasText).toBe(true);
-  });
+  it.each(['ariaLabel', 'xpath', 'textContent'] as const)(
+    /**
+     * Verify __submit__ includes each expected candidate kind.
+     * @param kind - The expected SelectorCandidate kind.
+     */
+    '__submit__ has %s candidates',
+    kind => {
+      const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
+      const hasKind = submit.some(c => c.kind === kind);
+      expect(hasKind).toBe(true);
+    },
+  );
 
   it('__submit__ has NO kind:css entry', () => {
     const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;

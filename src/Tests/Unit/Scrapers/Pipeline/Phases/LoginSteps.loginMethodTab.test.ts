@@ -7,6 +7,10 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { tryClickLoginMethodTab } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { PIPELINE_WELL_KNOWN_LOGIN } from '../../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+
+/** Tab candidates from WellKnown — drives the parameterized test cases. */
+const TAB_CANDIDATES = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab.map(c => [c.value]);
 
 // ── Mock factories ─────────────────────────────────────────
 
@@ -103,16 +107,13 @@ const MAKE_FRAME_WITHOUT_TAB = (): { frame: MockFrame; wasTabClicked: () => bool
 // ── Tests ──────────────────────────────────────────────────
 
 describe('tryClickLoginMethodTab', () => {
-  it.each([['כניסה עם שם משתמש'], ['כניסה עם סיסמה']])(
-    'returns true and clicks "%s" tab when visible',
-    async tabText => {
-      const { frame, getClickCount } = MAKE_FRAME_WITH_TAB(tabText);
-      const didClickTab = await tryClickLoginMethodTab(frame);
-      const clickCount = getClickCount();
-      expect(didClickTab).toBe(true);
-      expect(clickCount).toBe(1);
-    },
-  );
+  it.each(TAB_CANDIDATES)('returns true and clicks "%s" tab when visible', async tabText => {
+    const { frame, getClickCount } = MAKE_FRAME_WITH_TAB(tabText);
+    const didClickTab = await tryClickLoginMethodTab(frame);
+    const clickCount = getClickCount();
+    expect(didClickTab).toBe(true);
+    expect(clickCount).toBe(1);
+  });
 
   it('returns false and does not click when no tab is visible', async () => {
     const { frame, wasTabClicked } = MAKE_FRAME_WITHOUT_TAB();

@@ -3,6 +3,8 @@
  * Covers the case where submit config is a single candidate, not an array.
  */
 
+import type { Page } from 'playwright-core';
+
 import type { IFieldContext } from '../../../../../Common/SelectorResolverPipeline.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
@@ -19,20 +21,19 @@ import {
  * @param overrides - Optional field overrides.
  * @returns Minimal ILoginConfig.
  */
-const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig =>
-  ({
-    loginUrl: 'https://bank.test/login',
-    fields: [],
-    submit: [{ kind: 'textContent', value: 'כניסה' }],
-    possibleResults: {},
-    ...overrides,
-  }) as never;
+const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig => ({
+  loginUrl: 'https://bank.test/login',
+  fields: [],
+  submit: [{ kind: 'textContent', value: 'כניסה' }],
+  possibleResults: { success: [] },
+  ...overrides,
+});
 
 /** Minimal success IFieldContext for mediator mock return. */
 const SUCCESS_FIELD_CTX: IFieldContext = {
   isResolved: true,
   selector: '#field',
-  context: makeMockFullPage() as never,
+  context: makeMockFullPage() as unknown as Page,
   resolvedVia: 'wellKnown',
   round: 'mainPage',
 };

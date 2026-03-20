@@ -3,7 +3,9 @@
  * Supplements ScrapeExecutor.test.ts (which covers GET path and basic error propagation).
  */
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
+import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
@@ -45,7 +47,7 @@ describe('ScrapeExecutor/POST-transactions', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = {
       ...makeMockScrapeConfig([MOCK_RAW_ACCOUNT]),
       transactions: {
@@ -86,7 +88,7 @@ describe('ScrapeExecutor/2nd-account-failure', () => {
         if (path.includes('/api/txns/')) {
           txnCallCount += 1;
           if (txnCallCount >= 2) {
-            const r = fail('GENERIC' as never, '2nd account txn failed');
+            const r = fail(ScraperErrorTypes.Generic, '2nd account txn failed');
             return Promise.resolve(r);
           }
         }
@@ -101,7 +103,7 @@ describe('ScrapeExecutor/2nd-account-failure', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const accounts = [
       { accountId: 'A1', balance: 100 },
       { accountId: 'A2', balance: 200 },
