@@ -10,7 +10,7 @@ import {
   TransactionStatuses,
   TransactionTypes,
 } from '../../../../Transactions.js';
-import { isOk, type Procedure } from '../../Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../Types/Procedure.js';
 
 /** Completed transaction from /transactions. */
 export interface IRawTxn {
@@ -55,6 +55,30 @@ const TXN_TYPE: Record<number, TransactionTypes> = {
   [TRN_STANDING]: TransactionTypes.Normal,
 };
 
+/** Common raw txn fields shared between completed and pending. */
+interface IBaseTxnFields {
+  readonly trnPurchaseDate: string;
+  readonly merchantName: string;
+  readonly transTypeCommentDetails: string;
+  readonly branchCodeDesc: string;
+}
+
+/**
+ * Build shared ITransaction fields from common raw fields.
+ * @param txn - Raw transaction with common fields.
+ * @returns Description, memo, and category.
+ */
+function buildBaseFields(
+  txn: IBaseTxnFields,
+): Pick<ITransaction, 'description' | 'memo' | 'category'> {
+  const fields: Pick<ITransaction, 'description' | 'memo' | 'category'> = {
+    description: txn.merchantName,
+    memo: txn.transTypeCommentDetails,
+    category: txn.branchCodeDesc,
+  };
+  return fields;
+}
+
 /**
  * Map completed transaction amounts.
  * @param txn - Raw completed transaction.
@@ -77,6 +101,7 @@ function mapCompletedAmounts(txn: IRawTxn): Pick<ITransaction, 'originalAmount' 
 export function mapCompleted(txn: IRawTxn): ITransaction {
   const txnType = TXN_TYPE[txn.trnTypeCode] ?? TransactionTypes.Installments;
   const amounts = mapCompletedAmounts(txn);
+  const base = buildBaseFields(txn);
   return {
     identifier: txn.trnIntId,
     type: txnType,
@@ -86,9 +111,7 @@ export function mapCompleted(txn: IRawTxn): ITransaction {
     ...amounts,
     originalCurrency: txn.trnCurrencySymbol,
     chargedCurrency: txn.debCrdCurrencySymbol,
-    description: txn.merchantName,
-    memo: txn.transTypeCommentDetails,
-    category: txn.branchCodeDesc,
+    ...base,
     ...(txn.numOfPayments && {
       installments: { number: txn.curPaymentNum, total: txn.numOfPayments },
     }),
@@ -102,6 +125,7 @@ export function mapCompleted(txn: IRawTxn): ITransaction {
  */
 export function mapPending(txn: IRawPendingTxn): ITransaction {
   const date = moment(txn.trnPurchaseDate).toISOString();
+  const base = buildBaseFields(txn);
   return {
     type: TransactionTypes.Normal,
     status: TransactionStatuses.Pending,
@@ -110,18 +134,19 @@ export function mapPending(txn: IRawPendingTxn): ITransaction {
     originalAmount: txn.trnAmt * -1,
     originalCurrency: txn.trnCurrencySymbol,
     chargedAmount: txn.trnAmt * -1,
-    description: txn.merchantName,
-    memo: txn.transTypeCommentDetails,
-    category: txn.branchCodeDesc,
+    ...base,
   };
 }
 
 /**
- * Extract mapped pending transactions from a Procedure result.
+ * Map pending transactions from a Procedure result, preserving failure.
  * @param result - Procedure with pending transactions or failure.
- * @returns Mapped pending transactions, or empty array on failure.
+ * @returns Procedure with mapped transactions (failure propagated, not swallowed).
  */
-export function mapPendingResults(result: Procedure<readonly IRawPendingTxn[]>): ITransaction[] {
-  if (!isOk(result)) return [];
-  return result.value.map(mapPending);
+export function mapPendingResults(
+  result: Procedure<readonly IRawPendingTxn[]>,
+): Procedure<ITransaction[]> {
+  if (!isOk(result)) return result;
+  const mapped = result.value.map(mapPending);
+  return succeed(mapped);
 }

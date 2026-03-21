@@ -147,12 +147,17 @@ async function fetchRawTxns<TA, TT>(
  * Assemble an ITransactionsAccount from raw account + mapped transactions.
  * @param account - The raw account with ID and balance.
  * @param txns - Mapped transactions.
+ * @param balance - Override balance (from balanceExtractor, or account.balance).
  * @returns Assembled account.
  */
-function buildAccount(account: IRawAccount, txns: readonly ITransaction[]): ITransactionsAccount {
+function buildAccount(
+  account: IRawAccount,
+  txns: readonly ITransaction[],
+  balance: number,
+): ITransactionsAccount {
   return {
     accountNumber: account.accountId,
-    balance: account.balance,
+    balance,
     txns: txns as ITransaction[],
   } satisfies ITransactionsAccount;
 }
@@ -184,7 +189,12 @@ async function fetchOneAccount<TA, TT>(
   const mapTxns = (): readonly ITransaction[] => txnCfg.mapper(raw.value);
   const mapped = safeCall(mapTxns, 'Transaction mapper');
   if (!isOk(mapped)) return mapped;
-  const acct = buildAccount(account, mapped.value);
+  const extractor = ops.config.balanceExtractor;
+  const balance = extractor
+    ? safeCall((): number => extractor(raw.value), 'balanceExtractor')
+    : succeed(account.balance);
+  const resolvedBalance = isOk(balance) ? balance.value : account.balance;
+  const acct = buildAccount(account, mapped.value, resolvedBalance);
   return succeed(acct);
 }
 

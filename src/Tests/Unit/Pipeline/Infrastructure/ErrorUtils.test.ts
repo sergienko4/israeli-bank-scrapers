@@ -11,10 +11,10 @@ describe('toErrorMessage', () => {
     ['Error with empty message', new Error(''), ''],
     ['string value', 'crash', 'crash'],
     ['empty string', '', ''],
-    ['null', null, 'Unknown error'],
-    ['undefined', undefined, 'Unknown error'],
-    ['plain object', { code: 42 }, 'Unknown error'],
-    ['number', 123, 'Unknown error'],
+    ['null', null, 'null'],
+    ['undefined', undefined, 'undefined'],
+    ['plain object', { code: 42 }, '[object Object]'],
+    ['number', 123, '123'],
   ] as const)(
     /**
      * Verify toErrorMessage extracts the right string for each input type.

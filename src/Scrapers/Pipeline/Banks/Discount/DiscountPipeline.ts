@@ -149,6 +149,13 @@ const DISCOUNT_SCRAPE_CONFIG: IScrapeConfig<IDiscountAccountsRaw, IDiscountTxnRa
   dateFormat: DATE_FORMAT,
   defaultCurrency: 'ILS',
   /**
+   * Extract balance from transaction response.
+   * @param raw - Raw txn API response.
+   * @returns Account balance, or 0 if missing.
+   */
+  balanceExtractor: (raw: IDiscountTxnRaw): number =>
+    raw.CurrentAccountLastTransactions?.CurrentAccountInfo.AccountBalance ?? 0,
+  /**
    * No extra headers needed — Discount uses session cookies.
    * @returns Empty headers object.
    */

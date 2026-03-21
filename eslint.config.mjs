@@ -353,6 +353,29 @@ export default tseslint.config(
           selector: "IfStatement[test.argument.property.name='isOk'] ReturnStatement > ArrayExpression[elements.length=0]",
           message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. This triggers false 'Zero Data' states. Propagate the failure Result instead.",
         },
+        // DI: No hardcoded Config keys in Objects
+        {
+          selector: "Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal",
+          message: "🚫 DI: Config values (timeouts/dimensions) must be injected via 'ctx.config'.",
+        },
+
+        // DI: No hardcoded Browser/Framework API Arguments
+        {
+          selector: "CallExpression[callee.property.name=/goto|waitForTimeout|setViewport|setTimeout|waitForSelector|click|type/] > Literal",
+          message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.constants' or 'ctx.config'.",
+        },
+
+        // DI: No manual instantiation of Service/Logic classes
+        {
+          selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
+          message: "🚫 DI: Do not 'new' up handlers or services. Inject via PipelineContext.",
+        },
+
+        // ARCHITECTURE: No hardcoded Status Strings
+        {
+          selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
+          message: "🚫 ARCHITECTURE: Use Enums or Constants for type discriminators/status checks.",
+        }
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

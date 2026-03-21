@@ -71,6 +71,8 @@ interface IScrapeConfig<TAccountsRaw, TTxnRaw> {
   readonly defaultCurrency: string;
   /** Extra HTTP headers for API calls (e.g., auth tokens). */
   readonly extraHeaders: (ctx: IPipelineContext) => Record<string, string>;
+  /** Optional: extract balance from the txn response (accounts endpoint may not have it). */
+  readonly balanceExtractor?: (raw: TTxnRaw) => number;
 }
 
 /**

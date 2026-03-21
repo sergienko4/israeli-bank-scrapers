@@ -263,16 +263,17 @@ describe('createElementMediator/waitForLoadingDone', () => {
   });
 
   it.each([
-    { label: 'clears after retry', visibleUntil: 2 },
-    { label: 'proceeds after max retries', visibleUntil: 999 },
+    { label: 'clears after retry', visibleUntil: 2, expected: true },
+    { label: 'returns false after max retries', visibleUntil: 999, expected: false },
   ] as const)(
     /**
      * Parametrized: loading indicator visible until call N, then hidden.
      * @param label - Test description.
      * @param visibleUntil - Number of isVisible calls that return true.
+     * @param expected - Expected return value.
      */
     '$label',
-    async ({ visibleUntil }) => {
+    async ({ visibleUntil, expected }) => {
       let callCount = 0;
       const page = FACTORY.makeMockLoadingPage(() => {
         callCount++;
@@ -280,7 +281,7 @@ describe('createElementMediator/waitForLoadingDone', () => {
       });
       const mediator = MED_MOD.createElementMediator(page);
       const isDone = await mediator.waitForLoadingDone(page);
-      expect(isDone).toBe(true);
+      expect(isDone).toBe(expected);
     },
   );
 });

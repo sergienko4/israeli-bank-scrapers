@@ -25,6 +25,14 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
+// ── Constants ─────────────────────────────────────────────
+
+/** Timeout for login method tab detection (quick probe, not blocking). */
+const LOGIN_METHOD_TAB_TIMEOUT = 2000;
+
+/** Timeout for post-login page settle (networkidle). */
+const POST_LOGIN_SETTLE_TIMEOUT = 15000;
+
 // ── Types ──────────────────────────────────────────────────
 
 /** Options for filling a single credential field. */
@@ -84,7 +92,7 @@ export async function tryClickLoginMethodTab(activeFrame: Page | Frame): Promise
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
   const locators = candidates.map((c): Locator => activeFrame.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state: 'visible', timeout: 2000 });
+    await loc.waitFor({ state: 'visible', timeout: LOGIN_METHOD_TAB_TIMEOUT });
     return i;
   });
   const results = await Promise.allSettled(waiters);
@@ -318,7 +326,7 @@ function createLoginActionStep(
  */
 export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
   try {
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
+    await page.waitForLoadState('networkidle', { timeout: POST_LOGIN_SETTLE_TIMEOUT });
   } catch {
     // Timeout is OK — SPA may stay "loading"; proceed and check for errors
   }

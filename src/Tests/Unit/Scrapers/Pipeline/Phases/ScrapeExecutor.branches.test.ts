@@ -115,3 +115,36 @@ describe('ScrapeExecutor/2nd-account-failure', () => {
     if (!result.success) expect(result.errorMessage).toBe('2nd account txn failed');
   });
 });
+
+describe('ScrapeExecutor/balanceExtractor', () => {
+  it('uses balanceExtractor when provided', async () => {
+    const strategy = makeMockFetchStrategy();
+    const config = {
+      ...makeMockScrapeConfig(),
+      /**
+       * Extract balance from txn response.
+       * @returns Fixed balance for testing.
+       */
+      balanceExtractor: (): number => 9999,
+    };
+    const ctx = MAKE_CTX(strategy);
+    const result = await executeScrape(ctx, config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const acct = result.value.scrape;
+    if (!acct.has) return;
+    expect(acct.value.accounts[0].balance).toBe(9999);
+  });
+
+  it('falls back to account.balance when extractor absent', async () => {
+    const strategy = makeMockFetchStrategy();
+    const config = makeMockScrapeConfig();
+    const ctx = MAKE_CTX(strategy);
+    const result = await executeScrape(ctx, config);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const acct = result.value.scrape;
+    if (!acct.has) return;
+    expect(acct.value.accounts[0].balance).toBe(1000);
+  });
+});

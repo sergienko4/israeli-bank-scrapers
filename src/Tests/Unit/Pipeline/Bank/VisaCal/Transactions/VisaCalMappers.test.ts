@@ -141,18 +141,20 @@ describe('mapPending', () => {
 });
 
 describe('mapPendingResults', () => {
-  it('returns empty array on failure', () => {
+  it('propagates failure as Procedure failure', () => {
     const failure = fail(ScraperErrorTypes.Generic, 'test error');
     const result = mapPendingResults(failure);
-    expect(result).toEqual([]);
+    expect(result.success).toBe(false);
   });
 
   it('maps all pending transactions on success', () => {
     const txns = [BASE_PENDING, { ...BASE_PENDING, trnAmt: 75 }];
-    const success = succeed(txns);
-    const result = mapPendingResults(success);
-    expect(result).toHaveLength(2);
-    expect(result[0].originalAmount).toBe(-50);
-    expect(result[1].originalAmount).toBe(-75);
+    const input = succeed(txns);
+    const result = mapPendingResults(input);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value).toHaveLength(2);
+    expect(result.value[0].originalAmount).toBe(-50);
+    expect(result.value[1].originalAmount).toBe(-75);
   });
 });

@@ -40,6 +40,7 @@ const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 function buildLocator(ctx: Page | Frame, candidate: SelectorCandidate): Locator {
   if (candidate.kind === 'ariaLabel') return ctx.getByLabel(candidate.value).first();
   if (candidate.kind === 'placeholder') return ctx.getByPlaceholder(candidate.value).first();
+  if (candidate.kind === 'xpath') return ctx.locator(candidate.value).first();
   return ctx.getByText(candidate.value).first();
 }
 

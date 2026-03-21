@@ -164,8 +164,8 @@ function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
     if (isDone1) return true;
     const isDone2 = await waitOnceForLoading(frame, 2);
     if (isDone2) return true;
-    await waitOnceForLoading(frame, 3);
-    return true;
+    const isDone3 = await waitOnceForLoading(frame, 3);
+    return isDone3;
   };
 }
 

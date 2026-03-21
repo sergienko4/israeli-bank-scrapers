@@ -1,4 +1,8 @@
 import { buildContextOptions } from '../../Common/Browser.js';
+import {
+  DESKTOP_VIEWPORT_HEIGHT,
+  DESKTOP_VIEWPORT_WIDTH,
+} from '../../Common/Config/BrowserConfig.js';
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {
@@ -19,6 +23,9 @@ describe('buildContextOptions', () => {
 
   it('sets 1920x1080 viewport (Israeli banks hide login at smaller sizes)', () => {
     const options = buildContextOptions();
-    expect(options.viewport).toEqual({ width: 1920, height: 1080 });
+    expect(options.viewport).toEqual({
+      width: DESKTOP_VIEWPORT_WIDTH,
+      height: DESKTOP_VIEWPORT_HEIGHT,
+    });
   });
 });

@@ -91,8 +91,8 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
       return els.map((el): IRawDomItem => {
         const cs = window.getComputedStyle(el);
         const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-        const rawCls = el.className;
-        const cls = rawCls || '';
+        const rawCls = el.getAttribute('class');
+        const cls = rawCls ?? '';
         const rawText = el.textContent;
         const text = (rawText || '').trim();
         const tag = el.tagName.toLowerCase();

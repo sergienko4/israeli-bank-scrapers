@@ -8,7 +8,7 @@ import moment from 'moment';
 import type { Page } from 'playwright-core';
 
 import { filterOldTransactions } from '../../../../Common/Transactions.js';
-import type { ITransactionsAccount } from '../../../../Transactions.js';
+import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { IBankScraperConfig } from '../../../Registry/Config/ScraperConfigDefaults.js';
@@ -324,19 +324,41 @@ interface ICardCtx {
   readonly options: ScraperOptions;
 }
 
+/** Result from one card fetch — account + any warnings. */
+interface ICardResult {
+  readonly account: ITransactionsAccount;
+  readonly warnings: readonly string[];
+}
+
+/**
+ * Resolve pending transactions — soft fail returns [] with warning.
+ * @param fc - Fetch context.
+ * @param card - Card info.
+ * @returns Pending transactions and optional warning.
+ */
+async function resolvePending(
+  fc: IFetchCtx,
+  card: ICard,
+): Promise<{ txns: ITransaction[]; warning: string }> {
+  const pendingResult = await fetchPending(fc, card);
+  const mapped = mapPendingResults(pendingResult);
+  if (isOk(mapped)) return { txns: mapped.value, warning: '' };
+  const msg = `Pending failed: ${mapped.errorMessage}`;
+  return { txns: [], warning: msg };
+}
+
 /**
  * Fetch and map one card's data. Soft fail: pending failure is a warning, not fatal.
  * @param card - Card info.
  * @param ctx - Card context.
- * @returns Account with transactions.
+ * @returns Card result with account and any warnings.
  */
-async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAccount> {
+async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ICardResult> {
   const monthCtx: IMonthFetchCtx = { fc: ctx.fc, card };
   const monthsResult = await fetchMonthsRecursive(monthCtx, ctx.months, 0);
-  const pendingResult = await fetchPending(ctx.fc, card);
-  const completed = monthsResult.txns.map(mapCompleted);
-  const pending = mapPendingResults(pendingResult);
-  const allTxns = [...completed, ...pending];
+  const pendingInfo = await resolvePending(ctx.fc, card);
+  const completed: ITransaction[] = monthsResult.txns.map(mapCompleted);
+  const allTxns: ITransaction[] = [...completed, ...pendingInfo.txns];
   const isCombine = ctx.options.shouldCombineInstallments ?? false;
   const startMoment = moment(ctx.options.startDate);
   const filtered = filterOldTransactions(allTxns, startMoment, isCombine);
@@ -347,7 +369,10 @@ async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAc
     balance,
     txns: filtered,
   };
-  return account;
+  const warnings = [...monthsResult.warnings];
+  if (pendingInfo.warning) warnings.push(pendingInfo.warning);
+  const result: ICardResult = { account, warnings };
+  return result;
 }
 
 // ── Public scrape function ─────────────────────────────────
@@ -396,17 +421,20 @@ function buildCardCtx(ctx: IPipelineContext, deps: IApiDeps): ICardCtx {
 }
 
 /**
- * Fetch all cards in parallel.
+ * Fetch all cards in parallel, collecting warnings.
  * @param cards - Card list.
  * @param cardCtx - Card fetch context.
- * @returns Array of transaction accounts.
+ * @returns Accounts and accumulated warnings.
  */
 async function fetchAllCards(
   cards: readonly ICard[],
   cardCtx: ICardCtx,
-): Promise<readonly ITransactionsAccount[]> {
-  const fetches = cards.map((c): Promise<ITransactionsAccount> => fetchOneCard(c, cardCtx));
-  return Promise.all(fetches);
+): Promise<{ accounts: readonly ITransactionsAccount[]; warnings: readonly string[] }> {
+  const fetches = cards.map((c): Promise<ICardResult> => fetchOneCard(c, cardCtx));
+  const results = await Promise.all(fetches);
+  const accounts = results.map((r): ITransactionsAccount => r.account);
+  const warnings = results.flatMap((r): readonly string[] => r.warnings);
+  return { accounts, warnings };
 }
 
 /**
@@ -431,8 +459,12 @@ async function visaCalFetchData(ctx: IPipelineContext): Promise<Procedure<IPipel
   if (!isOk(framesResult)) return framesResult;
   const deps: IApiDeps = { fc, frames: framesResult.value };
   const cardCtx = buildCardCtx(ctx, deps);
-  const accounts = await fetchAllCards(cardsResult.value, cardCtx);
-  return succeed({ ...ctx, scrape: some({ accounts }) });
+  const cardResults = await fetchAllCards(cardsResult.value, cardCtx);
+  const prevWarnings = ctx.diagnostics.warnings;
+  const allWarnings = [...prevWarnings, ...cardResults.warnings];
+  const diag = { ...ctx.diagnostics, warnings: allWarnings };
+  const accounts = cardResults.accounts;
+  return succeed({ ...ctx, diagnostics: diag, scrape: some({ accounts }) });
 }
 
 export { buildMonths, getAuth, visaCalFetchData };

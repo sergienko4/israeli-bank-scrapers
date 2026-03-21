@@ -81,8 +81,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
-    const shouldIgnoreErrors = hasHeaders;
-    return fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors)
+    if (hasHeaders)
+      return fail(ScraperErrorTypes.Generic, 'fetchGet with extraHeaders not yet supported');
+    return fetchGetWithinPage<T>(this._page, url, false)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
