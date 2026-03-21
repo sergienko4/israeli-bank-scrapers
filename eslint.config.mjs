@@ -316,8 +316,8 @@ export default tseslint.config(
 
         // Result Pattern: Every return must have success/status
         {
-          selector: "ReturnStatement > ObjectExpression:not(:has(Property[key.name='success'])):not(:has(Property[key.name='status']))",
-          message: "🚫 RESULT PATTERN: Every return object must include 'success: boolean' AND 'status: string'.",
+          selector: "ReturnStatement > ObjectExpression",
+          message: "🚫 RESULT PATTERN: Do not return inline objects. Use succeed(value) or fail(type, msg)."
         },
 
         // Result Pattern: Failure must include message/error
@@ -383,10 +383,11 @@ export default tseslint.config(
     },
   },
   // 6. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)
-  // This block grants "super-powers" to the files that build the DI container.
+  // This block grants "super-powers" to don't pushthe files that build the DI container.
   {
     files: [
-      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context}.ts'
+      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context}.ts',
+      'src/Scrapers/Pipeline/Types/Procedure.ts'
     ],
     rules: {
       // Factories are allowed to use 'new' and 'import' from Registry

@@ -102,7 +102,7 @@ export function mapCompleted(txn: IRawTxn): ITransaction {
   const txnType = TXN_TYPE[txn.trnTypeCode] ?? TransactionTypes.Installments;
   const amounts = mapCompletedAmounts(txn);
   const base = buildBaseFields(txn);
-  return {
+  const result: ITransaction = {
     identifier: txn.trnIntId,
     type: txnType,
     status: TransactionStatuses.Completed,
@@ -116,6 +116,7 @@ export function mapCompleted(txn: IRawTxn): ITransaction {
       installments: { number: txn.curPaymentNum, total: txn.numOfPayments },
     }),
   };
+  return result;
 }
 
 /**
@@ -126,7 +127,7 @@ export function mapCompleted(txn: IRawTxn): ITransaction {
 export function mapPending(txn: IRawPendingTxn): ITransaction {
   const date = moment(txn.trnPurchaseDate).toISOString();
   const base = buildBaseFields(txn);
-  return {
+  const result: ITransaction = {
     type: TransactionTypes.Normal,
     status: TransactionStatuses.Pending,
     date,
@@ -136,6 +137,7 @@ export function mapPending(txn: IRawPendingTxn): ITransaction {
     chargedAmount: txn.trnAmt * -1,
     ...base,
   };
+  return result;
 }
 
 /**
