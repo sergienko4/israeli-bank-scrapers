@@ -26,7 +26,8 @@ type NonNullish = object | string | number | boolean | symbol | bigint;
  * @returns An Option with `has: true`.
  */
 function some<T extends NonNullish>(value: T): ISome<T> {
-  return { has: true, value };
+  const option: ISome<T> = { has: true, value };
+  return option;
 }
 
 /** Sentinel for absent values — shared immutable instance. */

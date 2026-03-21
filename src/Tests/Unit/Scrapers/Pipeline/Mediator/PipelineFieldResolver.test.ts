@@ -108,7 +108,7 @@ describe('resolveFieldPipeline/success-main-page', () => {
     expect(result.metadata?.id).toBe('mat-input-2');
   });
 
-  it('metadata is undefined when extractMetadata throws (xpath selector)', async () => {
+  it('metadata is EMPTY_METADATA when extractMetadata throws (xpath selector)', async () => {
     const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
     isPageFn.mockReturnValue(false);
     const probeMain = SRP_MOD.probeMainPage as jest.Mock;
@@ -120,7 +120,8 @@ describe('resolveFieldPipeline/success-main-page', () => {
     metaFn.mockRejectedValue(new Error('invalid selector'));
 
     const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, '__submit__', []);
-    expect(result.metadata).toBeUndefined();
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata?.id).toBe('');
   });
 });
 

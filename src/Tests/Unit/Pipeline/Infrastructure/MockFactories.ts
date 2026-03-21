@@ -9,6 +9,8 @@ import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Ba
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Default company ID for test mocks. */
 const TEST_COMPANY_ID = 'testBank';
@@ -95,8 +97,11 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
  * @param options - ScraperOptions to use.
  * @returns A descriptor with empty phases.
  */
-function makeMockDescriptor(options: ScraperOptions = makeMockOptions()): IPipelineDescriptor {
-  return { options, phases: [] };
+function makeMockDescriptor(
+  options: ScraperOptions = makeMockOptions(),
+): Procedure<IPipelineDescriptor> {
+  const descriptor: IPipelineDescriptor = { options, phases: [] };
+  return succeed(descriptor);
 }
 
 export { makeMockContext, makeMockCredentials, makeMockDescriptor, makeMockOptions, makeMockPage };

@@ -35,8 +35,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const page = MAKE_MOCK_FULL_PAGE();
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toEqual({ result: 'ok' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toEqual({ result: 'ok' });
   });
 
   it('returns fail when fetchPostWithinPage returns null (empty response)', async () => {
@@ -44,8 +44,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     postFn.mockResolvedValue(null);
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('empty response');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('empty response');
   });
 
   it('returns fail when fetchPostWithinPage returns undefined', async () => {
@@ -53,7 +53,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     postFn.mockResolvedValue(undefined);
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 
   it('returns fail with error message when fetchPostWithinPage throws', async () => {
@@ -61,8 +61,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     postFn.mockRejectedValue(new Error('network error'));
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('network error');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('network error');
   });
 
   it('truncates long URL in empty response error at 80 chars', async () => {
@@ -71,8 +71,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const longUrl = 'https://api.test/' + 'a'.repeat(100);
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchPost(longUrl, {}, OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage.length).toBeLessThan(150);
     }
   });
@@ -86,8 +86,8 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     getFn.mockResolvedValue({ accounts: [] });
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toEqual({ accounts: [] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toEqual({ accounts: [] });
   });
 
   it('returns fail when fetchGetWithinPage returns null', async () => {
@@ -95,8 +95,8 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     getFn.mockResolvedValue(null);
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('empty response');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('empty response');
   });
 
   it('returns fail with error message when fetchGetWithinPage throws', async () => {
@@ -104,8 +104,8 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     getFn.mockRejectedValue(new Error('get failed'));
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('get failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('get failed');
   });
 
   it('calls fetchGetWithinPage with shouldIgnoreErrors=true when extraHeaders present', async () => {

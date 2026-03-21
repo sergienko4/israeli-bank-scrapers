@@ -145,12 +145,16 @@ describe('VISACAL_LOGIN', () => {
 
 describe('buildVisaCalPipeline', () => {
   it('returns descriptor with 4 phases', () => {
-    const descriptor = buildVisaCalPipeline(MOCK_OPTIONS);
+    const result = buildVisaCalPipeline(MOCK_OPTIONS);
+    if (!result.success) return;
+    const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);
   });
 
   it('phase names are init, login, scrape, terminate', () => {
-    const descriptor = buildVisaCalPipeline(MOCK_OPTIONS);
+    const result = buildVisaCalPipeline(MOCK_OPTIONS);
+    if (!result.success) return;
+    const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
     expect(names).toEqual(['init', 'login', 'scrape', 'terminate']);
   });

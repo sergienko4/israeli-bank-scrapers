@@ -17,15 +17,15 @@ describe('ElementMediator/resolveField', () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveField('username', []);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 
   it('returns failure with error message', async () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveField('password', []);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage.length).toBeGreaterThan(0);
     }
   });
@@ -36,7 +36,7 @@ describe('ElementMediator/resolveClickable', () => {
     const page = makeMockPage();
     const mediator = createElementMediator(page);
     const result = await mediator.resolveClickable([]);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 });
 

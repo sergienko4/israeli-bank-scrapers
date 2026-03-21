@@ -124,12 +124,16 @@ describe('DISCOUNT_LOGIN', () => {
 
 describe('buildDiscountPipeline', () => {
   it('returns descriptor with 4 phases', () => {
-    const descriptor = buildDiscountPipeline(MOCK_OPTIONS);
+    const result = buildDiscountPipeline(MOCK_OPTIONS);
+    if (!result.success) return;
+    const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);
   });
 
   it('phase names are init, login, scrape, terminate', () => {
-    const descriptor = buildDiscountPipeline(MOCK_OPTIONS);
+    const result = buildDiscountPipeline(MOCK_OPTIONS);
+    if (!result.success) return;
+    const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
     expect(names).toEqual(['init', 'login', 'scrape', 'terminate']);
   });

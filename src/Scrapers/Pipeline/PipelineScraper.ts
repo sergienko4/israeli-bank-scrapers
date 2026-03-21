@@ -18,9 +18,10 @@ import type { VoidResult } from '../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../Base/ScraperError.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import { executePipeline } from './PipelineExecutor.js';
+import { isOk, type Procedure, toLegacy } from './Types/Procedure.js';
 
-/** Pipeline builder function type. */
-type PipelineBuildFn = (options: ScraperOptions) => IPipelineDescriptor;
+/** Pipeline builder function type — returns Procedure for validation safety. */
+type PipelineBuildFn = (options: ScraperOptions) => Procedure<IPipelineDescriptor>;
 
 /** Progress callback — matches IScraper.onProgress signature. */
 type ProgressCallback = (
@@ -55,8 +56,12 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
    * @returns Legacy result shape.
    */
   public scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
-    const descriptor = this._buildPipeline(this._options);
-    return executePipeline(descriptor, credentials);
+    const buildResult = this._buildPipeline(this._options);
+    if (!isOk(buildResult)) {
+      const legacy = toLegacy(buildResult);
+      return Promise.resolve(legacy);
+    }
+    return executePipeline(buildResult.value, credentials);
   }
 
   /**

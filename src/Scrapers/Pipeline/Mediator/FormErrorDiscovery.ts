@@ -87,14 +87,16 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
   return ctx.evaluate(
     ({ sel }: IEvalArg): IRawDomItem[] => {
       const els = [...document.querySelectorAll(sel)];
-      return els.map(el => {
+      return els.map((el): IRawDomItem => {
         const cs = window.getComputedStyle(el);
         const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
         const rawCls = el.className;
         const cls = rawCls || '';
         const rawText = el.textContent;
         const text = (rawText || '').trim();
-        return { tag: el.tagName.toLowerCase(), cls, text, isHidden };
+        const tag = el.tagName.toLowerCase();
+        const item: IRawDomItem = { tag, cls, text, isHidden };
+        return item;
       });
     },
     { sel: ERROR_SELECTOR },
@@ -120,7 +122,8 @@ function toFormError(item: IRawDomItem): IFormError {
   const firstCls = (item.cls && `.${item.cls.split(' ')[0]}`) || '';
   const selector = `${item.tag}${firstCls}`;
   const kind = classifyByTag(item.tag);
-  return { selector, text: item.text, kind };
+  const error: IFormError = { selector, text: item.text, kind };
+  return error;
 }
 
 /**
@@ -129,7 +132,7 @@ function toFormError(item: IRawDomItem): IFormError {
  * @returns Only visible items with actual text content.
  */
 function filterVisible(items: readonly IRawDomItem[]): readonly IRawDomItem[] {
-  return items.filter(item => !item.isHidden && item.text.length > 0);
+  return items.filter((item): boolean => !item.isHidden && item.text.length > 0);
 }
 
 /**
@@ -140,12 +143,18 @@ function filterVisible(items: readonly IRawDomItem[]): readonly IRawDomItem[] {
  * @returns Scan result with all visible errors found.
  */
 export async function discoverFormErrors(frameOrPage: Page | Frame): Promise<IFormErrorScanResult> {
-  const rawItems = await queryDomErrors(frameOrPage).catch(() => []);
+  /**
+   * Graceful fallback for detached frames.
+   * @returns Empty array.
+   */
+  const emptyFallback = (): readonly IRawDomItem[] => [];
+  const rawItems = await queryDomErrors(frameOrPage).catch(emptyFallback);
   const visibleItems = filterVisible(rawItems);
   if (visibleItems.length === 0) return NO_ERRORS;
   const errors = visibleItems.map(toFormError);
   const summary = errors[0].text;
-  return { hasErrors: true, errors, summary };
+  const result: IFormErrorScanResult = { hasErrors: true, errors, summary };
+  return result;
 }
 
 // ── Layer 2: WellKnown text scan ───────────────────────────
@@ -162,10 +171,16 @@ async function probeWellKnownText(
 ): Promise<IFormErrorScanResult> {
   const locator = frameOrPage.getByText(value);
   const first = locator.first();
-  const isErrorVisible = await first.isVisible().catch(() => false);
+  /**
+   * Element not visible or detached.
+   * @returns False.
+   */
+  const catchFalse = (): boolean => false;
+  const isErrorVisible = await first.isVisible().catch(catchFalse);
   if (!isErrorVisible) return NO_ERRORS;
   const error: IFormError = { selector: 'wellKnown', text: value, kind: 'authError' };
-  return { hasErrors: true, errors: [error], summary: value };
+  const result: IFormErrorScanResult = { hasErrors: true, errors: [error], summary: value };
+  return result;
 }
 
 /**
@@ -180,7 +195,8 @@ export async function checkFrameForErrors(
 ): Promise<IFormErrorScanResult> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator;
   const initial: Promise<IFormErrorScanResult> = Promise.resolve(NO_ERRORS);
-  return candidates.reduce<Promise<IFormErrorScanResult>>(async (prev, candidate) => {
+  type TReduce = Promise<IFormErrorScanResult>;
+  return candidates.reduce<TReduce>(async (prev, candidate): TReduce => {
     const result = await prev;
     if (result.hasErrors) return result;
     return probeWellKnownText(frameOrPage, candidate.value);

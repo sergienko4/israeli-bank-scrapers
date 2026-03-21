@@ -1,6 +1,6 @@
 /**
  * Unit tests for visaCalFetchData — mock strategy, guard checks, soft failures.
- * Split from VisaCalScrape.test.ts for the 300-line limit.
+ * Split from VisaCalScraper.test.ts for the 300-line limit.
  */
 
 import moment from 'moment';
@@ -10,7 +10,7 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import {
   buildMonths,
   visaCalFetchData,
-} from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScrape.js';
+} from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScraper.js';
 import type { IFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { none, some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -137,10 +137,24 @@ function makeVisaCalCtx(
 ): ReturnType<typeof makeMockContext> {
   const page = makeMockEvalPage(AUTH_JSON);
   const browserState = makeMockBrowserState(page);
+  const mockApi = {
+    base: '',
+    purchaseHistory: '',
+    card: '',
+    calInit: 'https://api.cal/init',
+    calFrames: 'https://api.cal/frames',
+    calTransactions: 'https://api.cal/txn',
+    calPending: 'https://api.cal/pending',
+    calXSiteId: 'test-site-id',
+    calOrigin: 'https://cal-online.co.il',
+    calLoginResponse: '',
+    calEncKey: '',
+  };
   return makeMockContext({
     browser: some(browserState),
     fetchStrategy: some(strategy),
     options: { startDate, companyId: 'visaCal' as never },
+    config: { urls: { base: '', loginRoute: '', transactions: '' }, api: mockApi } as never,
   });
 }
 

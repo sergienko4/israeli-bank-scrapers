@@ -38,8 +38,8 @@ describe('ScrapeExecutor/callback-safety', () => {
       },
     };
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Account mapper failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Account mapper failed');
   });
 
   it('catches throwing transaction mapper and returns failure', async () => {
@@ -57,8 +57,8 @@ describe('ScrapeExecutor/callback-safety', () => {
       },
     };
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Transaction mapper failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Transaction mapper failed');
   });
 
   it('catches throwing buildRequest and returns failure', async () => {
@@ -76,7 +76,22 @@ describe('ScrapeExecutor/callback-safety', () => {
       },
     };
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('buildRequest failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('buildRequest failed');
+  });
+
+  it('catches throwing extraHeaders and uses default opts', async () => {
+    const strategy = makeMockFetchStrategy();
+    const ctx = MAKE_CTX(strategy);
+    const base = makeMockScrapeConfig();
+    const config: IScrapeConfig<object, object> = {
+      ...base,
+      /** Throws TypeError to simulate broken header factory. */
+      extraHeaders: () => {
+        throw new TypeError('header factory broke');
+      },
+    };
+    const result = await executeScrape(ctx, config);
+    expect(result.success).toBe(true);
   });
 });

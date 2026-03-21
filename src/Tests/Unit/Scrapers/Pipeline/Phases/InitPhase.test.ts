@@ -135,7 +135,7 @@ describe('InitPhase/prepareBrowser', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });
 
@@ -180,8 +180,8 @@ describe('InitPhase/success', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
+    expect(result.success).toBe(true);
+    if (result.success) {
       expect(result.value.browser.has).toBe(true);
       expect(result.value.fetchStrategy.has).toBe(true);
       expect(result.value.mediator.has).toBe(true);
@@ -196,8 +196,8 @@ describe('InitPhase/cleanups', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(result.success).toBe(true);
+    if (!result.success) return;
     const browserState = result.value.browser;
     if (!browserState.has) return;
     const cleanups = browserState.value.cleanups;
@@ -220,8 +220,8 @@ describe('InitPhase/error', () => {
     launchFn.mockRejectedValue(new Error('binary not found'));
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage).toContain('InitPhase failed');
       expect(result.errorMessage).toContain('binary not found');
     }
@@ -234,8 +234,8 @@ describe('InitPhase/error', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage).toContain('InitPhase failed');
     }
   });

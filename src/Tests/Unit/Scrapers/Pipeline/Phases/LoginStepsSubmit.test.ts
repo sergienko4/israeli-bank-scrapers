@@ -66,6 +66,6 @@ describe('LoginSteps/normalizeSubmit', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });

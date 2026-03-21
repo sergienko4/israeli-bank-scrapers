@@ -35,8 +35,8 @@ describe('Phase stubs', () => {
   it.each(STUB_STEPS)('%s step returns succeed(input)', async (expectedName, step) => {
     const ctx = makeMockContext();
     const result = await step.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
+    expect(result.success).toBe(true);
+    if (result.success) {
       expect(result.value).toBe(ctx);
     }
     expect(expectedName).toBeTruthy();
@@ -58,7 +58,7 @@ describe('createLoginStep', () => {
     const step = createLoginStep(mockFn);
     expect(step.name).toBe('declarative-login');
     const result = await step.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });
 

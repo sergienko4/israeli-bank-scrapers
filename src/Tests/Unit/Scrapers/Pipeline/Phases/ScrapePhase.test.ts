@@ -27,8 +27,8 @@ describe('SCRAPE_STEP/stub', () => {
   it('returns succeed(input) without modifying context', async () => {
     const ctx = makeMockContext();
     const result = await SCRAPE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toBe(ctx);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe(ctx);
   });
 });
 
@@ -58,8 +58,8 @@ describe('createCustomScrapeStep', () => {
       return Promise.resolve(result);
     });
     const result = await step.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.scrape.has).toBe(true);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.scrape.has).toBe(true);
   });
 
   it('step name is "scrape"', () => {
@@ -88,8 +88,8 @@ describe('createConfigScrapeStep', () => {
     const ctxWithFetch = { ...ctx, fetchStrategy: fetchSome };
     const step = createConfigScrapeStep(config);
     const result = await step.execute(ctxWithFetch, ctxWithFetch);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.scrape.has).toBe(true);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.scrape.has).toBe(true);
   });
 
   it('fails when fetchStrategy is absent', async () => {
@@ -97,6 +97,6 @@ describe('createConfigScrapeStep', () => {
     const ctx = makeMockContext();
     const step = createConfigScrapeStep(config);
     const result = await step.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
   });
 });

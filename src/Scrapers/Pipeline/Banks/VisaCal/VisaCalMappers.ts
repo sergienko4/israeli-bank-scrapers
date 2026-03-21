@@ -62,10 +62,11 @@ const TXN_TYPE: Record<number, TransactionTypes> = {
  */
 function mapCompletedAmounts(txn: IRawTxn): Pick<ITransaction, 'originalAmount' | 'chargedAmount'> {
   const sign = AMOUNT_SIGN[txn.trnTypeCode] ?? -1;
-  return {
+  const amounts: Pick<ITransaction, 'originalAmount' | 'chargedAmount'> = {
     originalAmount: txn.trnAmt * sign,
     chargedAmount: txn.amtBeforeConvAndIndex * -1,
   };
+  return amounts;
 }
 
 /**

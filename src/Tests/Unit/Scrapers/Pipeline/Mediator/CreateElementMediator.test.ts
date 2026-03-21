@@ -87,8 +87,8 @@ describe('createElementMediator/resolveField', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveField('username', []);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.selector).toBe('#field');
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.selector).toBe('#field');
   });
 
   it('returns fail when resolveFieldPipeline returns isResolved=false', async () => {
@@ -98,8 +98,8 @@ describe('createElementMediator/resolveField', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveField('id', []);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Field not found');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Field not found');
   });
 
   it('returns fail when resolveFieldPipeline throws', async () => {
@@ -108,8 +108,8 @@ describe('createElementMediator/resolveField', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveField('username', []);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('resolver crash');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('resolver crash');
   });
 });
 
@@ -123,7 +123,7 @@ describe('createElementMediator/resolveClickable', () => {
     const mediator = MED_MOD.createElementMediator(page);
     const candidates = [{ kind: 'textContent' as const, value: 'כניסה' }];
     const result = await mediator.resolveClickable(candidates);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('returns fail when __submit__ not found', async () => {
@@ -133,8 +133,8 @@ describe('createElementMediator/resolveClickable', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveClickable([]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Clickable not found');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Clickable not found');
   });
 
   it('returns fail when resolveFieldPipeline throws', async () => {
@@ -143,8 +143,8 @@ describe('createElementMediator/resolveClickable', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveClickable([]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('click crash');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('click crash');
   });
 });
 

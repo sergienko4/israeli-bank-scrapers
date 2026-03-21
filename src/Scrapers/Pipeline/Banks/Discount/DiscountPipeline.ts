@@ -15,8 +15,9 @@ import {
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { PipelineBuilder } from '../../PipelineBuilder.js';
+import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import type { Procedure } from '../../Types/Procedure.js';
 import type { IRawAccount, IScrapeConfig } from '../../Types/ScrapeConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
@@ -82,10 +83,12 @@ const API_BASE = `${CFG.api.base}/Titan/gatewayAPI`;
  * @returns Array of raw accounts with IDs.
  */
 function mapAccounts(raw: IDiscountAccountsRaw): readonly IRawAccount[] {
-  return raw.UserAccountsData.UserAccounts.map(a => ({
-    accountId: a.NewAccountInfo.AccountID,
-    balance: 0,
-  }));
+  return raw.UserAccountsData.UserAccounts.map(
+    (a): IRawAccount => ({
+      accountId: a.NewAccountInfo.AccountID,
+      balance: 0,
+    }),
+  );
 }
 
 /**
@@ -96,11 +99,11 @@ function mapAccounts(raw: IDiscountAccountsRaw): readonly IRawAccount[] {
 function mapTransactions(raw: IDiscountTxnRaw): readonly ITransaction[] {
   const block = raw.CurrentAccountLastTransactions;
   if (!block) return EMPTY_TXNS;
-  const completed = (block.OperationEntry ?? []).map(t =>
-    mapOneTxn(t, TransactionStatuses.Completed),
+  const completed = (block.OperationEntry ?? []).map(
+    (t): ITransaction => mapOneTxn(t, TransactionStatuses.Completed),
   );
-  const pending = (block.FutureTransactionsBlock.FutureTransactionEntry ?? []).map(t =>
-    mapOneTxn(t, TransactionStatuses.Pending),
+  const pending = (block.FutureTransactionsBlock.FutureTransactionEntry ?? []).map(
+    (t): ITransaction => mapOneTxn(t, TransactionStatuses.Pending),
   );
   return [...completed, ...pending];
 }
@@ -123,7 +126,8 @@ function buildTxnRequest(
     `FromDate=${startDate}`,
   ].join('&');
   const path = `${API_BASE}/lastTransactions/${accountId}/Date?${params}`;
-  return { path, postData: {} };
+  const request = { path, postData: {} };
+  return request;
 }
 
 /** Discount scrape configuration — config only, no logic. */
@@ -146,7 +150,7 @@ const DISCOUNT_SCRAPE_CONFIG: IScrapeConfig<IDiscountAccountsRaw, IDiscountTxnRa
    * No extra headers needed — Discount uses session cookies.
    * @returns Empty headers object.
    */
-  extraHeaders: () => ({}),
+  extraHeaders: (): Record<string, string> => ({}),
 };
 
 /** Discount login portal URL. */
@@ -169,7 +173,7 @@ const DISCOUNT_LOGIN: ILoginConfig = {
    * Navigate to Discount login portal and wait for ID field.
    * @param page - The Playwright page instance.
    */
-  checkReadiness: async page => {
+  checkReadiness: async (page): Promise<void> => {
     await page.goto(LOGIN_PORTAL);
     const firstTextbox = page.getByRole('textbox').first();
     await firstTextbox.waitFor({ state: 'visible', timeout: 30000 });
@@ -178,7 +182,7 @@ const DISCOUNT_LOGIN: ILoginConfig = {
    * Wait for redirect to Apollo dashboard after login.
    * @param page - The Playwright page instance.
    */
-  postAction: async page => {
+  postAction: async (page): Promise<void> => {
     await page.waitForURL('**/apollo/**', { timeout: 30000 });
   },
   possibleResults: {
@@ -201,8 +205,8 @@ const DISCOUNT_LOGIN: ILoginConfig = {
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor with init → login → scrape → terminate.
  */
-function buildDiscountPipeline(options: ScraperOptions): IPipelineDescriptor {
-  return new PipelineBuilder()
+function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
+  return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(DISCOUNT_LOGIN)

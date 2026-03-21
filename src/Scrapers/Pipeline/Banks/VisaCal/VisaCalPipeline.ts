@@ -1,6 +1,6 @@
 /**
  * VisaCal pipeline config — login + builder.
- * Scrape logic in Pipeline/VisaCalScrape.ts.
+ * Scrape logic in Pipeline/VisaCalScraper.ts.
  * Fully rewritten — zero imports from old VisaCal code.
  *
  * Login flow:
@@ -22,10 +22,11 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { PipelineBuilder } from '../../PipelineBuilder.js';
+import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../Registry/PipelineWellKnown.js';
-import { visaCalFetchData } from './VisaCalScrape.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { visaCalFetchData } from './VisaCalScraper.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
@@ -50,8 +51,11 @@ function buildLocator(ctx: Page | Frame, candidate: SelectorCandidate): Locator 
  */
 async function checkReadiness(page: Page): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
-  const waiters = candidates.map(c =>
-    buildLocator(page, c).waitFor({ state: 'visible', timeout: 30000 }),
+  const waiters = candidates.map(
+    (c): Promise<boolean> =>
+      buildLocator(page, c)
+        .waitFor({ state: 'visible', timeout: 30000 })
+        .then((): boolean => true),
   );
   await Promise.any(waiters);
   return true;
@@ -75,7 +79,7 @@ async function postAction(page: Page): Promise<boolean> {
  */
 async function openLoginForm(pageOrFrame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
-  const locators = candidates.map(c => buildLocator(pageOrFrame, c));
+  const locators = candidates.map((c): Locator => buildLocator(pageOrFrame, c));
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout: 15000 });
     return i;
@@ -101,7 +105,7 @@ const VISACAL_LOGIN: ILoginConfig = {
    * Wait for login link to be visible on homepage.
    * @param page - Browser page.
    */
-  checkReadiness: async page => {
+  checkReadiness: async (page): Promise<void> => {
     await checkReadiness(page);
   },
   /**
@@ -128,7 +132,7 @@ const VISACAL_LOGIN: ILoginConfig = {
    * Error detection is handled generically by checkFrameForErrors in postLogin.
    * @param page - Browser page.
    */
-  postAction: async page => {
+  postAction: async (page): Promise<void> => {
     await postAction(page);
   },
   /**
@@ -145,8 +149,8 @@ const VISACAL_LOGIN: ILoginConfig = {
  * @param options - Scraper options.
  * @returns Pipeline: init → login → scrape → terminate.
  */
-function buildVisaCalPipeline(options: ScraperOptions): IPipelineDescriptor {
-  return new PipelineBuilder()
+function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
+  return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(VISACAL_LOGIN)

@@ -8,11 +8,10 @@ import moment from 'moment';
 import type { Page } from 'playwright-core';
 
 import { filterOldTransactions } from '../../../../Common/Transactions.js';
-import { CompanyTypes } from '../../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import type { IBankScraperConfig } from '../../../Registry/Config/ScraperConfigDefaults.js';
 import type { IFetchOpts, IFetchStrategy } from '../../Strategy/FetchStrategy.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -25,17 +24,41 @@ import {
   mapPendingResults,
 } from './VisaCalMappers.js';
 
-const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
+/** Resolved endpoint URLs from ctx.config. */
+interface IEndpoints {
+  readonly initUrl: string;
+  readonly framesUrl: string;
+  readonly txnUrl: string;
+  readonly pendingUrl: string;
+  readonly xSiteId: string;
+  readonly calOrigin: string;
+}
 
-// ── Endpoints ──────────────────────────────────────────────
-const INIT_URL = CFG.api.calInit ?? '';
-const FRAMES_URL = CFG.api.calFrames ?? '';
-const TXN_URL = CFG.api.calTransactions ?? '';
-const PENDING_URL = CFG.api.calPending ?? '';
-const X_SITE_ID = CFG.api.calXSiteId ?? '';
-const CAL_ORIGIN = CFG.api.calOrigin ?? '';
+/**
+ * Resolve VisaCal API endpoints from bank config.
+ * @param api - Bank API config from ctx.config.
+ * @returns Resolved endpoint URLs.
+ */
+function resolveEndpoints(api: IBankScraperConfig['api']): IEndpoints {
+  const endpoints: IEndpoints = {
+    initUrl: api.calInit ?? '',
+    framesUrl: api.calFrames ?? '',
+    txnUrl: api.calTransactions ?? '',
+    pendingUrl: api.calPending ?? '',
+    xSiteId: api.calXSiteId ?? '',
+    calOrigin: api.calOrigin ?? '',
+  };
+  return endpoints;
+}
 
 // ── Types (defined fresh) ──────────────────────────────────
+
+/** Bundled fetch dependencies — strategy + headers + endpoints. */
+interface IFetchCtx {
+  readonly strategy: IFetchStrategy;
+  readonly opts: IFetchOpts;
+  readonly ep: IEndpoints;
+}
 
 /** Card from /init. */
 interface ICard {
@@ -56,18 +79,19 @@ interface ICardFrame {
 /**
  * Build API headers.
  * @param authorization - Auth token string.
+ * @param ep - Resolved endpoints with site ID and origin.
  * @returns IFetchOpts with all required headers.
  */
-function buildOpts(authorization: string): IFetchOpts {
-  return {
-    extraHeaders: {
-      authorization,
-      'X-Site-Id': X_SITE_ID,
-      'Content-Type': 'application/json',
-      Origin: CAL_ORIGIN,
-      Referer: CAL_ORIGIN,
-    },
+function buildOpts(authorization: string, ep: IEndpoints): IFetchOpts {
+  const extraHeaders = {
+    authorization,
+    'X-Site-Id': ep.xSiteId,
+    'Content-Type': 'application/json',
+    Origin: ep.calOrigin,
+    Referer: ep.calOrigin,
   };
+  const opts: IFetchOpts = { extraHeaders };
+  return opts;
 }
 
 /**
@@ -83,18 +107,22 @@ interface IAuthShape {
 /**
  * Get auth token from sessionStorage.
  * @param page - Browser page.
- * @returns Authorization header string.
+ * @returns Procedure with authorization header string, or failure.
  */
-async function getAuth(page: Page): Promise<string> {
+async function getAuth(page: Page): Promise<Procedure<string>> {
   const raw = await page.evaluate((): string => {
     const stored = sessionStorage.getItem('auth-module');
     return stored ?? '';
   });
-  if (!raw) return '';
-  const parsed = JSON.parse(raw) as IAuthShape;
-  const auth = parsed.auth;
-  const token = auth?.calConnectToken ?? '';
-  return `CALAuthScheme ${token}`;
+  if (!raw) return fail(ScraperErrorTypes.Generic, 'No auth-module in sessionStorage');
+  try {
+    const parsed = JSON.parse(raw) as IAuthShape;
+    const auth = parsed.auth;
+    const token = auth?.calConnectToken ?? '';
+    return succeed(`CALAuthScheme ${token}`);
+  } catch {
+    return fail(ScraperErrorTypes.Generic, 'Malformed auth-module JSON');
+  }
 }
 
 // ── Fetch via strategy ─────────────────────────────────────
@@ -106,21 +134,19 @@ interface IInitResp {
 
 /**
  * Fetch cards from /init.
- * @param strategy - Fetch strategy.
- * @param opts - Headers.
+ * @param fc - Fetch context (strategy + headers + endpoints).
  * @returns Card list procedure.
  */
-async function fetchCards(
-  strategy: IFetchStrategy,
-  opts: IFetchOpts,
-): Promise<Procedure<readonly ICard[]>> {
+async function fetchCards(fc: IFetchCtx): Promise<Procedure<readonly ICard[]>> {
   const body = { tokenGuid: '' };
-  const raw = await strategy.fetchPost<IInitResp>(INIT_URL, body as never, opts);
+  const raw = await fc.strategy.fetchPost<IInitResp>(fc.ep.initUrl, body as never, fc.opts);
   if (!isOk(raw)) return raw;
-  const mapped = raw.value.result.cards.map(c => ({
-    cardUniqueId: c.cardUniqueId,
-    last4Digits: c.last4Digits,
-  }));
+  const mapped = raw.value.result.cards.map(
+    (c): ICard => ({
+      cardUniqueId: c.cardUniqueId,
+      last4Digits: c.last4Digits,
+    }),
+  );
   return succeed(mapped);
 }
 
@@ -135,19 +161,17 @@ interface IFramesResp {
 
 /**
  * Fetch frames (balances) from /frames.
- * @param strategy - Fetch strategy.
- * @param opts - Headers.
+ * @param fc - Fetch context (strategy + headers + endpoints).
  * @param cards - Card list for request body.
  * @returns Card frames procedure.
  */
 async function fetchFrames(
-  strategy: IFetchStrategy,
-  opts: IFetchOpts,
+  fc: IFetchCtx,
   cards: readonly ICard[],
 ): Promise<Procedure<readonly ICardFrame[]>> {
-  const ids = cards.map(c => ({ cardUniqueId: c.cardUniqueId }));
+  const ids = cards.map((c): { cardUniqueId: string } => ({ cardUniqueId: c.cardUniqueId }));
   const body = { cardsForFrameData: ids };
-  const raw = await strategy.fetchPost<IFramesResp>(FRAMES_URL, body as never, opts);
+  const raw = await fc.strategy.fetchPost<IFramesResp>(fc.ep.framesUrl, body as never, fc.opts);
   if (!isOk(raw)) return raw;
   const frames = raw.value.result?.bankIssuedCards?.cardLevelFrames ?? [];
   return succeed(frames);
@@ -170,10 +194,14 @@ interface ITxnResp {
   };
 }
 
-/** Bundled fetch context for one card. */
+/** A single debit date entry with transactions. */
+interface IDebitDate {
+  readonly transactions: readonly IRawTxn[];
+}
+
+/** Bundled fetch context for one card's monthly fetch. */
 interface IMonthFetchCtx {
-  readonly strategy: IFetchStrategy;
-  readonly opts: IFetchOpts;
+  readonly fc: IFetchCtx;
   readonly card: ICard;
 }
 
@@ -192,14 +220,18 @@ async function fetchOneMonth(
     month: month.format('M'),
     year: month.format('YYYY'),
   };
-  const raw = await ctx.strategy.fetchPost<ITxnResp>(TXN_URL, body as never, ctx.opts);
+  const url = ctx.fc.ep.txnUrl;
+  const raw = await ctx.fc.strategy.fetchPost<ITxnResp>(url, body as never, ctx.fc.opts);
   if (!isOk(raw)) return raw;
   const banks = raw.value.result.bankAccounts;
-  const debits = banks.flatMap(b => b.debitDates);
-  const immediates = banks.flatMap(b => b.immidiateDebits.debitDays);
-  const txns = [...debits, ...immediates].flatMap(d => d.transactions);
+  const debits = banks.flatMap((b): readonly IDebitDate[] => b.debitDates);
+  const immediates = banks.flatMap((b): readonly IDebitDate[] => b.immidiateDebits.debitDays);
+  const txns = [...debits, ...immediates].flatMap((d): readonly IRawTxn[] => d.transactions);
   return succeed(txns);
 }
+
+/** Empty month result — base case for recursion. */
+const EMPTY_MONTHS: IMonthsResult = { txns: [], warnings: [] };
 
 /** Accumulated result from multi-month fetch with soft failures. */
 interface IMonthsResult {
@@ -220,15 +252,18 @@ async function fetchMonthsRecursive(
   months: readonly moment.Moment[],
   index: number,
 ): Promise<IMonthsResult> {
-  if (index >= months.length) return { txns: [], warnings: [] };
+  if (index >= months.length) return EMPTY_MONTHS;
   const monthResult = await fetchOneMonth(ctx, months[index]);
   const rest = await fetchMonthsRecursive(ctx, months, index + 1);
   if (!isOk(monthResult)) {
     const label = months[index].format('YYYY-MM');
     const warning = `Month ${label} fetch failed: ${monthResult.errorMessage}`;
-    return { txns: rest.txns, warnings: [warning, ...rest.warnings] };
+    const withWarning: IMonthsResult = { txns: rest.txns, warnings: [warning, ...rest.warnings] };
+    return withWarning;
   }
-  return { txns: [...monthResult.value, ...rest.txns], warnings: rest.warnings };
+  const allTxns = [...monthResult.value, ...rest.txns];
+  const merged: IMonthsResult = { txns: allTxns, warnings: rest.warnings };
+  return merged;
 }
 
 // ── Pending fetch ──────────────────────────────────────────
@@ -245,21 +280,20 @@ interface IPendingResp {
 
 /**
  * Fetch pending transactions for a card.
- * @param strategy - Fetch strategy.
- * @param opts - Headers.
+ * @param fc - Fetch context (strategy + headers + endpoints).
  * @param card - Card info.
  * @returns Procedure with pending transactions or failure.
  */
 async function fetchPending(
-  strategy: IFetchStrategy,
-  opts: IFetchOpts,
+  fc: IFetchCtx,
   card: ICard,
 ): Promise<Procedure<readonly IRawPendingTxn[]>> {
   const body = { cardUniqueIDArray: [card.cardUniqueId] };
-  const raw = await strategy.fetchPost<IPendingResp>(PENDING_URL, body as never, opts);
+  const raw = await fc.strategy.fetchPost<IPendingResp>(fc.ep.pendingUrl, body as never, fc.opts);
   if (!isOk(raw)) return raw;
   if (!raw.value.result) return succeed([]);
-  const txns = raw.value.result.cardsList.flatMap(c => c.authDetalisList);
+  const cards = raw.value.result.cardsList;
+  const txns = cards.flatMap((c): readonly IRawPendingTxn[] => c.authDetalisList);
   return succeed(txns);
 }
 
@@ -267,8 +301,7 @@ async function fetchPending(
 
 /** Bundled context for one card fetch. */
 interface ICardCtx {
-  readonly strategy: IFetchStrategy;
-  readonly opts: IFetchOpts;
+  readonly fc: IFetchCtx;
   readonly months: readonly moment.Moment[];
   readonly frames: readonly ICardFrame[];
   readonly options: ScraperOptions;
@@ -281,18 +314,23 @@ interface ICardCtx {
  * @returns Account with transactions.
  */
 async function fetchOneCard(card: ICard, ctx: ICardCtx): Promise<ITransactionsAccount> {
-  const monthCtx: IMonthFetchCtx = { strategy: ctx.strategy, opts: ctx.opts, card };
+  const monthCtx: IMonthFetchCtx = { fc: ctx.fc, card };
   const monthsResult = await fetchMonthsRecursive(monthCtx, ctx.months, 0);
-  const pendingResult = await fetchPending(ctx.strategy, ctx.opts, card);
+  const pendingResult = await fetchPending(ctx.fc, card);
   const completed = monthsResult.txns.map(mapCompleted);
   const pending = mapPendingResults(pendingResult);
   const allTxns = [...completed, ...pending];
   const isCombine = ctx.options.shouldCombineInstallments ?? false;
   const startMoment = moment(ctx.options.startDate);
   const filtered = filterOldTransactions(allTxns, startMoment, isCombine);
-  const frame = ctx.frames.find(f => f.cardUniqueId === card.cardUniqueId);
+  const frame = ctx.frames.find((f): boolean => f.cardUniqueId === card.cardUniqueId);
   const balance = frame?.nextTotalDebit ?? 0;
-  return { accountNumber: card.last4Digits, balance, txns: filtered };
+  const account: ITransactionsAccount = {
+    accountNumber: card.last4Digits,
+    balance,
+    txns: filtered,
+  };
+  return account;
 }
 
 // ── Public scrape function ─────────────────────────────────
@@ -307,13 +345,15 @@ function buildMonths(start: moment.Moment, futureMonths: number): readonly momen
   const startMonth = start.clone().startOf('month');
   const endMonth = moment().add(futureMonths, 'month').startOf('month');
   const count = endMonth.diff(startMonth, 'months');
-  return Array.from({ length: count + 1 }, (_, i) => startMonth.clone().add(i, 'months'));
+  return Array.from(
+    { length: count + 1 },
+    (_, i): moment.Moment => startMonth.clone().add(i, 'months'),
+  );
 }
 
 /** Bundled API deps for building card context. */
 interface IApiDeps {
-  readonly strategy: IFetchStrategy;
-  readonly opts: IFetchOpts;
+  readonly fc: IFetchCtx;
   readonly frames: readonly ICardFrame[];
 }
 
@@ -329,13 +369,27 @@ function buildCardCtx(ctx: IPipelineContext, deps: IApiDeps): ICardCtx {
   const start = moment.max(defaultStart, userStart);
   const futureMonths = ctx.options.futureMonthsToScrape ?? 0;
   const months = buildMonths(start, futureMonths);
-  return {
-    strategy: deps.strategy,
-    opts: deps.opts,
+  const cardCtx: ICardCtx = {
+    fc: deps.fc,
     months,
     frames: deps.frames,
     options: ctx.options,
   };
+  return cardCtx;
+}
+
+/**
+ * Fetch all cards in parallel.
+ * @param cards - Card list.
+ * @param cardCtx - Card fetch context.
+ * @returns Array of transaction accounts.
+ */
+async function fetchAllCards(
+  cards: readonly ICard[],
+  cardCtx: ICardCtx,
+): Promise<readonly ITransactionsAccount[]> {
+  const fetches = cards.map((c): Promise<ITransactionsAccount> => fetchOneCard(c, cardCtx));
+  return Promise.all(fetches);
 }
 
 /**
@@ -348,19 +402,19 @@ async function visaCalFetchData(ctx: IPipelineContext): Promise<Procedure<IPipel
     return fail(ScraperErrorTypes.Generic, 'Missing browser or strategy');
   }
   const page = ctx.browser.value.page;
-  const authorization = await getAuth(page);
-  const opts = buildOpts(authorization);
+  const authResult = await getAuth(page);
+  if (!isOk(authResult)) return authResult;
+  const ep = resolveEndpoints(ctx.config.api);
+  const opts = buildOpts(authResult.value, ep);
   const strategy = ctx.fetchStrategy.value;
-
-  const cardsResult = await fetchCards(strategy, opts);
+  const fc: IFetchCtx = { strategy, opts, ep };
+  const cardsResult = await fetchCards(fc);
   if (!isOk(cardsResult)) return cardsResult;
-  const framesResult = await fetchFrames(strategy, opts, cardsResult.value);
+  const framesResult = await fetchFrames(fc, cardsResult.value);
   if (!isOk(framesResult)) return framesResult;
-
-  const deps: IApiDeps = { strategy, opts, frames: framesResult.value };
+  const deps: IApiDeps = { fc, frames: framesResult.value };
   const cardCtx = buildCardCtx(ctx, deps);
-  const fetches = cardsResult.value.map(c => fetchOneCard(c, cardCtx));
-  const accounts = await Promise.all(fetches);
+  const accounts = await fetchAllCards(cardsResult.value, cardCtx);
   return succeed({ ...ctx, scrape: some({ accounts }) });
 }
 

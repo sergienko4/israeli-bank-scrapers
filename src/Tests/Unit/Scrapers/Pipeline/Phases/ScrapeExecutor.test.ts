@@ -38,8 +38,8 @@ describe('ScrapeExecutor/guard', () => {
     const ctx = makeMockContext();
     const config = makeMockScrapeConfig();
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage).toContain('No fetchStrategy');
     }
   });
@@ -138,8 +138,8 @@ describe('ScrapeExecutor/accounts', () => {
     const config = makeMockScrapeConfig();
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('accounts failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('accounts failed');
   });
 });
 
@@ -150,8 +150,8 @@ describe('ScrapeExecutor/sequential', () => {
     const config = makeMockScrapeConfig([]);
     const ctx = MAKE_CTX_WITH_STRATEGY();
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
+    expect(result.success).toBe(true);
+    if (result.success) {
       expect(result.value.scrape.has).toBe(true);
       if (result.value.scrape.has) {
         expect(result.value.scrape.value.accounts).toHaveLength(0);
@@ -188,7 +188,7 @@ describe('ScrapeExecutor/sequential', () => {
     const config = makeMockScrapeConfig(accounts);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     const txnCalls = txnPaths.filter(p => p.includes('/api/txns/'));
     expect(txnCalls).toHaveLength(2);
   });
@@ -222,8 +222,8 @@ describe('ScrapeExecutor/sequential', () => {
     const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('txn fetch failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('txn fetch failed');
     expect(callCount).toBeGreaterThan(0);
   });
 
@@ -231,8 +231,8 @@ describe('ScrapeExecutor/sequential', () => {
     const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
     const ctx = MAKE_CTX_WITH_STRATEGY();
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(true);
-    if (result.ok && result.value.scrape.has) {
+    expect(result.success).toBe(true);
+    if (result.success && result.value.scrape.has) {
       const acct = result.value.scrape.value.accounts[0];
       expect(acct.accountNumber).toBe('ACC001');
       expect(acct.balance).toBe(1000);

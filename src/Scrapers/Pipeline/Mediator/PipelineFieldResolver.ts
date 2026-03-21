@@ -19,7 +19,8 @@ import {
 } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
-import { extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
+import { none, type Option, some } from '../Types/Option.js';
+import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
 
 /**
  * Extended field context returned by the pipeline resolver.
@@ -58,13 +59,14 @@ function buildResolveOpts(
   fieldKey: string,
   candidates: IFieldCandidates,
 ): IResolveAllOpts {
-  return {
+  const opts: IResolveAllOpts = {
     pageOrFrame,
     field: { credentialKey: fieldKey, selectors: [...candidates.bank] },
     pageUrl: getContextUrl(pageOrFrame),
     bankCandidates: [...candidates.bank],
     wellKnownCandidates: [...candidates.wk],
   };
+  return opts;
 }
 
 /**
@@ -77,16 +79,16 @@ function buildResolveOpts(
  * Try iframe resolution first (only for Page, not Frame).
  * @param pageOrFrame - Page or Frame.
  * @param opts - Resolve options.
- * @returns Resolved context from iframe, or null if not found.
+ * @returns Resolved context from iframe, or Option.none if not found.
  */
 async function tryIframeProbe(
   pageOrFrame: Page | Frame,
   opts: IResolveAllOpts,
-): Promise<IFieldContext | null> {
-  if (!isPage(pageOrFrame)) return null;
+): Promise<Option<IFieldContext>> {
+  if (!isPage(pageOrFrame)) return none();
   const result = await probeIframes(pageOrFrame, opts);
-  if ('isResolved' in result) return result;
-  return null;
+  if ('isResolved' in result) return some(result);
+  return none();
 }
 
 /**
@@ -97,7 +99,7 @@ async function tryIframeProbe(
  */
 async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promise<IFieldContext> {
   const iframeResult = await tryIframeProbe(pageOrFrame, opts);
-  if (iframeResult) return iframeResult;
+  if (iframeResult.has) return iframeResult.value;
   const mainResult = await probeMainPage(opts);
   if ('isResolved' in mainResult) return mainResult;
   return buildNotFoundContext(opts);
@@ -112,8 +114,14 @@ async function enrichWithMetadata(result: IFieldContext): Promise<IPipelineField
   if (!result.isResolved) return result;
   // Skip metadata extraction for non-CSS selectors (xpath=, labelText walk-up, etc.)
   // document.querySelector inside extractMetadata doesn't handle Playwright-specific formats.
-  const metadata = await extractMetadata(result.context, result.selector).catch(() => undefined);
-  return { ...result, metadata };
+  /**
+   * Metadata extraction is best-effort — returns empty on failure.
+   * @returns Empty metadata.
+   */
+  const fallback = (): IElementMetadata => EMPTY_METADATA;
+  const metadata = await extractMetadata(result.context, result.selector).catch(fallback);
+  const enriched: IPipelineFieldContext = { ...result, metadata };
+  return enriched;
 }
 
 /**

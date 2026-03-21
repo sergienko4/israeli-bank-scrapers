@@ -5,9 +5,9 @@
  */
 
 import type { OtpConfig } from '../Base/Config/LoginConfigTypes.js';
+import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
-import ScraperError from '../Base/ScraperError.js';
 import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
 import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
@@ -26,6 +26,7 @@ import { none, some } from './Types/Option.js';
 import type { IPhaseDefinition, PhaseName } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
+import { fail, succeed } from './Types/Procedure.js';
 import type { IScrapeConfig, IScrapeConfigBase } from './Types/ScrapeConfig.js';
 
 /** Function signature for direct-POST login (Amex/Isracard). */
@@ -56,7 +57,8 @@ type CtxPhase = IPhaseDefinition<IPipelineContext, IPipelineContext>;
  * @returns A phase definition with pre and post set to none().
  */
 function actionOnly(name: PhaseName, action: CtxPhase['action']): CtxPhase {
-  return { name, pre: none(), action, post: none() };
+  const phase: CtxPhase = { name, pre: none(), action, post: none() };
+  return phase;
 }
 
 /** Login step lookup map for non-ILoginConfig login modes. */
@@ -73,6 +75,8 @@ class PipelineBuilder {
   private _hasBrowser = false;
 
   private _loginMode: LoginMode = 'none';
+
+  private _error = '';
 
   private _loginConfig: ILoginConfig | false = false;
 
@@ -199,25 +203,32 @@ class PipelineBuilder {
    * Build the pipeline descriptor with ordered phases.
    * @returns The assembled pipeline descriptor.
    */
-  public build(): IPipelineDescriptor {
-    this.assertRequiredFields();
+  public build(): Procedure<IPipelineDescriptor> {
+    const validation = this.assertRequiredFields();
+    if (!validation.success) return validation;
     const phases = this.assemblePhases();
-    return { options: this._options as ScraperOptions, phases };
+    const descriptor: IPipelineDescriptor = {
+      options: this._options as ScraperOptions,
+      phases,
+    };
+    return succeed(descriptor);
   }
 
   /**
    * Validate required fields are set.
-   * @returns True if valid.
-   * @throws If options or login mode missing.
+   * @returns Success if valid, failure with error message.
    */
-  private assertRequiredFields(): true {
+  private assertRequiredFields(): Procedure<true> {
+    if (this._error) {
+      return fail(ScraperErrorTypes.Generic, this._error);
+    }
     if (this._options === false) {
-      throw new ScraperError('PipelineBuilder: withOptions() is required');
+      return fail(ScraperErrorTypes.Generic, 'PipelineBuilder: withOptions() is required');
     }
     if (this._loginMode === 'none') {
-      throw new ScraperError('PipelineBuilder: a login mode is required');
+      return fail(ScraperErrorTypes.Generic, 'PipelineBuilder: a login mode is required');
     }
-    return true;
+    return succeed(true);
   }
 
   /**
@@ -271,7 +282,13 @@ class PipelineBuilder {
   private buildLoginPhase(): CtxPhase {
     if (this._loginConfig) {
       const phase = createLoginPhase(this._loginConfig);
-      return { name: 'login', pre: some(phase.pre), action: phase.action, post: some(phase.post) };
+      const loginPhase: CtxPhase = {
+        name: 'login',
+        pre: some(phase.pre),
+        action: phase.action,
+        post: some(phase.post),
+      };
+      return loginPhase;
     }
     const loginStep = this.resolveLoginStep();
     return actionOnly('login', loginStep);
@@ -317,16 +334,24 @@ class PipelineBuilder {
 
   /**
    * Assert no login mode has been set yet.
-   * @returns True if no login mode is set.
-   * @throws If a login mode was already configured.
+   * @returns Success if no login mode set, failure otherwise.
    */
-  private assertNoLoginMode(): true {
+  private assertNoLoginMode(): boolean {
     if (this._loginMode !== 'none') {
-      throw new ScraperError('PipelineBuilder: login mode already set — only one allowed');
+      this._error = 'PipelineBuilder: login mode already set';
+      return false;
     }
     return true;
   }
 }
 
+/**
+ * Factory: create a new PipelineBuilder instance.
+ * @returns Fresh PipelineBuilder ready for fluent configuration.
+ */
+function createPipelineBuilder(): PipelineBuilder {
+  return new PipelineBuilder();
+}
+
 export type { DirectPostLoginFn, NativeLoginFn, ScrapeFn };
-export { PipelineBuilder };
+export { createPipelineBuilder, PipelineBuilder };

@@ -111,7 +111,7 @@ describe('ScrapeExecutor/2nd-account-failure', () => {
     const config = makeMockScrapeConfig(accounts);
     const ctx = MAKE_CTX(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('2nd account txn failed');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('2nd account txn failed');
   });
 });

@@ -1,7 +1,7 @@
 /**
- * Unit tests for VisaCalScrape — buildMonths + getAuth.
+ * Unit tests for VisaCalScraper — buildMonths + getAuth.
  * Pure function tests + page.evaluate mock tests.
- * visaCalFetchData tests are in VisaCalScrapeFetch.test.ts.
+ * visaCalFetchData tests are in VisaCalScraperFetch.test.ts.
  */
 
 import moment from 'moment';
@@ -10,7 +10,8 @@ import type { Page } from 'playwright-core';
 import {
   buildMonths,
   getAuth,
-} from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScrape.js';
+} from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScraper.js';
+import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Auth JSON stored in sessionStorage. */
 const AUTH_JSON = JSON.stringify({ auth: { calConnectToken: 'test-token' } });
@@ -131,39 +132,54 @@ describe('buildMonths', () => {
 // ── getAuth tests ─────────────────────────────────────────
 
 describe('getAuth', () => {
-  it('returns empty string when sessionStorage has no auth-module', async () => {
+  it('fails when sessionStorage has no auth-module', async () => {
     const page = makeMockEvalPage('');
     const result = await getAuth(page);
-    expect(result).toBe('');
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
   });
 
-  it('returns CALAuthScheme with token when auth exists', async () => {
+  it('succeeds with CALAuthScheme token when auth exists', async () => {
     const page = makeMockEvalPage(AUTH_JSON);
     const result = await getAuth(page);
-    expect(result).toBe('CALAuthScheme test-token');
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk) expect(result.value).toBe('CALAuthScheme test-token');
   });
 
-  it('returns CALAuthScheme with empty token when field missing', async () => {
+  it('succeeds with empty token when field missing', async () => {
     const noToken = JSON.stringify({ auth: {} });
     const page = makeMockEvalPage(noToken);
     const result = await getAuth(page);
-    expect(result).toBe('CALAuthScheme ');
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk) expect(result.value).toBe('CALAuthScheme ');
   });
 
-  it('executes evaluate callback with real sessionStorage', async () => {
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM('<!DOCTYPE html>', { url: 'https://example.com' });
+  it('fails on malformed JSON', async () => {
+    const page = makeMockEvalPage('not-json{{{');
+    const result = await getAuth(page);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+  });
+
+  it('succeeds via JSDOM with real sessionStorage', async () => {
+    const jsdomModule = await import('jsdom');
+    const dom = new jsdomModule.JSDOM('<!DOCTYPE html>', { url: 'https://example.com' });
     dom.window.sessionStorage.setItem('auth-module', AUTH_JSON);
     const page = makeMockJsdomPage(dom.window.sessionStorage);
     const result = await getAuth(page);
-    expect(result).toBe('CALAuthScheme test-token');
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk) expect(result.value).toBe('CALAuthScheme test-token');
   });
 
-  it('returns empty when sessionStorage item is missing via JSDOM', async () => {
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM('<!DOCTYPE html>', { url: 'https://example.com' });
+  it('fails when sessionStorage item missing via JSDOM', async () => {
+    const jsdomModule = await import('jsdom');
+    const dom = new jsdomModule.JSDOM('<!DOCTYPE html>', { url: 'https://example.com' });
     const page = makeMockJsdomPage(dom.window.sessionStorage);
     const result = await getAuth(page);
-    expect(result).toBe('');
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
   });
 });

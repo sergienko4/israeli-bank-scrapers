@@ -1,7 +1,7 @@
 /**
  * Coverage-only tests for config ?? / || fallback branches.
  * Mocks SCRAPER_CONFIGURATION with null API values so the fallback
- * branches (lines 31-36 in VisaCalScrape, line 90 in VisaCalPipeline) are exercised.
+ * branches (lines 31-36 in VisaCalScraper, line 90 in VisaCalPipeline) are exercised.
  * Just importing the modules with null config covers the branches.
  */
 
@@ -43,11 +43,11 @@ jest.unstable_mockModule('../../../../../../Scrapers/Registry/Config/ScraperConf
 
 /** Import after mock — module evaluates with null config. */
 const SCRAPE_MODULE =
-  await import('../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScrape.js');
+  await import('../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalScraper.js');
 const PIPELINE_MODULE =
   await import('../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js');
 
-describe('VisaCalScrape config ?? fallbacks', () => {
+describe('VisaCalScraper config ?? fallbacks', () => {
   it('exports visaCalFetchData even with null config', () => {
     expect(typeof SCRAPE_MODULE.visaCalFetchData).toBe('function');
   });

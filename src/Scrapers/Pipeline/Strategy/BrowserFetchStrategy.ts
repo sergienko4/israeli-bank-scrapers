@@ -30,12 +30,12 @@ function emptyResponseError(url: string): Procedure<never> {
  */
 /**
  * Convert a nullable fetch result to a Procedure.
- * @param result - The fetch result (null if empty).
+ * @param result - The fetch result (falsy if empty).
  * @param url - The URL for error reporting.
  * @returns Succeed with data, or empty-response failure.
  */
-function resultToProcedure<T>(result: T | null, url: string): Procedure<T> {
-  if (result) return succeed(result);
+function resultToProcedure<T>(result: unknown, url: string): Procedure<T> {
+  if (result) return succeed(result as T);
   return emptyResponseError(url) as Procedure<T>;
 }
 
@@ -74,7 +74,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     return fetchPostWithinPage<T>(this._page, url, { data, extraHeaders: opts.extraHeaders })
-      .then(result => resultToProcedure(result, url))
+      .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
 
@@ -88,10 +88,19 @@ class BrowserFetchStrategy implements IFetchStrategy {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
     const shouldIgnoreErrors = hasHeaders;
     return fetchGetWithinPage<T>(this._page, url, shouldIgnoreErrors)
-      .then(result => resultToProcedure(result, url))
+      .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
 }
 
+/**
+ * Factory: create a BrowserFetchStrategy bound to a page.
+ * @param page - The Playwright page for fetch context.
+ * @returns IFetchStrategy implementation using browser session.
+ */
+function createBrowserFetchStrategy(page: Page): IFetchStrategy {
+  return new BrowserFetchStrategy(page);
+}
+
 export default BrowserFetchStrategy;
-export { BrowserFetchStrategy };
+export { BrowserFetchStrategy, createBrowserFetchStrategy };

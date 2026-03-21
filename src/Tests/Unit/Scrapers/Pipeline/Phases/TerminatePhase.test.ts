@@ -42,8 +42,8 @@ describe('TerminatePhase/no-browser', () => {
   it('returns succeed(input) immediately when browser is none()', async () => {
     const ctx = makeMockContext();
     const result = await TERMINATE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toBe(ctx);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe(ctx);
   });
 });
 
@@ -76,13 +76,13 @@ describe('TerminatePhase/cleanup-order', () => {
     ];
     const ctx = makeCtxWithCleanups(cleanups);
     const result = await TERMINATE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('handles zero cleanups — returns succeed immediately', async () => {
     const ctx = makeCtxWithCleanups([]);
     const result = await TERMINATE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });
 
@@ -91,7 +91,7 @@ describe('TerminatePhase/error-swallowing', () => {
     const cleanups = [(): Promise<boolean> => Promise.reject(new Error('close failed'))];
     const ctx = makeCtxWithCleanups(cleanups);
     const result = await TERMINATE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('calls logger.debug when cleanup throws', async () => {
@@ -117,7 +117,7 @@ describe('TerminatePhase/error-swallowing', () => {
     ];
     const ctx = makeCtxWithCleanups(cleanups);
     const result = await TERMINATE_STEP.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     expect(order).toContain(0);
     expect(order).toContain(2);
   });

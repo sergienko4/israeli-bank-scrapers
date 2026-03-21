@@ -65,13 +65,20 @@ async function resolveFieldToProcedure(opts: IResolveOpts): Promise<Procedure<IF
  * @returns Mediator resolveField function.
  */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return (fieldKey, candidates) =>
-    resolveFieldToProcedure({
-      page,
-      fieldKey,
-      candidates,
-      notFoundMsg: `Field not found: ${fieldKey} on ${page.url()}`,
-    }).catch((error: unknown) => fail(ScraperErrorTypes.Generic, toErrorMessage(error)));
+  return (fieldKey, candidates): Promise<Procedure<IFieldContext>> => {
+    const notFoundMsg = `Field not found: ${fieldKey} on ${page.url()}`;
+    const opts = { page, fieldKey, candidates, notFoundMsg };
+    /**
+     * Catch resolution errors and return failure Procedure.
+     * @param error - Thrown error.
+     * @returns Failure Procedure.
+     */
+    const handleError = (error: unknown): Procedure<IFieldContext> => {
+      const msg = toErrorMessage(error);
+      return fail(ScraperErrorTypes.Generic, msg);
+    };
+    return resolveFieldToProcedure(opts).catch(handleError);
+  };
 }
 
 /**
@@ -83,13 +90,19 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
  * @returns Mediator resolveClickable function.
  */
 function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
-  return candidates =>
-    resolveFieldToProcedure({
-      page,
-      fieldKey: '__submit__',
-      candidates,
-      notFoundMsg: 'Clickable not found',
-    }).catch((error: unknown) => fail(ScraperErrorTypes.Generic, toErrorMessage(error)));
+  return (candidates): Promise<Procedure<IFieldContext>> => {
+    const opts = { page, fieldKey: '__submit__', candidates, notFoundMsg: 'Clickable not found' };
+    /**
+     * Catch resolution errors and return failure Procedure.
+     * @param error - Thrown error.
+     * @returns Failure Procedure.
+     */
+    const handleError = (error: unknown): Procedure<IFieldContext> => {
+      const msg = toErrorMessage(error);
+      return fail(ScraperErrorTypes.Generic, msg);
+    };
+    return resolveFieldToProcedure(opts).catch(handleError);
+  };
 }
 
 /**
@@ -117,9 +130,9 @@ const LOADING_DELAY_MS = 2000;
  */
 async function isAnyLoadingVisible(frame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loadingIndicator;
-  const checks = candidates.map(c => {
+  const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
-    return locator.isVisible().catch(() => false);
+    return locator.isVisible().catch((): boolean => false);
   });
   const results = await Promise.all(checks);
   return results.some(Boolean);
@@ -186,11 +199,20 @@ async function discoverFormCore(
  * @returns Mediator discoverForm function.
  */
 function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
-  return (resolvedContext: IFieldContext) =>
-    discoverFormCore(cache, resolvedContext).catch((error: unknown) => {
-      LOG.debug('discoverForm failed (non-fatal): %s', toErrorMessage(error).slice(0, 60));
+  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> => {
+    /**
+     * Catch form discovery errors — non-fatal, returns none.
+     * @param error - Thrown error.
+     * @returns None option.
+     */
+    const handleError = (error: unknown): Option<IFormAnchor> => {
+      const msg = toErrorMessage(error);
+      const truncated = msg.slice(0, 60);
+      LOG.debug('discoverForm failed (non-fatal): %s', truncated);
       return none();
-    });
+    };
+    return discoverFormCore(cache, resolvedContext).catch(handleError);
+  };
 }
 
 /**
@@ -199,7 +221,7 @@ function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] 
  * @returns Mediator scopeToForm function.
  */
 function buildScopeToForm(cache: IFormCache): IElementMediator['scopeToForm'] {
-  return (candidates: readonly SelectorCandidate[]) => {
+  return (candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[] => {
     if (!cache.selector) return candidates;
     const mutable = [...candidates];
     return scopeCandidates(cache.selector, mutable);
@@ -214,7 +236,7 @@ function buildScopeToForm(cache: IFormCache): IElementMediator['scopeToForm'] {
  */
 function createElementMediator(page: Page): IElementMediator {
   const cache: IFormCache = { selector: '' };
-  return {
+  const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
     discoverErrors: buildDiscoverErrors(),
@@ -222,6 +244,7 @@ function createElementMediator(page: Page): IElementMediator {
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
   };
+  return mediator;
 }
 
 export default createElementMediator;

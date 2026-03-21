@@ -166,8 +166,8 @@ describe('LoginSteps/preLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No browser');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No browser');
   });
 
   it('navigates to loginUrl', async () => {
@@ -215,7 +215,7 @@ describe('LoginSteps/preLogin', () => {
     const config = MAKE_LOGIN_CONFIG({ checkReadiness: undefined });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('calls preAction and uses returned frame as activeFrame', async () => {
@@ -231,8 +231,8 @@ describe('LoginSteps/preLogin', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok && result.value.login.has) {
+    expect(result.success).toBe(true);
+    if (result.success && result.value.login.has) {
       expect(result.value.login.value.activeFrame).toBe(mockFrame);
     }
   });
@@ -249,7 +249,7 @@ describe('LoginSteps/preLogin', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    if (result.ok && result.value.login.has) {
+    if (result.success && result.value.login.has) {
       expect(result.value.login.value.activeFrame).toBe(page);
     }
   });
@@ -260,8 +260,8 @@ describe('LoginSteps/preLogin', () => {
     const config = MAKE_LOGIN_CONFIG({ preAction: undefined });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok && result.value.login.has) {
+    expect(result.success).toBe(true);
+    if (result.success && result.value.login.has) {
       expect(result.value.login.value.activeFrame).toBe(page);
     }
   });
@@ -272,7 +272,7 @@ describe('LoginSteps/preLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.login.has).toBe(true);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.login.has).toBe(true);
   });
 });

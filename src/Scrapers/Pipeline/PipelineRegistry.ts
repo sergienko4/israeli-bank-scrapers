@@ -10,9 +10,10 @@ import type { ScraperOptions } from '../Base/Interface.js';
 import { buildDiscountPipeline } from './Banks/Discount/DiscountPipeline.js';
 import { buildVisaCalPipeline } from './Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import type { Procedure } from './Types/Procedure.js';
 
 /** Factory that builds a pipeline descriptor for a specific bank. */
-type PipelineFactory = (options: ScraperOptions) => IPipelineDescriptor;
+type PipelineFactory = (options: ScraperOptions) => Procedure<IPipelineDescriptor>;
 
 /** Registry of bank pipeline factories — populated during migration. */
 const PIPELINE_REGISTRY: Partial<Record<CompanyTypes, PipelineFactory>> = {

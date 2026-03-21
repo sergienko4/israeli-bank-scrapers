@@ -55,8 +55,8 @@ describe('LoginSteps/loginAction', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No login context');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No login context');
   });
 
   it('fails when mediator is absent from context', async () => {
@@ -67,8 +67,8 @@ describe('LoginSteps/loginAction', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No mediator');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No mediator');
   });
 
   it('calls mediator.resolveField for each field', async () => {
@@ -133,7 +133,7 @@ describe('LoginSteps/loginAction', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(resolvedFields).toHaveLength(1);
   });
 
@@ -192,8 +192,8 @@ describe('LoginSteps/loginAction', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toBe('submit not found');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('submit not found');
   });
 
   it('returns succeed(input) when all fields filled and submit clicked', async () => {
@@ -221,7 +221,7 @@ describe('LoginSteps/loginAction', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });
 
@@ -238,8 +238,8 @@ describe('LoginSteps/postLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.post.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No browser');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No browser');
   });
 
   it('fails when login state is absent', async () => {
@@ -252,8 +252,8 @@ describe('LoginSteps/postLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.post.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No login state');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No login state');
   });
 
   it('fails when mediator is absent', async () => {
@@ -266,8 +266,8 @@ describe('LoginSteps/postLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.post.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('No mediator');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('No mediator');
   });
 
   it('fails with InvalidPassword when discoverErrors finds errors', async () => {
@@ -289,8 +289,8 @@ describe('LoginSteps/postLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.post.execute(ctx, ctx);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorType).toBe('INVALID_PASSWORD');
       expect(result.errorMessage).toContain('פרטים שגויים');
     }
@@ -376,6 +376,6 @@ describe('LoginSteps/postLogin', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.post.execute(ctx, ctx);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
   });
 });

@@ -5,7 +5,7 @@
 
 import moment from 'moment';
 
-import type { ITransactionsAccount } from '../../../Transactions.js';
+import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFetchOpts, IFetchStrategy } from '../Strategy/FetchStrategy.js';
 import { DEFAULT_FETCH_OPTS } from '../Strategy/FetchStrategy.js';
@@ -31,10 +31,16 @@ interface IScrapeOps<TA, TT> {
  * @returns IFetchOpts with extraHeaders.
  */
 function buildFetchOpts<TA, TT>(config: IScrapeConfig<TA, TT>, ctx: IPipelineContext): IFetchOpts {
-  const extraHeaders = config.extraHeaders(ctx);
+  const headersResult = safeCall(
+    (): Record<string, string> => config.extraHeaders(ctx),
+    'extraHeaders',
+  );
+  if (!isOk(headersResult)) return DEFAULT_FETCH_OPTS;
+  const extraHeaders = headersResult.value;
   const hasHeaders = Object.keys(extraHeaders).length > 0;
   if (!hasHeaders) return DEFAULT_FETCH_OPTS;
-  return { extraHeaders };
+  const opts: IFetchOpts = { extraHeaders };
+  return opts;
 }
 
 /**
@@ -48,6 +54,12 @@ function computeStartDate(ctx: IPipelineContext, dateFormat: string): string {
   const optionsStart = moment(ctx.options.startDate);
   const start = moment.max(defaultStart, optionsStart);
   return start.format(dateFormat);
+}
+
+/** Built request shape from buildRequest callback. */
+interface IBuiltRequest {
+  readonly path: string;
+  readonly postData: Record<string, string>;
 }
 
 /** Fetch dispatch arguments. */
@@ -112,12 +124,6 @@ function safeCall<T>(fn: () => T, label: string): Procedure<T> {
   }
 }
 
-/** Built request from bank's buildRequest callback. */
-interface IBuiltRequest {
-  readonly path: string;
-  readonly postData: Record<string, string>;
-}
-
 /**
  * Fetch raw transaction data for one account via strategy.
  * @param ops - Bundled scrape operations.
@@ -138,6 +144,20 @@ async function fetchRawTxns<TA, TT>(
 }
 
 /**
+ * Assemble an ITransactionsAccount from raw account + mapped transactions.
+ * @param account - The raw account with ID and balance.
+ * @param txns - Mapped transactions.
+ * @returns Assembled account.
+ */
+function buildAccount(account: IRawAccount, txns: readonly ITransaction[]): ITransactionsAccount {
+  return {
+    accountNumber: account.accountId,
+    balance: account.balance,
+    txns: txns as ITransaction[],
+  } satisfies ITransactionsAccount;
+}
+
+/**
  * Fetch transactions for one account.
  * @param ops - Bundled scrape operations.
  * @param account - The raw account to fetch transactions for.
@@ -148,17 +168,24 @@ async function fetchOneAccount<TA, TT>(
   account: IRawAccount,
 ): Promise<Procedure<ITransactionsAccount>> {
   const txnCfg = ops.config.transactions;
-  const reqResult = safeCall(
-    () => txnCfg.buildRequest(account.accountId, ops.startDate),
-    'buildRequest',
-  );
+  /**
+   * Build the fetch request for this account.
+   * @returns URL path and POST data.
+   */
+  const buildReq = (): IBuiltRequest => txnCfg.buildRequest(account.accountId, ops.startDate);
+  const reqResult = safeCall(buildReq, 'buildRequest');
   if (!isOk(reqResult)) return reqResult;
   const raw = await fetchRawTxns(ops, reqResult.value);
   if (!isOk(raw)) return raw;
-  const mapped = safeCall(() => txnCfg.mapper(raw.value), 'Transaction mapper');
+  /**
+   * Map raw response to typed transactions.
+   * @returns Mapped transaction array.
+   */
+  const mapTxns = (): readonly ITransaction[] => txnCfg.mapper(raw.value);
+  const mapped = safeCall(mapTxns, 'Transaction mapper');
   if (!isOk(mapped)) return mapped;
-  const txns = [...mapped.value];
-  return succeed({ accountNumber: account.accountId, balance: account.balance, txns });
+  const acct = buildAccount(account, mapped.value);
+  return succeed(acct);
 }
 
 /**

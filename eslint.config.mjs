@@ -1,741 +1,371 @@
 // @ts-check
-
 import eslint from '@eslint/js';
-
 import tseslint from 'typescript-eslint';
-
 import importPlugin from 'eslint-plugin-import-x';
-
 import unusedImports from 'eslint-plugin-unused-imports';
-
 import checkFile from 'eslint-plugin-check-file';
-
 import prettier from 'eslint-config-prettier';
-
 import globals from 'globals';
-
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
-
 import jsdoc from 'eslint-plugin-jsdoc';
 
+/**
+ * GLOBAL ARCHITECTURAL GUARDRAILS
+ * These apply to all source files to ensure a "Zero-Skip" and Security-First environment.
+ */
+const RESTRICTED_SYNTAX_RULES = [
+  // 1. Coverage Bypasses
+  {
+    selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'], [value*='v8 ignore'])",
+    message: "🚫 COVERAGE SKIP: Write a test instead of ignoring coverage.",
+  },
+
+  // 2. Lint Bypasses
+  {
+    selector: "Line:matches([value*='eslint-disable'])",
+    message: "🚫 LINT SKIP: Do not disable ESLint rules. Fix the underlying issue.",
+  },
+
+  // 3. Type Bypasses (Non-null assertions)
+  {
+    selector: "TSNonNullExpression",
+    message: "🚫 TYPE SKIP: Do not use non-null assertions (!). Use optional chaining (?.) or a proper null check.",
+  },
+
+  // 4. Return Value Integrity (Blocking null & undefined returns)
+  {
+    // Blocks 'null' or 'undefined' in Type Annotations for functions/methods
+    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+    message: "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
+  },
+  {
+    // Blocks 'void' as a return type (Forces every function to return data)
+    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
+    message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
+  },
+  {
+    // Blocks 'return null;', 'return undefined;', and empty 'return;'
+    selector: "ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
+    message: "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+  },
+
+  // 5. Nested Logic & Readability
+  {
+    // Targets: print(cal(2,3)) - Nested function calls
+    selector: "CallExpression > .arguments[type='CallExpression']",
+    message: "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
+  },
+  {
+    selector: "CallExpression[callee.property.name='isStuckOnLoginPage']",
+    message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
+  },
+
+  // 6. Security & Logging
+  {
+    selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
+    message: "SECURITY: Do not log sensitive data keys.",
+  },
+  {
+    selector: "ThrowStatement > NewExpression[callee.name='Error']",
+    message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
+  },
+
+  // 7. Type Integrity (Blocking 'unknown' bypasses)
+  {
+    // Blocks 'unknown' in function return types
+    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) > TSTypeAnnotation TSUnknownKeyword",
+    message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a specific Interface or Type.",
+  },
+  {
+    // Blocks 'unknown' in function parameters (Arguments)
+    selector: "TSParameterProperty TSUnknownKeyword, FunctionDeclaration TSParameterProperty TSUnknownKeyword, TSTypeReference TSUnknownKeyword",
+    message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'.",
+  },
+  {
+    //Blocks 'unknown' in variable type annotations
+    selector: "VariableDeclarator > TSTypeAnnotation TSUnknownKeyword",
+    message: "🚫 TYPE SKIP: Do not declare variables as 'unknown'. Cast them to a concrete type immediately.",
+  },
+
+  // Block: for-in loops (can be used to bypass iterators and cause prototype pollution)
+  'ForInStatement',
+  'LabeledStatement',
+  'WithStatement',
+
+  // 8. Anti-Sleep Policy
+  {
+    // Targets: sleep(1000), await sleep(1000)
+    selector: "CallExpression[callee.name='sleep']",
+    message: "🚫 BRITTLE LOGIC: 'sleep()' is forbidden. Use a proper 'waitFor' mechanism.",
+  },
+  {
+    // Targets: setTimeout(() => {}, 1000) - often used as a manual sleep
+    selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]",
+    message: "🚫 BRITTLE LOGIC: Manual 'setTimeout' delays are forbidden.",
+  },
+  {
+    // Targets: delay(1000) - common in some utility libs
+    selector: "CallExpression[callee.name='delay']",
+    message: "🚫 BRITTLE LOGIC: 'delay()' is forbidden.",
+  },
+
+  // 9. Obfuscation & Naming
+  {
+    // Targets: { original: shortAlias }
+    selector: "VariableDeclarator > ObjectPattern > Property[kind='init'][value.name.length<3], ArrowFunctionExpression > ObjectPattern > Property[kind='init'][value.name.length<3]",
+    message: "🚫 OBFUSCATION: Do not use short aliases. Use descriptive names.",
+  },
+  {
+    // Prevents generic descriptions like 'test', 'run', or 'batch'
+    selector: "CallExpression[callee.name='describe'] > Literal[value=/^(test|run|batch|suite)/i]",
+    message: "🚫 GENERIC DESCRIPTION: Use the Feature Name in the describe block.",
+  }
+];
 
 export default tseslint.config(
-
   // 1. GLOBAL IGNORES
-
-  // Removed src/Tests and src/**/*.test.ts from here so the second block can lint them!
-
   {
-
-    ignores: [
-      '.github/**',
-      'lib/**',
-      'node_modules/**',
-      'coverage/**',
-      'src/coverage/**',
-      'tsup.config.ts',
-      '**/*.js',
-      '**/*.mjs',
-      '**/*.cjs',
-    ],
+    ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', 'tsup.config.ts', '**/*.js', '**/*.mjs', '**/*.cjs'],
   },
-
 
   // 2. BASE CONFIGS
-
   eslint.configs.recommended,
-
   ...tseslint.configs.strictTypeChecked,
-
   ...tseslint.configs.stylisticTypeChecked,
-
   prettier,
 
-
   // 3. MAIN SOURCE FILES (STRICT)
-
   {
-
     files: ['src/**/*.ts'],
-
     plugins: {
-
       'import-x': importPlugin,
-
       'unused-imports': unusedImports,
-
       'check-file': checkFile,
-
       'simple-import-sort': simpleImportSort,
-
       jsdoc,
-
     },
-
     languageOptions: {
-
       ecmaVersion: 2022,
-
       sourceType: 'module',
-
-      globals: {
-
-        ...globals.node,
-
-        ...globals.jest,
-
-        ...globals.es2021,
-
-        document: 'readonly',
-
-        window: 'readonly',
-
-        fetch: 'readonly',
-
-        Headers: 'readonly',
-
-      },
-
-      parserOptions: {
-
-        projectService: true,
-
-        tsconfigRootDir: import.meta.dirname,
-
-      },
-
+      globals: { ...globals.node, ...globals.jest, ...globals.es2021, document: 'readonly', window: 'readonly', fetch: 'readonly', Headers: 'readonly' },
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
-
     rules: {
-
-
-      // ── Logging & Security ───────────────────────────────────────────────
-
       'no-console': 'error',
-
-      'no-warning-comments': [
-
-        'error',
-
-        {
-
-          terms: [
-
-            'todo',
-
-            'fixme',
-
-            'istanbul ignore',
-
-            'c8 ignore',
-
-            'v8 ignore',
-
-            '@ts-ignore',
-
-            '@ts-nocheck',
-
-            '@ts-expect-error',
-
-            'eslint-disable'
-
-          ],
-
-          location: 'anywhere'
-
-        }
-
-      ],
-
-
-      // ── Restricted Syntax (Security, Structure & Zero-Skip Policy) ───────
-
-      'no-restricted-syntax': [
-
-        'error',
-
-        // 1. Coverage Bypasses
-
-        {
-
-          selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'], [value*='v8 ignore'])",
-
-          message: "🚫 COVERAGE SKIP: Write a test instead of ignoring coverage.",
-
-        },
-
-
-        // 2. Lint Bypasses
-
-        {
-
-          selector: "Line:matches([value*='eslint-disable'])",
-
-          message: "🚫 LINT SKIP: Do not disable ESLint rules. Fix the underlying issue.",
-
-        },
-
-
-        // 3. Type Bypasses (Non-null assertions)
-
-        {
-
-          selector: "TSNonNullExpression",
-
-          message: "🚫 TYPE SKIP: Do not use non-null assertions (!). Use optional chaining (?.) or a proper null check.",
-
-        },
-
-
-        // 4. Return Value Integrity (Blocking null & undefined returns)
-
-        {
-
-          // Blocks 'null' or 'undefined' in Type Annotations for functions/methods
-
-          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
-
-          message: "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
-
-        },
-
-        {
-
-          // Blocks 'void' as a return type (Forces every function to return data)
-
-          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
-
-          message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
-
-        },
-
-        {
-
-          // Blocks 'return null;', 'return undefined;', and empty 'return;'
-
-          selector: "ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
-
-          message: "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
-
-        },
-
-
-        // 5. Nested Logic & Readability
-
-        {
-
-          // Targets: print(cal(2,3)) - Nested function calls
-
-          selector: "CallExpression > .arguments[type='CallExpression']",
-
-          message: "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
-
-        },
-
-        {
-
-          selector: "CallExpression[callee.property.name='isStuckOnLoginPage']",
-
-          message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
-
-        },
-
-
-        // 6. Security & Logging
-
-        {
-
-          selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
-
-          message: "SECURITY: Do not log sensitive data keys.",
-
-        },
-
-        {
-
-          selector: "ThrowStatement > NewExpression[callee.name='Error']",
-
-          message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
-
-        },
-
-        // ── Type Integrity (Blocking 'unknown' bypasses) ─────────────────────
-
-        {
-
-          // 1. Blocks 'unknown' in function return types
-
-          selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) > TSTypeAnnotation TSUnknownKeyword",
-
-          message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a specific Interface or Type.",
-
-        },
-
-        {
-
-          // 2. Blocks 'unknown' in function parameters (Arguments)
-
-          selector: "TSParameterProperty TSUnknownKeyword, FunctionDeclaration TSParameterProperty TSUnknownKeyword, TSTypeReference TSUnknownKeyword",
-
-          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Use a Discriminated Union or a base Interface.",
-
-        },
-
-        {
-
-          // 3. Blocks 'unknown' in variable type annotations
-
-          selector: "VariableDeclarator > TSTypeAnnotation TSUnknownKeyword",
-
-          message: "🚫 TYPE SKIP: Do not declare variables as 'unknown'. Cast them to a concrete type immediately after receiving external data.",
-
-        },
-
-        // Block: for-in loops (can be used to bypass iterators and cause prototype pollution)
-
-        'ForInStatement',
-
-        'LabeledStatement',
-
-        'WithStatement',
-
-
-        // ── Blocking Sync/Async Delays (The "Anti-Sleep" Policy) ─────────────
-
-        {
-
-          // Targets: sleep(1000), await sleep(1000)
-
-          selector: "CallExpression[callee.name='sleep']",
-
-          message: "🚫 BRITTLE LOGIC: 'sleep()' is forbidden. Use a proper 'waitFor' mechanism (e.g., page.waitForSelector) to handle async timing.",
-
-        },
-
-        {
-
-          // Targets: setTimeout(() => {}, 1000) - often used as a manual sleep
-
-          selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]",
-
-          message: "🚫 BRITTLE LOGIC: Manual 'setTimeout' delays are forbidden. Use event-driven triggers or specific element observers.",
-
-        },
-
-        {
-
-          // Targets: delay(1000) - common in some utility libs
-
-          selector: "CallExpression[callee.name='delay']",
-
-          message: "🚫 BRITTLE LOGIC: 'delay()' is forbidden. Explicitly wait for the state transition instead.",
-
-        },
-
-        {
-
-          // Targets: { original: shortAlias }
-
-          selector: "VariableDeclarator > ObjectPattern > Property[kind='init'][value.name.length<3], ArrowFunctionExpression > ObjectPattern > Property[kind='init'][value.name.length<3]",
-
-          message: "🚫 OBFUSCATION: Do not use short aliases (like 'i' or 'o'). Use descriptive names (like 'invoices' or 'otpCode').",
-
-        },
-        {
-          // Prevents generic descriptions like 'test', 'run', or 'batch'
-          selector: "CallExpression[callee.name='describe'] > Literal[value=/^(test|run|batch|suite)/i]",
-          message: "🚫 GENERIC DESCRIPTION: Use the Feature Name (e.g. 'Invalid Login') in the describe block.",
-        }
-
-      ],
-
-
-      // 2. Explicitly ban the TS-specific skip rules
-
-      '@typescript-eslint/ban-ts-comment': [
-
-        'error',
-
-        {
-
-          'ts-expect-error': 'allow-with-description', // Only allow if they explain why
-
-          'ts-ignore': true,
-
-          'ts-nocheck': true,
-
-          'ts-check': true,
-
-          minimumDescriptionLength: 10,
-
-        },
-
-      ],
-
+      'no-warning-comments': ['error', { terms: ['todo', 'fixme', 'istanbul ignore', 'c8 ignore', 'v8 ignore', '@ts-ignore', '@ts-nocheck', '@ts-expect-error', 'eslint-disable'], location: 'anywhere' }],
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
+      '@typescript-eslint/ban-ts-comment': ['error', { 'ts-expect-error': 'allow-with-description', 'ts-ignore': true, 'ts-nocheck': true, 'ts-check': true, minimumDescriptionLength: 10 }],
       '@typescript-eslint/no-non-null-assertion': 'error',
 
-      // ── Import Organization ──────────────────────────────────────────────
-
+      // Imports
       'simple-import-sort/imports': 'error',
-
       'simple-import-sort/exports': 'error',
-
       'import-x/no-duplicates': 'error',
-
       'import-x/max-dependencies': ['error', { max: 15, ignoreTypeImports: true }],
 
-
-      // ── Style & Visibility ───────────────────────────────────────────────
-
-      quotes: ['error', 'single', { avoidEscape: true }],
-
-      // ── Visibility & Return Types ────────────────────────────────────────
-
+      // Style & Return Types
+      'quotes': ['error', 'single', { avoidEscape: true }],
       // Force explicit 'public', 'private', or 'protected'
-
-      '@typescript-eslint/explicit-member-accessibility': ['error', {
-
-        accessibility: 'explicit',
-
-        overrides: { constructors: 'no-public' },
-
-      }],
-
+      '@typescript-eslint/explicit-member-accessibility': ['error', { accessibility: 'explicit', overrides: { constructors: 'no-public' } }],
       // Force explicit return types (including : void)
-
-      '@typescript-eslint/explicit-function-return-type': ['error', {
-
-        allowExpressions: false,
-
-        allowTypedFunctionExpressions: true,
-
-        allowHigherOrderFunctions: true,
-
-        allowDirectConstAssertionInArrowFunctions: true,
-
-      }],
-
-
+      '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: false, allowTypedFunctionExpressions: true, allowHigherOrderFunctions: true, allowDirectConstAssertionInArrowFunctions: true }],
       'import-x/prefer-default-export': 'error',
-
       'no-nested-ternary': 'error',
-
       'class-methods-use-this': 'error',
-
       'arrow-body-style': 'off',
-
       'no-shadow': 'off',
-
       'no-await-in-loop': 'error',
 
-
-      // ── Strict Type Safety ───────────────────────────────────────────────
-
+      // Type Safety
       '@typescript-eslint/no-explicit-any': 'error',
-
       '@typescript-eslint/no-unsafe-assignment': 'error',
-
       '@typescript-eslint/no-unsafe-call': 'error',
-
       '@typescript-eslint/no-unsafe-member-access': 'error',
-
       '@typescript-eslint/no-unsafe-argument': 'error',
-
       '@typescript-eslint/no-unsafe-return': 'error',
 
-
-      // Use TS-specific unused vars rule and turn off the base one
-
+      // Unused Code
       'no-unused-vars': 'error',
-
-      // ── UNUSED CODE REMOVAL ───────────────────────────────────────────
       'unused-imports/no-unused-imports': 'error',
-      'unused-imports/no-unused-vars': [
-        'error',
-        { vars: 'all', varsIgnorePattern: '^_', args: 'after-used', argsIgnorePattern: '^_' },
-      ],
-
-
+      'unused-imports/no-unused-vars': ['error', { vars: 'all', varsIgnorePattern: '^_', args: 'after-used', argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
 
-
-      // ── Structural & Naming ──────────────────────────────────────────────
-      //
-      // Source structure:
-      //   Scrapers/Pipeline/
-      //     Banks/<Bank>/              ← bank config + mappers
-      //     Mediator/                  ← HTML resolution (black box)
-      //     Phases/                    ← init, login, otp, dashboard, scrape, terminate
-      //     Strategy/                  ← fetch strategies (browser, native, graphql)
-      //     Registry/                  ← PipelineWellKnown (text-based selectors)
-      //     Types/                     ← Procedure, Option, PipelineContext, ScrapeConfig
-      //
-      // Test structure:
-      //   Tests/Unit/Pipeline/Infrastructure/<Group>/
-      //   Tests/Unit/Pipeline/Bank/<Bank>/<Group>/
-      //
-      //   Tests/E2E/Pipeline/E2eMocked/<Bank>/<Group>/
-      //   Tests/E2E/Pipeline/E2eSmoke/bank/<Bank>/<Group>/
-      //   Tests/E2E/Pipeline/Scredentials/bank/<Bank>/<Group>/
-      //
+      // Naming
       'check-file/filename-naming-convention': ['error', { 'src/**/*.{ts,tsx}': 'PASCAL_CASE' }],
       'check-file/folder-naming-convention': ['error', { 'src/**/': 'PASCAL_CASE' }],
-
       '@typescript-eslint/naming-convention': [
         'error',
-
         { selector: 'typeLike', format: ['PascalCase'] },
-
-        {
-
-          selector: 'interface',
-
-          format: ['PascalCase'],
-
-          custom: { regex: '^I[A-Z]', match: true },
-
-        },
-
+        { selector: 'interface', format: ['PascalCase'], custom: { regex: '^I[A-Z]', match: true } },
         { selector: ['variable', 'function', 'method'], format: ['camelCase'] },
-
-        {
-
-          selector: 'variable',
-
-          types: ['boolean'],
-
-          format: ['PascalCase'],
-
-          prefix: ['is', 'has', 'should', 'can', 'did', 'will', 'was'],
-
-        },
-
-        {
-
-          selector: 'variable',
-
-          modifiers: ['const', 'global'],
-
-          format: ['UPPER_CASE'],
-
-          leadingUnderscore: 'allow',
-
-        },
-
+        { selector: 'variable', types: ['boolean'], format: ['PascalCase'], prefix: ['is', 'has', 'should', 'can', 'did', 'will', 'was'] },
+        { selector: 'variable', modifiers: ['const', 'global'], format: ['UPPER_CASE'], leadingUnderscore: 'allow' },
         { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
-
-        {
-
-          selector: 'classProperty',
-
-          modifiers: ['private'],
-
-          format: ['camelCase'],
-
-          leadingUnderscore: 'require',
-
-        },
-
-        { selector: 'variable', modifiers: ['destructured'], format: null },
-
+        { selector: 'classProperty', modifiers: ['private'], format: ['camelCase'], leadingUnderscore: 'require' },
         { selector: 'typeParameter', format: ['PascalCase'], prefix: ['T'] },
-
         { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
-
       ],
-
-
       '@typescript-eslint/member-ordering': ['error', {
-
         default: [
-
           'public-static-field', 'protected-static-field', 'private-static-field',
-
           'public-instance-field', 'protected-instance-field', 'private-instance-field',
-
           'constructor',
-
           'public-instance-method', 'protected-instance-method', 'private-instance-method',
-
         ],
-
       }],
 
-
-      // === JSDOC DOCUMENTATION ===
-
-      'jsdoc/require-jsdoc': ['error', {
-
-        publicOnly: false, // Ensures ALL functions (even private) have comments
-
-        require: {
-
-          FunctionDeclaration: true,
-
-          MethodDefinition: true,
-
-          ClassDeclaration: true,
-
-          ArrowFunctionExpression: true,
-
-          FunctionExpression: true,
-
-        },
-
-      }],
-
+      // JSDoc
+      'jsdoc/require-jsdoc': ['error', { publicOnly: false, require: { FunctionDeclaration: true, MethodDefinition: true, ClassDeclaration: true, ArrowFunctionExpression: true, FunctionExpression: true } }],
       'jsdoc/require-description': ['error', { contexts: ['any'] }],
-
       'jsdoc/require-param': 'error',
-
       'jsdoc/require-param-description': 'error',
-
       'jsdoc/require-param-type': 'off', // TS handles types
-
       'jsdoc/require-returns': 'error',
-
       'jsdoc/require-returns-description': 'error',
-
       'jsdoc/require-returns-type': 'off', // TS handles types
-
       'jsdoc/check-param-names': 'error',
-
       'jsdoc/check-tag-names': 'error',
 
-
-      // ── Clean Code Limits ────────────────────────────────────────────────
-
+      // Limits
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
-
       '@typescript-eslint/max-params': ['error', { max: 3 }],
-
       'complexity': ['error', { max: 10 }],
-
       'max-classes-per-file': ['error', 1],
-
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
-
       'max-len': ['error', { code: 100, ignoreUrls: true, ignoreStrings: true, ignoreComments: true }],
-
     },
-
   },
 
-
-  // 4. TEST / MOCK / CONFIG FILES (RELAXED)
-
+  // 4. TEST / MOCK (RELAXED)
   {
-
-    files: [
-
-      'src/**/*.test.ts',
-
-      'src/**/*.spec.ts',
-
-      'src/Tests/**/*.ts',
-
-      '**/mocks/**/*.ts',
-
-      'eslint.config.mjs',
-
-    ],
-
+    files: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/Tests/**/*.ts', '**/mocks/**/*.ts', 'eslint.config.mjs'],
     rules: {
-
-      'no-console': 'off', // Allow logging in tests
-
-      'max-lines-per-function': 'off', // Tests are naturally long
-
-      'max-len': 'off', // Test descriptions can be long
-
-      '@typescript-eslint/no-explicit-any': 'error', // More flexible in mocks
-
-      'check-file/filename-naming-convention': 'off', // Allow standard test naming
-
+      'no-console': 'off',// Allow logging in tests
+      'max-lines-per-function': 'off',// Tests are naturally long
+      'max-len': 'off',// Test descriptions can be long
+      'check-file/filename-naming-convention': 'off',// Allow standard test naming
     },
-
   },
 
-  // ── Pipeline Tests: Structure Enforcement ──────────────────────────
+  // 5. PIPELINE TESTS: STRUCTURE ENFORCEMENT
   {
     files: ['src/Tests/**/Pipeline/**/*.ts'],
     rules: {
-      // Rule 1: PascalCase for Pipeline test files (e.g., DiscountLogin.test.ts)
-      'check-file/filename-naming-convention': [
-        'error',
-        { 'src/Tests/**/*.{test,spec}.ts': 'PASCAL_CASE' },
-        { ignoreMiddleExtensions: true },
-      ],
-      // Rule 2: PascalCase for <Bank> and <Group> folders
-      'check-file/folder-naming-convention': [
-        'error',
-        { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' },
-      ],
-      // Rule 3: Pipeline .test files must be inside Pipeline test paths
-      'check-file/folder-match-with-fex': [
-        'error',
-        { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' },
-      ],
+      'check-file/filename-naming-convention': ['error', { 'src/Tests/**/*.{test,spec}.ts': 'PASCAL_CASE' }, { ignoreMiddleExtensions: true }],
+      'check-file/folder-naming-convention': ['error', { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' }],
+      'check-file/folder-match-with-fex': ['error', { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' }],
     },
   },
 
-  // ── Pipeline: Logic & Branch Coverage (Mediator, Phases, Strategy) ──
+  // 6. PIPELINE LOGIC (DI, MEDIATOR, HANDLERS & RESULT PATTERN)
   {
     files: ['src/Scrapers/Pipeline/**/*.ts'],
     rules: {
-      // 1. Block 'if' ONLY if it has an 'else' block
+      // 1. Dependency Injection & Mediator Boundary
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/Registry/Config/**'],
+            message: '🚫 DI: Use ctx.config — do not import ScraperConfig directly.'
+          },
+          {
+            group: ['**/Constants/**', '**/env'],
+            message: '🚫 DI: Use ctx.config instead of direct imports.'
+          },
+          {
+            group: ['**/Mediator/Internals/**'],
+            message: '🚫 MEDIATOR: Access HTML resolution only via ctx.mediator.'
+          }
+        ]
+      }],
+
       'no-restricted-syntax': [
         'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        // DI: Block ALL manual instantiation except builtins
+        // GAP FIX #2 — Broadened from /Config$/ to catch all new Xxx()
         {
-          "selector": "IfStatement[alternate]",
-          "message": "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses) instead."
+          // Add your safe classes to the negative lookahead (the ?! section)
+          selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
+          message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
+        },
+
+        // Handler Delegation: Phases must call handlers
+        {
+          selector: "ClassDeclaration[id.name=/Phase$/] MethodDefinition[key.name='execute'] BlockStatement > :not(ExpressionStatement[expression.callee.property.name=/handle|executeHandler/]):not(ReturnStatement)",
+          message: "🚫 ARCHITECTURE: Phase logic must be delegated to a Handler. Use ctx.handlers.execute().",
+        },
+
+        // No else blocks — guard clauses only
+        {
+          selector: "IfStatement[alternate]",
+          message: "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
+        },
+
+        // No ternary — use logical lookups
+        {
+          selector: "ConditionalExpression",
+          message: "🚫 Ternary operators are disallowed. Use logical lookups.",
+        },
+
+        // Result Pattern: No primitive returns
+        {
+          selector: "TSMethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation > :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)",
+          message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
+        },
+
+        // Result Pattern: Every return must have success/status
+        {
+          selector: "ReturnStatement > ObjectExpression:not(:has(Property[key.name='success'])):not(:has(Property[key.name='status']))",
+          message: "🚫 RESULT PATTERN: Every return object must include 'success: boolean' AND 'status: string'.",
+        },
+
+        // Result Pattern: Failure must include message/error
+        {
+          selector: "ReturnStatement > ObjectExpression:has(Property[key.name='success'][value.value=false]):not(:has(Property[key.name=/message|error/]))",
+          message: "🚫 RESULT PATTERN: On failure (success: false), you MUST provide a 'message' or 'error' string.",
+        },
+
+        // Result Pattern: No throw
+        {
+          selector: "ThrowStatement",
+          message: "🚫 RESULT PATTERN: Do not throw. Return a failure Result object instead.",
+        },
+
+        // Pagination: No manual while loops — use Pagination strategy
+        // GAP FIX #4 — Forces pagination abstraction
+        {
+          selector: "WhileStatement",
+          message: "🚫 PAGINATION: Do not use manual while loops. Use the Pagination strategy abstraction.",
         },
         {
-          "selector": "ConditionalExpression",
-          "message": "🚫 Ternary operators are disallowed. Use logical expressions or lookups."
-        }
+          selector: "DoWhileStatement",
+          message: "🚫 PAGINATION: Do not use manual do-while loops. Use the Pagination strategy abstraction.",
+        },
       ],
-      // 2. Built-in rule to ensure if you return in an 'if', 
-      // you don't follow it with an unnecessary 'else' logic.
-      "no-else-return": ["error", { "allowElseIf": false }],
-
-      // 3. Prevent deep nesting (enforces flattening the logic)
-      "max-depth": ["error", 1]
-    }
-  },
-
-  // ── Pipeline Banks: Boundary Protection (cross-import restrictions) ──
-  {
-    files: ['src/Scrapers/Pipeline/Banks/**/*.ts'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['**/Mediator/**'],
-          message: '🚫 Banks must not import Mediator internals. Use ctx.mediator (black box) instead.',
-        }],
-      }],
+      'no-else-return': ['error', { allowElseIf: false }],
+      'max-depth': ['error', 1],
+      '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: false, allowTypedFunctionExpressions: false }],
     },
   },
-
-  // 5. SPECIAL ENTRY POINTS (LOWERCASE EXEMPTIONS)
-
+  // 6. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)
+  // This block grants "super-powers" to the files that build the DI container.
   {
-
     files: [
-
-      'src/index.ts',
-
-      'src/scheduler.ts',
-
-      'src/**/index.ts',
-
+      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context}.ts'
     ],
-
     rules: {
-
-      'check-file/filename-naming-convention': 'off'
-
+      // Factories are allowed to use 'new' and 'import' from Registry
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'max-lines-per-function': 'off',
     },
+  },
 
-
-  },);
+  // 7. ENTRY POINT EXEMPTIONS
+  {
+    files: ['src/index.ts', 'src/scheduler.ts', 'src/**/index.ts'],
+    rules: { 'check-file/filename-naming-convention': 'off' },
+  },
+);

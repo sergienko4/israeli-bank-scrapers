@@ -58,7 +58,7 @@ async function executePhase(
  * @returns Fresh diagnostics state.
  */
 function createDiagnostics(credKeyCount: string): IDiagnosticsState {
-  return {
+  const state: IDiagnosticsState = {
     loginUrl: '',
     finalUrl: none(),
     loginStartMs: Date.now(),
@@ -67,6 +67,7 @@ function createDiagnostics(credKeyCount: string): IDiagnosticsState {
     pageTitle: none(),
     warnings: [],
   };
+  return state;
 }
 
 /**
@@ -82,7 +83,8 @@ function resolveCoreDeps(
   const companyId = descriptor.options.companyId;
   const logger = getDebug(`pipeline-${companyId}`);
   const config = SCRAPER_CONFIGURATION.banks[companyId];
-  return { options: descriptor.options, credentials, companyId, logger, config };
+  const deps = { options: descriptor.options, credentials, companyId, logger, config };
+  return deps;
 }
 
 /**
@@ -97,7 +99,7 @@ function buildInitialContext(
 ): IPipelineContext {
   const credKeyCount = String(Object.keys(credentials).length);
   const core = resolveCoreDeps(descriptor, credentials);
-  return {
+  const ctx: IPipelineContext = {
     ...core,
     diagnostics: createDiagnostics(credKeyCount),
     fetchStrategy: none(),
@@ -107,6 +109,7 @@ function buildInitialContext(
     dashboard: none(),
     scrape: none(),
   };
+  return ctx;
 }
 
 /**
@@ -172,7 +175,7 @@ function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
  * @returns Legacy IScraperScrapingResult.
  */
 function toResult(result: Procedure<IPipelineContext>): IScraperScrapingResult {
-  if (result.ok) return extractSuccess(result.value);
+  if (result.success) return extractSuccess(result.value);
   return toLegacy(result);
 }
 

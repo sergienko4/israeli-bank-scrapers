@@ -36,8 +36,8 @@ describe('LoginSteps/credential-validation', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Missing credentials: missingKey');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Missing credentials: missingKey');
   });
 
   it('fails fast when credential value is empty string', async () => {
@@ -52,8 +52,8 @@ describe('LoginSteps/credential-validation', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errorMessage).toContain('Missing credentials: username');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('Missing credentials: username');
   });
 
   it('lists ALL missing keys in one message', async () => {
@@ -69,8 +69,8 @@ describe('LoginSteps/credential-validation', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(result.success).toBe(false);
+    if (!result.success) {
       expect(result.errorMessage).toContain('idNumber');
       expect(result.errorMessage).toContain('pin');
     }

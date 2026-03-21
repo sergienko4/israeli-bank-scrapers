@@ -65,11 +65,16 @@ export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible:
  */
 async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRawDomProps> {
   const locator = ctx.locator(selector).first();
-  const isAttached = await locator.isVisible().catch(() => false);
+  /**
+   * Catch visibility check failure.
+   * @returns False.
+   */
+  const catchFalse = (): boolean => false;
+  const isAttached = await locator.isVisible().catch(catchFalse);
   if (!isAttached) return EMPTY_DOM_PROPS;
   return locator.evaluate((el: Element): IRawDomProps => {
     const input = el as HTMLInputElement;
-    return {
+    const props: IRawDomProps = {
       id: el.id,
       className: el.className,
       tagName: el.tagName.toLowerCase(),
@@ -79,6 +84,7 @@ async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRa
       ariaLabel: el.getAttribute('aria-label') ?? '',
       placeholder: input.placeholder,
     };
+    return props;
   });
 }
 
@@ -95,6 +101,12 @@ export async function extractMetadata(
 ): Promise<IElementMetadata> {
   const raw = await extractDomProps(ctx, selector);
   const locator = ctx.locator(selector).first();
-  const isVisible = await locator.isVisible().catch(() => false);
-  return { ...raw, isVisible };
+  /**
+   * Catch visibility check failure.
+   * @returns False.
+   */
+  const catchFalse = (): boolean => false;
+  const isVisible = await locator.isVisible().catch(catchFalse);
+  const result: IElementMetadata = { ...raw, isVisible };
+  return result;
 }

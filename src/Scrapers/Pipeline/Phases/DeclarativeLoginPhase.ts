@@ -25,7 +25,7 @@ type LoginFn = (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>>;
  * @returns Pipeline step for login.
  */
 function createLoginStep(loginFn: LoginFn): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'declarative-login',
     /**
      * Execute the custom login function provided by the bank.
@@ -40,6 +40,7 @@ function createLoginStep(loginFn: LoginFn): IPipelineStep<IPipelineContext, IPip
       return loginFn(input);
     },
   };
+  return step;
 }
 
 /**

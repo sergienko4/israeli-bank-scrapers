@@ -10,7 +10,7 @@ import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../Base/Interface.js';
 import createElementMediator from '../Mediator/CreateElementMediator.js';
-import { BrowserFetchStrategy } from '../Strategy/BrowserFetchStrategy.js';
+import { createBrowserFetchStrategy } from '../Strategy/BrowserFetchStrategy.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -42,7 +42,8 @@ async function createContextAndPage(
   const contextOpts = buildContextOptions();
   const context = await browser.newContext(contextOpts);
   const page = await context.newPage();
-  return { context, page };
+  const created = { context, page };
+  return created;
 }
 
 /**
@@ -74,9 +75,9 @@ function buildCleanups(
   browser: Browser,
 ): readonly (() => Promise<boolean>)[] {
   return [
-    (): Promise<boolean> => page.close().then(() => true),
-    (): Promise<boolean> => context.close().then(() => true),
-    (): Promise<boolean> => browser.close().then(() => true),
+    (): Promise<boolean> => page.close().then((): boolean => true),
+    (): Promise<boolean> => context.close().then((): boolean => true),
+    (): Promise<boolean> => browser.close().then((): boolean => true),
   ];
 }
 
@@ -89,7 +90,8 @@ function buildCleanups(
  */
 function buildBrowserState(page: Page, context: BrowserContext, browser: Browser): IBrowserState {
   const cleanups = buildCleanups(page, context, browser);
-  return { page, context, cleanups };
+  const state: IBrowserState = { page, context, cleanups };
+  return state;
 }
 
 /** Launched browser components for wiring into context. */
@@ -107,14 +109,15 @@ interface ILaunchedBrowser {
  */
 function wireComponents(input: IPipelineContext, launched: ILaunchedBrowser): IPipelineContext {
   const state = buildBrowserState(launched.page, launched.context, launched.browser);
-  const fetchStrategy = new BrowserFetchStrategy(launched.page);
+  const fetchStrategy = createBrowserFetchStrategy(launched.page);
   const mediator = createElementMediator(launched.page);
-  return {
+  const ctx: IPipelineContext = {
     ...input,
     browser: some(state),
     fetchStrategy: some(fetchStrategy),
     mediator: some(mediator),
   };
+  return ctx;
 }
 
 /**

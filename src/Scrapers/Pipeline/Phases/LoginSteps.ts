@@ -10,7 +10,7 @@
  * All HTML resolution flows through ctx.mediator (injected by InitPhase).
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { fillInput } from '../../../Common/ElementsInteractions.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
@@ -82,7 +82,7 @@ async function runPreAction(page: Page, config: ILoginConfig): Promise<Page | Fr
  */
 export async function tryClickLoginMethodTab(activeFrame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
-  const locators = candidates.map(c => activeFrame.getByText(c.value).first());
+  const locators = candidates.map((c): Locator => activeFrame.getByText(c.value).first());
   try {
     const waiters = locators.map(async (loc, i): Promise<number> => {
       await loc.waitFor({ state: 'visible', timeout: 2000 });
@@ -124,7 +124,7 @@ async function executePreLogin(
 function createPreLoginStep(
   config: ILoginConfig,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'pre-login',
     /**
      * Execute preLogin: navigate to login URL, wait for readiness, open form.
@@ -139,6 +139,7 @@ function createPreLoginStep(
       return executePreLogin(config, input);
     },
   };
+  return step;
 }
 
 // ── loginAction helpers ────────────────────────────────────
@@ -154,7 +155,7 @@ async function fillOneField(
   opts: IFillOpts,
 ): Promise<Procedure<boolean>> {
   const result = await mediator.resolveField(opts.credentialKey, opts.selectors);
-  if (!result.ok) return result;
+  if (!result.success) return result;
   await fillInput(result.value.context, result.value.selector, opts.value);
   return succeed(true);
 }
@@ -169,7 +170,19 @@ function validateCredentials(
   fields: ILoginConfig['fields'],
   creds: Record<string, string>,
 ): Procedure<boolean> {
-  const missing = fields.filter(f => !creds[f.credentialKey]).map(f => f.credentialKey);
+  /**
+   * Check if a credential is missing from the provided map.
+   * @param f - Field config to check.
+   * @returns True if the credential value is empty or absent.
+   */
+  const isMissing = (f: IFieldConfig): boolean => !creds[f.credentialKey];
+  /**
+   * Extract the credential key from a field config.
+   * @param f - Field config.
+   * @returns The credentialKey string.
+   */
+  const toKey = (f: IFieldConfig): string => f.credentialKey;
+  const missing = fields.filter(isMissing).map(toKey);
   if (missing.length > 0) {
     const keys = missing.join(', ');
     return fail(ScraperErrorTypes.Generic, `Missing credentials: ${keys}`);
@@ -185,7 +198,12 @@ function validateCredentials(
  */
 function buildFillOpts(field: IFieldConfig, creds: Record<string, string>): IFillOpts {
   const value = creds[field.credentialKey];
-  return { credentialKey: field.credentialKey, value, selectors: field.selectors };
+  const opts: IFillOpts = {
+    credentialKey: field.credentialKey,
+    value,
+    selectors: field.selectors,
+  };
+  return opts;
 }
 
 /**
@@ -202,12 +220,13 @@ async function fillAllFields(
   creds: Record<string, string>,
 ): Promise<Procedure<boolean>> {
   const validation = validateCredentials(fields, creds);
-  if (!validation.ok) return validation;
+  if (!validation.success) return validation;
   const firstResult = succeed(true);
   const initial: Promise<Procedure<boolean>> = Promise.resolve(firstResult);
-  return fields.reduce<Promise<Procedure<boolean>>>(async (prev, field) => {
+  type TReduce = Promise<Procedure<boolean>>;
+  return fields.reduce<TReduce>(async (prev, field): TReduce => {
     const prevResult = await prev;
-    if (!prevResult.ok) return prevResult;
+    if (!prevResult.success) return prevResult;
     const opts = buildFillOpts(field, creds);
     return fillOneField(mediator, opts);
   }, initial);
@@ -235,7 +254,7 @@ async function clickSubmit(
   submitCandidates: SelectorCandidate[],
 ): Promise<Procedure<boolean>> {
   const result = await mediator.resolveClickable(submitCandidates);
-  if (!result.ok) return result;
+  if (!result.success) return result;
   const locator = result.value.context.locator(result.value.selector);
   const btn = locator.first();
   await btn.click();
@@ -257,10 +276,10 @@ async function executeLoginAction(
   const mediator = input.mediator.value;
   const creds = input.credentials as Record<string, string>;
   const fillResult = await fillAllFields(mediator, config.fields, creds);
-  if (!fillResult.ok) return fillResult;
+  if (!fillResult.success) return fillResult;
   const submitCandidates = normalizeSubmit(config.submit);
   const clickResult = await clickSubmit(mediator, submitCandidates);
-  if (!clickResult.ok) return clickResult;
+  if (!clickResult.success) return clickResult;
   return succeed(input);
 }
 
@@ -272,7 +291,7 @@ async function executeLoginAction(
 function createLoginActionStep(
   config: ILoginConfig,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'login-action',
     /**
      * Execute loginAction: fill credential fields and click the submit button.
@@ -287,6 +306,7 @@ function createLoginActionStep(
       return executeLoginAction(config, input);
     },
   };
+  return step;
 }
 
 // ── postLogin helpers ──────────────────────────────────────
@@ -353,7 +373,7 @@ async function executePostLogin(
 function createPostLoginStep(
   config: ILoginConfig,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'post-login',
     /**
      * Execute postLogin: wait for settle, check errors via mediator, run postAction.
@@ -368,6 +388,7 @@ function createPostLoginStep(
       return executePostLogin(config, input);
     },
   };
+  return step;
 }
 
 // ── Phase factory ──────────────────────────────────────────
@@ -385,11 +406,12 @@ interface ILoginPhase {
  * @returns Pre, action, and post login steps.
  */
 function createLoginPhase(config: ILoginConfig): ILoginPhase {
-  return {
+  const phase: ILoginPhase = {
     pre: createPreLoginStep(config),
     action: createLoginActionStep(config),
     post: createPostLoginStep(config),
   };
+  return phase;
 }
 
 export { createLoginActionStep, createLoginPhase, createPostLoginStep, createPreLoginStep };

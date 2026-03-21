@@ -20,11 +20,12 @@ import { executeScrape } from './ScrapeExecutor.js';
 function createConfigScrapeStep<TA, TT>(
   config: IScrapeConfig<TA, TT>,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'scrape',
     /** @inheritdoc */
-    execute: (_ctx, input) => executeScrape(input, config),
+    execute: (_ctx, input): Promise<Procedure<IPipelineContext>> => executeScrape(input, config),
   };
+  return step;
 }
 
 /**
@@ -35,11 +36,12 @@ function createConfigScrapeStep<TA, TT>(
 function createCustomScrapeStep(
   scrapeFn: CustomScrapeFn,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  return {
+  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'scrape',
     /** @inheritdoc */
-    execute: (_ctx, input) => scrapeFn(input),
+    execute: (_ctx, input): Promise<Procedure<IPipelineContext>> => scrapeFn(input),
   };
+  return step;
 }
 
 /**
