@@ -125,6 +125,7 @@ describe('DISCOUNT_LOGIN', () => {
 describe('buildDiscountPipeline', () => {
   it('returns descriptor with 4 phases', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
+    expect(result.success).toBe(true);
     if (!result.success) return;
     const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);

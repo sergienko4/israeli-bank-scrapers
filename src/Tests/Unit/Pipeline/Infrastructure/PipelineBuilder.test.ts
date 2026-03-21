@@ -98,6 +98,7 @@ describe('PipelineBuilder/withDeclarativeLogin', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
+    expect(descriptor.success).toBe(true);
     if (!descriptor.success) return;
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);

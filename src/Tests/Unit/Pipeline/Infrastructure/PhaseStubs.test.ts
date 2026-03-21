@@ -32,14 +32,13 @@ describe('Phase stubs', () => {
     expect(step.name).toBe(expectedName);
   });
 
-  it.each(STUB_STEPS)('%s step returns succeed(input)', async (expectedName, step) => {
+  it.each(STUB_STEPS)('%s step returns succeed(input)', async (_expectedName, step) => {
     const ctx = makeMockContext();
     const result = await step.execute(ctx, ctx);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value).toBe(ctx);
     }
-    expect(expectedName).toBeTruthy();
   });
 });
 

@@ -80,6 +80,6 @@ local-debug/
 
 # Future bank scraper backlog (local research — not part of current PR)
 capture/
-tasks/bit-scraper-api-spec.md
-tasks/paybox-scraper-api-spec.md
-tasks/pepper-scraper-api-spec.md
+tasks/
+
+scripts/

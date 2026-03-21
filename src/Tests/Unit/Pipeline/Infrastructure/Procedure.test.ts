@@ -11,7 +11,7 @@ import {
 } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 describe('Procedure/succeed', () => {
-  it('creates IProcedureSuccess with ok=true', () => {
+  it('creates IProcedureSuccess with success=true', () => {
     const result = succeed('data');
     expect(result.success).toBe(true);
     expect(result.value).toBe('data');
@@ -32,7 +32,7 @@ describe('Procedure/succeed', () => {
 });
 
 describe('Procedure/fail', () => {
-  it('creates IProcedureFailure with ok=false', () => {
+  it('creates IProcedureFailure with success=false', () => {
     const result = fail(ScraperErrorTypes.InvalidPassword, 'wrong password');
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);

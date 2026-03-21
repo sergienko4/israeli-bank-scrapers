@@ -215,7 +215,7 @@ function makeJsdomCtx(html: string, isVisible = true): Page | Frame {
          * @param fn - Callback receiving the DOM element.
          * @returns Resolved callback result.
          */
-        evaluate: <T>(fn: (el: Element) => T): Promise<T> => {
+        evaluate: <T>(fn: (_el: Element) => T): Promise<T> => {
           const el = domDoc.querySelector(selector);
           if (!el) return Promise.reject(new TypeError('Element not found'));
           const result = fn(el);

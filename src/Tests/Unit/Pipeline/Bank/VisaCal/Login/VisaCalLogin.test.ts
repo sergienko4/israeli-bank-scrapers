@@ -146,6 +146,7 @@ describe('VISACAL_LOGIN', () => {
 describe('buildVisaCalPipeline', () => {
   it('returns descriptor with 4 phases', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
+    expect(result.success).toBe(true);
     if (!result.success) return;
     const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);

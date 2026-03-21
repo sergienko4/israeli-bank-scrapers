@@ -35,7 +35,8 @@ async function main(): Promise<void> {
     console.log(`  ${acct.accountNumber}: ${String(acct.txns.length)} txns, balance: ${String(acct.balance)}`);
     for (const txn of acct.txns.slice(0, 3)) {
       const d = new Date(txn.date).toLocaleDateString('he-IL');
-      console.log(`    ${d} | ${txn.chargedAmount.toFixed(2)} | ${txn.description}`);
+      const amt = txn.chargedAmount?.toFixed(2) ?? 'N/A';
+      console.log(`    ${d} | ${amt} | ${txn.description}`);
     }
   }
 }

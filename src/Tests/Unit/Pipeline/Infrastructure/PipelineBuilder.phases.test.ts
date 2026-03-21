@@ -135,9 +135,11 @@ describe('PipelineBuilder/phase-assembly', () => {
     const loginIdx = names.indexOf('login');
     const otpIdx = names.indexOf('otp');
     const dashIdx = names.indexOf('dashboard');
+    const scrapeIdx = names.indexOf('scrape');
     expect(initIdx).toBeLessThan(loginIdx);
     expect(loginIdx).toBeLessThan(otpIdx);
     expect(otpIdx).toBeLessThan(dashIdx);
+    expect(dashIdx).toBeLessThan(scrapeIdx);
   });
 
   it('without browser, no init phase', () => {

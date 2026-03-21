@@ -61,7 +61,7 @@ async function runBank(
       }
     }
   } catch (error) {
-    console.error(`CRASHED: ${(error as Error).message}`);
+    console.error('CRASHED:', error);
   }
 }
 
