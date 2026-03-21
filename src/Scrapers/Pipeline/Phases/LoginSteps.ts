@@ -19,6 +19,7 @@ import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -263,7 +264,11 @@ async function clickSubmit(
   if (!result.success) return result;
   const locator = result.value.context.locator(result.value.selector);
   const btn = locator.first();
-  await btn.click();
+  try {
+    await btn.click();
+  } catch (error: unknown) {
+    return fail(ScraperErrorTypes.Generic, `Submit click failed: ${toErrorMessage(error)}`);
+  }
   return succeed(true);
 }
 

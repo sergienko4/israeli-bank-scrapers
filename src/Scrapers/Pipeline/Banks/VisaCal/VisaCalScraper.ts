@@ -115,13 +115,15 @@ interface IAuthShape {
  * @returns Procedure with token string, or failure on parse/missing.
  */
 function parseAuthToken(raw: string): Procedure<string> {
+  let parsed: IAuthShape;
   try {
-    const parsed = JSON.parse(raw) as IAuthShape;
-    const token = parsed.auth?.calConnectToken ?? '';
-    return succeed(token);
+    parsed = JSON.parse(raw) as IAuthShape;
   } catch {
     return fail(ScraperErrorTypes.Generic, 'Malformed auth-module JSON');
   }
+  const token = parsed.auth?.calConnectToken ?? '';
+  if (!token) return fail(ScraperErrorTypes.Generic, 'calConnectToken is empty or missing');
+  return succeed(token);
 }
 
 /**
@@ -137,8 +139,6 @@ async function getAuth(page: Page): Promise<Procedure<string>> {
   if (!raw) return fail(ScraperErrorTypes.Generic, 'No auth-module in sessionStorage');
   const tokenResult = parseAuthToken(raw);
   if (!isOk(tokenResult)) return tokenResult;
-  if (!tokenResult.value)
-    return fail(ScraperErrorTypes.Generic, 'No calConnectToken in auth-module');
   return succeed(`CALAuthScheme ${tokenResult.value}`);
 }
 
