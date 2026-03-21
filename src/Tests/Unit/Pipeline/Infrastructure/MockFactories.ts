@@ -5,7 +5,9 @@
 
 import type { Page } from 'playwright-core';
 
+import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
+import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -104,4 +106,58 @@ function makeMockDescriptor(
   return succeed(descriptor);
 }
 
-export { makeMockContext, makeMockCredentials, makeMockDescriptor, makeMockOptions, makeMockPage };
+// ── PipelineBuilder shared stubs ──────────────────────────
+
+/** Minimal ILoginConfig stub for builder tests. */
+const MOCK_LOGIN_CONFIG: ILoginConfig = {
+  loginUrl: 'https://bank.example.com/login',
+  fields: [],
+  submit: { kind: 'textContent', value: 'Login' },
+  possibleResults: {},
+} as never;
+
+/**
+ * Stub login function for direct-POST mode.
+ * @param ctx - Pipeline context.
+ * @returns Resolved succeed procedure.
+ */
+const MOCK_DIRECT_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+  const result = succeed(ctx);
+  return Promise.resolve(result);
+};
+
+/**
+ * Stub login function for native mode.
+ * @param ctx - Pipeline context.
+ * @returns Resolved succeed procedure.
+ */
+const MOCK_NATIVE_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+  const result = succeed(ctx);
+  return Promise.resolve(result);
+};
+
+/**
+ * Stub scrape function.
+ * @param ctx - Pipeline context.
+ * @returns Resolved succeed procedure.
+ */
+const MOCK_SCRAPE = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+  const result = succeed(ctx);
+  return Promise.resolve(result);
+};
+
+/** Minimal OTP config for builder tests. */
+const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
+
+export {
+  makeMockContext,
+  makeMockCredentials,
+  makeMockDescriptor,
+  makeMockOptions,
+  makeMockPage,
+  MOCK_DIRECT_LOGIN,
+  MOCK_LOGIN_CONFIG,
+  MOCK_NATIVE_LOGIN,
+  MOCK_OTP_CONFIG,
+  MOCK_SCRAPE,
+};

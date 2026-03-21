@@ -51,6 +51,36 @@ type LoginMode = 'none' | 'declarative' | 'directPost' | 'native';
 type CtxPhase = IPhaseDefinition<IPipelineContext, IPipelineContext>;
 
 /**
+ * Adapt a 2-param login fn (ctx, creds) to a 1-param LoginFn (ctx).
+ * @param fn - Bank-provided login function.
+ * @returns Adapted function for createLoginStep.
+ */
+function adaptLoginFn(
+  fn: DirectPostLoginFn | NativeLoginFn,
+): (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>> {
+  return (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+    const creds = ctx.credentials as Record<string, string>;
+    return fn(ctx, creds);
+  };
+}
+
+/**
+ * Build a declarative login phase from ILoginConfig.
+ * @param config - Bank's login config.
+ * @returns Full phase definition with pre/action/post.
+ */
+function buildDeclarativePhase(config: ILoginConfig): CtxPhase {
+  const phase = createLoginPhase(config);
+  const result: CtxPhase = {
+    name: 'login',
+    pre: some(phase.pre),
+    action: phase.action,
+    post: some(phase.post),
+  };
+  return result;
+}
+
+/**
  * Create a phase with only an action step (no pre/post).
  * @param name - The phase name.
  * @param action - The action step.
@@ -247,21 +277,11 @@ class PipelineBuilder {
    * @returns The login pipeline step.
    */
   private resolveLoginStep(): CtxPhase['action'] {
-    const fn = this._loginFn;
-    const hasOtpConfig = Boolean(this._otpConfig);
-    if (fn) {
-      /**
-       * Adapt 2-param login fn to 1-param LoginFn.
-       * @param ctx - Pipeline context with credentials.
-       * @returns Login result procedure.
-       */
-      const adapted = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-        const creds = ctx.credentials as Record<string, string>;
-        return fn(ctx, creds);
-      };
+    if (this._loginFn) {
+      const adapted = adaptLoginFn(this._loginFn);
       return createLoginStep(adapted);
     }
-    if (hasOtpConfig) return DECLARATIVE_LOGIN_STEP;
+    if (this._otpConfig) return DECLARATIVE_LOGIN_STEP;
     return LOGIN_STEPS[this._loginMode];
   }
 
@@ -280,16 +300,7 @@ class PipelineBuilder {
    * @returns Full phase definition for login.
    */
   private buildLoginPhase(): CtxPhase {
-    if (this._loginConfig) {
-      const phase = createLoginPhase(this._loginConfig);
-      const loginPhase: CtxPhase = {
-        name: 'login',
-        pre: some(phase.pre),
-        action: phase.action,
-        post: some(phase.post),
-      };
-      return loginPhase;
-    }
+    if (this._loginConfig) return buildDeclarativePhase(this._loginConfig);
     const loginStep = this.resolveLoginStep();
     return actionOnly('login', loginStep);
   }

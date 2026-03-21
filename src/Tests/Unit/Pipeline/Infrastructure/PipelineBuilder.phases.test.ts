@@ -3,60 +3,19 @@
  * Covers: phase ordering, init/terminate placement, optional phases insertion.
  */
 
-import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
-import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
-import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
+import {
+  makeMockOptions,
+  MOCK_DIRECT_LOGIN,
+  MOCK_LOGIN_CONFIG,
+  MOCK_NATIVE_LOGIN,
+  MOCK_OTP_CONFIG,
+  MOCK_SCRAPE,
+} from './MockFactories.js';
 
-/** Minimal ScraperOptions for testing. */
-const MOCK_OPTIONS = {
-  companyId: 'test' as never,
-  startDate: new Date('2024-01-01'),
-} as never;
-
-/** Minimal ILoginConfig stub. */
-const MOCK_LOGIN_CONFIG: ILoginConfig = {
-  loginUrl: 'https://bank.example.com/login',
-  fields: [],
-  submit: { kind: 'textContent', value: 'Login' },
-  possibleResults: {},
-} as never;
-
-/**
- * Stub login function for direct-POST mode.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_DIRECT_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
-  return Promise.resolve(result);
-};
-
-/**
- * Stub login function for native mode.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_NATIVE_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
-  return Promise.resolve(result);
-};
-
-/**
- * Stub scrape function.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_SCRAPE = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
-  return Promise.resolve(result);
-};
-
-/** Minimal OTP config. */
-const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
+/** Shared test options. */
+const MOCK_OPTIONS = makeMockOptions();
 
 describe('PipelineBuilder/phase-assembly', () => {
   it('declarative login produces a login phase', () => {

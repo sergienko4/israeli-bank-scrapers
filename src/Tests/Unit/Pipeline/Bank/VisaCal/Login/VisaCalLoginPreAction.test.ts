@@ -77,7 +77,8 @@ jest.unstable_mockModule('../../../../../../Common/ElementsInteractions.js', () 
    * @returns Resolved mock frame.
    */
   waitUntilIframeFound: (_page: Page, predicate: (_f: Frame) => boolean): Promise<Frame> => {
-    predicate(MOCK_FRAME);
+    const isAccepted = predicate(MOCK_FRAME);
+    if (!isAccepted) return Promise.reject(new Error('Frame predicate rejected MOCK_FRAME'));
     return Promise.resolve(MOCK_FRAME);
   },
 }));

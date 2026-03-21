@@ -6,6 +6,7 @@
 
 import moment from 'moment';
 
+import { getDebug } from '../../../../Common/Debug.js';
 import { CompanyTypes } from '../../../../Definitions.js';
 import {
   type ITransaction,
@@ -21,8 +22,10 @@ import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IRawAccount, IScrapeConfig } from '../../Types/ScrapeConfig.js';
 
+const LOG = getDebug('discount');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 const DATE_FORMAT = CFG.format.date || 'YYYYMMDD';
+const DISCOUNT_PORTAL = 'https://start.telebank.co.il';
 
 /** Scraped transaction from Discount API. */
 interface IDiscountTxn {
@@ -100,7 +103,10 @@ function mapAccounts(raw: IDiscountAccountsRaw): readonly IRawAccount[] {
 function mapTransactions(raw: IDiscountTxnRaw): readonly ITransaction[] {
   if (raw.Error) throw new ScraperError(`Discount API error: ${raw.Error.MsgText}`);
   const block = raw.CurrentAccountLastTransactions;
-  if (!block) return EMPTY_TXNS;
+  if (!block) {
+    LOG.warn('Discount API returned no CurrentAccountLastTransactions and no Error');
+    return EMPTY_TXNS;
+  }
   const completed = (block.OperationEntry ?? []).map(
     (t): ITransaction => mapOneTxn(t, TransactionStatuses.Completed),
   );
@@ -163,7 +169,7 @@ const DISCOUNT_SCRAPE_CONFIG: IScrapeConfig<IDiscountAccountsRaw, IDiscountTxnRa
 };
 
 /** Discount login portal URL. */
-const LOGIN_PORTAL = 'https://start.telebank.co.il/login/?multilang=he&bank=d&t=p';
+const LOGIN_URL = `${DISCOUNT_PORTAL}/login/?multilang=he&bank=d&t=p`;
 
 /** Discount login config — defined fresh for the pipeline. */
 const DISCOUNT_LOGIN: ILoginConfig = {
@@ -183,7 +189,7 @@ const DISCOUNT_LOGIN: ILoginConfig = {
    * @param page - The Playwright page instance.
    */
   checkReadiness: async (page): Promise<void> => {
-    await page.goto(LOGIN_PORTAL);
+    await page.goto(LOGIN_URL);
     const firstTextbox = page.getByRole('textbox').first();
     await firstTextbox.waitFor({ state: 'visible', timeout: 30000 });
   },
@@ -196,16 +202,12 @@ const DISCOUNT_LOGIN: ILoginConfig = {
   },
   possibleResults: {
     success: [
-      'https://start.telebank.co.il/apollo/retail/#/MY_ACCOUNT_HOMEPAGE',
-      'https://start.telebank.co.il/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE',
-      'https://start.telebank.co.il/apollo/retail2/',
+      `${DISCOUNT_PORTAL}/apollo/retail/#/MY_ACCOUNT_HOMEPAGE`,
+      `${DISCOUNT_PORTAL}/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE`,
+      `${DISCOUNT_PORTAL}/apollo/retail2/`,
     ],
-    invalidPassword: [
-      'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE',
-    ],
-    changePassword: [
-      'https://start.telebank.co.il/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW',
-    ],
+    invalidPassword: [`${DISCOUNT_PORTAL}/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE`],
+    changePassword: [`${DISCOUNT_PORTAL}/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW`],
   },
 };
 
