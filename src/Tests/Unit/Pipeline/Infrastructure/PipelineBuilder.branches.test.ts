@@ -9,6 +9,7 @@ import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.j
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../Helpers/AssertProcedure.js';
 
 /** Minimal ScraperOptions for testing. */
 const MOCK_OPTIONS = {
@@ -91,7 +92,7 @@ describe('PipelineBuilder/withScrapeConfig', () => {
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withScrapeConfig(mockConfig)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
     expect(names).toContain('scrape');
   });
@@ -104,7 +105,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withOtp(MOCK_OTP_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
     expect(names).toContain('login');
     expect(names).toContain('otp');
@@ -115,7 +116,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withOptions(MOCK_OPTIONS)
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
     expect(names).toContain('login');
   });
@@ -125,7 +126,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const loginPhase = descriptor.value.phases[0];
     expect(loginPhase.action.name).toBe('declarative-login');
     const mockCtx = { credentials: { user: 'test' } } as never;
@@ -139,7 +140,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
       .withOtp(MOCK_OTP_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
     expect(names).toContain('login');
     expect(names).toContain('otp');
@@ -150,7 +151,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withOptions(MOCK_OPTIONS)
       .withNativeLogin(MOCK_NATIVE_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
     expect(names).toContain('login');
   });

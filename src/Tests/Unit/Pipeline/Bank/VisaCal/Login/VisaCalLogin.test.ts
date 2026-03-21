@@ -11,6 +11,7 @@ import {
   buildVisaCalPipeline,
   VISACAL_LOGIN,
 } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
+import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 
 /** Mock options for pipeline builder. */
@@ -146,15 +147,14 @@ describe('VISACAL_LOGIN', () => {
 describe('buildVisaCalPipeline', () => {
   it('returns descriptor with 4 phases', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);
   });
 
   it('phase names are init, login, scrape, terminate', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
-    if (!result.success) return;
+    assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
     expect(names).toEqual(['init', 'login', 'scrape', 'terminate']);

@@ -13,6 +13,7 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalMappers.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../../Transactions.js';
+import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 
 /** Default raw completed transaction — override fields per test case. */
 const BASE_TXN: IRawTxn = {
@@ -151,8 +152,7 @@ describe('mapPendingResults', () => {
     const txns = [BASE_PENDING, { ...BASE_PENDING, trnAmt: 75 }];
     const input = succeed(txns);
     const result = mapPendingResults(input);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     expect(result.value).toHaveLength(2);
     expect(result.value[0].originalAmount).toBe(-50);
     expect(result.value[1].originalAmount).toBe(-75);

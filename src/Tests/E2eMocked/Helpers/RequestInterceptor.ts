@@ -45,11 +45,9 @@ export async function setupRequestInterception(page: Page, routes: IMockRoute[])
       return isUrlMatch && isMethodMatch;
     });
 
-    if (matchingRoute) {
-      if (matchingRoute.abort) {
-        await route.abort('failed');
-        return;
-      }
+    if (matchingRoute?.abort) {
+      await route.abort('failed');
+    } else if (matchingRoute) {
       const body =
         typeof matchingRoute.body === 'function' ? matchingRoute.body(request) : matchingRoute.body;
       const contentType = matchingRoute.contentType ?? 'text/html';
@@ -58,10 +56,9 @@ export async function setupRequestInterception(page: Page, routes: IMockRoute[])
         contentType,
         body,
       });
-      return;
+    } else {
+      await route.continue();
     }
-
-    await route.continue();
   });
   return true;
 }

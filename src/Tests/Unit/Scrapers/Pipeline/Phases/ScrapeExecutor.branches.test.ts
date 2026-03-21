@@ -8,6 +8,7 @@ import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExe
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
   makeMockContext,
   makeMockFetchStrategy,
@@ -129,10 +130,9 @@ describe('ScrapeExecutor/balanceExtractor', () => {
     };
     const ctx = MAKE_CTX(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     const acct = result.value.scrape;
-    if (!acct.has) return;
+    assertHas(acct);
     expect(acct.value.accounts[0].balance).toBe(9999);
   });
 
@@ -141,10 +141,9 @@ describe('ScrapeExecutor/balanceExtractor', () => {
     const config = makeMockScrapeConfig();
     const ctx = MAKE_CTX(strategy);
     const result = await executeScrape(ctx, config);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     const acct = result.value.scrape;
-    if (!acct.has) return;
+    assertHas(acct);
     expect(acct.value.accounts[0].balance).toBe(1000);
   });
 });

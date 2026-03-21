@@ -89,7 +89,7 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
     ({ sel }: IEvalArg): IRawDomItem[] => {
       const els = [...document.querySelectorAll(sel)];
       return els.map((el): IRawDomItem => {
-        const cs = window.getComputedStyle(el);
+        const cs = globalThis.getComputedStyle(el);
         const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
         const rawCls = el.getAttribute('class');
         const cls = rawCls ?? '';

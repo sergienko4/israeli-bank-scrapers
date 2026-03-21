@@ -5,6 +5,7 @@
 
 import { jest } from '@jest/globals';
 
+import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 // Static imports of non-mocked factories — safe with jest.unstable_mockModule.
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
@@ -196,10 +197,9 @@ describe('InitPhase/cleanups', () => {
     launchFn.mockResolvedValue(mockBrowser);
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     const browserState = result.value.browser;
-    if (!browserState.has) return;
+    assertHas(browserState);
     const cleanups = browserState.value.cleanups;
     expect(cleanups).toHaveLength(3);
     const didClosePage = await cleanups[0]();

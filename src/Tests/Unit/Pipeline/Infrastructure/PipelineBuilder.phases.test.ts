@@ -9,6 +9,7 @@ import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.j
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../Helpers/AssertProcedure.js';
 
 /** Minimal ScraperOptions for testing. */
 const MOCK_OPTIONS = {
@@ -63,7 +64,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     expect(names).toContain('login');
@@ -75,7 +76,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const firstPhase = desc.phases[0];
     expect(firstPhase.name).toBe('init');
@@ -87,7 +88,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withOtp(MOCK_OTP_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     const loginIdx = names.indexOf('login');
@@ -101,7 +102,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withDashboard()
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     expect(names).toContain('dashboard');
@@ -113,7 +114,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     expect(names).toContain('scrape');
@@ -128,7 +129,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     const initIdx = names.indexOf('init');
@@ -147,7 +148,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withNativeLogin(MOCK_NATIVE_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     expect(names).not.toContain('init');
@@ -158,7 +159,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.phases.length).toBe(1);
     expect(desc.phases[0].name).toBe('login');
@@ -170,7 +171,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     const lastPhase = names.at(-1);
@@ -186,7 +187,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     const terminateIdx = names.lastIndexOf('terminate');
@@ -201,7 +202,7 @@ describe('PipelineBuilder/behavioral', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const loginPhase = desc.phases[0];
     expect(loginPhase.pre.has).toBe(true);

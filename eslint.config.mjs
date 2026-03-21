@@ -43,9 +43,9 @@ const RESTRICTED_SYNTAX_RULES = [
     selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
     message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
   },
+  // Blocks 'return null;', 'return undefined;', and empty 'return;'
   {
-    // Blocks 'return null;', 'return undefined;', and empty 'return;'
-    selector: "ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
+    selector: "ReturnStatement[argument=null], ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
     message: "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
   },
 

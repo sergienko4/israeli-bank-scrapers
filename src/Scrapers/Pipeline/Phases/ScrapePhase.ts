@@ -64,6 +64,6 @@ const SCRAPE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   execute: stubScrape,
 };
 
-export type { CustomScrapeFn };
+export type { CustomScrapeFn } from '../Types/ScrapeConfig.js';
 export default SCRAPE_STEP;
 export { createConfigScrapeStep, createCustomScrapeStep, SCRAPE_STEP };

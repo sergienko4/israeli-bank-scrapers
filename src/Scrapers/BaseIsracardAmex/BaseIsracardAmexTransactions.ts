@@ -219,12 +219,13 @@ export function buildAccountTxns(bOpts: IBuildTxnsOpts): ScrapedAccountsWithInde
   accounts.forEach(account => {
     const indexKey = `Index${String(account.index)}`;
     const txnGroups = dataResult.CardsTransactionsListBean?.[indexKey]?.CurrentCardTransactions;
-    if (!txnGroups) return;
-    accountTxns[account.accountNumber] = {
-      accountNumber: account.accountNumber,
-      index: account.index,
-      txns: collectAccountTxns({ txnGroups, account, options, startMoment }),
-    };
+    if (txnGroups) {
+      accountTxns[account.accountNumber] = {
+        accountNumber: account.accountNumber,
+        index: account.index,
+        txns: collectAccountTxns({ txnGroups, account, options, startMoment }),
+      };
+    }
   });
   return accountTxns;
 }

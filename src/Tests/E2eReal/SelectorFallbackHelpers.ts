@@ -38,11 +38,12 @@ export function selectorErrorFor(...keys: string[]): RegExp {
 export async function injectFormByInput(page: Page, inputSelector: string): Promise<boolean> {
   await page.evaluate(sel => {
     const form = document.querySelector<HTMLElement>(sel)?.closest('form');
-    if (!form) return;
-    const iframe = document.createElement('iframe');
-    iframe.srcdoc = `<html><head><base target="_top"></head><body>${form.outerHTML}</body></html>`;
-    form.parentElement?.insertBefore(iframe, form);
-    form.remove();
+    if (form) {
+      const iframe = document.createElement('iframe');
+      iframe.srcdoc = `<html><head><base target="_top"></head><body>${form.outerHTML}</body></html>`;
+      form.parentElement?.insertBefore(iframe, form);
+      form.remove();
+    }
   }, inputSelector);
   await page.waitForTimeout(1500);
   return true;

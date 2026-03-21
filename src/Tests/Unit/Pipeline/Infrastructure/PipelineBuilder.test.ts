@@ -4,6 +4,7 @@ import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.j
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../Helpers/AssertProcedure.js';
 
 /** Minimal ScraperOptions for testing. */
 const MOCK_OPTIONS = {
@@ -98,8 +99,7 @@ describe('PipelineBuilder/withDeclarativeLogin', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    expect(descriptor.success).toBe(true);
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -118,7 +118,7 @@ describe('PipelineBuilder/withDirectPostLogin', () => {
       .withOptions(MOCK_OPTIONS)
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -130,7 +130,7 @@ describe('PipelineBuilder/withNativeLogin', () => {
       .withOptions(MOCK_OPTIONS)
       .withNativeLogin(MOCK_NATIVE_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -198,7 +198,7 @@ describe('PipelineBuilder/full-config', () => {
       .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -212,7 +212,7 @@ describe('PipelineBuilder/full-config', () => {
       .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -223,7 +223,7 @@ describe('PipelineBuilder/full-config', () => {
       .withNativeLogin(MOCK_NATIVE_LOGIN)
       .withScraper(MOCK_SCRAPE)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
@@ -235,7 +235,7 @@ describe('PipelineBuilder/descriptor-shape', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     const isArray = Array.isArray(desc.phases);
     expect(isArray).toBe(true);
@@ -246,7 +246,7 @@ describe('PipelineBuilder/descriptor-shape', () => {
       .withOptions(MOCK_OPTIONS)
       .withNativeLogin(MOCK_NATIVE_LOGIN)
       .build();
-    if (!descriptor.success) return;
+    assertOk(descriptor);
     const desc = descriptor.value;
     expect(desc.options).toBe(MOCK_OPTIONS);
   });

@@ -15,6 +15,7 @@ import type { IFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strateg
 import { none, some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockBrowserState } from '../../../../Scrapers/Pipeline/MockPipelineFactories.js';
 
@@ -211,9 +212,7 @@ describe('visaCalFetchData', () => {
     const strategy = makeSequentialStrategy(responses as Procedure<object>[]);
     const ctx = makeVisaCalCtx(strategy);
     const result = await visaCalFetchData(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (!wasOk) return;
+    assertOk(result);
     const hasScrape = result.value.scrape.has;
     expect(hasScrape).toBe(true);
   });

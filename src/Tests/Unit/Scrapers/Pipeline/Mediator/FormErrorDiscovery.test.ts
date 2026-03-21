@@ -333,6 +333,7 @@ const MAKE_EXEC_CTX = (html: string): Page => {
     evaluate: <T>(fn: (arg: unknown) => T, arg: unknown): Promise<T> => {
       const prevDoc = globalThis.document;
       const prevWin = globalThis.window;
+      const prevGCS = globalThis.getComputedStyle;
       Object.defineProperty(globalThis, 'document', {
         value: domDoc,
         writable: true,
@@ -340,6 +341,11 @@ const MAKE_EXEC_CTX = (html: string): Page => {
       });
       Object.defineProperty(globalThis, 'window', {
         value: domWin,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'getComputedStyle', {
+        value: domWin.getComputedStyle.bind(domWin),
         writable: true,
         configurable: true,
       });
@@ -354,6 +360,11 @@ const MAKE_EXEC_CTX = (html: string): Page => {
         });
         Object.defineProperty(globalThis, 'window', {
           value: prevWin,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(globalThis, 'getComputedStyle', {
+          value: prevGCS,
           writable: true,
           configurable: true,
         });

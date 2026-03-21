@@ -9,6 +9,7 @@ import {
   buildDiscountPipeline,
   DISCOUNT_LOGIN,
 } from '../../../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
+import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 
 /** Mock options for pipeline builder. */
@@ -125,15 +126,14 @@ describe('DISCOUNT_LOGIN', () => {
 describe('buildDiscountPipeline', () => {
   it('returns descriptor with 4 phases', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
-    expect(result.success).toBe(true);
-    if (!result.success) return;
+    assertOk(result);
     const descriptor = result.value;
     expect(descriptor.phases).toHaveLength(4);
   });
 
   it('phase names are init, login, scrape, terminate', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
-    if (!result.success) return;
+    assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
     expect(names).toEqual(['init', 'login', 'scrape', 'terminate']);

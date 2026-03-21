@@ -82,4 +82,4 @@ local-debug/
 capture/
 tasks/
 
-scripts/
+scripts/**

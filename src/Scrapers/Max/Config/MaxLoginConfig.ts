@@ -259,9 +259,10 @@ async function raceForDashboardOrError(page: Page): Promise<boolean> {
  */
 async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const currentUrl = page.url();
-  if (currentUrl.startsWith('https://www.max.co.il/homepage')) return;
-  LOG.info('waitForDashboardOrError: url=%s', currentUrl);
-  await raceForDashboardOrError(page);
+  if (!currentUrl.startsWith('https://www.max.co.il/homepage')) {
+    LOG.info('waitForDashboardOrError: url=%s', currentUrl);
+    await raceForDashboardOrError(page);
+  }
 }
 
 /**
@@ -285,7 +286,7 @@ export function buildMaxPostAction(credentials: IMaxCredentials): (page: Page) =
   return async (page: Page): LifecyclePromise => {
     const entryUrl = page.url();
     LOG.info('postAction entry: url=%s hasId=%s', entryUrl, hasId);
-    if (entryUrl.startsWith('https://www.max.co.il/homepage')) return;
+    if (entryUrl.startsWith('https://www.max.co.il/homepage')) return waitForDashboardOrError(page);
     if (!credentials.id) return waitForDashboardOrError(page);
     const hasIdForm = await detectIdForm(page);
     if (!hasIdForm) return waitForDashboardOrError(page);
