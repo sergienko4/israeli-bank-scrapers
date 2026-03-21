@@ -142,11 +142,6 @@ function wrapError(error: unknown): Procedure<IPipelineContext> {
 }
 
 /**
- * Extract scrape results from a successful pipeline context.
- * @param ctx - The final pipeline context after all phases.
- * @returns Legacy result with accounts and OTP token.
- */
-/**
  * Extract accounts array from scrape state — empty if no scrape phase ran.
  * @param ctx - The pipeline context.
  * @returns Array of transaction accounts.

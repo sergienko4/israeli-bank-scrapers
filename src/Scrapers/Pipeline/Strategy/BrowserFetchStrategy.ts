@@ -24,11 +24,6 @@ function emptyResponseError(url: string): Procedure<never> {
 }
 
 /**
- * Build a failure from a caught fetch exception.
- * @param error - The caught error.
- * @returns A Generic failure Procedure.
- */
-/**
  * Convert a nullable fetch result to a Procedure.
  * @param result - The fetch result (falsy if empty).
  * @param url - The URL for error reporting.

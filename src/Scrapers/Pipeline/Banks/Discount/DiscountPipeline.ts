@@ -159,6 +159,7 @@ const LOGIN_PORTAL = 'https://start.telebank.co.il/login/?multilang=he&bank=d&t=
 /** Discount login config — defined fresh for the pipeline. */
 const DISCOUNT_LOGIN: ILoginConfig = {
   loginUrl: CFG.urls.base || '',
+  /** Empty selectors — WellKnown text fallback resolves all fields (black-box architecture). */
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -166,7 +167,6 @@ const DISCOUNT_LOGIN: ILoginConfig = {
   ],
   submit: [
     { kind: 'ariaLabel', value: 'כניסה' },
-    { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
     { kind: 'textContent', value: 'כניסה' },
   ],
   /**

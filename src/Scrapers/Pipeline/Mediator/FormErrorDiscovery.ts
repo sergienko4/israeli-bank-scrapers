@@ -56,6 +56,7 @@ export interface IFormErrorScanResult {
  * Structural CSS selectors for HTML form error elements.
  * Hidden before submit, become visible on validation failure.
  * W3C standards + widely-used framework conventions.
+ * NOTE: Structural CSS is allowed in parsing/extraction code per CLAUDE.md architecture rules.
  */
 const ERROR_SELECTOR = [
   'mat-error', // Angular Material — dedicated error component
