@@ -342,6 +342,17 @@ export default tseslint.config(
           selector: "DoWhileStatement",
           message: "🚫 PAGINATION: Do not use manual do-while loops. Use the Pagination strategy abstraction.",
         },
+        // GUARD: Prevent swallowing aggregate errors
+        {
+          selector: "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
+          message: "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled() to ensure we log WHY every attempt failed.",
+        },
+
+        // GUARD: Prevent transforming Errors into "Empty Success"
+        {
+          selector: "IfStatement[test.argument.property.name='isOk'] ReturnStatement > ArrayExpression[elements.length=0]",
+          message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. This triggers false 'Zero Data' states. Propagate the failure Result instead.",
+        },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

@@ -137,8 +137,8 @@ export async function resolveFieldPipeline(
   fieldKey: string,
   bankCandidates: readonly SelectorCandidate[],
 ): Promise<IPipelineFieldContext> {
-  const wkKey = fieldKey as keyof typeof PIPELINE_WELL_KNOWN_LOGIN;
-  const wk = PIPELINE_WELL_KNOWN_LOGIN[wkKey];
+  const wkLookup: Record<string, readonly SelectorCandidate[]> = PIPELINE_WELL_KNOWN_LOGIN;
+  const wk = wkLookup[fieldKey] ?? [];
   const opts = buildResolveOpts(pageOrFrame, fieldKey, { bank: bankCandidates, wk });
   const result = await probeAll(pageOrFrame, opts);
   return enrichWithMetadata(result);

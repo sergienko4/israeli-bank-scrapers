@@ -147,13 +147,12 @@ describe('getAuth', () => {
     if (wasOk) expect(result.value).toBe('CALAuthScheme test-token');
   });
 
-  it('succeeds with empty token when field missing', async () => {
+  it('fails when calConnectToken is empty', async () => {
     const noToken = JSON.stringify({ auth: {} });
     const page = makeMockEvalPage(noToken);
     const result = await getAuth(page);
     const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (wasOk) expect(result.value).toBe('CALAuthScheme ');
+    expect(wasOk).toBe(false);
   });
 
   it('fails on malformed JSON', async () => {

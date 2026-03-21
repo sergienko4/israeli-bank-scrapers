@@ -57,8 +57,9 @@ async function checkReadiness(page: Page): Promise<boolean> {
         .waitFor({ state: 'visible', timeout: 30000 })
         .then((): boolean => true),
   );
-  await Promise.any(waiters);
-  return true;
+  const results = await Promise.allSettled(waiters);
+  const hasVisible = results.some((r): boolean => r.status === 'fulfilled');
+  return hasVisible;
 }
 
 /**
@@ -84,8 +85,10 @@ async function openLoginForm(pageOrFrame: Page | Frame): Promise<boolean> {
     await loc.waitFor({ state: 'visible', timeout: 15000 });
     return i;
   });
-  const idx = await Promise.any(waiters);
-  await locators[idx].click();
+  const results = await Promise.allSettled(waiters);
+  const fulfilled = results.find((r): boolean => r.status === 'fulfilled');
+  if (fulfilled?.status !== 'fulfilled') return false;
+  await locators[fulfilled.value].click();
   return true;
 }
 

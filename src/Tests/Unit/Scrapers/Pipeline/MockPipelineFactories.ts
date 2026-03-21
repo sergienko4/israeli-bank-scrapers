@@ -84,6 +84,11 @@ const MOCK_GET_BY_TEXT = {
      * @returns False.
      */
     isVisible: (): Promise<boolean> => Promise.resolve(false),
+    /**
+     * Click mock.
+     * @returns True.
+     */
+    click: (): Promise<boolean> => Promise.resolve(true),
   }),
 };
 

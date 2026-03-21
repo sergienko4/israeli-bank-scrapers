@@ -109,20 +109,37 @@ interface IAuthShape {
  * @param page - Browser page.
  * @returns Procedure with authorization header string, or failure.
  */
+/**
+ * Parse calConnectToken from raw auth-module JSON.
+ * @param raw - Raw JSON string from sessionStorage.
+ * @returns Procedure with token string, or failure on parse/missing.
+ */
+function parseAuthToken(raw: string): Procedure<string> {
+  try {
+    const parsed = JSON.parse(raw) as IAuthShape;
+    const token = parsed.auth?.calConnectToken ?? '';
+    return succeed(token);
+  } catch {
+    return fail(ScraperErrorTypes.Generic, 'Malformed auth-module JSON');
+  }
+}
+
+/**
+ * Get VisaCal auth header from page sessionStorage.
+ * @param page - The Playwright page with active session.
+ * @returns Procedure with authorization header string, or failure.
+ */
 async function getAuth(page: Page): Promise<Procedure<string>> {
   const raw = await page.evaluate((): string => {
     const stored = sessionStorage.getItem('auth-module');
     return stored ?? '';
   });
   if (!raw) return fail(ScraperErrorTypes.Generic, 'No auth-module in sessionStorage');
-  try {
-    const parsed = JSON.parse(raw) as IAuthShape;
-    const auth = parsed.auth;
-    const token = auth?.calConnectToken ?? '';
-    return succeed(`CALAuthScheme ${token}`);
-  } catch {
-    return fail(ScraperErrorTypes.Generic, 'Malformed auth-module JSON');
-  }
+  const tokenResult = parseAuthToken(raw);
+  if (!isOk(tokenResult)) return tokenResult;
+  if (!tokenResult.value)
+    return fail(ScraperErrorTypes.Generic, 'No calConnectToken in auth-module');
+  return succeed(`CALAuthScheme ${tokenResult.value}`);
 }
 
 // ── Fetch via strategy ─────────────────────────────────────

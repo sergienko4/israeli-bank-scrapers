@@ -83,17 +83,15 @@ async function runPreAction(page: Page, config: ILoginConfig): Promise<Page | Fr
 export async function tryClickLoginMethodTab(activeFrame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
   const locators = candidates.map((c): Locator => activeFrame.getByText(c.value).first());
-  try {
-    const waiters = locators.map(async (loc, i): Promise<number> => {
-      await loc.waitFor({ state: 'visible', timeout: 2000 });
-      return i;
-    });
-    const idx = await Promise.any(waiters);
-    await locators[idx].click();
-    return true;
-  } catch {
-    return false;
-  }
+  const waiters = locators.map(async (loc, i): Promise<number> => {
+    await loc.waitFor({ state: 'visible', timeout: 2000 });
+    return i;
+  });
+  const results = await Promise.allSettled(waiters);
+  const fulfilled = results.find((r): boolean => r.status === 'fulfilled');
+  if (fulfilled?.status !== 'fulfilled') return false;
+  await locators[fulfilled.value].click();
+  return true;
 }
 
 /**

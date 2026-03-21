@@ -14,6 +14,7 @@ import {
 } from '../../../../Transactions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
+import ScraperError from '../../../Base/ScraperError.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
@@ -97,6 +98,7 @@ function mapAccounts(raw: IDiscountAccountsRaw): readonly IRawAccount[] {
  * @returns Array of mapped ITransactions.
  */
 function mapTransactions(raw: IDiscountTxnRaw): readonly ITransaction[] {
+  if (raw.Error) throw new ScraperError(`Discount API error: ${raw.Error.MsgText}`);
   const block = raw.CurrentAccountLastTransactions;
   if (!block) return EMPTY_TXNS;
   const completed = (block.OperationEntry ?? []).map(
