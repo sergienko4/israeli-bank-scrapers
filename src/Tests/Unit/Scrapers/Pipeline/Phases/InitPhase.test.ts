@@ -202,15 +202,15 @@ describe('InitPhase/cleanups', () => {
     assertHas(browserState);
     const cleanups = browserState.value.cleanups;
     expect(cleanups).toHaveLength(3);
-    const didClosePage = await cleanups[0]();
-    expect(didClosePage).toBe(true);
-    expect(mockPage.close).toHaveBeenCalled();
+    const didCloseBrowser = await cleanups[0]();
+    expect(didCloseBrowser).toBe(true);
+    expect(mockBrowser.close).toHaveBeenCalled();
     const didCloseContext = await cleanups[1]();
     expect(didCloseContext).toBe(true);
     expect(mockContext.close).toHaveBeenCalled();
-    const didCloseBrowser = await cleanups[2]();
-    expect(didCloseBrowser).toBe(true);
-    expect(mockBrowser.close).toHaveBeenCalled();
+    const didClosePage = await cleanups[2]();
+    expect(didClosePage).toBe(true);
+    expect(mockPage.close).toHaveBeenCalled();
   });
 });
 

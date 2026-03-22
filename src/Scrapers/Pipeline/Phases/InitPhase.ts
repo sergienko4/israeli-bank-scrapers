@@ -41,9 +41,13 @@ async function createContextAndPage(
 ): Promise<{ context: BrowserContext; page: Page }> {
   const contextOpts = buildContextOptions();
   const context = await browser.newContext(contextOpts);
-  const page = await context.newPage();
-  const created = { context, page };
-  return created;
+  try {
+    const page = await context.newPage();
+    return { context, page };
+  } catch (err) {
+    await context.close().catch((): boolean => false);
+    throw err;
+  }
 }
 
 /**
@@ -75,9 +79,9 @@ function buildCleanups(
   browser: Browser,
 ): readonly (() => Promise<boolean>)[] {
   return [
-    (): Promise<boolean> => page.close().then((): boolean => true),
-    (): Promise<boolean> => context.close().then((): boolean => true),
     (): Promise<boolean> => browser.close().then((): boolean => true),
+    (): Promise<boolean> => context.close().then((): boolean => true),
+    (): Promise<boolean> => page.close().then((): boolean => true),
   ];
 }
 

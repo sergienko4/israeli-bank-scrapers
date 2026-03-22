@@ -308,7 +308,7 @@ class PipelineBuilder {
    * @param phases - Mutable phase array to append to.
    * @returns The number of phases added.
    */
-  private addBrowserPhases(phases: CtxPhase[]): number {
+  private addBrowserPhases(phases: CtxPhase[]): void {
     if (this._hasBrowser) {
       const initPhase = actionOnly('init', INIT_STEP);
       phases.push(initPhase);
@@ -319,15 +319,13 @@ class PipelineBuilder {
       const terminatePhase = actionOnly('terminate', TERMINATE_STEP);
       phases.push(terminatePhase);
     }
-    return phases.length;
   }
 
   /**
    * Insert optional phases (otp, dashboard, scrape) before terminate.
    * @param phases - Mutable phase array to insert into.
-   * @returns The number of optional phases added.
    */
-  private addOptionalPhases(phases: CtxPhase[]): number {
+  private addOptionalPhases(phases: CtxPhase[]): void {
     const insertIdx = phases.length - Number(this._hasBrowser);
     const otpPhase = actionOnly('otp', OTP_STEP);
     const dashPhase = actionOnly('dashboard', DASHBOARD_STEP);
@@ -338,19 +336,16 @@ class PipelineBuilder {
     if (this._hasDashboard) optional.push(dashPhase);
     if (this._hasScraper) optional.push(scrapePhase);
     phases.splice(insertIdx, 0, ...optional);
-    return optional.length;
   }
 
   /**
    * Assert no login mode has been set yet.
    * @returns Success if no login mode set, failure otherwise.
    */
-  private assertNoLoginMode(): boolean {
+  private assertNoLoginMode(): void {
     if (this._loginMode !== 'none') {
       this._error = 'PipelineBuilder: login mode already set';
-      return false;
     }
-    return true;
   }
 }
 

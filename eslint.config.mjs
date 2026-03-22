@@ -326,8 +326,8 @@ export default tseslint.config(
 
         // Result Pattern: No primitive returns
         {
-          selector: "TSMethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation > :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)",
-          message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
+          // NEW (V8 COMPATIBLE)
+          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > FunctionExpression > TSTypeAnnotation :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)", message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
         },
 
         // The "Context-Aware" Fallback Guard

@@ -114,13 +114,17 @@ async function executePreLogin(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for preLogin');
-  const page = input.browser.value.page;
-  await navigateToLogin(page, config.loginUrl);
-  await runCheckReadiness(page, config);
-  const activeFrame = await runPreAction(page, config);
-  await tryClickLoginMethodTab(activeFrame);
-  const loginState = { activeFrame, persistentOtpToken: none() };
-  return succeed({ ...input, login: some(loginState) });
+  try {
+    const page = input.browser.value.page;
+    await navigateToLogin(page, config.loginUrl);
+    await runCheckReadiness(page, config);
+    const activeFrame = await runPreAction(page, config);
+    await tryClickLoginMethodTab(activeFrame);
+    const loginState = { activeFrame, persistentOtpToken: none() };
+    return succeed({ ...input, login: some(loginState) });
+  } catch (err) {
+    return fail(ScraperErrorTypes.Generic, `Pre-login failed: ${toErrorMessage(err as Error)}`);
+  }
 }
 
 /**
@@ -344,9 +348,15 @@ export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
  * @param config - Login config with optional postAction.
  * @returns True when done.
  */
-async function runPostAction(page: Page, config: ILoginConfig): Promise<boolean> {
-  if (config.postAction) await config.postAction(page);
-  return true;
+async function runPostAction(page: Page, config: ILoginConfig): Promise<Procedure<boolean>> {
+  if (!config.postAction) return succeed(true);
+  try {
+    await config.postAction(page);
+    return succeed(true);
+  } catch (err) {
+    const msg = `Post-login action failed: ${toErrorMessage(err as Error)}`;
+    return fail(ScraperErrorTypes.Generic, msg);
+  }
 }
 
 /**
@@ -372,7 +382,8 @@ async function executePostLogin(
   if (errors.hasErrors) {
     return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${errors.summary}`);
   }
-  await runPostAction(page, config);
+  const postResult = await runPostAction(page, config);
+  if (!postResult.success) return postResult;
   return succeed(input);
 }
 

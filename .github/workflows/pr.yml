@@ -41,8 +41,6 @@ on:
           - debug
           - trace
 
-permissions: {}
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -102,7 +100,7 @@ jobs:
 
       # ── E2E Factory Tests ──
       - name: E2E factory tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose --forceExit
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
       # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
       - name: E2E smoke tests (invalid credentials)
@@ -158,6 +156,9 @@ jobs:
     name: Dependency Review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
