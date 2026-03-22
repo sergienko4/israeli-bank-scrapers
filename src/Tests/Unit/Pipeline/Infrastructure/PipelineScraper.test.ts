@@ -1,9 +1,12 @@
 import { jest } from '@jest/globals';
 
+import type { CompanyTypes } from '../../../../Definitions.js';
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { PipelineScraper } from '../../../../Scrapers/Pipeline/PipelineScraper.js';
+import { fail } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 
-const MOCK_OPTIONS = makeMockOptions({ companyId: 'testBank' as never });
+const MOCK_OPTIONS = makeMockOptions({ companyId: 'testBank' as unknown as CompanyTypes });
 const MOCK_CREDENTIALS = makeMockCredentials();
 
 /**
@@ -28,12 +31,25 @@ describe('PipelineScraper/scrape', () => {
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(buildSpy).toHaveBeenCalledWith(MOCK_OPTIONS);
   });
+
+  it('returns legacy failure when buildPipeline fails', async () => {
+    /**
+     * Stub that always returns failure.
+     * @returns Failed procedure.
+     */
+    const buildFailing = (): ReturnType<typeof makeMockDescriptor> =>
+      fail(ScraperErrorTypes.Generic, 'build failed');
+    const scraper = new PipelineScraper(MOCK_OPTIONS, buildFailing);
+    const result = await scraper.scrape(MOCK_CREDENTIALS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+  });
 });
 
 describe('PipelineScraper/onProgress', () => {
   it('registers a progress listener without throwing', () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const callback = jest.fn() as never;
+    const callback = jest.fn() as unknown as Parameters<typeof scraper.onProgress>[0];
     scraper.onProgress(callback);
   });
 });

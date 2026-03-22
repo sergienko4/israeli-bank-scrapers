@@ -59,11 +59,12 @@ function validateMonthData(
   monthData: ICardTransactionDetails | ICardApiStatus,
   card: ICardInfo,
 ): asserts monthData is ICardTransactionDetails | (ICardApiStatus & { statusCode: 1 }) {
-  if (monthData.statusCode === 1) return;
-  const title = monthData.title;
-  throw new ScraperError(
-    `failed to fetch transactions for card ${card.last4Digits}. Message: ${title}`,
-  );
+  if (monthData.statusCode !== 1) {
+    const title = monthData.title;
+    throw new ScraperError(
+      `failed to fetch transactions for card ${card.last4Digits}. Message: ${title}`,
+    );
+  }
 }
 
 /** Options for a single month fetch call. */

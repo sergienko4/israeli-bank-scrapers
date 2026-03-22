@@ -41,9 +41,6 @@ on:
           - debug
           - trace
 
-permissions:
-  contents: read
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -65,6 +62,8 @@ jobs:
     name: Validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -97,11 +96,11 @@ jobs:
 
       # ── Unit Tests ──
       - name: Unit tests with coverage
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --coverageReporters=text --coverageReporters=lcov --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'
+        run: npm run test:pipeline
 
       # ── E2E Factory Tests ──
       - name: E2E factory tests
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='tests/e2e\.test' --verbose --forceExit
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
       # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
       - name: E2E smoke tests (invalid credentials)
@@ -157,6 +156,9 @@ jobs:
     name: Dependency Review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

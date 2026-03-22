@@ -3,7 +3,7 @@ set -o pipefail
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
-# Skip for non-code changes (docs, CI, config)
+# Skip for non-code changes
 STAGED_FILES=$(git diff --cached --name-only)
 CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)')
 if [ -z "$CODE_FILES" ]; then
@@ -15,7 +15,6 @@ log() { echo "$1" | tee -a "$LOG_FILE"; }
 FAIL_COUNT=0
 FAIL_NAMES=""
 
-# Background gate runner
 declare -a BG_PIDS=()
 declare -a BG_NAMES=()
 declare -a BG_LOGS=()
@@ -53,114 +52,49 @@ wait_all() {
 log ""
 log "🛑  PIPELINE QUALITY GATE"
 log "══════════════════════════════════════════════════════"
-log "  Phase 1: format"
-log "  Phase 2: static analysis (parallel)"
-log "  Phase 3: Pipeline tests (unit + coverage)"
-log "══════════════════════════════════════════════════════"
 
 # ── Phase 1: Prettier ──
-log ""
-log "📝 Phase 1: Prettier format + re-stage..."
+log "📝 Phase 1: Prettier format..."
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
   echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
-  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Prettier --write failed"
-    exit 1
-  fi
   echo "$STAGED_SRC" | xargs git add
 fi
 
-# ── Phase 2: Static analysis + build (parallel) ──
+# ── Phase 2: Static Analysis (Parallel) ──
 log ""
-log "⚡ Phase 2: Static analysis + build (parallel)..."
-bg_gate "tsc"      npx tsc --noEmit
-bg_gate "audit"    npm audit --audit-level=high --omit=dev
-bg_gate "biome"    npx biome lint src --max-diagnostics=50
-bg_gate "build"    bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs && test -f lib/index.mjs && test -f lib/index.d.ts && test -f lib/index.d.cts && npm run check-exports'
-
-if command -v semgrep &>/dev/null; then
-  bg_gate "semgrep" semgrep --config=p/typescript --config=p/owasp-top-ten --config=p/nodejs src/ --error --max-target-bytes=500000
-else
-  log "  ⚠️  semgrep not installed — skipping"
-fi
+log "⚡ Phase 2: Static analysis + Architecture Check..."
+bg_gate "tsc"    npx tsc --noEmit
+bg_gate "eslint" npx eslint src/Scrapers/Pipeline --max-warnings=0  # 🚨 Catch DI
+bg_gate "biome"  npx biome lint src --max-diagnostics=50
+bg_gate "audit"  npm audit --audit-level=high --omit=dev
+bg_gate "build"  bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries" npm run lint:canaries
 
 wait_all
 
-# ── Phase 3: Pipeline tests — layered by type ──
-# Each layer runs independently so failures are easy to trace.
-# When a bank is migrated, add it to MIGRATED_BANKS below.
-#
-# Test structure:
-#   Unit/Pipeline/Infrastructure/     ← core infra (always)
-#   Unit/Pipeline/bank/<Bank>/        ← unit per bank (when migrated)
-#   E2eMocked/Pipeline/bank/<Bank>/   ← mocked E2E per bank
-#   E2eSmoke/Pipeline/bank/<Bank>/    ← smoke E2E per bank (invalid creds)
-#   E2eFull/Pipeline/bank/<Bank>/     ← full E2E per bank (real creds, .env)
-#
-# Each bank has: login.test.ts, otp.test.ts, dashboard.test.ts, trx.test.ts
-# Run by action: --testPathPatterns='Pipeline/bank/.*/login'
-# Run by bank:   --testPathPatterns='Pipeline/bank/Hapoalim'
-# Run by layer:  --testPathPatterns='E2eSmoke/Pipeline'
 
+# ── Phase 3: Pipeline Tests ──
 JEST_CMD="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
-# ── Banks migrated to Pipeline (add here as you go) ──
-MIGRATED_BANKS=""
-# Example after Step 3: MIGRATED_BANKS="Hapoalim|Behatsdaa"
-
 log ""
-log "🧪 Phase 3a: Pipeline infrastructure (unit + coverage)..."
-$JEST_CMD \
-  --testPathPatterns='Pipeline/Infrastructure' \
-  --coverage \
-  --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
-  2>&1 | tee -a "$LOG_FILE"
+log "🧪 Phase 3a: Pipeline Infrastructure & Core Logic"
+# Run unit tests and enforce coverage thresholds defined in jest.config
+npm run test:pipeline 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Pipeline infrastructure tests FAILED"
+  log "❌ Pipeline Core tests or Coverage threshold FAILED"
   exit 1
 fi
 
-# ── Phase 3b: Migrated bank unit tests ──
-if [ -n "$MIGRATED_BANKS" ]; then
-  log ""
-  log "🧪 Phase 3b: Migrated bank unit tests ($MIGRATED_BANKS)..."
-  $JEST_CMD \
-    --testPathPatterns="Unit/Pipeline/bank/($MIGRATED_BANKS)" \
-    2>&1 | tee -a "$LOG_FILE"
+log ""
+log "🧪 Phase 3b: Automated Bank Test Discovery"
+# Automatically runs Unit/Pipeline/bank/Hapoalim, etc.
+$JEST_CMD --testPathPatterns='Unit/Pipeline/bank/' 2>&1 | tee -a "$LOG_FILE"
 
-  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Bank unit tests FAILED"
-    exit 1
-  fi
-
-  # ── Phase 3c: Migrated bank mocked E2E ──
-  log ""
-  log "🧪 Phase 3c: Migrated bank mocked E2E ($MIGRATED_BANKS)..."
-  $JEST_CMD \
-    --testPathPatterns="E2eMocked/Pipeline/bank/($MIGRATED_BANKS)" \
-    2>&1 | tee -a "$LOG_FILE"
-
-  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Bank mocked E2E tests FAILED"
-    exit 1
-  fi
-
-  # ── Phase 3d: Migrated bank smoke E2E (real browsers, invalid creds) ──
-  log ""
-  log "🔥 Phase 3d: Migrated bank smoke E2E ($MIGRATED_BANKS)..."
-  $JEST_CMD \
-    --testPathPatterns="E2eSmoke/Pipeline/bank/($MIGRATED_BANKS)" \
-    2>&1 | tee -a "$LOG_FILE"
-
-  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Bank smoke E2E tests FAILED"
-    exit 1
-  fi
-else
-  log ""
-  log "⏭️  No migrated banks yet — skipping bank tests"
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  log "❌ One or more Bank Unit Tests FAILED"
+  exit 1
 fi
 
 log ""

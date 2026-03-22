@@ -6,7 +6,7 @@
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail } from '../Types/Procedure.js';
-import type { IFetchStrategy } from './FetchStrategy.js';
+import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
 /** Native fetch — uses Node.js fetch() with configurable headers. */
 class NativeFetchStrategy implements IFetchStrategy {
@@ -24,11 +24,18 @@ class NativeFetchStrategy implements IFetchStrategy {
    * POST via native fetch (stub).
    * @param url - Target URL.
    * @param data - POST body.
+   * @param opts - Fetch options with extra headers.
    * @returns Failure Procedure (stub).
    */
-  public fetchPost<T>(url: string, data: Record<string, string>): Promise<Procedure<T>> {
+  public fetchPost<T>(
+    url: string,
+    data: Record<string, string>,
+    opts: IFetchOpts,
+  ): Promise<Procedure<T>> {
     const keyCount = String(Object.keys(data).length);
-    const msg = `NativeFetchStrategy stub: POST ${url} (${keyCount} keys, base: ${this._baseUrl})`;
+    const headerCount = String(Object.keys(opts.extraHeaders).length);
+    const base = this._baseUrl;
+    const msg = `NativeFetchStrategy stub: POST ${url} (${keyCount}k, ${headerCount}h, ${base})`;
     const result = fail(ScraperErrorTypes.Generic, msg);
     return Promise.resolve(result);
   }
@@ -36,10 +43,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   /**
    * GET via native fetch (stub).
    * @param url - Target URL.
+   * @param opts - Fetch options with extra headers.
    * @returns Failure Procedure (stub).
    */
-  public fetchGet<T>(url: string): Promise<Procedure<T>> {
-    const msg = `NativeFetchStrategy stub: GET ${url} (base: ${this._baseUrl})`;
+  public fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
+    const headerCount = String(Object.keys(opts.extraHeaders).length);
+    const base = this._baseUrl;
+    const msg = `NativeFetchStrategy stub: GET ${url} (${headerCount}h, ${base})`;
     const result = fail(ScraperErrorTypes.Generic, msg);
     return Promise.resolve(result);
   }

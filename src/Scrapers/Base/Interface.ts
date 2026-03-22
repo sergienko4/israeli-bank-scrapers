@@ -162,6 +162,14 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * Falls back to LOG_LEVEL env var when not set.
    */
   loginLogLevel?: 'info' | 'trace';
+
+  /**
+   * Opt-in to the new Pipeline architecture.
+   * When true, the factory routes to PipelineRegistry instead of the legacy scraper classes.
+   * Both old and new code coexist — set to true to use the new pipeline for migrated banks.
+   * @default false
+   */
+  usePipeline?: boolean;
 };
 
 export interface IScraper<TCredentials extends ScraperCredentials> {

@@ -1,6 +1,6 @@
 /**
  * Procedure (Result Pattern) — every pipeline step returns this.
- * Discriminated union: `ok: true` for success, `ok: false` for failure.
+ * Discriminated union: `success: true` for success, `success: false` for failure.
  */
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
@@ -10,13 +10,13 @@ import { none, type Option, some } from './Option.js';
 
 /** Successful procedure outcome carrying a typed payload. */
 interface IProcedureSuccess<T> {
-  readonly ok: true;
+  readonly success: true;
   readonly value: T;
 }
 
 /** Failed procedure outcome with structured error. */
 interface IProcedureFailure {
-  readonly ok: false;
+  readonly success: false;
   readonly errorType: ScraperErrorTypes;
   readonly errorMessage: string;
   readonly errorDetails: Option<IWafErrorDetails>;
@@ -31,7 +31,7 @@ type Procedure<T> = IProcedureSuccess<T> | IProcedureFailure;
  * @returns A success Procedure.
  */
 function succeed<T>(value: T): IProcedureSuccess<T> {
-  return { ok: true, value };
+  return { success: true, value };
 }
 
 /**
@@ -41,7 +41,7 @@ function succeed<T>(value: T): IProcedureSuccess<T> {
  * @returns A failure Procedure.
  */
 function fail(errorType: ScraperErrorTypes, errorMessage: string): IProcedureFailure {
-  return { ok: false, errorType, errorMessage, errorDetails: none() };
+  return { success: false, errorType, errorMessage, errorDetails: none() };
 }
 
 /**
@@ -57,7 +57,7 @@ function failWithDetails(
   details: IWafErrorDetails,
 ): IProcedureFailure {
   return {
-    ok: false,
+    success: false,
     errorType,
     errorMessage,
     errorDetails: some(details),
@@ -70,7 +70,7 @@ function failWithDetails(
  * @returns True if the procedure succeeded.
  */
 function isOk<T>(proc: Procedure<T>): proc is IProcedureSuccess<T> {
-  return proc.ok;
+  return proc.success;
 }
 
 /**
@@ -93,14 +93,15 @@ function fromLegacy(result: IScraperScrapingResult): Procedure<IScraperScrapingR
  * @returns A legacy result shape.
  */
 function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
-  if (proc.ok) return { success: true };
+  if (proc.success) return { success: true };
   const base = {
     success: false as const,
     errorType: proc.errorType,
     errorMessage: proc.errorMessage,
   };
   if (proc.errorDetails.has) {
-    return { ...base, errorDetails: proc.errorDetails.value };
+    const withDetails: IScraperScrapingResult = { ...base, errorDetails: proc.errorDetails.value };
+    return withDetails;
   }
   return base;
 }

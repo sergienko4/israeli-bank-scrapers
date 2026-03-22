@@ -26,7 +26,8 @@ type NonNullish = object | string | number | boolean | symbol | bigint;
  * @returns An Option with `has: true`.
  */
 function some<T extends NonNullish>(value: T): ISome<T> {
-  return { has: true, value };
+  const option: ISome<T> = { has: true, value };
+  return option;
 }
 
 /** Sentinel for absent values — shared immutable instance. */
@@ -56,7 +57,8 @@ function isSome<T>(opt: Option<T>): opt is ISome<T> {
  * @returns The wrapped value or the fallback.
  */
 function unwrapOr<T>(opt: Option<T>, fallback: T): T {
-  return opt.has ? opt.value : fallback;
+  if (!opt.has) return fallback;
+  return opt.value;
 }
 
 export type { INone, ISome, NonNullish, Option };

@@ -11,30 +11,30 @@ import {
 } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 describe('Procedure/succeed', () => {
-  it('creates IProcedureSuccess with ok=true', () => {
+  it('creates IProcedureSuccess with success=true', () => {
     const result = succeed('data');
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     expect(result.value).toBe('data');
   });
 
   it('preserves generic type for objects', () => {
     const obj = { accounts: [] };
     const result = succeed(obj);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     expect(result.value).toBe(obj);
   });
 
   it('wraps empty object as success', () => {
     const result = succeed({});
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     expect(result.value).toEqual({});
   });
 });
 
 describe('Procedure/fail', () => {
-  it('creates IProcedureFailure with ok=false', () => {
+  it('creates IProcedureFailure with success=false', () => {
     const result = fail(ScraperErrorTypes.InvalidPassword, 'wrong password');
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(result.errorMessage).toBe('wrong password');
   });
@@ -48,7 +48,7 @@ describe('Procedure/fail', () => {
     const types = Object.values(ScraperErrorTypes);
     for (const errorType of types) {
       const result = fail(errorType, `test ${errorType}`);
-      expect(result.ok).toBe(false);
+      expect(result.success).toBe(false);
       expect(result.errorType).toBe(errorType);
     }
   });
@@ -69,7 +69,7 @@ describe('Procedure/failWithDetails', () => {
       suggestions: ['wait'],
     };
     const result = failWithDetails(ScraperErrorTypes.WafBlocked, 'blocked', details);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     expect(result.errorDetails.has).toBe(true);
     if (result.errorDetails.has) {
       expect(result.errorDetails.value.provider).toBe('cloudflare');
@@ -93,7 +93,7 @@ describe('Procedure/isOk', () => {
 
   it('narrows type to access value', () => {
     const result = succeed(42);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     if (isOk(result)) {
       expect(result.value).toBe(42);
     }
@@ -104,7 +104,7 @@ describe('Procedure/fromLegacy', () => {
   it('converts success IScraperScrapingResult to IProcedureSuccess', () => {
     const legacy: IScraperScrapingResult = { success: true };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(true);
+    expect(result.success).toBe(true);
     if (isOk(result)) {
       expect(result.value.success).toBe(true);
     }
@@ -117,7 +117,7 @@ describe('Procedure/fromLegacy', () => {
       errorMessage: 'bad creds',
     };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     if (!isOk(result)) {
       expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
       expect(result.errorMessage).toBe('bad creds');
@@ -127,7 +127,7 @@ describe('Procedure/fromLegacy', () => {
   it('defaults missing errorType to Generic', () => {
     const legacy: IScraperScrapingResult = { success: false };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     if (!isOk(result)) {
       expect(result.errorType).toBe(ScraperErrorTypes.Generic);
     }
@@ -136,7 +136,7 @@ describe('Procedure/fromLegacy', () => {
   it('defaults missing errorMessage to Unknown error', () => {
     const legacy: IScraperScrapingResult = { success: false };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     if (!isOk(result)) {
       expect(result.errorMessage).toBe('Unknown error');
     }
@@ -157,7 +157,7 @@ describe('Procedure/fromLegacy', () => {
       errorDetails: details,
     };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     if (!isOk(result)) {
       expect(result.errorDetails.has).toBe(true);
     }
@@ -170,7 +170,7 @@ describe('Procedure/fromLegacy', () => {
       errorMessage: 'err',
     };
     const result = fromLegacy(legacy);
-    expect(result.ok).toBe(false);
+    expect(result.success).toBe(false);
     if (!isOk(result)) {
       expect(result.errorDetails.has).toBe(false);
     }

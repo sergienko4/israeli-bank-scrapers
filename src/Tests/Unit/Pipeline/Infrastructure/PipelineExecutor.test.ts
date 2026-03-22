@@ -1,4 +1,7 @@
+import type { Page } from 'playwright-core';
+
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
+import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
@@ -12,7 +15,7 @@ import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js'
 const MOCK_OPTIONS = {
   companyId: 'test',
   startDate: new Date('2024-01-01'),
-} as never;
+} as unknown as ScraperOptions;
 
 /** Minimal credentials. */
 const MOCK_CREDENTIALS = {
@@ -101,6 +104,13 @@ describe('PipelineExecutor/empty-pipeline', () => {
     const descriptor = makeDescriptor([]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
+  });
+
+  it('returns empty accounts when no scrape phase ran', async () => {
+    const descriptor = makeDescriptor([succeedPhase('login')]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.accounts).toEqual([]);
   });
 });
 
@@ -238,5 +248,104 @@ describe('PipelineExecutor/returns-promise', () => {
     const descriptor = makeDescriptor([]);
     const promise = executePipeline(descriptor, MOCK_CREDENTIALS);
     expect(promise).toBeInstanceOf(Promise);
+  });
+});
+
+describe('PipelineExecutor/wrapError', () => {
+  it('catches phase that throws Error and returns failure', async () => {
+    const throwPhase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: {
+        name: 'login-action',
+        /**
+         * Throws an Error to test wrapError.
+         * @returns Never — always throws.
+         */
+        execute: (): Promise<Procedure<Ctx>> => {
+          throw new ScraperError('crash!');
+        },
+      },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([throwPhase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('crash!');
+  });
+
+  it('produces "Unknown pipeline error" when thrown value has empty message', async () => {
+    const throwPhase: Phase = {
+      name: 'scrape',
+      pre: none(),
+      action: {
+        name: 'scrape-action',
+        /**
+         * Throws an Error with empty message.
+         * @returns Never — always throws.
+         */
+        execute: (): Promise<Procedure<Ctx>> => {
+          throw new ScraperError('');
+        },
+      },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([throwPhase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Unknown pipeline error');
+  });
+});
+
+describe('PipelineExecutor/persistentOtpToken', () => {
+  it('includes persistentOtpToken in result when login state has it', async () => {
+    /**
+     * Set login.persistentOtpToken in context.
+     * @param _ctx - Pipeline context (unused).
+     * @param input - Input to extend with OTP token.
+     * @returns Context with persistentOtpToken set.
+     */
+    const setOtpExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+      const loginState = {
+        activeFrame: {} as unknown as Page,
+        persistentOtpToken: some('TOKEN123'),
+      };
+      const result = succeed({ ...input, login: some(loginState) });
+      return Promise.resolve(result);
+    };
+    const phase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: { name: 'login-action', execute: setOtpExecute },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([phase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.persistentOtpToken).toBe('TOKEN123');
+  });
+
+  it('omits persistentOtpToken when login state has none', async () => {
+    /**
+     * Set login state with persistentOtpToken=none().
+     * @param _ctx - Pipeline context (unused).
+     * @param input - Input to extend with login state.
+     * @returns Context with login but no OTP token.
+     */
+    const setLoginExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+      const loginState = { activeFrame: {} as unknown as Page, persistentOtpToken: none() };
+      const result = succeed({ ...input, login: some(loginState) });
+      return Promise.resolve(result);
+    };
+    const phase: Phase = {
+      name: 'login',
+      pre: none(),
+      action: { name: 'login-action', execute: setLoginExecute },
+      post: none(),
+    };
+    const descriptor = makeDescriptor([phase]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.persistentOtpToken).toBeUndefined();
   });
 });

@@ -32,10 +32,11 @@ async function runSequential<T>(
   const reducer = items.reduce(
     (chain, item, idx) =>
       chain.then(async () => {
-        if (state.done) return;
-        const didSucceed = await action(item, idx);
-        results[idx] = didSucceed;
-        if (didSucceed) state.done = true;
+        if (!state.done) {
+          const didSucceed = await action(item, idx);
+          results[idx] = didSucceed;
+          if (didSucceed) state.done = true;
+        }
       }),
     RESOLVED_PROMISE,
   );

@@ -14,11 +14,11 @@ async function beinleumiPostAction(
   page: Page,
 ): ReturnType<NonNullable<ILoginConfig['postAction']>> {
   const waiters = buildDashboardWaiters(page);
-  if (waiters.length === 0) return;
-  await Promise.race(waiters).catch((error: unknown) => {
-    if (error instanceof Error && error.name === 'TimeoutError') return;
-    throw error;
-  });
+  if (waiters.length > 0) {
+    await Promise.race(waiters).catch((error: unknown) => {
+      if (!(error instanceof Error && error.name === 'TimeoutError')) throw error;
+    });
+  }
 }
 
 /** Login field declarations for Beinleumi — wellKnown resolves #username and #password. */

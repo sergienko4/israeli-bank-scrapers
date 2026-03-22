@@ -52,27 +52,29 @@ describe('beinleumiConfig', () => {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const otp = config.otp;
     expect(otp?.kind).toBe('dom');
-    if (otp?.kind !== 'dom') return;
-    const triggers = otp.triggerSelectors ?? [];
-    expect(triggers.length).toBeGreaterThan(0);
-    const allowedKinds = new Set([
-      'textContent',
-      'clickableText',
-      'ariaLabel',
-      'labelText',
-      'placeholder',
-    ]);
-    const isAllAllowed = triggers.every(s => allowedKinds.has(s.kind));
-    expect(isAllAllowed).toBe(true);
+    if (otp?.kind === 'dom') {
+      const triggers = otp.triggerSelectors ?? [];
+      expect(triggers.length).toBeGreaterThan(0);
+      const allowedKinds = new Set([
+        'textContent',
+        'clickableText',
+        'ariaLabel',
+        'labelText',
+        'placeholder',
+      ]);
+      const isAllAllowed = triggers.every(s => allowedKinds.has(s.kind));
+      expect(isAllAllowed).toBe(true);
+    }
   });
 
   it('otp inputSelectors and submitSelectors are defined', () => {
     const config = BEINLEUMI_CONFIG('https://www.fibi.co.il');
     const otp = config.otp;
     expect(otp?.kind).toBe('dom');
-    if (otp?.kind !== 'dom') return;
-    expect(otp.inputSelectors.length).toBeGreaterThan(0);
-    expect(otp.submitSelectors.length).toBeGreaterThan(0);
+    if (otp?.kind === 'dom') {
+      expect(otp.inputSelectors.length).toBeGreaterThan(0);
+      expect(otp.submitSelectors.length).toBeGreaterThan(0);
+    }
   });
 
   it('submit uses clickableText selectors', () => {

@@ -43,7 +43,7 @@ jobs:
           gh-token: ${{ github.token }}
 
       - name: Run unit tests with coverage
-        run: npm run test:unit -- --coverage --coverageDirectory=coverage
+        run: npm run test:pipeline
         env:
           NODE_OPTIONS: --experimental-vm-modules
 

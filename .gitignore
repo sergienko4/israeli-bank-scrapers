@@ -77,3 +77,9 @@ CLAUDE.md
 # All local work lives in local-debug/ (debug captures + scripts)
 local-debug/
 .visacal-debug/
+
+# Future bank scraper backlog (local research — not part of current PR)
+capture/
+tasks/
+
+scripts/**

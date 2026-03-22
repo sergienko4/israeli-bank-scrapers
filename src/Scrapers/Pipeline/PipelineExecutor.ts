@@ -3,9 +3,12 @@
  * Each phase runs: pre → action → post. Failure at any step skips the rest.
  */
 
+import { getDebug } from '../../Common/Debug.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interface.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';
 import type { IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
@@ -55,7 +58,7 @@ async function executePhase(
  * @returns Fresh diagnostics state.
  */
 function createDiagnostics(credKeyCount: string): IDiagnosticsState {
-  return {
+  const state: IDiagnosticsState = {
     loginUrl: '',
     finalUrl: none(),
     loginStartMs: Date.now(),
@@ -64,31 +67,49 @@ function createDiagnostics(credKeyCount: string): IDiagnosticsState {
     pageTitle: none(),
     warnings: [],
   };
+  return state;
+}
+
+/**
+ * Resolve DI dependencies for the initial context.
+ * @param descriptor - The pipeline descriptor.
+ * @param credentials - User credentials.
+ * @returns Core context fields: companyId, logger, config, credentials.
+ */
+function resolveCoreDeps(
+  descriptor: IPipelineDescriptor,
+  credentials: ScraperCredentials,
+): Pick<IPipelineContext, 'options' | 'credentials' | 'companyId' | 'logger' | 'config'> {
+  const companyId = descriptor.options.companyId;
+  const logger = getDebug(`pipeline-${companyId}`);
+  const config = SCRAPER_CONFIGURATION.banks[companyId];
+  const deps = { options: descriptor.options, credentials, companyId, logger, config };
+  return deps;
 }
 
 /**
  * Build the initial pipeline context from descriptor.
  * @param descriptor - The pipeline descriptor.
  * @param credentials - User credentials.
- * @returns The initial context with all fields set to none().
+ * @returns The initial context with all phase fields set to none().
  */
 function buildInitialContext(
   descriptor: IPipelineDescriptor,
   credentials: ScraperCredentials,
 ): IPipelineContext {
   const credKeyCount = String(Object.keys(credentials).length);
-  return {
-    options: descriptor.options,
-    credentials,
-    companyId: descriptor.options.companyId,
-    logger: {} as never,
+  const core = resolveCoreDeps(descriptor, credentials);
+  const ctx: IPipelineContext = {
+    ...core,
     diagnostics: createDiagnostics(credKeyCount),
-    config: {} as never,
+    fetchStrategy: none(),
+    mediator: none(),
     browser: none(),
     login: none(),
     dashboard: none(),
     scrape: none(),
   };
+  return ctx;
 }
 
 /**
@@ -115,9 +136,19 @@ async function reducePhases(
  * @param error - The caught error.
  * @returns A failure Procedure with Generic error type.
  */
-function wrapError(error: Error): Procedure<IPipelineContext> {
-  const message = error.message || 'Unknown pipeline error';
+function wrapError(error: unknown): Procedure<IPipelineContext> {
+  const message = toErrorMessage(error as Error) || 'Unknown pipeline error';
   return fail(ScraperErrorTypes.Generic, message);
+}
+
+/**
+ * Extract accounts array from scrape state — empty if no scrape phase ran.
+ * @param ctx - The pipeline context.
+ * @returns Array of transaction accounts.
+ */
+function extractAccounts(ctx: IPipelineContext): IScraperScrapingResult['accounts'] {
+  if (!ctx.scrape.has) return [];
+  return [...ctx.scrape.value.accounts];
 }
 
 /**
@@ -126,8 +157,7 @@ function wrapError(error: Error): Procedure<IPipelineContext> {
  * @returns Legacy result with accounts and OTP token.
  */
 function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
-  const accounts = ctx.scrape.has ? [...ctx.scrape.value.accounts] : [];
-  const base: IScraperScrapingResult = { success: true, accounts };
+  const base: IScraperScrapingResult = { success: true, accounts: extractAccounts(ctx) };
   if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
     base.persistentOtpToken = ctx.login.value.persistentOtpToken.value;
   }
@@ -140,7 +170,7 @@ function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
  * @returns Legacy IScraperScrapingResult.
  */
 function toResult(result: Procedure<IPipelineContext>): IScraperScrapingResult {
-  if (result.ok) return extractSuccess(result.value);
+  if (result.success) return extractSuccess(result.value);
   return toLegacy(result);
 }
 
@@ -159,7 +189,7 @@ async function executePipeline(
   try {
     result = await reducePhases(descriptor.phases, initialCtx, 0);
   } catch (error) {
-    result = wrapError(error as Error);
+    result = wrapError(error);
   }
   return toResult(result);
 }

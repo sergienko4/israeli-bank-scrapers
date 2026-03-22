@@ -12,8 +12,7 @@ on:
         type: choice
         options: ['false', 'true']
 
-permissions:
-  contents: read
+permissions: {}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -33,6 +32,9 @@ jobs:
     name: Release Please
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created || inputs.force_publish }}
     steps:

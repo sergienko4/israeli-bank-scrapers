@@ -21,12 +21,14 @@ export default {
   testEnvironment: 'node',
   testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eSmoke/', 'E2eFull/'],
   collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
+  coveragePathIgnorePatterns: ['EslintCanaries'],
+  coverageReporters: ['text', 'lcov'],
   coverageThreshold: {
     global: {
-      branches: 76,
-      functions: 76,
-      lines: 88,
-      statements: 86,
+      branches: 96,
+      functions: 96,
+      lines: 97,
+      statements: 95,
     },
   },
 };
