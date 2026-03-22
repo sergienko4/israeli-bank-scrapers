@@ -22,6 +22,7 @@ export default {
   testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eSmoke/', 'E2eFull/'],
   collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
   coveragePathIgnorePatterns: ['EslintCanaries'],
+  coverageReporters: ['text', 'lcov'],
   coverageThreshold: {
     global: {
       branches: 96,

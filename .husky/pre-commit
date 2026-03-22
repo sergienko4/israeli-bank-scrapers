@@ -80,20 +80,12 @@ JEST_CMD="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 log ""
 log "🧪 Phase 3a: Pipeline Infrastructure & Core Logic"
 # Run unit tests and enforce coverage thresholds defined in jest.config
-$JEST_CMD --ci --coverage \
-  --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
-  --testPathIgnorePatterns='E2eReal/' \
-  --testPathIgnorePatterns='E2eMocked/' \
-  --testPathIgnorePatterns='E2eSmoke/' \
-  --testPathIgnorePatterns='E2eFull/' \
-  2>&1 | tee -a "$LOG_FILE"
-
+npm run test:pipeline 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   log "❌ Pipeline Core tests or Coverage threshold FAILED"
   exit 1
 fi
-
 
 log ""
 log "🧪 Phase 3b: Automated Bank Test Discovery"

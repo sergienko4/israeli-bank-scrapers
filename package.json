@@ -29,6 +29,7 @@
     "clean": "rimraf lib",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eSmoke --testPathIgnorePatterns=E2eFull",
+    "test:pipeline": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'",
     "test:e2e:mock": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked",
     "test:e2e:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eSmoke --forceExit",
     "test:e2e:full": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eFull --forceExit",
