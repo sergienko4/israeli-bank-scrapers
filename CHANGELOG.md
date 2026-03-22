@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.1...v8.3.0) (2026-03-22)
+
+
+### Features
+
+* pipeline architecture — Strategy, Builder, Mediator, Result Patterns ([#175](https://github.com/sergienko4/israeli-bank-scrapers/issues/175)) ([4d1addd](https://github.com/sergienko4/israeli-bank-scrapers/commit/4d1addd23a5f7dec8dd7672bb7e711c7b7f4e553))
+* unified Pipeline architecture (Step 1-2 — types, executor, builder) ([#171](https://github.com/sergienko4/israeli-bank-scrapers/issues/171)) ([01a05d9](https://github.com/sergienko4/israeli-bank-scrapers/commit/01a05d9e3190860e8e6e9e7b6e42542638dc9229))
+
 ## [8.2.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.0...v8.2.1) (2026-03-17)
 
 
