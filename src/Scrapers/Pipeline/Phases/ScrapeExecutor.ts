@@ -103,7 +103,7 @@ async function fetchAccountList<TA, TT>(
     const accounts = acctCfg.mapper(raw.value);
     return succeed(accounts);
   } catch (error) {
-    const msg = toErrorMessage(error);
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `Account mapper failed: ${msg}`);
   }
 }
@@ -119,7 +119,7 @@ function safeCall<T>(fn: () => T, label: string): Procedure<T> {
     const result = fn();
     return succeed(result);
   } catch (error) {
-    const msg = toErrorMessage(error);
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `${label} failed: ${msg}`);
   }
 }

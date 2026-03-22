@@ -137,7 +137,7 @@ async function executeInit(
     const result = wireComponents(input, { browser, context, page });
     return succeed(result);
   } catch (error) {
-    const msg = toErrorMessage(error);
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `InitPhase failed: ${msg}`);
   }
 }

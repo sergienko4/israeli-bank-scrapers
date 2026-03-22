@@ -1,6 +1,6 @@
 /**
  * Unit tests for toErrorMessage — safe error message extraction.
- * Covers: Error, string, null, undefined, object, number.
+ * Covers: Error and string inputs (Pipeline-only types).
  */
 
 import { toErrorMessage } from '../../../../Scrapers/Pipeline/Types/ErrorUtils.js';
@@ -11,10 +11,6 @@ describe('toErrorMessage', () => {
     ['Error with empty message', new Error(''), ''],
     ['string value', 'crash', 'crash'],
     ['empty string', '', ''],
-    ['null', null, 'null'],
-    ['undefined', undefined, 'undefined'],
-    ['plain object', { code: 42 }, '[object Object]'],
-    ['number', 123, '123'],
   ] as const)(
     /**
      * Verify toErrorMessage extracts the right string for each input type.

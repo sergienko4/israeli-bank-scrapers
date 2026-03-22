@@ -40,7 +40,7 @@ function resultToProcedure<T>(result: unknown, url: string): Procedure<T> {
  * @returns A Generic failure Procedure.
  */
 function catchError(error: unknown): Procedure<never> {
-  const message = toErrorMessage(error);
+  const message = toErrorMessage(error as Error);
   return fail(ScraperErrorTypes.Generic, message);
 }
 

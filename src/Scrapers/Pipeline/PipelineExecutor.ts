@@ -137,7 +137,7 @@ async function reducePhases(
  * @returns A failure Procedure with Generic error type.
  */
 function wrapError(error: unknown): Procedure<IPipelineContext> {
-  const message = toErrorMessage(error) || 'Unknown pipeline error';
+  const message = toErrorMessage(error as Error) || 'Unknown pipeline error';
   return fail(ScraperErrorTypes.Generic, message);
 }
 

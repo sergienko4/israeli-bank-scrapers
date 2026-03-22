@@ -17,6 +17,9 @@ import type { Frame, Page } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
 
+/** Sentinel for elements with no CSS class attribute. */
+const NO_CLASS = 'no-class';
+
 // ── Types ──────────────────────────────────────────────────
 
 /** Raw DOM item extracted from browser-side evaluation. */
@@ -91,8 +94,7 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
       return els.map((el): IRawDomItem => {
         const cs = globalThis.getComputedStyle(el);
         const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-        const rawCls = el.getAttribute('class');
-        const cls = rawCls ?? '';
+        const cls = el.getAttribute('class') ?? NO_CLASS;
         const rawText = el.textContent;
         const text = (rawText || '').trim();
         const tag = el.tagName.toLowerCase();
@@ -115,13 +117,23 @@ function classifyByTag(tag: string): FormErrorKind {
 }
 
 /**
+ * Build CSS selector from tag and class.
+ * @param tag - HTML tag name.
+ * @param cls - Class attribute value (NO_CLASS if absent).
+ * @returns CSS selector string.
+ */
+function buildSelector(tag: string, cls: string): string {
+  if (cls === NO_CLASS) return tag;
+  return `${tag}.${cls.split(' ')[0]}`;
+}
+
+/**
  * Convert a raw DOM item to a typed IFormError.
  * @param item - Raw DOM item from browser evaluation.
  * @returns Typed IFormError with selector, text, and kind.
  */
 function toFormError(item: IRawDomItem): IFormError {
-  const firstCls = (item.cls && `.${item.cls.split(' ')[0]}`) || '';
-  const selector = `${item.tag}${firstCls}`;
+  const selector = buildSelector(item.tag, item.cls);
   const kind = classifyByTag(item.tag);
   const error: IFormError = { selector, text: item.text, kind };
   return error;

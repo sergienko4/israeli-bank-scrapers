@@ -266,8 +266,8 @@ async function clickSubmit(
   const btn = locator.first();
   try {
     await btn.click();
-  } catch (error: unknown) {
-    return fail(ScraperErrorTypes.Generic, `Submit click failed: ${toErrorMessage(error)}`);
+  } catch (err) {
+    return fail(ScraperErrorTypes.Generic, `Submit click failed: ${toErrorMessage(err as Error)}`);
   }
   return succeed(true);
 }

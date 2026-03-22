@@ -171,7 +171,8 @@ describe('visaCalFetchData', () => {
     const noBrowser = none();
     const ctx = makeMockContext({ browser: noBrowser });
     const result = await visaCalFetchData(ctx);
-    expect(isOk(result)).toBe(false);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
     if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 
@@ -182,7 +183,8 @@ describe('visaCalFetchData', () => {
     const browserSome = some(browserState);
     const ctx = makeMockContext({ browser: browserSome, fetchStrategy: noStrategy });
     const result = await visaCalFetchData(ctx);
-    expect(isOk(result)).toBe(false);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
     if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 

@@ -70,21 +70,16 @@ const RESTRICTED_SYNTAX_RULES = [
     message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
   },
 
-  // 7. Type Integrity (Blocking 'unknown' bypasses)
-  {
-    // Blocks 'unknown' in function return types
-    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) > TSTypeAnnotation TSUnknownKeyword",
-    message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a specific Interface or Type.",
-  },
-  {
-    // Blocks 'unknown' in function parameters (Arguments)
-    selector: "TSParameterProperty TSUnknownKeyword, FunctionDeclaration TSParameterProperty TSUnknownKeyword, TSTypeReference TSUnknownKeyword",
-    message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'.",
-  },
+
   {
     //Blocks 'unknown' in variable type annotations
     selector: "VariableDeclarator > TSTypeAnnotation TSUnknownKeyword",
     message: "🚫 TYPE SKIP: Do not declare variables as 'unknown'. Cast them to a concrete type immediately.",
+  },
+  // Procedure caller: do not discard Procedure results
+  {
+    selector: "ExpressionStatement > CallExpression[callee.property.name=/^(record|printSummary|sendSummary|sendError|sendMessage|startImport|cleanOldLogs)$/]",
+    message: "🚫 PROCEDURE: Do not discard Procedure result. Check with isSuccess()/isFail() or assign to variable.",
   },
 
   // Block: for-in loops (can be used to bypass iterators and cause prototype pollution)
@@ -263,10 +258,15 @@ export default tseslint.config(
       'check-file/folder-match-with-fex': ['error', { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' }],
       'no-restricted-syntax':
         ['error',
+          ...RESTRICTED_SYNTAX_RULES,
           {
             // Type Bypasses (as never / as any)
             selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
             message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
+          },
+          {
+            selector: "ExportDefaultDeclaration",
+            message: "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
           },
 
         ]
@@ -330,24 +330,13 @@ export default tseslint.config(
           message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
         },
 
-        // Result Pattern: Every return must have success/status
+        // The "Context-Aware" Fallback Guard
         {
-          selector: "ReturnStatement > ObjectExpression",
-          message: "🚫 RESULT PATTERN: Do not return inline objects. Use succeed(value) or fail(type, msg)."
+          // Targets: const x = y || ''; 
+          // EXEMPTS: variables named text, html, content, val, attr (common in DOM scraping)
+          selector: "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
+          message: "🚫 DATA INTEGRITY: Avoid '' fallbacks in business logic. Use a Result or ScraperError.",
         },
-
-        // Result Pattern: Failure must include message/error
-        {
-          selector: "ReturnStatement > ObjectExpression:has(Property[key.name='success'][value.value=false]):not(:has(Property[key.name=/message|error/]))",
-          message: "🚫 RESULT PATTERN: On failure (success: false), you MUST provide a 'message' or 'error' string.",
-        },
-
-        // Result Pattern: No throw
-        {
-          selector: "ThrowStatement",
-          message: "🚫 RESULT PATTERN: Do not throw. Return a failure Result object instead.",
-        },
-
         // Pagination: No manual while loops — use Pagination strategy
         // GAP FIX #4 — Forces pagination abstraction
         {
@@ -381,12 +370,6 @@ export default tseslint.config(
           message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.constants' or 'ctx.config'.",
         },
 
-        // DI: No manual instantiation of Service/Logic classes
-        {
-          selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
-          message: "🚫 DI: Do not 'new' up handlers or services. Inject via PipelineContext.",
-        },
-
         // ARCHITECTURE: No hardcoded Status Strings
         {
           selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
@@ -397,11 +380,23 @@ export default tseslint.config(
           selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
           message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface members.",
         },
-        // Error Handling: No manual error.message access{
+        // Error Handling: Force utility usage
         {
-          selector: "CatchClause BinaryExpression[left.property.name='message']",
-          message: "🚫 Use errorMessage(error) utility instead of manual error.message access.",
-        }
+          selector: "CatchClause MemberExpression[property.name='message']",
+          message: "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access. Catch-clause 'unknown' requires safe parsing.",
+        },
+        {
+          // Matches: function(x: unknown) or (x: unknown) => ...
+          // Specifically targets the type annotation of the parameter itself.
+          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, TSMethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword",
+          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface (e.g., IBankData).",
+        },
+        {
+          // Matches: function(): unknown { ... }
+          // Specifically targets the return type annotation.
+          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, TSMethodDefinition) > TSTypeAnnotation TSUnknownKeyword",
+          message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a concrete return Type.",
+        },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

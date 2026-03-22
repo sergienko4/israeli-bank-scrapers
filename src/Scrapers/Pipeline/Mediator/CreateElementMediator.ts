@@ -73,7 +73,7 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
      * @param error - Thrown error.
      * @returns Failure Procedure.
      */
-    const handleError = (error: unknown): Procedure<IFieldContext> => {
+    const handleError = (error: Error): Procedure<IFieldContext> => {
       const msg = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, msg);
     };
@@ -97,7 +97,7 @@ function buildResolveClickable(page: Page): IElementMediator['resolveClickable']
      * @param error - Thrown error.
      * @returns Failure Procedure.
      */
-    const handleError = (error: unknown): Procedure<IFieldContext> => {
+    const handleError = (error: Error): Procedure<IFieldContext> => {
       const msg = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, msg);
     };
@@ -205,7 +205,7 @@ function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] 
      * @param error - Thrown error.
      * @returns None option.
      */
-    const handleError = (error: unknown): Option<IFormAnchor> => {
+    const handleError = (error: Error): Option<IFormAnchor> => {
       const msg = toErrorMessage(error);
       const truncated = msg.slice(0, 60);
       LOG.debug('discoverForm failed (non-fatal): %s', truncated);

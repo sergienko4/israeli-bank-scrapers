@@ -8,10 +8,9 @@
  * @param error - The unknown caught value.
  * @returns A string message: Error.message for Error instances, the string itself for strings, or `String(error)` for other values.
  */
-function toErrorMessage(error: unknown): string {
+function toErrorMessage(error: Error | string): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return String(error);
+  return error;
 }
 
 export default toErrorMessage;

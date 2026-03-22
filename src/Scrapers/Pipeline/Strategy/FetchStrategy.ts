@@ -26,6 +26,5 @@ interface IFetchStrategy {
   fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>>;
 }
 
-export default IFetchStrategy;
-export type { IFetchOpts, IFetchStrategy };
+export type { IFetchOpts, IFetchStrategy, PostData };
 export { DEFAULT_FETCH_OPTS };

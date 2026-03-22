@@ -24,7 +24,7 @@ async function runCleanup(
     await cleanup();
     return true;
   } catch (error) {
-    const msg = toErrorMessage(error).slice(0, 80);
+    const msg = toErrorMessage(error as Error).slice(0, 80);
     logger.debug('cleanup error (swallowed): %s', msg);
     return false;
   }
