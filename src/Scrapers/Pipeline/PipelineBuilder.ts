@@ -249,15 +249,13 @@ class PipelineBuilder {
    * @returns Success if valid, failure with error message.
    */
   private assertRequiredFields(): Procedure<true> {
-    if (this._error) {
-      return fail(ScraperErrorTypes.Generic, this._error);
-    }
-    if (this._options === false) {
-      return fail(ScraperErrorTypes.Generic, 'PipelineBuilder: withOptions() is required');
-    }
-    if (this._loginMode === 'none') {
-      return fail(ScraperErrorTypes.Generic, 'PipelineBuilder: a login mode is required');
-    }
+    const checks: readonly [boolean, string][] = [
+      [!!this._error, this._error || ''],
+      [this._options === false, 'PipelineBuilder: withOptions() is required'],
+      [this._loginMode === 'none', 'PipelineBuilder: a login mode is required'],
+    ];
+    const failed = checks.find(([isErr]): boolean => isErr);
+    if (failed) return fail(ScraperErrorTypes.Generic, failed[1]);
     return succeed(true);
   }
 

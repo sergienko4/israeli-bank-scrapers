@@ -10,6 +10,7 @@ import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const LOG = getDebug('max-login');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Max];
+const MAX_HOMEPAGE_PREFIX = 'https://www.max.co.il/homepage';
 
 const MAX_USERNAME_FIELD: IFieldConfig = { credentialKey: 'username', selectors: [] };
 const MAX_PASSWORD_FIELD: IFieldConfig = { credentialKey: 'password', selectors: [] };
@@ -259,7 +260,7 @@ async function raceForDashboardOrError(page: Page): Promise<boolean> {
  */
 async function waitForDashboardOrError(page: Page): LifecyclePromise {
   const currentUrl = page.url();
-  if (!currentUrl.startsWith('https://www.max.co.il/homepage')) {
+  if (!currentUrl.startsWith(MAX_HOMEPAGE_PREFIX)) {
     LOG.info('waitForDashboardOrError: url=%s', currentUrl);
     await raceForDashboardOrError(page);
   }
@@ -286,7 +287,7 @@ export function buildMaxPostAction(credentials: IMaxCredentials): (page: Page) =
   return async (page: Page): LifecyclePromise => {
     const entryUrl = page.url();
     LOG.info('postAction entry: url=%s hasId=%s', entryUrl, hasId);
-    if (entryUrl.startsWith('https://www.max.co.il/homepage')) return waitForDashboardOrError(page);
+    if (entryUrl.startsWith(MAX_HOMEPAGE_PREFIX)) return waitForDashboardOrError(page);
     if (!credentials.id) return waitForDashboardOrError(page);
     const hasIdForm = await detectIdForm(page);
     if (!hasIdForm) return waitForDashboardOrError(page);
@@ -316,7 +317,7 @@ async function maxCheckReadiness(page: Page): LifecyclePromise {
  */
 function checkMaxSuccess(opts?: { page?: Page }): boolean {
   const url = opts?.page?.url() ?? '';
-  return url.startsWith('https://www.max.co.il/homepage');
+  return url.startsWith(MAX_HOMEPAGE_PREFIX);
 }
 
 /**
