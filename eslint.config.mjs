@@ -125,7 +125,7 @@ const RESTRICTED_SYNTAX_RULES = [
 export default tseslint.config(
   // 1. GLOBAL IGNORES
   {
-    ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', 'tsup.config.ts', '**/*.js', '**/*.mjs', '**/*.cjs'],
+    ignores: ['.github/**', 'lib/**', 'node_modules/**', 'coverage/**', 'src/coverage/**', 'tsup.config.ts', '**/*.js', '**/*.mjs', '**/*.cjs', '**/EslintCanaries/**'],
   },
 
   // 2. BASE CONFIGS
@@ -264,9 +264,11 @@ export default tseslint.config(
       'no-restricted-syntax':
         ['error',
           {
+            // Type Bypasses (as never / as any)
             selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
             message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
           },
+
         ]
     },
   },
@@ -390,6 +392,16 @@ export default tseslint.config(
           selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
           message: "🚫 ARCHITECTURE: Use Enums or Constants for type discriminators/status checks.",
         },
+        // Type Bypasses (as never / as any)
+        {
+          selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
+          message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface members.",
+        },
+        // Error Handling: No manual error.message access{
+        {
+          selector: "CatchClause BinaryExpression[left.property.name='message']",
+          message: "🚫 Use errorMessage(error) utility instead of manual error.message access.",
+        }
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

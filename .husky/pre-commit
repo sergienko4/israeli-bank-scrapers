@@ -69,7 +69,10 @@ bg_gate "eslint" npx eslint src/Scrapers/Pipeline --max-warnings=0  # 🚨 Catch
 bg_gate "biome"  npx biome lint src --max-diagnostics=50
 bg_gate "audit"  npm audit --audit-level=high --omit=dev
 bg_gate "build"  bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries" npm run lint:canaries
+
 wait_all
+
 
 # ── Phase 3: Pipeline Tests ──
 JEST_CMD="node --experimental-vm-modules node_modules/jest/bin/jest.js"

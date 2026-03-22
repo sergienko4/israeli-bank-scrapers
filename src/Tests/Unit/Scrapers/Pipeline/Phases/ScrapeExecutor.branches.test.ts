@@ -71,7 +71,8 @@ describe('ScrapeExecutor/POST-transactions', () => {
       },
     };
     const ctx = MAKE_CTX(strategy);
-    await executeScrape(ctx, config);
+    const result = await executeScrape(ctx, config);
+    assertOk(result);
     const hasTxnPost = postPaths.some(p => p.includes('/api/txns/'));
     expect(hasTxnPost).toBe(true);
   });

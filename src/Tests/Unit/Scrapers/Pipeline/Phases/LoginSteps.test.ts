@@ -249,6 +249,7 @@ describe('LoginSteps/preLogin', () => {
     });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);
+    expect(result.success).toBe(true);
     if (result.success && result.value.login.has) {
       expect(result.value.login.value.activeFrame).toBe(page);
     }

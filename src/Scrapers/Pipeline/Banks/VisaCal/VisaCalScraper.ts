@@ -155,8 +155,8 @@ interface IInitResp {
  * @returns Card list procedure.
  */
 async function fetchCards(fc: IFetchCtx): Promise<Procedure<readonly ICard[]>> {
-  const body = { tokenGuid: '' };
-  const raw = await fc.strategy.fetchPost<IInitResp>(fc.ep.initUrl, body as never, fc.opts);
+  const body: Record<string, string> = { tokenGuid: '' };
+  const raw = await fc.strategy.fetchPost<IInitResp>(fc.ep.initUrl, body, fc.opts);
   if (!isOk(raw)) return raw;
   const mapped = raw.value.result.cards.map(
     (c): ICard => ({
@@ -187,8 +187,8 @@ async function fetchFrames(
   cards: readonly ICard[],
 ): Promise<Procedure<readonly ICardFrame[]>> {
   const ids = cards.map((c): { cardUniqueId: string } => ({ cardUniqueId: c.cardUniqueId }));
-  const body = { cardsForFrameData: ids };
-  const raw = await fc.strategy.fetchPost<IFramesResp>(fc.ep.framesUrl, body as never, fc.opts);
+  const postData = { cardsForFrameData: ids } as unknown as Record<string, string>;
+  const raw = await fc.strategy.fetchPost<IFramesResp>(fc.ep.framesUrl, postData, fc.opts);
   if (!isOk(raw)) return raw;
   const frames = raw.value.result?.bankIssuedCards?.cardLevelFrames ?? [];
   return succeed(frames);
@@ -238,7 +238,7 @@ async function fetchOneMonth(
     year: month.format('YYYY'),
   };
   const url = ctx.fc.ep.txnUrl;
-  const raw = await ctx.fc.strategy.fetchPost<ITxnResp>(url, body as never, ctx.fc.opts);
+  const raw = await ctx.fc.strategy.fetchPost<ITxnResp>(url, body, ctx.fc.opts);
   if (!isOk(raw)) return raw;
   const banks = raw.value.result.bankAccounts;
   const debits = banks.flatMap((b): readonly IDebitDate[] => b.debitDates);
@@ -306,7 +306,7 @@ async function fetchPending(
   card: ICard,
 ): Promise<Procedure<readonly IRawPendingTxn[]>> {
   const body = { cardUniqueIDArray: [card.cardUniqueId] };
-  const raw = await fc.strategy.fetchPost<IPendingResp>(fc.ep.pendingUrl, body as never, fc.opts);
+  const raw = await fc.strategy.fetchPost<IPendingResp>(fc.ep.pendingUrl, body, fc.opts);
   if (!isOk(raw)) return raw;
   if (!raw.value.result) return succeed([]);
   const cards = raw.value.result.cardsList;
