@@ -75,6 +75,14 @@ function makeMockLocatorPage(): Page {
      * @returns Resolved.
      */
     waitForLoadState: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * Mock locator (for xpath kind) — records method call.
+     * @returns Sentinel locator.
+     */
+    locator: (): Locator => {
+      lastCalledMethod = 'locator';
+      return SENTINEL_LOCATOR;
+    },
   } as unknown as Page;
 }
 
@@ -82,6 +90,7 @@ describe('buildLocator', () => {
   it.each([
     { kind: 'ariaLabel' as const, expected: 'getByLabel' },
     { kind: 'placeholder' as const, expected: 'getByPlaceholder' },
+    { kind: 'xpath' as const, expected: 'locator' },
     { kind: 'textContent' as const, expected: 'getByText' },
     { kind: 'labelText' as const, expected: 'getByText' },
   ] as const)(

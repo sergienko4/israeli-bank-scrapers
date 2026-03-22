@@ -415,6 +415,12 @@ describe('discoverFormErrors/jsdom-evaluate', () => {
     expect(scan.hasErrors).toBe(false);
   });
 
+  it('handles element with empty textContent (falsy rawText branch)', async () => {
+    const ctx = MAKE_EXEC_CTX('<div role="alert"></div>');
+    const scan = await discoverFormErrors(ctx);
+    expect(scan.hasErrors).toBe(false);
+  });
+
   it('returns empty when no elements match error selectors', async () => {
     const ctx = MAKE_EXEC_CTX('<p>just text</p>');
     const scan = await discoverFormErrors(ctx);

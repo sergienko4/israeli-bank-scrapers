@@ -4,6 +4,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -134,6 +135,26 @@ describe('ScrapeExecutor/balanceExtractor', () => {
     const acct = result.value.scrape;
     assertHas(acct);
     expect(acct.value.accounts[0].balance).toBe(9999);
+  });
+
+  it('falls back to account.balance when extractor throws', async () => {
+    const strategy = makeMockFetchStrategy();
+    const config = {
+      ...makeMockScrapeConfig(),
+      /**
+       * Extract balance — throws to test fallback path.
+       * @returns Never — always throws.
+       */
+      balanceExtractor: (): number => {
+        throw new ScraperError('extractor crash');
+      },
+    };
+    const ctx = MAKE_CTX(strategy);
+    const result = await executeScrape(ctx, config);
+    assertOk(result);
+    const acct = result.value.scrape;
+    assertHas(acct);
+    expect(acct.value.accounts[0].balance).toBe(1000);
   });
 
   it('falls back to account.balance when extractor absent', async () => {

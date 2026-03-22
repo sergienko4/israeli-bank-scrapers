@@ -181,6 +181,50 @@ describe('visaCalFetchData', () => {
     expect(wasOk).toBe(false);
   });
 
+  it('fails when auth-module is missing from sessionStorage', async () => {
+    const emptyPage = makeMockEvalPage('');
+    const browserState = makeMockBrowserState(emptyPage);
+    const strategy = makeSequentialStrategy([]);
+    const mockApi = {
+      calInit: 'https://api.cal/init',
+      calFrames: 'https://api.cal/frames',
+      calTransactions: 'https://api.cal/txn',
+      calPending: 'https://api.cal/pending',
+      calXSiteId: 'test-site-id',
+      calOrigin: 'https://cal-online.co.il',
+    };
+    const ctx = makeMockContext({
+      browser: some(browserState),
+      fetchStrategy: some(strategy),
+      options: { startDate: new Date(), companyId: 'visaCal' as never },
+      config: { urls: { base: '' }, api: mockApi } as never,
+    });
+    const result = await visaCalFetchData(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+  });
+
+  it('handles missing API config fields with defaults', async () => {
+    const strategy = makeSequentialStrategy([
+      succeed(INIT_RESP),
+      succeed(FRAMES_RESP),
+      succeed(TXN_RESP),
+      succeed(PENDING_RESP),
+    ]);
+    const page = makeMockEvalPage(AUTH_JSON);
+    const browserState = makeMockBrowserState(page);
+    const sparseApi = { calInit: 'https://api.cal/init' };
+    const ctx = makeMockContext({
+      browser: some(browserState),
+      fetchStrategy: some(strategy),
+      options: { startDate: new Date(), companyId: 'visaCal' as never },
+      config: { urls: { base: '' }, api: sparseApi } as never,
+    });
+    const result = await visaCalFetchData(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
   it('propagates fetchCards failure', async () => {
     const initFail = fail(ScraperErrorTypes.Generic, 'init failed');
     const strategy = makeSequentialStrategy([initFail]);

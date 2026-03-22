@@ -216,6 +216,23 @@ describe('resolveFieldPipeline/wellKnown-lookup', () => {
     expect(opts.wellKnownCandidates.length).toBeGreaterThan(0);
   });
 
+  it('returns empty wellKnown for unknown field key', async () => {
+    const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
+    isPageFn.mockReturnValue(false);
+    const probeMain = SRP_MOD.probeMainPage as jest.Mock;
+    const capturedOpts: unknown[] = [];
+    probeMain.mockImplementation((opts: unknown) => {
+      capturedOpts.push(opts);
+      return Promise.resolve(RESOLVED_CTX);
+    });
+    const metaFn = META_MOD.extractMetadata as jest.Mock;
+    metaFn.mockResolvedValue(MOCK_META);
+
+    await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'unknownField123', []);
+    const opts = capturedOpts[0] as { wellKnownCandidates: unknown[] };
+    expect(opts.wellKnownCandidates).toHaveLength(0);
+  });
+
   it('uses WellKnown candidates for __submit__ key', async () => {
     const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
     isPageFn.mockReturnValue(false);

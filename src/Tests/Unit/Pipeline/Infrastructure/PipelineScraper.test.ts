@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { PipelineScraper } from '../../../../Scrapers/Pipeline/PipelineScraper.js';
+import { fail } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 
 const MOCK_OPTIONS = makeMockOptions({ companyId: 'testBank' as never });
@@ -27,6 +29,19 @@ describe('PipelineScraper/scrape', () => {
     await scraper.scrape(MOCK_CREDENTIALS);
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(buildSpy).toHaveBeenCalledWith(MOCK_OPTIONS);
+  });
+
+  it('returns legacy failure when buildPipeline fails', async () => {
+    /**
+     * Stub that always returns failure.
+     * @returns Failed procedure.
+     */
+    const buildFailing = (): ReturnType<typeof makeMockDescriptor> =>
+      fail(ScraperErrorTypes.Generic, 'build failed');
+    const scraper = new PipelineScraper(MOCK_OPTIONS, buildFailing);
+    const result = await scraper.scrape(MOCK_CREDENTIALS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 });
 

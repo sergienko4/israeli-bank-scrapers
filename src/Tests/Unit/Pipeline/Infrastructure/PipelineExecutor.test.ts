@@ -102,6 +102,13 @@ describe('PipelineExecutor/empty-pipeline', () => {
     const result = await run(descriptor);
     expect(result.success).toBe(true);
   });
+
+  it('returns empty accounts when no scrape phase ran', async () => {
+    const descriptor = makeDescriptor([succeedPhase('login')]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+    expect(result.accounts).toEqual([]);
+  });
 });
 
 describe('PipelineExecutor/single-phase', () => {

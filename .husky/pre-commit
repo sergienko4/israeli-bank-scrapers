@@ -111,10 +111,14 @@ MIGRATED_BANKS=""
 
 log ""
 log "🧪 Phase 3a: Pipeline infrastructure (unit + coverage)..."
-$JEST_CMD \
-  --testPathPatterns='Pipeline' \
-  --coverage --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' --coveragePathIgnorePatterns='Pipeline/Banks/' \
+$JEST_CMD --ci --coverage \
+  --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' \
+  --testPathIgnorePatterns='E2eReal/' \
+  --testPathIgnorePatterns='E2eMocked/' \
+  --testPathIgnorePatterns='E2eSmoke/' \
+  --testPathIgnorePatterns='E2eFull/' \
   2>&1 | tee -a "$LOG_FILE"
+
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   log "❌ Pipeline infrastructure tests FAILED"

@@ -142,6 +142,33 @@ describe('DISCOUNT_SCRAPE_CONFIG', () => {
     });
   });
 
+  describe('balanceExtractor', () => {
+    it('extracts AccountBalance when present', () => {
+      const raw = {
+        CurrentAccountLastTransactions: {
+          OperationEntry: [],
+          CurrentAccountInfo: { AccountBalance: 4200 },
+          FutureTransactionsBlock: { FutureTransactionEntry: null },
+        },
+      };
+      const balance = DISCOUNT_SCRAPE_CONFIG.balanceExtractor?.(raw);
+      expect(balance).toBe(4200);
+    });
+
+    it('returns 0 when CurrentAccountLastTransactions is null', () => {
+      const raw = {};
+      const balance = DISCOUNT_SCRAPE_CONFIG.balanceExtractor?.(raw);
+      expect(balance).toBe(0);
+    });
+  });
+
+  describe('transactions.mapper/error-handling', () => {
+    it('throws ScraperError when Error field present', () => {
+      const raw = { Error: { MsgText: 'Server Error' } };
+      expect(() => MAP_TRANSACTIONS(raw)).toThrow('Discount API error: Server Error');
+    });
+  });
+
   describe('config shape', () => {
     it('uses GET method for accounts', () => {
       expect(DISCOUNT_SCRAPE_CONFIG.accounts.method).toBe('GET');
