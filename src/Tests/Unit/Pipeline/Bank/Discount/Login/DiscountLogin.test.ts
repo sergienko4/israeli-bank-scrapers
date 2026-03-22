@@ -5,6 +5,7 @@
 
 import type { Page } from 'playwright-core';
 
+import type { CompanyTypes } from '../../../../../../Definitions.js';
 import {
   buildDiscountPipeline,
   DISCOUNT_LOGIN,
@@ -13,7 +14,7 @@ import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 
 /** Mock options for pipeline builder. */
-const MOCK_OPTIONS = makeMockOptions({ companyId: 'discount' as never });
+const MOCK_OPTIONS = makeMockOptions({ companyId: 'discount' as unknown as CompanyTypes });
 
 /** Captured goto URL from mock page. */
 let capturedGotoUrl = '';

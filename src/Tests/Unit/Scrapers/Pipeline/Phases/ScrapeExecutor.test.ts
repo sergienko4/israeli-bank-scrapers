@@ -5,8 +5,12 @@
 
 import moment from 'moment';
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
-import { DEFAULT_FETCH_OPTS } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
+import {
+  DEFAULT_FETCH_OPTS,
+  type IFetchStrategy,
+} from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IRawAccount } from '../../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';
@@ -69,7 +73,7 @@ describe('ScrapeExecutor/accounts', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     await executeScrape(ctx, config);
@@ -97,7 +101,7 @@ describe('ScrapeExecutor/accounts', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = {
       ...makeMockScrapeConfig([MOCK_RAW_ACCOUNT]),
       accounts: {
@@ -123,7 +127,7 @@ describe('ScrapeExecutor/accounts', () => {
        * @returns Fail procedure.
        */
       fetchGet: () => {
-        const r = fail('GENERIC' as never, 'accounts failed');
+        const r = fail(ScraperErrorTypes.Generic, 'accounts failed');
         return Promise.resolve(r);
       },
       /**
@@ -131,10 +135,10 @@ describe('ScrapeExecutor/accounts', () => {
        * @returns Fail procedure.
        */
       fetchPost: () => {
-        const r = fail('GENERIC' as never, 'accounts failed');
+        const r = fail(ScraperErrorTypes.Generic, 'accounts failed');
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = makeMockScrapeConfig();
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
@@ -184,7 +188,7 @@ describe('ScrapeExecutor/sequential', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = makeMockScrapeConfig(accounts);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
@@ -204,7 +208,7 @@ describe('ScrapeExecutor/sequential', () => {
       fetchGet: <T>(path: string) => {
         callCount += 1;
         if (path.includes('/api/txns/')) {
-          const r = fail('GENERIC' as never, 'txn fetch failed');
+          const r = fail(ScraperErrorTypes.Generic, 'txn fetch failed');
           return Promise.resolve(r);
         }
         const r = succeed({} as T);
@@ -218,7 +222,7 @@ describe('ScrapeExecutor/sequential', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = makeMockScrapeConfig([MOCK_RAW_ACCOUNT]);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const result = await executeScrape(ctx, config);
@@ -266,7 +270,7 @@ describe('ScrapeExecutor/buildFetchOpts', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = makeMockScrapeConfig([]);
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     await executeScrape(ctx, config);
@@ -295,7 +299,7 @@ describe('ScrapeExecutor/buildFetchOpts', () => {
         const r = succeed({} as T);
         return Promise.resolve(r);
       },
-    } as never;
+    } as unknown as IFetchStrategy;
     const config = {
       ...makeMockScrapeConfig([]),
       /**

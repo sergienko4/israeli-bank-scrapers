@@ -5,6 +5,7 @@
 
 import { jest } from '@jest/globals';
 
+import type { ScraperLogger } from '../../../../../Common/Debug.js';
 import { TERMINATE_STEP } from '../../../../../Scrapers/Pipeline/Phases/TerminatePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { makeMockBrowserState, makeMockContext } from '../MockPipelineFactories.js';
@@ -27,7 +28,10 @@ function makeCtxWithCleanups(
     warn: jest.fn(),
     error: jest.fn(),
   };
-  return makeMockContext({ browser: some(browserState), logger: logger as never });
+  return makeMockContext({
+    browser: some(browserState),
+    logger: logger as unknown as ScraperLogger,
+  });
 }
 
 // ── Tests ─────────────────────────────────────────────────

@@ -5,6 +5,8 @@
 
 import type { Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../Common/Debug.js';
+import type { CompanyTypes } from '../../../../Definitions.js';
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
@@ -13,6 +15,7 @@ import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { IBankScraperConfig } from '../../../../Scrapers/Registry/Config/ScraperConfig.js';
 
 /** Default company ID for test mocks. */
 const TEST_COMPANY_ID = 'testBank';
@@ -72,8 +75,8 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
   const defaults: IPipelineContext = {
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
-    companyId: TEST_COMPANY_ID as never,
-    logger: {} as never,
+    companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
+    logger: {} as unknown as ScraperLogger,
     diagnostics: {
       loginUrl: '',
       finalUrl: none(),
@@ -83,7 +86,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       pageTitle: none(),
       warnings: [],
     },
-    config: {} as never,
+    config: {} as unknown as IBankScraperConfig,
     fetchStrategy: none(),
     mediator: none(),
     browser: none(),
@@ -114,7 +117,7 @@ const MOCK_LOGIN_CONFIG: ILoginConfig = {
   fields: [],
   submit: { kind: 'textContent', value: 'Login' },
   possibleResults: {},
-} as never;
+} as unknown as ILoginConfig;
 
 /**
  * Stub login function for direct-POST mode.

@@ -5,6 +5,7 @@
 
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
+import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
@@ -17,7 +18,7 @@ import {
 const MOCK_OPTIONS = makeMockOptions();
 
 /** OTP config variant for branches tests (string-based). */
-const MOCK_OTP_CONFIG: OtpConfig = 'sms' as never;
+const MOCK_OTP_CONFIG: OtpConfig = 'sms' as unknown as OtpConfig;
 
 describe('PipelineBuilder/withScrapeConfig', () => {
   it('builds with withScrapeConfig instead of withScraper', () => {
@@ -100,7 +101,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
     assertOk(descriptor);
     const loginPhase = descriptor.value.phases[0];
     expect(loginPhase.action.name).toBe('declarative-login');
-    const mockCtx = { credentials: { user: 'test' } } as never;
+    const mockCtx = { credentials: { user: 'test' } } as unknown as IPipelineContext;
     const result = await loginPhase.action.execute(mockCtx, mockCtx);
     expect(result.success).toBe(true);
   });

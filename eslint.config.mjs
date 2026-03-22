@@ -244,7 +244,14 @@ export default tseslint.config(
       'max-lines-per-function': 'off',// Tests are naturally long
       'max-len': 'off',// Test descriptions can be long
       'check-file/filename-naming-convention': 'off',// Allow standard test naming
+
+      //🚨 Prevent the 'as never' / 'as any' bypass in mocks
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+      ],
     },
+
   },
 
   // 5. PIPELINE TESTS: STRUCTURE ENFORCEMENT
@@ -254,6 +261,13 @@ export default tseslint.config(
       'check-file/filename-naming-convention': ['error', { 'src/Tests/**/*.{test,spec}.ts': 'PASCAL_CASE' }, { ignoreMiddleExtensions: true }],
       'check-file/folder-naming-convention': ['error', { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' }],
       'check-file/folder-match-with-fex': ['error', { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' }],
+      'no-restricted-syntax':
+        ['error',
+          {
+            selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
+            message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
+          },
+        ]
     },
   },
 
@@ -375,7 +389,7 @@ export default tseslint.config(
         {
           selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
           message: "🚫 ARCHITECTURE: Use Enums or Constants for type discriminators/status checks.",
-        }
+        },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

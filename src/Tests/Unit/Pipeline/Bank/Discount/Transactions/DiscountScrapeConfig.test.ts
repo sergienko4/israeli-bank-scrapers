@@ -4,6 +4,7 @@
  */
 
 import { DISCOUNT_SCRAPE_CONFIG } from '../../../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
+import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../../Transactions.js';
 
 /** Shorthand for the accounts mapper. */
@@ -137,7 +138,7 @@ describe('DISCOUNT_SCRAPE_CONFIG', () => {
 
   describe('extraHeaders', () => {
     it('returns empty object', () => {
-      const headers = DISCOUNT_SCRAPE_CONFIG.extraHeaders({} as never);
+      const headers = DISCOUNT_SCRAPE_CONFIG.extraHeaders({} as unknown as IPipelineContext);
       expect(headers).toEqual({});
     });
   });

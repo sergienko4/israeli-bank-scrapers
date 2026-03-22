@@ -32,7 +32,7 @@ const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig 
     submit: [{ kind: 'textContent', value: 'כניסה' }],
     possibleResults: {},
     ...overrides,
-  }) as never;
+  }) as unknown as ILoginConfig;
 
 /**
  * Build a mock page whose getByText visibility depends on visibleTexts.
@@ -227,7 +227,7 @@ describe('LoginSteps/preLogin', () => {
        * Mock preAction — returns iframe.
        * @returns Mock frame.
        */
-      preAction: (): Promise<Frame | undefined> => Promise.resolve(mockFrame as never),
+      preAction: (): Promise<Frame | undefined> => Promise.resolve(mockFrame as unknown as Frame),
     });
     const phase = createLoginPhase(config);
     const result = await phase.pre.execute(ctx, ctx);

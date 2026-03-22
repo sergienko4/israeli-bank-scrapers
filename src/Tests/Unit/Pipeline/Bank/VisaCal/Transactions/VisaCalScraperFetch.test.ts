@@ -6,6 +6,7 @@
 import moment from 'moment';
 import type { Page } from 'playwright-core';
 
+import type { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   buildMonths,
@@ -15,6 +16,7 @@ import type { IFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strateg
 import { none, some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { IBankScraperConfig } from '../../../../../../Scrapers/Registry/Config/ScraperConfig.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockBrowserState } from '../../../../Scrapers/Pipeline/MockPipelineFactories.js';
@@ -154,8 +156,11 @@ function makeVisaCalCtx(
   return makeMockContext({
     browser: some(browserState),
     fetchStrategy: some(strategy),
-    options: { startDate, companyId: 'visaCal' as never },
-    config: { urls: { base: '', loginRoute: '', transactions: '' }, api: mockApi } as never,
+    options: { startDate, companyId: 'visaCal' as unknown as CompanyTypes },
+    config: {
+      urls: { base: '', loginRoute: '', transactions: '' },
+      api: mockApi,
+    } as unknown as IBankScraperConfig,
   });
 }
 
@@ -196,8 +201,8 @@ describe('visaCalFetchData', () => {
     const ctx = makeMockContext({
       browser: some(browserState),
       fetchStrategy: some(strategy),
-      options: { startDate: new Date(), companyId: 'visaCal' as never },
-      config: { urls: { base: '' }, api: mockApi } as never,
+      options: { startDate: new Date(), companyId: 'visaCal' as unknown as CompanyTypes },
+      config: { urls: { base: '' }, api: mockApi } as unknown as IBankScraperConfig,
     });
     const result = await visaCalFetchData(ctx);
     const wasOk = isOk(result);
@@ -217,8 +222,8 @@ describe('visaCalFetchData', () => {
     const ctx = makeMockContext({
       browser: some(browserState),
       fetchStrategy: some(strategy),
-      options: { startDate: new Date(), companyId: 'visaCal' as never },
-      config: { urls: { base: '' }, api: sparseApi } as never,
+      options: { startDate: new Date(), companyId: 'visaCal' as unknown as CompanyTypes },
+      config: { urls: { base: '' }, api: sparseApi } as unknown as IBankScraperConfig,
     });
     const result = await visaCalFetchData(ctx);
     const wasOk = isOk(result);

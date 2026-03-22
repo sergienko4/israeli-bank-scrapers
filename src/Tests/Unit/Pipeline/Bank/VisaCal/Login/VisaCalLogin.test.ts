@@ -5,6 +5,7 @@
 
 import type { Locator, Page } from 'playwright-core';
 
+import type { CompanyTypes } from '../../../../../../Definitions.js';
 import type { SelectorCandidate } from '../../../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import {
   buildLocator,
@@ -15,7 +16,7 @@ import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../../Pipeline/Infrastructure/MockFactories.js';
 
 /** Mock options for pipeline builder. */
-const MOCK_OPTIONS = makeMockOptions({ companyId: 'visaCal' as never });
+const MOCK_OPTIONS = makeMockOptions({ companyId: 'visaCal' as unknown as CompanyTypes });
 
 /** Sentinel locator returned by all mock getBy* methods. */
 const SENTINEL_LOCATOR: Locator = {

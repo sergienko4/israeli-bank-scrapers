@@ -1,4 +1,7 @@
+import type { Page } from 'playwright-core';
+
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
+import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
@@ -12,7 +15,7 @@ import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js'
 const MOCK_OPTIONS = {
   companyId: 'test',
   startDate: new Date('2024-01-01'),
-} as never;
+} as unknown as ScraperOptions;
 
 /** Minimal credentials. */
 const MOCK_CREDENTIALS = {
@@ -303,7 +306,10 @@ describe('PipelineExecutor/persistentOtpToken', () => {
      * @returns Context with persistentOtpToken set.
      */
     const setOtpExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-      const loginState = { activeFrame: {} as never, persistentOtpToken: some('TOKEN123') };
+      const loginState = {
+        activeFrame: {} as unknown as Page,
+        persistentOtpToken: some('TOKEN123'),
+      };
       const result = succeed({ ...input, login: some(loginState) });
       return Promise.resolve(result);
     };
@@ -327,7 +333,7 @@ describe('PipelineExecutor/persistentOtpToken', () => {
      * @returns Context with login but no OTP token.
      */
     const setLoginExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-      const loginState = { activeFrame: {} as never, persistentOtpToken: none() };
+      const loginState = { activeFrame: {} as unknown as Page, persistentOtpToken: none() };
       const result = succeed({ ...input, login: some(loginState) });
       return Promise.resolve(result);
     };

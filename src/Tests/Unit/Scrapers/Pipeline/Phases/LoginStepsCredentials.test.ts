@@ -3,6 +3,7 @@
  * Verifies fail-fast on missing or empty credentials.
  */
 
+import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -20,7 +21,7 @@ const MAKE_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig =>
     submit: [{ kind: 'textContent', value: 'כניסה' }],
     possibleResults: {},
     ...overrides,
-  }) as never;
+  }) as unknown as ILoginConfig;
 
 describe('LoginSteps/credential-validation', () => {
   it('fails fast when a required credential key is absent', async () => {
@@ -42,7 +43,7 @@ describe('LoginSteps/credential-validation', () => {
 
   it('fails fast when credential value is empty string', async () => {
     const ctx = makeContextWithLogin();
-    const creds = { username: '', password: 'testpass' } as never;
+    const creds = { username: '', password: 'testpass' } as unknown as ScraperCredentials;
     const withCreds = { ...ctx, credentials: creds };
     const mediator = makeMockMediator();
     const mediatorSome = some(mediator);
