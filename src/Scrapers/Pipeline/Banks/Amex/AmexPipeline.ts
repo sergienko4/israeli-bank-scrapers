@@ -1,46 +1,48 @@
 /**
- * Discount pipeline config — MINIMAL.
+ * Amex pipeline config — MINIMAL.
  * Generic HOME → LOGIN → SCRAPE flow.
  * Bank provides ONLY credential field names.
- * Scrape uses network discovery to find API endpoints dynamically.
+ * Everything else via mediator + WellKnown (black box).
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import { createMonthlyScrapeFn } from '../../Phases/MonthlyScrapeFactory.js';
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { discountFetchData } from './DiscountScraper.js';
+import { AMEX_MONTHLY } from './AmexScraper.js';
 
-const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
+const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
-/** Discount login config — ONLY credential fields. Everything else is generic. */
-const DISCOUNT_LOGIN: ILoginConfig = {
+/** Amex login config — ONLY credential fields. Everything else is generic. */
+const AMEX_LOGIN: ILoginConfig = {
   loginUrl: CFG.urls.base || '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
-    { credentialKey: 'num', selectors: [] },
+    { credentialKey: 'card6Digits', selectors: [] },
   ],
   submit: [],
   possibleResults: { success: [] },
 };
 
 /**
- * Build the Discount pipeline descriptor.
- * @param options - Scraper options from the user.
+ * Build the Amex pipeline descriptor.
+ * @param options - Scraper options.
  * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
  */
-function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
+function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
+  const scrapeFn = createMonthlyScrapeFn(AMEX_MONTHLY);
   return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
-    .withDeclarativeLogin(DISCOUNT_LOGIN)
-    .withScraper(discountFetchData)
+    .withDeclarativeLogin(AMEX_LOGIN)
+    .withScraper(scrapeFn)
     .build();
 }
 
-export default buildDiscountPipeline;
-export { buildDiscountPipeline, DISCOUNT_LOGIN };
+export default buildAmexPipeline;
+export { AMEX_LOGIN, buildAmexPipeline };

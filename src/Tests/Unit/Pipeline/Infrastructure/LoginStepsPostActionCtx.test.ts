@@ -65,6 +65,28 @@ function makeMockMediator(): IElementMediator {
      * @returns Same candidates.
      */
     scopeToForm: (c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c,
+    network: {
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      findEndpoints: (): readonly [] => [],
+      /**
+       * No services URL in mock.
+       * @returns False.
+       */
+      getServicesUrl: (): false => false,
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      getAllEndpoints: (): readonly [] => [],
+      /**
+       * No patterns discovered in mock.
+       * @returns False.
+       */
+      discoverByPatterns: (): false => false,
+    },
   };
   return mediator;
 }

@@ -260,3 +260,32 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
     { kind: 'textContent', value: 'המתנה' },
   ],
 } satisfies Record<string, SelectorCandidate[]>;
+
+/**
+ * WellKnown API endpoint patterns — regex patterns for network discovery.
+ * The mediator uses these to identify captured API traffic by category.
+ * Generic across ALL banks — no bank-specific patterns.
+ */
+export const PIPELINE_WELL_KNOWN_API = {
+  /** Account list endpoints — which accounts the user has. */
+  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i],
+  /** Transaction detail endpoints — fetch transaction history. */
+  transactions: [
+    /lastTransactions/i,
+    /transactionsDetails/i,
+    /filteredTransactions/i,
+    /CardsTransactionsList/i,
+  ],
+  /** Balance/frame endpoints — current balance. */
+  balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
+  /** Auth/login endpoints — discover services base URL. */
+  auth: [
+    /authentication\/login/i,
+    /verification/i,
+    /loginSuccess/i,
+    /ValidateIdData/i,
+    /performLogon/i,
+  ],
+  /** Pending transaction endpoints. */
+  pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
+} satisfies Record<string, RegExp[]>;

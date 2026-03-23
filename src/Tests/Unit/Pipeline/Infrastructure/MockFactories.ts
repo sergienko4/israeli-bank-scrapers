@@ -63,6 +63,11 @@ function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
       currentUrl = newUrl;
       return Promise.resolve(currentUrl);
     },
+    /**
+     * No-op event listener for network discovery.
+     * @returns Self for chaining.
+     */
+    on: (): Page => ({}) as unknown as Page,
   } as unknown as Page;
 }
 

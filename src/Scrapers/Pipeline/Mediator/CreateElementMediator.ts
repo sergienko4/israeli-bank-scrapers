@@ -25,6 +25,7 @@ import {
   discoverFormErrors,
   type IFormErrorScanResult,
 } from './FormErrorDiscovery.js';
+import { createNetworkDiscovery } from './NetworkDiscovery.js';
 import { resolveFieldPipeline } from './PipelineFieldResolver.js';
 
 const LOG = getDebug('element-mediator');
@@ -361,6 +362,7 @@ function createElementMediator(page: Page): IElementMediator {
     waitForLoadingDone: buildWaitForLoadingDone(),
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
+    network: createNetworkDiscovery(page),
   };
   return mediator;
 }

@@ -20,6 +20,7 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import type { Procedure } from '../Types/Procedure.js';
 import type { IFormErrorScanResult } from './FormErrorDiscovery.js';
+import type { INetworkDiscovery } from './NetworkDiscovery.js';
 
 /** High-level element resolution — scrapers describe intent, Mediator resolves. */
 interface IElementMediator {
@@ -74,6 +75,9 @@ interface IElementMediator {
 
   /** Scope candidates to the cached form anchor. */
   scopeToForm(candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[];
+
+  /** Network discovery — captures API traffic from browser page. */
+  readonly network: INetworkDiscovery;
 }
 
 export default IElementMediator;

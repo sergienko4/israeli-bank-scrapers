@@ -131,6 +131,11 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns Resolved true.
      */
     fill: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * No-op event listener mock for network discovery.
+     * @returns Self for chaining.
+     */
+    on: (): Page => ({}) as unknown as Page,
   } as unknown as Page;
 }
 
@@ -330,6 +335,28 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Same array.
      */
     scopeToForm: candidates => candidates,
+    network: {
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      findEndpoints: (): readonly [] => [],
+      /**
+       * No services URL in mock.
+       * @returns False.
+       */
+      getServicesUrl: (): false => false,
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      getAllEndpoints: (): readonly [] => [],
+      /**
+       * No patterns discovered in mock.
+       * @returns False.
+       */
+      discoverByPatterns: (): false => false,
+    },
   };
   return { ...base, ...overrides };
 }
