@@ -8,7 +8,10 @@ import moment from 'moment';
 
 import type { ITransaction } from '../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../Transactions.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import {
+  PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+} from '../Registry/PipelineWellKnown.js';
 
 /** Max depth for BFS field search — prevents infinite traversal. */
 const MAX_SEARCH_DEPTH = 10;
@@ -199,11 +202,74 @@ function extractTransactions(responseBody: Record<string, unknown>): readonly IT
     .map((item): ITransaction => autoMapTransaction(item as Record<string, unknown>));
 }
 
+/**
+ * Check if a captured POST body indicates monthly iteration.
+ * Looks for WellKnown month + year fields in the postData.
+ * @param postData - Captured POST body string.
+ * @returns True if the endpoint uses monthly fetching.
+ */
+function isMonthlyEndpoint(postData: string): boolean {
+  if (!postData) return false;
+  try {
+    const body = JSON.parse(postData) as Record<string, unknown>;
+    const hasMonth = MF.month.some((f): boolean => body[f] !== undefined);
+    const hasYear = MF.year.some((f): boolean => body[f] !== undefined);
+    return hasMonth && hasYear;
+  } catch {
+    return false;
+  }
+}
+
+/** Options for building a monthly POST body. */
+interface IMonthBodyOpts {
+  readonly template: string;
+  readonly accountId: string;
+  readonly month: number;
+  readonly year: number;
+}
+
+/**
+ * Replace a WellKnown field in a parsed body with a new value.
+ * @param body - Parsed body object.
+ * @param fieldNames - WellKnown field names to look for.
+ * @param value - New value to set.
+ * @returns True if a field was replaced.
+ */
+function replaceField(
+  body: Record<string, unknown>,
+  fieldNames: readonly string[],
+  value: string,
+): boolean {
+  const keys = Object.keys(body);
+  const hit = fieldNames.find((f): boolean => keys.includes(f));
+  if (!hit) return false;
+  body[hit] = value;
+  return true;
+}
+
+/**
+ * Build a POST body for one month from a captured template.
+ * Replaces the account ID + month + year fields in the template.
+ * @param opts - Month body options with template + values.
+ * @returns New POST body as Record.
+ */
+function buildMonthBody(opts: IMonthBodyOpts): Record<string, unknown> {
+  const body = JSON.parse(opts.template) as Record<string, unknown>;
+  replaceField(body, MF.accountId, opts.accountId);
+  const monthStr = String(opts.month);
+  const yearStr = String(opts.year);
+  replaceField(body, MF.month, monthStr);
+  replaceField(body, MF.year, yearStr);
+  return body;
+}
+
 export {
   autoMapTransaction,
+  buildMonthBody,
   extractAccountIds,
   extractTransactions,
   findFieldValue,
   findFirstArray,
+  isMonthlyEndpoint,
   parseAutoDate,
 };

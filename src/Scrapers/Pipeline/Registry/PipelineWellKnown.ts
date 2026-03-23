@@ -335,3 +335,16 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   /** Balance field names. */
   balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
 } satisfies Record<string, string[]>;
+
+/**
+ * WellKnown monthly POST body field names — for detecting monthly iteration.
+ * If a captured POST body has these fields, the endpoint uses monthly fetching.
+ */
+export const PIPELINE_WELL_KNOWN_MONTHLY_FIELDS = {
+  /** Month number field names in POST body. */
+  month: ['month', 'billingMonth', 'Month'],
+  /** Year field names in POST body. */
+  year: ['year', 'billingYear', 'Year'],
+  /** Account/card ID field names in POST body. */
+  accountId: ['cardUniqueId', 'accountId', 'cardNumber', 'CardId'],
+} satisfies Record<string, string[]>;

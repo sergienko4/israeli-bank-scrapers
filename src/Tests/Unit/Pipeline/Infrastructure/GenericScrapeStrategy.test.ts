@@ -5,9 +5,11 @@
 
 import {
   autoMapTransaction,
+  buildMonthBody,
   extractAccountIds,
   findFieldValue,
   findFirstArray,
+  isMonthlyEndpoint,
   parseAutoDate,
 } from '../../../../Scrapers/Pipeline/Mediator/GenericScrapeStrategy.js';
 
@@ -168,5 +170,50 @@ describe('parseAutoDate', () => {
   it('returns original string for unknown format', () => {
     const result = parseAutoDate('not-a-date');
     expect(result).toBe('not-a-date');
+  });
+});
+
+describe('isMonthlyEndpoint', () => {
+  it('returns true for VisaCal-style body with month + year', () => {
+    const body = JSON.stringify({ cardUniqueId: 'c1', month: '3', year: '2026' });
+    const isMonthly = isMonthlyEndpoint(body);
+    expect(isMonthly).toBe(true);
+  });
+
+  it('returns false for Discount-style (no month/year in body)', () => {
+    const isMonthly = isMonthlyEndpoint('');
+    expect(isMonthly).toBe(false);
+  });
+
+  it('returns false for invalid JSON', () => {
+    const isMonthly = isMonthlyEndpoint('not-json');
+    expect(isMonthly).toBe(false);
+  });
+
+  it('returns false when only month present (no year)', () => {
+    const body = JSON.stringify({ month: '3' });
+    const isMonthly = isMonthlyEndpoint(body);
+    expect(isMonthly).toBe(false);
+  });
+});
+
+describe('buildMonthBody', () => {
+  it('replaces cardUniqueId + month + year in template', () => {
+    const template = JSON.stringify({ cardUniqueId: 'old', month: '1', year: '2025' });
+    const body = buildMonthBody({ template, accountId: 'new-card', month: 3, year: 2026 });
+    expect(body.cardUniqueId).toBe('new-card');
+    expect(body.month).toBe('3');
+    expect(body.year).toBe('2026');
+  });
+
+  it('preserves other fields in template', () => {
+    const template = JSON.stringify({
+      cardUniqueId: 'c1',
+      month: '1',
+      year: '2025',
+      extra: 'keep',
+    });
+    const body = buildMonthBody({ template, accountId: 'c2', month: 6, year: 2026 });
+    expect(body.extra).toBe('keep');
   });
 });
