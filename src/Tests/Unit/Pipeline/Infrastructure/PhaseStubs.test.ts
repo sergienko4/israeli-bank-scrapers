@@ -1,4 +1,3 @@
-import { DASHBOARD_STEP } from '../../../../Scrapers/Pipeline/Phases/DashboardPhase.js';
 import {
   createLoginStep,
   DECLARATIVE_LOGIN_STEP,
@@ -23,7 +22,6 @@ const STUB_STEPS: StepEntry[] = [
   ['direct-post-login', DIRECT_POST_LOGIN_STEP],
   ['native-login', NATIVE_LOGIN_STEP],
   ['otp', OTP_STEP],
-  ['dashboard', DASHBOARD_STEP],
   ['scrape', SCRAPE_STEP],
 ];
 

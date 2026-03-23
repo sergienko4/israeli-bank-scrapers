@@ -8,7 +8,7 @@ import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
 /** The six standard pipeline phases. */
-type PhaseName = 'init' | 'login' | 'otp' | 'dashboard' | 'scrape' | 'terminate';
+type PhaseName = 'init' | 'home' | 'login' | 'otp' | 'dashboard' | 'scrape' | 'terminate';
 
 /** A single executable step within a phase. */
 interface IPipelineStep<TIn, TOut> {

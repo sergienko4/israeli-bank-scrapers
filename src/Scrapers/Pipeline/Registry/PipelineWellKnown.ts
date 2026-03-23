@@ -14,19 +14,20 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
  */
 export const PIPELINE_WELL_KNOWN_LOGIN = {
   username: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'שם משתמש' },
-    { kind: 'labelText', value: 'קוד משתמש' },
-    { kind: 'labelText', value: 'מספר לקוח' },
+    // --- placeholder first (most specific — targets input directly) ---
     { kind: 'placeholder', value: 'שם משתמש' },
     { kind: 'placeholder', value: 'קוד משתמש' },
     { kind: 'placeholder', value: 'מספר לקוח' },
     { kind: 'placeholder', value: 'תז' },
-    { kind: 'ariaLabel', value: 'שם משתמש' },
-    { kind: 'ariaLabel', value: 'קוד משתמש' },
     // --- semantic HTML ---
     { kind: 'name', value: 'username' },
     { kind: 'name', value: 'userCode' },
+    // --- visible text ---
+    { kind: 'labelText', value: 'שם משתמש' },
+    { kind: 'labelText', value: 'קוד משתמש' },
+    { kind: 'labelText', value: 'מספר לקוח' },
+    { kind: 'ariaLabel', value: 'שם משתמש' },
+    { kind: 'ariaLabel', value: 'קוד משתמש' },
     // --- walk-up DOM ---
     { kind: 'textContent', value: 'שם משתמש' },
     { kind: 'textContent', value: 'קוד משתמש' },
@@ -47,16 +48,17 @@ export const PIPELINE_WELL_KNOWN_LOGIN = {
     { kind: 'textContent', value: 'שם משתמש' },
   ],
   password: [
+    // --- placeholder first (most specific — avoids radio/checkbox ambiguity) ---
+    { kind: 'placeholder', value: 'סיסמה' },
+    { kind: 'placeholder', value: 'סיסמא' },
+    { kind: 'placeholder', value: 'קוד סודי' },
+    // --- semantic HTML ---
+    { kind: 'name', value: 'password' },
     // --- visible text ---
     { kind: 'labelText', value: 'סיסמה' },
     { kind: 'labelText', value: 'סיסמא' },
     { kind: 'labelText', value: 'קוד סודי' },
-    { kind: 'placeholder', value: 'סיסמה' },
-    { kind: 'placeholder', value: 'סיסמא' },
-    { kind: 'placeholder', value: 'קוד סודי' },
     { kind: 'ariaLabel', value: 'סיסמה' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'password' },
     // --- walk-up DOM ---
     { kind: 'textContent', value: 'סיסמה' },
     { kind: 'textContent', value: 'סיסמא' },
@@ -193,8 +195,20 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
     { kind: 'ariaLabel', value: 'בחר חשבון' },
   ],
   dashboardIndicator: [
+    // greeting pattern: "היי name, text!" (logged-in state)
+    { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
     { kind: 'textContent', value: 'שלום' },
+    // Discount dashboard
+    { kind: 'textContent', value: 'כניסתך האחרונה' },
+    { kind: 'textContent', value: 'כניסה אחרונה' },
+    { kind: 'textContent', value: 'מצב החשבון' },
+    { kind: 'textContent', value: 'יתרת עו"ש' },
     { kind: 'textContent', value: 'חשבון עו"ש' },
+    // VisaCal dashboard
+    { kind: 'textContent', value: 'עסקאות וחיובים' },
+    { kind: 'textContent', value: 'חיובים ועסקאות' },
+    { kind: 'textContent', value: 'עסקאות אחרונות' },
+    // generic
     { kind: 'textContent', value: 'תנועות אחרונות' },
     { kind: 'textContent', value: 'יתרה' },
     { kind: 'textContent', value: 'סך הכל' },

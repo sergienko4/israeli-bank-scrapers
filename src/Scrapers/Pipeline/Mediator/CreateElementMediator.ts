@@ -4,7 +4,7 @@
  * Each mediator instance has its own form anchor cache (no shared mutable state).
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
 import {
@@ -34,29 +34,67 @@ interface IFormCache {
   selector: string;
 }
 
-/**
- * Build resolveField method bound to a page.
- * Searches main page + all child iframes via resolveFieldPipeline.
- * @param page - The Playwright page.
- * @returns Mediator resolveField function.
- */
-/** Options for resolveFieldToProcedure. */
+/** Options for field resolution — bundled to satisfy max-params. */
 interface IResolveOpts {
   readonly page: Page;
   readonly fieldKey: string;
   readonly candidates: readonly SelectorCandidate[];
-  readonly notFoundMsg: string;
+  readonly scopeContext?: Page | Frame;
+  readonly formSelector?: string;
 }
 
 /**
- * Resolve a field and convert to Procedure — no try/catch (caller handles).
- * @param opts - Resolution options.
+ * Try scoped resolve in the same iframe — flat, no nesting.
+ * @param opts - Bundled resolution options.
+ * @returns Resolved field context or null-ish if not found in scope.
+ */
+async function tryScopedResolve(opts: IResolveOpts): Promise<IFieldContext | false> {
+  if (!opts.scopeContext) return false;
+  const scoped = await resolveFieldPipeline({
+    pageOrFrame: opts.scopeContext,
+    fieldKey: opts.fieldKey,
+    bankCandidates: opts.candidates,
+    formSelector: opts.formSelector,
+  });
+  if (scoped.isResolved) return scoped;
+  return false;
+}
+
+/**
+ * Try scoped search first, then full page scan.
+ * @param opts - Bundled resolution options.
  * @returns Success or failure Procedure.
  */
-async function resolveFieldToProcedure(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
-  const ctx = await resolveFieldPipeline(opts.page, opts.fieldKey, opts.candidates);
-  if (ctx.isResolved) return succeed<IFieldContext>(ctx);
-  return fail(ScraperErrorTypes.Generic, opts.notFoundMsg);
+async function resolveFieldImpl(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
+  const notFoundMsg = `Field not found: ${opts.fieldKey}`;
+  const scopeHit = await tryScopedResolve(opts);
+  if (scopeHit) return succeed<IFieldContext>(scopeHit);
+  const wide = await resolveFieldPipeline({
+    pageOrFrame: opts.page,
+    fieldKey: opts.fieldKey,
+    bankCandidates: opts.candidates,
+  });
+  if (wide.isResolved) return succeed<IFieldContext>(wide);
+  return fail(ScraperErrorTypes.Generic, notFoundMsg);
+}
+
+/**
+ * Catch resolution errors and return failure Procedure.
+ * @param error - Thrown error.
+ * @returns Failure Procedure.
+ */
+function handleResolveError(error: Error): Procedure<IFieldContext> {
+  const msg = toErrorMessage(error);
+  return fail(ScraperErrorTypes.Generic, msg);
+}
+
+/**
+ * Resolve a field by key — delegates to resolveFieldImpl.
+ * @param opts - Bundled resolution options.
+ * @returns Procedure with resolved field context.
+ */
+function resolveFieldForPage(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
+  return resolveFieldImpl(opts).catch(handleResolveError);
 }
 
 /**
@@ -65,20 +103,13 @@ async function resolveFieldToProcedure(opts: IResolveOpts): Promise<Procedure<IF
  * @returns Mediator resolveField function.
  */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return (fieldKey, candidates): Promise<Procedure<IFieldContext>> => {
-    const notFoundMsg = `Field not found: ${fieldKey} on ${page.url()}`;
-    const opts = { page, fieldKey, candidates, notFoundMsg };
-    /**
-     * Catch resolution errors and return failure Procedure.
-     * @param error - Thrown error.
-     * @returns Failure Procedure.
-     */
-    const handleError = (error: Error): Procedure<IFieldContext> => {
-      const msg = toErrorMessage(error);
-      return fail(ScraperErrorTypes.Generic, msg);
-    };
-    return resolveFieldToProcedure(opts).catch(handleError);
-  };
+  return ((
+    ...args: Parameters<IElementMediator['resolveField']>
+  ): Promise<Procedure<IFieldContext>> => {
+    const [fieldKey, candidates, scopeContext, formSelector] = args;
+    const opts: IResolveOpts = { page, fieldKey, candidates, scopeContext, formSelector };
+    return resolveFieldForPage(opts);
+  }) as IElementMediator['resolveField'];
 }
 
 /**
@@ -91,17 +122,8 @@ function buildResolveField(page: Page): IElementMediator['resolveField'] {
  */
 function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
   return (candidates): Promise<Procedure<IFieldContext>> => {
-    const opts = { page, fieldKey: '__submit__', candidates, notFoundMsg: 'Clickable not found' };
-    /**
-     * Catch resolution errors and return failure Procedure.
-     * @param error - Thrown error.
-     * @returns Failure Procedure.
-     */
-    const handleError = (error: Error): Procedure<IFieldContext> => {
-      const msg = toErrorMessage(error);
-      return fail(ScraperErrorTypes.Generic, msg);
-    };
-    return resolveFieldToProcedure(opts).catch(handleError);
+    const opts: IResolveOpts = { page, fieldKey: '__submit__', candidates };
+    return resolveFieldImpl(opts).catch(handleResolveError);
   };
 }
 
@@ -170,12 +192,6 @@ function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
 }
 
 /**
- * Build discoverForm method with per-instance cache.
- * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
- * @param cache - Mutable form cache owned by this mediator instance.
- * @returns Mediator discoverForm function.
- */
-/**
  * Discover form anchor and update cache — no try/catch (caller handles).
  * @param cache - Form cache to update.
  * @param resolvedContext - Resolved field context.
@@ -228,6 +244,107 @@ function buildScopeToForm(cache: IFormCache): IElementMediator['scopeToForm'] {
   };
 }
 
+/** Interactive ancestor tags for walk-up — same as SelectorLabelStrategies. */
+const CLICK_ANCESTORS = ['button', 'a', 'select', 'div', 'span'] as const;
+
+/** Timeout for parallel resolveAndClick race. */
+const CLICK_RACE_TIMEOUT = 3000;
+
+/**
+ * Build xpath locators for a textContent candidate.
+ * Walk-up to each interactive ancestor — same logic as resolveByAncestorWalkUp.
+ * @param ctx - Playwright Page or Frame context.
+ * @param text - Visible text to find.
+ * @returns Array of Playwright Locators targeting interactive ancestors.
+ */
+function buildWalkUpLocators(ctx: Page | Frame, text: string): Locator[] {
+  return CLICK_ANCESTORS.map(
+    (tag): Locator => ctx.locator(`xpath=//${tag}[.//text()[contains(., "${text}")]]`).first(),
+  );
+}
+
+/**
+ * Build a Playwright locator from a SelectorCandidate.
+ * Handles textContent (walk-up), ariaLabel, placeholder, xpath, name kinds.
+ * Works on both Page and Frame (for iframe search).
+ * @param ctx - Playwright Page or Frame.
+ * @param candidate - The selector candidate.
+ * @returns Array of locators to race (textContent produces multiple walk-up targets).
+ */
+function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate): Locator[] {
+  if (candidate.kind === 'textContent') return buildWalkUpLocators(ctx, candidate.value);
+  if (candidate.kind === 'ariaLabel') return [ctx.getByLabel(candidate.value).first()];
+  if (candidate.kind === 'placeholder') return [ctx.getByPlaceholder(candidate.value).first()];
+  if (candidate.kind === 'xpath') return [ctx.locator(candidate.value).first()];
+  if (candidate.kind === 'name') return [ctx.locator(`[name="${candidate.value}"]`).first()];
+  if (candidate.kind === 'regex') return [ctx.getByText(new RegExp(candidate.value)).first()];
+  return [ctx.getByText(candidate.value).first()];
+}
+
+/**
+ * Collect all contexts to search: main page + child iframes.
+ * @param page - The Playwright page.
+ * @returns Array of Page/Frame contexts to build locators from.
+ */
+function getAllContexts(page: Page): (Page | Frame)[] {
+  const mainFrame = page.mainFrame();
+  const childFrames = page.frames().filter((f): boolean => f !== mainFrame);
+  return [page, ...childFrames];
+}
+
+/**
+ * Race all locators in parallel — first visible wins. Returns winning index or -1.
+ * @param locators - Array of Playwright locators to race.
+ * @param timeout - Timeout in ms for each locator.
+ * @returns Index of first visible locator, or -1 if none.
+ */
+async function raceLocators(locators: Locator[], timeout: number): Promise<number> {
+  const waiters = locators.map(async (loc, i): Promise<number> => {
+    await loc.waitFor({ state: 'visible', timeout });
+    return i;
+  });
+  const results = await Promise.allSettled(waiters);
+  const winner = results.find((r): boolean => r.status === 'fulfilled');
+  if (winner?.status !== 'fulfilled') return -1;
+  return winner.value;
+}
+
+/**
+ * Resolve and click — parallel race across main page + iframes.
+ * @param page - The Playwright page.
+ * @param candidates - WellKnown selector candidates.
+ * @param timeout - Race timeout in ms.
+ * @returns True if element found and clicked.
+ */
+async function resolveAndClickImpl(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+  timeout: number,
+): Promise<boolean> {
+  const contexts = getAllContexts(page);
+  const allLocators = contexts.flatMap((ctx): Locator[] =>
+    candidates.flatMap((c): Locator[] => buildCandidateLocators(ctx, c)),
+  );
+  LOG.debug('resolveAndClick: %d locators, timeout=%dms', allLocators.length, timeout);
+  const winnerIdx = await raceLocators(allLocators, timeout);
+  if (winnerIdx < 0) return false;
+  await allLocators[winnerIdx].click();
+  return true;
+}
+
+/**
+ * Build resolveAndClick method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveAndClick function.
+ */
+function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
+  return (candidates, timeoutMs?): Promise<boolean> => {
+    if (candidates.length === 0) return Promise.resolve(false);
+    const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
+    return resolveAndClickImpl(page, candidates, timeout);
+  };
+}
+
 /**
  * Create an ElementMediator for the given page.
  * Each instance has its own form anchor cache — safe for concurrent use.
@@ -239,6 +356,7 @@ function createElementMediator(page: Page): IElementMediator {
   const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
+    resolveAndClick: buildResolveAndClick(page),
     discoverErrors: buildDiscoverErrors(),
     waitForLoadingDone: buildWaitForLoadingDone(),
     discoverForm: buildDiscoverForm(cache),

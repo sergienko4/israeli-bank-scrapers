@@ -1,0 +1,122 @@
+/**
+ * Generic pre-login steps — mediator-based navigation helpers.
+ * ALL HTML resolution goes through mediator/resolver. No direct page.getByText.
+ * These steps are best-effort — they catch errors and return false if not found.
+ */
+
+import type { Locator, Page } from 'playwright-core';
+
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import {
+  PIPELINE_WELL_KNOWN_DASHBOARD,
+  PIPELINE_WELL_KNOWN_LOGIN,
+} from '../Registry/PipelineWellKnown.js';
+
+/** Timeout for waiting for page readiness (login link visible). */
+const PAGE_READINESS_TIMEOUT = 30000;
+
+/** Timeout for waiting for first credential field to appear. */
+const FIELD_WAIT_TIMEOUT = 15000;
+
+/**
+ * Try to close a popup overlay using WellKnown closeElement candidates.
+ * @param mediator - Element mediator with resolver.
+ * @returns True if a close element was found and clicked.
+ */
+async function tryClosePopup(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.closeElement;
+  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+}
+
+/**
+ * Try to click a login link using WellKnown loginLink candidates.
+ * @param mediator - Element mediator with resolver.
+ * @returns True if a login link was found and clicked.
+ */
+async function tryClickLoginLink(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+}
+
+/**
+ * Try to click private customers link using WellKnown privateCustomers.
+ * If found, waits for /login navigation.
+ * @param mediator - Element mediator with resolver.
+ * @param page - Browser page (for URL wait).
+ * @param navTimeout - Navigation wait timeout in ms.
+ * @returns True if clicked and navigated.
+ */
+async function tryClickPrivateCustomers(
+  mediator: IElementMediator,
+  page: Page,
+  navTimeout: number,
+): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.privateCustomers;
+  const didClick = await mediator.resolveAndClick(candidates).catch((): boolean => false);
+  if (!didClick) return false;
+  const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
+  return page
+    .waitForURL('**/login**', navOpts)
+    .then((): boolean => true)
+    .catch((): boolean => false);
+}
+
+/**
+ * Try to click the login method tab using WellKnown loginMethodTab.
+ * @param mediator - Element mediator with resolver.
+ * @returns True if a tab was found and clicked.
+ */
+async function tryClickLoginMethodTab(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
+  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+}
+
+/**
+ * Wait for any WellKnown loginLink candidate to become visible.
+ * Generic page readiness check after navigation.
+ * @param page - Browser page.
+ * @returns True if any login link became visible, false on timeout.
+ */
+async function waitForAnyLoginLink(page: Page): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  const locators = candidates.map((c): Locator => page.getByText(c.value).first());
+  const waiters = locators.map(async (loc, i): Promise<number> => {
+    await loc.waitFor({ state: 'visible', timeout: PAGE_READINESS_TIMEOUT });
+    return i;
+  });
+  const results = await Promise.allSettled(waiters);
+  return results.some((r): boolean => r.status === 'fulfilled');
+}
+
+/**
+ * Wait for any WellKnown login field candidate to become visible.
+ * Ensures the login form is rendered before the mediator tries to fill fields.
+ * @param page - Browser page.
+ * @returns True if a field indicator became visible, false on timeout.
+ */
+async function waitForFirstField(page: Page): Promise<boolean> {
+  const fieldCandidates = [
+    ...PIPELINE_WELL_KNOWN_LOGIN.username,
+    ...PIPELINE_WELL_KNOWN_LOGIN.password,
+  ];
+  const locators = fieldCandidates.map((c): Locator => {
+    if (c.kind === 'placeholder') return page.getByPlaceholder(c.value).first();
+    if (c.kind === 'labelText') return page.getByLabel(c.value).first();
+    return page.getByText(c.value).first();
+  });
+  const waiters = locators.map(async (loc, i): Promise<number> => {
+    await loc.waitFor({ state: 'visible', timeout: FIELD_WAIT_TIMEOUT });
+    return i;
+  });
+  const results = await Promise.allSettled(waiters);
+  return results.some((r): boolean => r.status === 'fulfilled');
+}
+
+export {
+  tryClickLoginLink,
+  tryClickLoginMethodTab,
+  tryClickPrivateCustomers,
+  tryClosePopup,
+  waitForAnyLoginLink,
+  waitForFirstField,
+};

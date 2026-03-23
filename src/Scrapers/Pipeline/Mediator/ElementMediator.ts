@@ -25,12 +25,18 @@ import type { IFormErrorScanResult } from './FormErrorDiscovery.js';
 interface IElementMediator {
   /**
    * Resolve an input field by credential key.
-   * Searches main page and all child iframes automatically.
+   * If scopeContext provided: searches ONLY that iframe/frame first (scoped).
+   * Falls back to searching all iframes if scoped search fails or no scope.
    * Returns IFieldContext including the frame context where element was found.
+   * @param fieldKey - The credential key (e.g., 'username', 'password').
+   * @param candidates - Bank-specific selector candidates (can be empty).
+   * @param scopeContext - Optional: iframe/frame where a previous field was found.
    */
   resolveField(
     fieldKey: string,
     candidates: readonly SelectorCandidate[],
+    scopeContext?: Page | Frame,
+    formSelector?: string,
   ): Promise<Procedure<IFieldContext>>;
 
   /**
@@ -53,6 +59,15 @@ interface IElementMediator {
    * Generic — works for any bank after form submit, OTP, or dashboard navigation.
    */
   waitForLoadingDone(frame: Page | Frame): Promise<boolean>;
+
+  /**
+   * Resolve a clickable element and click it. Best-effort: returns false if not found.
+   * Uses the resolver's text→walk-up-to-interactive-ancestor pipeline.
+   * @param candidates - WellKnown selector candidates to try.
+   * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
+   * @returns True if element was found and clicked, false otherwise.
+   */
+  resolveAndClick(candidates: readonly SelectorCandidate[], timeoutMs?: number): Promise<boolean>;
 
   /** Discover and cache the form anchor from a resolved field. */
   discoverForm(resolvedContext: IFieldContext): Promise<Option<IFormAnchor>>;

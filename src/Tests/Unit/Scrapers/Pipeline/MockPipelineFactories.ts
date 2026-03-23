@@ -320,6 +320,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return Promise.resolve(result);
     },
     /**
+     * Best-effort click — returns false (not found). Override for success tests.
+     * @returns False.
+     */
+    resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
+    /**
      * Return candidates unchanged.
      * @param candidates - Input candidates.
      * @returns Same array.

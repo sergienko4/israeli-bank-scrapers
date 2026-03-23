@@ -91,7 +91,11 @@ describe('resolveFieldPipeline/success-main-page', () => {
     metaFn.mockResolvedValue(MOCK_META);
 
     const page = MOCK_PAGE;
-    const result = await RESOLVER_MOD.resolveFieldPipeline(page, 'username', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: page,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     expect(result.isResolved).toBe(true);
     expect(result.selector).toBe('#mat-input-2');
   });
@@ -104,7 +108,11 @@ describe('resolveFieldPipeline/success-main-page', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockResolvedValue(MOCK_META);
 
-    const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'username', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     expect(result.metadata?.id).toBe('mat-input-2');
   });
 
@@ -119,7 +127,11 @@ describe('resolveFieldPipeline/success-main-page', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockRejectedValue(new Error('invalid selector'));
 
-    const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, '__submit__', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: '__submit__',
+      bankCandidates: [],
+    });
     expect(result.metadata).toBeDefined();
     expect(result.metadata?.id).toBe('');
   });
@@ -135,7 +147,11 @@ describe('resolveFieldPipeline/iframe-search', () => {
     metaFn.mockResolvedValue(MOCK_META);
 
     const page = MOCK_PAGE;
-    const result = await RESOLVER_MOD.resolveFieldPipeline(page, 'username', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: page,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     expect(probeIframes).toHaveBeenCalled();
     expect(result.isResolved).toBe(true);
   });
@@ -150,7 +166,11 @@ describe('resolveFieldPipeline/iframe-search', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockResolvedValue(MOCK_META);
 
-    const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'username', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     expect(SRP_MOD.probeMainPage).toHaveBeenCalled();
     expect(result.isResolved).toBe(true);
   });
@@ -165,7 +185,11 @@ describe('resolveFieldPipeline/not-found', () => {
     const buildNotFound = SRP_MOD.buildNotFoundContext as jest.Mock;
     buildNotFound.mockResolvedValue(NOT_FOUND_CTX);
 
-    const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'id', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'id',
+      bankCandidates: [],
+    });
     expect(result.isResolved).toBe(false);
   });
 
@@ -177,7 +201,11 @@ describe('resolveFieldPipeline/not-found', () => {
     const buildNotFound = SRP_MOD.buildNotFoundContext as jest.Mock;
     buildNotFound.mockResolvedValue(NOT_FOUND_CTX);
 
-    const result = await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'id', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'id',
+      bankCandidates: [],
+    });
     expect(result.metadata).toBeUndefined();
   });
 });
@@ -191,7 +219,11 @@ describe('resolveFieldPipeline/frame-context', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockResolvedValue(MOCK_META);
     const mockFrame = {} as unknown as Page;
-    const result = await RESOLVER_MOD.resolveFieldPipeline(mockFrame, 'username', []);
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: mockFrame,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     expect(result.isResolved).toBe(true);
   });
 });
@@ -211,7 +243,11 @@ describe('resolveFieldPipeline/wellKnown-lookup', () => {
       return Promise.resolve(RESOLVED_CTX);
     });
 
-    await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'username', []);
+    await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
     const opts = capturedOpts[0] as { wellKnownCandidates: unknown[] };
     expect(opts.wellKnownCandidates.length).toBeGreaterThan(0);
   });
@@ -228,7 +264,11 @@ describe('resolveFieldPipeline/wellKnown-lookup', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockResolvedValue(MOCK_META);
 
-    await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, 'unknownField123', []);
+    await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'unknownField123',
+      bankCandidates: [],
+    });
     const opts = capturedOpts[0] as { wellKnownCandidates: unknown[] };
     expect(opts.wellKnownCandidates).toHaveLength(0);
   });
@@ -245,7 +285,11 @@ describe('resolveFieldPipeline/wellKnown-lookup', () => {
     const metaFn = META_MOD.extractMetadata as jest.Mock;
     metaFn.mockResolvedValue(MOCK_META);
 
-    await RESOLVER_MOD.resolveFieldPipeline(MOCK_PAGE, '__submit__', []);
+    await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: '__submit__',
+      bankCandidates: [],
+    });
     const opts = capturedOpts[0] as { wellKnownCandidates: unknown[] };
     expect(opts.wellKnownCandidates.length).toBeGreaterThan(0);
   });

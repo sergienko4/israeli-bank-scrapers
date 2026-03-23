@@ -134,7 +134,7 @@ describe('createElementMediator/resolveClickable', () => {
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveClickable([]);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('Clickable not found');
+    if (!result.success) expect(result.errorMessage).toContain('Field not found');
   });
 
   it('returns fail when resolveFieldPipeline throws', async () => {

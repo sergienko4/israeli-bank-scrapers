@@ -10,7 +10,7 @@
  * All HTML resolution flows through ctx.mediator (injected by InitPhase).
  */
 
-import type { Frame, Locator, Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import { fillInput } from '../../../Common/ElementsInteractions.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
@@ -18,18 +18,15 @@ import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
+import { hasPipelinePostAction } from '../Types/PipelineLoginConfig.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
 // ── Constants ─────────────────────────────────────────────
-
-/** Timeout for login method tab detection (quick probe, not blocking). */
-const LOGIN_METHOD_TAB_TIMEOUT = 2000;
 
 /** Timeout for post-login page settle (networkidle). */
 const POST_LOGIN_SETTLE_TIMEOUT = 15000;
@@ -46,85 +43,20 @@ export interface IFillOpts {
 // ── preLogin helpers ───────────────────────────────────────
 
 /**
- * Navigate to login URL.
- * @param page - Browser page.
- * @param loginUrl - Target URL.
- * @returns True after navigation.
- */
-async function navigateToLogin(page: Page, loginUrl: string): Promise<boolean> {
-  await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
-  return true;
-}
-
-/**
- * Run checkReadiness callback if provided.
- * @param page - Browser page.
- * @param config - Login config with optional checkReadiness.
- * @returns True when ready.
- */
-async function runCheckReadiness(page: Page, config: ILoginConfig): Promise<boolean> {
-  if (config.checkReadiness) await config.checkReadiness(page);
-  return true;
-}
-
-/**
- * Run preAction callback if provided (opens popup/iframe).
- * @param page - Browser page.
- * @param config - Login config with optional preAction.
- * @returns The login frame (if iframe), or the page itself.
- */
-async function runPreAction(page: Page, config: ILoginConfig): Promise<Page | Frame> {
-  if (!config.preAction) return page;
-  const frame = await config.preAction(page);
-  return frame ?? page;
-}
-
-/**
- * Try to click the login method selection tab if present on the current page.
- * Generic for ALL banks — banks without a method-selection page: all candidates
- * reject within 2s (timeout) and the function silently returns false.
- * Banks with a tab (e.g. VisaCal send-otp): clicks "כניסה עם שם משתמש" or
- * "כניסה עם סיסמה" and returns true, navigating to the credentials form.
- * Uses PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab — zero CSS, visible text only.
- * @param activeFrame - Page or iframe returned by preAction.
- * @returns True if a tab was found and clicked, false if not present.
- */
-export async function tryClickLoginMethodTab(activeFrame: Page | Frame): Promise<boolean> {
-  const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
-  const locators = candidates.map((c): Locator => activeFrame.getByText(c.value).first());
-  const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state: 'visible', timeout: LOGIN_METHOD_TAB_TIMEOUT });
-    return i;
-  });
-  const results = await Promise.allSettled(waiters);
-  const fulfilled = results.find((r): boolean => r.status === 'fulfilled');
-  if (fulfilled?.status !== 'fulfilled') return false;
-  await locators[fulfilled.value].click();
-  return true;
-}
-
-/**
  * Execute the preLogin step body.
- * @param config - Bank's login config.
- * @param input - Current pipeline context.
- * @returns Updated context with login.activeFrame.
+ * HOME phase has already navigated — LOGIN just sets up login state.
+ * @param _config - Bank's login config (for field/submit info only).
+ * @param input - Current pipeline context (page already on login form).
+ * @returns Updated context with login.activeFrame = page.
  */
-async function executePreLogin(
-  config: ILoginConfig,
+function executePreLogin(
+  _config: ILoginConfig,
   input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+): Procedure<IPipelineContext> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for preLogin');
-  try {
-    const page = input.browser.value.page;
-    await navigateToLogin(page, config.loginUrl);
-    await runCheckReadiness(page, config);
-    const activeFrame = await runPreAction(page, config);
-    await tryClickLoginMethodTab(activeFrame);
-    const loginState = { activeFrame, persistentOtpToken: none() };
-    return succeed({ ...input, login: some(loginState) });
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `Pre-login failed: ${toErrorMessage(err as Error)}`);
-  }
+  const page = input.browser.value.page;
+  const loginState = { activeFrame: page as Page | Frame, persistentOtpToken: none() };
+  return succeed({ ...input, login: some(loginState) });
 }
 
 /**
@@ -138,16 +70,14 @@ function createPreLoginStep(
   const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
     name: 'pre-login',
     /**
-     * Execute preLogin: navigate to login URL, wait for readiness, open form.
+     * Execute preLogin: set activeFrame = page (HOME already navigated).
      * @param _ctx - Unused pipeline context.
      * @param input - Context to extend with login.activeFrame.
      * @returns Updated context.
      */
-    async execute(
-      _ctx: IPipelineContext,
-      input: IPipelineContext,
-    ): Promise<Procedure<IPipelineContext>> {
-      return executePreLogin(config, input);
+    execute(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+      const result = executePreLogin(config, input);
+      return Promise.resolve(result);
     },
   };
   return step;
@@ -155,20 +85,36 @@ function createPreLoginStep(
 
 // ── loginAction helpers ────────────────────────────────────
 
+/** Result from filling one field — includes the resolved context for scoping. */
+interface IFillResult {
+  readonly isOk: boolean;
+  readonly procedure: Procedure<boolean>;
+  readonly resolvedContext?: Page | Frame;
+}
+
+/** Bundled options for fillOneField — satisfies max-params. */
+interface IFillFieldOpts {
+  readonly mediator: IElementMediator;
+  readonly fill: IFillOpts;
+  readonly scopeContext?: Page | Frame;
+  readonly formSelector?: string;
+}
+
 /**
  * Fill one credential field via mediator (black box — no direct HTML access).
- * @param mediator - IElementMediator from pipeline context.
- * @param opts - Fill options: credentialKey, value, selectors.
- * @returns Procedure<boolean> — fails if field not found.
+ * @param opts - Bundled fill options with mediator, fill info, and scope.
+ * @returns Fill result with resolved context for scoping subsequent fields.
  */
-async function fillOneField(
-  mediator: IElementMediator,
-  opts: IFillOpts,
-): Promise<Procedure<boolean>> {
-  const result = await mediator.resolveField(opts.credentialKey, opts.selectors);
-  if (!result.success) return result;
-  await fillInput(result.value.context, result.value.selector, opts.value);
-  return succeed(true);
+async function fillOneField(opts: IFillFieldOpts): Promise<IFillResult> {
+  const result = await opts.mediator.resolveField(
+    opts.fill.credentialKey,
+    opts.fill.selectors,
+    opts.scopeContext,
+    opts.formSelector,
+  );
+  if (!result.success) return { isOk: false, procedure: result };
+  await fillInput(result.value.context, result.value.selector, opts.fill.value);
+  return { isOk: true, procedure: succeed(true), resolvedContext: result.value.context };
 }
 
 /**
@@ -217,9 +163,78 @@ function buildFillOpts(field: IFieldConfig, creds: Record<string, string>): IFil
   return opts;
 }
 
+/** Immutable scope state built up as fields are resolved. */
+interface IFieldScope {
+  readonly ctx?: Page | Frame;
+  readonly formSelector?: string;
+}
+
+/** Accumulator for sequential field filling via reduce. */
+interface IFillAccum {
+  readonly scope: IFieldScope;
+  readonly procedure: Procedure<boolean>;
+}
+
+/** Context for filling credential fields — bundled to satisfy max-params. */
+interface IFillContext {
+  readonly mediator: IElementMediator;
+  readonly creds: Record<string, string>;
+}
+
+/**
+ * Discover form anchor and return updated scope.
+ * @param ctx - Fill context with mediator.
+ * @param field - Field config that was just resolved.
+ * @param scope - Current scope state.
+ * @returns Updated scope with form selector.
+ */
+async function discoverScope(
+  ctx: IFillContext,
+  field: IFieldConfig,
+  scope: IFieldScope,
+): Promise<IFieldScope> {
+  const reResolved = await ctx.mediator.resolveField(
+    field.credentialKey,
+    field.selectors,
+    scope.ctx,
+  );
+  if (!reResolved.success) return scope;
+  const anchor = await ctx.mediator.discoverForm(reResolved.value);
+  if (!anchor.has) return scope;
+  return { ...scope, formSelector: anchor.value.selector };
+}
+
+/**
+ * Fill one field and update scope — single iteration step.
+ * @param ctx - Fill context with mediator and credentials.
+ * @param field - Field config to fill.
+ * @param scope - Current scope state.
+ * @returns Updated scope and procedure result.
+ */
+async function fillFieldStep(
+  ctx: IFillContext,
+  field: IFieldConfig,
+  scope: IFieldScope,
+): Promise<{ scope: IFieldScope; procedure: Procedure<boolean> }> {
+  const fill = buildFillOpts(field, ctx.creds);
+  const result = await fillOneField({
+    mediator: ctx.mediator,
+    fill,
+    scopeContext: scope.ctx,
+    formSelector: scope.formSelector,
+  });
+  if (!result.isOk) return { scope, procedure: result.procedure };
+  let nextScope = scope;
+  if (!scope.ctx && result.resolvedContext) {
+    nextScope = { ...scope, ctx: result.resolvedContext };
+    nextScope = await discoverScope(ctx, field, nextScope);
+  }
+  return { scope: nextScope, procedure: succeed(true) };
+}
+
 /**
  * Fill all credential fields sequentially via mediator.
- * Short-circuits on first field failure — does not attempt remaining fields.
+ * Uses promise chain (not await-in-loop) for sequential field filling.
  * @param mediator - IElementMediator from pipeline context.
  * @param fields - Field configs from login config.
  * @param creds - Credentials map.
@@ -232,15 +247,18 @@ async function fillAllFields(
 ): Promise<Procedure<boolean>> {
   const validation = validateCredentials(fields, creds);
   if (!validation.success) return validation;
-  const firstResult = succeed(true);
-  const initial: Promise<Procedure<boolean>> = Promise.resolve(firstResult);
-  type TReduce = Promise<Procedure<boolean>>;
-  return fields.reduce<TReduce>(async (prev, field): TReduce => {
-    const prevResult = await prev;
-    if (!prevResult.success) return prevResult;
-    const opts = buildFillOpts(field, creds);
-    return fillOneField(mediator, opts);
-  }, initial);
+  const ctx: IFillContext = { mediator, creds };
+  const initial: IFillAccum = { scope: {}, procedure: succeed(true) };
+  const seed = Promise.resolve(initial);
+  const final = await fields.reduce(
+    async (prev: Promise<IFillAccum>, field): Promise<IFillAccum> => {
+      const acc = await prev;
+      if (!acc.procedure.success) return acc;
+      return fillFieldStep(ctx, field, acc.scope);
+    },
+    seed,
+  );
+  return final.procedure;
 }
 
 /**
@@ -343,15 +361,13 @@ export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
 }
 
 /**
- * Run postAction callback if provided.
- * @param page - Browser page.
- * @param config - Login config with optional postAction.
- * @returns True when done.
+ * Safely execute a post-action callback, wrapping errors as Procedure failure.
+ * @param action - The async callback to execute.
+ * @returns Success or failure Procedure.
  */
-async function runPostAction(page: Page, config: ILoginConfig): Promise<Procedure<boolean>> {
-  if (!config.postAction) return succeed(true);
+async function safePostAction(action: () => Promise<unknown>): Promise<Procedure<boolean>> {
   try {
-    await config.postAction(page);
+    await action();
     return succeed(true);
   } catch (err) {
     const msg = `Post-login action failed: ${toErrorMessage(err as Error)}`;
@@ -360,11 +376,36 @@ async function runPostAction(page: Page, config: ILoginConfig): Promise<Procedur
 }
 
 /**
+ * Run postAction callback if provided.
+ * Checks for pipeline-aware postActionWithCtx first (multi-stage login with credentials).
+ * Falls back to standard postAction(page) for backward compatibility.
+ * @param page - Browser page.
+ * @param config - Login config with optional postAction or postActionWithCtx.
+ * @param ctx - Pipeline context (passed to postActionWithCtx if present).
+ * @returns True when done.
+ */
+async function runPostAction(
+  page: Page,
+  config: ILoginConfig,
+  ctx: IPipelineContext,
+): Promise<Procedure<boolean>> {
+  const hasPipelineCtx = hasPipelinePostAction(config);
+  const ctxFn = hasPipelineCtx && config.postActionWithCtx;
+  if (ctxFn) return safePostAction((): Promise<boolean> => ctxFn(page, ctx));
+  const postFn = config.postAction;
+  if (!postFn) return succeed(true);
+  return safePostAction(async (): Promise<boolean> => {
+    await postFn(page);
+    return true;
+  });
+}
+
+/**
  * Execute the postLogin step body.
- * Generic: wait for settle → mediator.discoverErrors (Layer1+Layer2) → postAction.
+ * Validates: form errors → network settle. Dashboard detection is in DASHBOARD phase.
  * @param config - Bank's login config.
  * @param input - Context from loginAction.
- * @returns Success or login error.
+ * @returns Success or login error with specific errorType.
  */
 async function executePostLogin(
   config: ILoginConfig,
@@ -376,13 +417,16 @@ async function executePostLogin(
   const page = input.browser.value.page;
   const activeFrame = input.login.value.activeFrame;
   const mediator = input.mediator.value;
-  await waitForSubmitToSettle(page);
+  // Layer 1: FORM — check errors on the login form BEFORE navigation
   await mediator.waitForLoadingDone(activeFrame);
-  const errors = await mediator.discoverErrors(activeFrame);
-  if (errors.hasErrors) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${errors.summary}`);
+  const formErrors = await mediator.discoverErrors(activeFrame);
+  if (formErrors.hasErrors) {
+    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${formErrors.summary}`);
   }
-  const postResult = await runPostAction(page, config);
+  // Layer 2: NETWORK — wait for page to settle (may navigate)
+  await waitForSubmitToSettle(page);
+  // Bank-specific postAction if provided
+  const postResult = await runPostAction(page, config, input);
   if (!postResult.success) return postResult;
   return succeed(input);
 }
@@ -436,4 +480,12 @@ function createLoginPhase(config: ILoginConfig): ILoginPhase {
   return phase;
 }
 
+export {
+  tryClickLoginLink,
+  tryClickLoginMethodTab,
+  tryClickPrivateCustomers,
+  tryClosePopup,
+  waitForAnyLoginLink,
+  waitForFirstField,
+} from './GenericPreLoginSteps.js';
 export { createLoginActionStep, createLoginPhase, createPostLoginStep, createPreLoginStep };

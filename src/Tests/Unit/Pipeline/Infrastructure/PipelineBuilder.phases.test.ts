@@ -55,11 +55,11 @@ describe('PipelineBuilder/phase-assembly', () => {
     expect(otpIdx).toBeGreaterThan(loginIdx);
   });
 
-  it('withDashboard adds dashboard phase', () => {
+  it('dashboard is mandatory for browser banks', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
+      .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withDashboard()
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;
@@ -85,7 +85,6 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -143,7 +142,6 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);

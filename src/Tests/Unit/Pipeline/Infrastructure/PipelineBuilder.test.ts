@@ -134,12 +134,6 @@ describe('PipelineBuilder/optional-phases', () => {
     expect(returned).toBe(builder);
   });
 
-  it('withDashboard returns this', () => {
-    const builder = new PipelineBuilder();
-    const returned = builder.withDashboard();
-    expect(returned).toBe(builder);
-  });
-
   it('withScraper returns this', () => {
     const builder = new PipelineBuilder();
     const returned = builder.withScraper(MOCK_SCRAPE);
@@ -154,7 +148,6 @@ describe('PipelineBuilder/full-config', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -168,7 +161,6 @@ describe('PipelineBuilder/full-config', () => {
       .withBrowser()
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
       .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);

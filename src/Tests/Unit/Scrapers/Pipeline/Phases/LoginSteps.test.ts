@@ -5,7 +5,6 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import type { LifecyclePromise } from '../../../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { checkFrameForErrors } from '../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import {
@@ -170,11 +169,23 @@ describe('LoginSteps/preLogin', () => {
     if (!result.success) expect(result.errorMessage).toContain('No browser');
   });
 
-  it('navigates to loginUrl', async () => {
+  it('sets page as activeFrame (HOME already navigated)', async () => {
+    const page = makeMockFullPage();
+    const ctx = makeContextWithBrowser(page);
+    const config = MAKE_LOGIN_CONFIG();
+    const phase = createLoginPhase(config);
+    const result = await phase.pre.execute(ctx, ctx);
+    expect(result.success).toBe(true);
+    if (result.success && result.value.login.has) {
+      expect(result.value.login.value.activeFrame).toBeTruthy();
+    }
+  });
+
+  it('does NOT navigate (HOME handles navigation)', async () => {
     const page = makeMockFullPage();
     const gotoCalls: string[] = [];
     /**
-     * Capture URL for verification.
+     * Track goto calls — should NOT be called.
      * @param url - Navigation target.
      * @returns Resolved true.
      */
@@ -187,54 +198,7 @@ describe('LoginSteps/preLogin', () => {
     const config = MAKE_LOGIN_CONFIG({ loginUrl: 'https://test.bank/login' });
     const phase = createLoginPhase(config);
     await phase.pre.execute(ctx, ctx);
-    expect(gotoCalls).toContain('https://test.bank/login');
-  });
-
-  it('calls checkReadiness when provided', async () => {
-    const page = makeMockFullPage();
-    const ctx = makeContextWithBrowser(page);
-    const readinessCalled: boolean[] = [];
-    const config = MAKE_LOGIN_CONFIG({
-      /**
-       * Mock checkReadiness.
-       * @returns Resolved true.
-       */
-      checkReadiness: (): LifecyclePromise => {
-        readinessCalled.push(true);
-        return Promise.resolve();
-      },
-    });
-    const phase = createLoginPhase(config);
-    await phase.pre.execute(ctx, ctx);
-    expect(readinessCalled).toHaveLength(1);
-  });
-
-  it('does NOT call checkReadiness when absent', async () => {
-    const page = makeMockFullPage();
-    const ctx = makeContextWithBrowser(page);
-    const config = MAKE_LOGIN_CONFIG({ checkReadiness: undefined });
-    const phase = createLoginPhase(config);
-    const result = await phase.pre.execute(ctx, ctx);
-    expect(result.success).toBe(true);
-  });
-
-  it('calls preAction and uses returned frame as activeFrame', async () => {
-    const page = makeMockFullPage();
-    const mockFrame = makeMockFullPage('https://iframe.bank/login');
-    const ctx = makeContextWithBrowser(page);
-    const config = MAKE_LOGIN_CONFIG({
-      /**
-       * Mock preAction — returns iframe.
-       * @returns Mock frame.
-       */
-      preAction: (): Promise<Frame | undefined> => Promise.resolve(mockFrame as unknown as Frame),
-    });
-    const phase = createLoginPhase(config);
-    const result = await phase.pre.execute(ctx, ctx);
-    expect(result.success).toBe(true);
-    if (result.success && result.value.login.has) {
-      expect(result.value.login.value.activeFrame).toBe(mockFrame);
-    }
+    expect(gotoCalls.length).toBe(0);
   });
 
   it('uses page as activeFrame when preAction returns undefined', async () => {

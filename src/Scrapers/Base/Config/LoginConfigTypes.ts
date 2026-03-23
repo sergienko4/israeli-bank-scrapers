@@ -12,7 +12,8 @@ export type SelectorCandidate =
   | { kind: 'placeholder'; value: string } // input[placeholder*="סיסמה"]
   | { kind: 'ariaLabel'; value: string } // input[aria-label*="משתמש"]
   | { kind: 'name'; value: string } // input[name="password"]
-  | { kind: 'xpath'; value: string }; // //button[contains(., "כניסה")]
+  | { kind: 'xpath'; value: string } // //button[contains(., "כניסה")]
+  | { kind: 'regex'; value: string }; // match visible text by regex pattern
 
 /** OTP step config — DOM (selector-driven) or API (class override) */
 export type OtpConfig =

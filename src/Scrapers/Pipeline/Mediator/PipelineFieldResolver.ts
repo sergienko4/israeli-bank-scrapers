@@ -9,6 +9,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import { scopeCandidates } from '../../../Common/FormAnchor.js';
 import { isPage } from '../../../Common/SelectorResolver.js';
 import {
   buildNotFoundContext,
@@ -125,21 +126,46 @@ async function enrichWithMetadata(result: IFieldContext): Promise<IPipelineField
 }
 
 /**
+ * Apply form scoping to candidates if a form selector is present.
+ * @param candidates - Raw candidates.
+ * @param formSel - Form selector for scoping (empty string = no scope).
+ * @returns Scoped or original candidates.
+ */
+function applyFormScope(
+  candidates: readonly SelectorCandidate[],
+  formSel: string,
+): readonly SelectorCandidate[] {
+  if (!formSel) return candidates;
+  return scopeCandidates(formSel, [...candidates]);
+}
+
+/** Options for resolveFieldPipeline — bundled to satisfy max-params. */
+export interface IResolveFieldArgs {
+  readonly pageOrFrame: Page | Frame;
+  readonly fieldKey: string;
+  readonly bankCandidates: readonly SelectorCandidate[];
+  readonly formSelector?: string;
+}
+
+/** Sentinel for no form scoping — avoids bare '' fallback. */
+const NO_FORM_SCOPE = '';
+
+/**
  * Resolve a login field using pipeline text-only well-known candidates.
  * Finds the element by visible Hebrew text, then extracts DOM metadata.
- * @param pageOrFrame - Page or Frame to search in.
- * @param fieldKey - Credential key (e.g. 'username', 'password', 'id').
- * @param bankCandidates - Bank-specific selector candidates (text-based, no CSS).
+ * @param args - Bundled resolution arguments.
  * @returns IPipelineFieldContext with full DOM metadata if resolved.
  */
 export async function resolveFieldPipeline(
-  pageOrFrame: Page | Frame,
-  fieldKey: string,
-  bankCandidates: readonly SelectorCandidate[],
+  args: IResolveFieldArgs,
 ): Promise<IPipelineFieldContext> {
   const wkLookup: Record<string, readonly SelectorCandidate[]> = PIPELINE_WELL_KNOWN_LOGIN;
-  const wk = wkLookup[fieldKey] ?? [];
-  const opts = buildResolveOpts(pageOrFrame, fieldKey, { bank: bankCandidates, wk });
-  const result = await probeAll(pageOrFrame, opts);
+  const wk = wkLookup[args.fieldKey] ?? [];
+  const scope = args.formSelector ?? NO_FORM_SCOPE;
+  const scopedBank = applyFormScope(args.bankCandidates, scope);
+  const scopedWk = applyFormScope(wk, scope);
+  const candidates = { bank: scopedBank, wk: scopedWk };
+  const opts = buildResolveOpts(args.pageOrFrame, args.fieldKey, candidates);
+  const result = await probeAll(args.pageOrFrame, opts);
   return enrichWithMetadata(result);
 }

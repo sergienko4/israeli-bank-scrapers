@@ -11,6 +11,7 @@ import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
 import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
+import { HOME_STEP } from './Phases/HomePhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
 import { createLoginPhase } from './Phases/LoginSteps.js';
 import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
@@ -116,8 +117,6 @@ class PipelineBuilder {
 
   private _hasOtp = false;
 
-  private _hasDashboard = false;
-
   private _scrapeFn: ScrapeFn | false = false;
 
   private _scrapeConfig: IScrapeConfigBase | false = false;
@@ -193,15 +192,6 @@ class PipelineBuilder {
     this._hasOtp = true;
     // FUTURE: wire _otpConfig to createOtpStep when real OTP is implemented
     this._otpConfig = config;
-    return this;
-  }
-
-  /**
-   * Add dashboard wait phase.
-   * @returns This builder for chaining.
-   */
-  public withDashboard(): this {
-    this._hasDashboard = true;
     return this;
   }
 
@@ -312,6 +302,8 @@ class PipelineBuilder {
     if (this._hasBrowser) {
       const initPhase = actionOnly('init', INIT_STEP);
       phases.push(initPhase);
+      const homePhase = actionOnly('home', HOME_STEP);
+      phases.push(homePhase);
     }
     const loginPhase = this.buildLoginPhase();
     phases.push(loginPhase);
@@ -333,7 +325,7 @@ class PipelineBuilder {
     const scrapePhase = actionOnly('scrape', scrapeStep);
     const optional: CtxPhase[] = [];
     if (this._hasOtp) optional.push(otpPhase);
-    if (this._hasDashboard) optional.push(dashPhase);
+    if (this._hasBrowser) optional.push(dashPhase);
     if (this._hasScraper) optional.push(scrapePhase);
     phases.splice(insertIdx, 0, ...optional);
   }
