@@ -11,6 +11,7 @@ import type { Page, Response } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../Registry/PipelineWellKnown.js';
+import type { IFetchOpts } from '../Strategy/FetchStrategy.js';
 
 const LOG = getDebug('network-discovery');
 
@@ -88,6 +89,13 @@ interface INetworkDiscovery {
 
   /** Discover site ID from captured request headers (X-Site-Id, etc.). */
   discoverSiteId(): string | false;
+
+  /**
+   * Build fetch headers from ALL discovered auth values in traffic.
+   * Includes authorization, origin, site-id, content-type.
+   * @returns IFetchOpts ready to pass to fetchStrategy.
+   */
+  buildDiscoveredHeaders(): IFetchOpts;
 }
 
 /** Sentinel for missing content-type header. */
@@ -300,7 +308,7 @@ type EndpointMethods = Pick<
 /** Type alias for header discovery methods. */
 type HeaderMethods = Pick<
   INetworkDiscovery,
-  'discoverAuthToken' | 'discoverOrigin' | 'discoverSiteId'
+  'discoverAuthToken' | 'discoverOrigin' | 'discoverSiteId' | 'buildDiscoveredHeaders'
 >;
 
 /**
@@ -353,6 +361,21 @@ function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[]): HeaderMet
      * @returns Site ID or false.
      */
     discoverSiteId: (): string | false => discoverHeaderValue(captured, SITE_ID_HEADERS),
+    /**
+     * Build fetch headers from all discovered values.
+     * @returns IFetchOpts with auth, origin, site-id.
+     */
+    buildDiscoveredHeaders: (): IFetchOpts => {
+      const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      const auth = discoverHeaderValue(captured, AUTH_HEADERS);
+      if (auth) extraHeaders.authorization = auth;
+      const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
+      if (origin) extraHeaders.Origin = origin;
+      if (origin) extraHeaders.Referer = origin;
+      const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
+      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      return { extraHeaders };
+    },
   };
 }
 

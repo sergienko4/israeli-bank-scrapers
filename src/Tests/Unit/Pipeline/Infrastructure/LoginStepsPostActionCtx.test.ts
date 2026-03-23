@@ -116,6 +116,11 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverSiteId: (): false => false,
+      /**
+       * Empty headers in mock.
+       * @returns Default empty opts.
+       */
+      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
     },
   };
   return mediator;

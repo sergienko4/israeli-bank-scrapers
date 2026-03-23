@@ -11,10 +11,19 @@
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
+import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
+import {
+  PIPELINE_WELL_KNOWN_API,
+  PIPELINE_WELL_KNOWN_DASHBOARD,
+} from '../Registry/PipelineWellKnown.js';
+import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
-import type { IDashboardState, IPipelineContext } from '../Types/PipelineContext.js';
+import type {
+  IApiFetchContext,
+  IDashboardState,
+  IPipelineContext,
+} from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
@@ -44,6 +53,64 @@ async function probeDashboard(mediator: IElementMediator): Promise<boolean> {
 }
 
 /**
+ * Extract URL from a discovered endpoint, or false if not found.
+ * @param hit - Discovered endpoint or false.
+ * @returns URL string or false.
+ */
+function urlOrFalse(hit: IDiscoveredEndpoint | false): string | false {
+  if (!hit) return false;
+  return hit.url;
+}
+
+/**
+ * Discover all endpoint URLs from network traffic.
+ * @param network - Network discovery.
+ * @returns Discovered URLs (false if not found).
+ */
+function discoverUrls(
+  network: INetworkDiscovery,
+): Pick<IApiFetchContext, 'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'> {
+  const accountsHit = network.discoverAccountsEndpoint();
+  const txnHit = network.discoverTransactionsEndpoint();
+  const balanceHit = network.discoverBalanceEndpoint();
+  const pendingHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
+  return {
+    accountsUrl: urlOrFalse(accountsHit),
+    transactionsUrl: urlOrFalse(txnHit),
+    balanceUrl: urlOrFalse(balanceHit),
+    pendingUrl: urlOrFalse(pendingHit),
+  };
+}
+
+/**
+ * Build auto-discovered API fetch context from network traffic.
+ * @param network - Network discovery with captured traffic.
+ * @param strategy - Base fetch strategy from INIT.
+ * @returns API fetch context with discovered endpoints + authenticated fetch.
+ */
+function buildApiContext(network: INetworkDiscovery, strategy: IFetchStrategy): IApiFetchContext {
+  const headers = network.buildDiscoveredHeaders();
+  const urls = discoverUrls(network);
+  return {
+    /**
+     * Fetch POST with discovered headers.
+     * @param url - Endpoint URL.
+     * @param body - POST body.
+     * @returns Procedure with response.
+     */
+    fetchPost: <T>(url: string, body: PostData): Promise<Procedure<T>> =>
+      strategy.fetchPost<T>(url, body, headers),
+    /**
+     * Fetch GET with discovered headers.
+     * @param url - Endpoint URL.
+     * @returns Procedure with response.
+     */
+    fetchGet: <T>(url: string): Promise<Procedure<T>> => strategy.fetchGet<T>(url, headers),
+    ...urls,
+  };
+}
+
+/**
  * Execute the DASHBOARD phase: wait for dashboard via mediator.
  * ALL via mediator — searches main page + iframes with resolveAndClick.
  * @param _ctx - Pipeline context (unused, matches step signature).
@@ -62,7 +129,9 @@ async function executeDashboard(
   const hasChangePass = !hasDashboard && (await probeChangePassword(mediator));
   if (hasChangePass) return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
   const dashState: IDashboardState = { isReady: hasDashboard, pageUrl: page.url() };
-  return succeed({ ...input, dashboard: some(dashState) });
+  if (!input.fetchStrategy.has) return succeed({ ...input, dashboard: some(dashState) });
+  const apiCtx = buildApiContext(mediator.network, input.fetchStrategy.value);
+  return succeed({ ...input, dashboard: some(dashState), api: some(apiCtx) });
 }
 
 /** DASHBOARD phase step — generic wait for dashboard readiness. */

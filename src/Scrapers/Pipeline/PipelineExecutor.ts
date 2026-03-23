@@ -108,6 +108,7 @@ function buildInitialContext(
     login: none(),
     dashboard: none(),
     scrape: none(),
+    api: none(),
   };
   return ctx;
 }

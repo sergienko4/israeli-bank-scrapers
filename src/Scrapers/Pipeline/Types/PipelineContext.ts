@@ -14,6 +14,7 @@ import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefa
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IFetchStrategy } from '../Strategy/FetchStrategy.js';
 import type { Option } from './Option.js';
+import type { Procedure } from './Procedure.js';
 
 /** Browser lifecycle context — absent for API-only scrapers. */
 interface IBrowserState {
@@ -50,6 +51,22 @@ interface IDiagnosticsState {
   readonly warnings: readonly string[];
 }
 
+/** Auto-discovered API fetch context — injected by DASHBOARD phase. */
+interface IApiFetchContext {
+  /** Fetch POST with auto-injected auth + headers. Bank provides URL + body only. */
+  fetchPost<T>(url: string, body: Record<string, string | object>): Promise<Procedure<T>>;
+  /** Fetch GET with auto-injected auth + headers. Bank provides URL only. */
+  fetchGet<T>(url: string): Promise<Procedure<T>>;
+  /** Discovered accounts endpoint URL (or false if not found in traffic). */
+  readonly accountsUrl: string | false;
+  /** Discovered transactions endpoint URL (or false). */
+  readonly transactionsUrl: string | false;
+  /** Discovered balance endpoint URL (or false). */
+  readonly balanceUrl: string | false;
+  /** Discovered pending endpoint URL (or false). */
+  readonly pendingUrl: string | false;
+}
+
 /** Read-only context accumulated through the pipeline. */
 interface IPipelineContext {
   readonly options: ScraperOptions;
@@ -64,9 +81,12 @@ interface IPipelineContext {
   readonly login: Option<ILoginState>;
   readonly dashboard: Option<IDashboardState>;
   readonly scrape: Option<IScrapeState>;
+  /** Auto-discovered API context — injected by DASHBOARD phase. */
+  readonly api: Option<IApiFetchContext>;
 }
 
 export type {
+  IApiFetchContext,
   IBrowserState,
   IDashboardState,
   IDiagnosticsState,

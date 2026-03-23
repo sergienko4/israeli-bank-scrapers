@@ -386,6 +386,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       discoverSiteId: (): false => false,
+      /**
+       * Empty headers in mock.
+       * @returns Default empty opts.
+       */
+      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
     },
   };
   return { ...base, ...overrides };
