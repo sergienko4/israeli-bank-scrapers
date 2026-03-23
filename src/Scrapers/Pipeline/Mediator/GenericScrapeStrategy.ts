@@ -20,6 +20,9 @@ const KNOWN_DATE_FORMATS = [
   'DD/MM/YYYY',
   'YYYY-MM-DDTHH:mm:ss',
   'DD-MM-YYYY',
+  'YYYY.MM.DD',
+  'DD.MM.YYYY',
+  'YYYY.MM.DDTHH:mm:ss',
 ];
 
 /** BFS queue item for iterative deep search. */

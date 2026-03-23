@@ -96,6 +96,22 @@ interface INetworkDiscovery {
    * @returns IFetchOpts ready to pass to fetchStrategy.
    */
   buildDiscoveredHeaders(): IFetchOpts;
+
+  /**
+   * Build a full transaction URL for an account from captured traffic templates.
+   * Transforms dashboard summary URLs (forHomePage) into full history URLs (Date).
+   * @param accountId - Account number.
+   * @param startDate - Start date formatted (e.g., YYYYMMDD).
+   * @returns Full transaction URL or false.
+   */
+  buildTransactionUrl(accountId: string, startDate: string): string | false;
+
+  /**
+   * Build a balance URL for an account from captured traffic templates.
+   * @param accountId - Account number.
+   * @returns Balance URL or false.
+   */
+  buildBalanceUrl(accountId: string): string | false;
 }
 
 /** Sentinel for missing content-type header. */
@@ -379,6 +395,87 @@ function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[]): HeaderMet
   };
 }
 
+/** WellKnown transaction URL query params for full history. */
+const FULL_TXN_PARAMS = [
+  'IsCategoryDescCode=True',
+  'IsTransactionDetails=True',
+  'IsEventNames=True',
+  'IsFutureTransactionFlag=True',
+];
+
+/**
+ * Find a captured URL containing the given account ID.
+ * @param captured - Captured endpoints.
+ * @param accountId - Account ID to search for in URLs.
+ * @returns First matching endpoint or false.
+ */
+function findUrlWithAccountId(
+  captured: readonly IDiscoveredEndpoint[],
+  accountId: string,
+): IDiscoveredEndpoint | false {
+  const hit = captured.find((ep): boolean => ep.url.includes(accountId));
+  return hit ?? false;
+}
+
+/**
+ * Extract the API base from a captured URL (before the account-specific path).
+ * @param url - Full URL with account ID.
+ * @param accountId - Account ID to split on.
+ * @returns Base URL or false.
+ */
+function extractApiBaseFromUrl(url: string, accountId: string): string | false {
+  const parts = url.split(accountId);
+  if (parts.length < 2) return false;
+  const base = parts[0].replace(/\/lastTransactions.*/, '').replace(/\/accountDetails.*/, '');
+  return base;
+}
+
+/**
+ * Build a full transaction URL from discovered API base + account ID + date.
+ * @param captured - Captured endpoints.
+ * @param accountId - Account number.
+ * @param startDate - Formatted start date.
+ * @returns Full transaction URL or false.
+ */
+function buildTxnUrlFromTraffic(
+  captured: readonly IDiscoveredEndpoint[],
+  accountId: string,
+  startDate: string,
+): string | false {
+  const hit = findUrlWithAccountId(captured, accountId);
+  if (!hit) return false;
+  const base = extractApiBaseFromUrl(hit.url, accountId);
+  if (!base) return false;
+  const params = [...FULL_TXN_PARAMS, `FromDate=${startDate}`].join('&');
+  return `${base}/lastTransactions/${accountId}/Date?${params}`;
+}
+
+/**
+ * Build a balance URL from discovered traffic pattern.
+ * @param captured - Captured endpoints.
+ * @param accountId - Account number.
+ * @returns Balance URL or false.
+ */
+function buildBalUrlFromTraffic(
+  captured: readonly IDiscoveredEndpoint[],
+  accountId: string,
+): string | false {
+  const balanceHits = captured.filter((ep): boolean =>
+    PIPELINE_WELL_KNOWN_API.balance.some((p): boolean => p.test(ep.url)),
+  );
+  if (balanceHits.length === 0) return false;
+  const templateUrl = balanceHits[0].url;
+  const pathOnly = templateUrl.split('?')[0];
+  const segments = pathOnly.split('/');
+  const lastSeg = segments[segments.length - 1];
+  const isAccountInUrl = /^\d{5,}$/.test(lastSeg);
+  if (isAccountInUrl) {
+    segments[segments.length - 1] = accountId;
+    return segments.join('/');
+  }
+  return `${pathOnly}/${accountId}`;
+}
+
 /**
  * Create a network discovery instance bound to a page.
  * Starts capturing immediately on creation.
@@ -391,7 +488,24 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
   const headers = buildHeaderMethods(captured);
-  return { ...core, ...endpoints, ...headers };
+  const urlBuilders = {
+    /**
+     * Build full transaction URL from traffic templates.
+     * @param accountId - Account number.
+     * @param startDate - Start date.
+     * @returns URL or false.
+     */
+    buildTransactionUrl: (accountId: string, startDate: string): string | false =>
+      buildTxnUrlFromTraffic(captured, accountId, startDate),
+    /**
+     * Build balance URL from traffic templates.
+     * @param accountId - Account number.
+     * @returns URL or false.
+     */
+    buildBalanceUrl: (accountId: string): string | false =>
+      buildBalUrlFromTraffic(captured, accountId),
+  };
+  return { ...core, ...endpoints, ...headers, ...urlBuilders };
 }
 
 export type { IDiscoveredEndpoint, INetworkDiscovery };

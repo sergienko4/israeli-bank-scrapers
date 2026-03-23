@@ -216,4 +216,43 @@ describe('NetworkDiscovery', () => {
       expect(all.length).toBe(2);
     });
   });
+
+  describe('buildTransactionUrl', () => {
+    it('builds full transaction URL from captured forHomePage pattern', async () => {
+      await simulateResponse({
+        url: 'https://bank.co.il/gatewayAPI/lastTransactions/transactions/0152228812/forHomePage?NumberOfTransactions=6',
+        body: { data: [] },
+      });
+      const txnUrl = discovery.buildTransactionUrl('0152228812', '20250101');
+      expect(txnUrl).not.toBe(false);
+      if (txnUrl) {
+        expect(txnUrl).toContain('lastTransactions/0152228812/Date');
+        expect(txnUrl).toContain('FromDate=20250101');
+      }
+    });
+
+    it('returns false when no transaction URLs captured', () => {
+      const txnUrl = discovery.buildTransactionUrl('123', '20250101');
+      expect(txnUrl).toBe(false);
+    });
+  });
+
+  describe('buildBalanceUrl', () => {
+    it('builds balance URL with account ID from captured pattern', async () => {
+      await simulateResponse({
+        url: 'https://bank.co.il/gatewayAPI/accountDetails/infoAndBalance/0152228812',
+        body: { AccountBalance: 19856 },
+      });
+      const balUrl = discovery.buildBalanceUrl('0152228812');
+      expect(balUrl).not.toBe(false);
+      if (balUrl) {
+        expect(balUrl).toContain('infoAndBalance/0152228812');
+      }
+    });
+
+    it('returns false when no balance URLs captured', () => {
+      const balUrl = discovery.buildBalanceUrl('123');
+      expect(balUrl).toBe(false);
+    });
+  });
 });

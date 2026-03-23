@@ -391,6 +391,16 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns Default empty opts.
        */
       buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
+      /**
+       * No transaction URL in mock.
+       * @returns False.
+       */
+      buildTransactionUrl: (): false => false,
+      /**
+       * No balance URL in mock.
+       * @returns False.
+       */
+      buildBalanceUrl: (): false => false,
     },
   };
   return { ...base, ...overrides };
