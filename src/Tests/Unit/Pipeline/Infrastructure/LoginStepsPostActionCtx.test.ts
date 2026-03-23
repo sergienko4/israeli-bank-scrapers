@@ -86,6 +86,36 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverByPatterns: (): false => false,
+      /**
+       * No accounts in mock.
+       * @returns False.
+       */
+      discoverAccountsEndpoint: (): false => false,
+      /**
+       * No transactions in mock.
+       * @returns False.
+       */
+      discoverTransactionsEndpoint: (): false => false,
+      /**
+       * No balance in mock.
+       * @returns False.
+       */
+      discoverBalanceEndpoint: (): false => false,
+      /**
+       * No auth token in mock.
+       * @returns False.
+       */
+      discoverAuthToken: (): false => false,
+      /**
+       * No origin in mock.
+       * @returns False.
+       */
+      discoverOrigin: (): false => false,
+      /**
+       * No site ID in mock.
+       * @returns False.
+       */
+      discoverSiteId: (): false => false,
     },
   };
   return mediator;

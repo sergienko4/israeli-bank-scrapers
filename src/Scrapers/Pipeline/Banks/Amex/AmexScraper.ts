@@ -1,5 +1,6 @@
 /**
- * Amex pipeline scraper — monthly fetch via BrowserFetchStrategy.
+ * Amex pipeline scraper — monthly fetch via network discovery + BrowserFetchStrategy.
+ * ZERO hardcoded URLs — discovers services endpoint from captured traffic.
  * Reuses pure mapping functions from BaseIsracardAmex (no duplication).
  * All fetches through ctx.fetchStrategy (DI — injected by InitPhase).
  */
@@ -15,26 +16,38 @@ import type {
   IScrapedAccountsWithinPageResponse,
   IScrapedTransactionData,
 } from '../../../BaseIsracardAmex/BaseIsracardAmexTypes.js';
+import type { INetworkDiscovery } from '../../Mediator/NetworkDiscovery.js';
 import type { IMonthlyConfig } from '../../Phases/MonthlyScrapeFactory.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/PipelineWellKnown.js';
 import type { IFetchStrategy } from '../../Strategy/FetchStrategy.js';
 import { DEFAULT_FETCH_OPTS } from '../../Strategy/FetchStrategy.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 
+// ── Discovery ──────────────────────────────────────────────
+
 /**
- * Build the services URL for Amex API.
- * @param config - Pipeline context config.
- * @returns Services URL.
+ * Discover the services base URL from captured network traffic.
+ * Uses WellKnown accounts patterns (DashboardMonth, etc.).
+ * @param network - Network discovery from mediator.
+ * @returns Discovered services URL or failure.
  */
-function getServicesUrl(config: IPipelineContext['config']): string {
-  const apiBase = config.api.base ?? '';
-  return `${apiBase}/services/ProxyRequestHandler.ashx`;
+function discoverServicesUrl(network: INetworkDiscovery): Procedure<string> {
+  const hit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.accounts);
+  if (!hit) return fail(ScraperErrorTypes.Generic, 'No accounts endpoint in traffic');
+  const url = hit.url;
+  const qIdx = url.indexOf('?');
+  if (qIdx <= 0) return fail(ScraperErrorTypes.Generic, 'No query in discovered URL');
+  const base = url.slice(0, qIdx);
+  return succeed(base);
 }
+
+// ── URL Builders (from discovered base) ────────────────────
 
 /**
  * Build accounts URL for one billing month.
- * @param servicesUrl - Base services URL.
+ * @param servicesUrl - Discovered services URL.
  * @param month - Billing month.
  * @returns Full URL with query params.
  */
@@ -50,7 +63,7 @@ function buildAccountsUrl(servicesUrl: string, month: Moment): string {
 
 /**
  * Build transactions URL for one billing month.
- * @param servicesUrl - Base services URL.
+ * @param servicesUrl - Discovered services URL.
  * @param month - Billing month.
  * @returns Full URL with query params.
  */
@@ -63,12 +76,14 @@ function buildTxnsUrl(servicesUrl: string, month: Moment): string {
   return url.toString();
 }
 
+// ── Mappers ────────────────────────────────────────────────
+
 /**
  * Map API account charges to scraped account format.
  * @param charges - Card charges from DashboardMonth response.
  * @returns Array of scraped accounts with index.
  */
-function mapAccounts(
+function mapCharges(
   charges: NonNullable<
     NonNullable<IScrapedAccountsWithinPageResponse['DashboardMonthBean']>['cardsCharges']
   >,
@@ -82,47 +97,81 @@ function mapAccounts(
   );
 }
 
+// ── Fetch context ──────────────────────────────────────────
+
+/** Bundled fetch dependencies. */
+interface IAmexFetchCtx {
+  readonly strategy: IFetchStrategy;
+  readonly servicesUrl: string;
+}
+
 /**
  * Fetch accounts for one billing month via fetchStrategy.
- * @param strategy - Injected fetch strategy.
- * @param servicesUrl - API services URL.
+ * @param fc - Fetch context with strategy and discovered URL.
  * @param month - Billing month.
  * @returns Array of scraped accounts.
  */
-async function fetchAccountsForMonth(
-  strategy: IFetchStrategy,
-  servicesUrl: string,
-  month: Moment,
-): Promise<IScrapedAccount[]> {
-  const url = buildAccountsUrl(servicesUrl, month);
-  const raw = await strategy.fetchGet<IScrapedAccountsWithinPageResponse>(url, DEFAULT_FETCH_OPTS);
+async function fetchAccountsForMonth(fc: IAmexFetchCtx, month: Moment): Promise<IScrapedAccount[]> {
+  const url = buildAccountsUrl(fc.servicesUrl, month);
+  const raw = await fc.strategy.fetchGet<IScrapedAccountsWithinPageResponse>(
+    url,
+    DEFAULT_FETCH_OPTS,
+  );
   if (!isOk(raw)) return [];
   const charges = raw.value.DashboardMonthBean?.cardsCharges;
   if (!charges) return [];
-  return mapAccounts(charges);
+  return mapCharges(charges);
 }
 
 /**
  * Fetch transaction data for one billing month via fetchStrategy.
- * @param strategy - Injected fetch strategy.
- * @param servicesUrl - API services URL.
+ * @param fc - Fetch context with strategy and discovered URL.
  * @param month - Billing month.
  * @returns Transaction data or false if empty.
  */
 async function fetchTxnDataForMonth(
-  strategy: IFetchStrategy,
-  servicesUrl: string,
+  fc: IAmexFetchCtx,
   month: Moment,
 ): Promise<IScrapedTransactionData | false> {
-  const url = buildTxnsUrl(servicesUrl, month);
-  const raw = await strategy.fetchGet<IScrapedTransactionData>(url, DEFAULT_FETCH_OPTS);
+  const url = buildTxnsUrl(fc.servicesUrl, month);
+  const raw = await fc.strategy.fetchGet<IScrapedTransactionData>(url, DEFAULT_FETCH_OPTS);
   if (!isOk(raw)) return false;
   return raw.value;
 }
 
+// ── Monthly fetch ──────────────────────────────────────────
+
 /**
- * Fetch one month of Amex transactions via fetchStrategy.
- * @param ctx - Pipeline context with fetchStrategy.
+ * Build transaction accounts from raw API data.
+ * @param accounts - Scraped accounts with index.
+ * @param txnData - Raw transaction data.
+ * @param options - Scraper options for filtering.
+ * @returns Array of ITransactionsAccount.
+ */
+function buildMonthAccounts(
+  accounts: IScrapedAccount[],
+  txnData: IScrapedTransactionData,
+  options: IPipelineContext['options'],
+): ITransactionsAccount[] {
+  const startMoment = moment(options.startDate);
+  const accountTxns = buildAccountTxns({
+    accounts,
+    dataResult: txnData,
+    options,
+    startMoment,
+  });
+  return Object.values(accountTxns).map(
+    (acct): ITransactionsAccount => ({
+      accountNumber: acct.accountNumber,
+      balance: 0,
+      txns: acct.txns,
+    }),
+  );
+}
+
+/**
+ * Fetch one month of Amex transactions via discovered endpoints.
+ * @param ctx - Pipeline context with fetchStrategy + mediator.
  * @param month - Billing month.
  * @returns Accounts with transactions for the month.
  */
@@ -131,28 +180,17 @@ async function amexFetchOneMonth(
   month: Moment,
 ): Promise<Procedure<readonly ITransactionsAccount[]>> {
   if (!ctx.fetchStrategy.has) return fail(ScraperErrorTypes.Generic, 'No fetchStrategy');
-  const strategy = ctx.fetchStrategy.value;
-  const servicesUrl = getServicesUrl(ctx.config);
-  const accounts = await fetchAccountsForMonth(strategy, servicesUrl, month);
+  if (!ctx.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for discovery');
+  const urlResult = discoverServicesUrl(ctx.mediator.value.network);
+  if (!isOk(urlResult)) return urlResult;
+  const fc: IAmexFetchCtx = { strategy: ctx.fetchStrategy.value, servicesUrl: urlResult.value };
+  const accounts = await fetchAccountsForMonth(fc, month);
   if (accounts.length === 0) return succeed([]);
-  const txnData = await fetchTxnDataForMonth(strategy, servicesUrl, month);
+  const txnData = await fetchTxnDataForMonth(fc, month);
   if (!txnData) return succeed([]);
   if (!txnData.CardsTransactionsListBean) return succeed([]);
-  const startMoment = moment(ctx.options.startDate);
-  const accountTxns = buildAccountTxns({
-    accounts,
-    dataResult: txnData,
-    options: ctx.options,
-    startMoment,
-  });
-  const result: ITransactionsAccount[] = Object.values(accountTxns).map(
-    (acct): ITransactionsAccount => ({
-      accountNumber: acct.accountNumber,
-      balance: 0,
-      txns: acct.txns,
-    }),
-  );
-  return succeed(result);
+  const mapped = buildMonthAccounts(accounts, txnData, ctx.options);
+  return succeed(mapped);
 }
 
 /** Amex monthly scrape configuration. */

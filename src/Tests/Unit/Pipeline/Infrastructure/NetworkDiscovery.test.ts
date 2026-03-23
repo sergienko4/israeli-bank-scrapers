@@ -75,7 +75,11 @@ async function simulateResponse(opts: ISimulateOpts): Promise<boolean> {
      * Request info.
      * @returns Request mock.
      */
-    request: (): { method: () => string; postData: () => string } => ({
+    request: (): {
+      method: () => string;
+      postData: () => string;
+      headers: () => Record<string, string>;
+    } => ({
       /**
        * HTTP method.
        * @returns Method string.
@@ -86,6 +90,11 @@ async function simulateResponse(opts: ISimulateOpts): Promise<boolean> {
        * @returns Post data string.
        */
       postData: (): string => postData,
+      /**
+       * Request headers.
+       * @returns Empty headers.
+       */
+      headers: (): Record<string, string> => ({}),
     }),
     /**
      * Response headers.

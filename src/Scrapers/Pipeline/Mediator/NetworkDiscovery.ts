@@ -10,8 +10,18 @@
 import type { Page, Response } from 'playwright-core';
 
 import { getDebug } from '../../../Common/Debug.js';
+import { PIPELINE_WELL_KNOWN_API } from '../Registry/PipelineWellKnown.js';
 
 const LOG = getDebug('network-discovery');
+
+/** WellKnown request header names for auth discovery. */
+const AUTH_HEADERS = ['authorization', 'x-auth-token'];
+
+/** WellKnown request header names for origin discovery. */
+const ORIGIN_HEADERS = ['origin', 'referer'];
+
+/** WellKnown request header names for site ID discovery. */
+const SITE_ID_HEADERS = ['x-site-id', 'x-session-id'];
 
 /** A discovered API endpoint — captured from browser network traffic. */
 interface IDiscoveredEndpoint {
@@ -25,6 +35,8 @@ interface IDiscoveredEndpoint {
   readonly responseBody: unknown;
   /** Response content type. */
   readonly contentType: string;
+  /** Request headers sent by page JS (for auth token, origin, site ID). */
+  readonly requestHeaders: Record<string, string>;
   /** Capture timestamp (ms since epoch). */
   readonly timestamp: number;
 }
@@ -58,6 +70,24 @@ interface INetworkDiscovery {
    * @returns First matching endpoint or false.
    */
   discoverByPatterns(patterns: readonly RegExp[]): IDiscoveredEndpoint | false;
+
+  /** Discover accounts endpoint via WellKnown patterns. */
+  discoverAccountsEndpoint(): IDiscoveredEndpoint | false;
+
+  /** Discover transactions endpoint via WellKnown patterns. */
+  discoverTransactionsEndpoint(): IDiscoveredEndpoint | false;
+
+  /** Discover balance endpoint via WellKnown patterns. */
+  discoverBalanceEndpoint(): IDiscoveredEndpoint | false;
+
+  /** Discover auth token from captured request headers (Authorization, etc.). */
+  discoverAuthToken(): string | false;
+
+  /** Discover origin domain from captured request headers. */
+  discoverOrigin(): string | false;
+
+  /** Discover site ID from captured request headers (X-Site-Id, etc.). */
+  discoverSiteId(): string | false;
 }
 
 /** Sentinel for missing content-type header. */
@@ -89,6 +119,7 @@ function extractRequestMeta(response: Response): {
   method: 'GET' | 'POST';
   postData: string;
   contentType: string;
+  requestHeaders: Record<string, string>;
 } {
   const headers = response.headers();
   const contentType = headers['content-type'] ?? NO_CONTENT_TYPE;
@@ -96,7 +127,8 @@ function extractRequestMeta(response: Response): {
   const method = response.request().method() as 'GET' | 'POST';
   const rawPost = response.request().postData();
   const postData = rawPost ?? NO_POST_DATA;
-  return { url, method, postData, contentType };
+  const requestHeaders = response.request().headers();
+  return { url, method, postData, contentType, requestHeaders };
 }
 
 /**
@@ -180,15 +212,58 @@ function discoverByWellKnown(
 }
 
 /**
+ * Find the first non-empty header value matching any WellKnown header name.
+ * @param captured - All captured endpoints.
+ * @param headerNames - Header names to search (lowercase).
+ * @returns Header value or false.
+ */
+/**
+ * Check if an endpoint has a non-empty value for any of the header names.
+ * @param ep - Captured endpoint.
+ * @param headerNames - Header names to check.
+ * @returns Header value or false.
+ */
+function extractHeader(ep: IDiscoveredEndpoint, headerNames: readonly string[]): string | false {
+  const match = headerNames.find(
+    (h): boolean => typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
+  );
+  if (!match) return false;
+  return ep.requestHeaders[match];
+}
+
+/**
+ * Find the first non-empty header value matching any WellKnown header name.
+ * @param captured - All captured endpoints.
+ * @param headerNames - Header names to search (lowercase).
+ * @returns Header value or false.
+ */
+function discoverHeaderValue(
+  captured: readonly IDiscoveredEndpoint[],
+  headerNames: readonly string[],
+): string | false {
+  const ep = captured.find((e): boolean => extractHeader(e, headerNames) !== false);
+  if (!ep) return false;
+  return extractHeader(ep, headerNames);
+}
+
+/**
  * Create a network discovery instance bound to a page.
  * Starts capturing immediately on creation.
  * @param page - Playwright page to observe.
  * @returns Network discovery interface.
  */
-function createNetworkDiscovery(page: Page): INetworkDiscovery {
-  const captured: IDiscoveredEndpoint[] = [];
-  page.on('response', (r: Response): boolean => handleResponse(captured, r));
-  const discovery: INetworkDiscovery = {
+/**
+ * Build the low-level discovery methods bound to captured data.
+ * @param captured - Mutable captured endpoints array.
+ * @returns Low-level discovery methods.
+ */
+function buildCoreMethods(
+  captured: IDiscoveredEndpoint[],
+): Pick<
+  INetworkDiscovery,
+  'findEndpoints' | 'getServicesUrl' | 'getAllEndpoints' | 'discoverByPatterns'
+> {
+  return {
     /**
      * Find endpoints matching URL pattern.
      * @param pattern - Regex to match.
@@ -197,8 +272,8 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
     findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
       captured.filter((ep): boolean => pattern.test(ep.url)),
     /**
-     * Get common services base URL.
-     * @returns Base URL or false.
+     * Get common services base URL from traffic.
+     * @returns Common services URL or false.
      */
     getServicesUrl: (): string | false => findCommonServicesUrl(captured),
     /**
@@ -207,14 +282,93 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
      */
     getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [...captured],
     /**
-     * Discover endpoint by WellKnown API patterns.
-     * @param patterns - Array of regex patterns to try.
-     * @returns First matching endpoint or false.
+     * Discover endpoint by regex patterns.
+     * @param patterns - Regex patterns to try.
+     * @returns First match or false.
      */
     discoverByPatterns: (patterns: readonly RegExp[]): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, patterns),
   };
-  return discovery;
+}
+
+/** Type alias for endpoint discovery methods. */
+type EndpointMethods = Pick<
+  INetworkDiscovery,
+  'discoverAccountsEndpoint' | 'discoverTransactionsEndpoint' | 'discoverBalanceEndpoint'
+>;
+
+/** Type alias for header discovery methods. */
+type HeaderMethods = Pick<
+  INetworkDiscovery,
+  'discoverAuthToken' | 'discoverOrigin' | 'discoverSiteId'
+>;
+
+/**
+ * Build endpoint discovery methods via WellKnown patterns.
+ * @param captured - Captured endpoints array.
+ * @returns Endpoint discovery methods.
+ */
+function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): EndpointMethods {
+  return {
+    /**
+     * Accounts endpoint via WellKnown.
+     * @returns Endpoint or false.
+     */
+    discoverAccountsEndpoint: (): IDiscoveredEndpoint | false =>
+      discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.accounts),
+    /**
+     * Transactions endpoint via WellKnown.
+     * @returns Endpoint or false.
+     */
+    discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false =>
+      discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.transactions),
+    /**
+     * Balance endpoint via WellKnown.
+     * @returns Endpoint or false.
+     */
+    discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
+      discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
+  };
+}
+
+/**
+ * Build header discovery methods from captured request headers.
+ * @param captured - Captured endpoints array.
+ * @returns Header discovery methods.
+ */
+function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[]): HeaderMethods {
+  return {
+    /**
+     * Auth token from request headers.
+     * @returns Token string or false.
+     */
+    discoverAuthToken: (): string | false => discoverHeaderValue(captured, AUTH_HEADERS),
+    /**
+     * Origin domain from request headers.
+     * @returns Origin URL or false.
+     */
+    discoverOrigin: (): string | false => discoverHeaderValue(captured, ORIGIN_HEADERS),
+    /**
+     * Site ID from request headers.
+     * @returns Site ID or false.
+     */
+    discoverSiteId: (): string | false => discoverHeaderValue(captured, SITE_ID_HEADERS),
+  };
+}
+
+/**
+ * Create a network discovery instance bound to a page.
+ * Starts capturing immediately on creation.
+ * @param page - Playwright page to observe.
+ * @returns Network discovery interface.
+ */
+function createNetworkDiscovery(page: Page): INetworkDiscovery {
+  const captured: IDiscoveredEndpoint[] = [];
+  page.on('response', (r: Response): boolean => handleResponse(captured, r));
+  const core = buildCoreMethods(captured);
+  const endpoints = buildEndpointMethods(captured);
+  const headers = buildHeaderMethods(captured);
+  return { ...core, ...endpoints, ...headers };
 }
 
 export type { IDiscoveredEndpoint, INetworkDiscovery };
