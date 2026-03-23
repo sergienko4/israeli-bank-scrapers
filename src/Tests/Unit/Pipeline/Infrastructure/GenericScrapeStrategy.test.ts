@@ -5,8 +5,10 @@
 
 import {
   autoMapTransaction,
+  extractAccountIds,
   findFieldValue,
   findFirstArray,
+  parseAutoDate,
 } from '../../../../Scrapers/Pipeline/Mediator/GenericScrapeStrategy.js';
 
 describe('findFieldValue', () => {
@@ -95,5 +97,76 @@ describe('autoMapTransaction', () => {
     const txn = autoMapTransaction(raw);
     expect(txn.description).toBe('');
     expect(txn.originalAmount).toBe(0);
+  });
+});
+
+describe('findFieldValue — deep BFS', () => {
+  it('finds field nested 2 levels deep', () => {
+    const obj = { NewAccountInfo: { AccountID: 'A123' } };
+    const result = findFieldValue(obj, ['AccountID']);
+    expect(result).toBe('A123');
+  });
+
+  it('finds field nested 3 levels deep', () => {
+    const obj = { level1: { level2: { OperationAmount: -500 } } };
+    const result = findFieldValue(obj, ['OperationAmount']);
+    expect(result).toBe(-500);
+  });
+
+  it('prefers shallower match over deeper one', () => {
+    const obj = { amount: 100, deep: { amount: 200 } };
+    const result = findFieldValue(obj, ['amount']);
+    expect(result).toBe(100);
+  });
+});
+
+describe('extractAccountIds — nested structures', () => {
+  it('extracts from Discount-style nested response', () => {
+    const response = {
+      UserAccountsData: {
+        UserAccounts: [
+          { NewAccountInfo: { AccountID: '0152228812' } },
+          { NewAccountInfo: { AccountID: '0987654321' } },
+        ],
+      },
+    };
+    const ids = extractAccountIds(response);
+    expect(ids).toContain('0152228812');
+    expect(ids).toContain('0987654321');
+  });
+
+  it('extracts from VisaCal-style flat response', () => {
+    const response = {
+      result: {
+        cards: [
+          { cardUniqueId: 'c1', last4Digits: '1234' },
+          { cardUniqueId: 'c2', last4Digits: '5678' },
+        ],
+      },
+    };
+    const ids = extractAccountIds(response);
+    expect(ids.length).toBe(2);
+  });
+});
+
+describe('parseAutoDate', () => {
+  it('parses YYYYMMDD format', () => {
+    const result = parseAutoDate('20260115');
+    expect(result).toContain('2026');
+  });
+
+  it('parses YYYY-MM-DD format', () => {
+    const result = parseAutoDate('2026-01-15');
+    expect(result).toContain('2026');
+  });
+
+  it('parses DD/MM/YYYY format', () => {
+    const result = parseAutoDate('15/01/2026');
+    expect(result).toContain('2026');
+  });
+
+  it('returns original string for unknown format', () => {
+    const result = parseAutoDate('not-a-date');
+    expect(result).toBe('not-a-date');
   });
 });
