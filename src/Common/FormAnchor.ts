@@ -66,53 +66,14 @@ const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
 };
 
 /**
- * Count non-hidden, non-submit inputs inside a container.
- * Runs in browser context only (used inside evaluate).
- * @param container - The DOM element to search within.
- * @param nonFillable - The set of input types to exclude.
- * @returns The number of fillable input elements.
- */
-function countFillable(container: Element, nonFillable: Set<string>): number {
-  const nodeList = container.querySelectorAll('input');
-  const inputs = Array.from(nodeList);
-  const fillable = inputs.filter(inp => !nonFillable.has(inp.type));
-  return fillable.length;
-}
-
-/**
- * Generate a unique CSS selector for a form or container element.
- * Runs in browser context only (used inside evaluate).
- * @param formEl - The form-like DOM element.
- * @returns A CSS selector string, or empty string if no parent.
- */
-function buildSelector(formEl: Element): string {
-  if (formEl.id) return `#${formEl.id}`;
-  const parent = formEl.parentElement;
-  if (!parent) return '';
-  const tag = formEl.tagName.toLowerCase();
-  const siblings = Array.from(parent.children);
-  const sameTags = siblings.filter(c => c.tagName === formEl.tagName);
-  if (sameTags.length === 1) return tag;
-  const idx = sameTags.indexOf(formEl) + 1;
-  return `${tag}:nth-of-type(${String(idx)})`;
-}
-
-/**
  * Evaluate the DOM to find the nearest form-like ancestor of the input.
  * Runs inside the browser context via Playwright's evaluate.
+ * All helpers inlined — browser context cannot access Node.js closures.
  * @param input - The DOM input element to start walking from.
  * @returns A CSS selector for the form ancestor, or empty string if none found.
  */
-function formWalkEvaluator(input: Element): string {
-  const nonFillable = new Set(['hidden', 'submit', 'button']);
-  let el = input.parentElement;
-  while (el && el !== document.body) {
-    if (el.tagName === 'FORM') return buildSelector(el);
-    if (countFillable(el, nonFillable) >= 2) return buildSelector(el);
-    el = el.parentElement;
-  }
-  return '';
-}
+/** Non-fillable input types — shared between Node and browser contexts. */
+const NON_FILLABLE_TYPES = ['hidden', 'submit', 'button', 'radio', 'checkbox'];
 
 /**
  * Run the form-walk evaluation on a resolved input handle.
@@ -122,8 +83,41 @@ function formWalkEvaluator(input: Element): string {
  */
 async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Promise<string> {
   const loc = ctx.locator(resolvedSelector).first();
-  if ((await loc.count()) === 0) return '';
-  return loc.evaluate(formWalkEvaluator);
+  const locCount = await loc.count();
+  if (locCount === 0) return '';
+  return loc.evaluate(formWalkBrowserFn, NON_FILLABLE_TYPES);
+}
+
+/**
+ * Self-contained browser-context form walk. All helpers inlined.
+ * @param input - DOM input element (injected by Playwright).
+ * @param skipTypes - Non-fillable input types (passed as arg).
+ * @returns CSS selector for the nearest form-like ancestor.
+ */
+function formWalkBrowserFn(input: Element, skipTypes: string[]): string {
+  const skip = new Set(skipTypes);
+  /**
+   * Build CSS selector for a DOM element.
+   * @param el - Target element.
+   * @returns CSS selector string.
+   */
+  const sel = (el: Element): string => {
+    if (el.id) return `#${el.id}`;
+    const p = el.parentElement;
+    if (!p) return '';
+    const tag = el.tagName.toLowerCase();
+    const same = Array.from(p.children).filter(c => c.tagName === el.tagName);
+    if (same.length === 1) return tag;
+    return `${tag}:nth-of-type(${String(same.indexOf(el) + 1)})`;
+  };
+  let el = input.parentElement;
+  while (el && el !== document.body) {
+    if (el.tagName === 'FORM') return sel(el);
+    const fillable = [...el.querySelectorAll('input')].filter(i => !skip.has(i.type));
+    if (fillable.length >= 2) return sel(el);
+    el = el.parentElement;
+  }
+  return '';
 }
 
 /**

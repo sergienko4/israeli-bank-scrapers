@@ -8,7 +8,7 @@ import type { Locator, Page } from 'playwright-core';
 import {
   waitForAnyLoginLink,
   waitForFirstField,
-} from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+} from '../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
 import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
 
 /**

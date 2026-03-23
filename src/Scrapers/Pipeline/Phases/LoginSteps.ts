@@ -480,12 +480,4 @@ function createLoginPhase(config: ILoginConfig): ILoginPhase {
   return phase;
 }
 
-export {
-  tryClickLoginLink,
-  tryClickLoginMethodTab,
-  tryClickPrivateCustomers,
-  tryClosePopup,
-  waitForAnyLoginLink,
-  waitForFirstField,
-} from './GenericPreLoginSteps.js';
 export { createLoginActionStep, createLoginPhase, createPostLoginStep, createPreLoginStep };

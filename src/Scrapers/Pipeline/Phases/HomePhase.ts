@@ -12,32 +12,31 @@
 
 import type { Page } from 'playwright-core';
 
-import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import {
-  PIPELINE_WELL_KNOWN_DASHBOARD,
-  PIPELINE_WELL_KNOWN_LOGIN,
-} from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import {
+  tryClickLoginLink,
+  tryClickLoginMethodTab,
+  tryClickPrivateCustomers,
+  tryClosePopup,
+} from './GenericPreLoginSteps.js';
 
 /** Timeout for waiting for navigation after clicking a link. */
 const NAV_TIMEOUT = 15000;
 
 /**
- * Click WellKnown candidates via mediator — best-effort (returns false on error).
+ * Probe for username field to confirm credentials form is rendered.
  * @param mediator - Element mediator.
- * @param candidates - Selector candidates to try.
- * @returns True if element found and clicked.
+ * @returns True if username field found.
  */
-async function tryClick(
-  mediator: IElementMediator,
-  candidates: readonly SelectorCandidate[],
-): Promise<boolean> {
+async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_LOGIN.username;
   return mediator.resolveAndClick(candidates).catch((): boolean => false);
 }
 
@@ -48,15 +47,11 @@ async function tryClick(
  * @returns Discovered login URL after navigation.
  */
 async function navigateToLoginForm(page: Page, mediator: IElementMediator): Promise<string> {
-  await tryClick(mediator, PIPELINE_WELL_KNOWN_DASHBOARD.closeElement);
-  await tryClick(mediator, PIPELINE_WELL_KNOWN_DASHBOARD.loginLink);
-  const didClickPrivate = await tryClick(mediator, PIPELINE_WELL_KNOWN_DASHBOARD.privateCustomers);
-  if (didClickPrivate) {
-    const navOpts = { timeout: NAV_TIMEOUT, waitUntil: 'domcontentloaded' as const };
-    await page.waitForURL('**/login**', navOpts).catch((): boolean => false);
-  }
-  await tryClick(mediator, PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab);
-  await tryClick(mediator, PIPELINE_WELL_KNOWN_LOGIN.username);
+  await tryClosePopup(mediator);
+  await tryClickLoginLink(mediator);
+  await tryClickPrivateCustomers(mediator, page, NAV_TIMEOUT);
+  await tryClickLoginMethodTab(mediator);
+  await waitForCredentialsForm(mediator);
   return page.url();
 }
 

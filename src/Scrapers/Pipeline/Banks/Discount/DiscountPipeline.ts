@@ -25,8 +25,6 @@ import type { IRawAccount, IScrapeConfig } from '../../Types/ScrapeConfig.js';
 const LOG = getDebug('discount');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 const DATE_FORMAT = CFG.format.date || 'YYYYMMDD';
-const DISCOUNT_PORTAL = 'https://start.telebank.co.il';
-
 /** Scraped transaction from Discount API. */
 interface IDiscountTxn {
   OperationNumber: number;
@@ -168,47 +166,16 @@ const DISCOUNT_SCRAPE_CONFIG: IScrapeConfig<IDiscountAccountsRaw, IDiscountTxnRa
   extraHeaders: (): Record<string, string> => ({}),
 };
 
-/** Discount login portal URL. */
-const LOGIN_URL = `${DISCOUNT_PORTAL}/login/?multilang=he&bank=d&t=p`;
-
-/** Discount login config — defined fresh for the pipeline. */
+/** Discount login config — ONLY credential fields. Everything else is generic. */
 const DISCOUNT_LOGIN: ILoginConfig = {
   loginUrl: CFG.urls.base || '',
-  /** Empty selectors — WellKnown text fallback resolves all fields (black-box architecture). */
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
     { credentialKey: 'num', selectors: [] },
   ],
-  submit: [
-    { kind: 'ariaLabel', value: 'כניסה' },
-    { kind: 'textContent', value: 'כניסה' },
-  ],
-  /**
-   * Navigate to Discount login portal and wait for ID field.
-   * @param page - The Playwright page instance.
-   */
-  checkReadiness: async (page): Promise<void> => {
-    await page.goto(LOGIN_URL);
-    const firstTextbox = page.getByRole('textbox').first();
-    await firstTextbox.waitFor({ state: 'visible', timeout: 30000 });
-  },
-  /**
-   * Wait for redirect to Apollo dashboard after login.
-   * @param page - The Playwright page instance.
-   */
-  postAction: async (page): Promise<void> => {
-    await page.waitForURL('**/apollo/**', { timeout: 30000 });
-  },
-  possibleResults: {
-    success: [
-      `${DISCOUNT_PORTAL}/apollo/retail/#/MY_ACCOUNT_HOMEPAGE`,
-      `${DISCOUNT_PORTAL}/apollo/retail2/#/MY_ACCOUNT_HOMEPAGE`,
-      `${DISCOUNT_PORTAL}/apollo/retail2/`,
-    ],
-    invalidPassword: [`${DISCOUNT_PORTAL}/apollo/core/templates/lobby/masterPage.html#/LOGIN_PAGE`],
-    changePassword: [`${DISCOUNT_PORTAL}/apollo/core/templates/lobby/masterPage.html#/PWD_RENEW`],
-  },
+  submit: [],
+  possibleResults: { success: [] },
 };
 
 /**

@@ -4,7 +4,7 @@
  * All banks pass through this step; banks without a method-selection page skip it.
  */
 
-import { tryClickLoginMethodTab } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { tryClickLoginMethodTab } from '../../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
 import { makeMockMediator } from '../MockPipelineFactories.js';
 
 describe('tryClickLoginMethodTab', () => {
