@@ -289,3 +289,49 @@ export const PIPELINE_WELL_KNOWN_API = {
   /** Pending transaction endpoints. */
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
 } satisfies Record<string, RegExp[]>;
+
+/**
+ * WellKnown transaction field names — for auto-mapping API responses.
+ * The mediator searches response objects for these field names by concept.
+ * Generic across ALL Israeli banks.
+ */
+export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
+  /** Account ID field names. */
+  accountId: [
+    'AccountID',
+    'accountNumber',
+    'cardNumber',
+    'last4Digits',
+    'cardUniqueId',
+    'accountId',
+  ],
+  /** Transaction date field names. */
+  date: [
+    'OperationDate',
+    'trnPurchaseDate',
+    'fullPurchaseDate',
+    'date',
+    'transactionDate',
+    'txnDate',
+  ],
+  /** Processed/value date field names. */
+  processedDate: ['ValueDate', 'debCrdDate', 'processedDate', 'billingDate', 'settlementDate'],
+  /** Transaction amount field names. */
+  amount: ['OperationAmount', 'trnAmt', 'dealSum', 'amount', 'chargedAmount', 'transactionAmount'],
+  /** Original amount (before currency conversion). */
+  originalAmount: ['OperationAmount', 'amtBeforeConvAndIndex', 'originalAmount', 'dealSumOutbound'],
+  /** Transaction description field names. */
+  description: [
+    'OperationDescriptionToDisplay',
+    'merchantName',
+    'description',
+    'transDesc',
+    'memo',
+  ],
+  /** Transaction identifier field names. */
+  identifier: ['OperationNumber', 'trnIntId', 'identifier', 'id', 'referenceNumber', 'txnId'],
+  /** Currency field names. */
+  currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode'],
+  /** Balance field names. */
+  balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
+} satisfies Record<string, string[]>;

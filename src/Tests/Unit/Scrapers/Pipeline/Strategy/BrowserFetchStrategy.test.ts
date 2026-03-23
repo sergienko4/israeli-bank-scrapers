@@ -8,6 +8,7 @@ import { jest } from '@jest/globals';
 jest.unstable_mockModule('../../../../../Common/Fetch.js', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
+  fetchGetWithinPageWithHeaders: jest.fn(),
 }));
 
 const FETCH_MOD = await import('../../../../../Common/Fetch.js');
@@ -108,11 +109,13 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     if (!result.success) expect(result.errorMessage).toBe('get failed');
   });
 
-  it('fails fast when extraHeaders are present (not yet supported)', async () => {
+  it('uses fetchGetWithinPageWithHeaders when extraHeaders are present', async () => {
+    const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
+    getHeadersFn.mockResolvedValue({ data: 'ok' });
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchGet('https://api.test/get', OPTS_WITH_HEADERS);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('not yet supported');
+    expect(result.success).toBe(true);
+    expect(getHeadersFn).toHaveBeenCalled();
   });
 
   it('calls fetchGetWithinPage with shouldIgnoreErrors=false when no extraHeaders', async () => {

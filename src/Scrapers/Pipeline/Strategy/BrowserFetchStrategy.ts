@@ -6,7 +6,11 @@
 
 import type { Page } from 'playwright-core';
 
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../../Common/Fetch.js';
+import {
+  fetchGetWithinPage,
+  fetchGetWithinPageWithHeaders,
+  fetchPostWithinPage,
+} from '../../../Common/Fetch.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -81,9 +85,12 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
-    if (hasHeaders)
-      return fail(ScraperErrorTypes.Generic, 'fetchGet with extraHeaders not yet supported');
-    return fetchGetWithinPage<T>(this._page, url, false)
+    if (!hasHeaders) {
+      return fetchGetWithinPage<T>(this._page, url, false)
+        .then((result): Procedure<T> => resultToProcedure(result, url))
+        .catch(catchError);
+    }
+    return fetchGetWithinPageWithHeaders<T>(this._page, url, opts.extraHeaders)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }

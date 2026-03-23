@@ -208,6 +208,28 @@ async function evaluateGet(page: Page, url: string): Promise<readonly [string, n
   }, url);
 }
 
+/**
+ * Evaluate a GET request inside the browser with custom headers.
+ * @param page - The Playwright page.
+ * @param url - The URL to fetch.
+ * @param headers - Extra headers to include.
+ * @returns [responseText, statusCode].
+ */
+async function evaluateGetWithHeaders(
+  page: Page,
+  url: string,
+  headers: Record<string, string>,
+): Promise<readonly [string, number]> {
+  return page.evaluate(
+    async (args: { url: string; headers: Record<string, string> }) => {
+      const response = await fetch(args.url, { credentials: 'include', headers: args.headers });
+      if (response.status === 204) return ['', response.status] as const;
+      return [await response.text(), response.status] as const;
+    },
+    { url, headers },
+  );
+}
+
 /** Options for parsing a GET-within-page response. */
 export interface IParseGetOpts {
   result: string;
@@ -256,6 +278,26 @@ export async function fetchGetWithinPage<TResult>(
   logApiCall(`GET(page) ${url.slice(-100)}`, status, elapsed);
   logResponseIssues(status, result, url);
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult;
+}
+
+/**
+ * GET via browser page session with custom headers.
+ * @param page - Playwright page.
+ * @param url - Target URL.
+ * @param extraHeaders - Custom headers to include.
+ * @returns Parsed JSON result or null.
+ */
+export async function fetchGetWithinPageWithHeaders<TResult>(
+  page: Page,
+  url: string,
+  extraHeaders: Record<string, string>,
+): Promise<Nullable<TResult>> {
+  const startMs = Date.now();
+  const [result, status] = await evaluateGetWithHeaders(page, url, extraHeaders);
+  const elapsed = Date.now() - startMs;
+  logApiCall(`GET(page) ${url.slice(-100)}`, status, elapsed);
+  logResponseIssues(status, result, url);
+  return parseGetResult({ result, status, url, shouldIgnoreErrors: false }) as TResult;
 }
 
 /** Options for fetchPostWithinPage. */
