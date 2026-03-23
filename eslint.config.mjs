@@ -117,6 +117,101 @@ const RESTRICTED_SYNTAX_RULES = [
   }
 ];
 
+const RESTRICTED_SYNTAX_RULES_NEW = [
+  // 1. Coverage Bypasses
+  {
+    selector: "Program > Block:matches([value*='istanbul ignore'], [value*='c8 ignore'], [value*='v8 ignore'])",
+    message: "🚫 COVERAGE SKIP: Write a test instead of ignoring coverage.",
+  },
+
+  // 2. Lint Bypasses
+  {
+    selector: "Line:matches([value*='eslint-disable'])",
+    message: "🚫 LINT SKIP: Do not disable ESLint rules. Fix the underlying issue.",
+  },
+
+  // 3. Type Bypasses (Non-null assertions)
+  {
+    selector: "TSNonNullExpression",
+    message: "🚫 TYPE SKIP: Do not use non-null assertions (!). Use optional chaining (?.) or a proper null check.",
+  },
+
+  // 4. Return Value Integrity (Blocking null & undefined returns)
+  {
+    // UPDATED: TSMethodDefinition -> MethodDefinition
+    selector: ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+    message: "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
+  },
+  {
+    // UPDATED: TSMethodDefinition -> MethodDefinition
+    selector: ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
+    message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
+  },
+
+  // Blocks 'return null;', 'return undefined;', and empty 'return;'
+  {
+    selector: "ReturnStatement[argument=null], ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
+    message: "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+  },
+
+  // 5. Nested Logic & Readability
+  {
+    selector: "CallExpression > .arguments[type='CallExpression']",
+    message: "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
+  },
+  {
+    selector: "CallExpression[callee.property.name='isStuckOnLoginPage']",
+    message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
+  },
+
+  // 6. Security & Logging
+  {
+    selector: "CallExpression[callee.object.name='logger'] Property[key.name=/password|token|secret|auth|creditCard/i]",
+    message: "SECURITY: Do not log sensitive data keys.",
+  },
+  {
+    selector: "ThrowStatement > NewExpression[callee.name='Error']",
+    message: "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
+  },
+
+  // 7. Type Safety
+  {
+    selector: "VariableDeclarator > TSTypeAnnotation TSUnknownKeyword",
+    message: "🚫 TYPE SKIP: Do not declare variables as 'unknown'. Cast them to a concrete type immediately.",
+  },
+
+  // Procedure caller: do not discard Procedure results
+  {
+    selector: "ExpressionStatement > CallExpression[callee.property.name=/^(record|printSummary|sendSummary|sendError|sendMessage|startImport|cleanOldLogs)$/]",
+    message: "🚫 PROCEDURE: Do not discard Procedure result. Check with isSuccess()/isFail() or assign to variable.",
+  },
+
+  // 8. Block Legacy Structures
+  'ForInStatement',
+  'LabeledStatement',
+  'WithStatement',
+
+  // 9. Anti-Sleep Policy
+  {
+    selector: "CallExpression[callee.name=/^(sleep|delay)$/]",
+    message: "🚫 BRITTLE LOGIC: 'sleep()' or 'delay()' is forbidden. Use a proper 'waitFor' mechanism.",
+  },
+  {
+    selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]",
+    message: "🚫 BRITTLE LOGIC: Manual 'setTimeout' delays are forbidden.",
+  },
+
+  // 10. Obfuscation & Naming
+  {
+    selector: "VariableDeclarator > ObjectPattern > Property[kind='init'][value.name.length<3], ArrowFunctionExpression > ObjectPattern > Property[kind='init'][value.name.length<3]",
+    message: "🚫 OBFUSCATION: Do not use short aliases. Use descriptive names.",
+  },
+  {
+    selector: "CallExpression[callee.name='describe'] > Literal[value=/^(test|run|batch|suite)/i]",
+    message: "🚫 GENERIC DESCRIPTION: Use the Feature Name in the describe block.",
+  }
+];
+
 export default tseslint.config(
   // 1. GLOBAL IGNORES
   {
@@ -297,9 +392,9 @@ export default tseslint.config(
 
       'no-restricted-syntax': [
         'error',
-        ...RESTRICTED_SYNTAX_RULES,
+        ...RESTRICTED_SYNTAX_RULES_NEW,
+
         // DI: Block ALL manual instantiation except builtins
-        // GAP FIX #2 — Broadened from /Config$/ to catch all new Xxx()
         {
           // Add your safe classes to the negative lookahead (the ?! section)
           selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
@@ -312,95 +407,88 @@ export default tseslint.config(
           message: "🚫 ARCHITECTURE: Phase logic must be delegated to a Handler. Use ctx.handlers.execute().",
         },
 
-        // No else blocks — guard clauses only
+        // Guard Clauses & Logic Flow - No else blocks
         {
           selector: "IfStatement[alternate]",
           message: "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
         },
-
         // No ternary — use logical lookups
         {
           selector: "ConditionalExpression",
           message: "🚫 Ternary operators are disallowed. Use logical lookups.",
         },
 
-        // Result Pattern: No primitive returns
+        // Result Pattern: No primitive returns (V8 COMPATIBLE)
         {
-          // NEW (V8 COMPATIBLE)
-          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > FunctionExpression > TSTypeAnnotation :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)", message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
+          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] .TSTypeAnnotation :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)",
+          message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
         },
 
-        // The "Context-Aware" Fallback Guard
+        // Data Integrity & Fallbacks - Guard
         {
-          // Targets: const x = y || ''; 
+          // Targets: const x = y || '';
           // EXEMPTS: variables named text, html, content, val, attr (common in DOM scraping)
           selector: "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
           message: "🚫 DATA INTEGRITY: Avoid '' fallbacks in business logic. Use a Result or ScraperError.",
         },
-        // Pagination: No manual while loops — use Pagination strategy
-        // GAP FIX #4 — Forces pagination abstraction
+
+        // Pagination Abstraction - Pagination: No manual while loops — use Pagination strategy
         {
-          selector: "WhileStatement",
-          message: "🚫 PAGINATION: Do not use manual while loops. Use the Pagination strategy abstraction.",
-        },
-        {
-          selector: "DoWhileStatement",
-          message: "🚫 PAGINATION: Do not use manual do-while loops. Use the Pagination strategy abstraction.",
-        },
-        // GUARD: Prevent swallowing aggregate errors
-        {
-          selector: "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
-          message: "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled() to ensure we log WHY every attempt failed.",
+          selector: "WhileStatement, DoWhileStatement",
+          message: "🚫 PAGINATION: Do not use manual loops. Use the Pagination strategy abstraction.",
         },
 
+        // Concurrency & Error Handling
+        {
+          selector: "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
+          message: "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled().",
+        },
         // GUARD: Prevent transforming Errors into "Empty Success"
         {
           selector: "IfStatement[test.argument.property.name='isOk'] ReturnStatement > ArrayExpression[elements.length=0]",
-          message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. This triggers false 'Zero Data' states. Propagate the failure Result instead.",
+          message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. Propagate the failure Result.",
         },
-        // DI: No hardcoded Config keys in Objects
-        {
-          selector: "Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal",
-          message: "🚫 DI: Config values (timeouts/dimensions) must be injected via 'ctx.config'.",
-        },
-
-        // DI: No hardcoded Browser/Framework API Arguments
-        {
-          selector: "CallExpression[callee.property.name=/goto|waitForTimeout|setViewport|setTimeout|waitForSelector|click|type/] > Literal",
-          message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.constants' or 'ctx.config'.",
-        },
-
-        // ARCHITECTURE: No hardcoded Status Strings
-        {
-          selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
-          message: "🚫 ARCHITECTURE: Use Enums or Constants for type discriminators/status checks.",
-        },
-        // Type Bypasses (as never / as any)
-        {
-          selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
-          message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface members.",
-        },
-        // Error Handling: Force utility usage
         {
           selector: "CatchClause MemberExpression[property.name='message']",
-          message: "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access. Catch-clause 'unknown' requires safe parsing.",
+          message: "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access.",
+        },
+
+        // Hardcoded Values Bypassing DI
+        {
+          selector: "Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal",
+          message: "🚫 DI: Config values must be injected via 'ctx.config'.",
         },
         {
-          // Matches: function(x: unknown) or (x: unknown) => ...
-          // Specifically targets the type annotation of the parameter itself.
-          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, TSMethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword",
-          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface (e.g., IBankData).",
+          selector: "CallExpression[callee.property.name=/goto|waitForTimeout|setViewport|setTimeout|waitForSelector|click|type/] > Literal",
+          message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.config'.",
         },
         {
-          // Matches: function(): unknown { ... }
-          // Specifically targets the return type annotation.
-          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, TSMethodDefinition) > TSTypeAnnotation TSUnknownKeyword",
+          selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
+          message: "🚫 ARCHITECTURE: Use Enums or Constants for status checks.",
+        },
+
+        // Type Safety (Unknown Checks - V8 COMPATIBLE)
+        {
+          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword",
+          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface.",
+        },
+        {
+          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) > TSTypeAnnotation TSUnknownKeyword",
           message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a concrete return Type.",
+        },
+
+        // Mock Integrity
+        {
+          selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
+          message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any'. Use 'DeepPartial<T>'.",
         },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: false, allowTypedFunctionExpressions: false }],
+      'import-x/no-duplicates': 'error',
+      'import-x/max-dependencies': ['error', { max: 15, ignoreTypeImports: true }],
+      'import-x/no-useless-path-segments': ['error', { noUselessIndex: true }],
     },
   },
   // 6. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)

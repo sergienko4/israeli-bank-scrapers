@@ -6,12 +6,14 @@ set -euo pipefail
 CANARY_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ESLint returns non-zero on lint errors — that's expected for canaries.
-# Capture JSON output, allow non-zero exit.
-ERRORS=$(npx eslint "$CANARY_DIR"/*.canary.ts --no-ignore --format json 2>/dev/null) || true
+# Write JSON to temp file to avoid "Argument list too long" on large output.
+TMPFILE=$(mktemp)
+npx eslint "$CANARY_DIR"/*.canary.ts --no-ignore --format json 2>/dev/null > "$TMPFILE" || true
 
-# Pass JSON as argv[1] to avoid piping issues
+# Read JSON from file (not argv — avoids shell limit)
 node -e "
-  const data = JSON.parse(process.argv[1]);
+  const fs = require('fs');
+  const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
   const dead = [];
   data.forEach(f => {
     const name = f.filePath.replace(/.*[\\\\/]/, '');
@@ -22,4 +24,5 @@ node -e "
     process.exit(1);
   }
   console.log('✅ All', data.length, 'canaries triggered errors');
-" "$ERRORS"
+" "$TMPFILE"
+rm -f "$TMPFILE"

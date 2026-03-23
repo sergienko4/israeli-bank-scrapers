@@ -4,3 +4,6 @@ src/Tests/E2eMocked/fixtures/
 typedoc.json
 *.yml
 *.yaml
+
+# Shell scripts — not JS/TS
+*.sh
