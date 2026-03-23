@@ -15,7 +15,7 @@ import {
   extractTransactions,
   findFieldValue,
 } from '../Mediator/GenericScrapeStrategy.js';
-import type { INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
+import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -28,13 +28,37 @@ import { executeScrape } from './ScrapeExecutor.js';
 // ── Generic Auto-Scrape (ZERO bank code) ─────────────────
 
 /**
+ * Fetch using the discovered endpoint's method (GET or POST).
+ * Uses captured postData for POST — truly generic.
+ * @param api - API fetch context with headers.
+ * @param endpoint - Discovered endpoint with method + postData.
+ * @returns Procedure with response body.
+ */
+async function fetchDiscovered<T>(
+  api: IApiFetchContext,
+  endpoint: IDiscoveredEndpoint,
+): Promise<Procedure<T>> {
+  if (endpoint.method === 'POST') {
+    const rawBody = endpoint.postData || '{}';
+    const body = JSON.parse(rawBody) as Record<string, string>;
+    return api.fetchPost<T>(endpoint.url, body);
+  }
+  return api.fetchGet<T>(endpoint.url);
+}
+
+/**
  * Fetch accounts from discovered endpoint, extract IDs via WellKnown.
  * @param api - Auto-injected API fetch context.
+ * @param network - Network discovery.
  * @returns Array of account IDs.
  */
-async function genericFetchAccounts(api: IApiFetchContext): Promise<Procedure<readonly string[]>> {
-  if (!api.accountsUrl) return fail(ScraperErrorTypes.Generic, 'No accounts URL');
-  const raw = await api.fetchGet<Record<string, unknown>>(api.accountsUrl);
+async function genericFetchAccounts(
+  api: IApiFetchContext,
+  network: INetworkDiscovery,
+): Promise<Procedure<readonly string[]>> {
+  const endpoint = network.discoverAccountsEndpoint();
+  if (!endpoint) return fail(ScraperErrorTypes.Generic, 'No accounts endpoint');
+  const raw = await fetchDiscovered<Record<string, unknown>>(api, endpoint);
   if (!isOk(raw)) return raw;
   const ids = extractAccountIds(raw.value);
   return succeed(ids);
@@ -111,7 +135,7 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   const api = ctx.api.value;
   const network = ctx.mediator.value.network;
   const startDate = moment(ctx.options.startDate).format('YYYYMMDD');
-  const accountsResult = await genericFetchAccounts(api);
+  const accountsResult = await genericFetchAccounts(api, network);
   if (!isOk(accountsResult)) return accountsResult;
   const fc: IAccountFetchCtx = { api, network, startDate };
   const fetches = accountsResult.value.map(
