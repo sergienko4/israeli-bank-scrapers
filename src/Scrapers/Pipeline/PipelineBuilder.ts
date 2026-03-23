@@ -121,8 +121,6 @@ class PipelineBuilder {
 
   private _scrapeConfig: IScrapeConfigBase | false = false;
 
-  private _hasScraper = false;
-
   /**
    * Set scraper options (required).
    * @param options - Scraper configuration.
@@ -201,7 +199,6 @@ class PipelineBuilder {
    * @returns This builder for chaining.
    */
   public withScraper(fn: ScrapeFn): this {
-    this._hasScraper = true;
     this._scrapeFn = fn;
     return this;
   }
@@ -214,7 +211,6 @@ class PipelineBuilder {
   public withScrapeConfig<TA extends object, TT extends object>(
     config: IScrapeConfig<TA, TT>,
   ): this {
-    this._hasScraper = true;
     this._scrapeConfig = config as IScrapeConfigBase;
     return this;
   }
@@ -329,7 +325,8 @@ class PipelineBuilder {
     const optional: CtxPhase[] = [];
     if (this._hasOtp) optional.push(otpPhase);
     if (this._hasBrowser) optional.push(dashPhase);
-    if (this._hasScraper) optional.push(scrapePhase);
+    const hasScraper = this._scrapeFn || this._scrapeConfig || this._hasBrowser;
+    if (hasScraper) optional.push(scrapePhase);
     phases.splice(insertIdx, 0, ...optional);
     return optional.length;
   }

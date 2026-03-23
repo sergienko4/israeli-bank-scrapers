@@ -1,8 +1,7 @@
 /**
- * Discount pipeline config — MINIMAL.
- * Generic HOME → LOGIN → SCRAPE flow.
+ * Discount pipeline config — TRULY MINIMAL.
  * Bank provides ONLY credential field names.
- * Scrape uses network discovery to find API endpoints dynamically.
+ * NO scraper file needed — generic auto-scrape via ctx.api + WellKnown.
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
@@ -12,7 +11,6 @@ import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { discountFetchData } from './DiscountScraper.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
 
@@ -30,6 +28,7 @@ const DISCOUNT_LOGIN: ILoginConfig = {
 
 /**
  * Build the Discount pipeline descriptor.
+ * NO withScraper — uses generic auto-scrape (ctx.api + WellKnown).
  * @param options - Scraper options from the user.
  * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
  */
@@ -38,7 +37,6 @@ function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDesc
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(DISCOUNT_LOGIN)
-    .withScraper(discountFetchData)
     .build();
 }
 
