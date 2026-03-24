@@ -126,10 +126,17 @@ export const PIPELINE_WELL_KNOWN_LOGIN = {
     { kind: 'textContent', value: 'קוד חד פעמי' },
     { kind: 'textContent', value: 'קוד אימות' },
   ],
-  /** Login method selection tab — click to navigate to username+password form. */
-  loginMethodTab: [
+  /** Click to reveal the credential (ID+password) login form area. */
+  credentialAreaIndicator: [
     { kind: 'textContent', value: 'כניסה עם שם משתמש' },
-    { kind: 'textContent', value: 'כניסה עם סיסמה' },
+    { kind: 'textContent', value: 'סיסמה קבועה' },
+    { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
+  ],
+  /** Click to reveal the OTP/SMS login form area. Used by OTP phase. */
+  otpAreaIndicator: [
+    { kind: 'textContent', value: 'כניסה באמצעות SMS' },
+    { kind: 'textContent', value: 'קוד חד פעמי' },
+    { kind: 'textContent', value: 'שלח קוד לנייד' },
   ],
   /** Universal submit-button fallback — visible text only, zero CSS. */
   __submit__: [

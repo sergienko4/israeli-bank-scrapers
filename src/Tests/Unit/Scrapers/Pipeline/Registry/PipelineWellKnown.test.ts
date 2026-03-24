@@ -16,10 +16,11 @@ describe('PIPELINE_WELL_KNOWN_LOGIN/structure', () => {
     expect(keys).toEqual([
       '__submit__',
       'card6Digits',
+      'credentialAreaIndicator',
       'id',
-      'loginMethodTab',
       'nationalID',
       'num',
+      'otpAreaIndicator',
       'otpCode',
       'password',
       'userCode',

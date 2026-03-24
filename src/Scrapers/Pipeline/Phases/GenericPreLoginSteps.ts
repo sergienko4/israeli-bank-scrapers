@@ -66,8 +66,8 @@ async function tryClickPrivateCustomers(
  * @param mediator - Element mediator with resolver.
  * @returns True if a tab was found and clicked.
  */
-async function tryClickLoginMethodTab(mediator: IElementMediator): Promise<boolean> {
-  const candidates = PIPELINE_WELL_KNOWN_LOGIN.loginMethodTab;
+async function tryClickCredentialArea(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_LOGIN.credentialAreaIndicator;
   return mediator.resolveAndClick(candidates).catch((): boolean => false);
 }
 
@@ -113,8 +113,8 @@ async function waitForFirstField(page: Page): Promise<boolean> {
 }
 
 export {
+  tryClickCredentialArea,
   tryClickLoginLink,
-  tryClickLoginMethodTab,
   tryClickPrivateCustomers,
   tryClosePopup,
   waitForAnyLoginLink,

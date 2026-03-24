@@ -1,13 +1,13 @@
 /**
- * Unit tests for LoginSteps.tryClickLoginMethodTab.
+ * Unit tests for LoginSteps.tryClickCredentialArea.
  * Verifies generic tab detection — clicks when present, skips when absent.
  * All banks pass through this step; banks without a method-selection page skip it.
  */
 
-import { tryClickLoginMethodTab } from '../../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
+import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
 import { makeMockMediator } from '../MockPipelineFactories.js';
 
-describe('tryClickLoginMethodTab', () => {
+describe('tryClickCredentialArea', () => {
   it('returns true when mediator resolveAndClick succeeds', async () => {
     const mediator = makeMockMediator({
       /**
@@ -16,7 +16,7 @@ describe('tryClickLoginMethodTab', () => {
        */
       resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
     });
-    const didClick = await tryClickLoginMethodTab(mediator);
+    const didClick = await tryClickCredentialArea(mediator);
     expect(didClick).toBe(true);
   });
 
@@ -28,7 +28,7 @@ describe('tryClickLoginMethodTab', () => {
        */
       resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
     });
-    const didClick = await tryClickLoginMethodTab(mediator);
+    const didClick = await tryClickCredentialArea(mediator);
     expect(didClick).toBe(false);
   });
 
@@ -40,7 +40,7 @@ describe('tryClickLoginMethodTab', () => {
        */
       resolveAndClick: (): Promise<boolean> => Promise.reject(new Error('detached')),
     });
-    const didClick = await tryClickLoginMethodTab(mediator);
+    const didClick = await tryClickCredentialArea(mediator);
     expect(didClick).toBe(false);
   });
 });

@@ -21,8 +21,8 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import {
+  tryClickCredentialArea,
   tryClickLoginLink,
-  tryClickLoginMethodTab,
   tryClickPrivateCustomers,
   tryClosePopup,
 } from './GenericPreLoginSteps.js';
@@ -50,7 +50,7 @@ async function navigateToLoginForm(page: Page, mediator: IElementMediator): Prom
   await tryClosePopup(mediator);
   await tryClickLoginLink(mediator);
   await tryClickPrivateCustomers(mediator, page, NAV_TIMEOUT);
-  await tryClickLoginMethodTab(mediator);
+  await tryClickCredentialArea(mediator);
   await waitForCredentialsForm(mediator);
   return page.url();
 }

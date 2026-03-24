@@ -9,6 +9,7 @@ import {
 } from './Config/SelectorResolverConfig.js';
 import { getDebug } from './Debug.js';
 import {
+  isClickableElement,
   isFillableInput,
   resolveLabelText,
   resolveTextContent,
@@ -258,22 +259,38 @@ async function probeCandidate(
  * @param candidate - The clickableText selector candidate.
  * @returns The probe result targeting the first visible text element.
  */
-async function probeClickableText(
-  ctx: Page | Frame,
-  candidate: SelectorCandidate,
-): Promise<IProbeResult> {
-  const text = candidate.value;
+/**
+ * Build deepest-text XPath for visible text matching.
+ * @param text - Visible text to search for.
+ * @returns XPath selector string.
+ */
+function buildTextXpath(text: string): string {
   const lit = toXpathLiteral(text);
-  const baseXpath = [
+  return [
     'xpath=//*[not(self::script)',
     'and not(self::style)',
     `and contains(., ${lit})`,
     `and not(.//*[contains(., ${lit})])]`,
   ].join(' ');
-  const isFound = await queryWithTimeout(ctx, baseXpath);
+}
+
+/**
+ * Probe for clickable element matching visible text.
+ * @param ctx - Playwright Page or Frame.
+ * @param candidate - Selector candidate with text value.
+ * @returns Probe result with resolved XPath or empty css.
+ */
+async function probeClickableText(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+): Promise<IProbeResult> {
+  const xpath = buildTextXpath(candidate.value);
+  const isFound = await queryWithTimeout(ctx, xpath);
   if (!isFound) return { css: '', kind: 'clickableText' };
-  LOG.debug('resolved clickableText "%s" → %s', text, baseXpath);
-  return { css: baseXpath, kind: 'clickableText' };
+  const hasClick = await isClickableElement(ctx, xpath).catch((): boolean => true);
+  if (!hasClick) return { css: '', kind: 'clickableText' };
+  LOG.debug('resolved clickableText "%s" → %s', candidate.value, xpath);
+  return { css: xpath, kind: 'clickableText' };
 }
 
 /**

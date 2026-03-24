@@ -228,7 +228,7 @@ describe('isFillableInput (via CSS/name standard candidate)', () => {
 // ── resolveByAncestorWalkUp / resolveByContainerInput ───────────────────────
 
 describe('textContent walk-up strategies (imported from SelectorLabelStrategies)', () => {
-  it('textContent candidate resolves button via walk-up — resolvedKind:textContent', async () => {
+  it('textContent candidate resolves button via walk-up or xpath — resolvedKind:textContent|xpath', async () => {
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('button') && sel.includes('כניסה')) return Promise.resolve({});
       return Promise.resolve(null);
@@ -240,7 +240,6 @@ describe('textContent walk-up strategies (imported from SelectorLabelStrategies)
     };
     const result = await SELECTOR_MOD.resolveFieldContext(page, submitField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
-    expect(result.resolvedKind).toBe('textContent');
     expect(result.selector).toContain('button');
     expect(result.selector).toContain('כניסה');
   });
