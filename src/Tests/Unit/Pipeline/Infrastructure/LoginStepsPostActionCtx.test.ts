@@ -105,7 +105,7 @@ function makeMockMediator(): IElementMediator {
        * No auth token in mock.
        * @returns False.
        */
-      discoverAuthToken: (): false => false,
+      discoverAuthToken: (): Promise<false> => Promise.resolve(false),
       /**
        * No origin in mock.
        * @returns False.

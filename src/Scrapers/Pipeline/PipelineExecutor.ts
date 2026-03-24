@@ -7,6 +7,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import { runAllCleanups } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
@@ -14,6 +15,12 @@ import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';
 import type { IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, isOk, succeed, toLegacy } from './Types/Procedure.js';
+
+/** Mutable state for phase reduction: tracks last context + phase list. */
+interface IContextTracker {
+  readonly phases: readonly IPhaseDefinition<IPipelineContext, IPipelineContext>[];
+  lastCtx: IPipelineContext;
+}
 
 /**
  * Run a single optional step if present, otherwise pass through.
@@ -114,22 +121,48 @@ function buildInitialContext(
 }
 
 /**
- * Reduce phases sequentially using recursive Promise chain.
- * @param phases - Ordered phase definitions.
+ * Extract browser cleanup handlers from a pipeline context.
+ * @param ctx - The pipeline context (may or may not have browser).
+ * @returns Cleanup functions, or empty array if no browser.
+ */
+function extractCleanups(ctx: IPipelineContext): readonly (() => Promise<boolean>)[] {
+  if (!ctx.browser.has) return [];
+  return ctx.browser.value.cleanups;
+}
+
+/**
+ * Run browser cleanup from the tracked context. Used in finally block.
+ * @param tracker - Context tracker with the last known good context.
+ * @param logger - Logger for error reporting.
+ * @returns Count of successful cleanups (0 if no browser).
+ */
+async function ensureBrowserCleanup(
+  tracker: IContextTracker,
+  logger: IPipelineContext['logger'],
+): Promise<number> {
+  const cleanups = extractCleanups(tracker.lastCtx);
+  if (cleanups.length === 0) return 0;
+  logger.debug('emergency cleanup: running %d browser cleanups', cleanups.length);
+  return runAllCleanups(cleanups, logger);
+}
+
+/**
+ * Reduce phases sequentially, tracking the latest context for cleanup.
+ * @param tracker - Mutable tracker with phases and last context.
  * @param ctx - Current pipeline context.
  * @param index - Current phase index.
  * @returns Final Procedure with accumulated context.
  */
 async function reducePhases(
-  phases: readonly IPhaseDefinition<IPipelineContext, IPipelineContext>[],
+  tracker: IContextTracker,
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  if (index >= phases.length) return succeed(ctx);
-  const phase = phases[index];
-  const result = await executePhase(phase, ctx);
+  if (index >= tracker.phases.length) return succeed(ctx);
+  tracker.lastCtx = ctx;
+  const result = await executePhase(tracker.phases[index], ctx);
   if (!isOk(result)) return result;
-  return reducePhases(phases, result.value, index + 1);
+  return reducePhases(tracker, result.value, index + 1);
 }
 
 /**
@@ -186,11 +219,14 @@ async function executePipeline(
   credentials: ScraperCredentials,
 ): Promise<IScraperScrapingResult> {
   const initialCtx = buildInitialContext(descriptor, credentials);
+  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
   let result: Procedure<IPipelineContext>;
   try {
-    result = await reducePhases(descriptor.phases, initialCtx, 0);
+    result = await reducePhases(tracker, initialCtx, 0);
   } catch (error) {
     result = wrapError(error);
+  } finally {
+    await ensureBrowserCleanup(tracker, initialCtx.logger);
   }
   return toResult(result);
 }

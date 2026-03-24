@@ -157,6 +157,26 @@ describe('isFillableInput (via nested input strategy)', () => {
     expect(result.resolvedKind).toBe('placeholder');
   });
 
+  it('rejects <input type="radio"> (not fillable)', async () => {
+    const baseQuery = makeQuerySelectorWithLabel();
+    const querySelector = addPlaceholderFallback(baseQuery);
+    const locMock = makeLocatorMock('input', 'radio');
+    const page = makeLabelPage(querySelector, locMock);
+    const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('placeholder');
+  });
+
+  it('rejects <input type="checkbox"> (not fillable)', async () => {
+    const baseQuery = makeQuerySelectorWithLabel();
+    const querySelector = addPlaceholderFallback(baseQuery);
+    const locMock = makeLocatorMock('input', 'checkbox');
+    const page = makeLabelPage(querySelector, locMock);
+    const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('placeholder');
+  });
+
   it('rejects <div> element (not input/textarea)', async () => {
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);

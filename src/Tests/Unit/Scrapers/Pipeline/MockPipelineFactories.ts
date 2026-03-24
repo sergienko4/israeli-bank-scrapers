@@ -375,7 +375,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * No auth token in mock.
        * @returns False.
        */
-      discoverAuthToken: (): false => false,
+      discoverAuthToken: (): Promise<false> => Promise.resolve(false),
       /**
        * No origin in mock.
        * @returns False.

@@ -89,32 +89,35 @@ async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Pr
 }
 
 /**
- * Self-contained browser-context form walk. All helpers inlined.
+ * Self-contained browser-context form walk. ALL logic inline — no external refs.
+ * Uses only anonymous function expressions to avoid __name injection by build tools.
  * @param input - DOM input element (injected by Playwright).
  * @param skipTypes - Non-fillable input types (passed as arg).
  * @returns CSS selector for the nearest form-like ancestor.
  */
+/**
+ * Self-contained browser-context form walk. ALL logic inline — no external refs.
+ * Must be self-contained: Playwright evaluate() serializes only this function.
+ * @param input - DOM input element (injected by Playwright).
+ * @param skipTypes - Non-fillable input types (passed as arg).
+ * @returns CSS selector for the nearest form-like ancestor.
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser evaluate() requires self-contained function
 function formWalkBrowserFn(input: Element, skipTypes: string[]): string {
   const skip = new Set(skipTypes);
-  /**
-   * Build CSS selector for a DOM element.
-   * @param el - Target element.
-   * @returns CSS selector string.
-   */
-  const sel = (el: Element): string => {
-    if (el.id) return `#${el.id}`;
-    const p = el.parentElement;
-    if (!p) return '';
-    const tag = el.tagName.toLowerCase();
-    const same = Array.from(p.children).filter(c => c.tagName === el.tagName);
-    if (same.length === 1) return tag;
-    return `${tag}:nth-of-type(${String(same.indexOf(el) + 1)})`;
-  };
   let el = input.parentElement;
   while (el && el !== document.body) {
-    if (el.tagName === 'FORM') return sel(el);
-    const fillable = [...el.querySelectorAll('input')].filter(i => !skip.has(i.type));
-    if (fillable.length >= 2) return sel(el);
+    const isForm = el.tagName === 'FORM';
+    const fills = isForm ? [] : [...el.querySelectorAll('input')].filter(i => !skip.has(i.type));
+    if (isForm || fills.length >= 2) {
+      if (el.id) return '#' + el.id;
+      const tag = el.tagName.toLowerCase();
+      const p = el.parentElement;
+      if (!p) return tag;
+      const target = el;
+      const sib = [...p.children].filter(c => c.tagName === target.tagName);
+      return sib.length <= 1 ? tag : tag + ':nth-of-type(' + String(sib.indexOf(target) + 1) + ')';
+    }
     el = el.parentElement;
   }
   return '';

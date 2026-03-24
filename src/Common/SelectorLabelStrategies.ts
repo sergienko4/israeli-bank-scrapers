@@ -67,7 +67,7 @@ interface IXpathStrategyOpts {
  */
 export async function resolveByNestedInput(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}//input[1]`;
+  const xpath = `${baseXpath}//input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
@@ -116,7 +116,7 @@ export async function resolveByAriaRef(opts: IAriaRefOpts): Promise<string> {
  */
 export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}/following-sibling::input[1]`;
+  const xpath = `${baseXpath}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
@@ -132,7 +132,7 @@ export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string
  */
 export async function resolveByProximity(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}/..//input[1]`;
+  const xpath = `${baseXpath}/..//input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);

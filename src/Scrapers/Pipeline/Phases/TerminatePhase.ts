@@ -50,6 +50,20 @@ async function runCleanupsRecursive(
 }
 
 /**
+ * Run all cleanup handlers in LIFO order. Entry point for emergency cleanup.
+ * @param cleanups - Cleanup functions registered during init.
+ * @param logger - Logger for error reporting.
+ * @returns Count of successful cleanups.
+ */
+async function runAllCleanups(
+  cleanups: readonly (() => Promise<boolean>)[],
+  logger: IPipelineContext['logger'],
+): Promise<number> {
+  const lastIndex = cleanups.length - 1;
+  return runCleanupsRecursive(cleanups, logger, lastIndex);
+}
+
+/**
  * Execute the terminate phase — LIFO cleanup, never fails.
  * @param _ctx - Current pipeline context (unused).
  * @param input - Input context with browser state.
@@ -73,4 +87,4 @@ const TERMINATE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
 };
 
 export default TERMINATE_STEP;
-export { TERMINATE_STEP };
+export { runAllCleanups, TERMINATE_STEP };

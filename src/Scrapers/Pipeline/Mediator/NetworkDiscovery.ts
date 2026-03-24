@@ -15,8 +15,7 @@ import type { IFetchOpts } from '../Strategy/FetchStrategy.js';
 
 const LOG = getDebug('network-discovery');
 
-/** WellKnown request header names for auth discovery. */
-const AUTH_HEADERS = ['authorization', 'x-auth-token'];
+import { AUTH_HEADER_NAMES, discoverAuthThreeTier } from './AuthDiscovery.js';
 
 /** WellKnown request header names for origin discovery. */
 const ORIGIN_HEADERS = ['origin', 'referer'];
@@ -81,8 +80,12 @@ interface INetworkDiscovery {
   /** Discover balance endpoint via WellKnown patterns. */
   discoverBalanceEndpoint(): IDiscoveredEndpoint | false;
 
-  /** Discover auth token from captured request headers (Authorization, etc.). */
-  discoverAuthToken(): string | false;
+  /**
+   * Discover auth token — 3-tier: headers → response bodies → sessionStorage.
+   * Async because sessionStorage requires page.evaluate.
+   * @returns Auth token string or false.
+   */
+  discoverAuthToken(): Promise<string | false>;
 
   /** Discover origin domain from captured request headers. */
   discoverOrigin(): string | false;
@@ -271,12 +274,6 @@ function discoverHeaderValue(
 }
 
 /**
- * Create a network discovery instance bound to a page.
- * Starts capturing immediately on creation.
- * @param page - Playwright page to observe.
- * @returns Network discovery interface.
- */
-/**
  * Build the low-level discovery methods bound to captured data.
  * @param captured - Mutable captured endpoints array.
  * @returns Low-level discovery methods.
@@ -358,15 +355,16 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
 /**
  * Build header discovery methods from captured request headers.
  * @param captured - Captured endpoints array.
+ * @param page - Playwright page for auth fallback.
  * @returns Header discovery methods.
  */
-function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[]): HeaderMethods {
+function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[], page: Page): HeaderMethods {
   return {
     /**
-     * Auth token from request headers.
+     * Auth token — 3-tier fallback.
      * @returns Token string or false.
      */
-    discoverAuthToken: (): string | false => discoverHeaderValue(captured, AUTH_HEADERS),
+    discoverAuthToken: (): Promise<string | false> => discoverAuthThreeTier(captured, page),
     /**
      * Origin domain from request headers.
      * @returns Origin URL or false.
@@ -383,7 +381,7 @@ function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[]): HeaderMet
      */
     buildDiscoveredHeaders: (): IFetchOpts => {
       const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      const auth = discoverHeaderValue(captured, AUTH_HEADERS);
+      const auth = discoverHeaderValue(captured, AUTH_HEADER_NAMES);
       if (auth) extraHeaders.authorization = auth;
       const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
       if (origin) extraHeaders.Origin = origin;
@@ -487,7 +485,7 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   page.on('response', (r: Response): boolean => handleResponse(captured, r));
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
-  const headers = buildHeaderMethods(captured);
+  const headers = buildHeaderMethods(captured, page);
   const urlBuilders = {
     /**
      * Build full transaction URL from traffic templates.

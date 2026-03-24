@@ -94,7 +94,7 @@ export function isPage(pageOrFrame: Page | Frame): pageOrFrame is Page {
  * @returns The normalized credential key (e.g. 'username', 'password', 'id', 'num').
  */
 export function extractCredentialKey(selector: string): string {
-  const id = /^#([a-zA-Z0-9_-]+)/.exec(selector)?.[1] ?? selector;
+  const id = /^#([\w-]+)/.exec(selector)?.[1] ?? selector;
   const lower = id.toLowerCase();
   const directMatch = CREDENTIAL_KEY_MAP[lower];
   if (directMatch) return directMatch;

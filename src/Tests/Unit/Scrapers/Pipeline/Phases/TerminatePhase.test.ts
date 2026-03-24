@@ -6,7 +6,10 @@
 import { jest } from '@jest/globals';
 
 import type { ScraperLogger } from '../../../../../Common/Debug.js';
-import { TERMINATE_STEP } from '../../../../../Scrapers/Pipeline/Phases/TerminatePhase.js';
+import {
+  runAllCleanups,
+  TERMINATE_STEP,
+} from '../../../../../Scrapers/Pipeline/Phases/TerminatePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { makeMockBrowserState, makeMockContext } from '../MockPipelineFactories.js';
 
@@ -124,5 +127,61 @@ describe('TerminatePhase/error-swallowing', () => {
     expect(result.success).toBe(true);
     expect(order).toContain(0);
     expect(order).toContain(2);
+  });
+});
+
+// ── runAllCleanups (exported for PipelineExecutor emergency cleanup) ──
+
+/**
+ * Build a mock logger for runAllCleanups tests.
+ * @returns Logger with jest.fn() stubs.
+ */
+function makeMockLogger(): ScraperLogger {
+  return {
+    debug: jest.fn(),
+    trace: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  } as unknown as ScraperLogger;
+}
+
+describe('TerminatePhase/runAllCleanups', () => {
+  it('runs cleanups in LIFO order', async () => {
+    const order: number[] = [];
+    const cleanups = [
+      (): Promise<boolean> => {
+        order.push(0);
+        return Promise.resolve(true);
+      },
+      (): Promise<boolean> => {
+        order.push(1);
+        return Promise.resolve(true);
+      },
+      (): Promise<boolean> => {
+        order.push(2);
+        return Promise.resolve(true);
+      },
+    ];
+    const logger = makeMockLogger();
+    await runAllCleanups(cleanups, logger);
+    expect(order).toEqual([2, 1, 0]);
+  });
+
+  it('returns 0 for empty cleanups array', async () => {
+    const logger = makeMockLogger();
+    const count = await runAllCleanups([], logger);
+    expect(count).toBe(0);
+  });
+
+  it('returns count of successful cleanups (skipping failures)', async () => {
+    const cleanups = [
+      (): Promise<boolean> => Promise.resolve(true),
+      (): Promise<boolean> => Promise.reject(new Error('middle fails')),
+      (): Promise<boolean> => Promise.resolve(true),
+    ];
+    const logger = makeMockLogger();
+    const count = await runAllCleanups(cleanups, logger);
+    expect(count).toBe(2);
   });
 });

@@ -140,7 +140,7 @@ function convertTransactions(
  */
 function handleTransactionRow(txns: IScrapedTransaction[], txnRow: ITransactionsTr): boolean {
   const div = txnRow.innerDivs;
-  const regex = /\D+/gm;
+  const regex = /\D+/g;
   const tx: IScrapedTransaction = {
     date: div[1],
     reference: div[2].replace(regex, ''),

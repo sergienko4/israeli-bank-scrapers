@@ -130,18 +130,40 @@ function wireComponents(input: IPipelineContext, launched: ILaunchedBrowser): IP
  * @param input - Input context to extend.
  * @returns New context with browser, fetchStrategy, and mediator populated.
  */
+/**
+ * Close a browser handle if it was successfully launched. Swallows errors.
+ * @param browser - Browser handle or false if not yet launched.
+ * @returns True if closed, false if no browser or close failed.
+ */
+async function closeBrowserSafe(browser: Browser | false): Promise<boolean> {
+  if (!browser) return false;
+  return browser
+    .close()
+    .then((): boolean => true)
+    .catch((): boolean => false);
+}
+
+/**
+ * Execute the init phase — launch browser, create page, wire strategy + mediator.
+ * @param ctx - Current pipeline context.
+ * @param input - Input context to extend.
+ * @returns New context with browser, fetchStrategy, and mediator populated.
+ */
 async function executeInit(
   ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  let browser: Browser | false = false;
   try {
-    const browser = await launchBrowser(ctx.options);
+    browser = await launchBrowser(ctx.options);
     const { context, page } = await createContextAndPage(browser);
     await setupPage(page, ctx.options);
     const result = wireComponents(input, { browser, context, page });
     return succeed(result);
   } catch (error) {
+    await closeBrowserSafe(browser);
     const msg = toErrorMessage(error as Error);
+    ctx.logger.debug('InitPhase failed: %s', msg);
     return fail(ScraperErrorTypes.Generic, `InitPhase failed: ${msg}`);
   }
 }

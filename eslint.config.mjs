@@ -8,6 +8,7 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import jsdoc from 'eslint-plugin-jsdoc';
+import regexpPlugin from "eslint-plugin-regexp"
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -222,6 +223,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
+  regexpPlugin.configs["flat/recommended"],
   prettier,
 
   // 3. MAIN SOURCE FILES (STRICT)
@@ -232,6 +234,7 @@ export default tseslint.config(
       'unused-imports': unusedImports,
       'check-file': checkFile,
       'simple-import-sort': simpleImportSort,
+      regexp: regexpPlugin,
       jsdoc,
     },
     languageOptions: {

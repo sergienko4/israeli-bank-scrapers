@@ -81,7 +81,33 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
     companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
-    logger: {} as unknown as ScraperLogger,
+    logger: {
+      /**
+       * No-op debug.
+       * @returns True.
+       */
+      debug: (): boolean => true,
+      /**
+       * No-op trace.
+       * @returns True.
+       */
+      trace: (): boolean => true,
+      /**
+       * No-op info.
+       * @returns True.
+       */
+      info: (): boolean => true,
+      /**
+       * No-op warn.
+       * @returns True.
+       */
+      warn: (): boolean => true,
+      /**
+       * No-op error.
+       * @returns True.
+       */
+      error: (): boolean => true,
+    } as unknown as ScraperLogger,
     diagnostics: {
       loginUrl: '',
       finalUrl: none(),

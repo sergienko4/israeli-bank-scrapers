@@ -117,7 +117,7 @@ async function interceptFilteredResponse(page: Page): Promise<ILeumiAccountRespo
  * @returns The sanitized account ID.
  */
 function sanitizeAccountId(accountId: string): string {
-  return accountId.replace('/', '_').replace(/[^\d-_]/g, '');
+  return accountId.replace('/', '_').replace(/[^\d\-_]/g, '');
 }
 
 /**
