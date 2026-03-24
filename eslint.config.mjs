@@ -210,6 +210,97 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   {
     selector: "CallExpression[callee.name='describe'] > Literal[value=/^(test|run|batch|suite)/i]",
     message: "🚫 GENERIC DESCRIPTION: Use the Feature Name in the describe block.",
+  },
+  {
+    selector: "MethodDefinition[key.name=/^(write|import|send|create|delete)/] ReturnStatement:not([argument])",
+    message: "🚫 RESULT PATTERN: Side-effect methods (write/import/send/create/delete) must return Procedure, not void."
+  },
+  // DI: Block ALL manual instantiation except builtins
+  {
+    // Add your safe classes to the negative lookahead (the ?! section)
+    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
+    message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
+  },
+
+  // Handler Delegation: Phases must call handlers
+  {
+    selector: "ClassDeclaration[id.name=/Phase$/] MethodDefinition[key.name='execute'] BlockStatement > :not(ExpressionStatement[expression.callee.property.name=/handle|executeHandler/]):not(ReturnStatement)",
+    message: "🚫 ARCHITECTURE: Phase logic must be delegated to a Handler. Use ctx.handlers.execute().",
+  },
+
+  // Guard Clauses & Logic Flow - No else blocks
+  {
+    selector: "IfStatement[alternate]",
+    message: "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
+  },
+  // No ternary — use logical lookups
+  {
+    selector: "ConditionalExpression",
+    message: "🚫 Ternary operators are disallowed. Use logical lookups.",
+  },
+
+  // Result Pattern: No primitive returns (V8 COMPATIBLE)
+  {
+    selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] .TSTypeAnnotation :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)",
+    message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
+  },
+
+  // Data Integrity & Fallbacks - Guard
+  {
+    // Targets: const x = y || '';
+    // EXEMPTS: variables named text, html, content, val, attr (common in DOM scraping)
+    selector: "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
+    message: "🚫 DATA INTEGRITY: Avoid '' fallbacks in business logic. Use a Result or ScraperError.",
+  },
+
+  // Pagination Abstraction - Pagination: No manual while loops — use Pagination strategy
+  {
+    selector: "WhileStatement, DoWhileStatement",
+    message: "🚫 PAGINATION: Do not use manual loops. Use the Pagination strategy abstraction.",
+  },
+
+  // Concurrency & Error Handling
+  {
+    selector: "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
+    message: "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled().",
+  },
+  // GUARD: Prevent transforming Errors into "Empty Success"
+  {
+    selector: "IfStatement[test.argument.property.name='isOk'] ReturnStatement > ArrayExpression[elements.length=0]",
+    message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. Propagate the failure Result.",
+  },
+  {
+    selector: "CatchClause MemberExpression[property.name='message']",
+    message: "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access.",
+  },
+
+  // Hardcoded Values Bypassing DI
+  {
+    selector: "Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal",
+    message: "🚫 DI: Config values must be injected via 'ctx.config'.",
+  },
+  {
+    selector: "CallExpression[callee.property.name=/goto|waitForTimeout|setViewport|setTimeout|waitForSelector|click|type/] > Literal",
+    message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.config'.",
+  },
+  {
+    selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
+    message: "🚫 ARCHITECTURE: Use Enums or Constants for status checks.",
+  },
+
+  // Type Safety (Unknown Checks - V8 COMPATIBLE)
+  {
+    selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword",
+    message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface.",
+  },
+  {
+    selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) > TSTypeAnnotation TSUnknownKeyword",
+    message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a concrete return Type.",
+  },
+  {
+    // Type Bypasses (as never / as any)
+    selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
+    message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
   }
 ];
 
@@ -367,6 +458,7 @@ export default tseslint.config(
             message: "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
           },
 
+
         ]
     },
   },
@@ -397,94 +489,7 @@ export default tseslint.config(
         'error',
         ...RESTRICTED_SYNTAX_RULES_NEW,
 
-        // DI: Block ALL manual instantiation except builtins
-        {
-          // Add your safe classes to the negative lookahead (the ?! section)
-          selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
-          message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
-        },
 
-        // Handler Delegation: Phases must call handlers
-        {
-          selector: "ClassDeclaration[id.name=/Phase$/] MethodDefinition[key.name='execute'] BlockStatement > :not(ExpressionStatement[expression.callee.property.name=/handle|executeHandler/]):not(ReturnStatement)",
-          message: "🚫 ARCHITECTURE: Phase logic must be delegated to a Handler. Use ctx.handlers.execute().",
-        },
-
-        // Guard Clauses & Logic Flow - No else blocks
-        {
-          selector: "IfStatement[alternate]",
-          message: "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
-        },
-        // No ternary — use logical lookups
-        {
-          selector: "ConditionalExpression",
-          message: "🚫 Ternary operators are disallowed. Use logical lookups.",
-        },
-
-        // Result Pattern: No primitive returns (V8 COMPATIBLE)
-        {
-          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] .TSTypeAnnotation :matches(TSStringKeyword, TSNumberKeyword, TSBooleanKeyword)",
-          message: "🚫 RESULT PATTERN: Do not return primitives directly. Return an IScraperResult.",
-        },
-
-        // Data Integrity & Fallbacks - Guard
-        {
-          // Targets: const x = y || '';
-          // EXEMPTS: variables named text, html, content, val, attr (common in DOM scraping)
-          selector: "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
-          message: "🚫 DATA INTEGRITY: Avoid '' fallbacks in business logic. Use a Result or ScraperError.",
-        },
-
-        // Pagination Abstraction - Pagination: No manual while loops — use Pagination strategy
-        {
-          selector: "WhileStatement, DoWhileStatement",
-          message: "🚫 PAGINATION: Do not use manual loops. Use the Pagination strategy abstraction.",
-        },
-
-        // Concurrency & Error Handling
-        {
-          selector: "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
-          message: "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled().",
-        },
-        // GUARD: Prevent transforming Errors into "Empty Success"
-        {
-          selector: "IfStatement[test.argument.property.name='isOk'] ReturnStatement > ArrayExpression[elements.length=0]",
-          message: "🚫 DATA INTEGRITY: Do not return an empty array [] on failure. Propagate the failure Result.",
-        },
-        {
-          selector: "CatchClause MemberExpression[property.name='message']",
-          message: "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access.",
-        },
-
-        // Hardcoded Values Bypassing DI
-        {
-          selector: "Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal",
-          message: "🚫 DI: Config values must be injected via 'ctx.config'.",
-        },
-        {
-          selector: "CallExpression[callee.property.name=/goto|waitForTimeout|setViewport|setTimeout|waitForSelector|click|type/] > Literal",
-          message: "🚫 DI: Browser interactions must use selectors/URLs from 'ctx.config'.",
-        },
-        {
-          selector: "BinaryExpression[operator='==='] > Literal[value=/^(success|failure|pending|error|done)$/i]",
-          message: "🚫 ARCHITECTURE: Use Enums or Constants for status checks.",
-        },
-
-        // Type Safety (Unknown Checks - V8 COMPATIBLE)
-        {
-          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword",
-          message: "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface.",
-        },
-        {
-          selector: ":matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) > TSTypeAnnotation TSUnknownKeyword",
-          message: "🚫 ARCHITECTURE: Functions cannot return 'unknown'. Define a concrete return Type.",
-        },
-
-        // Mock Integrity
-        {
-          selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
-          message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any'. Use 'DeepPartial<T>'.",
-        },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],

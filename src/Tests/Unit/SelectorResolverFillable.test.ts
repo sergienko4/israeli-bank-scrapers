@@ -73,10 +73,12 @@ function makeLocatorMock(tagName: string, type?: string): jest.Mock {
       };
       return { first: jest.fn().mockReturnValue(labelLoc), count: jest.fn().mockResolvedValue(1) };
     }
+    const isPlaceholder = sel.includes('placeholder');
+    const resolvedType = isPlaceholder ? 'text' : (type ?? 'text');
     const inputLoc = {
       count: jest.fn().mockResolvedValue(1),
-      evaluate: jest.fn().mockResolvedValue(tagName),
-      getAttribute: jest.fn().mockResolvedValue(type ?? 'text'),
+      evaluate: jest.fn().mockResolvedValue(isPlaceholder ? 'input' : tagName),
+      getAttribute: jest.fn().mockResolvedValue(resolvedType),
     };
     return { first: jest.fn().mockReturnValue(inputLoc), count: jest.fn().mockResolvedValue(1) };
   });
@@ -185,6 +187,41 @@ describe('isFillableInput (via nested input strategy)', () => {
     const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
     expect(result.resolvedKind).toBe('placeholder');
+  });
+});
+
+// ── probeStandardCandidate fillable check (CSS path) ────────────────────────
+
+describe('isFillableInput (via CSS/name standard candidate)', () => {
+  it('rejects name candidate resolving to radio (Amex #radioID case)', async () => {
+    const querySelector = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('name=')) return Promise.resolve({});
+      return Promise.resolve(null);
+    });
+    const locMock = makeLocatorMock('input', 'radio');
+    const page = makeLabelPage(querySelector, locMock);
+    const idField: IFieldConfig = {
+      credentialKey: 'id',
+      selectors: [{ kind: 'name', value: 'radioID' }],
+    };
+    const result = await SELECTOR_MOD.resolveFieldContext(page, idField, 'https://bank.test/');
+    expect(result.isResolved).toBe(false);
+  });
+
+  it('accepts name candidate resolving to text input', async () => {
+    const querySelector = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('name=')) return Promise.resolve({});
+      return Promise.resolve(null);
+    });
+    const locMock = makeLocatorMock('input', 'text');
+    const page = makeLabelPage(querySelector, locMock);
+    const idField: IFieldConfig = {
+      credentialKey: 'id',
+      selectors: [{ kind: 'name', value: 'userId' }],
+    };
+    const result = await SELECTOR_MOD.resolveFieldContext(page, idField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('name');
   });
 });
 

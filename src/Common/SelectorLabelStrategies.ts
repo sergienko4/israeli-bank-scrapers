@@ -49,6 +49,11 @@ export async function findInputByForAttr(
     LOG.debug('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
     return '';
   }
+  const isFillable = await isFillableInput(ctx, inputSelector);
+  if (!isFillable) {
+    LOG.debug('labelText "%s" for="%s" → #%s NOT FILLABLE', labelValue, forAttr, forAttr);
+    return '';
+  }
   LOG.debug('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
   return inputSelector;
 }

@@ -8,7 +8,11 @@ import {
   MIN_ID_LENGTH,
 } from './Config/SelectorResolverConfig.js';
 import { getDebug } from './Debug.js';
-import { resolveLabelText, resolveTextContent } from './SelectorLabelStrategies.js';
+import {
+  isFillableInput,
+  resolveLabelText,
+  resolveTextContent,
+} from './SelectorLabelStrategies.js';
 import {
   buildNotFoundContext,
   type IFieldContext,
@@ -186,18 +190,44 @@ async function probeTextContent(
  * @param candidate - The selector candidate to probe.
  * @returns The probe result with css and kind, or empty result if not found.
  */
+/** Candidate kinds that target input fields — must pass isFillableInput check. */
+const FILLABLE_KINDS = new Set(['name', 'ariaLabel']);
+
+/**
+ * Check if a found candidate is fillable (for input-targeting kinds only).
+ * @param ctx - Page or Frame context.
+ * @param css - Resolved CSS selector.
+ * @param kind - Candidate kind.
+ * @returns True if fillable or not an input-targeting kind.
+ */
+async function checkFillable(ctx: Page | Frame, css: string, kind: string): Promise<boolean> {
+  if (!FILLABLE_KINDS.has(kind)) return true;
+  return isFillableInput(ctx, css).catch((): boolean => true);
+}
+
+/**
+ * Probe a standard (non-label, non-textContent) candidate via direct query.
+ * @param ctx - The Page or Frame context to query in.
+ * @param candidate - The selector candidate to probe.
+ * @returns The probe result with css and kind, or empty result if not found.
+ */
 async function probeStandardCandidate(
   ctx: Page | Frame,
   candidate: SelectorCandidate,
 ): Promise<IProbeResult> {
   const css = candidateToCss(candidate);
   const isFound = await queryWithTimeout(ctx, css);
-  if (isFound) {
-    LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
-    return { css, kind: candidate.kind };
+  if (!isFound) {
+    LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
+    return { css: '', kind: candidate.kind };
   }
-  LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
-  return { css: '', kind: candidate.kind };
+  const isFillable = await checkFillable(ctx, css, candidate.kind);
+  if (!isFillable) {
+    LOG.debug('candidate %s "%s" → NOT FILLABLE', candidate.kind, candidate.value);
+    return { css: '', kind: candidate.kind };
+  }
+  LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+  return { css, kind: candidate.kind };
 }
 
 /**

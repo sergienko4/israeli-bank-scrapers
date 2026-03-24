@@ -9,11 +9,9 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { createMonthlyScrapeFn } from '../../Phases/MonthlyScrapeFactory.js';
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { AMEX_MONTHLY } from './AmexScraper.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
@@ -31,16 +29,15 @@ const AMEX_LOGIN: ILoginConfig = {
 
 /**
  * Build the Amex pipeline descriptor.
- * @param options - Scraper options.
+ * NO withScraper — uses generic auto-scrape (ctx.api + WellKnown).
+ * @param options - Scraper options from the user.
  * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
-  const scrapeFn = createMonthlyScrapeFn(AMEX_MONTHLY);
   return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(AMEX_LOGIN)
-    .withScraper(scrapeFn)
     .build();
 }
 
