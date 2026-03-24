@@ -12,7 +12,6 @@ import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { visaCalFetchData } from './VisaCalScraper.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.VisaCal];
 
@@ -29,15 +28,15 @@ const VISACAL_LOGIN: ILoginConfig = {
 
 /**
  * Build the VisaCal pipeline descriptor.
- * @param options - Scraper options.
- * @returns Pipeline: init → home → login → scrape → terminate.
+ * NO withScraper — uses generic auto-scrape (ctx.api + WellKnown).
+ * @param options - Scraper options from the user.
+ * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
  */
 function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(VISACAL_LOGIN)
-    .withScraper(visaCalFetchData)
     .build();
 }
 
