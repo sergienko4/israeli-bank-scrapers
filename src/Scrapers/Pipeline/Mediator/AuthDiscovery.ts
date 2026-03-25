@@ -190,11 +190,12 @@ async function discoverAuthThreeTier(
   captured: readonly IDiscoveredEndpoint[],
   page: Page,
 ): Promise<string | false> {
-  const fromHeaders = discoverFromHeaders(captured);
-  if (fromHeaders) return fromHeaders;
+  // Prefer fresh sources (response body, sessionStorage) over stale captured headers
   const fromBody = discoverFromResponses(captured);
   if (fromBody) return fromBody;
-  return discoverFromStorage(page);
+  const fromStorage = await discoverFromStorage(page);
+  if (fromStorage) return fromStorage;
+  return discoverFromHeaders(captured);
 }
 
 export { AUTH_HEADER_NAMES, discoverAuthThreeTier, discoverFromHeaders };

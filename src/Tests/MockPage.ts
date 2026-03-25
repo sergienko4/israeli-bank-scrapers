@@ -38,7 +38,8 @@ export interface IMockPage {
   getByPlaceholder: jest.Mock;
   getByRole: jest.Mock;
   cookies?: jest.Mock;
-  [key: string]: jest.Mock | undefined;
+  request?: { get: jest.Mock; post: jest.Mock };
+  [key: string]: jest.Mock | { get: jest.Mock; post: jest.Mock } | undefined;
 }
 
 export type MockOverrides = Partial<IMockPage>;
@@ -67,6 +68,28 @@ export function makeLocatorMock(withFill = false): ILocatorMock {
   loc.first.mockReturnValue(loc);
   return loc;
 }
+
+/**
+ * Creates a mock Playwright APIResponse with status 200 and empty JSON.
+ * @returns Mock APIResponse object.
+ */
+function makeMockApiResponse(): { status: () => number; text: () => Promise<string> } {
+  return {
+    /**
+     * HTTP status code stub.
+     * @returns 200.
+     */
+    status: (): number => 200,
+    /**
+     * Response text stub.
+     * @returns Empty JSON string.
+     */
+    text: (): Promise<string> => Promise.resolve('{}'),
+  };
+}
+
+/** Default mock API response (200, empty JSON). */
+const DEFAULT_API_RESPONSE = makeMockApiResponse();
 
 /**
  * Creates a mock Playwright Page with sensible jest.fn() stubs.
@@ -154,6 +177,13 @@ export function createMockPage(overrides: MockOverrides = {}): IMockPage & Page 
     getByLabel: jest.fn().mockImplementation(() => makeLocatorMock(true)),
     getByPlaceholder: jest.fn().mockImplementation(() => makeLocatorMock(true)),
     getByRole: jest.fn().mockImplementation(() => makeLocatorMock()),
+    request: {
+      /** Mock GET request returning 200 with empty JSON. */
+      get: jest.fn().mockResolvedValue(DEFAULT_API_RESPONSE),
+      /** Mock POST request returning 200 with empty JSON. */
+      post: jest.fn().mockResolvedValue(DEFAULT_API_RESPONSE),
+    },
+    waitForRequest: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as IMockPage & Page;
 }

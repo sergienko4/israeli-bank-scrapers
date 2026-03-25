@@ -19,7 +19,7 @@ import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js'
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { fail, type Procedure, succeed } from '../Types/Procedure.js';
-import type { IElementMediator } from './ElementMediator.js';
+import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from './ElementMediator.js';
 import {
   checkFrameForErrors,
   discoverFormErrors,
@@ -310,8 +310,87 @@ async function raceLocators(locators: Locator[], timeout: number): Promise<numbe
   return winner.value;
 }
 
+/** A locator paired with the candidate and context that produced it. */
+interface ILocatorEntry {
+  readonly locator: Locator;
+  readonly candidate: SelectorCandidate;
+  readonly context: Page | Frame;
+}
+
 /**
- * Resolve and click — parallel race across main page + iframes.
+ * Build locator entries with metadata for all contexts × candidates.
+ * Preserves which candidate and context produced each locator.
+ * @param page - The Playwright page.
+ * @param candidates - WellKnown selector candidates.
+ * @returns Array of locator entries with metadata.
+ */
+function buildLocatorEntries(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+): ILocatorEntry[] {
+  const contexts = getAllContexts(page);
+  return contexts.flatMap((ctx): ILocatorEntry[] =>
+    candidates.flatMap((c): ILocatorEntry[] =>
+      buildCandidateLocators(ctx, c).map(
+        (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
+      ),
+    ),
+  );
+}
+
+/**
+ * Snapshot the element value immediately to prevent stale-element errors.
+ * For target:'href' candidates, captures the href attribute.
+ * Otherwise captures innerText.
+ * @param entry - The winning locator entry.
+ * @returns The captured text or href value.
+ */
+async function snapshotValue(entry: ILocatorEntry): Promise<string> {
+  const target = entry.candidate.target ?? 'self';
+  if (target === 'href') {
+    const href = await entry.locator.getAttribute('href').catch((): string => '');
+    return href ?? '';
+  }
+  return entry.locator.innerText().catch((): string => '');
+}
+
+/**
+ * Build a successful IRaceResult from a winning entry.
+ * @param entry - The winning locator entry.
+ * @param index - The index of the winner.
+ * @param value - Snapshot value captured from the element.
+ * @returns A found IRaceResult.
+ */
+function buildFoundResult(entry: ILocatorEntry, index: number, value: string): IRaceResult {
+  const { locator, candidate, context } = entry;
+  return { found: true, locator, candidate, context, index, value };
+}
+
+/**
+ * Resolve the first visible element WITHOUT clicking — Identify → Inspect → Act.
+ * Parallel race across main page + iframes. Captures a value snapshot immediately.
+ * @param page - The Playwright page.
+ * @param candidates - WellKnown selector candidates.
+ * @param timeout - Race timeout in ms.
+ * @returns IRaceResult with locator, candidate, context, and snapshot value.
+ */
+async function resolveVisibleImpl(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+  timeout: number,
+): Promise<IRaceResult> {
+  const entries = buildLocatorEntries(page, candidates);
+  if (entries.length === 0) return NOT_FOUND_RESULT;
+  const locators = entries.map((e): Locator => e.locator);
+  LOG.debug('resolveVisible: %d locators, timeout=%dms', locators.length, timeout);
+  const winnerIdx = await raceLocators(locators, timeout);
+  if (winnerIdx < 0) return NOT_FOUND_RESULT;
+  const value = await snapshotValue(entries[winnerIdx]);
+  return buildFoundResult(entries[winnerIdx], winnerIdx, value);
+}
+
+/**
+ * Resolve and click — calls resolveVisible then clicks the winner.
  * @param page - The Playwright page.
  * @param candidates - WellKnown selector candidates.
  * @param timeout - Race timeout in ms.
@@ -322,19 +401,28 @@ async function resolveAndClickImpl(
   candidates: readonly SelectorCandidate[],
   timeout: number,
 ): Promise<boolean> {
-  const contexts = getAllContexts(page);
-  const allLocators = contexts.flatMap((ctx): Locator[] =>
-    candidates.flatMap((c): Locator[] => buildCandidateLocators(ctx, c)),
-  );
-  LOG.debug('resolveAndClick: %d locators, timeout=%dms', allLocators.length, timeout);
-  const winnerIdx = await raceLocators(allLocators, timeout);
-  if (winnerIdx < 0) return false;
-  await allLocators[winnerIdx].click();
+  const result = await resolveVisibleImpl(page, candidates, timeout);
+  if (!result.found || !result.locator) return false;
+  await result.locator.click();
   return true;
 }
 
 /**
+ * Build resolveVisible method bound to a page.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveVisible function.
+ */
+function buildResolveVisible(page: Page): IElementMediator['resolveVisible'] {
+  return (candidates, timeoutMs?): Promise<IRaceResult> => {
+    if (candidates.length === 0) return Promise.resolve(NOT_FOUND_RESULT);
+    const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
+    return resolveVisibleImpl(page, candidates, timeout);
+  };
+}
+
+/**
  * Build resolveAndClick method bound to a page.
+ * Internally calls resolveVisible then clicks the winner.
  * @param page - The Playwright page.
  * @returns Mediator resolveAndClick function.
  */
@@ -357,6 +445,7 @@ function createElementMediator(page: Page): IElementMediator {
   const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
+    resolveVisible: buildResolveVisible(page),
     resolveAndClick: buildResolveAndClick(page),
     discoverErrors: buildDiscoverErrors(),
     waitForLoadingDone: buildWaitForLoadingDone(),

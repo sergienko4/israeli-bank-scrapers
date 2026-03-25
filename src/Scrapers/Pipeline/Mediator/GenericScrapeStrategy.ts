@@ -361,8 +361,13 @@ function extractAccountIds(responseBody: Record<string, unknown>): readonly stri
  * @returns Array of mapped ITransactions.
  */
 function extractTransactions(responseBody: Record<string, unknown>): readonly ITransaction[] {
+  const topKeys = Object.keys(responseBody);
+  const keyList = topKeys.join(',');
+  LOG.debug('extractTransactions: topKeys=%s', keyList);
   const items = findFirstArray(responseBody);
-  return castSearchable(items).map(autoMapTransaction);
+  LOG.debug('extractTransactions: %d items found', items.length);
+  const searchable = castSearchable(items);
+  return searchable.map(autoMapTransaction);
 }
 
 export {

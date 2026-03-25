@@ -202,9 +202,11 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
     { kind: 'ariaLabel', value: 'בחר חשבון' },
   ],
   dashboardIndicator: [
-    // greeting pattern: "היי name, text!" (logged-in state)
+    // greeting regex — match logged-in greetings with user name (NOT standalone nav text)
     { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
-    { kind: 'textContent', value: 'שלום' },
+    { kind: 'regex', value: '^שלום\\s+\\S+' },
+    { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
+    { kind: 'regex', value: '^Hello,?\\s+\\w+' },
     // Discount dashboard
     { kind: 'textContent', value: 'כניסתך האחרונה' },
     { kind: 'textContent', value: 'כניסה אחרונה' },
@@ -275,13 +277,13 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
  */
 export const PIPELINE_WELL_KNOWN_API = {
   /** Account list endpoints — which accounts the user has. */
-  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i],
+  accounts: [/userAccountsData/i, /account\/info/i, /DashboardMonth/i],
   /** Transaction detail endpoints — fetch transaction history. */
   transactions: [
-    /lastTransactions/i,
     /transactionsDetails/i,
     /filteredTransactions/i,
     /CardsTransactionsList/i,
+    /lastTransactions/i,
   ],
   /** Balance/frame endpoints — current balance. */
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
@@ -307,9 +309,11 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   accountId: [
     'AccountID',
     'accountNumber',
+    'bankAccountUniqueID',
     'cardNumber',
     'last4Digits',
     'cardUniqueId',
+    'cardUniqueID',
     'accountId',
   ],
   /** Transaction date field names. */
@@ -359,5 +363,12 @@ export const PIPELINE_WELL_KNOWN_MONTHLY_FIELDS = {
   /** Year field names in POST body. */
   year: ['year', 'billingYear', 'Year'],
   /** Account/card ID field names in POST body. */
-  accountId: ['cardUniqueId', 'accountId', 'cardNumber', 'CardId'],
+  accountId: [
+    'cardUniqueId',
+    'cardUniqueID',
+    'bankAccountUniqueID',
+    'accountId',
+    'cardNumber',
+    'CardId',
+  ],
 } satisfies Record<string, string[]>;

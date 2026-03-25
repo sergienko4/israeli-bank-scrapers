@@ -12,110 +12,16 @@ import type { Page, Response } from 'playwright-core';
 import { getDebug } from '../../../Common/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../Registry/PipelineWellKnown.js';
 import type { IFetchOpts } from '../Strategy/FetchStrategy.js';
+import { discoverAuthThreeTier } from './AuthDiscovery.js';
+import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
 
 const LOG = getDebug('network-discovery');
-
-import { AUTH_HEADER_NAMES, discoverAuthThreeTier } from './AuthDiscovery.js';
 
 /** WellKnown request header names for origin discovery. */
 const ORIGIN_HEADERS = ['origin', 'referer'];
 
 /** WellKnown request header names for site ID discovery. */
 const SITE_ID_HEADERS = ['x-site-id', 'x-session-id'];
-
-/** A discovered API endpoint — captured from browser network traffic. */
-interface IDiscoveredEndpoint {
-  /** Full URL including query params. */
-  readonly url: string;
-  /** HTTP method (GET or POST). */
-  readonly method: 'GET' | 'POST';
-  /** POST body if applicable. */
-  readonly postData: string;
-  /** Parsed JSON response body. */
-  readonly responseBody: unknown;
-  /** Response content type. */
-  readonly contentType: string;
-  /** Request headers sent by page JS (for auth token, origin, site ID). */
-  readonly requestHeaders: Record<string, string>;
-  /** Capture timestamp (ms since epoch). */
-  readonly timestamp: number;
-}
-
-/** Network discovery interface — captures and queries API traffic. */
-interface INetworkDiscovery {
-  /**
-   * Find all captured endpoints matching a URL pattern.
-   * @param pattern - Regex to match against endpoint URLs.
-   * @returns Matching endpoints in capture order.
-   */
-  findEndpoints(pattern: RegExp): readonly IDiscoveredEndpoint[];
-
-  /**
-   * Get the common services base URL from captured traffic.
-   * Extracts the URL path before query params from the most common pattern.
-   * @returns Services URL or false if no endpoints captured.
-   */
-  getServicesUrl(): string | false;
-
-  /**
-   * Get all captured endpoints.
-   * @returns All endpoints in capture order.
-   */
-  getAllEndpoints(): readonly IDiscoveredEndpoint[];
-
-  /**
-   * Discover endpoint by WellKnown API category.
-   * Tries each pattern in the category until one matches.
-   * @param patterns - Array of regex patterns (from PIPELINE_WELL_KNOWN_API).
-   * @returns First matching endpoint or false.
-   */
-  discoverByPatterns(patterns: readonly RegExp[]): IDiscoveredEndpoint | false;
-
-  /** Discover accounts endpoint via WellKnown patterns. */
-  discoverAccountsEndpoint(): IDiscoveredEndpoint | false;
-
-  /** Discover transactions endpoint via WellKnown patterns. */
-  discoverTransactionsEndpoint(): IDiscoveredEndpoint | false;
-
-  /** Discover balance endpoint via WellKnown patterns. */
-  discoverBalanceEndpoint(): IDiscoveredEndpoint | false;
-
-  /**
-   * Discover auth token — 3-tier: headers → response bodies → sessionStorage.
-   * Async because sessionStorage requires page.evaluate.
-   * @returns Auth token string or false.
-   */
-  discoverAuthToken(): Promise<string | false>;
-
-  /** Discover origin domain from captured request headers. */
-  discoverOrigin(): string | false;
-
-  /** Discover site ID from captured request headers (X-Site-Id, etc.). */
-  discoverSiteId(): string | false;
-
-  /**
-   * Build fetch headers from ALL discovered auth values in traffic.
-   * Includes authorization, origin, site-id, content-type.
-   * @returns IFetchOpts ready to pass to fetchStrategy.
-   */
-  buildDiscoveredHeaders(): IFetchOpts;
-
-  /**
-   * Build a full transaction URL for an account from captured traffic templates.
-   * Transforms dashboard summary URLs (forHomePage) into full history URLs (Date).
-   * @param accountId - Account number.
-   * @param startDate - Start date formatted (e.g., YYYYMMDD).
-   * @returns Full transaction URL or false.
-   */
-  buildTransactionUrl(accountId: string, startDate: string): string | false;
-
-  /**
-   * Build a balance URL for an account from captured traffic templates.
-   * @param accountId - Account number.
-   * @returns Balance URL or false.
-   */
-  buildBalanceUrl(accountId: string): string | false;
-}
 
 /** Sentinel for missing content-type header. */
 const NO_CONTENT_TYPE = 'none';
@@ -239,12 +145,6 @@ function discoverByWellKnown(
 }
 
 /**
- * Find the first non-empty header value matching any WellKnown header name.
- * @param captured - All captured endpoints.
- * @param headerNames - Header names to search (lowercase).
- * @returns Header value or false.
- */
-/**
  * Check if an endpoint has a non-empty value for any of the header names.
  * @param ep - Captured endpoint.
  * @param headerNames - Header names to check.
@@ -282,33 +182,21 @@ function buildCoreMethods(
   captured: IDiscoveredEndpoint[],
 ): Pick<
   INetworkDiscovery,
-  'findEndpoints' | 'getServicesUrl' | 'getAllEndpoints' | 'discoverByPatterns'
+  'findEndpoints' | 'getServicesUrl' | 'getAllEndpoints' | 'discoverByPatterns' | 'discoverSpaUrl'
 > {
   return {
-    /**
-     * Find endpoints matching URL pattern.
-     * @param pattern - Regex to match.
-     * @returns Matching endpoints.
-     */
+    /** @inheritdoc */
     findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
       captured.filter((ep): boolean => pattern.test(ep.url)),
-    /**
-     * Get common services base URL from traffic.
-     * @returns Common services URL or false.
-     */
+    /** @inheritdoc */
     getServicesUrl: (): string | false => findCommonServicesUrl(captured),
-    /**
-     * Get all captured endpoints.
-     * @returns All endpoints.
-     */
+    /** @inheritdoc */
     getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [...captured],
-    /**
-     * Discover endpoint by regex patterns.
-     * @param patterns - Regex patterns to try.
-     * @returns First match or false.
-     */
+    /** @inheritdoc */
     discoverByPatterns: (patterns: readonly RegExp[]): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, patterns),
+    /** @inheritdoc */
+    discoverSpaUrl: (): string | false => discoverSpaUrlFromTraffic(captured),
   };
 }
 
@@ -331,25 +219,148 @@ type HeaderMethods = Pick<
  */
 function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): EndpointMethods {
   return {
-    /**
-     * Accounts endpoint via WellKnown.
-     * @returns Endpoint or false.
-     */
+    /** @inheritdoc */
     discoverAccountsEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.accounts),
-    /**
-     * Transactions endpoint via WellKnown.
-     * @returns Endpoint or false.
-     */
+    /** @inheritdoc */
     discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.transactions),
-    /**
-     * Balance endpoint via WellKnown.
-     * @returns Endpoint or false.
-     */
+    /** @inheritdoc */
     discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
   };
+}
+
+/**
+ * Discover the SPA URL from captured API traffic.
+ * Finds a captured endpoint on an API domain and extracts its referer header.
+ * The referer is the SPA page that made the API call.
+ * @param captured - All captured endpoints.
+ * @returns SPA URL or false.
+ */
+function discoverSpaUrlFromTraffic(captured: readonly IDiscoveredEndpoint[]): string | false {
+  // Find an API endpoint (matches txn/accounts WellKnown) whose referer is a DIFFERENT domain
+  const apiPatterns = [
+    ...PIPELINE_WELL_KNOWN_API.transactions,
+    ...PIPELINE_WELL_KNOWN_API.accounts,
+    ...PIPELINE_WELL_KNOWN_API.balance,
+  ];
+  const apiEndpoint = captured.find((ep): boolean => {
+    const isApiEndpoint = apiPatterns.some((p): boolean => p.test(ep.url));
+    if (!isApiEndpoint) return false;
+    const referer = ep.requestHeaders.referer;
+    if (!referer) return false;
+    const epOrigin = new URL(ep.url).origin;
+    const refOrigin = new URL(referer).origin;
+    return epOrigin !== refOrigin;
+  });
+  if (!apiEndpoint) return false;
+  const discoveredReferer = apiEndpoint.requestHeaders.referer;
+  if (!discoveredReferer) return false;
+  return discoveredReferer;
+}
+
+/**
+ * Extract bare origin (scheme+host) from a URL or origin string.
+ * @param raw - URL or origin, possibly with path/query.
+ * @returns Clean origin like "https://example.com".
+ */
+function extractOriginOnly(raw: string): string {
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw;
+  }
+}
+
+/** Login/connect domains that are unlikely to be the correct API origin. */
+const LOGIN_DOMAIN_PATTERNS = [/connect\./i, /login\./i, /col-rest/i];
+
+/** A header value paired with the URL of the endpoint it came from. */
+interface ISourcedValue {
+  readonly value: string;
+  readonly sourceUrl: string;
+}
+
+/**
+ * Collect all unique header values paired with their source endpoint URL.
+ * @param captured - All captured endpoints.
+ * @param headerNames - Header names to search.
+ * @returns Deduplicated values with source URLs.
+ */
+function collectSourcedValues(
+  captured: readonly IDiscoveredEndpoint[],
+  headerNames: readonly string[],
+): readonly ISourcedValue[] {
+  const seen = new Set<string>();
+  return captured.reduce<ISourcedValue[]>((result, ep): ISourcedValue[] => {
+    const val = extractHeader(ep, headerNames);
+    if (val === false || seen.has(val)) return result;
+    seen.add(val);
+    return [...result, { value: val, sourceUrl: ep.url }];
+  }, []);
+}
+
+/**
+ * Pick best value: prefer values from non-login endpoints (SPA/API domain).
+ * @param sourced - Values with source URLs.
+ * @returns Best value or false.
+ */
+function pickBestValue(sourced: readonly ISourcedValue[]): string | false {
+  if (sourced.length === 0) return false;
+  if (sourced.length === 1) return sourced[0].value;
+  const nonLogin = sourced.find(
+    (s): boolean => !LOGIN_DOMAIN_PATTERNS.some((p): boolean => p.test(s.sourceUrl)),
+  );
+  return nonLogin?.value ?? sourced[0].value;
+}
+
+/**
+ * Format a token for debug logging (first 12 chars + ellipsis, or 'NONE').
+ * @param token - Auth token or false.
+ * @returns Truncated token string.
+ */
+function formatTokenPreview(token: string | false): string {
+  if (!token) return 'NONE';
+  return token.slice(0, 12) + '...';
+}
+
+/**
+ * Resolve the best origin from captured traffic.
+ * @param captured - Captured endpoints.
+ * @returns Clean origin string or false.
+ */
+function resolveOrigin(captured: readonly IDiscoveredEndpoint[]): string | false {
+  const sourced = collectSourcedValues(captured, ORIGIN_HEADERS);
+  const rawOrigin = pickBestValue(sourced);
+  if (!rawOrigin) return false;
+  return extractOriginOnly(rawOrigin);
+}
+
+/**
+ * Assemble discovered headers into an IFetchOpts object.
+ * @param captured - Captured endpoints.
+ * @param page - Playwright page for auth fallback.
+ * @returns IFetchOpts with auth, origin, site-id.
+ */
+async function assembleDiscoveredHeaders(
+  captured: readonly IDiscoveredEndpoint[],
+  page: Page,
+): Promise<IFetchOpts> {
+  const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  const auth = await discoverAuthThreeTier(captured, page);
+  if (auth) extraHeaders.authorization = auth;
+  const origin = resolveOrigin(captured);
+  if (origin) extraHeaders.Origin = origin;
+  if (origin) extraHeaders.Referer = origin;
+  const sourcedSiteIds = collectSourcedValues(captured, SITE_ID_HEADERS);
+  const siteId = pickBestValue(sourcedSiteIds);
+  if (siteId) extraHeaders['X-Site-Id'] = siteId;
+  const originLabel = origin || 'NONE';
+  const siteIdLabel = siteId || 'NONE';
+  const authLabel = formatTokenPreview(auth);
+  LOG.debug('discoveredHeaders: auth=%s origin=%s siteId=%s', authLabel, originLabel, siteIdLabel);
+  return { extraHeaders };
 }
 
 /**
@@ -360,36 +371,14 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
  */
 function buildHeaderMethods(captured: readonly IDiscoveredEndpoint[], page: Page): HeaderMethods {
   return {
-    /**
-     * Auth token — 3-tier fallback.
-     * @returns Token string or false.
-     */
+    /** @inheritdoc */
     discoverAuthToken: (): Promise<string | false> => discoverAuthThreeTier(captured, page),
-    /**
-     * Origin domain from request headers.
-     * @returns Origin URL or false.
-     */
+    /** @inheritdoc */
     discoverOrigin: (): string | false => discoverHeaderValue(captured, ORIGIN_HEADERS),
-    /**
-     * Site ID from request headers.
-     * @returns Site ID or false.
-     */
+    /** @inheritdoc */
     discoverSiteId: (): string | false => discoverHeaderValue(captured, SITE_ID_HEADERS),
-    /**
-     * Build fetch headers from all discovered values.
-     * @returns IFetchOpts with auth, origin, site-id.
-     */
-    buildDiscoveredHeaders: (): IFetchOpts => {
-      const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      const auth = discoverHeaderValue(captured, AUTH_HEADER_NAMES);
-      if (auth) extraHeaders.authorization = auth;
-      const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
-      if (origin) extraHeaders.Origin = origin;
-      if (origin) extraHeaders.Referer = origin;
-      const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
-      if (siteId) extraHeaders['X-Site-Id'] = siteId;
-      return { extraHeaders };
-    },
+    /** @inheritdoc */
+    buildDiscoveredHeaders: (): Promise<IFetchOpts> => assembleDiscoveredHeaders(captured, page),
   };
 }
 
@@ -487,94 +476,16 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const endpoints = buildEndpointMethods(captured);
   const headers = buildHeaderMethods(captured, page);
   const urlBuilders = {
-    /**
-     * Build full transaction URL from traffic templates.
-     * @param accountId - Account number.
-     * @param startDate - Start date.
-     * @returns URL or false.
-     */
+    /** @inheritdoc */
     buildTransactionUrl: (accountId: string, startDate: string): string | false =>
       buildTxnUrlFromTraffic(captured, accountId, startDate),
-    /**
-     * Build balance URL from traffic templates.
-     * @param accountId - Account number.
-     * @returns URL or false.
-     */
+    /** @inheritdoc */
     buildBalanceUrl: (accountId: string): string | false =>
       buildBalUrlFromTraffic(captured, accountId),
   };
   return { ...core, ...endpoints, ...headers, ...urlBuilders };
 }
 
-/** Header prefixes that are security-relevant (API auth tokens). */
-const SECURITY_PREFIXES = ['authorization', 'x-site', 'x-xsrf', 'session'];
-
-/** Header prefixes/keys that are browser noise — filter out. */
-const NOISE_KEYS = new Set([
-  'cookie',
-  'user-agent',
-  'host',
-  'content-length',
-  'content-type',
-  'accept',
-  'accept-language',
-  'accept-encoding',
-  'connection',
-  'cache-control',
-  'pragma',
-]);
-
-/** Header prefixes that are browser-generated noise. */
-const NOISE_PREFIXES = ['sec-ch', 'sec-fetch', 'upgrade-'];
-
-/** Headers that must always be kept (banking API requirements). */
-const ALWAYS_KEEP = new Set(['origin', 'referer']);
-
-/**
- * Check if a header key matches a security prefix.
- * @param key - Header key (lowercase).
- * @returns True if the key is security-relevant.
- */
-function isSecurityHeader(key: string): boolean {
-  return SECURITY_PREFIXES.some((p): boolean => key.startsWith(p));
-}
-
-/**
- * Check if a header key is browser noise.
- * @param key - Header key (lowercase).
- * @returns True if the key should be filtered out.
- */
-function isNoiseHeader(key: string): boolean {
-  if (NOISE_KEYS.has(key)) return true;
-  return NOISE_PREFIXES.some((p): boolean => key.startsWith(p));
-}
-
-/**
- * Decide whether a single header should be kept.
- * @param lower - Lowercased header key.
- * @returns True if the header should be kept.
- */
-function shouldKeepHeader(lower: string): boolean {
-  if (ALWAYS_KEEP.has(lower)) return true;
-  if (isNoiseHeader(lower)) return false;
-  return isSecurityHeader(lower);
-}
-
-/**
- * Distill captured request headers to only security-relevant ones.
- * Removes browser noise (UA, cookies, sec-*, content negotiation).
- * Keeps auth tokens, XSRF, session IDs, and origin/referer.
- * @param headers - Raw captured headers.
- * @returns Filtered headers with only security-relevant entries.
- */
-function distillHeaders(headers: Record<string, string>): Record<string, string> {
-  const entries = Object.entries(headers);
-  const kept = entries.filter(([key]): boolean => {
-    const lower = key.toLowerCase();
-    return shouldKeepHeader(lower);
-  });
-  return Object.fromEntries(kept);
-}
-
-export type { IDiscoveredEndpoint, INetworkDiscovery };
-export { createNetworkDiscovery, distillHeaders };
+export { distillHeaders } from './HeaderDistillation.js';
+export type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
+export { createNetworkDiscovery };

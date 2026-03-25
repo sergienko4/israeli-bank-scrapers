@@ -38,6 +38,40 @@ async function tryClickLoginLink(mediator: IElementMediator): Promise<boolean> {
   return mediator.resolveAndClick(candidates).catch((): boolean => false);
 }
 
+/** Href patterns that indicate a login page destination. */
+const LOGIN_HREF_PATTERNS = ['/login', '/connect', '/auth', '/signin'] as const;
+
+/**
+ * Check if an href points to a login-related page.
+ * @param href - The href attribute value.
+ * @returns True if href contains a login pattern.
+ */
+function isLoginHref(href: string): boolean {
+  const lower = href.toLowerCase();
+  return LOGIN_HREF_PATTERNS.some((p): boolean => lower.includes(p));
+}
+
+/**
+ * Try to click a login link using href strategy (Identify → Inspect → Act).
+ * Uses resolveVisible to find the link, inspects href before clicking.
+ * Falls back to regular resolveAndClick if resolveVisible finds nothing.
+ * @param mediator - Element mediator with resolver.
+ * @returns True if a login link was found and clicked.
+ */
+async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<boolean> {
+  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  const result = await mediator.resolveVisible(candidates).catch((): false => false);
+  if (!result || !result.found || !result.locator) {
+    return tryClickLoginLink(mediator);
+  }
+  const href = await result.locator.getAttribute('href').catch((): string => '');
+  if (href && !isLoginHref(href)) {
+    return tryClickLoginLink(mediator);
+  }
+  await result.locator.click();
+  return true;
+}
+
 /**
  * Try to click private customers link using WellKnown privateCustomers.
  * If found, waits for /login navigation.
@@ -115,6 +149,7 @@ async function waitForFirstField(page: Page): Promise<boolean> {
 export {
   tryClickCredentialArea,
   tryClickLoginLink,
+  tryClickLoginLinkWithHref,
   tryClickPrivateCustomers,
   tryClosePopup,
   waitForAnyLoginLink,

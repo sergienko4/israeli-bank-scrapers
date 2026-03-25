@@ -59,6 +59,21 @@ function extractIds(record: Record<string, unknown>): {
   return { displayId, accountId };
 }
 
+/**
+ * Extract card ID from a nested cards array in account record.
+ * Matches old VisaCal pattern: { cards: [{ cardUniqueID: "..." }] }
+ * @param record - Account record (may be captured POST body).
+ * @returns Card ID string or false.
+ */
+function extractCardId(record: Record<string, unknown>): string | false {
+  const cards = record.cards ?? record.Cards;
+  if (!Array.isArray(cards) || cards.length === 0) return false;
+  const first = cards[0] as Record<string, unknown>;
+  const id = findFieldValue(first, WK.accountId);
+  if (!id) return false;
+  return String(id);
+}
+
 // ── Billing Helpers ──────────────────────────────────────
 
 /**
@@ -98,9 +113,12 @@ async function fetchOneBillingChunk(
 ): Promise<readonly ITransaction[]> {
   const { month, year } = chunkMonthYear(chunk);
   const body = { cardUniqueId: ctx.accountId, month, year };
+  LOG.debug('billing chunk: m=%s y=%s card=%s url=%s', month, year, ctx.accountId, ctx.billingUrl);
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(ctx.billingUrl, body);
   if (!isOk(raw)) return [];
-  return extractTransactions(raw.value);
+  const txns = extractTransactions(raw.value);
+  LOG.debug('billing chunk: m=%s y=%s → %d txns', month, year, txns.length);
+  return txns;
 }
 
 /**
@@ -191,17 +209,19 @@ function prepareBilling(
  * Try monthly billing fallback for a card.
  * @param fc - Fetch context.
  * @param post - POST params with accountId + displayId.
+ * @param txnEndpoint - Optional discovered transaction endpoint for origin.
  * @returns Account with transactions, or failure.
  */
 async function tryBillingFallback(
   fc: IAccountFetchCtx,
   post: IPostFetchCtx,
+  txnEndpoint?: IDiscoveredEndpoint | false,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const endpoint = fc.network.discoverAccountsEndpoint();
-  if (!endpoint) {
-    return fail(ScraperErrorTypes.Generic, 'No accounts endpoint');
+  const originSource = txnEndpoint ?? fc.network.discoverAccountsEndpoint();
+  if (!originSource) {
+    return fail(ScraperErrorTypes.Generic, 'No endpoint for billing origin');
   }
-  const billingUrl = buildBillingUrl(endpoint.url);
+  const billingUrl = buildBillingUrl(originSource.url);
   const billing = prepareBilling(fc, billingUrl, post.accountId);
   const allTxns = await collectBillingChunks(billing.ctx, billing.chunks);
   if (allTxns.length === 0) {
@@ -257,7 +277,43 @@ async function fetchPostDirect(
 }
 
 /**
- * POST strategy with optional monthly chunking.
+ * Build POST fetch context from account record and endpoint.
+ * @param accountRecord - Account record from init.
+ * @param endpoint - Discovered POST endpoint.
+ * @returns POST context and captured body.
+ */
+/** Card source labels for debug logging. */
+const CARD_SOURCE_LABELS: Record<string, string> = { true: 'from cards[]', false: 'from record' };
+
+/**
+ * Build POST fetch context from account record and endpoint.
+ * @param accountRecord - Account record from init.
+ * @param endpoint - Discovered POST endpoint.
+ * @returns POST context and captured body.
+ */
+function buildPostCtx(
+  accountRecord: Record<string, unknown>,
+  endpoint: IDiscoveredEndpoint,
+): { readonly post: IPostFetchCtx; readonly capturedBody: ApiPayload } {
+  const { displayId, accountId } = extractIds(accountRecord);
+  const rawCardId = extractCardId(accountRecord);
+  const cardId = rawCardId || accountId;
+  const rawPost = endpoint.postData || '{}';
+  const capturedBody = JSON.parse(rawPost) as ApiPayload;
+  const baseBody = templatePostBody(rawPost, accountRecord);
+  const isFromCards = cardId !== accountId;
+  LOG.debug('tryBilling: accountId=%s (card=%s)', cardId, CARD_SOURCE_LABELS[String(isFromCards)]);
+  const post: IPostFetchCtx = {
+    baseBody,
+    url: endpoint.url,
+    displayId: displayId || cardId,
+    accountId: cardId,
+  };
+  return { post, capturedBody };
+}
+
+/**
+ * POST strategy: monthly billing first, range fallback, direct.
  * @param fc - Fetch context.
  * @param accountRecord - Account record from init.
  * @param endpoint - Discovered POST endpoint.
@@ -268,18 +324,11 @@ async function fetchOneAccountPost(
   accountRecord: Record<string, unknown>,
   endpoint: IDiscoveredEndpoint,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const { displayId, accountId } = extractIds(accountRecord);
-  const rawPost = endpoint.postData || '{}';
-  const capturedBody = JSON.parse(rawPost) as Record<string, unknown>;
-  const baseBody = templatePostBody(rawPost, accountRecord);
-  const isRange = isRangeIterable(capturedBody);
-  const post: IPostFetchCtx = {
-    baseBody,
-    url: endpoint.url,
-    displayId,
-    accountId,
-  };
-  if (isRange) return fetchPostWithRange(fc, post);
+  const { post, capturedBody } = buildPostCtx(accountRecord, endpoint);
+  const billing = await tryBillingFallback(fc, post, endpoint);
+  const hasBilling = isOk(billing) && billing.value.txns.length > 0;
+  if (hasBilling) return billing;
+  if (isRangeIterable(capturedBody)) return fetchPostWithRange(fc, post);
   return fetchPostDirect(fc, post);
 }
 

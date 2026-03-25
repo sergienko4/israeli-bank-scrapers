@@ -7,7 +7,11 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import {
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -325,8 +329,13 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return Promise.resolve(result);
     },
     /**
-     * Best-effort click — returns false (not found). Override for success tests.
-     * @returns False.
+     * Resolve visible — returns NOT_FOUND_RESULT. Override for success tests.
+     * @returns NOT_FOUND_RESULT.
+     */
+    resolveVisible: (): Promise<IRaceResult> => Promise.resolve(NOT_FOUND_RESULT),
+    /**
+     * Best-effort click — returns true (found). Override for failure tests.
+     * @returns True.
      */
     resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
     /**
@@ -390,7 +399,12 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * Empty headers in mock.
        * @returns Default empty opts.
        */
-      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
+      /**
+       * Empty discovered headers stub.
+       * @returns Resolved empty headers.
+       */
+      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
+        Promise.resolve({ extraHeaders: {} }),
       /**
        * No transaction URL in mock.
        * @returns False.
@@ -401,6 +415,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       buildBalanceUrl: (): false => false,
+      /**
+       * No SPA URL in mock.
+       * @returns False.
+       */
+      discoverSpaUrl: (): false => false,
     },
   };
   return { ...base, ...overrides };

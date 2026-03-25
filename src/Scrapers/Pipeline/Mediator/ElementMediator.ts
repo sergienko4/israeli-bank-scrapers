@@ -5,6 +5,7 @@
  * The mediator is the SINGLE entry point for all HTML operations:
  * - Fields (inputs, selects): resolveField
  * - Clickables (submit, OTP trigger, links): resolveClickable
+ * - Visibility probe (Identify → Inspect → Act): resolveVisible
  * - Form discovery: discoverForm, scopeToForm
  * - Error detection after submit: discoverErrors
  *
@@ -12,7 +13,7 @@
  * LoginSteps NEVER call HTML utilities directly — only through ctx.mediator.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { IFormAnchor } from '../../../Common/FormAnchor.js';
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
@@ -21,6 +22,36 @@ import type { Option } from '../Types/Option.js';
 import type { Procedure } from '../Types/Procedure.js';
 import type { IFormErrorScanResult } from './FormErrorDiscovery.js';
 import type { INetworkDiscovery } from './NetworkDiscovery.js';
+
+/**
+ * Result of a parallel race — what was found, where, and which candidate matched.
+ * Returned by resolveVisible for Identify → Inspect → Act pattern.
+ * The value field is a snapshot captured immediately to prevent stale-element errors.
+ */
+interface IRaceResult {
+  /** True if an element was found within the timeout. */
+  readonly found: boolean;
+  /** The winning Playwright locator, or false if not found. */
+  readonly locator: Locator | false;
+  /** Which SelectorCandidate matched, or false if not found. */
+  readonly candidate: SelectorCandidate | false;
+  /** The Page or Frame where the element was found, or false. */
+  readonly context: Page | Frame | false;
+  /** Index of the winning locator in the flat array (-1 if not found). */
+  readonly index: number;
+  /** Snapshot of innerText (or href for target:'href') captured immediately. */
+  readonly value: string;
+}
+
+/** Constant for "not found" — avoids allocating a new object each time. */
+const NOT_FOUND_RESULT: IRaceResult = {
+  found: false,
+  locator: false,
+  candidate: false,
+  context: false,
+  index: -1,
+  value: '',
+};
 
 /** High-level element resolution — scrapers describe intent, Mediator resolves. */
 interface IElementMediator {
@@ -62,8 +93,22 @@ interface IElementMediator {
   waitForLoadingDone(frame: Page | Frame): Promise<boolean>;
 
   /**
+   * Resolve the first visible element WITHOUT clicking. Returns metadata for inspection.
+   * Parallel race across main page + iframes. Captures a value snapshot immediately.
+   * Use this for Identify → Inspect → Act: find element, check href/text, then decide.
+   * @param candidates - WellKnown selector candidates to try.
+   * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
+   * @returns IRaceResult with locator, candidate, context, and snapshot value.
+   */
+  resolveVisible(
+    candidates: readonly SelectorCandidate[],
+    timeoutMs?: number,
+  ): Promise<IRaceResult>;
+
+  /**
    * Resolve a clickable element and click it. Best-effort: returns false if not found.
    * Uses the resolver's text→walk-up-to-interactive-ancestor pipeline.
+   * Internally calls resolveVisible then clicks the winner.
    * @param candidates - WellKnown selector candidates to try.
    * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
    * @returns True if element was found and clicked, false otherwise.
@@ -81,4 +126,5 @@ interface IElementMediator {
 }
 
 export default IElementMediator;
-export type { IElementMediator };
+export { NOT_FOUND_RESULT };
+export type { IElementMediator, IRaceResult };

@@ -8,10 +8,10 @@ import type { OtpConfig } from '../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
-import { DASHBOARD_STEP } from './Phases/DashboardPhase.js';
+import { createDashboardPhase } from './Phases/DashboardPhase.js';
 import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
-import { HOME_STEP } from './Phases/HomePhase.js';
+import { createHomePhase } from './Phases/HomePhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
 import { createLoginPhase } from './Phases/LoginSteps.js';
 import { NATIVE_LOGIN_STEP } from './Phases/NativeLoginPhase.js';
@@ -19,6 +19,7 @@ import { OTP_STEP } from './Phases/OtpPhase.js';
 import {
   createConfigScrapeStep,
   createCustomScrapeStep,
+  createScrapePhase,
   SCRAPE_STEP,
 } from './Phases/ScrapePhase.js';
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
@@ -299,7 +300,7 @@ class PipelineBuilder {
     if (this._hasBrowser) {
       const initPhase = actionOnly('init', INIT_STEP);
       phases.push(initPhase);
-      const homePhase = actionOnly('home', HOME_STEP);
+      const homePhase = createHomePhase();
       phases.push(homePhase);
     }
     const loginPhase = this.buildLoginPhase();
@@ -319,9 +320,9 @@ class PipelineBuilder {
   private addOptionalPhases(phases: CtxPhase[]): number {
     const insertIdx = phases.length - Number(this._hasBrowser);
     const otpPhase = actionOnly('otp', OTP_STEP);
-    const dashPhase = actionOnly('dashboard', DASHBOARD_STEP);
+    const dashPhase = createDashboardPhase();
     const scrapeStep = this.resolveScrapeStep();
-    const scrapePhase = actionOnly('scrape', scrapeStep);
+    const scrapePhase = createScrapePhase(scrapeStep);
     const optional: CtxPhase[] = [];
     if (this._hasOtp) optional.push(otpPhase);
     if (this._hasBrowser) optional.push(dashPhase);
