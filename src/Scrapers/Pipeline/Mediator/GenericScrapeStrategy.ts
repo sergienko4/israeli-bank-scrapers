@@ -1,22 +1,31 @@
 /**
- * Generic scrape strategy — auto-maps API responses using WellKnown field names.
- * Banks provide ZERO mapping code. The mediator discovers field names automatically.
- * Uses BFS iterative search (max depth 10) — no recursion, no stack overflow.
+ * Generic scrape strategy — auto-maps API responses.
+ * Banks provide ZERO mapping code. The mediator discovers
+ * field names automatically via BFS iterative search.
  */
 
 import moment from 'moment';
 
+import { getDebug } from '../../../Common/Debug.js';
 import type { ITransaction } from '../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../Transactions.js';
-import {
-  PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
-} from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 
-/** Max depth for BFS field search — prevents infinite traversal. */
+export type { IMonthChunk } from './GenericScrapeReplayStrategy.js';
+export {
+  buildMonthBody,
+  generateMonthChunks,
+  isMonthlyEndpoint,
+  isRangeIterable,
+  replaceField,
+} from './GenericScrapeReplayStrategy.js';
+
+const LOG = getDebug('generic-scrape');
+
+/** Max depth for BFS field search. */
 const MAX_SEARCH_DEPTH = 10;
 
-/** Known date formats across Israeli banks — moment auto-detects. */
+/** Known date formats across Israeli banks. */
 const KNOWN_DATE_FORMATS = [
   'YYYYMMDD',
   'YYYY-MM-DD',
@@ -35,7 +44,7 @@ interface ISearchItem {
 }
 
 /**
- * Check if a value is a searchable object (not null, not array).
+ * Check if a value is a searchable object.
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
@@ -44,7 +53,7 @@ function isSearchableObject(val: unknown): boolean {
 }
 
 /**
- * Check a single object for a matching WellKnown field.
+ * Check a single object for a matching WK field.
  * @param record - Object to check.
  * @param fieldNames - WellKnown names.
  * @returns Matched value or false.
@@ -62,7 +71,7 @@ function matchFieldInRecord(
 }
 
 /**
- * Enqueue child objects from a record into the BFS queue.
+ * Enqueue child objects from a record into BFS queue.
  * @param record - Parent object.
  * @param depth - Current depth.
  * @param queue - BFS queue to append to.
@@ -74,16 +83,21 @@ function enqueueChildren(
   queue: ISearchItem[],
 ): boolean {
   if (depth >= MAX_SEARCH_DEPTH) return false;
-  const children = Object.values(record).filter(isSearchableObject);
-  const items = children.map(
-    (child): ISearchItem => ({ value: child as Record<string, unknown>, depth: depth + 1 }),
-  );
-  queue.push(...items);
+  const nextDepth = depth + 1;
+  const children = Object.values(record)
+    .filter(isSearchableObject)
+    .map(
+      (child): ISearchItem => ({
+        value: child as Record<string, unknown>,
+        depth: nextDepth,
+      }),
+    );
+  queue.push(...children);
   return true;
 }
 
 /**
- * Build a flat list of all objects in the tree (BFS traversal).
+ * Build a flat list of all objects in the tree.
  * @param root - Root object.
  * @returns All objects found at all depths.
  */
@@ -91,14 +105,15 @@ function flattenObjectTree(root: Record<string, unknown>): readonly Record<strin
   const queue: ISearchItem[] = [{ value: root, depth: 0 }];
   let idx = 0;
   while (idx < queue.length) {
-    enqueueChildren(queue[idx].value, queue[idx].depth, queue);
+    const item = queue[idx];
+    enqueueChildren(item.value, item.depth, queue);
     idx += 1;
   }
-  return queue.map((item): Record<string, unknown> => item.value);
+  return queue.map((entry): Record<string, unknown> => entry.value);
 }
 
 /**
- * Find the first matching field value using BFS iterative deep search.
+ * Find the first matching field value using BFS.
  * @param obj - Root object to search.
  * @param fieldNames - WellKnown field names to try.
  * @returns Field value or false if not found.
@@ -113,27 +128,156 @@ function findFieldValue(
   return hit ?? false;
 }
 
+/** Minimum WK field matches for a txn array. */
+const MIN_TXN_SCORE = 2;
+
+/** Max depth for stack-based array search. */
+const MAX_ARRAY_DEPTH = 15;
+
+/** WK field names indicating a transaction record. */
+const TXN_SIGNATURE_FIELDS = new Set(
+  [...WK.date, ...WK.amount, ...WK.description, ...WK.identifier].map((f): string =>
+    f.toLowerCase(),
+  ),
+);
+
 /**
- * Find the first array in an object using BFS (max depth 10).
- * @param obj - Object to search.
- * @returns First array found, or empty array.
+ * Score how many WK txn fields an object has.
+ * @param item - Object to score.
+ * @returns Number of matching WK transaction fields.
+ */
+function scoreTxnSignature(item: unknown): number {
+  if (!isSearchableObject(item)) return 0;
+  const keys = Object.keys(item as object).map((k): string => k.toLowerCase());
+  return keys.filter((k): boolean => TXN_SIGNATURE_FIELDS.has(k)).length;
+}
+
+/** Stack entry for LIFO array search. */
+interface IStackEntry {
+  readonly node: unknown;
+  readonly depth: number;
+}
+
+/** Context for handleArrayNode. */
+interface IArrayNodeCtx {
+  readonly collected: unknown[];
+  readonly stack: IStackEntry[];
+  readonly node: unknown[];
+  readonly depth: number;
+}
+
+/**
+ * Push object items from an array onto the stack.
+ * @param stack - Exploration stack.
+ * @param items - Array items to push.
+ * @param depth - Current depth.
+ * @returns Number of items pushed.
+ */
+function pushArrayChildren(stack: IStackEntry[], items: readonly unknown[], depth: number): number {
+  const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
+  for (const obj of objects) {
+    stack.push({ node: obj, depth: depth + 1 });
+  }
+  return objects.length;
+}
+
+/**
+ * Push child values of an object onto the stack.
+ * @param stack - Exploration stack.
+ * @param obj - Object whose values to push.
+ * @param depth - Current depth.
+ * @returns Number of items pushed.
+ */
+function pushObjectChildren(
+  stack: IStackEntry[],
+  obj: Record<string, unknown>,
+  depth: number,
+): number {
+  const values = Object.values(obj);
+  for (const value of values) {
+    stack.push({ node: value, depth: depth + 1 });
+  }
+  return values.length;
+}
+
+/**
+ * Handle an array node during LIFO traversal.
+ * @param ctx - Array node context.
+ * @returns True if items were collected.
+ */
+function handleArrayNode(ctx: IArrayNodeCtx): boolean {
+  if (ctx.node.length === 0) return false;
+  const score = scoreTxnSignature(ctx.node[0]);
+  if (score < MIN_TXN_SCORE) {
+    pushArrayChildren(ctx.stack, ctx.node, ctx.depth);
+    return false;
+  }
+  for (const item of ctx.node) ctx.collected.push(item);
+  return true;
+}
+
+/**
+ * Process one stack entry: dispatch array vs object.
+ * @param entry - Stack entry to process.
+ * @param collected - Accumulator for items.
+ * @param stack - Exploration stack.
+ * @returns True if the entry was processed.
+ */
+function processStackEntry(
+  entry: IStackEntry,
+  collected: unknown[],
+  stack: IStackEntry[],
+): boolean {
+  if (entry.depth > MAX_ARRAY_DEPTH) return false;
+  if (Array.isArray(entry.node)) {
+    return handleArrayNode({
+      collected,
+      stack,
+      node: entry.node,
+      depth: entry.depth,
+    });
+  }
+  const isObj = typeof entry.node === 'object' && entry.node !== null;
+  if (!isObj) return false;
+  const record = entry.node as Record<string, unknown>;
+  pushObjectChildren(stack, record, entry.depth);
+  return true;
+}
+
+/**
+ * Find the best transaction array via LIFO crawl.
+ * Falls back to BFS if no high-score arrays found.
+ * @param obj - Parsed API response.
+ * @returns Flattened array of transaction-like items.
  */
 function findFirstArray(obj: Record<string, unknown>): readonly unknown[] {
+  const initial: IStackEntry = { node: obj, depth: 0 };
+  const stack: IStackEntry[] = [initial];
+  const collected: unknown[] = [];
+  while (stack.length > 0) {
+    const last = stack.length - 1;
+    const entry = stack[last];
+    stack.splice(last, 1);
+    processStackEntry(entry, collected, stack);
+  }
+  if (collected.length > 0) {
+    LOG.debug('findFirstArray: collected %d items', collected.length);
+    return collected;
+  }
+  LOG.debug('findFirstArray: falling back to BFS');
   const allObjects = flattenObjectTree(obj);
   const arrays = allObjects.map((o): readonly unknown[] | false => {
     const arr = Object.values(o).find(Array.isArray);
     return arr ? (arr as readonly unknown[]) : false;
   });
-  const hit = arrays.find((a): boolean => a !== false);
-  if (!hit) return [];
-  return hit;
+  const hit = arrays.find((a): a is readonly unknown[] => a !== false);
+  return hit ?? [];
 }
 
 /**
- * Parse a date string using known Israeli bank formats.
- * Moment tries all known formats — no bank config needed.
+ * Parse a date string using known bank formats.
  * @param dateStr - Raw date string from API response.
- * @returns ISO date string, or original string if no format matches.
+ * @returns ISO date string, or original if no match.
  */
 function parseAutoDate(dateStr: string): string {
   const parsed = moment(dateStr, KNOWN_DATE_FORMATS, true);
@@ -142,10 +286,9 @@ function parseAutoDate(dateStr: string): string {
 }
 
 /**
- * Auto-map a raw API transaction to ITransaction using WellKnown field names.
- * Uses BFS deep search for each field concept + auto date parsing.
- * @param raw - Raw transaction object from API response.
- * @returns Mapped ITransaction with best-effort field resolution.
+ * Auto-map a raw API transaction to ITransaction.
+ * @param raw - Raw transaction object from API.
+ * @returns Mapped ITransaction.
  */
 function autoMapTransaction(raw: Record<string, unknown>): ITransaction {
   const date = findFieldValue(raw, WK.date);
@@ -174,102 +317,60 @@ function autoMapTransaction(raw: Record<string, unknown>): ITransaction {
 }
 
 /**
- * Extract account IDs from an API response using BFS deep search.
- * Finds the first array, then searches each element for WellKnown ID fields.
+ * Cast searchable items to typed records.
+ * @param items - Raw items to filter and cast.
+ * @returns Typed record array.
+ */
+function castSearchable(items: readonly unknown[]): readonly Record<string, unknown>[] {
+  return items
+    .filter((i): boolean => isSearchableObject(i))
+    .map((i): Record<string, unknown> => i as Record<string, unknown>);
+}
+
+/**
+ * Extract account records from API response.
+ * @param responseBody - Parsed JSON response body.
+ * @returns Account records with all original fields.
+ */
+function extractAccountRecords(
+  responseBody: Record<string, unknown>,
+): readonly Record<string, unknown>[] {
+  const items = findFirstArray(responseBody);
+  LOG.debug('extractAccountRecords: %d items', items.length);
+  return castSearchable(items);
+}
+
+/**
+ * Extract account IDs from an API response.
  * @param responseBody - Parsed JSON response body.
  * @returns Array of account ID strings.
  */
 function extractAccountIds(responseBody: Record<string, unknown>): readonly string[] {
-  const items = findFirstArray(responseBody);
-  return items
-    .map((item): string => {
-      if (!isSearchableObject(item)) return '';
-      const id = findFieldValue(item as Record<string, unknown>, WK.accountId);
+  const records = extractAccountRecords(responseBody);
+  return records
+    .map((record): string => {
+      const id = findFieldValue(record, WK.accountId);
       return id === false ? '' : String(id);
     })
     .filter(Boolean);
 }
 
 /**
- * Extract transactions from an API response using BFS + auto-mapping.
+ * Extract transactions from an API response.
  * @param responseBody - Parsed JSON response body.
  * @returns Array of mapped ITransactions.
  */
 function extractTransactions(responseBody: Record<string, unknown>): readonly ITransaction[] {
   const items = findFirstArray(responseBody);
-  return items
-    .filter((item): boolean => isSearchableObject(item))
-    .map((item): ITransaction => autoMapTransaction(item as Record<string, unknown>));
-}
-
-/**
- * Check if a captured POST body indicates monthly iteration.
- * Looks for WellKnown month + year fields in the postData.
- * @param postData - Captured POST body string.
- * @returns True if the endpoint uses monthly fetching.
- */
-function isMonthlyEndpoint(postData: string): boolean {
-  if (!postData) return false;
-  try {
-    const body = JSON.parse(postData) as Record<string, unknown>;
-    const hasMonth = MF.month.some((f): boolean => body[f] !== undefined);
-    const hasYear = MF.year.some((f): boolean => body[f] !== undefined);
-    return hasMonth && hasYear;
-  } catch {
-    return false;
-  }
-}
-
-/** Options for building a monthly POST body. */
-interface IMonthBodyOpts {
-  readonly template: string;
-  readonly accountId: string;
-  readonly month: number;
-  readonly year: number;
-}
-
-/**
- * Replace a WellKnown field in a parsed body with a new value.
- * @param body - Parsed body object.
- * @param fieldNames - WellKnown field names to look for.
- * @param value - New value to set.
- * @returns True if a field was replaced.
- */
-function replaceField(
-  body: Record<string, unknown>,
-  fieldNames: readonly string[],
-  value: string,
-): boolean {
-  const keys = Object.keys(body);
-  const hit = fieldNames.find((f): boolean => keys.includes(f));
-  if (!hit) return false;
-  body[hit] = value;
-  return true;
-}
-
-/**
- * Build a POST body for one month from a captured template.
- * Replaces the account ID + month + year fields in the template.
- * @param opts - Month body options with template + values.
- * @returns New POST body as Record.
- */
-function buildMonthBody(opts: IMonthBodyOpts): Record<string, unknown> {
-  const body = JSON.parse(opts.template) as Record<string, unknown>;
-  replaceField(body, MF.accountId, opts.accountId);
-  const monthStr = String(opts.month);
-  const yearStr = String(opts.year);
-  replaceField(body, MF.month, monthStr);
-  replaceField(body, MF.year, yearStr);
-  return body;
+  return castSearchable(items).map(autoMapTransaction);
 }
 
 export {
   autoMapTransaction,
-  buildMonthBody,
   extractAccountIds,
+  extractAccountRecords,
   extractTransactions,
   findFieldValue,
   findFirstArray,
-  isMonthlyEndpoint,
   parseAutoDate,
 };

@@ -341,6 +341,12 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode'],
   /** Balance field names. */
   balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
+  /** Display ID field names (user-facing card last4). */
+  displayId: ['last4Digits', 'cardSuffix', 'displayId', 'cardLast4'],
+  /** From-date field names in POST body (range start). */
+  fromDate: ['fromTransDate', 'fromDate', 'FromDate', 'startDate'],
+  /** To-date field names in POST body (range end). */
+  toDate: ['toTransDate', 'toDate', 'ToDate', 'endDate'],
 } satisfies Record<string, string[]>;
 
 /**
