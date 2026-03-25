@@ -23,6 +23,13 @@ import type { Procedure } from '../Types/Procedure.js';
 import type { IFormErrorScanResult } from './FormErrorDiscovery.js';
 import type { INetworkDiscovery } from './NetworkDiscovery.js';
 
+/** Whether an element race found a visible element. */
+type RaceFound = boolean;
+/** 0-based index of the winning locator (-1 if not found). */
+type WinnerIndex = number;
+/** Snapshot text or href captured immediately after winning the race. */
+type SnapshotValue = string;
+
 /**
  * Result of a parallel race — what was found, where, and which candidate matched.
  * Returned by resolveVisible for Identify → Inspect → Act pattern.
@@ -30,7 +37,7 @@ import type { INetworkDiscovery } from './NetworkDiscovery.js';
  */
 interface IRaceResult {
   /** True if an element was found within the timeout. */
-  readonly found: boolean;
+  readonly found: RaceFound;
   /** The winning Playwright locator, or false if not found. */
   readonly locator: Locator | false;
   /** Which SelectorCandidate matched, or false if not found. */
@@ -38,9 +45,9 @@ interface IRaceResult {
   /** The Page or Frame where the element was found, or false. */
   readonly context: Page | Frame | false;
   /** Index of the winning locator in the flat array (-1 if not found). */
-  readonly index: number;
+  readonly index: WinnerIndex;
   /** Snapshot of innerText (or href for target:'href') captured immediately. */
-  readonly value: string;
+  readonly value: SnapshotValue;
 }
 
 /** Constant for "not found" — avoids allocating a new object each time. */
@@ -49,7 +56,7 @@ const NOT_FOUND_RESULT: IRaceResult = {
   locator: false,
   candidate: false,
   context: false,
-  index: -1,
+  index: -1 as WinnerIndex,
   value: '',
 };
 
@@ -127,4 +134,4 @@ interface IElementMediator {
 
 export default IElementMediator;
 export { NOT_FOUND_RESULT };
-export type { IElementMediator, IRaceResult };
+export type { IElementMediator, IRaceResult, RaceFound, SnapshotValue, WinnerIndex };

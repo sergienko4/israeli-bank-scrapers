@@ -31,6 +31,13 @@ import type { Procedure } from './Types/Procedure.js';
 import { fail, succeed } from './Types/Procedure.js';
 import type { IScrapeConfig, IScrapeConfigBase } from './Types/ScrapeConfig.js';
 
+/** Whether a validation check found an error condition. */
+type IsErrCheck = boolean;
+/** Number of phases added or inserted in a builder step. */
+type PhaseCount = number;
+/** Whether a login mode assertion passed without conflict. */
+type AssertResult = boolean;
+
 /** Function signature for direct-POST login (Amex/Isracard). */
 type DirectPostLoginFn = (
   ctx: IPipelineContext,
@@ -241,7 +248,7 @@ class PipelineBuilder {
       [this._options === false, 'PipelineBuilder: withOptions() is required'],
       [this._loginMode === 'none', 'PipelineBuilder: a login mode is required'],
     ];
-    const failed = checks.find(([isErr]): boolean => isErr);
+    const failed = checks.find(([isErr]): IsErrCheck => isErr);
     if (failed) return fail(ScraperErrorTypes.Generic, failed[1]);
     return succeed(true);
   }
@@ -295,7 +302,7 @@ class PipelineBuilder {
    * @param phases - Mutable phase array to append to.
    * @returns The number of phases added.
    */
-  private addBrowserPhases(phases: CtxPhase[]): number {
+  private addBrowserPhases(phases: CtxPhase[]): PhaseCount {
     const before = phases.length;
     if (this._hasBrowser) {
       const initPhase = actionOnly('init', INIT_STEP);
@@ -317,7 +324,7 @@ class PipelineBuilder {
    * @param phases - Mutable phase array to insert into.
    * @returns The number of optional phases inserted.
    */
-  private addOptionalPhases(phases: CtxPhase[]): number {
+  private addOptionalPhases(phases: CtxPhase[]): PhaseCount {
     const insertIdx = phases.length - Number(this._hasBrowser);
     const otpPhase = actionOnly('otp', OTP_STEP);
     const dashPhase = createDashboardPhase();
@@ -336,7 +343,7 @@ class PipelineBuilder {
    * Assert no login mode has been set yet.
    * @returns True if no login mode set, false if already set.
    */
-  private assertNoLoginMode(): boolean {
+  private assertNoLoginMode(): AssertResult {
     if (this._loginMode !== 'none') {
       this._error = 'PipelineBuilder: login mode already set';
       return false;

@@ -11,12 +11,37 @@ import {
 /** Max depth for iterative replaceField BFS. */
 const MAX_REPLACE_DEPTH = 15;
 
+/** Whether a value is a searchable object (not null, not array). */
+type IsSearchable = boolean;
+/** Whether a replaceField operation mutated the target body. */
+type DidReplace = boolean;
+/** Whether a POST body uses monthly date pagination. */
+type IsMonthly = boolean;
+/** Whether a POST body has date range (from/to) fields. */
+type IsIterable = boolean;
+/** Lowercased field key from POST body for WK matching. */
+type BodyKey = string;
+/** Raw POST body template string. */
+type PostTemplate = string;
+/** Account ID string used in billing POST body. */
+type AccountIdStr = string;
+/** Calendar month number (1-indexed). */
+type MonthNum = number;
+/** Calendar year number. */
+type YearNum = number;
+/** ISO start date string for a month chunk. */
+type ChunkStart = string;
+/** ISO end date string for a month chunk. */
+type ChunkEnd = string;
+/** Formatted YYYY-MM-DD date string. */
+type DatePartStr = string;
+
 /**
  * Check if a value is a searchable object (not null, not array).
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
-function isSearchableObj(val: unknown): boolean {
+function isSearchableObj(val: unknown): IsSearchable {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
@@ -30,11 +55,11 @@ function isSearchableObj(val: unknown): boolean {
 function replaceInObject(
   obj: Record<string, unknown>,
   fieldNames: readonly string[],
-  value: string,
-): boolean {
+  value: PostTemplate,
+): DidReplace {
   const keys = Object.keys(obj);
-  const lowerKeys = keys.map((k): string => k.toLowerCase());
-  const hit = fieldNames.find((f): boolean => {
+  const lowerKeys = keys.map((k): BodyKey => k.toLowerCase());
+  const hit = fieldNames.find((f): IsSearchable => {
     const lowerF = f.toLowerCase();
     return lowerKeys.includes(lowerF);
   });
@@ -53,7 +78,7 @@ function replaceInObject(
  */
 function collectArrayObjs(arr: unknown[]): Record<string, unknown>[] {
   return arr
-    .filter((item): boolean => isSearchableObj(item))
+    .filter((item): IsSearchable => isSearchableObj(item))
     .map((item): Record<string, unknown> => item as Record<string, unknown>);
 }
 
@@ -89,8 +114,8 @@ function collectBfsChildren(obj: Record<string, unknown>): Record<string, unknow
 function processReplaceLevel(
   queue: Record<string, unknown>[],
   fieldNames: readonly string[],
-  value: string,
-): { didReplace: boolean; next: Record<string, unknown>[] } {
+  value: PostTemplate,
+): { didReplace: DidReplace; next: Record<string, unknown>[] } {
   let didReplace = false;
   const next: Record<string, unknown>[] = [];
   for (const obj of queue) {
@@ -111,8 +136,8 @@ function processReplaceLevel(
 function replaceField(
   body: Record<string, unknown>,
   fieldNames: readonly string[],
-  value: string,
-): boolean {
+  value: PostTemplate,
+): DidReplace {
   let didReplace = false;
   let queue: Record<string, unknown>[] = [body];
   let depth = 0;
@@ -127,10 +152,10 @@ function replaceField(
 
 /** Options for building a monthly POST body. */
 interface IMonthBodyOpts {
-  readonly template: string;
-  readonly accountId: string;
-  readonly month: number;
-  readonly year: number;
+  readonly template: PostTemplate;
+  readonly accountId: AccountIdStr;
+  readonly month: MonthNum;
+  readonly year: YearNum;
 }
 
 /**
@@ -153,12 +178,12 @@ function buildMonthBody(opts: IMonthBodyOpts): Record<string, unknown> {
  * @param postData - Captured POST body string.
  * @returns True if the endpoint uses monthly fetching.
  */
-function isMonthlyEndpoint(postData: string): boolean {
+function isMonthlyEndpoint(postData: PostTemplate): IsMonthly {
   if (!postData) return false;
   try {
     const body = JSON.parse(postData) as Record<string, unknown>;
-    const hasMonth = MF.month.some((f): boolean => body[f] !== undefined);
-    const hasYear = MF.year.some((f): boolean => body[f] !== undefined);
+    const hasMonth = MF.month.some((f): IsMonthly => body[f] !== undefined);
+    const hasYear = MF.year.some((f): IsMonthly => body[f] !== undefined);
     return hasMonth && hasYear;
   } catch {
     return false;
@@ -170,14 +195,14 @@ function isMonthlyEndpoint(postData: string): boolean {
  * @param body - Parsed POST body.
  * @returns True if both from and to WK fields are present.
  */
-function isRangeIterable(body: Record<string, unknown>): boolean {
-  const lowerKeys = Object.keys(body).map((k): string => k.toLowerCase());
+function isRangeIterable(body: Record<string, unknown>): IsIterable {
+  const lowerKeys = Object.keys(body).map((k): BodyKey => k.toLowerCase());
   const keys = new Set(lowerKeys);
-  const hasFrom = WK.fromDate.some((f): boolean => {
+  const hasFrom = WK.fromDate.some((f): IsIterable => {
     const lowerF = f.toLowerCase();
     return keys.has(lowerF);
   });
-  const hasTo = WK.toDate.some((f): boolean => {
+  const hasTo = WK.toDate.some((f): IsIterable => {
     const lowerF = f.toLowerCase();
     return keys.has(lowerF);
   });
@@ -186,8 +211,8 @@ function isRangeIterable(body: Record<string, unknown>): boolean {
 
 /** A single month chunk with start and end ISO strings. */
 interface IMonthChunk {
-  readonly start: string;
-  readonly end: string;
+  readonly start: ChunkStart;
+  readonly end: ChunkEnd;
 }
 
 /**
@@ -195,7 +220,7 @@ interface IMonthChunk {
  * @param d - Date to format.
  * @returns Formatted date string.
  */
-function formatDatePart(d: Date): string {
+function formatDatePart(d: Date): DatePartStr {
   const fullYear = d.getFullYear();
   const monthIdx = d.getMonth() + 1;
   const y = String(fullYear);
@@ -211,7 +236,7 @@ function formatDatePart(d: Date): string {
  * @param month - Current month (0-indexed).
  * @returns Next year and month.
  */
-function advanceMonth(year: number, month: number): { year: number; month: number } {
+function advanceMonth(year: YearNum, month: MonthNum): { year: YearNum; month: MonthNum } {
   const next = month + 1;
   if (next > 11) return { year: year + 1, month: 0 };
   return { year, month: next };

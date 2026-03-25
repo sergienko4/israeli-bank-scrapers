@@ -55,13 +55,13 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
    * @param credentials - User bank credentials.
    * @returns Legacy result shape.
    */
-  public scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
+  public async scrape(credentials: TCredentials): Promise<IScraperScrapingResult> {
     const buildResult = this._buildPipeline(this._options);
     if (!isOk(buildResult)) {
       const legacy = toLegacy(buildResult);
       return Promise.resolve(legacy);
     }
-    return executePipeline(buildResult.value, credentials);
+    return await executePipeline(buildResult.value, credentials);
   }
 
   /**

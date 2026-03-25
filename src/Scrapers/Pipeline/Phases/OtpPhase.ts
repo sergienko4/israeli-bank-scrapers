@@ -19,6 +19,11 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 
+/** Raw text value from a selector candidate. */
+type CandidateText = string;
+/** Whether an OTP form field became visible within the probe timeout. */
+type OtpDetected = boolean;
+
 /** Timeout for probing OTP form presence. */
 const OTP_PROBE_TIMEOUT = 3000;
 
@@ -38,7 +43,7 @@ async function detectOtpForm(input: IPipelineContext): Promise<boolean> {
    * @returns Playwright locator for the candidate text.
    */
   const toLocator = (c: SelectorCandidate): ReturnType<typeof page.locator> => {
-    const text: string = c.value;
+    const text: CandidateText = c.value;
     return page.locator(`text=${text}`).first();
   };
   const locators = candidates.map(toLocator);
@@ -47,7 +52,7 @@ async function detectOtpForm(input: IPipelineContext): Promise<boolean> {
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  return results.some((r): boolean => r.status === 'fulfilled');
+  return results.some((r): OtpDetected => r.status === 'fulfilled');
 }
 
 /**
@@ -61,7 +66,7 @@ async function executeOtp(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const hasOtp = await detectOtpForm(input).catch((): boolean => false);
+  const hasOtp = await detectOtpForm(input).catch((): OtpDetected => false);
   if (!hasOtp) return succeed(input);
   input.logger.debug('OTP form detected — handler not yet implemented');
   return succeed(input);

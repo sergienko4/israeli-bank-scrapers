@@ -56,7 +56,7 @@ async function executePhase(
   if (!isOk(actionResult)) return actionResult;
   const actionCtx = actionResult.value;
 
-  return runOptionalStep(phase.post, actionCtx, actionCtx);
+  return await runOptionalStep(phase.post, actionCtx, actionCtx);
 }
 
 /**
@@ -143,7 +143,7 @@ async function ensureBrowserCleanup(
   const cleanups = extractCleanups(tracker.lastCtx);
   if (cleanups.length === 0) return 0;
   logger.debug('emergency cleanup: running %d browser cleanups', cleanups.length);
-  return runAllCleanups(cleanups, logger);
+  return await runAllCleanups(cleanups, logger);
 }
 
 /**

@@ -33,61 +33,105 @@ const POST_LOGIN_SETTLE_TIMEOUT = 15000;
 
 // ── Types ──────────────────────────────────────────────────
 
+/** Credential field name key (e.g. 'username', 'password'). */
+type FieldKey = string;
+/** Raw credential value typed by the user. */
+type CredentialValue = string;
+/** CSS selector used to scope form resolution. */
+type FormSelector = string;
+/** Whether a fill operation succeeded. */
+type FillSuccess = boolean;
+/** Whether a required credential is absent from the map. */
+type CredAbsent = boolean;
+
 /** Options for filling a single credential field. */
 export interface IFillOpts {
-  readonly credentialKey: string;
-  readonly value: string;
+  readonly credentialKey: FieldKey;
+  readonly value: CredentialValue;
   readonly selectors: readonly SelectorCandidate[];
 }
 
 // ── preLogin helpers ───────────────────────────────────────
+/**
+ * Run checkReadiness callback if provided.
+ * @param config - Login config.
+ * @param page - Browser page.
+ * @returns Success or failure Procedure.
+ */
+async function runCheckReadiness(config: ILoginConfig, page: Page): Promise<Procedure<true>> {
+  if (!config.checkReadiness) return succeed(true);
+  try {
+    await config.checkReadiness(page);
+    return succeed(true);
+  } catch (err) {
+    return fail(ScraperErrorTypes.Generic, `checkReadiness: ${toErrorMessage(err as Error)}`);
+  }
+}
 
 /**
- * Execute the preLogin step body.
- * HOME phase has already navigated — LOGIN just sets up login state.
- * @param _config - Bank's login config (for field/submit info only).
- * @param input - Current pipeline context (page already on login form).
- * @returns Updated context with login.activeFrame = page.
+ * Run preAction callback and return the active frame.
+ * @param config - Login config.
+ * @param page - Browser page.
+ * @returns Frame returned by preAction, or page if none.
  */
-function executePreLogin(
-  _config: ILoginConfig,
+async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure<Page | Frame>> {
+  if (!config.preAction) return succeed(page as Page | Frame);
+  try {
+    const frame = await config.preAction(page);
+    return succeed(frame ?? page);
+  } catch (err) {
+    return fail(ScraperErrorTypes.Generic, `preAction failed: ${toErrorMessage(err as Error)}`);
+  }
+}
+/**
+ * Execute the preLogin step body.
+ * Calls checkReadiness (wait for login link) then preAction (open form/iframe).
+ * The returned Frame (if any) becomes activeFrame for field scoping.
+ * @param config - Bank's login config with optional lifecycle hooks.
+ * @param input - Current pipeline context (page already on login URL).
+ * @returns Updated context with login.activeFrame = frame or page.
+ */
+async function executePreLogin(
+  config: ILoginConfig,
   input: IPipelineContext,
-): Procedure<IPipelineContext> {
+): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for preLogin');
   const page = input.browser.value.page;
-  const loginState = { activeFrame: page as Page | Frame, persistentOtpToken: none() };
+  const readiness = await runCheckReadiness(config, page);
+  if (!readiness.success) return readiness;
+  const frameResult = await runPreAction(config, page);
+  if (!frameResult.success) return frameResult;
+  const loginState = { activeFrame: frameResult.value, persistentOtpToken: none() };
   return succeed({ ...input, login: some(loginState) });
 }
 
 /**
  * Create the preLogin step.
  * @param config - Bank's login config.
- * @returns Pipeline step: navigate + readiness + preAction.
+ * @returns Pipeline step: checkReadiness + preAction (open form) + set activeFrame.
  */
 function createPreLoginStep(
   config: ILoginConfig,
 ): IPipelineStep<IPipelineContext, IPipelineContext> {
-  const step: IPipelineStep<IPipelineContext, IPipelineContext> = {
+  return {
     name: 'pre-login',
     /**
-     * Execute preLogin: set activeFrame = page (HOME already navigated).
-     * @param _ctx - Unused pipeline context.
-     * @param input - Context to extend with login.activeFrame.
+     * Execute preLogin: call checkReadiness + preAction, set activeFrame.
+     * @param _ - Unused pipeline context.
+     * @param i - Context to extend with login.activeFrame.
      * @returns Updated context.
      */
-    execute(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-      const result = executePreLogin(config, input);
-      return Promise.resolve(result);
+    async execute(_: IPipelineContext, i: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+      return await executePreLogin(config, i);
     },
   };
-  return step;
 }
 
 // ── loginAction helpers ────────────────────────────────────
 
 /** Result from filling one field — includes the resolved context for scoping. */
 interface IFillResult {
-  readonly isOk: boolean;
+  readonly isOk: FillSuccess;
   readonly procedure: Procedure<boolean>;
   readonly resolvedContext?: Page | Frame;
 }
@@ -97,7 +141,7 @@ interface IFillFieldOpts {
   readonly mediator: IElementMediator;
   readonly fill: IFillOpts;
   readonly scopeContext?: Page | Frame;
-  readonly formSelector?: string;
+  readonly formSelector?: FormSelector;
 }
 
 /**
@@ -132,13 +176,13 @@ function validateCredentials(
    * @param f - Field config to check.
    * @returns True if the credential value is empty or absent.
    */
-  const isMissing = (f: IFieldConfig): boolean => !creds[f.credentialKey];
+  const isMissing = (f: IFieldConfig): CredAbsent => !creds[f.credentialKey];
   /**
    * Extract the credential key from a field config.
    * @param f - Field config.
    * @returns The credentialKey string.
    */
-  const toKey = (f: IFieldConfig): string => f.credentialKey;
+  const toKey = (f: IFieldConfig): FieldKey => f.credentialKey;
   const missing = fields.filter(isMissing).map(toKey);
   if (missing.length > 0) {
     const keys = missing.join(', ');
@@ -155,18 +199,13 @@ function validateCredentials(
  */
 function buildFillOpts(field: IFieldConfig, creds: Record<string, string>): IFillOpts {
   const value = creds[field.credentialKey];
-  const opts: IFillOpts = {
-    credentialKey: field.credentialKey,
-    value,
-    selectors: field.selectors,
-  };
-  return opts;
+  return { credentialKey: field.credentialKey, value, selectors: field.selectors };
 }
 
 /** Immutable scope state built up as fields are resolved. */
 interface IFieldScope {
   readonly ctx?: Page | Frame;
-  readonly formSelector?: string;
+  readonly formSelector?: FormSelector;
 }
 
 /** Accumulator for sequential field filling via reduce. */
@@ -336,7 +375,7 @@ function createLoginActionStep(
       _ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
-      return executeLoginAction(config, input);
+      return await executeLoginAction(config, input);
     },
   };
   return step;
@@ -451,7 +490,7 @@ function createPostLoginStep(
       _ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
-      return executePostLogin(config, input);
+      return await executePostLogin(config, input);
     },
   };
   return step;

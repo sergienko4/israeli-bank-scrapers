@@ -18,6 +18,9 @@ import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+
+/** Whether a homepage navigation action succeeded. */
+type NavSuccess = boolean;
 import {
   tryClickCredentialArea,
   tryClickLoginLinkWithHref,
@@ -87,7 +90,7 @@ async function executeHomeAction(
  */
 async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.username;
-  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+  return mediator.resolveAndClick(candidates).catch((): NavSuccess => false);
 }
 
 /**
@@ -147,7 +150,7 @@ async function executeHome(
   if (!preResult.success) return preResult;
   const actionResult = await executeHomeAction(preResult.value, preResult.value);
   if (!actionResult.success) return actionResult;
-  return executeHomePost(actionResult.value, actionResult.value);
+  return await executeHomePost(actionResult.value, actionResult.value);
 }
 
 /** HOME phase step — legacy monolithic (used by actionOnly). */

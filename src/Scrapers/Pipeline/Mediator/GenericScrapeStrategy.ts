@@ -9,7 +9,11 @@ import moment from 'moment';
 import { getDebug } from '../../../Common/Debug.js';
 import type { ITransaction } from '../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../Transactions.js';
+import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import type { IFieldMatch } from '../Types/FieldMatch.js';
+import type { Procedure } from '../Types/Procedure.js';
+import { fail, isOk, succeed } from '../Types/Procedure.js';
 
 export type { IMonthChunk } from './GenericScrapeReplayStrategy.js';
 export {
@@ -21,6 +25,23 @@ export {
 } from './GenericScrapeReplayStrategy.js';
 
 const LOG = getDebug('generic-scrape');
+
+/** Whether a value can be BFS-searched (not null, not array). */
+type IsSearchable = boolean;
+/** Whether a WellKnown field name matched a record key. */
+type WkMatch = boolean;
+/** BFS recursion depth counter. */
+type BfsDepth = number;
+/** Transaction signature score (count of matching WK fields). */
+type TxnScore = number;
+/** Lowercased field key for case-insensitive matching. */
+type LowercaseKey = string;
+/** Parsed ISO date string from raw API value. */
+type ParsedDateStr = string;
+/** Filter/find predicate result. */
+type Predicate = boolean;
+/** Count of items pushed or found. */
+type ItemCount = number;
 
 /** Max depth for BFS field search. */
 const MAX_SEARCH_DEPTH = 10;
@@ -40,7 +61,7 @@ const KNOWN_DATE_FORMATS = [
 /** BFS queue item for iterative deep search. */
 interface ISearchItem {
   readonly value: Record<string, unknown>;
-  readonly depth: number;
+  readonly depth: BfsDepth;
 }
 
 /**
@@ -48,12 +69,55 @@ interface ISearchItem {
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
-function isSearchableObject(val: unknown): boolean {
+function isSearchableObject(val: unknown): IsSearchable {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
 /**
- * Check a single object for a matching WK field.
+ * Try matching one WK name against record keys.
+ * @param record - Object to search.
+ * @param recordKeys - Pre-computed keys.
+ * @param wkName - WellKnown field name.
+ * @returns IFieldMatch or false.
+ */
+function tryMatchWk(
+  record: Record<string, unknown>,
+  recordKeys: readonly string[],
+  wkName: string,
+): Procedure<IFieldMatch> {
+  const wkLower = wkName.toLowerCase();
+  const originalKey = recordKeys.find((k): WkMatch => k.toLowerCase() === wkLower);
+  if (!originalKey) return fail(ScraperErrorTypes.Generic, 'key not found');
+  const val = record[originalKey];
+  const isScalar = typeof val === 'string' || typeof val === 'number';
+  if (!isScalar) return fail(ScraperErrorTypes.Generic, 'not scalar');
+  return succeed({ originalKey, value: val, matchingKey: wkName });
+}
+
+/**
+ * Case-insensitive field match via Result Pattern.
+ * @param record - Object to search.
+ * @param fieldNames - WellKnown field names to match against.
+ * @returns Procedure with IFieldMatch on success, failure on miss.
+ */
+function matchField(
+  record: Record<string, unknown>,
+  fieldNames: readonly string[],
+): Procedure<IFieldMatch> {
+  const recordKeys = Object.keys(record);
+  /**
+   * Try one WK name against this record.
+   * @param wk - WK name.
+   * @returns Match result.
+   */
+  const tryWk = (wk: string): Procedure<IFieldMatch> => tryMatchWk(record, recordKeys, wk);
+  const results = fieldNames.map(tryWk);
+  const hit = results.find(isOk);
+  return hit ?? fail(ScraperErrorTypes.Generic, 'no WK match');
+}
+
+/**
+ * Backward-compat wrapper — returns raw value or false.
  * @param record - Object to check.
  * @param fieldNames - WellKnown names.
  * @returns Matched value or false.
@@ -62,12 +126,9 @@ function matchFieldInRecord(
   record: Record<string, unknown>,
   fieldNames: readonly string[],
 ): string | number | false {
-  const hit = fieldNames.find((f): boolean => record[f] !== null && record[f] !== undefined);
-  if (!hit) return false;
-  const val = record[hit];
-  if (typeof val === 'string') return val;
-  if (typeof val === 'number') return val;
-  return false;
+  const result = matchField(record, fieldNames);
+  if (!isOk(result)) return false;
+  return result.value.value;
 }
 
 /**
@@ -79,9 +140,9 @@ function matchFieldInRecord(
  */
 function enqueueChildren(
   record: Record<string, unknown>,
-  depth: number,
+  depth: BfsDepth,
   queue: ISearchItem[],
-): boolean {
+): IsSearchable {
   if (depth >= MAX_SEARCH_DEPTH) return false;
   const nextDepth = depth + 1;
   const children = Object.values(record)
@@ -124,7 +185,7 @@ function findFieldValue(
 ): string | number | false {
   const allObjects = flattenObjectTree(obj);
   const results = allObjects.map((o): string | number | false => matchFieldInRecord(o, fieldNames));
-  const hit = results.find((r): boolean => r !== false);
+  const hit = results.find((r): Predicate => r !== false);
   return hit ?? false;
 }
 
@@ -136,8 +197,8 @@ const MAX_ARRAY_DEPTH = 15;
 
 /** WK field names indicating a transaction record. */
 const TXN_SIGNATURE_FIELDS = new Set(
-  [...WK.date, ...WK.amount, ...WK.description, ...WK.identifier].map((f): string =>
-    f.toLowerCase(),
+  [...WK.date, ...WK.amount, ...WK.description, ...WK.identifier].map(
+    (f): LowercaseKey => f.toLowerCase(),
   ),
 );
 
@@ -146,16 +207,16 @@ const TXN_SIGNATURE_FIELDS = new Set(
  * @param item - Object to score.
  * @returns Number of matching WK transaction fields.
  */
-function scoreTxnSignature(item: unknown): number {
+function scoreTxnSignature(item: unknown): TxnScore {
   if (!isSearchableObject(item)) return 0;
-  const keys = Object.keys(item as object).map((k): string => k.toLowerCase());
-  return keys.filter((k): boolean => TXN_SIGNATURE_FIELDS.has(k)).length;
+  const keys = Object.keys(item as object).map((k): LowercaseKey => k.toLowerCase());
+  return keys.filter((k): Predicate => TXN_SIGNATURE_FIELDS.has(k)).length;
 }
 
 /** Stack entry for LIFO array search. */
 interface IStackEntry {
   readonly node: unknown;
-  readonly depth: number;
+  readonly depth: BfsDepth;
 }
 
 /** Context for handleArrayNode. */
@@ -163,7 +224,7 @@ interface IArrayNodeCtx {
   readonly collected: unknown[];
   readonly stack: IStackEntry[];
   readonly node: unknown[];
-  readonly depth: number;
+  readonly depth: BfsDepth;
 }
 
 /**
@@ -173,8 +234,12 @@ interface IArrayNodeCtx {
  * @param depth - Current depth.
  * @returns Number of items pushed.
  */
-function pushArrayChildren(stack: IStackEntry[], items: readonly unknown[], depth: number): number {
-  const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
+function pushArrayChildren(
+  stack: IStackEntry[],
+  items: readonly unknown[],
+  depth: BfsDepth,
+): ItemCount {
+  const objects = items.filter((item): Predicate => typeof item === 'object' && item !== null);
   for (const obj of objects) {
     stack.push({ node: obj, depth: depth + 1 });
   }
@@ -191,8 +256,8 @@ function pushArrayChildren(stack: IStackEntry[], items: readonly unknown[], dept
 function pushObjectChildren(
   stack: IStackEntry[],
   obj: Record<string, unknown>,
-  depth: number,
-): number {
+  depth: BfsDepth,
+): ItemCount {
   const values = Object.values(obj);
   for (const value of values) {
     stack.push({ node: value, depth: depth + 1 });
@@ -205,7 +270,7 @@ function pushObjectChildren(
  * @param ctx - Array node context.
  * @returns True if items were collected.
  */
-function handleArrayNode(ctx: IArrayNodeCtx): boolean {
+function handleArrayNode(ctx: IArrayNodeCtx): Predicate {
   if (ctx.node.length === 0) return false;
   const score = scoreTxnSignature(ctx.node[0]);
   if (score < MIN_TXN_SCORE) {
@@ -227,7 +292,7 @@ function processStackEntry(
   entry: IStackEntry,
   collected: unknown[],
   stack: IStackEntry[],
-): boolean {
+): Predicate {
   if (entry.depth > MAX_ARRAY_DEPTH) return false;
   if (Array.isArray(entry.node)) {
     return handleArrayNode({
@@ -279,7 +344,7 @@ function findFirstArray(obj: Record<string, unknown>): readonly unknown[] {
  * @param dateStr - Raw date string from API response.
  * @returns ISO date string, or original if no match.
  */
-function parseAutoDate(dateStr: string): string {
+function parseAutoDate(dateStr: ParsedDateStr): ParsedDateStr {
   const parsed = moment(dateStr, KNOWN_DATE_FORMATS, true);
   if (parsed.isValid()) return parsed.toISOString();
   return dateStr;
@@ -323,7 +388,7 @@ function autoMapTransaction(raw: Record<string, unknown>): ITransaction {
  */
 function castSearchable(items: readonly unknown[]): readonly Record<string, unknown>[] {
   return items
-    .filter((i): boolean => isSearchableObject(i))
+    .filter((i): Predicate => isSearchableObject(i))
     .map((i): Record<string, unknown> => i as Record<string, unknown>);
 }
 
@@ -348,7 +413,7 @@ function extractAccountRecords(
 function extractAccountIds(responseBody: Record<string, unknown>): readonly string[] {
   const records = extractAccountRecords(responseBody);
   return records
-    .map((record): string => {
+    .map((record): LowercaseKey => {
       const id = findFieldValue(record, WK.accountId);
       return id === false ? '' : String(id);
     })
@@ -377,5 +442,6 @@ export {
   extractTransactions,
   findFieldValue,
   findFirstArray,
+  matchField,
   parseAutoDate,
 };

@@ -277,7 +277,7 @@ export const PIPELINE_WELL_KNOWN_DASHBOARD = {
  */
 export const PIPELINE_WELL_KNOWN_API = {
   /** Account list endpoints — which accounts the user has. */
-  accounts: [/userAccountsData/i, /account\/info/i, /DashboardMonth/i],
+  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i],
   /** Transaction detail endpoints — fetch transaction history. */
   transactions: [
     /transactionsDetails/i,
@@ -304,18 +304,35 @@ export const PIPELINE_WELL_KNOWN_API = {
  * The mediator searches response objects for these field names by concept.
  * Generic across ALL Israeli banks.
  */
+
+/** Display IDs — shown to the user (short, recognizable). */
+const DISPLAY_ID_FIELDS = [
+  'last4Digits',
+  'AccountID',
+  'accountNumber',
+  'cardNumber',
+  'bankAccountNum',
+  'cardSuffix',
+  'displayId',
+  'cardLast4',
+] as const;
+
+/** Query IDs — internal identifiers for API calls (long, opaque). */
+const QUERY_ID_FIELDS = [
+  'cardUniqueId',
+  'cardUniqueID',
+  'bankAccountUniqueID',
+  'accountId',
+  'CardId',
+] as const;
+
 export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
-  /** Account ID field names. */
-  accountId: [
-    'AccountID',
-    'accountNumber',
-    'bankAccountUniqueID',
-    'cardNumber',
-    'last4Digits',
-    'cardUniqueId',
-    'cardUniqueID',
-    'accountId',
-  ],
+  /** Account ID field names (union of display + query — backward compat). */
+  accountId: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
+  /** Display IDs — shown to the user (short, recognizable). */
+  displayId: [...DISPLAY_ID_FIELDS],
+  /** Query IDs — internal identifiers for API calls (long, opaque). */
+  queryId: [...QUERY_ID_FIELDS],
   /** Transaction date field names. */
   date: [
     'OperationDate',
@@ -345,8 +362,6 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode'],
   /** Balance field names. */
   balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
-  /** Display ID field names (user-facing card last4). */
-  displayId: ['last4Digits', 'cardSuffix', 'displayId', 'cardLast4'],
   /** From-date field names in POST body (range start). */
   fromDate: ['fromTransDate', 'fromDate', 'FromDate', 'startDate'],
   /** To-date field names in POST body (range end). */

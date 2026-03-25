@@ -23,6 +23,13 @@ import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
 
+/** URL string of the current page or frame context. */
+type ContextUrl = string;
+/** Credential key identifying which form field to resolve. */
+type FieldKeyStr = string;
+/** CSS selector string used to scope form field resolution. */
+type FormScopeStr = string;
+
 /**
  * Extended field context returned by the pipeline resolver.
  * Adds dynamically-extracted DOM metadata after text-based resolution.
@@ -43,7 +50,7 @@ interface IFieldCandidates {
  * @param pageOrFrame - Playwright Page or Frame.
  * @returns URL string, or empty string for frames.
  */
-function getContextUrl(pageOrFrame: Page | Frame): string {
+function getContextUrl(pageOrFrame: Page | Frame): ContextUrl {
   if (!('url' in pageOrFrame)) return '';
   return (pageOrFrame as Page).url();
 }
@@ -142,9 +149,9 @@ function applyFormScope(
 /** Options for resolveFieldPipeline — bundled to satisfy max-params. */
 export interface IResolveFieldArgs {
   readonly pageOrFrame: Page | Frame;
-  readonly fieldKey: string;
+  readonly fieldKey: FieldKeyStr;
   readonly bankCandidates: readonly SelectorCandidate[];
-  readonly formSelector?: string;
+  readonly formSelector?: FormScopeStr;
 }
 
 /** Sentinel for no form scoping — avoids bare '' fallback. */

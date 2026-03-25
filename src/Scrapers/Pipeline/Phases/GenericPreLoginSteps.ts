@@ -18,14 +18,25 @@ const PAGE_READINESS_TIMEOUT = 30000;
 /** Timeout for waiting for first credential field to appear. */
 const FIELD_WAIT_TIMEOUT = 15000;
 
+/** Whether a navigation or click action succeeded. */
+type ClickResult = boolean;
+/** Whether a login link href is recognized as a login destination. */
+type IsLoginLink = boolean;
+/** Whether a form element became visible within the timeout. */
+type FieldReady = boolean;
+/** Index of the first visible locator from a set. */
+type VisibleIndex = number;
+/** Raw href attribute value from an anchor element. */
+type HrefAttr = string;
+
 /**
  * Try to close a popup overlay using WellKnown closeElement candidates.
  * @param mediator - Element mediator with resolver.
  * @returns True if a close element was found and clicked.
  */
-async function tryClosePopup(mediator: IElementMediator): Promise<boolean> {
+async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.closeElement;
-  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
 /**
@@ -33,9 +44,9 @@ async function tryClosePopup(mediator: IElementMediator): Promise<boolean> {
  * @param mediator - Element mediator with resolver.
  * @returns True if a login link was found and clicked.
  */
-async function tryClickLoginLink(mediator: IElementMediator): Promise<boolean> {
+async function tryClickLoginLink(mediator: IElementMediator): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
-  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
 /** Href patterns that indicate a login page destination. */
@@ -46,9 +57,9 @@ const LOGIN_HREF_PATTERNS = ['/login', '/connect', '/auth', '/signin'] as const;
  * @param href - The href attribute value.
  * @returns True if href contains a login pattern.
  */
-function isLoginHref(href: string): boolean {
+function isLoginHref(href: HrefAttr): IsLoginLink {
   const lower = href.toLowerCase();
-  return LOGIN_HREF_PATTERNS.some((p): boolean => lower.includes(p));
+  return LOGIN_HREF_PATTERNS.some((p): IsLoginLink => lower.includes(p));
 }
 
 /**
@@ -58,13 +69,13 @@ function isLoginHref(href: string): boolean {
  * @param mediator - Element mediator with resolver.
  * @returns True if a login link was found and clicked.
  */
-async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<boolean> {
+async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
   const result = await mediator.resolveVisible(candidates).catch((): false => false);
   if (!result || !result.found || !result.locator) {
     return tryClickLoginLink(mediator);
   }
-  const href = await result.locator.getAttribute('href').catch((): string => '');
+  const href = await result.locator.getAttribute('href').catch((): HrefAttr => '');
   if (href && !isLoginHref(href)) {
     return tryClickLoginLink(mediator);
   }
@@ -84,15 +95,15 @@ async function tryClickPrivateCustomers(
   mediator: IElementMediator,
   page: Page,
   navTimeout: number,
-): Promise<boolean> {
+): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.privateCustomers;
-  const didClick = await mediator.resolveAndClick(candidates).catch((): boolean => false);
+  const didClick = await mediator.resolveAndClick(candidates).catch((): ClickResult => false);
   if (!didClick) return false;
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
   return page
     .waitForURL('**/login**', navOpts)
-    .then((): boolean => true)
-    .catch((): boolean => false);
+    .then((): ClickResult => true)
+    .catch((): ClickResult => false);
 }
 
 /**
@@ -100,9 +111,9 @@ async function tryClickPrivateCustomers(
  * @param mediator - Element mediator with resolver.
  * @returns True if a tab was found and clicked.
  */
-async function tryClickCredentialArea(mediator: IElementMediator): Promise<boolean> {
+async function tryClickCredentialArea(mediator: IElementMediator): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.credentialAreaIndicator;
-  return mediator.resolveAndClick(candidates).catch((): boolean => false);
+  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
 /**
@@ -111,15 +122,15 @@ async function tryClickCredentialArea(mediator: IElementMediator): Promise<boole
  * @param page - Browser page.
  * @returns True if any login link became visible, false on timeout.
  */
-async function waitForAnyLoginLink(page: Page): Promise<boolean> {
+async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
   const locators = candidates.map((c): Locator => page.getByText(c.value).first());
-  const waiters = locators.map(async (loc, i): Promise<number> => {
+  const waiters = locators.map(async (loc, i): Promise<VisibleIndex> => {
     await loc.waitFor({ state: 'visible', timeout: PAGE_READINESS_TIMEOUT });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  return results.some((r): boolean => r.status === 'fulfilled');
+  return results.some((r): FieldReady => r.status === 'fulfilled');
 }
 
 /**
@@ -128,7 +139,7 @@ async function waitForAnyLoginLink(page: Page): Promise<boolean> {
  * @param page - Browser page.
  * @returns True if a field indicator became visible, false on timeout.
  */
-async function waitForFirstField(page: Page): Promise<boolean> {
+async function waitForFirstField(page: Page): Promise<FieldReady> {
   const fieldCandidates = [
     ...PIPELINE_WELL_KNOWN_LOGIN.username,
     ...PIPELINE_WELL_KNOWN_LOGIN.password,
@@ -138,12 +149,12 @@ async function waitForFirstField(page: Page): Promise<boolean> {
     if (c.kind === 'labelText') return page.getByLabel(c.value).first();
     return page.getByText(c.value).first();
   });
-  const waiters = locators.map(async (loc, i): Promise<number> => {
+  const waiters = locators.map(async (loc, i): Promise<VisibleIndex> => {
     await loc.waitFor({ state: 'visible', timeout: FIELD_WAIT_TIMEOUT });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  return results.some((r): boolean => r.status === 'fulfilled');
+  return results.some((r): FieldReady => r.status === 'fulfilled');
 }
 
 export {

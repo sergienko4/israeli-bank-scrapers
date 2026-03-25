@@ -1,6 +1,6 @@
 /**
  * Monthly scrape factory — generic monthly iteration pattern.
- * Banks provide fetchMonth(ctx, month), this factory handles iteration + merge.
+ * Banks provide getMonthTransactions(ctx, month), this factory handles iteration + merge.
  * Produces a CustomScrapeFn compatible with PipelineBuilder.withScraper().
  */
 
@@ -16,16 +16,23 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, isOk, succeed } from '../Types/Procedure.js';
 
-/** Configuration for monthly scrape — bank provides fetchMonth + optional setup. */
+/** Months to look back from the start date. */
+type MonthsBack = number;
+/** Milliseconds to wait between API calls. */
+type RateLimitMs = number;
+/** Whether an account was successfully merged into the accumulator. */
+type MergeSuccess = boolean;
+
+/** Configuration for monthly scrape — bank provides getMonthTransactions + optional setup. */
 interface IMonthlyConfig {
   /** Default months back from startDate. */
-  readonly defaultMonthsBack: number;
+  readonly defaultMonthsBack: MonthsBack;
   /** Rate limit delay between month fetches (ms). 0 for none. */
-  readonly rateLimitMs: number;
+  readonly rateLimitMs: RateLimitMs;
   /** One-time setup before monthly iteration (e.g., load categories). */
   readonly setup?: (ctx: IPipelineContext) => Promise<Procedure<boolean>>;
   /** Fetch and map one month's data. Returns accounts for that month. */
-  readonly fetchMonth: (
+  readonly getMonthTransactions: (
     ctx: IPipelineContext,
     month: Moment,
   ) => Promise<Procedure<readonly ITransactionsAccount[]>>;
@@ -69,7 +76,7 @@ async function fetchOneSafe(
   ctx: IPipelineContext,
   month: Moment,
 ): Promise<IMonthResult> {
-  const result = await config.fetchMonth(ctx, month);
+  const result = await config.getMonthTransactions(ctx, month);
   if (isOk(result)) return { accounts: result.value, warnings: [] };
   const label = month.format('YYYY-MM');
   const warning = `Month ${label}: ${result.errorMessage}`;
@@ -128,7 +135,7 @@ async function fetchAllMonths(args: IFetchLoopArgs, index: number): Promise<IMon
 function mergeOneAccount(
   map: Map<string, ITransactionsAccount>,
   acct: ITransactionsAccount,
-): boolean {
+): MergeSuccess {
   const existing = map.get(acct.accountNumber);
   if (!existing) {
     map.set(acct.accountNumber, { ...acct, txns: [...acct.txns] });
@@ -208,8 +215,8 @@ function createMonthlyScrapeFn(config: IMonthlyConfig): CustomScrapeFn {
     const msg = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `Monthly scrape failed: ${msg}`);
   };
-  return (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-    return executeMonthly(config, ctx).catch(wrapError);
+  return async (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
+    return await executeMonthly(config, ctx).catch(wrapError);
   };
 }
 

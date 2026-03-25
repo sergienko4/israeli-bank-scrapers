@@ -16,6 +16,15 @@ import type { IFetchStrategy } from '../Strategy/FetchStrategy.js';
 import type { Option } from './Option.js';
 import type { Procedure } from './Procedure.js';
 
+/** Whether the dashboard page is fully ready after login. */
+type PageReadyFlag = boolean;
+/** URL string of a page captured during the pipeline. */
+type PageUrlStr = string;
+/** Epoch-ms timestamp recorded during a pipeline phase. */
+type TimestampMs = number;
+/** Short diagnostic breadcrumb string (last phase action). */
+type DiagnosticStr = string;
+
 /** Browser lifecycle context — absent for API-only scrapers. */
 interface IBrowserState {
   readonly page: Page;
@@ -31,8 +40,8 @@ interface ILoginState {
 
 /** Dashboard phase result context. */
 interface IDashboardState {
-  readonly isReady: boolean;
-  readonly pageUrl: string;
+  readonly isReady: PageReadyFlag;
+  readonly pageUrl: PageUrlStr;
 }
 
 /** Scrape phase result context. */
@@ -42,11 +51,11 @@ interface IScrapeState {
 
 /** Diagnostics state — tracks timing and breadcrumbs. */
 interface IDiagnosticsState {
-  readonly loginUrl: string;
+  readonly loginUrl: PageUrlStr;
   readonly finalUrl: Option<string>;
-  readonly loginStartMs: number;
+  readonly loginStartMs: TimestampMs;
   readonly fetchStartMs: Option<number>;
-  readonly lastAction: string;
+  readonly lastAction: DiagnosticStr;
   readonly pageTitle: Option<string>;
   readonly warnings: readonly string[];
 }

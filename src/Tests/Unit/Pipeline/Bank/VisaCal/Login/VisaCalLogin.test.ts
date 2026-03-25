@@ -30,17 +30,17 @@ describe('VISACAL_LOGIN', () => {
     });
   });
 
-  describe('generic flow — no bank-specific callbacks', () => {
-    it('has no checkReadiness (HOME phase handles it)', () => {
-      expect(VISACAL_LOGIN.checkReadiness).toBeUndefined();
+  describe('lifecycle hooks — connect-iframe login flow', () => {
+    it('has checkReadiness (waits for login link before filling fields)', () => {
+      expect(VISACAL_LOGIN.checkReadiness).toBeDefined();
     });
 
-    it('has no postAction (DASHBOARD phase handles it)', () => {
-      expect(VISACAL_LOGIN.postAction).toBeUndefined();
+    it('has preAction (opens Connect iframe so fields are visible)', () => {
+      expect(VISACAL_LOGIN.preAction).toBeDefined();
     });
 
-    it('has no preAction (HOME phase handles it)', () => {
-      expect(VISACAL_LOGIN.preAction).toBeUndefined();
+    it('has postAction (waits for SPA navigation after login)', () => {
+      expect(VISACAL_LOGIN.postAction).toBeDefined();
     });
   });
 });

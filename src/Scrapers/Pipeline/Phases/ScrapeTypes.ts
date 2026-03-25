@@ -6,6 +6,17 @@
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import type { IApiFetchContext } from '../Types/PipelineContext.js';
 
+/** Unique internal ID used for API queries (e.g. cardUniqueId). */
+type AccountId = string;
+/** Display ID shown to the user (e.g. last4Digits or accountNumber). */
+type DisplayId = string;
+/** URL string for an API endpoint. */
+type UrlStr = string;
+/** ISO or YYYYMMDD date string. */
+type DateStr = string;
+/** Billing API endpoint URL. */
+type BillingUrlStr = string;
+
 /** API response payload — wraps Record to hide `unknown` from function signatures. */
 type ApiPayload = Record<string, unknown>;
 
@@ -13,7 +24,7 @@ type ApiPayload = Record<string, unknown>;
 interface IAccountFetchCtx {
   readonly api: IApiFetchContext;
   readonly network: INetworkDiscovery;
-  readonly startDate: string;
+  readonly startDate: DateStr;
 }
 
 /** Bundled options for fetching one account. */
@@ -26,31 +37,31 @@ interface IAccountFetchOpts {
 interface IChunkingCtx {
   readonly fc: IAccountFetchCtx;
   readonly baseBody: Record<string, unknown>;
-  readonly url: string;
-  readonly displayId: string;
-  readonly accountId: string;
+  readonly url: UrlStr;
+  readonly displayId: DisplayId;
+  readonly accountId: AccountId;
 }
 
 /** Bundled params for POST fetch operations. */
 interface IPostFetchCtx {
   readonly baseBody: Record<string, unknown>;
-  readonly url: string;
-  readonly displayId: string;
-  readonly accountId: string;
+  readonly url: UrlStr;
+  readonly displayId: DisplayId;
+  readonly accountId: AccountId;
 }
 
 /** Bundled params for billing chunk fetches. */
 interface IBillingChunkCtx {
   readonly fc: IAccountFetchCtx;
-  readonly billingUrl: string;
-  readonly accountId: string;
+  readonly billingUrl: BillingUrlStr;
+  readonly accountId: AccountId;
 }
 
 /** Bundled params for account assembly. */
 interface IAccountAssemblyCtx {
   readonly fc: IAccountFetchCtx;
-  readonly accountId: string;
-  readonly displayId: string;
+  readonly accountId: AccountId;
+  readonly displayId: DisplayId;
 }
 
 /** Bundled params for fetching all accounts. */
@@ -62,7 +73,11 @@ interface IFetchAllAccountsCtx {
 }
 
 export type {
+  AccountId,
   ApiPayload,
+  BillingUrlStr,
+  DateStr,
+  DisplayId,
   IAccountAssemblyCtx,
   IAccountFetchCtx,
   IAccountFetchOpts,
@@ -70,4 +85,5 @@ export type {
   IChunkingCtx,
   IFetchAllAccountsCtx,
   IPostFetchCtx,
+  UrlStr,
 };

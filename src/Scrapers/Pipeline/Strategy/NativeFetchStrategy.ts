@@ -8,9 +8,12 @@ import type { Procedure } from '../Types/Procedure.js';
 import { fail } from '../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
+/** Base API URL string for this strategy instance. */
+type BaseUrlStr = string;
+
 /** Native fetch — uses Node.js fetch() with configurable headers. */
 class NativeFetchStrategy implements IFetchStrategy {
-  protected readonly _baseUrl: string;
+  protected readonly _baseUrl: BaseUrlStr;
 
   /**
    * Create a NativeFetchStrategy.

@@ -116,15 +116,17 @@ describe('generateMonthChunks', () => {
     expect(chunks).toHaveLength(12);
   });
 
-  it('caps future end date to today (within 24h tolerance)', () => {
+  it('caps future end date to today (within 48h timezone tolerance)', () => {
     const future = new Date('2027-06-15');
     const chunks = generateMonthChunks(new Date('2026-01-01'), future);
     const lastChunk = chunks.at(-1);
     expect(lastChunk).toBeDefined();
     const lastEnd = new Date(lastChunk?.end ?? '');
-    const oneDayMs = 86400000;
+    // 48h tolerance: formatDatePart uses local timezone, so end-of-day in e.g. UTC+3
+    // can be up to 27h from Date.now() when called near UTC midnight.
+    const toleranceMs = 2 * 86400000;
     const lastEndMs = lastEnd.getTime();
-    const cutoffMs = Date.now() + oneDayMs;
+    const cutoffMs = Date.now() + toleranceMs;
     expect(lastEndMs).toBeLessThanOrEqual(cutoffMs);
   });
 });

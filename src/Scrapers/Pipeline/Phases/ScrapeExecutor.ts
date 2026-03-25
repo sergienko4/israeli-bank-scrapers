@@ -16,12 +16,21 @@ import type { Procedure } from '../Types/Procedure.js';
 import { fail, isOk, succeed } from '../Types/Procedure.js';
 import type { IRawAccount, IScrapeConfig } from '../Types/ScrapeConfig.js';
 
+/** Formatted date string for API request parameters. */
+type StartDateFmt = string;
+/** HTTP request path segment (no base URL). */
+type PathStr = string;
+/** HTTP method string (GET, POST, etc.). */
+type MethodStr = string;
+/** Extracted balance value from API response. */
+type BalanceNum = number;
+
 /** Bundled dependencies for scrape operations. */
 interface IScrapeOps<TA, TT> {
   readonly strategy: IFetchStrategy;
   readonly config: IScrapeConfig<TA, TT>;
   readonly opts: IFetchOpts;
-  readonly startDate: string;
+  readonly startDate: StartDateFmt;
 }
 
 /**
@@ -49,7 +58,7 @@ function buildFetchOpts<TA, TT>(config: IScrapeConfig<TA, TT>, ctx: IPipelineCon
  * @param dateFormat - The bank's date format string.
  * @returns Formatted start date.
  */
-function computeStartDate(ctx: IPipelineContext, dateFormat: string): string {
+function computeStartDate(ctx: IPipelineContext, dateFormat: StartDateFmt): StartDateFmt {
   const defaultStart = moment().subtract(1, 'years');
   const optionsStart = moment(ctx.options.startDate);
   const start = moment.max(defaultStart, optionsStart);
@@ -58,15 +67,15 @@ function computeStartDate(ctx: IPipelineContext, dateFormat: string): string {
 
 /** Built request shape from buildRequest callback. */
 interface IBuiltRequest {
-  readonly path: string;
+  readonly path: PathStr;
   readonly postData: Record<string, string>;
 }
 
 /** Fetch dispatch arguments. */
 interface IDispatchArgs {
   readonly strategy: IFetchStrategy;
-  readonly method: string;
-  readonly path: string;
+  readonly method: MethodStr;
+  readonly path: PathStr;
   readonly postData: Record<string, string>;
   readonly opts: IFetchOpts;
 }
@@ -191,7 +200,7 @@ async function fetchOneAccount<TA, TT>(
   if (!isOk(mapped)) return mapped;
   const extractor = ops.config.balanceExtractor;
   const balance = extractor
-    ? safeCall((): number => extractor(raw.value), 'balanceExtractor')
+    ? safeCall((): BalanceNum => extractor(raw.value), 'balanceExtractor')
     : succeed(account.balance);
   const resolvedBalance = isOk(balance) ? balance.value : account.balance;
   const acct = buildAccount(account, mapped.value, resolvedBalance);

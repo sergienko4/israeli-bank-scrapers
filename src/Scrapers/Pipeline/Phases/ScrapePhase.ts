@@ -16,7 +16,7 @@ import {
   findFieldValue,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF } from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 import { some } from '../Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
 import type { IApiFetchContext, IPipelineContext } from '../Types/PipelineContext.js';
@@ -27,6 +27,13 @@ import { fetchAllAccounts } from './ScrapeAccountHelpers.js';
 import { executeScrape } from './ScrapeExecutor.js';
 import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeFetchHelpers.js';
 import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
+
+/** Internal account ID used for billing API calls. */
+type FallbackAccountId = string;
+/** URL origin string for SPA/API host comparison. */
+type OriginStr = string;
+/** Whether the SPA pivot navigation completed (or was skipped). */
+type PivotDone = boolean;
 
 const LOG = getDebug('scrape-phase');
 
@@ -113,7 +120,7 @@ function buildFetchAllCtx(
 
 /** Parsed POST body with account info for fallback. */
 interface IPostBodyFallback {
-  readonly accountId: string;
+  readonly accountId: FallbackAccountId;
   readonly record: ApiPayload;
 }
 
@@ -128,7 +135,7 @@ function resolveAccountFromBody(body: ApiPayload): IPostBodyFallback | false {
     LOG.debug('account fallback: cardId=%s from cards array', cardId);
     return { accountId: cardId, record: body };
   }
-  const rawId = findFieldValue(body, MF.accountId);
+  const rawId = findFieldValue(body, WK.queryId);
   if (!rawId) return false;
   const accountId = String(rawId);
   LOG.debug('account fallback: accountId=%s from top level', accountId);
@@ -159,7 +166,7 @@ function extractCardIdFromArray(body: Record<string, unknown>): string | false {
   const cards = body.cards ?? body.Cards;
   if (!Array.isArray(cards) || cards.length === 0) return false;
   const first = cards[0] as Record<string, unknown>;
-  const cardId = findFieldValue(first, MF.accountId);
+  const cardId = findFieldValue(first, WK.queryId);
   if (!cardId) return false;
   return String(cardId);
 }
@@ -187,7 +194,10 @@ const SPA_PIVOT_TIMEOUT_MS = 15_000;
  * @param currentOrigin - Current page origin.
  * @returns True if current origin hosts the txn endpoint.
  */
-function isTxnHostedOnCurrentOrigin(network: INetworkDiscovery, currentOrigin: string): boolean {
+function isTxnHostedOnCurrentOrigin(
+  network: INetworkDiscovery,
+  currentOrigin: OriginStr,
+): PivotDone {
   const txnEndpoint = network.discoverTransactionsEndpoint();
   if (!txnEndpoint) return false;
   return new URL(txnEndpoint.url).origin === currentOrigin;
@@ -212,7 +222,7 @@ async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promi
   }
   LOG.debug('SPA pivot: %s → %s', currentOrigin, spaOrigin);
   const opts = { waitUntil: 'domcontentloaded' as const, timeout: SPA_PIVOT_TIMEOUT_MS };
-  await page.goto(spaUrl, opts).catch((): boolean => {
+  await page.goto(spaUrl, opts).catch((): PivotDone => {
     LOG.debug('SPA pivot: navigation failed (non-fatal)');
     return false;
   });
@@ -256,7 +266,8 @@ function createConfigScrapeStep<TA, TT>(
   return {
     name: 'scrape',
     /** @inheritdoc */
-    execute: (_ctx, input): Promise<Procedure<IPipelineContext>> => executeScrape(input, config),
+    execute: async (_ctx, input): Promise<Procedure<IPipelineContext>> =>
+      await executeScrape(input, config),
   };
 }
 

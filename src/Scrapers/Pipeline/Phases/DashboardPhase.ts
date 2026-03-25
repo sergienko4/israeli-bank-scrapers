@@ -26,6 +26,9 @@ import type {
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
+/** Whether a dashboard-readiness check succeeded. */
+type DashboardReady = boolean;
+
 /** Timeout for waiting for dashboard indicator (30s for SPA auth flows). */
 const DASHBOARD_TIMEOUT = 30000;
 
@@ -160,7 +163,7 @@ async function executeDashboardPost(
   const mediator = input.mediator.value;
   const hasChangePass = await mediator
     .resolveAndClick(PIPELINE_WELL_KNOWN_DASHBOARD.changePasswordIndicator)
-    .catch((): boolean => false);
+    .catch((): DashboardReady => false);
   if (hasChangePass) return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
   const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };
   return succeed({ ...input, dashboard: some(dashState) });
@@ -202,7 +205,7 @@ async function executeDashboard(
   if (!preResult.success) return preResult;
   const actionResult = await executeDashboardAction(preResult.value, preResult.value);
   if (!actionResult.success) return actionResult;
-  return executeDashboardPost(actionResult.value, actionResult.value);
+  return await executeDashboardPost(actionResult.value, actionResult.value);
 }
 
 /** DASHBOARD phase step — legacy monolithic. */

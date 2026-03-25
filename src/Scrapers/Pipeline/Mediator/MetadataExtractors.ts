@@ -7,38 +7,57 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+/** HTML id attribute value (empty string if absent). */
+type DomId = string;
+/** CSS class string (space-separated). */
+type DomClassName = string;
+/** Lowercase HTML tag name (e.g. 'input', 'button'). */
+type DomTagName = string;
+/** Input type attribute (e.g. 'text', 'password', 'submit'). */
+type DomInputType = string;
+/** name attribute of the element. */
+type DomName = string;
+/** ID of the closest ancestor form element. */
+type DomFormId = string;
+/** aria-label attribute value. */
+type DomAriaLabel = string;
+/** placeholder attribute value. */
+type DomPlaceholder = string;
+/** Whether the element is currently visible in the viewport. */
+type IsElementVisible = boolean;
+
 /** Full DOM snapshot of a resolved element — extracted dynamically after text match. */
 export interface IElementMetadata {
   /** HTML id attribute (empty string if absent). */
-  readonly id: string;
+  readonly id: DomId;
   /** CSS class string (space-separated, empty if absent). */
-  readonly className: string;
+  readonly className: DomClassName;
   /** Lowercase tag name (e.g. 'input', 'button'). */
-  readonly tagName: string;
+  readonly tagName: DomTagName;
   /** Input type attribute (e.g. 'password', 'text', 'submit'). */
-  readonly type: string;
+  readonly type: DomInputType;
   /** Name attribute of the element. */
-  readonly name: string;
+  readonly name: DomName;
   /** Id of the closest ancestor form element (empty if no form). */
-  readonly formId: string;
+  readonly formId: DomFormId;
   /** aria-label attribute value. */
-  readonly ariaLabel: string;
+  readonly ariaLabel: DomAriaLabel;
   /** placeholder attribute value. */
-  readonly placeholder: string;
+  readonly placeholder: DomPlaceholder;
   /** Whether the element is currently visible in the viewport. */
-  readonly isVisible: boolean;
+  readonly isVisible: IsElementVisible;
 }
 
 /** Raw DOM properties extracted via page.evaluate. */
 interface IRawDomProps {
-  id: string;
-  className: string;
-  tagName: string;
-  type: string;
-  name: string;
-  formId: string;
-  ariaLabel: string;
-  placeholder: string;
+  id: DomId;
+  className: DomClassName;
+  tagName: DomTagName;
+  type: DomInputType;
+  name: DomName;
+  formId: DomFormId;
+  ariaLabel: DomAriaLabel;
+  placeholder: DomPlaceholder;
 }
 
 /** Empty DOM props used as fallback when element is not found. */
@@ -69,7 +88,7 @@ async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRa
    * Catch visibility check failure.
    * @returns False.
    */
-  const catchFalse = (): boolean => false;
+  const catchFalse = (): IsElementVisible => false;
   const isAttached = await locator.isVisible().catch(catchFalse);
   if (!isAttached) return EMPTY_DOM_PROPS;
   return locator.evaluate((el: Element): IRawDomProps => {
@@ -105,7 +124,7 @@ export async function extractMetadata(
    * Catch visibility check failure.
    * @returns False.
    */
-  const catchFalse = (): boolean => false;
+  const catchFalse = (): IsElementVisible => false;
   const isVisible = await locator.isVisible().catch(catchFalse);
   const result: IElementMetadata = { ...raw, isVisible };
   return result;

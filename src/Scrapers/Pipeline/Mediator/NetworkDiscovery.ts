@@ -17,6 +17,29 @@ import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryT
 
 const LOG = getDebug('network-discovery');
 
+/** Whether a content-type header indicates a JSON API response. */
+type IsJsonContent = boolean;
+/** Raw URL string of a discovered endpoint. */
+type EndpointUrl = string;
+/** Raw HTTP POST body string. */
+type PostBodyStr = string;
+/** HTTP Content-Type header value. */
+type ContentTypeStr = string;
+/** Numeric comparator result for array sort (negative/zero/positive). */
+type SortOrder = number;
+/** Whether an endpoint was successfully captured and stored. */
+type CaptureResult = boolean;
+/** Whether a regex pattern matched a captured URL. */
+type PatternTest = boolean;
+/** Whether an endpoint contains a non-empty header value. */
+type HeaderPresent = boolean;
+/** Normalized HTTP origin string (scheme + host). */
+type OriginStr = string;
+/** Raw header value string extracted from a request. */
+type HeaderValue = string;
+/** Truncated token string for debug logging (first 12 chars + '...'). */
+type TokenPreview = string;
+
 /** WellKnown request header names for origin discovery. */
 const ORIGIN_HEADERS = ['origin', 'referer'];
 
@@ -37,9 +60,9 @@ const JSON_CONTENT_TYPES = ['application/json', 'text/json'];
  * @param contentType - The content-type header value.
  * @returns True if JSON response.
  */
-function isJsonContentType(contentType: string): boolean {
+function isJsonContentType(contentType: ContentTypeStr): IsJsonContent {
   const lower = contentType.toLowerCase();
-  return JSON_CONTENT_TYPES.some((jsonType): boolean => lower.includes(jsonType));
+  return JSON_CONTENT_TYPES.some((jsonType): IsJsonContent => lower.includes(jsonType));
 }
 
 /**
@@ -48,10 +71,10 @@ function isJsonContentType(contentType: string): boolean {
  * @returns URL, method, postData, and contentType.
  */
 function extractRequestMeta(response: Response): {
-  url: string;
+  url: EndpointUrl;
   method: 'GET' | 'POST';
-  postData: string;
-  contentType: string;
+  postData: PostBodyStr;
+  contentType: ContentTypeStr;
   requestHeaders: Record<string, string>;
 } {
   const headers = response.headers();
@@ -86,7 +109,7 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
  * @param fullUrl - Full URL with query params.
  * @returns Base URL without query string.
  */
-function extractBaseUrl(fullUrl: string): string {
+function extractBaseUrl(fullUrl: EndpointUrl): EndpointUrl {
   const idx = fullUrl.indexOf('?');
   if (idx < 0) return fullUrl;
   return fullUrl.slice(0, idx);
@@ -106,7 +129,7 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
     counts.set(base, current + 1);
   }
   const entries = [...counts.entries()];
-  const sorted = entries.sort((a, b): number => b[1] - a[1]);
+  const sorted = entries.sort((a, b): SortOrder => b[1] - a[1]);
   return sorted[0]?.[0] ?? '';
 }
 
@@ -116,15 +139,15 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
  * @param response - Playwright response.
  * @returns True (always — fire-and-forget).
  */
-function handleResponse(captured: IDiscoveredEndpoint[], response: Response): boolean {
+function handleResponse(captured: IDiscoveredEndpoint[], response: Response): CaptureResult {
   parseResponse(response)
-    .then((endpoint): boolean => {
+    .then((endpoint): CaptureResult => {
       if (!endpoint) return false;
       captured.push(endpoint);
       LOG.debug('captured: %s %s', endpoint.method, endpoint.url);
       return true;
     })
-    .catch((): boolean => false);
+    .catch((): CaptureResult => false);
   return true;
 }
 
@@ -138,9 +161,23 @@ function discoverByWellKnown(
   captured: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
-  const match = patterns.find((p): boolean => captured.some((ep): boolean => p.test(ep.url)));
+  /**
+   * Test if an endpoint URL matches a regex pattern.
+   * @param ep - Captured endpoint.
+   * @param p - Pattern to test.
+   * @returns True if URL matches.
+   */
+  const urlMatchesPattern = (ep: IDiscoveredEndpoint, p: RegExp): PatternTest => p.test(ep.url);
+  /**
+   * Check if any captured endpoint URL matches a pattern.
+   * @param p - Pattern to test against all captured endpoints.
+   * @returns True if at least one URL matches.
+   */
+  const matchesAny = (p: RegExp): PatternTest =>
+    captured.some((ep): PatternTest => urlMatchesPattern(ep, p));
+  const match = patterns.find(matchesAny);
   if (!match) return false;
-  const hit = captured.find((ep): boolean => match.test(ep.url));
+  const hit = captured.find((ep): PatternTest => match.test(ep.url));
   return hit ?? false;
 }
 
@@ -152,7 +189,8 @@ function discoverByWellKnown(
  */
 function extractHeader(ep: IDiscoveredEndpoint, headerNames: readonly string[]): string | false {
   const match = headerNames.find(
-    (h): boolean => typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
+    (h): HeaderPresent =>
+      typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
   );
   if (!match) return false;
   return ep.requestHeaders[match];
@@ -168,7 +206,7 @@ function discoverHeaderValue(
   captured: readonly IDiscoveredEndpoint[],
   headerNames: readonly string[],
 ): string | false {
-  const ep = captured.find((e): boolean => extractHeader(e, headerNames) !== false);
+  const ep = captured.find((e): HeaderPresent => extractHeader(e, headerNames) !== false);
   if (!ep) return false;
   return extractHeader(ep, headerNames);
 }
@@ -187,7 +225,7 @@ function buildCoreMethods(
   return {
     /** @inheritdoc */
     findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
-      captured.filter((ep): boolean => pattern.test(ep.url)),
+      captured.filter((ep): PatternTest => pattern.test(ep.url)),
     /** @inheritdoc */
     getServicesUrl: (): string | false => findCommonServicesUrl(captured),
     /** @inheritdoc */
@@ -245,8 +283,8 @@ function discoverSpaUrlFromTraffic(captured: readonly IDiscoveredEndpoint[]): st
     ...PIPELINE_WELL_KNOWN_API.accounts,
     ...PIPELINE_WELL_KNOWN_API.balance,
   ];
-  const apiEndpoint = captured.find((ep): boolean => {
-    const isApiEndpoint = apiPatterns.some((p): boolean => p.test(ep.url));
+  const apiEndpoint = captured.find((ep): PatternTest => {
+    const isApiEndpoint = apiPatterns.some((p): PatternTest => p.test(ep.url));
     if (!isApiEndpoint) return false;
     const referer = ep.requestHeaders.referer;
     if (!referer) return false;
@@ -265,7 +303,7 @@ function discoverSpaUrlFromTraffic(captured: readonly IDiscoveredEndpoint[]): st
  * @param raw - URL or origin, possibly with path/query.
  * @returns Clean origin like "https://example.com".
  */
-function extractOriginOnly(raw: string): string {
+function extractOriginOnly(raw: OriginStr): OriginStr {
   try {
     return new URL(raw).origin;
   } catch {
@@ -278,8 +316,8 @@ const LOGIN_DOMAIN_PATTERNS = [/connect\./i, /login\./i, /col-rest/i];
 
 /** A header value paired with the URL of the endpoint it came from. */
 interface ISourcedValue {
-  readonly value: string;
-  readonly sourceUrl: string;
+  readonly value: HeaderValue;
+  readonly sourceUrl: EndpointUrl;
 }
 
 /**
@@ -310,7 +348,7 @@ function pickBestValue(sourced: readonly ISourcedValue[]): string | false {
   if (sourced.length === 0) return false;
   if (sourced.length === 1) return sourced[0].value;
   const nonLogin = sourced.find(
-    (s): boolean => !LOGIN_DOMAIN_PATTERNS.some((p): boolean => p.test(s.sourceUrl)),
+    (s): PatternTest => !LOGIN_DOMAIN_PATTERNS.some((p): PatternTest => p.test(s.sourceUrl)),
   );
   return nonLogin?.value ?? sourced[0].value;
 }
@@ -320,7 +358,7 @@ function pickBestValue(sourced: readonly ISourcedValue[]): string | false {
  * @param token - Auth token or false.
  * @returns Truncated token string.
  */
-function formatTokenPreview(token: string | false): string {
+function formatTokenPreview(token: HeaderValue | false): TokenPreview {
   if (!token) return 'NONE';
   return token.slice(0, 12) + '...';
 }
@@ -400,7 +438,7 @@ function findUrlWithAccountId(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): IDiscoveredEndpoint | false {
-  const hit = captured.find((ep): boolean => ep.url.includes(accountId));
+  const hit = captured.find((ep): PatternTest => ep.url.includes(accountId));
   return hit ?? false;
 }
 
@@ -447,8 +485,8 @@ function buildBalUrlFromTraffic(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): string | false {
-  const balanceHits = captured.filter((ep): boolean =>
-    PIPELINE_WELL_KNOWN_API.balance.some((p): boolean => p.test(ep.url)),
+  const balanceHits = captured.filter(
+    (ep): PatternTest => PIPELINE_WELL_KNOWN_API.balance.some((p): PatternTest => p.test(ep.url)),
   );
   if (balanceHits.length === 0) return false;
   const templateUrl = balanceHits[0].url;
@@ -471,7 +509,7 @@ function buildBalUrlFromTraffic(
  */
 function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
-  page.on('response', (r: Response): boolean => handleResponse(captured, r));
+  page.on('response', (r: Response): CaptureResult => handleResponse(captured, r));
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
   const headers = buildHeaderMethods(captured, page);

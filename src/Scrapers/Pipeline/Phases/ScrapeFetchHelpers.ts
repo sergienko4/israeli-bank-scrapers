@@ -20,6 +20,19 @@ import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
 import type { IAccountAssemblyCtx, IChunkingCtx } from './ScrapeTypes.js';
 
+/** Pipe-delimited key for transaction deduplication. */
+type TxnHashKey = string;
+/** Whether a key matches a WK account ID template field. */
+type IsTemplate = boolean;
+/** Whether a template field was applied to the POST body. */
+type FieldApplied = boolean;
+/** Whether a transaction date is after the start date. */
+type IsAfterDate = boolean;
+/** Resolved transaction fetch URL. */
+type TxnUrlStr = string;
+/** Start date string forwarded from scraper options. */
+type StartDateStr = string;
+
 // ── Rate Limiting ────────────────────────────────────────
 
 const RATE_LIMIT_MS = 300;
@@ -53,7 +66,7 @@ function parseStartDate(raw: string): Date {
  * @param t - Transaction to hash.
  * @returns Pipe-delimited key.
  */
-function txnHash(t: ITransaction): string {
+function txnHash(t: ITransaction): TxnHashKey {
   const amt = String(t.originalAmount);
   return `${t.date}|${t.description}|${amt}`;
 }
@@ -61,14 +74,14 @@ function txnHash(t: ITransaction): string {
 // ── Templating ───────────────────────────────────────────
 
 /** Lowercased WK account ID field names. */
-const TEMPLATE_KEYS = new Set(WK.accountId.map((k): string => k.toLowerCase()));
+const TEMPLATE_KEYS = new Set(WK.accountId.map((k): TxnHashKey => k.toLowerCase()));
 
 /**
  * Check if a field key is a templateable account ID.
  * @param key - Field name.
  * @returns True if the key matches a WK account ID field.
  */
-function isTemplateKey(key: string): boolean {
+function isTemplateKey(key: TxnHashKey): IsTemplate {
   const keyLower = key.toLowerCase();
   return TEMPLATE_KEYS.has(keyLower);
 }
@@ -82,9 +95,9 @@ function isTemplateKey(key: string): boolean {
  */
 function applyTemplateField(
   body: Record<string, string | object>,
-  key: string,
+  key: TxnHashKey,
   value: string | number,
-): boolean {
+): FieldApplied {
   if (!isTemplateKey(key)) return false;
   const stringValue = String(value);
   replaceField(body, [key], stringValue);
@@ -139,9 +152,9 @@ function deduplicateTxns(
   allTxns: readonly ITransaction[],
   startMs: number,
 ): readonly ITransaction[] {
-  const afterStart = allTxns.filter((t): boolean => new Date(t.date).getTime() >= startMs);
-  const seen = new Set<string>();
-  return afterStart.filter((t): boolean => {
+  const afterStart = allTxns.filter((t): IsAfterDate => new Date(t.date).getTime() >= startMs);
+  const seen = new Set<TxnHashKey>();
+  return afterStart.filter((t): IsAfterDate => {
     const key = txnHash(t);
     if (seen.has(key)) return false;
     seen.add(key);
@@ -178,8 +191,8 @@ async function genericFetchBalance(
 interface ITxnUrlCtx {
   readonly api: IApiFetchContext;
   readonly network: INetworkDiscovery;
-  readonly accountId: string;
-  readonly startDate: string;
+  readonly accountId: TxnUrlStr;
+  readonly startDate: StartDateStr;
 }
 
 /**
@@ -303,7 +316,7 @@ async function fetchWithMonthlyChunking(
  * @param startMs - Start epoch ms.
  * @returns True if valid and after start.
  */
-function isAfterStart(t: ITransaction, startMs: number): boolean {
+function isAfterStart(t: ITransaction, startMs: number): IsAfterDate {
   const txnMs = new Date(t.date).getTime();
   return !Number.isNaN(txnMs) && txnMs >= startMs;
 }
@@ -319,7 +332,7 @@ function applyGlobalDateFilter(
   startMs: number,
 ): readonly ITransactionsAccount[] {
   for (const account of accounts) {
-    account.txns = account.txns.filter((t): boolean => isAfterStart(t, startMs));
+    account.txns = account.txns.filter((t): IsAfterDate => isAfterStart(t, startMs));
   }
   return accounts;
 }

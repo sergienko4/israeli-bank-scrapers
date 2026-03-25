@@ -30,18 +30,31 @@ import { resolveFieldPipeline } from './PipelineFieldResolver.js';
 
 const LOG = getDebug('element-mediator');
 
+/** CSS selector string cached from form anchor discovery. */
+type FormSelectorStr = string;
+/** Field key string used to identify a credential or form field. */
+type FieldKeyStr = string;
+/** Form anchor CSS selector for scoping subsequent field fills. */
+type FormAnchorStr = string;
+/** Whether a locator is currently visible in the viewport. */
+type IsVisible = boolean;
+/** Index of the winning locator from a race. */
+type WinnerIndex = number;
+/** Raw href or text attribute from a DOM element. */
+type ElementAttr = string;
+
 /** Per-instance mutable cache for the form anchor selector. */
 interface IFormCache {
-  selector: string;
+  selector: FormSelectorStr;
 }
 
 /** Options for field resolution — bundled to satisfy max-params. */
 interface IResolveOpts {
   readonly page: Page;
-  readonly fieldKey: string;
+  readonly fieldKey: FieldKeyStr;
   readonly candidates: readonly SelectorCandidate[];
   readonly scopeContext?: Page | Frame;
-  readonly formSelector?: string;
+  readonly formSelector?: FormAnchorStr;
 }
 
 /**
@@ -155,7 +168,7 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<boolean> {
   const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loadingIndicator;
   const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
-    return locator.isVisible().catch((): boolean => false);
+    return locator.isVisible().catch((): IsVisible => false);
   });
   const results = await Promise.all(checks);
   return results.some(Boolean);
@@ -289,7 +302,7 @@ function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate)
  */
 function getAllContexts(page: Page): (Page | Frame)[] {
   const mainFrame = page.mainFrame();
-  const childFrames = page.frames().filter((f): boolean => f !== mainFrame);
+  const childFrames = page.frames().filter((f): IsVisible => f !== mainFrame);
   return [page, ...childFrames];
 }
 
@@ -299,13 +312,13 @@ function getAllContexts(page: Page): (Page | Frame)[] {
  * @param timeout - Timeout in ms for each locator.
  * @returns Index of first visible locator, or -1 if none.
  */
-async function raceLocators(locators: Locator[], timeout: number): Promise<number> {
-  const waiters = locators.map(async (loc, i): Promise<number> => {
+async function raceLocators(locators: Locator[], timeout: number): Promise<WinnerIndex> {
+  const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
     await loc.waitFor({ state: 'visible', timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  const winner = results.find((r): boolean => r.status === 'fulfilled');
+  const winner = results.find((r): IsVisible => r.status === 'fulfilled');
   if (winner?.status !== 'fulfilled') return -1;
   return winner.value;
 }
@@ -348,10 +361,10 @@ function buildLocatorEntries(
 async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   const target = entry.candidate.target ?? 'self';
   if (target === 'href') {
-    const href = await entry.locator.getAttribute('href').catch((): string => '');
+    const href = await entry.locator.getAttribute('href').catch((): ElementAttr => '');
     return href ?? '';
   }
-  return entry.locator.innerText().catch((): string => '');
+  return entry.locator.innerText().catch((): ElementAttr => '');
 }
 
 /**

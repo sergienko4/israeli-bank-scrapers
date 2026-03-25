@@ -64,12 +64,16 @@ fi
 # ── Phase 2: Static Analysis (Parallel) ──
 log ""
 log "⚡ Phase 2: Static analysis + Architecture Check..."
-bg_gate "tsc"    npx tsc --noEmit
-bg_gate "eslint" npx eslint src/Scrapers/Pipeline --max-warnings=0  # 🚨 Catch DI
-bg_gate "biome"  npx biome lint src --max-diagnostics=50
-bg_gate "audit"  npm audit --audit-level=high --omit=dev
-bg_gate "build"  bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
-bg_gate "canaries" npm run lint:canaries
+bg_gate "tsc"          npx tsc --noEmit
+bg_gate "eslint"       npx eslint src/Scrapers/Pipeline --max-warnings=0
+bg_gate "biome"        npx biome lint src --max-diagnostics=50
+bg_gate "audit"        npm audit --audit-level=high --omit=dev
+
+# 🚨 NEW: Architectural Guardrails (Rules #10, #14, #15)
+bg_gate "architecture" npx tsx src/Tests/Tools/lint-and-validate.ts $CODE_FILES
+
+bg_gate "build"        bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries"     npm run lint:canaries
 
 wait_all
 

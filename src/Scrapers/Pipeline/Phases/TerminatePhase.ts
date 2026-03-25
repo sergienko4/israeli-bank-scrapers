@@ -60,7 +60,7 @@ async function runAllCleanups(
   logger: IPipelineContext['logger'],
 ): Promise<number> {
   const lastIndex = cleanups.length - 1;
-  return runCleanupsRecursive(cleanups, logger, lastIndex);
+  return await runCleanupsRecursive(cleanups, logger, lastIndex);
 }
 
 /**

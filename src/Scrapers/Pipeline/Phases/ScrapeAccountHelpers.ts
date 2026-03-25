@@ -9,12 +9,17 @@ import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IMonthChunk } from '../Mediator/GenericScrapeStrategy.js';
 import {
   extractTransactions,
-  findFieldValue,
   generateMonthChunks,
   isRangeIterable,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+
+/** Full billing API URL built from the accounts endpoint origin. */
+type BillingApiUrl = string;
+/** Month number as string (1–12). */
+type MonthStr = string;
+/** Account index in sequential iteration. */
+type AccountIndex = number;
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, isOk } from '../Types/Procedure.js';
 import {
@@ -26,6 +31,7 @@ import {
   resolveTxnUrl,
   templatePostBody,
 } from './ScrapeFetchHelpers.js';
+import { extractCardId, extractIds } from './ScrapeIdExtraction.js';
 import type {
   ApiPayload,
   IAccountAssemblyCtx,
@@ -41,39 +47,6 @@ const LOG = getDebug('scrape-account');
 
 const RATE_LIMIT_MS = 300;
 
-// ── ID Extraction ────────────────────────────────────────
-
-/**
- * Extract display and account IDs from record.
- * @param record - Account record from init.
- * @returns Display ID and account ID strings.
- */
-function extractIds(record: Record<string, unknown>): {
-  readonly displayId: string;
-  readonly accountId: string;
-} {
-  const rawDisplay = findFieldValue(record, WK.displayId);
-  const displayId = String(rawDisplay || '');
-  const rawAccount = findFieldValue(record, WK.accountId);
-  const accountId = String(rawAccount || displayId);
-  return { displayId, accountId };
-}
-
-/**
- * Extract card ID from a nested cards array in account record.
- * Matches old VisaCal pattern: { cards: [{ cardUniqueID: "..." }] }
- * @param record - Account record (may be captured POST body).
- * @returns Card ID string or false.
- */
-function extractCardId(record: Record<string, unknown>): string | false {
-  const cards = record.cards ?? record.Cards;
-  if (!Array.isArray(cards) || cards.length === 0) return false;
-  const first = cards[0] as Record<string, unknown>;
-  const id = findFieldValue(first, WK.accountId);
-  if (!id) return false;
-  return String(id);
-}
-
 // ── Billing Helpers ──────────────────────────────────────
 
 /**
@@ -81,7 +54,7 @@ function extractCardId(record: Record<string, unknown>): string | false {
  * @param accountsUrl - Discovered accounts endpoint URL.
  * @returns Full billing API URL.
  */
-function buildBillingUrl(accountsUrl: string): string {
+function buildBillingUrl(accountsUrl: BillingApiUrl): BillingApiUrl {
   const apiBase = new URL(accountsUrl).origin;
   const path = '/Transactions/api/transactionsDetails/' + 'getCardTransactionsDetails';
   return `${apiBase}${path}`;
@@ -92,7 +65,7 @@ function buildBillingUrl(accountsUrl: string): string {
  * @param chunk - Month chunk with start date.
  * @returns Month and year as strings.
  */
-function chunkMonthYear(chunk: IMonthChunk): { readonly month: string; readonly year: string } {
+function chunkMonthYear(chunk: IMonthChunk): { readonly month: MonthStr; readonly year: MonthStr } {
   const d = new Date(chunk.start);
   const rawMonth = d.getMonth() + 1;
   const month = String(rawMonth);
@@ -328,8 +301,8 @@ async function fetchOneAccountPost(
   const billing = await tryBillingFallback(fc, post, endpoint);
   const hasBilling = isOk(billing) && billing.value.txns.length > 0;
   if (hasBilling) return billing;
-  if (isRangeIterable(capturedBody)) return fetchPostWithRange(fc, post);
-  return fetchPostDirect(fc, post);
+  if (isRangeIterable(capturedBody)) return await fetchPostWithRange(fc, post);
+  return await fetchPostDirect(fc, post);
 }
 
 // ── GET Strategy ─────────────────────────────────────────
@@ -385,9 +358,9 @@ async function genericFetchOneAccount(
   opts: IAccountFetchOpts,
 ): Promise<Procedure<ITransactionsAccount>> {
   if (!hasPostEndpoint(opts)) {
-    return fetchOneAccountGet(fc, accountId);
+    return await fetchOneAccountGet(fc, accountId);
   }
-  return fetchOneAccountPost(fc, opts.accountRecord, opts.txnEndpoint);
+  return await fetchOneAccountPost(fc, opts.accountRecord, opts.txnEndpoint);
 }
 
 /**
@@ -416,8 +389,8 @@ async function processOneAccount(
  * @param count - Number of accounts.
  * @returns Array of indices [0, 1, 2, ...].
  */
-function indexArray(count: number): readonly number[] {
-  return Array.from({ length: count }, (_, i): number => i);
+function indexArray(count: number): readonly AccountIndex[] {
+  return Array.from({ length: count }, (_, i): AccountIndex => i);
 }
 
 /**

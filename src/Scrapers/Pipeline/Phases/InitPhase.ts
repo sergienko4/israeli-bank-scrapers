@@ -18,6 +18,9 @@ import type { IBrowserState, IPipelineContext } from '../Types/PipelineContext.j
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
+/** Whether a browser/page/context close operation succeeded. */
+type CloseSuccess = boolean;
+
 /**
  * Launch a new Camoufox browser.
  * @param options - Scraper options with browser config.
@@ -45,7 +48,7 @@ async function createContextAndPage(
     const page = await context.newPage();
     return { context, page };
   } catch (err) {
-    await context.close().catch((): boolean => false);
+    await context.close().catch((): CloseSuccess => false);
     throw err;
   }
 }
@@ -77,11 +80,11 @@ function buildCleanups(
   page: Page,
   context: BrowserContext,
   browser: Browser,
-): readonly (() => Promise<boolean>)[] {
+): readonly (() => Promise<CloseSuccess>)[] {
   return [
-    (): Promise<boolean> => browser.close().then((): boolean => true),
-    (): Promise<boolean> => context.close().then((): boolean => true),
-    (): Promise<boolean> => page.close().then((): boolean => true),
+    (): Promise<CloseSuccess> => browser.close().then((): CloseSuccess => true),
+    (): Promise<CloseSuccess> => context.close().then((): CloseSuccess => true),
+    (): Promise<CloseSuccess> => page.close().then((): CloseSuccess => true),
   ];
 }
 
@@ -135,12 +138,12 @@ function wireComponents(input: IPipelineContext, launched: ILaunchedBrowser): IP
  * @param browser - Browser handle or false if not yet launched.
  * @returns True if closed, false if no browser or close failed.
  */
-async function closeBrowserSafe(browser: Browser | false): Promise<boolean> {
+async function closeBrowserSafe(browser: Browser | false): Promise<CloseSuccess> {
   if (!browser) return false;
   return browser
     .close()
-    .then((): boolean => true)
-    .catch((): boolean => false);
+    .then((): CloseSuccess => true)
+    .catch((): CloseSuccess => false);
 }
 
 /**

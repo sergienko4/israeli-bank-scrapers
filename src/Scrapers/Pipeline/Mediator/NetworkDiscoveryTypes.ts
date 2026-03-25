@@ -4,22 +4,31 @@
 
 import type { IFetchOpts } from '../Strategy/FetchStrategy.js';
 
+/** Full URL of a captured API endpoint. */
+type CapturedUrl = string;
+/** Raw POST body string of a captured request. */
+type CapturedPostData = string;
+/** HTTP Content-Type header of a captured response. */
+type CapturedContentType = string;
+/** Epoch ms timestamp when the endpoint was captured. */
+type CaptureTimestamp = number;
+
 /** A discovered API endpoint — captured from browser network traffic. */
 interface IDiscoveredEndpoint {
   /** Full URL including query params. */
-  readonly url: string;
+  readonly url: CapturedUrl;
   /** HTTP method (GET or POST). */
   readonly method: 'GET' | 'POST';
   /** POST body if applicable. */
-  readonly postData: string;
+  readonly postData: CapturedPostData;
   /** Parsed JSON response body. */
   readonly responseBody: unknown;
   /** Response content type. */
-  readonly contentType: string;
+  readonly contentType: CapturedContentType;
   /** Request headers sent by page JS (for auth token, origin, site ID). */
   readonly requestHeaders: Record<string, string>;
   /** Capture timestamp (ms since epoch). */
-  readonly timestamp: number;
+  readonly timestamp: CaptureTimestamp;
 }
 
 /** Network discovery interface — captures and queries API traffic. */

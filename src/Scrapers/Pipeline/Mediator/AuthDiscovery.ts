@@ -20,12 +20,25 @@ const STORAGE_AUTH_KEYS = ['auth-module', 'auth', 'token', 'session'];
 /** WellKnown request header names for auth. */
 const AUTH_HEADER_NAMES = ['authorization', 'x-auth-token'];
 
+/** Auth token string with scheme prefix (e.g. 'CALAuthScheme ...'). */
+type AuthToken = string;
+/** Whether an endpoint has a recognised auth header. */
+type HasAuthHeader = boolean;
+/** Whether an endpoint is a recognised auth endpoint. */
+type IsAuthEndpoint = boolean;
+/** Whether a response body value looks like a token. */
+type IsTokenLike = boolean;
+/** Raw sessionStorage string value or sentinel. */
+type StorageValue = string;
+/** CalConnect token name inside a storage auth object. */
+type TokenFieldName = string;
+
 /**
  * Add auth scheme prefix to a bare token if not already prefixed.
  * @param token - Raw token string.
  * @returns Token with CALAuthScheme or Bearer prefix.
  */
-function prefixToken(token: string): string {
+function prefixToken(token: AuthToken): AuthToken {
   if (token.startsWith('CALAuthScheme ')) return token;
   if (token.startsWith('Bearer ')) return token;
   return `CALAuthScheme ${token}`;
@@ -45,7 +58,8 @@ function prefixToken(token: string): string {
  */
 function extractAuthHeader(ep: IDiscoveredEndpoint): string | false {
   const hit = AUTH_HEADER_NAMES.find(
-    (h): boolean => typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
+    (h): HasAuthHeader =>
+      typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
   );
   if (!hit) return false;
   return ep.requestHeaders[hit];
@@ -57,7 +71,7 @@ function extractAuthHeader(ep: IDiscoveredEndpoint): string | false {
  * @returns Auth token or false.
  */
 function discoverFromHeaders(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const match = captured.find((ep): boolean => extractAuthHeader(ep) !== false);
+  const match = captured.find((ep): HasAuthHeader => extractAuthHeader(ep) !== false);
   if (!match) return false;
   return extractAuthHeader(match);
 }
@@ -75,7 +89,7 @@ function findTokenInFlat(obj: Record<string, unknown>): string | false {
    * @param f - Field name.
    * @returns True if string longer than 5 chars.
    */
-  const isToken = (f: string): boolean => {
+  const isToken = (f: TokenFieldName): IsTokenLike => {
     const val = obj[f];
     return typeof val === 'string' && val.length > 5;
   };
@@ -92,7 +106,7 @@ function findTokenInFlat(obj: Record<string, unknown>): string | false {
 function searchBodyForToken(body: Record<string, unknown>): string | false {
   const direct = findTokenInFlat(body);
   if (direct) return direct;
-  const nested = Object.values(body).find((v): boolean => typeof v === 'object' && v !== null);
+  const nested = Object.values(body).find((v): IsTokenLike => typeof v === 'object' && v !== null);
   if (!nested) return false;
   return findTokenInFlat(nested as Record<string, unknown>);
 }
@@ -103,12 +117,18 @@ function searchBodyForToken(body: Record<string, unknown>): string | false {
  * @returns Prefixed token or false.
  */
 function discoverFromResponses(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const authHits = captured.filter((ep): boolean =>
-    PIPELINE_WELL_KNOWN_API.auth.some((p): boolean => p.test(ep.url)),
+  const authHits = captured.filter(
+    (ep): IsAuthEndpoint =>
+      PIPELINE_WELL_KNOWN_API.auth.some((p): IsAuthEndpoint => p.test(ep.url)),
   );
-  const match = authHits.find(
-    (ep): boolean => searchBodyForToken(ep.responseBody as Record<string, unknown>) !== false,
-  );
+  /**
+   * Check if endpoint response body contains a token.
+   * @param ep - Captured endpoint to inspect.
+   * @returns True if a token is found in the response body.
+   */
+  const hasToken = (ep: IDiscoveredEndpoint): IsAuthEndpoint =>
+    searchBodyForToken(ep.responseBody as Record<string, unknown>) !== false;
+  const match = authHits.find(hasToken);
   if (!match) return false;
   return searchBodyForToken(match.responseBody as Record<string, unknown>);
 }
@@ -122,7 +142,7 @@ function discoverFromResponses(captured: readonly IDiscoveredEndpoint[]): string
  */
 /** Parsed sessionStorage auth shape. */
 interface IStorageAuth {
-  auth?: { calConnectToken?: string; token?: string };
+  auth?: { calConnectToken?: AuthToken; token?: AuthToken };
 }
 
 /**
@@ -143,7 +163,7 @@ function extractFromParsed(parsed: IStorageAuth): string | false {
  */
 function tryParseJsonToken(raw: string): string | false {
   try {
-    const parsed = JSON.parse(raw) as { auth?: { calConnectToken?: string; token?: string } };
+    const parsed = JSON.parse(raw) as { auth?: { calConnectToken?: AuthToken; token?: AuthToken } };
     return extractFromParsed(parsed);
   } catch {
     return false;
@@ -163,14 +183,14 @@ async function discoverFromStorage(page: Page): Promise<string | false> {
        * @param keys - Storage key names to try.
        * @returns First non-empty value or sentinel.
        */
-      (keys: string[]): string => {
-        const values = keys.map((k): string => sessionStorage.getItem(k) ?? '');
+      (keys: StorageValue[]): StorageValue => {
+        const values = keys.map((k): StorageValue => sessionStorage.getItem(k) ?? '');
         const found = values.find(Boolean);
         return found ?? 'NONE';
       },
       STORAGE_AUTH_KEYS,
     )
-    .catch((): string => 'NONE');
+    .catch((): StorageValue => 'NONE');
   if (raw === 'NONE') return false;
   const jsonToken = tryParseJsonToken(raw);
   if (jsonToken) return jsonToken;
