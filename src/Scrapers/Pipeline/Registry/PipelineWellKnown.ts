@@ -77,6 +77,7 @@ export const WK = {
       { kind: 'textContent', value: 'אזור אישי' },
       { kind: 'textContent', value: 'כניסה עם סיסמה' },
       // Credential mode selector — password vs SMS/OTP (e.g. Amex, Isracard)
+      { kind: 'textContent', value: 'כניסה לחשבון' },
       { kind: 'textContent', value: 'כניסה רגילה' },
       { kind: 'textContent', value: 'כניסה בסיסמה קבועה' },
       { kind: 'textContent', value: 'כניסה עם שם משתמש' },

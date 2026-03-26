@@ -117,6 +117,7 @@ function buildInitialContext(
     scrape: none(),
     api: none(),
     loginAreaReady: false,
+    findLoginAreaDiscovery: none(),
   };
   return ctx;
 }

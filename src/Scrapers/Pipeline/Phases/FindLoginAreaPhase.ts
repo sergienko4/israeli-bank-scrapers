@@ -1,20 +1,33 @@
 /**
  * FindLoginArea phase — discover and activate the credential form on the login page.
  *
- * Sits between HOME (navigated to login URL) and LOGIN (fills credentials).
- * Makes the architecture "overlay-proof": discovers the form area BEFORE any fill.
+ * Strict PRE / ACTION / POST separation:
  *
- * PRE:    tryClosePopup → discover credential area / login iframe
- * ACTION: click credential area toggle (mode switch, Business/Private split)
- *         open login iframe if found (e.g. VisaCal Connect)
- * POST:   waitForFirstField → waitForCredentialsForm → checkReadiness hook
+ *   PRE    (Eyes/Discovery): scans the DOM, returns RevealStatus per candidate type.
+ *          Only tryClosePopup is an action here — everything else is resolveVisible only.
+ *          Stores IFindLoginAreaDiscovery in context for ACTION to consume.
+ *
+ *   ACTION (Hands/Actuator): reads PRE discovery. Fires ONLY if PRE returned READY or OBSCURED.
+ *          OBSCURED → force:true already applied by mediator's resolveAndClick fallback.
+ *          NOT_FOUND → skipped entirely.
+ *
+ *   POST   (Gatekeeper): validates form is interactive → sets loginAreaReady=true.
  */
 
+import type { Page } from 'playwright-core';
+
+import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 import { some } from '../Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
-import type { IPipelineContext } from '../Types/PipelineContext.js';
+import type {
+  IFindLoginAreaDiscovery,
+  IPipelineContext,
+  RevealStatus,
+} from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import {
@@ -25,17 +38,68 @@ import {
 } from './GenericPreLoginSteps.js';
 import { waitForCredentialsForm } from './HomePhase.js';
 
-/** Navigation timeout for private-customers split pages. */
+/** Timeout for credential area discovery in PRE — tabs may load asynchronously. */
+const DISCOVER_TIMEOUT = 10_000;
+
+/** Whether a DOM element count check matched (> 0). */
+type ElementFound = boolean;
+/** Raw DOM element count from Playwright locator.count(). */
+type ElementCount = number;
+
+/** Timeout for private-customers split navigation. */
 const REVEAL_NAV_TIMEOUT = 15_000;
 
-// ── PRE: clear + discover ─────────────────────────────────
+// ── PRE: discover reveal elements ────────────────────────────────────────────────
 
 /**
- * Execute PRE step: clear overlays, discover credential area and iframe context.
- * Only tryClosePopup is an action here — everything else is discovery (resolveVisible).
+ * Check if any WK.HOME.REVEAL text candidate exists in the DOM (attached but possibly hidden).
+ * @param page - Active Playwright page.
+ * @returns True if at least one candidate is attached to the DOM.
+ */
+async function isRevealAttached(page: Page): Promise<boolean> {
+  const textCandidates = (WK.HOME.REVEAL as readonly SelectorCandidate[]).filter(
+    (c): ElementFound => c.kind === 'textContent',
+  );
+  const countPromises = textCandidates.map(
+    (c): Promise<ElementCount> =>
+      page
+        .getByText(c.value)
+        .first()
+        .count()
+        .catch((): ElementCount => 0),
+  );
+  const counts = await Promise.all(countPromises);
+  return counts.some((n): ElementFound => n > 0);
+}
+
+/**
+ * Probe WK.HOME.REVEAL and return RevealStatus: READY | OBSCURED | NOT_FOUND.
+ * READY = visible, OBSCURED = in DOM but not visible (e.g. aria-hidden via UserWay).
+ * @param mediator - Active mediator.
+ * @param page - Active page (for attached-state fallback probe).
+ * @param timeout - Race timeout ms.
+ * @returns RevealStatus for this discovery pass.
+ */
+async function probeRevealStatus(
+  mediator: IElementMediator,
+  page: Page,
+  timeout: number,
+): Promise<RevealStatus> {
+  const candidates = WK.HOME.REVEAL as unknown as readonly SelectorCandidate[];
+  const visiblePromise = mediator.resolveVisible(candidates, timeout);
+  const visibleResult = await visiblePromise.catch((): false => false);
+  if (visibleResult && visibleResult.found) return 'READY';
+  const isAttached = await isRevealAttached(page);
+  if (isAttached) return 'OBSCURED';
+  return 'NOT_FOUND';
+}
+
+/**
+ * Execute PRE step: close overlays + DISCOVER reveal element status.
+ * Stores discovery in context — ACTION reads it instead of re-scanning.
  * @param _ctx - Pipeline context (unused).
  * @param input - Pipeline context with browser + mediator.
- * @returns Same context (discovery is a side-effect in the Mediator race).
+ * @returns Context enriched with findLoginAreaDiscovery.
  */
 async function executeFindLoginAreaPre(
   _ctx: IPipelineContext,
@@ -45,19 +109,45 @@ async function executeFindLoginAreaPre(
     return fail(ScraperErrorTypes.Generic, 'No browser for FIND_LOGIN_AREA PRE');
   if (!input.mediator.has)
     return fail(ScraperErrorTypes.Generic, 'No mediator for FIND_LOGIN_AREA PRE');
+  const page = input.browser.value.page;
   const mediator = input.mediator.value;
   await tryClosePopup(mediator); // only allowed action in PRE
-  return succeed(input);
+  const privateCustomers = await probeRevealStatus(mediator, page, 3_000);
+  const credentialArea = await probeRevealStatus(mediator, page, DISCOVER_TIMEOUT);
+  const discovery: IFindLoginAreaDiscovery = { privateCustomers, credentialArea };
+  return succeed({ ...input, findLoginAreaDiscovery: some(discovery) });
 }
 
-// ── ACTION: activate the credential form ──────────────────
+// ── ACTION: actuate based on PRE discovery status ─────────────────────────────────
 
 /**
- * Execute ACTION step: click mode toggle / open login iframe.
- * Acts on what PRE discovered. Best-effort — skip if nothing found.
+ * Fire reveal clicks based on PRE discovery — skips NOT_FOUND entries.
+ * @param mediator - Active mediator.
+ * @param page - Active page.
+ * @param discovery - PRE discovery results.
+ * @returns False (best-effort — always resolves).
+ */
+async function fireRevealClicks(
+  mediator: IElementMediator,
+  page: Page,
+  discovery: IFindLoginAreaDiscovery,
+): Promise<false> {
+  if (discovery.privateCustomers !== 'NOT_FOUND') {
+    await tryClickPrivateCustomers(mediator, page, REVEAL_NAV_TIMEOUT);
+  }
+  if (discovery.credentialArea !== 'NOT_FOUND') {
+    await tryClickCredentialArea(mediator);
+  }
+  return false;
+}
+
+/**
+ * Execute ACTION step: actuates ONLY if PRE returned READY or OBSCURED.
+ * OBSCURED → force:true already applied by mediator's attached-fallback in resolveAndClick.
+ * NOT_FOUND → step is skipped.
  * @param ctx - Pipeline context with login config (preAction hook).
- * @param input - Pipeline context with browser + mediator.
- * @returns Updated context (activeFrame set if iframe opened).
+ * @param input - Pipeline context with findLoginAreaDiscovery from PRE.
+ * @returns Same context (clicks are side-effects).
  */
 async function executeFindLoginAreaAction(
   ctx: IPipelineContext,
@@ -69,23 +159,22 @@ async function executeFindLoginAreaAction(
     return fail(ScraperErrorTypes.Generic, 'No mediator for FIND_LOGIN_AREA ACTION');
   const page = input.browser.value.page;
   const mediator = input.mediator.value;
-  await tryClickPrivateCustomers(mediator, page, REVEAL_NAV_TIMEOUT);
-  await tryClickCredentialArea(mediator);
-  const config = ctx.config as unknown as ILoginConfig;
-  if (config.preAction) {
-    await config.preAction(page).catch((): false => false);
+  if (input.findLoginAreaDiscovery.has) {
+    await fireRevealClicks(mediator, page, input.findLoginAreaDiscovery.value);
   }
+  const config = ctx.config as unknown as ILoginConfig;
+  if (config.preAction) await config.preAction(page).catch((): false => false);
   return succeed(input);
 }
 
-// ── POST: validate form is ready ──────────────────────────
+// ── POST: validate form is ready + emit Phase-Gate signal ─────────────────────────
 
 /**
- * Execute POST step: confirm credential form is visible + interactive.
- * Gate: if POST fails the LOGIN phase never starts.
+ * Execute POST step: confirm form is interactive → emit loginAreaReady=true.
+ * Phase-Gate Gatekeeper: LOGIN aborts immediately if this step fails.
  * @param ctx - Pipeline context with login config (checkReadiness hook).
  * @param input - Pipeline context with browser + mediator.
- * @returns Updated context, or failure if form is not ready.
+ * @returns Context with loginAreaReady=true.
  */
 async function executeFindLoginAreaPost(
   ctx: IPipelineContext,
@@ -101,14 +190,11 @@ async function executeFindLoginAreaPost(
   await fieldWait.catch((): false => false);
   await waitForCredentialsForm(mediator);
   const config = ctx.config as unknown as ILoginConfig;
-  if (config.checkReadiness) {
-    await config.checkReadiness(page).catch((): false => false);
-  }
-  // Phase-Gate Handshake: emit loginAreaReady=true — LOGIN phase gates on this signal.
+  if (config.checkReadiness) await config.checkReadiness(page).catch((): false => false);
   return succeed({ ...input, loginAreaReady: true });
 }
 
-// ── Step definitions + phase factory ─────────────────────
+// ── Step definitions + phase factory ─────────────────────────────────────────────
 
 const FIND_LOGIN_AREA_PRE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'find-login-area-pre',
@@ -127,7 +213,7 @@ const FIND_LOGIN_AREA_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContex
 
 /**
  * Create the FindLoginArea phase.
- * PRE: clear + discover · ACTION: activate form · POST: validate readiness.
+ * PRE: discover (Eyes) · ACTION: actuate on discovery · POST: validate (Gatekeeper).
  * @returns IPhaseDefinition with pre, action, post.
  */
 function createFindLoginAreaPhase(): IPhaseDefinition<IPipelineContext, IPipelineContext> {

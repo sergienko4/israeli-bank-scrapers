@@ -79,6 +79,22 @@ interface IApiFetchContext {
 /** Phase-Gate signal: true means FindLoginArea.POST confirmed the form is interactive. */
 type LoginAreaReadySignal = boolean;
 
+/**
+ * Discovery status returned by FindLoginArea.PRE for each reveal candidate.
+ *   READY    — element found and visible → ACTION fires a normal click.
+ *   OBSCURED — element in DOM but not visible (e.g. aria-hidden by UserWay) → ACTION uses force:true.
+ *   NOT_FOUND — element absent from DOM → ACTION skips.
+ */
+export type RevealStatus = 'READY' | 'OBSCURED' | 'NOT_FOUND';
+
+/** PRE discovery results stored in context — ACTION reads these instead of re-discovering. */
+export interface IFindLoginAreaDiscovery {
+  /** Status of the Business/Private split selector. */
+  readonly privateCustomers: RevealStatus;
+  /** Status of the credential mode toggle (password vs SMS/OTP). */
+  readonly credentialArea: RevealStatus;
+}
+
 /** Read-only context accumulated through the pipeline. */
 interface IPipelineContext {
   readonly options: ScraperOptions;
@@ -101,6 +117,8 @@ interface IPipelineContext {
    * Prevents cascading failures: no fill attempt before form is confirmed interactive.
    */
   readonly loginAreaReady: LoginAreaReadySignal;
+  /** FindLoginArea.PRE discovery results — ACTION reads status instead of re-discovering. */
+  readonly findLoginAreaDiscovery: Option<IFindLoginAreaDiscovery>;
 }
 
 export type {

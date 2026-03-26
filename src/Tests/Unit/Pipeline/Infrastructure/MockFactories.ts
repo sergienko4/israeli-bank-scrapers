@@ -126,6 +126,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     scrape: none(),
     api: none(),
     loginAreaReady: true,
+    findLoginAreaDiscovery: none(),
   };
   return { ...defaults, ...overrides };
 }
