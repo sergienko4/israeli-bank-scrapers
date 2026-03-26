@@ -38,8 +38,8 @@ import {
 } from './GenericPreLoginSteps.js';
 import { waitForCredentialsForm } from './HomePhase.js';
 
-/** Timeout for credential area discovery in PRE — tabs may load asynchronously. */
-const DISCOVER_TIMEOUT = 10_000;
+/** Timeout for credential area discovery in PRE — SPAs render asynchronously; 15s avoids OBSCURED false-positive. */
+const DISCOVER_TIMEOUT = 15_000;
 
 /** Whether a DOM element count check matched (> 0). */
 type ElementFound = boolean;

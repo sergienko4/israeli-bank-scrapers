@@ -12,7 +12,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { fillInput } from '../../../Common/ElementsInteractions.js';
+import { deepFillInput } from '../../../Common/ElementsInteractions.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
@@ -157,7 +157,7 @@ async function fillOneField(opts: IFillFieldOpts): Promise<IFillResult> {
     opts.formSelector,
   );
   if (!result.success) return { isOk: false, procedure: result };
-  await fillInput(result.value.context, result.value.selector, opts.fill.value);
+  await deepFillInput(result.value.context, result.value.selector, opts.fill.value);
   return { isOk: true, procedure: succeed(true), resolvedContext: result.value.context };
 }
 

@@ -57,6 +57,11 @@ const MOCK_LOCATOR = {
      */
     fill: (): Promise<boolean> => Promise.resolve(true),
     /**
+     * Evaluate mock — returns false (no data-uw-hidden-control on test elements).
+     * @returns False.
+     */
+    evaluate: (): Promise<boolean> => Promise.resolve(false),
+    /**
      * IsVisible mock — returns false.
      * @returns False.
      */
