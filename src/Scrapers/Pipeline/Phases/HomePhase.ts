@@ -9,9 +9,10 @@
  * POST:   wait for credentials form → store discovered loginUrl in diagnostics
  */
 
+import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { some } from '../Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
@@ -91,7 +92,7 @@ async function executeHomeAction(
  * @returns True if username field found.
  */
 async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
-  const candidates = PIPELINE_WELL_KNOWN_LOGIN.username;
+  const candidates: readonly SelectorCandidate[] = WK.LOGIN.ACTION.FORM.id;
   return mediator.resolveAndClick(candidates).catch((): NavSuccess => false);
 }
 

@@ -8,10 +8,10 @@ import type { Frame, Page } from 'playwright-core';
 
 import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
 
 /** First WellKnown error text — used for test assertions. */
-const FIRST_ERROR_TEXT = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[0].value;
+const FIRST_ERROR_TEXT = WK.DASHBOARD.ERROR[0].value;
 
 // ── Mock helpers ───────────────────────────────────────────
 
@@ -136,7 +136,7 @@ describe('checkFrameForErrors', () => {
 
   it('stops on first match and returns that candidate', async () => {
     // Both first and second WellKnown texts visible — order determines first match
-    const secondText = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[1].value;
+    const secondText = WK.DASHBOARD.ERROR[1].value;
     const frame = makeMockFrame([FIRST_ERROR_TEXT, secondText]);
     const errorResult = await checkFrameForErrors(frame);
     expect(errorResult.hasErrors).toBe(true);

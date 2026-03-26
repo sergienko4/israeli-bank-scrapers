@@ -1,6 +1,6 @@
 /**
  * Pipeline-aware field resolver.
- * Uses PIPELINE_WELL_KNOWN_LOGIN (text-only, zero CSS) as the well-known fallback,
+ * Uses WK.LOGIN.ACTION.FORM (text-only, zero CSS) as the well-known fallback,
  * then enriches the resolved IFieldContext with DOM metadata via MetadataExtractors.
  *
  * Reuses the exported resolution primitives from SelectorResolverPipeline.ts —
@@ -19,7 +19,7 @@ import {
   probeMainPage,
 } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
-import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
+import { WK, WK_CONCEPT_MAP } from '../Registry/PipelineWellKnown.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
 
@@ -166,8 +166,9 @@ const NO_FORM_SCOPE = '';
 export async function resolveFieldPipeline(
   args: IResolveFieldArgs,
 ): Promise<IPipelineFieldContext> {
-  const wkLookup: Record<string, readonly SelectorCandidate[]> = PIPELINE_WELL_KNOWN_LOGIN;
-  const wk = wkLookup[args.fieldKey] ?? [];
+  const wkSlot = WK_CONCEPT_MAP[args.fieldKey];
+  let wk: readonly SelectorCandidate[] = [];
+  if (wkSlot !== undefined) wk = WK.LOGIN.ACTION.FORM[wkSlot];
   const scope = args.formSelector ?? NO_FORM_SCOPE;
   const scopedBank = applyFormScope(args.bankCandidates, scope);
   const scopedWk = applyFormScope(wk, scope);

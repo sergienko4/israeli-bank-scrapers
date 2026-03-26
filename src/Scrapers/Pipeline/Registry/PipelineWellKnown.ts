@@ -1,296 +1,336 @@
 /**
- * Pipeline-only WellKnown selector dictionaries — text-based candidates ONLY.
- * All `kind: 'css'` entries from WellKnownSelectors.ts are intentionally removed.
- * The Mediator finds elements by visible Hebrew text, then extracts metadata dynamically.
- * Do NOT add `kind: 'css'` entries here — that defeats the architecture.
+ * Pipeline WellKnown (WK) — Phase-Aligned Instruction Set for the Login State Machine.
+ *
+ * Structure mirrors the pipeline execution order exactly:
+ *
+ *   WK.HOME.PRE.CLOSE_POPUP     — close overlays before navigating
+ *   WK.HOME.ACTION.NAV_ENTRY    — home page → login URL (navigation links)
+ *   WK.HOME.ACTION.NAV_REVEAL   — login page → unlock form (mode toggle, split pages)
+ *   WK.HOME.POST.FORM_CHECK     — verify credential form is rendered
+ *
+ *   WK.LOGIN.PRE.FIELD_READY    — wait for form fields to be interactive
+ *   WK.LOGIN.ACTION.FORM        — fill credential slots (id, password, mfa, num, submit)
+ *   WK.LOGIN.ACTION.CONCEPT_MAP — translate credentialKey → FORM slot
+ *   WK.LOGIN.POST.SUCCESS       — visual proof of post-login state
+ *
+ *   WK.DASHBOARD.*              — post-auth UI helpers (errors, overlays, navigation)
+ *
+ * Rule #14 (SOLID): Open for extension (add strings here), closed for modification.
  */
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 
-/**
- * Pipeline login-field fallback dictionary — visible text only.
- * Order = resolution priority: labelText → placeholder → ariaLabel → name → textContent.
- * No CSS — the Mediator extracts id/class/type dynamically after text resolution.
- */
-export const PIPELINE_WELL_KNOWN_LOGIN = {
-  username: [
-    // --- placeholder first (most specific — targets input directly) ---
-    { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
-    { kind: 'placeholder', value: 'מספר לקוח' },
-    { kind: 'placeholder', value: 'תז' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'username' },
-    { kind: 'name', value: 'userCode' },
-    // --- visible text ---
-    { kind: 'labelText', value: 'שם משתמש' },
-    { kind: 'labelText', value: 'קוד משתמש' },
-    { kind: 'labelText', value: 'מספר לקוח' },
-    { kind: 'ariaLabel', value: 'שם משתמש' },
-    { kind: 'ariaLabel', value: 'קוד משתמש' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'שם משתמש' },
-    { kind: 'textContent', value: 'קוד משתמש' },
-  ],
-  userCode: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'קוד משתמש' },
-    { kind: 'labelText', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
-    { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'מספר לקוח' },
-    { kind: 'ariaLabel', value: 'קוד משתמש' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'userCode' },
-    { kind: 'name', value: 'username' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'קוד משתמש' },
-    { kind: 'textContent', value: 'שם משתמש' },
-  ],
-  password: [
-    // --- placeholder first (most specific — avoids radio/checkbox ambiguity) ---
-    { kind: 'placeholder', value: 'סיסמה' },
-    { kind: 'placeholder', value: 'סיסמא' },
-    { kind: 'placeholder', value: 'קוד סודי' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'password' },
-    // --- visible text ---
-    { kind: 'labelText', value: 'סיסמה' },
-    { kind: 'labelText', value: 'סיסמא' },
-    { kind: 'labelText', value: 'קוד סודי' },
-    { kind: 'ariaLabel', value: 'סיסמה' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'סיסמה' },
-    { kind: 'textContent', value: 'סיסמא' },
-  ],
-  id: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'תעודת זהות' },
-    { kind: 'labelText', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'תעודת זהות' },
-    { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'ת.ז' },
-    { kind: 'ariaLabel', value: 'תעודת זהות' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'id' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'תעודת זהות' },
-    { kind: 'textContent', value: 'מספר זהות' },
-  ],
-  nationalID: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'תעודת זהות' },
-    { kind: 'labelText', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'תעודת זהות' },
-    { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'ariaLabel', value: 'תעודת זהות' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'nationalID' },
-    { kind: 'name', value: 'id' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'תעודת זהות' },
-    { kind: 'textContent', value: 'מספר זהות' },
-  ],
-  card6Digits: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'ספרות' },
-    { kind: 'placeholder', value: '6 ספרות' },
-    { kind: 'placeholder', value: 'ספרות הכרטיס' },
-    { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'ספרות' },
-  ],
-  num: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'קוד מזהה' },
-    { kind: 'labelText', value: 'מספר חשבון' },
-    { kind: 'placeholder', value: 'מספר חשבון' },
-    { kind: 'ariaLabel', value: 'מספר חשבון' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'num' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'קוד מזהה' },
-    { kind: 'textContent', value: 'מספר חשבון' },
-  ],
-  otpCode: [
-    // --- visible text ---
-    { kind: 'labelText', value: 'קוד חד פעמי' },
-    { kind: 'labelText', value: 'קוד אימות' },
-    { kind: 'placeholder', value: 'קוד חד פעמי' },
-    { kind: 'placeholder', value: 'קוד SMS' },
-    { kind: 'placeholder', value: 'קוד אימות' },
-    { kind: 'placeholder', value: 'הזן קוד' },
-    // --- semantic HTML ---
-    { kind: 'name', value: 'otpCode' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'קוד חד פעמי' },
-    { kind: 'textContent', value: 'קוד אימות' },
-  ],
-  /** Click to reveal the credential (ID+password) login form area. */
-  credentialAreaIndicator: [
-    { kind: 'textContent', value: 'כניסה רגילה' }, // Amex/Isracard portal
-    { kind: 'textContent', value: 'כניסה בסיסמה קבועה' }, // Amex/Isracard alternate
-    { kind: 'textContent', value: 'כניסה עם שם משתמש' },
-    { kind: 'textContent', value: 'סיסמה קבועה' },
-    { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
-    { kind: 'ariaLabel', value: 'כניסה רגילה' },
-  ],
-  /** Click to reveal the OTP/SMS login form area. Used by OTP phase. */
-  otpAreaIndicator: [
-    { kind: 'textContent', value: 'כניסה באמצעות SMS' },
-    { kind: 'textContent', value: 'קוד חד פעמי' },
-    { kind: 'textContent', value: 'שלח קוד לנייד' },
-  ],
-  /** Universal submit-button fallback — visible text only, zero CSS. */
-  __submit__: [
-    // --- visible text ---
-    { kind: 'ariaLabel', value: 'כניסה' },
-    { kind: 'ariaLabel', value: 'התחברות' },
-    { kind: 'ariaLabel', value: 'התחבר' },
-    { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
-    { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
-    { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
-    // --- walk-up DOM ---
-    { kind: 'textContent', value: 'כניסה' },
-    { kind: 'textContent', value: 'התחברות' },
-    { kind: 'textContent', value: 'שלח' },
-    { kind: 'textContent', value: 'המשך' },
-    { kind: 'textContent', value: 'אישור' },
-  ],
-} satisfies Record<string, SelectorCandidate[]>;
+/** The valid slot names in WK.LOGIN.ACTION.FORM — declared here to avoid circular self-reference. */
+type FormSlot = 'id' | 'password' | 'mfa' | 'num' | 'submit' | 'otpArea';
+
+export const WK = {
+  // ── HOME PHASE ──────────────────────────────────────────────────────────────────
+
+  HOME: {
+    /**
+     * PRE: executed before any navigation.
+     * Mediator calls resolveAndClick(WK.HOME.PRE.CLOSE_POPUP) to clear overlays.
+     */
+    PRE: {
+      /** Close any popup/overlay blocking the home page. */
+      CLOSE_POPUP: [
+        { kind: 'textContent', value: 'סגור' },
+        { kind: 'textContent', value: 'close' },
+        { kind: 'textContent', value: 'ביטול' },
+        { kind: 'textContent', value: '✕' },
+        { kind: 'ariaLabel', value: 'סגור' },
+        { kind: 'ariaLabel', value: 'close' },
+      ],
+    },
+
+    /**
+     * ACTION: two sequential clicks to reach and unlock the credential form.
+     *
+     * Step 1 — NAV_ENTRY: home page links that navigate to the login URL.
+     *   Used by: tryClickLoginLinkWithHref, tryClickLoginLink, waitForAnyLoginLink
+     *
+     * Step 2 — NAV_REVEAL: login page elements that reveal the credential form.
+     *   Used by: tryClickPrivateCustomers (Business/Private split), tryClickCredentialArea (mode toggle)
+     *   NOTE: Amex/Isracard portal hides these via UserWay (data-uw-hidden-control) —
+     *         NAV_REVEAL strings exist in the DOM (innerText) but are ARIA-hidden and
+     *         therefore unreachable by standard Playwright selectors.
+     */
+    ACTION: {
+      /** Home page navigation links → leads to the login URL. */
+      NAV_ENTRY: [
+        { kind: 'textContent', value: 'כניסה לחשבון' },
+        { kind: 'textContent', value: 'כניסה לאיזור האישי' },
+        { kind: 'textContent', value: 'כניסה והרשמה' },
+        { kind: 'textContent', value: 'התחברות' },
+        { kind: 'textContent', value: 'כניסה' },
+        { kind: 'ariaLabel', value: 'כניסה לחשבון' },
+      ],
+      /** Login page toggles → unlocks the credential form for filling. */
+      NAV_REVEAL: [
+        // Business/Private split — e.g. Hapoalim
+        { kind: 'textContent', value: 'לקוחות פרטיים' },
+        { kind: 'textContent', value: 'אזור אישי' },
+        { kind: 'textContent', value: 'כניסה עם סיסמה' },
+        // Credential mode selector — password vs SMS/OTP (e.g. Amex, Isracard)
+        { kind: 'textContent', value: 'כניסה רגילה' },
+        { kind: 'textContent', value: 'כניסה בסיסמה קבועה' },
+        { kind: 'textContent', value: 'כניסה עם שם משתמש' },
+        { kind: 'textContent', value: 'סיסמה קבועה' },
+        { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
+        { kind: 'ariaLabel', value: 'כניסה רגילה' },
+      ],
+    },
+
+    /**
+     * POST: verify the credential form rendered after navigation.
+     * Mediator probes for any id-type field to confirm the page is ready.
+     */
+    POST: {
+      /** Probe for a credential field — confirms form is present before LOGIN phase. */
+      FORM_CHECK: [
+        { kind: 'labelText', value: 'תעודת זהות' },
+        { kind: 'labelText', value: 'מספר זהות' },
+        { kind: 'labelText', value: 'שם משתמש' },
+        { kind: 'placeholder', value: 'תעודת זהות' },
+        { kind: 'placeholder', value: 'שם משתמש' },
+        { kind: 'placeholder', value: 'ת.ז' },
+        { kind: 'name', value: 'id' },
+        { kind: 'name', value: 'username' },
+      ],
+    },
+  },
+
+  // ── LOGIN PHASE ──────────────────────────────────────────────────────────────────
+
+  LOGIN: {
+    /**
+     * PRE: wait for form fields to be interactive before filling.
+     * Combined id + password candidates — first visible wins.
+     */
+    PRE: {
+      /** Wait for any credential field to become visible + interactive. */
+      FIELD_READY: [
+        { kind: 'placeholder', value: 'תעודת זהות' },
+        { kind: 'placeholder', value: 'מספר זהות' },
+        { kind: 'placeholder', value: 'ת.ז' },
+        { kind: 'placeholder', value: 'שם משתמש' },
+        { kind: 'placeholder', value: 'קוד משתמש' },
+        { kind: 'placeholder', value: 'סיסמה' },
+        { kind: 'placeholder', value: 'קוד סודי' },
+        { kind: 'labelText', value: 'תעודת זהות' },
+        { kind: 'labelText', value: 'שם משתמש' },
+        { kind: 'labelText', value: 'סיסמה' },
+      ],
+    },
+
+    /**
+     * ACTION: fill the credential form.
+     *
+     * FORM: 5 semantic slots. Bank configs use CONCEPT_MAP to translate
+     * credential object keys (e.g. 'card6Digits') to the correct slot (e.g. 'mfa').
+     *
+     * CONCEPT_MAP: routes credentialKey → FORM slot.
+     *   Unknown keys (not in map) return undefined → Mediator uses empty candidates.
+     */
+    ACTION: {
+      FORM: {
+        /** Israeli national ID, username, account number, branch code. */
+        id: [
+          { kind: 'labelText', value: 'תעודת זהות' },
+          { kind: 'labelText', value: 'מספר זהות' },
+          { kind: 'labelText', value: 'שם משתמש' },
+          { kind: 'labelText', value: 'קוד משתמש' },
+          { kind: 'placeholder', value: 'תעודת זהות' },
+          { kind: 'placeholder', value: 'מספר זהות' },
+          { kind: 'placeholder', value: 'ת.ז' },
+          { kind: 'placeholder', value: 'שם משתמש' },
+          { kind: 'placeholder', value: 'קוד משתמש' },
+          { kind: 'placeholder', value: 'מספר לקוח' },
+          { kind: 'name', value: 'id' },
+          { kind: 'name', value: 'username' },
+          { kind: 'name', value: 'userCode' },
+          { kind: 'name', value: 'nationalID' },
+        ],
+        /** Password, PIN, secret code. */
+        password: [
+          { kind: 'placeholder', value: 'סיסמה' },
+          { kind: 'placeholder', value: 'סיסמא' },
+          { kind: 'placeholder', value: 'קוד סודי' },
+          { kind: 'labelText', value: 'סיסמה' },
+          { kind: 'labelText', value: 'סיסמא' },
+          { kind: 'labelText', value: 'קוד סודי' },
+          { kind: 'ariaLabel', value: 'סיסמה' },
+          { kind: 'name', value: 'password' },
+        ],
+        /** OTP code, SMS code, 6-digit card number. */
+        mfa: [
+          { kind: 'labelText', value: 'ספרות' },
+          { kind: 'placeholder', value: '6 ספרות' },
+          { kind: 'placeholder', value: 'ספרות הכרטיס' },
+          { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
+          { kind: 'labelText', value: 'קוד חד פעמי' },
+          { kind: 'labelText', value: 'קוד אימות' },
+          { kind: 'placeholder', value: 'קוד חד פעמי' },
+          { kind: 'placeholder', value: 'קוד SMS' },
+          { kind: 'placeholder', value: 'קוד אימות' },
+          { kind: 'placeholder', value: 'הזן קוד' },
+          { kind: 'name', value: 'otpCode' },
+        ],
+        /** Bank branch code / account code (distinct from national ID). */
+        num: [
+          { kind: 'labelText', value: 'קוד מזהה' },
+          { kind: 'labelText', value: 'מספר חשבון' },
+          { kind: 'placeholder', value: 'מספר חשבון' },
+          { kind: 'ariaLabel', value: 'מספר חשבון' },
+          { kind: 'name', value: 'num' },
+          { kind: 'textContent', value: 'קוד מזהה' },
+        ],
+        /** Universal submit button fallback. */
+        submit: [
+          { kind: 'ariaLabel', value: 'כניסה' },
+          { kind: 'ariaLabel', value: 'התחברות' },
+          { kind: 'ariaLabel', value: 'התחבר' },
+          { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
+          { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
+          { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
+          { kind: 'textContent', value: 'כניסה' },
+          { kind: 'textContent', value: 'התחברות' },
+          { kind: 'textContent', value: 'שלח' },
+          { kind: 'textContent', value: 'המשך' },
+          { kind: 'textContent', value: 'אישור' },
+        ],
+        /** OTP area indicator — reveals OTP input (OtpPhase). */
+        otpArea: [
+          { kind: 'textContent', value: 'כניסה באמצעות SMS' },
+          { kind: 'textContent', value: 'קוד חד פעמי' },
+          { kind: 'textContent', value: 'שלח קוד לנייד' },
+        ],
+      } satisfies Record<string, readonly SelectorCandidate[]>,
+    },
+
+    /**
+     * POST: visual proof that login succeeded.
+     * DashboardPhase races these against URL change — solves the "SPA redirect" issue.
+     * Ordered by confidence: personalised greetings → logout link → account content.
+     */
+    POST: {
+      /** Race these indicators to confirm login — first match wins. */
+      SUCCESS: [
+        { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
+        { kind: 'regex', value: '^שלום\\s+\\S+' },
+        { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
+        { kind: 'regex', value: '^Hello,?\\s+\\w+' },
+        { kind: 'textContent', value: 'יציאה' },
+        { kind: 'textContent', value: 'התנתק' },
+        { kind: 'textContent', value: 'כניסתך האחרונה' },
+        { kind: 'textContent', value: 'מצב החשבון' },
+        { kind: 'textContent', value: 'יתרת עו"ש' },
+        { kind: 'textContent', value: 'עסקאות וחיובים' },
+        { kind: 'textContent', value: 'עסקאות אחרונות' },
+        { kind: 'textContent', value: 'תנועות אחרונות' },
+        { kind: 'textContent', value: 'יתרה' },
+      ],
+    },
+  },
+
+  // ── DASHBOARD PHASE ──────────────────────────────────────────────────────────────
+
+  /**
+   * DASHBOARD: post-authentication UI helpers.
+   * Only relevant AFTER login — NOT part of the login state machine.
+   */
+  DASHBOARD: {
+    ERROR: [
+      { kind: 'textContent', value: 'פרטים שגויים' },
+      { kind: 'textContent', value: 'שכחת את הפרטים?' },
+      { kind: 'textContent', value: 'שגיאה' },
+      { kind: 'textContent', value: 'או לשחזר בקלות' },
+      { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
+      { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
+      { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
+    ],
+    ACCOUNT: [
+      { kind: 'textContent', value: 'חשבון' },
+      { kind: 'textContent', value: 'בחר חשבון' },
+      { kind: 'textContent', value: 'חשבונות' },
+      { kind: 'ariaLabel', value: 'בחר חשבון' },
+    ],
+    CHANGE_PWD: [
+      { kind: 'textContent', value: 'שינוי סיסמה' },
+      { kind: 'textContent', value: 'חידוש סיסמה' },
+      { kind: 'textContent', value: 'עדכון סיסמה' },
+      { kind: 'textContent', value: 'סיסמה פגה' },
+    ],
+    TRANSACTIONS: [
+      { kind: 'textContent', value: 'תנועות' },
+      { kind: 'textContent', value: 'פעולות' },
+      { kind: 'textContent', value: 'תנועות אחרונות' },
+      { kind: 'textContent', value: 'פירוט תנועות' },
+    ],
+    SKIP: [
+      { kind: 'textContent', value: 'דלג' },
+      { kind: 'textContent', value: 'דלג לחשבון' },
+      { kind: 'textContent', value: 'המשך' },
+    ],
+    BALANCE: [
+      { kind: 'textContent', value: 'יתרה' },
+      { kind: 'textContent', value: 'סה"כ' },
+      { kind: 'ariaLabel', value: 'יתרה' },
+    ],
+    LOADING: [
+      { kind: 'ariaLabel', value: 'טוען' },
+      { kind: 'textContent', value: 'טוען' },
+    ],
+    DATE_FROM: [
+      { kind: 'placeholder', value: 'מתאריך' },
+      { kind: 'placeholder', value: 'מהתאריך' },
+      { kind: 'placeholder', value: 'תאריך התחלה' },
+    ],
+    ID_FORM: [
+      { kind: 'textContent', value: 'תעודת הזהות' },
+      { kind: 'textContent', value: 'תעודת זהות' },
+      { kind: 'textContent', value: 'ת.ז.' },
+    ],
+    PENDING: [
+      { kind: 'textContent', value: 'פעולות עתידיות' },
+      { kind: 'textContent', value: 'תנועות עתידיות' },
+      { kind: 'textContent', value: 'המתנה' },
+    ],
+  },
+} as const;
+
+// ── Concept map (sibling export — avoids circular reference inside WK) ───────────
 
 /**
- * Pipeline dashboard-field fallback dictionary — visible text only.
- * Same structure as WELL_KNOWN_DASHBOARD_SELECTORS but no CSS entries.
+ * Translates a bank credentialKey to a WK.LOGIN.ACTION.FORM slot.
+ * Keeps bank configs honest (credentialKey = actual credentials object key)
+ * while routing element resolution to the correct semantic FORM slot.
+ * Unknown keys return undefined → Mediator uses empty candidates.
  */
-export const PIPELINE_WELL_KNOWN_DASHBOARD = {
-  loginLink: [
-    { kind: 'textContent', value: 'כניסה רגילה' },
-    { kind: 'textContent', value: 'כניסה עם שם משתמש' },
-    { kind: 'textContent', value: 'כניסה לחשבון' },
-    { kind: 'textContent', value: 'כניסה לאיזור האישי' },
-    { kind: 'textContent', value: 'כניסה והרשמה' },
-    { kind: 'textContent', value: 'התחברות' },
-    { kind: 'textContent', value: 'כניסה' },
-    { kind: 'ariaLabel', value: 'כניסה לחשבון' },
-  ],
-  logoutLink: [
-    { kind: 'textContent', value: 'יציאה' },
-    { kind: 'textContent', value: 'התנתק' },
-    { kind: 'textContent', value: 'התנתקות' },
-    { kind: 'textContent', value: 'יציאה מהחשבון' },
-  ],
-  errorIndicator: [
-    { kind: 'textContent', value: 'פרטים שגויים' },
-    { kind: 'textContent', value: 'שכחת את הפרטים?' },
-    { kind: 'textContent', value: 'שגיאה' },
-    { kind: 'textContent', value: 'או לשחזר בקלות' },
-    { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
-    { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
-    // VisaCal connect-iframe error
-    { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
-  ],
-  closeElement: [
-    { kind: 'textContent', value: 'סגור' },
-    { kind: 'textContent', value: 'close' },
-    { kind: 'textContent', value: 'ביטול' },
-    { kind: 'textContent', value: '✕' },
-    { kind: 'ariaLabel', value: 'סגור' },
-    { kind: 'ariaLabel', value: 'close' },
-  ],
-  accountSelector: [
-    { kind: 'textContent', value: 'חשבון' },
-    { kind: 'textContent', value: 'בחר חשבון' },
-    { kind: 'textContent', value: 'חשבונות' },
-    { kind: 'ariaLabel', value: 'בחר חשבון' },
-  ],
-  dashboardIndicator: [
-    // greeting regex — match logged-in greetings with user name (NOT standalone nav text)
-    { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
-    { kind: 'regex', value: '^שלום\\s+\\S+' },
-    { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
-    { kind: 'regex', value: '^Hello,?\\s+\\w+' },
-    // Discount dashboard
-    { kind: 'textContent', value: 'כניסתך האחרונה' },
-    { kind: 'textContent', value: 'כניסה אחרונה' },
-    { kind: 'textContent', value: 'מצב החשבון' },
-    { kind: 'textContent', value: 'יתרת עו"ש' },
-    { kind: 'textContent', value: 'חשבון עו"ש' },
-    // VisaCal dashboard
-    { kind: 'textContent', value: 'עסקאות וחיובים' },
-    { kind: 'textContent', value: 'חיובים ועסקאות' },
-    { kind: 'textContent', value: 'עסקאות אחרונות' },
-    // generic
-    { kind: 'textContent', value: 'תנועות אחרונות' },
-    { kind: 'textContent', value: 'יתרה' },
-    { kind: 'textContent', value: 'סך הכל' },
-  ],
-  changePasswordIndicator: [
-    { kind: 'textContent', value: 'שינוי סיסמה' },
-    { kind: 'textContent', value: 'חידוש סיסמה' },
-    { kind: 'textContent', value: 'עדכון סיסמה' },
-    { kind: 'textContent', value: 'סיסמה פגה' },
-  ],
-  privateCustomers: [
-    { kind: 'textContent', value: 'לקוחות פרטיים' },
-    { kind: 'textContent', value: 'אזור אישי' },
-    { kind: 'textContent', value: 'כניסה עם סיסמה' },
-  ],
-  transactionsLink: [
-    { kind: 'textContent', value: 'תנועות' },
-    { kind: 'textContent', value: 'פעולות' },
-    { kind: 'textContent', value: 'תנועות אחרונות' },
-    { kind: 'textContent', value: 'פירוט תנועות' },
-  ],
-  skipLink: [
-    { kind: 'textContent', value: 'דלג' },
-    { kind: 'textContent', value: 'דלג לחשבון' },
-    { kind: 'textContent', value: 'המשך' },
-  ],
-  balance: [
-    { kind: 'textContent', value: 'יתרה' },
-    { kind: 'textContent', value: 'סה"כ' },
-    { kind: 'ariaLabel', value: 'יתרה' },
-  ],
-  loadingIndicator: [
-    { kind: 'ariaLabel', value: 'טוען' },
-    { kind: 'textContent', value: 'טוען' },
-  ],
-  fromDateInput: [
-    { kind: 'placeholder', value: 'מתאריך' },
-    { kind: 'placeholder', value: 'מהתאריך' },
-    { kind: 'placeholder', value: 'תאריך התחלה' },
-  ],
-  idFormIndicator: [
-    { kind: 'textContent', value: 'תעודת הזהות' },
-    { kind: 'textContent', value: 'תעודת זהות' },
-    { kind: 'textContent', value: 'ת.ז.' },
-  ],
-  pendingTransactions: [
-    { kind: 'textContent', value: 'פעולות עתידיות' },
-    { kind: 'textContent', value: 'תנועות עתידיות' },
-    { kind: 'textContent', value: 'המתנה' },
-  ],
-} satisfies Record<string, SelectorCandidate[]>;
+export const WK_CONCEPT_MAP: Partial<Record<string, FormSlot>> = {
+  id: 'id',
+  nationalID: 'id',
+  username: 'id',
+  userCode: 'id',
+  num: 'num',
+  password: 'password',
+  card6Digits: 'mfa',
+  otpCode: 'mfa',
+  __submit__: 'submit',
+} as const;
 
-/**
- * WellKnown API endpoint patterns — regex patterns for network discovery.
- * The mediator uses these to identify captured API traffic by category.
- * Generic across ALL banks — no bank-specific patterns.
- */
+// ── API endpoint patterns ─────────────────────────────────────────────────────────
+
+/** WellKnown API endpoint patterns — regex patterns for network discovery. */
 export const PIPELINE_WELL_KNOWN_API = {
-  /** Account list endpoints — which accounts the user has. */
   accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i],
-  /** Transaction detail endpoints — fetch transaction history. */
   transactions: [
     /transactionsDetails/i,
     /filteredTransactions/i,
     /CardsTransactionsList/i,
     /lastTransactions/i,
   ],
-  /** Balance/frame endpoints — current balance. */
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
-  /** Auth/login endpoints — discover services base URL. */
   auth: [
     /authentication\/login/i,
     /verification/i,
@@ -298,17 +338,11 @@ export const PIPELINE_WELL_KNOWN_API = {
     /ValidateIdData/i,
     /performLogon/i,
   ],
-  /** Pending transaction endpoints. */
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
 } satisfies Record<string, RegExp[]>;
 
-/**
- * WellKnown transaction field names — for auto-mapping API responses.
- * The mediator searches response objects for these field names by concept.
- * Generic across ALL Israeli banks.
- */
+// ── Transaction field names ───────────────────────────────────────────────────────
 
-/** Display IDs — shown to the user (short, recognizable). */
 const DISPLAY_ID_FIELDS = [
   'last4Digits',
   'AccountID',
@@ -320,39 +354,23 @@ const DISPLAY_ID_FIELDS = [
   'cardLast4',
 ] as const;
 
-/** Query IDs — internal identifiers for API calls (long, opaque). */
 const QUERY_ID_FIELDS = [
   'cardUniqueId',
   'cardUniqueID',
   'bankAccountUniqueID',
   'accountId',
   'CardId',
-  'cardIndex', // Amex/Isracard DashboardMonth — index key for CardsTransactionsListBean
+  'cardIndex',
 ] as const;
 
-/**
- * WellKnown API response header fields — for validating response envelope metadata.
- * Separate from TXN fields because these describe the API response shape, not transactions.
- *
- * Used by DynamicMetadataMapper to validate API success before extracting data.
- * Expected responseStatus value: '1' = success across all Isracard/Amex portal APIs.
- */
 export const PIPELINE_WELL_KNOWN_RESPONSE_FIELDS = {
-  /**
-   * Response status field — BFS-discovered (findFieldValue), no hardcoded 'Header.Status' path.
-   * '1' = success; anything else triggers fail().
-   */
   responseStatus: ['Status', 'status', 'HeaderStatus', 'responseStatus'],
 } satisfies Record<string, string[]>;
 
 export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
-  /** Account ID field names (union of display + query — backward compat). */
   accountId: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
-  /** Display IDs — shown to the user (short, recognizable). */
   displayId: [...DISPLAY_ID_FIELDS],
-  /** Query IDs — internal identifiers for API calls (long, opaque). */
   queryId: [...QUERY_ID_FIELDS],
-  /** Transaction date field names. */
   date: [
     'OperationDate',
     'trnPurchaseDate',
@@ -361,13 +379,9 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'transactionDate',
     'txnDate',
   ],
-  /** Processed/value date field names. */
   processedDate: ['ValueDate', 'debCrdDate', 'processedDate', 'billingDate', 'settlementDate'],
-  /** Transaction amount field names. */
   amount: ['OperationAmount', 'trnAmt', 'dealSum', 'amount', 'chargedAmount', 'transactionAmount'],
-  /** Original amount (before currency conversion). */
   originalAmount: ['OperationAmount', 'amtBeforeConvAndIndex', 'originalAmount', 'dealSumOutbound'],
-  /** Transaction description field names. */
   description: [
     'OperationDescriptionToDisplay',
     'merchantName',
@@ -375,28 +389,16 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'transDesc',
     'memo',
   ],
-  /** Transaction identifier field names. */
   identifier: ['OperationNumber', 'trnIntId', 'identifier', 'id', 'referenceNumber', 'txnId'],
-  /** Currency field names. */
   currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode'],
-  /** Balance field names. */
   balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
-  /** From-date field names in POST body (range start). */
   fromDate: ['fromTransDate', 'fromDate', 'FromDate', 'startDate'],
-  /** To-date field names in POST body (range end). */
   toDate: ['toTransDate', 'toDate', 'ToDate', 'endDate'],
 } satisfies Record<string, string[]>;
 
-/**
- * WellKnown monthly POST body field names — for detecting monthly iteration.
- * If a captured POST body has these fields, the endpoint uses monthly fetching.
- */
 export const PIPELINE_WELL_KNOWN_MONTHLY_FIELDS = {
-  /** Month number field names in POST body. */
   month: ['month', 'billingMonth', 'Month'],
-  /** Year field names in POST body. */
   year: ['year', 'billingYear', 'Year'],
-  /** Account/card ID field names in POST body. */
   accountId: [
     'cardUniqueId',
     'cardUniqueID',

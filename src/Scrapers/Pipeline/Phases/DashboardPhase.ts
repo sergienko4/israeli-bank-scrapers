@@ -9,12 +9,11 @@
  * POST:   check changePassword indicators → store dashboard.pageUrl
  */
 
+import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import {
-  PIPELINE_WELL_KNOWN_API,
-  PIPELINE_WELL_KNOWN_DASHBOARD,
-} from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_API, WK } from '../Registry/PipelineWellKnown.js';
 import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
 import { some } from '../Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
@@ -42,23 +41,35 @@ const DASHBOARD_TIMEOUT = 30000;
  * @param input - Pipeline context with browser + mediator.
  * @returns Updated context with diagnostics.
  */
+/**
+ * Probe WK.LOGIN.POST.SUCCESS indicators — first visible wins.
+ * @param mediator - Active mediator for the current page.
+ * @returns Human-readable match summary for diagnostics.
+ */
+async function probeSuccessIndicators(mediator: IElementMediator): Promise<string> {
+  const successCandidates = WK.LOGIN.POST.SUCCESS as unknown as readonly SelectorCandidate[];
+  const result = await mediator
+    .resolveVisible(successCandidates, DASHBOARD_TIMEOUT)
+    .catch((): false => false);
+  const hasMatch = result && result.found && result.candidate;
+  const candidateValue = (hasMatch && result.candidate.value) || '';
+  return (hasMatch && `matched: ${candidateValue}`) || 'no indicator';
+}
+
+/**
+ * Execute DASHBOARD PRE: probe WK.LOGIN.POST.SUCCESS indicators and store match in diagnostics.
+ * @param _ctx - Pipeline context (unused).
+ * @param input - Pipeline context with mediator.
+ * @returns Updated context with lastAction diagnostic.
+ */
 async function executeDashboardPre(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD PRE');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD PRE');
-  const mediator = input.mediator.value;
-  const result = await mediator
-    .resolveVisible(PIPELINE_WELL_KNOWN_DASHBOARD.dashboardIndicator, DASHBOARD_TIMEOUT)
-    .catch((): false => false);
-  const hasMatch = result && result.found && result.candidate;
-  const candidateValue = (hasMatch && result.candidate.value) || '';
-  const matchInfo = (hasMatch && `matched: ${candidateValue}`) || 'no indicator';
-  const updatedDiag = {
-    ...input.diagnostics,
-    lastAction: `dashboard-pre (${matchInfo})`,
-  };
+  const matchInfo = await probeSuccessIndicators(input.mediator.value);
+  const updatedDiag = { ...input.diagnostics, lastAction: `dashboard-pre (${matchInfo})` };
   return succeed({ ...input, diagnostics: updatedDiag });
 }
 
@@ -162,7 +173,7 @@ async function executeDashboardPost(
   const page = input.browser.value.page;
   const mediator = input.mediator.value;
   const hasChangePass = await mediator
-    .resolveAndClick(PIPELINE_WELL_KNOWN_DASHBOARD.changePasswordIndicator)
+    .resolveAndClick(WK.DASHBOARD.CHANGE_PWD)
     .catch((): DashboardReady => false);
   if (hasChangePass) return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
   const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };

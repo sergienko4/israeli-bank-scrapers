@@ -15,7 +15,7 @@ import {
 import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { fail, type Procedure, succeed } from '../Types/Procedure.js';
@@ -165,7 +165,7 @@ const LOADING_DELAY_MS = 2000;
  * @returns True if a loading indicator is visible.
  */
 async function isAnyLoadingVisible(frame: Page | Frame): Promise<boolean> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loadingIndicator;
+  const candidates = WK.DASHBOARD.LOADING;
   const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
     return locator.isVisible().catch((): IsVisible => false);

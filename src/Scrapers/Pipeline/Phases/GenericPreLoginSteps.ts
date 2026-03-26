@@ -7,10 +7,7 @@
 import type { Locator, Page } from 'playwright-core';
 
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import {
-  PIPELINE_WELL_KNOWN_DASHBOARD,
-  PIPELINE_WELL_KNOWN_LOGIN,
-} from '../Registry/PipelineWellKnown.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 
 /** Timeout for waiting for page readiness (login link visible). */
 const PAGE_READINESS_TIMEOUT = 30000;
@@ -35,7 +32,7 @@ type HrefAttr = string;
  * @returns True if a close element was found and clicked.
  */
 async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.closeElement;
+  const candidates = WK.HOME.PRE.CLOSE_POPUP;
   return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
@@ -45,7 +42,7 @@ async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
  * @returns True if a login link was found and clicked.
  */
 async function tryClickLoginLink(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  const candidates = WK.HOME.ACTION.NAV_ENTRY;
   return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
@@ -70,7 +67,7 @@ function isLoginHref(href: HrefAttr): IsLoginLink {
  * @returns True if a login link was found and clicked.
  */
 async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  const candidates = WK.HOME.ACTION.NAV_ENTRY;
   const result = await mediator.resolveVisible(candidates).catch((): false => false);
   if (!result || !result.found || !result.locator) {
     return tryClickLoginLink(mediator);
@@ -96,7 +93,7 @@ async function tryClickPrivateCustomers(
   page: Page,
   navTimeout: number,
 ): Promise<ClickResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.privateCustomers;
+  const candidates = WK.HOME.ACTION.NAV_REVEAL;
   const didClick = await mediator.resolveAndClick(candidates).catch((): ClickResult => false);
   if (!didClick) return false;
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
@@ -116,7 +113,7 @@ const CRED_AREA_TIMEOUT = 10_000;
  * @returns True if a tab was found and clicked.
  */
 async function tryClickCredentialArea(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = PIPELINE_WELL_KNOWN_LOGIN.credentialAreaIndicator;
+  const candidates = WK.HOME.ACTION.NAV_REVEAL;
   return mediator.resolveAndClick(candidates, CRED_AREA_TIMEOUT).catch((): ClickResult => false);
 }
 
@@ -127,7 +124,7 @@ async function tryClickCredentialArea(mediator: IElementMediator): Promise<Click
  * @returns True if any login link became visible, false on timeout.
  */
 async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.loginLink;
+  const candidates = WK.HOME.ACTION.NAV_ENTRY;
   const locators = candidates.map((c): Locator => page.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<VisibleIndex> => {
     await loc.waitFor({ state: 'visible', timeout: PAGE_READINESS_TIMEOUT });
@@ -144,10 +141,7 @@ async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
  * @returns True if a field indicator became visible, false on timeout.
  */
 async function waitForFirstField(page: Page): Promise<FieldReady> {
-  const fieldCandidates = [
-    ...PIPELINE_WELL_KNOWN_LOGIN.username,
-    ...PIPELINE_WELL_KNOWN_LOGIN.password,
-  ];
+  const fieldCandidates = [...WK.LOGIN.ACTION.FORM.id, ...WK.LOGIN.ACTION.FORM.password];
   const locators = fieldCandidates.map((c): Locator => {
     if (c.kind === 'placeholder') return page.getByPlaceholder(c.value).first();
     if (c.kind === 'labelText') return page.getByLabel(c.value).first();

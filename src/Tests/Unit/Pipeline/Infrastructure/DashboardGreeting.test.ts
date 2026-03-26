@@ -3,12 +3,10 @@
  * Verifies that regex patterns match logged-in greetings but NOT nav/footer text.
  */
 
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
 
 /** Extract regex candidates from dashboardIndicator. */
-const REGEX_CANDIDATES = PIPELINE_WELL_KNOWN_DASHBOARD.dashboardIndicator.filter(
-  (c): boolean => c.kind === 'regex',
-);
+const REGEX_CANDIDATES = WK.LOGIN.POST.SUCCESS.filter((c): boolean => c.kind === 'regex');
 
 /**
  * Test if any regex candidate matches the given text.
@@ -20,7 +18,7 @@ function matchesAnyGreeting(text: string): boolean {
 }
 
 describe('DashboardGreeting/regex', () => {
-  it('has at least 3 regex patterns in dashboardIndicator', () => {
+  it('has at least 3 regex patterns in WK.LOGIN.POST.SUCCESS', () => {
     expect(REGEX_CANDIDATES.length).toBeGreaterThanOrEqual(3);
   });
 

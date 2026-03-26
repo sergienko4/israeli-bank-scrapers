@@ -1,7 +1,7 @@
 /**
  * Amex (American Express Israel) pipeline config — TRULY MINIMAL.
  * NO scraper file needed — generic auto-scrape via ctx.api + WellKnown.
- * HomePhase clicks PIPELINE_WELL_KNOWN_LOGIN.credentialAreaIndicator to reveal the login form.
+ * HomePhase clicks WK_FORM_FIELDS.credentialAreaIndicator to reveal the login form.
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';

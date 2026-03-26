@@ -7,7 +7,7 @@
  *
  * Layer 2 — checkFrameForErrors: WellKnown text scan.
  *   Fallback for banks that don't use standard error markup.
- *   Checks PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator text candidates.
+ *   Checks WK.DASHBOARD.ERROR text candidates.
  *
  * Both are mediator handlers — called by IElementMediator.discoverErrors().
  * LoginSteps NEVER imports these directly — only through the mediator.
@@ -15,7 +15,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../Registry/PipelineWellKnown.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 
 /** Sentinel for elements with no CSS class attribute. */
 const NO_CLASS = 'no-class';
@@ -214,7 +214,7 @@ async function probeWellKnownText(
 }
 
 /**
- * Layer 2: Search frame for PIPELINE_WELL_KNOWN_DASHBOARD error indicator texts.
+ * Layer 2: Search frame for WK error indicator texts.
  * Fallback for banks that don't use standard error markup (mat-error, aria-invalid, etc.).
  * Handles detached frames gracefully (isVisible catch → not found).
  * @param frameOrPage - Page or frame where the login form was submitted.
@@ -223,7 +223,7 @@ async function probeWellKnownText(
 export async function checkFrameForErrors(
   frameOrPage: Page | Frame,
 ): Promise<IFormErrorScanResult> {
-  const candidates = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator;
+  const candidates = WK.DASHBOARD.ERROR;
   const initial: Promise<IFormErrorScanResult> = Promise.resolve(NO_ERRORS);
   type TReduce = Promise<IFormErrorScanResult>;
   return candidates.reduce<TReduce>(async (prev, candidate): TReduce => {

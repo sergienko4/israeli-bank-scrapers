@@ -13,7 +13,7 @@
  */
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
-import { PIPELINE_WELL_KNOWN_LOGIN } from '../Registry/PipelineWellKnown.js';
+import { WK } from '../Registry/PipelineWellKnown.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -36,7 +36,7 @@ const OTP_PROBE_TIMEOUT = 3000;
 async function detectOtpForm(input: IPipelineContext): Promise<boolean> {
   if (!input.browser.has) return false;
   const page = input.browser.value.page;
-  const candidates = PIPELINE_WELL_KNOWN_LOGIN.otpCode;
+  const candidates = WK.LOGIN.ACTION.FORM.mfa;
   /**
    * Build a text locator for a candidate's visible text value.
    * @param c - Selector candidate with text value.
