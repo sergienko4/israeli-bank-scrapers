@@ -128,9 +128,12 @@ export const PIPELINE_WELL_KNOWN_LOGIN = {
   ],
   /** Click to reveal the credential (ID+password) login form area. */
   credentialAreaIndicator: [
+    { kind: 'textContent', value: 'כניסה רגילה' }, // Amex/Isracard portal
+    { kind: 'textContent', value: 'כניסה בסיסמה קבועה' }, // Amex/Isracard alternate
     { kind: 'textContent', value: 'כניסה עם שם משתמש' },
     { kind: 'textContent', value: 'סיסמה קבועה' },
     { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
+    { kind: 'ariaLabel', value: 'כניסה רגילה' },
   ],
   /** Click to reveal the OTP/SMS login form area. Used by OTP phase. */
   otpAreaIndicator: [

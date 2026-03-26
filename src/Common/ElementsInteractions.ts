@@ -163,6 +163,13 @@ async function waitUntilIframeFound(
  * @param inputValue - The value to fill into the input.
  * @returns True after the input is filled.
  */
+/**
+ * Fill a form input field with a human-like delay.
+ * @param pageOrFrame - The Playwright page or frame containing the input.
+ * @param inputSelector - CSS selector for the input element.
+ * @param inputValue - The value to fill into the input.
+ * @returns True after the input is filled.
+ */
 async function fillInput(
   pageOrFrame: Page | Frame,
   inputSelector: string,

@@ -287,7 +287,12 @@ function buildWalkUpLocators(ctx: Page | Frame, text: string): Locator[] {
  */
 function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate): Locator[] {
   if (candidate.kind === 'textContent') return buildWalkUpLocators(ctx, candidate.value);
-  if (candidate.kind === 'ariaLabel') return [ctx.getByLabel(candidate.value).first()];
+  if (candidate.kind === 'ariaLabel')
+    return [
+      ctx.getByLabel(candidate.value).first(), // form inputs
+      ctx.getByRole('button', { name: candidate.value, exact: false }).first(), // accessible buttons
+      ctx.getByRole('link', { name: candidate.value, exact: false }).first(), // accessible links
+    ];
   if (candidate.kind === 'placeholder') return [ctx.getByPlaceholder(candidate.value).first()];
   if (candidate.kind === 'xpath') return [ctx.locator(candidate.value).first()];
   if (candidate.kind === 'name') return [ctx.locator(`[name="${candidate.value}"]`).first()];
@@ -306,15 +311,23 @@ function getAllContexts(page: Page): (Page | Frame)[] {
   return [page, ...childFrames];
 }
 
+/** Playwright element wait state for locator races. */
+type WaitState = 'visible' | 'attached';
+
 /**
- * Race all locators in parallel — first visible wins. Returns winning index or -1.
+ * Race all locators in parallel — first matching state wins. Returns winning index or -1.
  * @param locators - Array of Playwright locators to race.
  * @param timeout - Timeout in ms for each locator.
- * @returns Index of first visible locator, or -1 if none.
+ * @param state - Element state to wait for (default: 'visible').
+ * @returns Index of first matching locator, or -1 if none.
  */
-async function raceLocators(locators: Locator[], timeout: number): Promise<WinnerIndex> {
+async function raceLocators(
+  locators: Locator[],
+  timeout: number,
+  state: WaitState = 'visible',
+): Promise<WinnerIndex> {
   const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
-    await loc.waitFor({ state: 'visible', timeout });
+    await loc.waitFor({ state, timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
@@ -403,7 +416,9 @@ async function resolveVisibleImpl(
 }
 
 /**
- * Resolve and click — calls resolveVisible then clicks the winner.
+ * Resolve and click — tries visible elements first; falls back to attached (force click).
+ * Fallback handles elements hidden by accessibility overlays (e.g. UserWay) that are
+ * in the DOM but have zero bounding box or are offset off-screen.
  * @param page - The Playwright page.
  * @param candidates - WellKnown selector candidates.
  * @param timeout - Race timeout in ms.
@@ -415,8 +430,16 @@ async function resolveAndClickImpl(
   timeout: number,
 ): Promise<boolean> {
   const result = await resolveVisibleImpl(page, candidates, timeout);
-  if (!result.found || !result.locator) return false;
-  await result.locator.click();
+  if (result.found && result.locator) {
+    await result.locator.click({ force: true });
+    return true;
+  }
+  // Fallback: attached state — element is in DOM but not visually visible
+  const entries = buildLocatorEntries(page, candidates);
+  const locators = entries.map((e): Locator => e.locator);
+  const winnerIdx = await raceLocators(locators, timeout, 'attached');
+  if (winnerIdx < 0) return false;
+  await entries[winnerIdx].locator.click({ force: true });
   return true;
 }
 

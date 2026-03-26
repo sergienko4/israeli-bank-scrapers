@@ -106,14 +106,18 @@ async function tryClickPrivateCustomers(
     .catch((): ClickResult => false);
 }
 
+/** Longer timeout for credential-area tab — portals with accessibility overlays load tabs asynchronously. */
+const CRED_AREA_TIMEOUT = 10_000;
+
 /**
- * Try to click the login method tab using WellKnown loginMethodTab.
+ * Try to click the login method tab using WellKnown credentialAreaIndicator.
+ * Uses extended timeout to handle portals that render tabs asynchronously (e.g. UserWay).
  * @param mediator - Element mediator with resolver.
  * @returns True if a tab was found and clicked.
  */
 async function tryClickCredentialArea(mediator: IElementMediator): Promise<ClickResult> {
   const candidates = PIPELINE_WELL_KNOWN_LOGIN.credentialAreaIndicator;
-  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
+  return mediator.resolveAndClick(candidates, CRED_AREA_TIMEOUT).catch((): ClickResult => false);
 }
 
 /**
