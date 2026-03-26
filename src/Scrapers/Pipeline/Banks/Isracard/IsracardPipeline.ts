@@ -25,8 +25,6 @@ import type { Procedure } from '../../Types/Procedure.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Isracard];
 
-export const ISRACARD_LOGIN_URL = `${CFG.urls.base}/personalarea/Login`;
-
 /** Dashboard indicator text — confirms the user landed on the personal area. */
 const DASHBOARD_INDICATOR = 'עסקאות';
 
@@ -77,7 +75,7 @@ async function postAction(page: Page): LifecyclePromise {
 }
 
 export const ISRACARD_LOGIN: ILoginConfig = {
-  loginUrl: ISRACARD_LOGIN_URL,
+  loginUrl: CFG.urls.base || '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -86,7 +84,7 @@ export const ISRACARD_LOGIN: ILoginConfig = {
   submit: [],
   checkReadiness,
   postAction,
-  possibleResults: { success: [/personalarea\/(?!Login)/i], invalidPassword: [] },
+  possibleResults: { success: [] },
 };
 
 /**

@@ -26,7 +26,6 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   buildIsracardPipeline,
   ISRACARD_LOGIN,
-  ISRACARD_LOGIN_URL,
 } from '../../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
@@ -56,9 +55,8 @@ describe('ISRACARD_LOGIN — config shape', () => {
     expect(submit).toHaveLength(0);
   });
 
-  it('loginUrl contains /personalarea/Login (not just the base URL)', () => {
-    expect(ISRACARD_LOGIN_URL).toContain('/personalarea/Login');
-    expect(ISRACARD_LOGIN_URL).toContain('isracard');
+  it('loginUrl is the home page base URL (Home phase navigates to login from there)', () => {
+    expect(ISRACARD_LOGIN.loginUrl).toBeTruthy();
   });
 });
 

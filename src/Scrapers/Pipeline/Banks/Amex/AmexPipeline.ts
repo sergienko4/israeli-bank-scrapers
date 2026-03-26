@@ -26,8 +26,6 @@ import type { Procedure } from '../../Types/Procedure.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
-export const AMEX_LOGIN_URL = `${CFG.urls.base}/personalarea/Login`;
-
 /** Timeout for post-login SPA navigation (ms). */
 const POST_LOGIN_NAV_TIMEOUT = 30_000;
 
@@ -53,7 +51,7 @@ async function postAction(page: Page): LifecyclePromise {
 }
 
 export const AMEX_LOGIN: ILoginConfig = {
-  loginUrl: AMEX_LOGIN_URL,
+  loginUrl: CFG.urls.base || '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -62,7 +60,7 @@ export const AMEX_LOGIN: ILoginConfig = {
   submit: [],
   checkReadiness,
   postAction,
-  possibleResults: { success: [/personalarea\/(?!Login)/i], invalidPassword: [] },
+  possibleResults: { success: [] },
 };
 
 /**

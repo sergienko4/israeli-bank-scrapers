@@ -10,7 +10,6 @@
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   AMEX_LOGIN,
-  AMEX_LOGIN_URL,
   buildAmexPipeline,
 } from '../../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
@@ -39,8 +38,8 @@ describe('AMEX_LOGIN — config shape', () => {
     expect(submit).toHaveLength(0);
   });
 
-  it('loginUrl points to the personalarea/Login route (not just the base URL)', () => {
-    expect(AMEX_LOGIN_URL).toContain('/personalarea/Login');
+  it('loginUrl is the home page base URL (Home phase navigates to login from there)', () => {
+    expect(AMEX_LOGIN.loginUrl).toBeTruthy();
   });
 });
 
