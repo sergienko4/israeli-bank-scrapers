@@ -32,7 +32,7 @@ type HrefAttr = string;
  * @returns True if a close element was found and clicked.
  */
 async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.PRE.CLOSE_POPUP;
+  const candidates = WK.CLOSE_POPUP;
   return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
@@ -42,7 +42,7 @@ async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
  * @returns True if a login link was found and clicked.
  */
 async function tryClickLoginLink(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.ACTION.NAV_ENTRY;
+  const candidates = WK.HOME.ENTRY;
   return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
 }
 
@@ -67,7 +67,7 @@ function isLoginHref(href: HrefAttr): IsLoginLink {
  * @returns True if a login link was found and clicked.
  */
 async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.ACTION.NAV_ENTRY;
+  const candidates = WK.HOME.ENTRY;
   const result = await mediator.resolveVisible(candidates).catch((): false => false);
   if (!result || !result.found || !result.locator) {
     return tryClickLoginLink(mediator);
@@ -93,7 +93,7 @@ async function tryClickPrivateCustomers(
   page: Page,
   navTimeout: number,
 ): Promise<ClickResult> {
-  const candidates = WK.HOME.ACTION.NAV_REVEAL;
+  const candidates = WK.HOME.REVEAL;
   const didClick = await mediator.resolveAndClick(candidates).catch((): ClickResult => false);
   if (!didClick) return false;
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
@@ -113,7 +113,7 @@ const CRED_AREA_TIMEOUT = 10_000;
  * @returns True if a tab was found and clicked.
  */
 async function tryClickCredentialArea(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.ACTION.NAV_REVEAL;
+  const candidates = WK.HOME.REVEAL;
   return mediator.resolveAndClick(candidates, CRED_AREA_TIMEOUT).catch((): ClickResult => false);
 }
 
@@ -124,7 +124,7 @@ async function tryClickCredentialArea(mediator: IElementMediator): Promise<Click
  * @returns True if any login link became visible, false on timeout.
  */
 async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
-  const candidates = WK.HOME.ACTION.NAV_ENTRY;
+  const candidates = WK.HOME.ENTRY;
   const locators = candidates.map((c): Locator => page.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<VisibleIndex> => {
     await loc.waitFor({ state: 'visible', timeout: PAGE_READINESS_TIMEOUT });

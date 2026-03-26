@@ -343,6 +343,8 @@ async function executeLoginAction(
   config: ILoginConfig,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  // Phase-Gate: FindLoginArea.POST must set loginAreaReady=true before any fill.
+  if (!input.loginAreaReady) return fail(ScraperErrorTypes.Generic, 'gate: loginAreaReady=false');
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login context from preLogin');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator in context');
   const mediator = input.mediator.value;

@@ -45,13 +45,21 @@ describe('buildAmexPipeline', () => {
   it('returns descriptor with 6 phases', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
-    expect(result.value.phases).toHaveLength(6);
+    expect(result.value.phases).toHaveLength(7);
   });
 
   it('phase names follow the canonical pipeline chain', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
-    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
+    expect(names).toEqual([
+      'init',
+      'home',
+      'find-login-area',
+      'login',
+      'dashboard',
+      'scrape',
+      'terminate',
+    ]);
   });
 });

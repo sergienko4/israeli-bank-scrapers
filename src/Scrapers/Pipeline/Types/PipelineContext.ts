@@ -76,6 +76,9 @@ interface IApiFetchContext {
   readonly pendingUrl: string | false;
 }
 
+/** Phase-Gate signal: true means FindLoginArea.POST confirmed the form is interactive. */
+type LoginAreaReadySignal = boolean;
+
 /** Read-only context accumulated through the pipeline. */
 interface IPipelineContext {
   readonly options: ScraperOptions;
@@ -92,6 +95,12 @@ interface IPipelineContext {
   readonly scrape: Option<IScrapeState>;
   /** Auto-discovered API context — injected by DASHBOARD phase. */
   readonly api: Option<IApiFetchContext>;
+  /**
+   * Phase-Gate Handshake Signal — set to true by FindLoginArea.POST.
+   * LOGIN phase aborts immediately if this is false (form not yet validated).
+   * Prevents cascading failures: no fill attempt before form is confirmed interactive.
+   */
+  readonly loginAreaReady: LoginAreaReadySignal;
 }
 
 export type {

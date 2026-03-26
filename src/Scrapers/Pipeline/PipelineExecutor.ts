@@ -116,6 +116,7 @@ function buildInitialContext(
     dashboard: none(),
     scrape: none(),
     api: none(),
+    loginAreaReady: false,
   };
   return ctx;
 }

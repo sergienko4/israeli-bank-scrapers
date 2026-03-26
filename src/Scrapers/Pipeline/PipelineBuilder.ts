@@ -11,6 +11,7 @@ import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import { createDashboardPhase } from './Phases/DashboardPhase.js';
 import { createLoginStep, DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
+import { createFindLoginAreaPhase } from './Phases/FindLoginAreaPhase.js';
 import { createHomePhase } from './Phases/HomePhase.js';
 import { INIT_STEP } from './Phases/InitPhase.js';
 import { createLoginPhase } from './Phases/LoginSteps.js';
@@ -309,6 +310,8 @@ class PipelineBuilder {
       phases.push(initPhase);
       const homePhase = createHomePhase();
       phases.push(homePhase);
+      const findLoginAreaPhase = createFindLoginAreaPhase();
+      phases.push(findLoginAreaPhase);
     }
     const loginPhase = this.buildLoginPhase();
     phases.push(loginPhase);

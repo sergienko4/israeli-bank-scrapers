@@ -50,7 +50,7 @@ describe('buildDiscountPipeline', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(6);
+    expect(descriptor.phases).toHaveLength(7);
   });
 
   it('phase names are init, home, login, dashboard, scrape, terminate', () => {
@@ -58,6 +58,14 @@ describe('buildDiscountPipeline', () => {
     assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
-    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
+    expect(names).toEqual([
+      'init',
+      'home',
+      'find-login-area',
+      'login',
+      'dashboard',
+      'scrape',
+      'terminate',
+    ]);
   });
 });

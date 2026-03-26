@@ -10,8 +10,16 @@ import type { Procedure } from './Procedure.js';
 /** Name identifier for a pipeline step (e.g. 'login', 'scrape-pre'). */
 type StepNameStr = string;
 
-/** The six standard pipeline phases. */
-type PhaseName = 'init' | 'home' | 'login' | 'otp' | 'dashboard' | 'scrape' | 'terminate';
+/** The pipeline phases in execution order. */
+type PhaseName =
+  | 'init'
+  | 'home'
+  | 'find-login-area'
+  | 'login'
+  | 'otp'
+  | 'dashboard'
+  | 'scrape'
+  | 'terminate';
 
 /** A single executable step within a phase. */
 interface IPipelineStep<TIn, TOut> {

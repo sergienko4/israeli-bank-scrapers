@@ -1,12 +1,12 @@
 /**
- * HOME phase — generic homepage → login page navigation.
- * Uses mediator.resolveAndClick + resolveVisible with WellKnown candidates.
- * Same flow for ALL banks — no bank-specific code.
- * All config via DI (ctx.config) — no static imports of bank config.
+ * HOME phase — navigate from home page URL to the login page.
  *
- * PRE:    navigate to urls.base (homepage) — error: "Homepage unreachable"
- * ACTION: close popup → href-strategy login link → privateCustomers → credentialArea
- * POST:   wait for credentials form → store discovered loginUrl in diagnostics
+ * Responsibility: get the browser from CFG.urls.base to the login URL.
+ * Nothing beyond navigation belongs here.
+ *
+ * PRE:    goto(urls.base) — "Homepage unreachable" on failure
+ * ACTION: tryClosePopup → discover + click login link (WK.HOME.ENTRY)
+ * POST:   store discovered loginUrl in diagnostics
  */
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
@@ -19,26 +19,16 @@ import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import { tryClickLoginLinkWithHref, tryClosePopup } from './GenericPreLoginSteps.js';
 
-/** Whether a homepage navigation action succeeded. */
+/** Whether a mediator click action succeeded. */
 type NavSuccess = boolean;
-import {
-  tryClickCredentialArea,
-  tryClickLoginLinkWithHref,
-  tryClickPrivateCustomers,
-  tryClosePopup,
-  waitForFirstField,
-} from './GenericPreLoginSteps.js';
-
-/** Timeout for waiting for navigation after clicking a link. */
-const NAV_TIMEOUT = 15000;
 
 // ── PRE: navigate to homepage ─────────────────────────────
 
 /**
  * Execute PRE step: navigate to homepage.
- * Distinct error: "Homepage unreachable: {url}".
- * @param _ctx - Pipeline context (unused, matches step signature).
+ * @param _ctx - Pipeline context (unused).
  * @param input - Pipeline context with browser + config.
  * @returns Updated context, or failure if goto fails.
  */
@@ -58,15 +48,14 @@ async function executeHomePre(
   }
 }
 
-// ── ACTION: navigate to login form ────────────────────────
+// ── ACTION: click the login link on the home page ─────────
 
 /**
- * Execute ACTION step: close popup → href-strategy login link → click chain.
- * All interactions via mediator — no direct Playwright.
- * Best-effort: failures at each sub-step are non-fatal (returns succeed).
+ * Execute ACTION step: clear overlays then navigate to the login URL.
+ * tryClosePopup (only allowed action in PRE/ACTION) → tryClickLoginLinkWithHref.
  * @param _ctx - Pipeline context (unused).
  * @param input - Pipeline context with browser + mediator.
- * @returns Same context (navigation is side-effect on page).
+ * @returns Same context (navigation is side-effect).
  */
 async function executeHomeAction(
   _ctx: IPipelineContext,
@@ -74,32 +63,19 @@ async function executeHomeAction(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME ACTION');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME ACTION');
-  const page = input.browser.value.page;
   const mediator = input.mediator.value;
   await tryClosePopup(mediator);
   await tryClickLoginLinkWithHref(mediator);
-  await tryClickPrivateCustomers(mediator, page, NAV_TIMEOUT);
-  await tryClickCredentialArea(mediator);
-  await waitForFirstField(page).catch((): false => false); // best-effort: wait for form animation
   return succeed(input);
 }
 
-// ── POST: verify credentials form + store loginUrl ────────
+// ── POST: record login URL ────────────────────────────────
 
 /**
- * Probe for username field to confirm credentials form is rendered.
- * @param mediator - Element mediator.
- * @returns True if username field found.
- */
-async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
-  const candidates: readonly SelectorCandidate[] = WK.LOGIN.ACTION.FORM.id;
-  return mediator.resolveAndClick(candidates).catch((): NavSuccess => false);
-}
-
-/**
- * Execute POST step: wait for credentials form + store loginUrl.
+ * Execute POST step: store the login URL in diagnostics.
+ * Validates we left the home page by recording the new URL.
  * @param _ctx - Pipeline context (unused).
- * @param input - Pipeline context with browser + mediator.
+ * @param input - Pipeline context with browser.
  * @returns Updated context with diagnostics.loginUrl populated.
  */
 async function executeHomePost(
@@ -107,40 +83,44 @@ async function executeHomePost(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME POST');
-  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME POST');
-  const page = input.browser.value.page;
-  const mediator = input.mediator.value;
-  await waitForCredentialsForm(mediator);
-  const loginUrl = page.url();
+  const currentUrl = input.browser.value.page.url();
+  const loginUrl = await Promise.resolve(currentUrl);
   const updatedDiag = { ...input.diagnostics, loginUrl };
   return succeed({ ...input, diagnostics: updatedDiag });
 }
 
-// ── Step definitions ──────────────────────────────────────
+// ── Step definitions + phase factory ─────────────────────
 
-/** HOME PRE step — navigate to homepage. */
 const HOME_PRE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'home-pre',
   execute: executeHomePre,
 };
 
-/** HOME ACTION step — navigate from homepage to login form. */
 const HOME_ACTION_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'home-action',
   execute: executeHomeAction,
 };
 
-/** HOME POST step — verify form + store loginUrl. */
 const HOME_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'home-post',
   execute: executeHomePost,
 };
 
-// ── Legacy monolithic step (backward compat) ──────────────
+// ── Exported helper for FindLoginAreaPhase ────────────────
 
 /**
- * Execute the HOME phase as a single step (backward compat).
- * Calls PRE → ACTION → POST sequentially.
+ * Probe for a credential field to confirm the form is present.
+ * Used by FindLoginAreaPhase.POST.
+ * @param mediator - Active mediator.
+ * @returns True if a form field was found.
+ */
+export async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
+  const candidates = WK.HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
+  return mediator.resolveAndClick(candidates).catch((): NavSuccess => false);
+}
+
+/**
+ * Legacy monolithic step (backward compat) — calls PRE → ACTION → POST.
  * @param ctx - Pipeline context.
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics.loginUrl populated.
@@ -149,23 +129,20 @@ async function executeHome(
   ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const preResult = await executeHomePre(ctx, input);
-  if (!preResult.success) return preResult;
-  const actionResult = await executeHomeAction(preResult.value, preResult.value);
-  if (!actionResult.success) return actionResult;
-  return await executeHomePost(actionResult.value, actionResult.value);
+  const pre = await executeHomePre(ctx, input);
+  if (!pre.success) return pre;
+  const action = await executeHomeAction(pre.value, pre.value);
+  if (!action.success) return action;
+  return await executeHomePost(action.value, action.value);
 }
 
-/** HOME phase step — legacy monolithic (used by actionOnly). */
 const HOME_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   name: 'home',
   execute: executeHome,
 };
 
-// ── Phase factory ─────────────────────────────────────────
-
 /**
- * Create the full HOME phase with PRE/ACTION/POST sub-steps.
+ * Create the HOME phase (PRE: goto · ACTION: close+click login link · POST: store loginUrl).
  * @returns IPhaseDefinition with pre, action, post.
  */
 function createHomePhase(): IPhaseDefinition<IPipelineContext, IPipelineContext> {

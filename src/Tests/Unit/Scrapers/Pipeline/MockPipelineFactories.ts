@@ -34,6 +34,9 @@ import { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/Moc
 
 export { makeMockContext, makeMockPage };
 
+/** Mock page timeout setter result. */
+type TimeoutSet = boolean;
+
 // ── Browser mocks ─────────────────────────────────────────
 
 /** Minimal locator mock used by makeMockFullPage. */
@@ -114,7 +117,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * No-op timeout setter mock.
      * @returns True.
      */
-    setDefaultTimeout: (): boolean => true,
+    setDefaultTimeout: (): TimeoutSet => true,
     /**
      * Resolves immediately for any load state.
      * @returns Resolved true.
@@ -517,7 +520,7 @@ export function makeContextWithLogin(frame: Page = makeMockFullPage()): IPipelin
   const base = makeContextWithBrowser(frame);
   const loginState = makeMockLoginState(frame);
   const loginSome = some(loginState);
-  return { ...base, login: loginSome };
+  return { ...base, login: loginSome, loginAreaReady: true };
 }
 
 /**

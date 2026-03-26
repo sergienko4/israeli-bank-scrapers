@@ -24,105 +24,99 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 type FormSlot = 'id' | 'password' | 'mfa' | 'num' | 'submit' | 'otpArea';
 
 export const WK = {
-  // ── HOME PHASE ──────────────────────────────────────────────────────────────────
+  // ── SHARED: used by PRE step of every phase ──────────────────────────────────────
+  //
+  // Each PRE step MUST call tryClosePopup first — clears overlays before discovery.
+  // Positioned at root because it is the one allowed ACTION inside any PRE step.
+
+  CLOSE_POPUP: [
+    { kind: 'textContent', value: 'סגור' },
+    { kind: 'textContent', value: 'close' },
+    { kind: 'textContent', value: 'ביטול' },
+    { kind: 'textContent', value: '✕' },
+    { kind: 'ariaLabel', value: 'סגור' },
+    { kind: 'ariaLabel', value: 'close' },
+  ],
+
+  // ── HOME PHASE ───────────────────────────────────────────────────────────────────
+  //
+  // WK keys describe the CONCEPT — the step (PRE/ACTION/POST) determines usage:
+  //
+  //   HOME.PRE   — tryClosePopup(WK.CLOSE_POPUP) + DISCOVER login link
+  //                [FindLoginLink, FindPrivateCustomers, FindCredentialArea]
+  //
+  //   HOME.ACTION — ACT on what PRE discovered
+  //                [clickLoginLink, clickPrivateCustomers, clickCredentialArea]
+  //
+  //   HOME.POST  — VALIDATE navigation + form readiness
+  //                [waitForCredentialsForm, waitForFirstField, checkReadiness]
 
   HOME: {
     /**
-     * PRE: executed before any navigation.
-     * Mediator calls resolveAndClick(WK.HOME.PRE.CLOSE_POPUP) to clear overlays.
+     * Login entry-point links on the public home page.
+     * HOME.PRE uses these to DISCOVER the navigation element (resolveVisible).
+     * HOME.ACTION uses them to ACT — click the discovered element (click).
      */
-    PRE: {
-      /** Close any popup/overlay blocking the home page. */
-      CLOSE_POPUP: [
-        { kind: 'textContent', value: 'סגור' },
-        { kind: 'textContent', value: 'close' },
-        { kind: 'textContent', value: 'ביטול' },
-        { kind: 'textContent', value: '✕' },
-        { kind: 'ariaLabel', value: 'סגור' },
-        { kind: 'ariaLabel', value: 'close' },
-      ],
-    },
-
+    ENTRY: [
+      { kind: 'textContent', value: 'כניסה לחשבון' },
+      { kind: 'textContent', value: 'כניסה לאיזור האישי' },
+      { kind: 'textContent', value: 'כניסה והרשמה' },
+      { kind: 'textContent', value: 'התחברות' },
+      { kind: 'textContent', value: 'כניסה' },
+      { kind: 'ariaLabel', value: 'כניסה לחשבון' },
+    ],
     /**
-     * ACTION: two sequential clicks to reach and unlock the credential form.
-     *
-     * Step 1 — NAV_ENTRY: home page links that navigate to the login URL.
-     *   Used by: tryClickLoginLinkWithHref, tryClickLoginLink, waitForAnyLoginLink
-     *
-     * Step 2 — NAV_REVEAL: login page elements that reveal the credential form.
-     *   Used by: tryClickPrivateCustomers (Business/Private split), tryClickCredentialArea (mode toggle)
-     *   NOTE: Amex/Isracard portal hides these via UserWay (data-uw-hidden-control) —
-     *         NAV_REVEAL strings exist in the DOM (innerText) but are ARIA-hidden and
-     *         therefore unreachable by standard Playwright selectors.
+     * Login-page unlock elements (mode toggle, Business/Private split).
+     * HOME.PRE uses these to DISCOVER the unlock element (resolveVisible).
+     * HOME.ACTION uses them to ACT — click the discovered element.
+     * NOTE: Amex/Isracard portal hides these via UserWay (data-uw-hidden-control).
      */
-    ACTION: {
-      /** Home page navigation links → leads to the login URL. */
-      NAV_ENTRY: [
-        { kind: 'textContent', value: 'כניסה לחשבון' },
-        { kind: 'textContent', value: 'כניסה לאיזור האישי' },
-        { kind: 'textContent', value: 'כניסה והרשמה' },
-        { kind: 'textContent', value: 'התחברות' },
-        { kind: 'textContent', value: 'כניסה' },
-        { kind: 'ariaLabel', value: 'כניסה לחשבון' },
-      ],
-      /** Login page toggles → unlocks the credential form for filling. */
-      NAV_REVEAL: [
-        // Business/Private split — e.g. Hapoalim
-        { kind: 'textContent', value: 'לקוחות פרטיים' },
-        { kind: 'textContent', value: 'אזור אישי' },
-        { kind: 'textContent', value: 'כניסה עם סיסמה' },
-        // Credential mode selector — password vs SMS/OTP (e.g. Amex, Isracard)
-        { kind: 'textContent', value: 'כניסה רגילה' },
-        { kind: 'textContent', value: 'כניסה בסיסמה קבועה' },
-        { kind: 'textContent', value: 'כניסה עם שם משתמש' },
-        { kind: 'textContent', value: 'סיסמה קבועה' },
-        { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
-        { kind: 'ariaLabel', value: 'כניסה רגילה' },
-      ],
-    },
-
+    REVEAL: [
+      // Business/Private split — e.g. Hapoalim
+      { kind: 'textContent', value: 'לקוחות פרטיים' },
+      { kind: 'textContent', value: 'אזור אישי' },
+      { kind: 'textContent', value: 'כניסה עם סיסמה' },
+      // Credential mode selector — password vs SMS/OTP (e.g. Amex, Isracard)
+      { kind: 'textContent', value: 'כניסה רגילה' },
+      { kind: 'textContent', value: 'כניסה בסיסמה קבועה' },
+      { kind: 'textContent', value: 'כניסה עם שם משתמש' },
+      { kind: 'textContent', value: 'סיסמה קבועה' },
+      { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
+      { kind: 'ariaLabel', value: 'כניסה רגילה' },
+    ],
     /**
-     * POST: verify the credential form rendered after navigation.
-     * Mediator probes for any id-type field to confirm the page is ready.
+     * Credential form field candidates for HOME.POST validation.
+     * FIELD_READY: races these to confirm fields are visible + interactive.
+     * FORM_CHECK:  probes for a specific field to confirm the form rendered.
+     * Both used exclusively by HOME.POST — never by LOGIN phase.
      */
-    POST: {
-      /** Probe for a credential field — confirms form is present before LOGIN phase. */
-      FORM_CHECK: [
-        { kind: 'labelText', value: 'תעודת זהות' },
-        { kind: 'labelText', value: 'מספר זהות' },
-        { kind: 'labelText', value: 'שם משתמש' },
-        { kind: 'placeholder', value: 'תעודת זהות' },
-        { kind: 'placeholder', value: 'שם משתמש' },
-        { kind: 'placeholder', value: 'ת.ז' },
-        { kind: 'name', value: 'id' },
-        { kind: 'name', value: 'username' },
-      ],
-    },
+    FIELD_READY: [
+      { kind: 'placeholder', value: 'תעודת זהות' },
+      { kind: 'placeholder', value: 'מספר זהות' },
+      { kind: 'placeholder', value: 'ת.ז' },
+      { kind: 'placeholder', value: 'שם משתמש' },
+      { kind: 'placeholder', value: 'קוד משתמש' },
+      { kind: 'placeholder', value: 'סיסמה' },
+      { kind: 'placeholder', value: 'קוד סודי' },
+      { kind: 'labelText', value: 'תעודת זהות' },
+      { kind: 'labelText', value: 'שם משתמש' },
+      { kind: 'labelText', value: 'סיסמה' },
+    ],
+    FORM_CHECK: [
+      { kind: 'labelText', value: 'תעודת זהות' },
+      { kind: 'labelText', value: 'מספר זהות' },
+      { kind: 'labelText', value: 'שם משתמש' },
+      { kind: 'placeholder', value: 'תעודת זהות' },
+      { kind: 'placeholder', value: 'שם משתמש' },
+      { kind: 'placeholder', value: 'ת.ז' },
+      { kind: 'name', value: 'id' },
+      { kind: 'name', value: 'username' },
+    ],
   },
 
   // ── LOGIN PHASE ──────────────────────────────────────────────────────────────────
 
   LOGIN: {
-    /**
-     * PRE: wait for form fields to be interactive before filling.
-     * Combined id + password candidates — first visible wins.
-     */
-    PRE: {
-      /** Wait for any credential field to become visible + interactive. */
-      FIELD_READY: [
-        { kind: 'placeholder', value: 'תעודת זהות' },
-        { kind: 'placeholder', value: 'מספר זהות' },
-        { kind: 'placeholder', value: 'ת.ז' },
-        { kind: 'placeholder', value: 'שם משתמש' },
-        { kind: 'placeholder', value: 'קוד משתמש' },
-        { kind: 'placeholder', value: 'סיסמה' },
-        { kind: 'placeholder', value: 'קוד סודי' },
-        { kind: 'labelText', value: 'תעודת זהות' },
-        { kind: 'labelText', value: 'שם משתמש' },
-        { kind: 'labelText', value: 'סיסמה' },
-      ],
-    },
-
     /**
      * ACTION: fill the credential form.
      *
