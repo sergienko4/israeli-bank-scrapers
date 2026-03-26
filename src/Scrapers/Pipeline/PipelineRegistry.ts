@@ -9,6 +9,7 @@ import { CompanyTypes as CT } from '../../Definitions.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import { buildAmexPipeline } from './Banks/Amex/AmexPipeline.js';
 import { buildDiscountPipeline } from './Banks/Discount/DiscountPipeline.js';
+import { buildIsracardPipeline } from './Banks/Isracard/IsracardPipeline.js';
 import { buildVisaCalPipeline } from './Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import type { Procedure } from './Types/Procedure.js';
@@ -20,6 +21,7 @@ type PipelineFactory = (options: ScraperOptions) => Procedure<IPipelineDescripto
 const PIPELINE_REGISTRY: Partial<Record<CompanyTypes, PipelineFactory>> = {
   [CT.Amex]: buildAmexPipeline,
   [CT.Discount]: buildDiscountPipeline,
+  [CT.Isracard]: buildIsracardPipeline,
   [CT.VisaCal]: buildVisaCalPipeline,
 };
 

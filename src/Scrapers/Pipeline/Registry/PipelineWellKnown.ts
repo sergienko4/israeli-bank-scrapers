@@ -324,7 +324,23 @@ const QUERY_ID_FIELDS = [
   'bankAccountUniqueID',
   'accountId',
   'CardId',
+  'cardIndex', // Amex/Isracard DashboardMonth — index key for CardsTransactionsListBean
 ] as const;
+
+/**
+ * WellKnown API response header fields — for validating response envelope metadata.
+ * Separate from TXN fields because these describe the API response shape, not transactions.
+ *
+ * Used by DynamicMetadataMapper to validate API success before extracting data.
+ * Expected responseStatus value: '1' = success across all Isracard/Amex portal APIs.
+ */
+export const PIPELINE_WELL_KNOWN_RESPONSE_FIELDS = {
+  /**
+   * Response status field — BFS-discovered (findFieldValue), no hardcoded 'Header.Status' path.
+   * '1' = success; anything else triggers fail().
+   */
+  responseStatus: ['Status', 'status', 'HeaderStatus', 'responseStatus'],
+} satisfies Record<string, string[]>;
 
 export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   /** Account ID field names (union of display + query — backward compat). */

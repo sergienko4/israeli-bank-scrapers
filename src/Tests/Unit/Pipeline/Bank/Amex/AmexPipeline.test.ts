@@ -1,11 +1,16 @@
 /**
  * Unit tests for Amex pipeline config and builder.
- * Tests AMEX_LOGIN minimal shape and buildAmexPipeline phases.
+ *
+ * LIFECYCLE EXPECTATIONS (mirrors AmexPipeline.ts design):
+ *   checkReadiness → amexCheckReadiness  (waits for form fields — SPA safe)
+ *   preAction      → undefined           (no Connect iframe; form is on-page directly)
+ *   postAction     → amexPostLogin       (URL-change guard, not networkidle)
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   AMEX_LOGIN,
+  AMEX_LOGIN_URL,
   buildAmexPipeline,
 } from '../../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
@@ -14,48 +19,65 @@ import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.
 /** Mock options for pipeline builder. */
 const MOCK_OPTIONS = makeMockOptions({ companyId: CompanyTypes.Amex });
 
-describe('AMEX_LOGIN', () => {
-  describe('config shape', () => {
-    it('has three credential fields: id, password, card6Digits', () => {
-      expect(AMEX_LOGIN.fields).toHaveLength(3);
-      const keys = AMEX_LOGIN.fields.map(f => f.credentialKey);
-      expect(keys).toEqual(['id', 'password', 'card6Digits']);
-    });
+// ── Config shape ──────────────────────────────────────────
 
-    it('has empty submit (generic mediator resolves submit)', () => {
-      const submit = Array.isArray(AMEX_LOGIN.submit) ? AMEX_LOGIN.submit : [AMEX_LOGIN.submit];
-      expect(submit.length).toBe(0);
-    });
+describe('AMEX_LOGIN — config shape', () => {
+  it('has three credential fields: id, password, card6Digits', () => {
+    expect(AMEX_LOGIN.fields).toHaveLength(3);
+    const keys = AMEX_LOGIN.fields.map(f => f.credentialKey);
+    expect(keys).toEqual(['id', 'password', 'card6Digits']);
   });
 
-  describe('generic flow — no bank-specific callbacks', () => {
-    it('has no checkReadiness (HOME phase handles it)', () => {
-      expect(AMEX_LOGIN.checkReadiness).toBeUndefined();
-    });
+  it('all fields use empty selectors (WellKnown mediator handles resolution)', () => {
+    for (const field of AMEX_LOGIN.fields) {
+      expect(field.selectors).toHaveLength(0);
+    }
+  });
 
-    it('has no postAction (DASHBOARD phase handles it)', () => {
-      expect(AMEX_LOGIN.postAction).toBeUndefined();
-    });
+  it('has empty submit array (mediator uses WellKnown __submit__ fallback)', () => {
+    const submit = Array.isArray(AMEX_LOGIN.submit) ? AMEX_LOGIN.submit : [AMEX_LOGIN.submit];
+    expect(submit).toHaveLength(0);
+  });
 
-    it('has no preAction (HOME phase handles it)', () => {
-      expect(AMEX_LOGIN.preAction).toBeUndefined();
-    });
+  it('loginUrl points to the personalarea/Login route (not just the base URL)', () => {
+    expect(AMEX_LOGIN_URL).toContain('/personalarea/Login');
   });
 });
 
+// ── Lifecycle hooks ───────────────────────────────────────
+
+describe('AMEX_LOGIN — lifecycle hooks', () => {
+  it('has checkReadiness (waits for WellKnown form fields to appear)', () => {
+    expect(AMEX_LOGIN.checkReadiness).toBeDefined();
+  });
+
+  it('has NO preAction (no Connect iframe; form is directly on the page)', () => {
+    expect(AMEX_LOGIN.preAction).toBeUndefined();
+  });
+
+  it('has postAction (URL-change guard after login, avoids networkidle false-timeout)', () => {
+    expect(AMEX_LOGIN.postAction).toBeDefined();
+  });
+});
+
+// ── Builder chain ─────────────────────────────────────────
+
 describe('buildAmexPipeline', () => {
+  it('returns a Procedure in success state', () => {
+    const result = buildAmexPipeline(MOCK_OPTIONS);
+    assertOk(result);
+  });
+
   it('returns descriptor with 6 phases', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
-    const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(6);
+    expect(result.value.phases).toHaveLength(6);
   });
 
-  it('phase names are init, home, login, dashboard, scrape, terminate', () => {
+  it('phase names follow the canonical pipeline chain', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
-    const descriptor = result.value;
-    const names = descriptor.phases.map(p => p.name);
+    const names = result.value.phases.map(p => p.name);
     expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
   });
 });
