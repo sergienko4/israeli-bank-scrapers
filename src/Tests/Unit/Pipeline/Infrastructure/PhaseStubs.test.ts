@@ -60,12 +60,10 @@ describe('createLoginStep', () => {
 });
 
 describe('PipelineRegistry', () => {
-  it('contains Amex, Discount, Isracard, and VisaCal', () => {
+  it('contains Discount and VisaCal (Amex/Isracard use API login — not browser form fill)', () => {
     const keys = Object.keys(PIPELINE_REGISTRY);
-    expect(keys).toContain('amex');
     expect(keys).toContain('discount');
-    expect(keys).toContain('isracard');
     expect(keys).toContain('visaCal');
-    expect(keys).toHaveLength(4);
+    expect(keys).toHaveLength(2);
   });
 });

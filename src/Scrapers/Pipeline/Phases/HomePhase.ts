@@ -26,6 +26,7 @@ import {
   tryClickLoginLinkWithHref,
   tryClickPrivateCustomers,
   tryClosePopup,
+  waitForFirstField,
 } from './GenericPreLoginSteps.js';
 
 /** Timeout for waiting for navigation after clicking a link. */
@@ -78,6 +79,7 @@ async function executeHomeAction(
   await tryClickLoginLinkWithHref(mediator);
   await tryClickPrivateCustomers(mediator, page, NAV_TIMEOUT);
   await tryClickCredentialArea(mediator);
+  await waitForFirstField(page).catch((): false => false); // best-effort: wait for form animation
   return succeed(input);
 }
 
