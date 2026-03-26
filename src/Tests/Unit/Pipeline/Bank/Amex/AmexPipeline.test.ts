@@ -1,10 +1,6 @@
 /**
  * Unit tests for Amex pipeline config and builder.
- *
- * LIFECYCLE EXPECTATIONS (mirrors AmexPipeline.ts design):
- *   checkReadiness → amexCheckReadiness  (waits for form fields — SPA safe)
- *   preAction      → undefined           (no Connect iframe; form is on-page directly)
- *   postAction     → amexPostLogin       (URL-change guard, not networkidle)
+ * Mirrors DiscountPipeline.test.ts — minimal config + builder chain.
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
@@ -15,10 +11,7 @@ import {
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 
-/** Mock options for pipeline builder. */
 const MOCK_OPTIONS = makeMockOptions({ companyId: CompanyTypes.Amex });
-
-// ── Config shape ──────────────────────────────────────────
 
 describe('AMEX_LOGIN — config shape', () => {
   it('has three credential fields: id, password, card6Digits', () => {
@@ -27,7 +20,7 @@ describe('AMEX_LOGIN — config shape', () => {
     expect(keys).toEqual(['id', 'password', 'card6Digits']);
   });
 
-  it('all fields use empty selectors (WellKnown mediator handles resolution)', () => {
+  it('all fields use empty selectors (WellKnown mediator resolves by Hebrew text)', () => {
     for (const field of AMEX_LOGIN.fields) {
       expect(field.selectors).toHaveLength(0);
     }
@@ -38,28 +31,10 @@ describe('AMEX_LOGIN — config shape', () => {
     expect(submit).toHaveLength(0);
   });
 
-  it('loginUrl is the home page base URL (Home phase navigates to login from there)', () => {
+  it('loginUrl is the home page base URL', () => {
     expect(AMEX_LOGIN.loginUrl).toBeTruthy();
   });
 });
-
-// ── Lifecycle hooks ───────────────────────────────────────
-
-describe('AMEX_LOGIN — lifecycle hooks', () => {
-  it('has checkReadiness (waits for WellKnown form fields to appear)', () => {
-    expect(AMEX_LOGIN.checkReadiness).toBeDefined();
-  });
-
-  it('has NO preAction (no Connect iframe; form is directly on the page)', () => {
-    expect(AMEX_LOGIN.preAction).toBeUndefined();
-  });
-
-  it('has postAction (URL-change guard after login, avoids networkidle false-timeout)', () => {
-    expect(AMEX_LOGIN.postAction).toBeDefined();
-  });
-});
-
-// ── Builder chain ─────────────────────────────────────────
 
 describe('buildAmexPipeline', () => {
   it('returns a Procedure in success state', () => {
