@@ -1,58 +1,58 @@
 /**
- * Amex (American Express Israel) pipeline config.
+ * Amex (American Express Israel) pipeline — single-file config.
  *
- * ARCHITECTURE:
- *   Generic Home → Login (Pre/Action/Post) → Dashboard → Scrape flow.
- *   Credentials resolved by visible Hebrew text via WellKnown Mediator — zero hardcoded selectors.
+ * Mirrors DiscountPipeline.ts structure:
+ *   createPipelineBuilder().withDeclarativeLogin(AMEX_LOGIN).build()
  *
- * WELL-KNOWN MEDIATOR MAP (resolved at runtime by PIPELINE_WELL_KNOWN_LOGIN):
- *   ┌───────────┬──────────────────────────────┬─────────────────┐
- *   │ Field     │ Hebrew visible text           │ credentialKey   │
- *   ├───────────┼──────────────────────────────┼─────────────────┤
- *   │ ID        │ תעודת זהות / מספר זהות        │ id              │
- *   │ Password  │ סיסמה / קוד סודי              │ password        │
- *   │ Card6     │ 6 ספרות / ספרות הכרטיס        │ card6Digits     │
- *   └───────────┴──────────────────────────────┴─────────────────┘
+ * Unique Amex fields vs Discount:
+ *   card6Digits — 6-digit card number required at login
+ *   checkReadiness — wait for WellKnown form fields before filling
+ *   postAction — URL-change guard (SPA navigates away from /Login)
  *
- * LIFECYCLE:
- *   checkReadiness → amexCheckReadiness  — waits for form fields (reuses generic WK probe)
- *   preAction      → (none)              — no Connect iframe; form is directly on the page
- *   postAction     → amexPostLogin       — guards on URL change, NOT networkidle
- *                                          avoids "Hapoalim False Timeout" on SPA transitions
- *
- * Rule #10: Zero direct Playwright selectors in this file.
- * Rule #11: Zero custom bank logic — everything via Mediator + WellKnown.
+ * Rule #11: Zero custom scraper logic. Auto-scrape via ctx.api + WellKnown.
  */
 
+import type { Page } from 'playwright-core';
+
 import { CompanyTypes } from '../../../../Definitions.js';
-import { amexCheckReadiness, amexPostLogin } from '../../../Amex/Config/AmexLoginConfig.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
+import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
+import { waitForFirstField } from '../../Phases/GenericPreLoginSteps.js';
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
-/**
- * Amex login URL — the portal's credential form (not the home page).
- * The HOME phase navigates here; LoginSteps fills fields via WellKnown mediator.
- */
-const AMEX_LOGIN_URL = `${CFG.urls.base}/personalarea/Login`;
+export const AMEX_LOGIN_URL = `${CFG.urls.base}/personalarea/Login`;
+
+/** Timeout for post-login SPA navigation (ms). */
+const POST_LOGIN_NAV_TIMEOUT = 30_000;
 
 /**
- * Amex login config.
- *
- * Fields use selectors:[] — the mediator resolves each by visible Hebrew text
- * via PIPELINE_WELL_KNOWN_LOGIN fallback (id, password, card6Digits WK entries).
- *
- * submit:[] — mediator falls back to WellKnown __submit__ (xpath //button[contains(., "כניסה")]).
- *
- * checkReadiness/postAction are the only bank-specific hooks — both are navigation
- * guards, not HTML selectors.
+ * Wait for a WellKnown credential field to appear before attempting to fill.
+ * @param page - Active page.
  */
-const AMEX_LOGIN: ILoginConfig = {
+async function checkReadiness(page: Page): LifecyclePromise {
+  await waitForFirstField(page);
+}
+
+/**
+ * Guard on URL change after form submit — avoids networkidle false-timeout on SPA transitions.
+ * @param page - Active page.
+ */
+async function postAction(page: Page): LifecyclePromise {
+  const hasNavigatedAway = !page.url().includes('/personalarea/Login');
+  if (!hasNavigatedAway) {
+    await page
+      .waitForURL(url => !url.pathname.includes('Login'), { timeout: POST_LOGIN_NAV_TIMEOUT })
+      .catch(() => undefined);
+  }
+}
+
+export const AMEX_LOGIN: ILoginConfig = {
   loginUrl: AMEX_LOGIN_URL,
   fields: [
     { credentialKey: 'id', selectors: [] },
@@ -60,24 +60,15 @@ const AMEX_LOGIN: ILoginConfig = {
     { credentialKey: 'card6Digits', selectors: [] },
   ],
   submit: [],
-  checkReadiness: amexCheckReadiness,
-  postAction: amexPostLogin,
-  possibleResults: {
-    success: [/personalarea\/(?!Login)/i],
-    invalidPassword: [],
-  },
+  checkReadiness,
+  postAction,
+  possibleResults: { success: [/personalarea\/(?!Login)/i], invalidPassword: [] },
 };
 
 /**
  * Build the Amex pipeline descriptor.
- *
- * Chain: Init → Home → Login (Pre/Action/Post) → Dashboard → Scrape → Terminate
- *
- * The generic auto-scrape (ctx.api + WellKnown) handles account/txn discovery.
- * AmexMetadataExtractor maps the DashboardMonth response to IAmexCardAccount[].
- *
  * @param options - Scraper options from the user.
- * @returns Procedure wrapping the 6-phase pipeline descriptor.
+ * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
@@ -88,4 +79,4 @@ function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescript
 }
 
 export default buildAmexPipeline;
-export { AMEX_LOGIN, AMEX_LOGIN_URL, buildAmexPipeline };
+export { buildAmexPipeline };
