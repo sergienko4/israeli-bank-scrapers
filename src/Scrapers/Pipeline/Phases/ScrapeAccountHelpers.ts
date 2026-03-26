@@ -86,7 +86,7 @@ async function fetchOneBillingChunk(
 ): Promise<readonly ITransaction[]> {
   const { month, year } = chunkMonthYear(chunk);
   const body = { cardUniqueId: ctx.accountId, month, year };
-  LOG.debug('billing chunk: m=%s y=%s card=%s url=%s', month, year, ctx.accountId, ctx.billingUrl);
+  LOG.debug({ month, year, cardUniqueId: ctx.accountId, url: ctx.billingUrl }, 'billing chunk');
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(ctx.billingUrl, body);
   if (!isOk(raw)) return [];
   const txns = extractTransactions(raw.value);
@@ -271,11 +271,11 @@ function buildPostCtx(
   const { displayId, accountId } = extractIds(accountRecord);
   const rawCardId = extractCardId(accountRecord);
   const cardId = rawCardId || accountId;
-  const rawPost = endpoint.postData || '{}';
-  const capturedBody = JSON.parse(rawPost) as ApiPayload;
-  const baseBody = templatePostBody(rawPost, accountRecord);
+  const capturedBody = JSON.parse(endpoint.postData || '{}') as ApiPayload;
+  const baseBody = templatePostBody(endpoint.postData || '{}', accountRecord);
   const isFromCards = cardId !== accountId;
-  LOG.debug('tryBilling: accountId=%s (card=%s)', cardId, CARD_SOURCE_LABELS[String(isFromCards)]);
+  const logCtx = { cardUniqueId: cardId, source: CARD_SOURCE_LABELS[String(isFromCards)] };
+  LOG.debug(logCtx, 'tryBilling');
   const post: IPostFetchCtx = {
     baseBody,
     url: endpoint.url,

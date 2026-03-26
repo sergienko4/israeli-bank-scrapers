@@ -60,13 +60,15 @@ function extractIds(record: Record<string, unknown>): IExtractedIds {
   const queryReceipt = resolveReceipt(queryResult, displayId);
   const displayReceipt = resolveReceipt(displayResult, accountId);
   LOG.debug(
-    'extractIds: query=%s (%s→%s) display=%s (%s→%s)',
-    accountId,
-    queryReceipt.originalKey,
-    queryReceipt.matchingKey,
-    displayId,
-    displayReceipt.originalKey,
-    displayReceipt.matchingKey,
+    {
+      cardUniqueId: accountId,
+      queryKey: queryReceipt.originalKey,
+      queryMatch: queryReceipt.matchingKey,
+      displayId,
+      displayKey: displayReceipt.originalKey,
+      displayMatch: displayReceipt.matchingKey,
+    },
+    'extractIds',
   );
   return { displayId, accountId, queryIdentifier: queryReceipt, displayIdentifier: displayReceipt };
 }
