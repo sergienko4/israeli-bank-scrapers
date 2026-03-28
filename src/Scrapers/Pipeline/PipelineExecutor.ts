@@ -11,14 +11,16 @@ import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import type { BasePhase } from './Types/BasePhase.js';
 import { getDebug } from './Types/Debug.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
+import type { IPipelineInterceptor } from './Types/Interceptor.js';
 import { none } from './Types/Option.js';
 import type { IBrowserState, IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, isOk, succeed, toLegacy } from './Types/Procedure.js';
 
-/** Mutable state for phase reduction: tracks last context + phase list. */
+/** Mutable state for phase reduction: tracks last context + phase list + interceptors. */
 interface IContextTracker {
   readonly phases: readonly BasePhase[];
+  readonly interceptors: readonly IPipelineInterceptor[];
   lastCtx: IPipelineContext;
 }
 
@@ -112,8 +114,50 @@ async function ensureBrowserCleanup(
 }
 
 /**
+ * Run interceptors sequentially before a phase starts.
+ * @param interceptors - Ordered list of interceptors.
+ * @param ctx - Current pipeline context.
+ * @param index - Current interceptor index.
+ * @returns Updated context or first failure.
+ */
+async function runInterceptors(
+  interceptors: readonly IPipelineInterceptor[],
+  ctx: IPipelineContext,
+  index: number,
+): Promise<Procedure<IPipelineContext>> {
+  if (index >= interceptors.length) return succeed(ctx);
+  const result = await interceptors[index].beforePhase(ctx);
+  if (!isOk(result)) return result;
+  return runInterceptors(interceptors, result.value, index + 1);
+}
+
+/**
  * Reduce phases sequentially, tracking the latest context for cleanup.
- * @param tracker - Mutable tracker with phases and last context.
+ * Runs interceptors BEFORE each phase (skips when no browser — init hasn't run yet).
+ * @param tracker - Mutable tracker with phases, interceptors, and last context.
+ * @param ctx - Current pipeline context.
+ * @param index - Current phase index.
+ * @returns Final Procedure with accumulated context.
+ */
+/**
+ * Run interceptors if browser is available. Skip otherwise (init hasn't run yet).
+ * @param tracker - Context tracker with interceptors.
+ * @param ctx - Current pipeline context.
+ * @returns Updated context after interceptors, or original if skipped.
+ */
+async function applyInterceptors(
+  tracker: IContextTracker,
+  ctx: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (!ctx.browser.has) return succeed(ctx);
+  if (tracker.interceptors.length === 0) return succeed(ctx);
+  return runInterceptors(tracker.interceptors, ctx, 0);
+}
+
+/**
+ * Reduce phases sequentially, tracking the latest context for cleanup.
+ * Runs interceptors BEFORE each phase (skips when no browser — init hasn't run yet).
+ * @param tracker - Mutable tracker with phases, interceptors, and last context.
  * @param ctx - Current pipeline context.
  * @param index - Current phase index.
  * @returns Final Procedure with accumulated context.
@@ -124,8 +168,10 @@ async function reducePhases(
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
-  tracker.lastCtx = ctx;
-  const result = await tracker.phases[index].run(ctx);
+  const intercepted = await applyInterceptors(tracker, ctx);
+  if (!isOk(intercepted)) return intercepted;
+  tracker.lastCtx = intercepted.value;
+  const result = await tracker.phases[index].run(intercepted.value);
   if (!isOk(result)) return result;
   return reducePhases(tracker, result.value, index + 1);
 }
@@ -184,7 +230,11 @@ async function executePipeline(
   credentials: ScraperCredentials,
 ): Promise<IScraperScrapingResult> {
   const initialCtx = buildInitialContext(descriptor, credentials);
-  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
+  const tracker: IContextTracker = {
+    phases: descriptor.phases,
+    interceptors: descriptor.interceptors,
+    lastCtx: initialCtx,
+  };
   let result: Procedure<IPipelineContext>;
   try {
     result = await reducePhases(tracker, initialCtx, 0);

@@ -138,7 +138,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
 function makeMockDescriptor(
   options: ScraperOptions = makeMockOptions(),
 ): Procedure<IPipelineDescriptor> {
-  const descriptor: IPipelineDescriptor = { options, phases: [] };
+  const descriptor: IPipelineDescriptor = { options, phases: [], interceptors: [] };
   return succeed(descriptor);
 }
 

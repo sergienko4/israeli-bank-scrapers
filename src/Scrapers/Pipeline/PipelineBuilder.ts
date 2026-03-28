@@ -8,6 +8,7 @@ import type { OtpConfig } from '../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
+import { createPopupInterceptor } from './Interceptors/PopupInterceptor.js';
 import { createDashboardPhase } from './Phases/DashboardPhase.js';
 import { DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
@@ -26,6 +27,7 @@ import {
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import type { BasePhase } from './Types/BasePhase.js';
+import type { IPipelineInterceptor } from './Types/Interceptor.js';
 import type { IPipelineStep } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
@@ -277,9 +279,11 @@ class PipelineBuilder {
     const validation = this.assertRequiredFields();
     if (!validation.success) return validation;
     const phases = this.assemblePhases();
+    const interceptors = this.buildInterceptors();
     const descriptor: IPipelineDescriptor = {
       options: this._options as ScraperOptions,
       phases,
+      interceptors,
     };
     return succeed(descriptor);
   }
@@ -394,6 +398,16 @@ class PipelineBuilder {
     }
     phases.splice(insertIdx, 0, ...optional);
     return optional.length;
+  }
+
+  /**
+   * Build interceptors for the pipeline.
+   * Browser pipelines get PopupInterceptor by default.
+   * @returns Ordered interceptor array.
+   */
+  private buildInterceptors(): readonly IPipelineInterceptor[] {
+    if (!this._hasBrowser) return [];
+    return [createPopupInterceptor()];
   }
 
   /**

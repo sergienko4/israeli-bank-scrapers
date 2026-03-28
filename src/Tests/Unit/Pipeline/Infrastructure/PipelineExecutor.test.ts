@@ -75,7 +75,7 @@ function failPhase(name: PhaseName, message: string): SimplePhase {
  * @returns A pipeline descriptor.
  */
 function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases };
+  return { options: MOCK_OPTIONS, phases, interceptors: [] };
 }
 
 /**

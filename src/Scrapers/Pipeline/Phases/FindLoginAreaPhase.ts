@@ -26,7 +26,6 @@ import { fail, isOk, succeed } from '../Types/Procedure.js';
 import {
   tryClickCredentialArea,
   tryClickPrivateCustomers,
-  tryClosePopup,
   waitForFirstField,
 } from './GenericPreLoginSteps.js';
 import { waitForCredentialsForm } from './HomePhase.js';
@@ -116,7 +115,6 @@ class FindLoginAreaPhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for FLA PRE');
     const mediator = input.mediator.value;
-    await tryClosePopup(mediator);
     const privateCustomers = await probeRevealStatus(mediator, 3_000);
     const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT);
     const discovery: IFindLoginAreaDiscovery = { privateCustomers, credentialArea };

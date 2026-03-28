@@ -39,7 +39,7 @@ interface ITextStrategy {
 type HeuristicStrategy = IPasswordStrategy | ITextStrategy;
 
 /** Map credential keys to their heuristic resolution strategy. */
-const HEURISTIC_MAP: Readonly<Record<string, HeuristicStrategy>> = {
+const HEURISTIC_MAP: Readonly<Partial<Record<string, HeuristicStrategy>>> = {
   password: { type: 'password' },
   id: { type: 'text', index: 0 },
   username: { type: 'text', index: 0 },
@@ -115,6 +115,43 @@ async function heuristicResolveInFrame(
 }
 
 /**
+ * Convert a heuristic match to IFieldContext.
+ * @param match - The field match from heuristic resolution.
+ * @param fieldKey - Credential key for logging.
+ * @returns IFieldContext with heuristic metadata.
+ */
+function toHeuristicContext(match: IFieldMatch, fieldKey: string): IFieldContext {
+  const frameUrl = 'url' in match.context ? (match.context as Frame).url() : '';
+  LOG.debug('Round 3 (heuristic): resolved %s → %s in frame %s', fieldKey, match.selector, frameUrl);
+  return {
+    isResolved: true,
+    selector: match.selector,
+    context: match.context,
+    resolvedVia: 'heuristic',
+    round: 'heuristic',
+    resolvedKind: 'css',
+  };
+}
+
+/**
+ * Probe frames recursively — first match wins.
+ * @param frames - Child frames to search.
+ * @param fieldKey - Credential key.
+ * @param index - Current frame index.
+ * @returns IFieldContext if found, or false.
+ */
+async function probeFrameAt(
+  frames: readonly Frame[],
+  fieldKey: string,
+  index: number,
+): Promise<IFieldContext | false> {
+  if (index >= frames.length) return false;
+  const match = await heuristicResolveInFrame(frames[index], fieldKey);
+  if (match.selector) return toHeuristicContext(match, fieldKey);
+  return probeFrameAt(frames, fieldKey, index + 1);
+}
+
+/**
  * Search all child iframes using heuristic type-based resolution.
  * @param page - The Playwright page.
  * @param fieldKey - The credential key to resolve.
@@ -128,22 +165,7 @@ async function heuristicProbeIframes(
   const childFrames = page.frames().filter(f => f !== mainFrame);
   if (childFrames.length === 0) return false;
   LOG.debug('Round 3 (heuristic): searching %d iframe(s) for "%s"', childFrames.length, fieldKey);
-  for (const frame of childFrames) {
-    const match = await heuristicResolveInFrame(frame, fieldKey);
-    if (!match.selector) continue;
-    const frameUrl = frame.url();
-    LOG.debug('Round 3 (heuristic): resolved %s → %s in frame %s', fieldKey, match.selector, frameUrl);
-    const result: IFieldContext = {
-      isResolved: true,
-      selector: match.selector,
-      context: frame,
-      resolvedVia: 'heuristic',
-      round: 'heuristic',
-      resolvedKind: 'css',
-    };
-    return result;
-  }
-  return false;
+  return probeFrameAt(childFrames, fieldKey, 0);
 }
 
 /**
@@ -161,4 +183,5 @@ async function tryHeuristicProbe(
   return heuristicProbeIframes(pageOrFrame, fieldKey);
 }
 
+export default tryHeuristicProbe;
 export { tryHeuristicProbe };

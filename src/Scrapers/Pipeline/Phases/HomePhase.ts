@@ -15,7 +15,7 @@ import { BasePhase } from '../Types/BasePhase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
-import { tryClickLoginLinkWithHref, tryClosePopup } from './GenericPreLoginSteps.js';
+import { tryClickLoginLinkWithHref } from './GenericPreLoginSteps.js';
 
 /**
  * Probe for a credential field to confirm the form is present.
@@ -65,7 +65,6 @@ class HomePhase extends BasePhase {
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME ACTION');
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME ACTION');
     const mediator = input.mediator.value;
-    await tryClosePopup(mediator);
     await tryClickLoginLinkWithHref(mediator);
     return succeed(input);
   }

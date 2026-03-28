@@ -95,7 +95,7 @@ function throwPhase(name: PhaseName, message: string): SimplePhase {
  * @returns Pipeline descriptor.
  */
 function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases };
+  return { options: MOCK_OPTIONS, phases, interceptors: [] };
 }
 
 /**
