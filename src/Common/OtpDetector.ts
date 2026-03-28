@@ -326,7 +326,7 @@ async function sequentialContextAttempts(
 /** XPath predicate restricting matches to interactive elements. */
 const INTERACTIVE_FILTER = [
   '(self::button or self::a or self::input',
-  'or self::select or self::textarea',
+  'or self::select or self::textarea or self::div or self::span or self::li',
   'or @role="button" or @role="link")',
 ].join(' ');
 

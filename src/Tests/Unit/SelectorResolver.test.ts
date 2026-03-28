@@ -294,9 +294,16 @@ describe('ariaLabel exact match', () => {
 // ── textContent kind ────────────────────────────────────────────────────────
 
 describe('textContent kind', () => {
-  it('candidateToCss converts textContent to xpath contains', () => {
+  it('candidateToCss converts textContent to xpath contains excluding script/style', () => {
     const css = SELECTOR_MOD.candidateToCss({ kind: 'textContent', value: 'כניסה' });
-    expect(css).toBe('xpath=//*[contains(text(), "כניסה")]');
+    expect(css).toBe('xpath=//*[not(self::script) and not(self::style) and contains(text(), "כניסה")]');
+  });
+
+  it('candidateToCss textContent XPath excludes script elements', () => {
+    const css = SELECTOR_MOD.candidateToCss({ kind: 'textContent', value: 'אישור' });
+    expect(css).toContain('not(self::script)');
+    expect(css).toContain('not(self::style)');
+    expect(css).toContain('contains(text(), "אישור")');
   });
 
   it('tryInContextInternal returns kind:textContent when textContent candidate resolves', async () => {

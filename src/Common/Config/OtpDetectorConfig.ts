@@ -31,6 +31,8 @@ export const PHONE_PATTERN = /[*]{4,}\d{2,4}/;
 
 /** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
 export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [
+  { kind: 'css', value: 'input[type="button"][value="אישור"]' },
+  { kind: 'css', value: 'input[type="submit"][value="אישור"]' },
   { kind: 'textContent', value: 'אישור' },
   { kind: 'textContent', value: 'אשר' },
   { kind: 'textContent', value: 'המשך' },
