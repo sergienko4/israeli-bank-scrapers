@@ -112,7 +112,10 @@ class DashboardPhase extends BasePhase {
    * @param input - Pipeline context with mediator.
    * @returns Updated context with lastAction diagnostic.
    */
-  async pre(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public async pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD PRE');
     if (!input.mediator.has)
       return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD PRE');
@@ -127,7 +130,7 @@ class DashboardPhase extends BasePhase {
    * @param input - Pipeline context with mediator + fetchStrategy.
    * @returns Updated context with api populated.
    */
-  async action(
+  public async action(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
@@ -143,7 +146,7 @@ class DashboardPhase extends BasePhase {
    * @param input - Pipeline context with browser + mediator.
    * @returns Updated context or ChangePassword failure.
    */
-  async post(
+  public async post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {

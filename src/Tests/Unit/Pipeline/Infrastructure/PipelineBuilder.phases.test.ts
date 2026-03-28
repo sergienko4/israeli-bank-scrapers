@@ -154,16 +154,17 @@ describe('PipelineBuilder/phase-assembly', () => {
 });
 
 describe('PipelineBuilder/behavioral', () => {
-  it('declarative login with ILoginConfig builds pre+action+post steps', () => {
+  it('declarative login with ILoginConfig builds a named login phase', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
-    const desc = descriptor.value;
-    const loginPhase = desc.phases[0];
-    expect(loginPhase.pre.has).toBe(true);
-    expect(loginPhase.action.name).toBe('login-action');
-    expect(loginPhase.post.has).toBe(true);
+    const loginPhase = descriptor.value.phases[0];
+    expect(loginPhase.name).toBe('login');
+    expect(typeof loginPhase.pre).toBe('function');
+    expect(typeof loginPhase.action).toBe('function');
+    expect(typeof loginPhase.post).toBe('function');
+    expect(typeof loginPhase.run).toBe('function');
   });
 });

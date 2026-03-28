@@ -7,16 +7,15 @@
  * TypeScript compiler refuses to build a phase missing action().
  */
 
+import type { PhaseName } from './Phase.js';
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 import { succeed } from './Procedure.js';
 
-import type { PhaseName } from './Phase.js';
-
 /** Abstract base for all pipeline phases. */
 abstract class BasePhase {
   /** Phase identifier — must match the pipeline execution order. */
-  abstract readonly name: PhaseName;
+  public abstract readonly name: PhaseName;
 
   /**
    * ACTION — the core logic of the phase. MUST be implemented.
@@ -24,7 +23,7 @@ abstract class BasePhase {
    * @param input - Same as ctx (immutable accumulation pattern).
    * @returns Updated context or failure.
    */
-  abstract action(
+  public abstract action(
     ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>>;
@@ -35,8 +34,12 @@ abstract class BasePhase {
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
    */
-  async pre(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-    return succeed(input);
+  public pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    const result = succeed(input);
+    return Promise.resolve(result);
   }
 
   /**
@@ -45,11 +48,12 @@ abstract class BasePhase {
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
    */
-  async post(
+  public post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    return succeed(input);
+    const result = succeed(input);
+    return Promise.resolve(result);
   }
 
   /**
@@ -58,11 +62,12 @@ abstract class BasePhase {
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
    */
-  async final(
+  public final(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    return succeed(input);
+    const result = succeed(input);
+    return Promise.resolve(result);
   }
 
   /**
@@ -71,7 +76,7 @@ abstract class BasePhase {
    * @param ctx - Pipeline context at phase entry.
    * @returns Final context after all 4 stages, or first failure.
    */
-  async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
     const preResult = await this.pre(ctx, ctx);
     if (!preResult.success) return preResult;
     const actionResult = await this.action(preResult.value, preResult.value);
@@ -82,48 +87,5 @@ abstract class BasePhase {
   }
 }
 
-/**
- * SimplePhase — wraps a single action step into a BasePhase.
- * Used for phases that only need ACTION (pre/post/final are no-ops).
- * Replaces the old `actionOnly()` pattern.
- */
-class SimplePhase extends BasePhase {
-  public readonly name: PhaseName;
-
-  private readonly _action: (
-    ctx: IPipelineContext,
-    input: IPipelineContext,
-  ) => Promise<Procedure<IPipelineContext>>;
-
-  /**
-   * Create a simple phase with only an action.
-   * @param phaseName - Phase identifier.
-   * @param actionFn - The action function to execute.
-   */
-  constructor(
-    phaseName: PhaseName,
-    actionFn: (
-      ctx: IPipelineContext,
-      input: IPipelineContext,
-    ) => Promise<Procedure<IPipelineContext>>,
-  ) {
-    super();
-    this.name = phaseName;
-    this._action = actionFn;
-  }
-
-  /**
-   * ACTION — delegates to the wrapped function.
-   * @param ctx - Pipeline context.
-   * @param input - Pipeline context.
-   * @returns Result from the wrapped action.
-   */
-  async action(
-    ctx: IPipelineContext,
-    input: IPipelineContext,
-  ): Promise<Procedure<IPipelineContext>> {
-    return this._action(ctx, input);
-  }
-}
-
-export { BasePhase, SimplePhase };
+export default BasePhase;
+export { BasePhase };

@@ -18,12 +18,12 @@ import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/Network
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
-import { SimplePhase } from '../Types/BasePhase.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IApiFetchContext, IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
 import type { CustomScrapeFn, IScrapeConfig } from '../Types/ScrapeConfig.js';
+import { SimplePhase } from '../Types/SimplePhase.js';
 import { fetchAllAccounts } from './ScrapeAccountHelpers.js';
 import { executeScrape } from './ScrapeExecutor.js';
 import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeFetchHelpers.js';
@@ -370,7 +370,7 @@ function createScrapePhase(
      * @param input - Pipeline context.
      * @returns Updated context.
      */
-    async pre(
+    public async pre(
       _ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
@@ -383,7 +383,7 @@ function createScrapePhase(
      * @param input - Pipeline context.
      * @returns Updated context.
      */
-    async post(
+    public async post(
       _ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {

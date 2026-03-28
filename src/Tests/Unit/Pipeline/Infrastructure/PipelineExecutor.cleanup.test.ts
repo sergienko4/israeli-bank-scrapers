@@ -12,7 +12,6 @@ import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
@@ -21,6 +20,7 @@ import type {
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
 
 /** Minimal ScraperOptions for cleanup tests. */
 const MOCK_OPTIONS = {

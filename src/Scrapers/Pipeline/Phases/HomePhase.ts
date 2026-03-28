@@ -41,7 +41,10 @@ class HomePhase extends BasePhase {
    * @param input - Pipeline context with browser + config.
    * @returns Updated context, or failure if goto fails.
    */
-  async pre(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public async pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME PRE');
     const page = input.browser.value.page;
     const homepageUrl = input.config.urls.base ?? 'about:blank';
@@ -60,7 +63,7 @@ class HomePhase extends BasePhase {
    * @param input - Pipeline context with browser + mediator.
    * @returns Same context (navigation is side-effect).
    */
-  async action(
+  public async action(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
@@ -78,7 +81,7 @@ class HomePhase extends BasePhase {
    * @param input - Pipeline context with browser.
    * @returns Updated context with diagnostics.loginUrl populated.
    */
-  async post(
+  public async post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {

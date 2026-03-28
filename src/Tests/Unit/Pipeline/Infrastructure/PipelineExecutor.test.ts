@@ -6,12 +6,12 @@ import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
 
 /** Minimal ScraperOptions. */
 const MOCK_OPTIONS = {
@@ -155,7 +155,7 @@ describe('PipelineExecutor/pre-failure', () => {
        * @param input - Input.
        * @returns Failure.
        */
-      async pre(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
+      public async pre(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
         return preExec(ctx, input);
       }
     }
@@ -181,7 +181,7 @@ describe('PipelineExecutor/post-failure', () => {
        * @param input - Input.
        * @returns Failure.
        */
-      async post(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
+      public async post(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
         return postExec(ctx, input);
       }
     }
@@ -216,19 +216,8 @@ describe('PipelineExecutor/exception-handling', () => {
 // ── Pre success passthrough ──────────────────────────────
 
 describe('PipelineExecutor/pre-success-passthrough', () => {
-  it('pre step passes context to action', async () => {
-    /** Phase with pre/action/post all succeeding. */
-    class FullPhase extends SimplePhase {
-      /** @returns Succeed. */
-      async pre(_c: Ctx, i: Ctx): Promise<Procedure<Ctx>> {
-        return succeed(i);
-      }
-      /** @returns Succeed. */
-      async post(_c: Ctx, i: Ctx): Promise<Procedure<Ctx>> {
-        return succeed(i);
-      }
-    }
-    const phase = new FullPhase('init', succeedExecute);
+  it('pre step passes context to action (default no-ops)', async () => {
+    const phase = succeedPhase('init');
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);

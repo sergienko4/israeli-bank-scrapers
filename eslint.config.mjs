@@ -218,7 +218,7 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   // DI: Block ALL manual instantiation except builtins
   {
     // Add your safe classes to the negative lookahead (the ?! section)
-    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder)[A-Z]/]",
+    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder|SimplePhase|HomePhase|FindLoginAreaPhase|DashboardPhase|ScrapePhase)[A-Z]/]",
     message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
   },
 
@@ -442,6 +442,8 @@ export default tseslint.config(
   {
     files: ['src/Tests/**/Pipeline/**/*.ts'],
     rules: {
+      'class-methods-use-this': 'off', // Test doubles extend SimplePhase with no-op overrides
+      'max-classes-per-file': 'off', // Test doubles need multiple classes per file
       'no-restricted-imports': ['error', {
         paths: [
           {
@@ -522,20 +524,39 @@ export default tseslint.config(
       'import-x/no-useless-path-segments': ['error', { noUselessIndex: true }],
     },
   },
-  // 6. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)
-  // This block grants "super-powers" to don't pushthe files that build the DI container.
+  // 6b. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)
+  // Mediator, Strategy, Executor, and factory files get relaxed rules.
+  // These are the ONLY files allowed to use direct Playwright, 'new', and Registry imports.
   {
     files: [
       'src/Scrapers/Pipeline/Types/Procedure.ts',
+      'src/Scrapers/Pipeline/Types/BasePhase.ts',
       'src/Scrapers/Pipeline/Mediator/**/*.ts',
-      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context,Mediator,Registry,Factory}.ts',
+      'src/Scrapers/Pipeline/Phases/ElementsInteractions.ts',
+      'src/Scrapers/Pipeline/Phases/GenericPreLoginSteps.ts',
+      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context,Mediator,Registry,Factory,Phase,Builder}.ts',
     ],
     rules: {
-      // Factories are allowed to use 'new' and 'import' from Registry
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
       'no-restricted-imports': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       'max-lines-per-function': 'off',
+      'max-classes-per-file': 'off',
+    },
+  },
+
+  // 6c. BATCH 2 GRACE PERIOD — Legacy phases still using direct Playwright.
+  // Remove this block when Batch 2 moves page.* calls behind mediator.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Phases/HomePhase.ts',
+      'src/Scrapers/Pipeline/Phases/DashboardPhase.ts',
+      'src/Scrapers/Pipeline/Phases/FindLoginAreaPhase.ts',
+      'src/Scrapers/Pipeline/Phases/LoginSteps.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
     },
   },
 

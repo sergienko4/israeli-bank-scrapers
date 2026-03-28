@@ -115,7 +115,10 @@ class FindLoginAreaPhase extends BasePhase {
    * @param input - Pipeline context with browser + mediator.
    * @returns Context enriched with findLoginAreaDiscovery.
    */
-  async pre(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public async pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for FLA PRE');
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for FLA PRE');
     const page = input.browser.value.page;
@@ -133,7 +136,7 @@ class FindLoginAreaPhase extends BasePhase {
    * @param input - Pipeline context with findLoginAreaDiscovery.
    * @returns Same context (clicks are side-effects).
    */
-  async action(
+  public async action(
     ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
@@ -155,7 +158,10 @@ class FindLoginAreaPhase extends BasePhase {
    * @param input - Pipeline context with browser + mediator.
    * @returns Context with loginAreaReady=true.
    */
-  async post(ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public async post(
+    ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for FLA POST');
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for FLA POST');
     const page = input.browser.value.page;

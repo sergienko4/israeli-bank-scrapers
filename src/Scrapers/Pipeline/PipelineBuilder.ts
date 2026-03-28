@@ -26,12 +26,12 @@ import {
 import { TERMINATE_STEP } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 import type { BasePhase } from './Types/BasePhase.js';
-import { SimplePhase } from './Types/BasePhase.js';
 import type { IPipelineStep } from './Types/Phase.js';
 import type { IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, succeed } from './Types/Procedure.js';
 import type { IScrapeConfig, IScrapeConfigBase } from './Types/ScrapeConfig.js';
+import { SimplePhase } from './Types/SimplePhase.js';
 
 /** Whether a validation check found an error condition. */
 type IsErrCheck = boolean;
@@ -88,7 +88,7 @@ function buildDeclarativePhase(config: ILoginConfig): BasePhase {
      * @param input - Pipeline context.
      * @returns Updated context with login.activeFrame.
      */
-    async pre(
+    public async pre(
       ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
@@ -101,21 +101,39 @@ function buildDeclarativePhase(config: ILoginConfig): BasePhase {
      * @param input - Pipeline context.
      * @returns Success or login error.
      */
-    async post(
+    public async post(
       ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
       return phase.post.execute(ctx, input);
     }
   }
-  return new DeclarativeLogin('login', phase.action.execute);
+  return new DeclarativeLogin('login', (ctx, input) => phase.action.execute(ctx, input));
 }
 
 /** Login step lookup map for non-ILoginConfig login modes. */
 const LOGIN_STEPS: Record<string, StepExecFn> = {
-  declarative: DECLARATIVE_LOGIN_STEP.execute,
-  directPost: DIRECT_POST_LOGIN_STEP.execute,
-  native: NATIVE_LOGIN_STEP.execute,
+  /**
+   * Declarative login step delegate.
+   * @param ctx - Pipeline context.
+   * @param input - Pipeline input.
+   * @returns Login result.
+   */
+  declarative: (ctx, input) => DECLARATIVE_LOGIN_STEP.execute(ctx, input),
+  /**
+   * Direct POST login step delegate.
+   * @param ctx - Pipeline context.
+   * @param input - Pipeline input.
+   * @returns Login result.
+   */
+  directPost: (ctx, input) => DIRECT_POST_LOGIN_STEP.execute(ctx, input),
+  /**
+   * Native login step delegate.
+   * @param ctx - Pipeline context.
+   * @param input - Pipeline input.
+   * @returns Login result.
+   */
+  native: (ctx, input) => NATIVE_LOGIN_STEP.execute(ctx, input),
 };
 
 /** Fluent builder for pipeline descriptors. */
@@ -279,7 +297,7 @@ class PipelineBuilder {
    */
   private resolveLoginExec(): StepExecFn {
     if (this._loginFn) return adaptLoginFn(this._loginFn);
-    if (this._otpConfig) return DECLARATIVE_LOGIN_STEP.execute;
+    if (this._otpConfig) return (ctx, input) => DECLARATIVE_LOGIN_STEP.execute(ctx, input);
     return LOGIN_STEPS[this._loginMode];
   }
 
@@ -288,9 +306,15 @@ class PipelineBuilder {
    * @returns The scrape execute function.
    */
   private resolveScrapeExec(): StepExecFn {
-    if (this._scrapeConfig) return createConfigScrapeStep(this._scrapeConfig).execute;
-    if (this._scrapeFn) return createCustomScrapeStep(this._scrapeFn).execute;
-    return SCRAPE_STEP.execute;
+    if (this._scrapeConfig) {
+      const step = createConfigScrapeStep(this._scrapeConfig);
+      return (ctx, input) => step.execute(ctx, input);
+    }
+    if (this._scrapeFn) {
+      const step = createCustomScrapeStep(this._scrapeFn);
+      return (ctx, input) => step.execute(ctx, input);
+    }
+    return (ctx, input) => SCRAPE_STEP.execute(ctx, input);
   }
 
   /**
@@ -311,13 +335,18 @@ class PipelineBuilder {
   private addBrowserPhases(phases: BasePhase[]): PhaseCount {
     const before = phases.length;
     if (this._hasBrowser) {
-      phases.push(new SimplePhase('init', INIT_STEP.execute));
-      phases.push(createHomePhase());
-      phases.push(createFindLoginAreaPhase());
+      const initPhase = new SimplePhase('init', (ctx, input) => INIT_STEP.execute(ctx, input));
+      const homePhase = createHomePhase();
+      const flaPhase = createFindLoginAreaPhase();
+      phases.push(initPhase, homePhase, flaPhase);
     }
-    phases.push(this.buildLoginPhase());
+    const loginPhase = this.buildLoginPhase();
+    phases.push(loginPhase);
     if (this._hasBrowser) {
-      phases.push(new SimplePhase('terminate', TERMINATE_STEP.execute));
+      const termPhase = new SimplePhase('terminate', (ctx, input) =>
+        TERMINATE_STEP.execute(ctx, input),
+      );
+      phases.push(termPhase);
     }
     return phases.length - before;
   }
@@ -330,12 +359,19 @@ class PipelineBuilder {
   private addOptionalPhases(phases: BasePhase[]): PhaseCount {
     const insertIdx = phases.length - Number(this._hasBrowser);
     const optional: BasePhase[] = [];
-    if (this._hasOtp) optional.push(new SimplePhase('otp', OTP_STEP.execute));
-    if (this._hasBrowser) optional.push(createDashboardPhase());
+    if (this._hasOtp) {
+      const otpPhase = new SimplePhase('otp', (ctx, input) => OTP_STEP.execute(ctx, input));
+      optional.push(otpPhase);
+    }
+    if (this._hasBrowser) {
+      const dashPhase = createDashboardPhase();
+      optional.push(dashPhase);
+    }
     const hasScraper = this._scrapeFn || this._scrapeConfig || this._hasBrowser;
     if (hasScraper) {
       const scrapeExec = this.resolveScrapeExec();
-      optional.push(createScrapePhase(scrapeExec));
+      const scrapePhase = createScrapePhase(scrapeExec);
+      optional.push(scrapePhase);
     }
     phases.splice(insertIdx, 0, ...optional);
     return optional.length;

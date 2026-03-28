@@ -15,7 +15,6 @@ import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import type { IBankScraperConfig } from '../../../../Scrapers/Registry/Config/ScraperConfig.js';
 
 /** Default company ID for test mocks. */
 const TEST_COMPANY_ID = 'testBank';
@@ -117,7 +116,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       pageTitle: none(),
       warnings: [],
     },
-    config: {} as unknown as IBankScraperConfig,
+    config: {} as unknown as IPipelineContext['config'],
     fetchStrategy: none(),
     mediator: none(),
     browser: none(),

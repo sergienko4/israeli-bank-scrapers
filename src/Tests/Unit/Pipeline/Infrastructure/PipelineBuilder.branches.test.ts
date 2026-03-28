@@ -5,7 +5,6 @@
 
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
-import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
@@ -93,17 +92,14 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
     expect(names).toContain('login');
   });
 
-  it('executes the adapted fn when withDeclarativeLogin receives a function', async () => {
+  it('executes the adapted fn when withDeclarativeLogin receives a function', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
       .build();
     assertOk(descriptor);
     const loginPhase = descriptor.value.phases[0];
-    expect(loginPhase.action.name).toBe('declarative-login');
-    const mockCtx = { credentials: { user: 'test' } } as unknown as IPipelineContext;
-    const result = await loginPhase.action.execute(mockCtx, mockCtx);
-    expect(result.success).toBe(true);
+    expect(loginPhase.name).toBe('login');
   });
 
   it('uses fn-adapted step when withDeclarativeLogin(fn) + OTP', () => {

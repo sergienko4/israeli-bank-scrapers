@@ -7,10 +7,10 @@ import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
 
 type Ctx = IPipelineContext;
 
@@ -65,7 +65,7 @@ describe('PipelineExecutor/final-step', () => {
        * @param input - Input.
        * @returns Succeed with tracked flag.
        */
-      async final(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
+      public async final(ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
         return finalExec(ctx, input);
       }
     }
@@ -89,11 +89,9 @@ describe('PipelineExecutor/final-step', () => {
     class FailFinalPhase extends SimplePhase {
       /**
        * Failing final step.
-       * @param _ctx - Context.
-       * @param _input - Input.
        * @returns Failure.
        */
-      async final(_ctx: Ctx, _input: Ctx): Promise<Procedure<Ctx>> {
+      public async final(): Promise<Procedure<Ctx>> {
         return finalExec();
       }
     }
