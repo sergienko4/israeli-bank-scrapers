@@ -12,6 +12,7 @@ import {
   isRangeIterable,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint } from '../Mediator/NetworkDiscovery.js';
+import { tryMatrixLoop } from '../Strategy/MatrixLoopStrategy.js';
 import { getDebug } from '../Types/Debug.js';
 
 /** Full billing API URL built from the accounts endpoint origin. */
@@ -298,6 +299,11 @@ async function fetchOneAccountPost(
   endpoint: IDiscoveredEndpoint,
 ): Promise<Procedure<ITransactionsAccount>> {
   const { post, capturedBody } = buildPostCtx(accountRecord, endpoint);
+  // Step 0: Matrix Loop (additive — monthly endpoint discovery)
+  const matrixArgs = { fc, accountId: post.accountId, displayId: post.displayId };
+  const matrix = await tryMatrixLoop(matrixArgs);
+  if (matrix !== false) return matrix;
+  // Legacy paths — UNTOUCHED
   const billing = await tryBillingFallback(fc, post, endpoint);
   const hasBilling = isOk(billing) && billing.value.txns.length > 0;
   if (hasBilling) return billing;

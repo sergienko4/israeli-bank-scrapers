@@ -159,13 +159,40 @@ interface IMonthBodyOpts {
 }
 
 /**
+ * Check if the body has a composite date field (DD/MM/YYYY format).
+ * Uses WK MONTHLY_FIELDS.compositeDate for detection — no hardcoded keys.
+ * @param body - Parsed POST body.
+ * @returns The matched composite field key, or false.
+ */
+function findCompositeField(body: Record<string, unknown>): string | false {
+  const bodyKeys = Object.keys(body);
+  const lowerBodyKeys = bodyKeys.map((k): BodyKey => k.toLowerCase());
+  const compositeFields = MF.compositeDate;
+  const lowerComposite = compositeFields.map((f): BodyKey => f.toLowerCase());
+  const hitIdx = lowerComposite.findIndex((lf): IsSearchable => lowerBodyKeys.includes(lf));
+  if (hitIdx < 0) return false;
+  const matchedLower = lowerComposite[hitIdx];
+  const bodyIdx = lowerBodyKeys.indexOf(matchedLower);
+  return bodyKeys[bodyIdx];
+}
+
+/**
  * Build a POST body for one month from a template.
+ * Uses WK MONTHLY_FIELDS to replace account, month, and year fields.
+ * Handles composite date fields (DD/MM/YYYY) via WK.compositeDate detection.
  * @param opts - Month body options with template + values.
  * @returns New POST body as Record.
  */
 function buildMonthBody(opts: IMonthBodyOpts): Record<string, unknown> {
   const body = JSON.parse(opts.template) as Record<string, unknown>;
   replaceField(body, MF.accountId, opts.accountId);
+  const compositeKey = findCompositeField(body);
+  if (compositeKey) {
+    const mm = String(opts.month).padStart(2, '0');
+    const yr = String(opts.year);
+    body[compositeKey] = `01/${mm}/${yr}`;
+    return body;
+  }
   const monthStr = String(opts.month);
   const yearStr = String(opts.year);
   replaceField(body, MF.month, monthStr);

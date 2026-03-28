@@ -124,6 +124,8 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
 export const PIPELINE_WELL_KNOWN_MONTHLY_FIELDS = {
   month: ['month', 'billingMonth', 'Month'],
   year: ['year', 'billingYear', 'Year'],
+  /** Composite date fields — contain full DD/MM/YYYY string, not just month number. */
+  compositeDate: ['billingMonth', 'BillingMonth', 'billingDate', 'BillingDate'],
   accountId: [
     'cardUniqueId',
     'cardUniqueID',
