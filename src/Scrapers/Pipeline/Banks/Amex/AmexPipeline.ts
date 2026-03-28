@@ -11,7 +11,6 @@ import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js
 import { createPipelineBuilder } from '../../PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { AMEX_SCRAPE_FN } from './AmexScraper.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
 
@@ -36,7 +35,6 @@ function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescript
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(AMEX_LOGIN)
-    .withScraper(AMEX_SCRAPE_FN)
     .build();
 }
 

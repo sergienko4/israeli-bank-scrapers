@@ -131,5 +131,6 @@ export const PIPELINE_WELL_KNOWN_MONTHLY_FIELDS = {
     'accountId',
     'cardNumber',
     'CardId',
+    'card4Number',
   ],
 } satisfies Record<string, string[]>;
