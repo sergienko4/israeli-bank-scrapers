@@ -243,6 +243,8 @@ export const WK = {
       { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
       { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
       { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
+      { kind: 'textContent', value: 'תקינה' },
+      { kind: 'textContent', value: 'אינם תואמים' },
     ],
     /** Validation hints that look like errors but are pre-submit form state. Ignore these. */
     VALIDATION_HINTS: [
