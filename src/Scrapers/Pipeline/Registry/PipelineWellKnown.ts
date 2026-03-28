@@ -244,6 +244,16 @@ export const WK = {
       { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
       { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
     ],
+    /** Validation hints that look like errors but are pre-submit form state. Ignore these. */
+    VALIDATION_HINTS: [
+      'כניסה באמצעות', // "Login via..." — form header
+      'שדה חובה', // "Required field" — empty field marker
+      'יש להזין ערך', // "Enter a value of required length" — length validation
+      'הזינו', // "Enter..." — input prompt
+      'לקוח יקר', // "Dear customer" — chat widget text
+      'אנא השאר', // "Please leave" — chat widget CTA
+      'בחר', // "Choose" — Angular Material dropdown placeholder
+    ] as const,
     ACCOUNT: [
       { kind: 'textContent', value: 'חשבון' },
       { kind: 'textContent', value: 'בחר חשבון' },

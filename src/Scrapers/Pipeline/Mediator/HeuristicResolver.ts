@@ -104,14 +104,27 @@ async function resolveTextByIndex(
  * @param fieldKey - The credential key to resolve.
  * @returns Field match or empty.
  */
+/**
+ * Resolve a field using heuristics within a specific frame.
+ * Wraps in try/catch so mock frames without .locator() fail gracefully.
+ * @param frame - The page or frame to search.
+ * @param fieldKey - The field type (id, password, etc).
+ * @returns Field match with selector, or empty if not found.
+ */
 async function heuristicResolveInFrame(
-  frame: Frame,
+  frame: Page | Frame,
   fieldKey: string,
 ): Promise<IFieldMatch> {
   const strategy = HEURISTIC_MAP[fieldKey];
   if (!strategy) return { selector: '', context: frame };
-  if (strategy.type === 'password') return resolvePasswordInFrame(frame);
-  return resolveTextByIndex(frame, strategy.index, fieldKey);
+  if (strategy.type === 'password') return resolvePasswordInFrame(frame as Frame).catch((): IFieldMatch => ({ selector: '', context: frame }));
+  const empty: IFieldMatch = { selector: '', context: frame };
+  try {
+    const result = await resolveTextByIndex(frame as Frame, strategy.index, fieldKey);
+    return result;
+  } catch {
+    return empty;
+  }
 }
 
 /**
@@ -170,7 +183,8 @@ async function heuristicProbeIframes(
 
 /**
  * Try heuristic resolution — entry point called by PipelineFieldResolver.
- * Only searches iframes (bare main-page forms always have labels).
+ * When pageOrFrame is a Page: searches all child iframes.
+ * When pageOrFrame is a Frame (scoped): probes THAT frame directly (sticky frame).
  * @param pageOrFrame - The Playwright page or frame.
  * @param fieldKey - The credential key to resolve.
  * @returns IFieldContext if found, or false if heuristic failed.
@@ -179,9 +193,12 @@ async function tryHeuristicProbe(
   pageOrFrame: Page | Frame,
   fieldKey: string,
 ): Promise<IFieldContext | false> {
-  if (!isPage(pageOrFrame)) return false;
-  return heuristicProbeIframes(pageOrFrame, fieldKey);
+  if (isPage(pageOrFrame)) return heuristicProbeIframes(pageOrFrame, fieldKey);
+  // Scoped: probe this specific frame directly (sticky frame from previous field)
+  const match = await heuristicResolveInFrame(pageOrFrame, fieldKey);
+  if (!match.selector) return false;
+  return toHeuristicContext(match, fieldKey);
 }
 
 export default tryHeuristicProbe;
-export { tryHeuristicProbe };
+export { heuristicResolveInFrame, tryHeuristicProbe };

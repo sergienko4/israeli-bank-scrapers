@@ -107,17 +107,20 @@ interface IEvalArg {
 async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]> {
   return ctx.evaluate(
     ({ sel }: IEvalArg): IRawDomItem[] => {
+      const fieldTags = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
       const els = [...document.querySelectorAll(sel)];
-      return els.map((el): IRawDomItem => {
-        const cs = globalThis.getComputedStyle(el);
-        const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-        const cls = el.getAttribute('class') ?? NO_CLASS;
-        const rawText = el.textContent;
-        const text = (rawText || '').trim();
-        const tag = el.tagName.toLowerCase();
-        const item: IRawDomItem = { tag, cls, text, isHidden };
-        return item;
-      });
+      return els
+        .filter((el): boolean => !fieldTags.has(el.tagName))
+        .map((el): IRawDomItem => {
+          const cs = globalThis.getComputedStyle(el);
+          const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
+          const cls = el.getAttribute('class') ?? NO_CLASS;
+          const rawText = el.textContent;
+          const text = (rawText || '').trim();
+          const tag = el.tagName.toLowerCase();
+          const item: IRawDomItem = { tag, cls, text, isHidden };
+          return item;
+        });
     },
     { sel: ERROR_SELECTOR },
   );
@@ -157,12 +160,38 @@ function toFormError(item: IRawDomItem): IFormError {
 }
 
 /**
- * Filter raw DOM items to visible, non-empty ones.
+ * Check if text contains a KNOWN error phrase from WK.DASHBOARD.ERROR.
+ * Positive-match approach: Layer 1 DOM scan catches many elements (role=alert, class*=error).
+ * Only flag those whose text matches a real error pattern — everything else is UI noise.
+ * @param text - Visible text from a DOM element.
+ * @returns True if text contains a known error phrase.
+ */
+function isKnownErrorText(text: string): HasErrors {
+  const errorPatterns = WK.DASHBOARD.ERROR;
+  return errorPatterns.some((pattern): HasErrors => text.includes(pattern.value));
+}
+
+/**
+ * Check if an element is a dedicated error component (always a real error).
+ * mat-error is Angular Material's error display — only rendered when validation fails.
+ * @param item - Raw DOM item.
+ * @returns True if the element tag is a dedicated error component.
+ */
+function isDedicatedErrorTag(item: IRawDomItem): HasErrors {
+  return item.tag === 'mat-error';
+}
+
+/**
+ * Filter raw DOM items: visible + non-empty + either dedicated error tag OR WK text match.
+ * Dedicated tags (mat-error) are always real errors — no text check needed.
+ * Broad selectors (role=alert, class*=error) require WK text match to avoid UI noise.
  * @param items - Raw items from browser evaluation.
- * @returns Only visible items with actual text content.
+ * @returns Only items that are genuine error indicators.
  */
 function filterVisible(items: readonly IRawDomItem[]): readonly IRawDomItem[] {
-  return items.filter((item): HasErrors => !item.isHidden && item.text.length > 0);
+  return items
+    .filter((item): HasErrors => !item.isHidden && item.text.length > 0)
+    .filter((item): HasErrors => isDedicatedErrorTag(item) || isKnownErrorText(item.text));
 }
 
 /**
