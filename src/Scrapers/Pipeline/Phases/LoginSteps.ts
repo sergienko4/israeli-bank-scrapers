@@ -382,16 +382,11 @@ function createLoginActionStep(
  * Wait for the page to reach networkidle after form submission.
  * Uses networkidle instead of waitForURL('**') to avoid SPA hash-routing false positives
  * (Angular/React apps already have a '#' URL before the form is submitted).
- * @param page - Browser main page.
+ * @param mediator - Element mediator with waitForNetworkIdle.
  * @returns Succeed after settling or timeout (timeout is non-fatal for SPAs).
  */
-export async function waitForSubmitToSettle(page: Page): Promise<Procedure<void>> {
-  try {
-    await page.waitForLoadState('networkidle', { timeout: POST_LOGIN_SETTLE_TIMEOUT });
-  } catch {
-    // Timeout is OK — SPA may stay "loading"; proceed and check for errors
-  }
-  return succeed(undefined);
+export async function waitForSubmitToSettle(mediator: IElementMediator): Promise<Procedure<void>> {
+  return mediator.waitForNetworkIdle(POST_LOGIN_SETTLE_TIMEOUT);
 }
 
 /**
@@ -456,7 +451,7 @@ async function executePostLogin(
   if (!loadingDone.success) return loadingDone;
   const errors = await mediator.discoverErrors(activeFrame);
   if (errors.hasErrors) return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
-  await waitForSubmitToSettle(page);
+  await waitForSubmitToSettle(mediator);
   const postResult = await runPostAction(page, config, input);
   if (!postResult.success) return postResult;
   return succeed(input);

@@ -44,35 +44,29 @@ const REVEAL_NAV_TIMEOUT = 15_000;
 /**
  * Check if any WK.HOME.REVEAL text candidate exists in the DOM.
  * succeed(true) = at least one attached. succeed(false) = none found (valid).
- * @param page - Active Playwright page.
+ * @param mediator - Active mediator for element queries.
  * @returns Procedure with boolean detection result.
  */
-async function isRevealAttached(page: Page): Promise<Procedure<boolean>> {
+async function isRevealAttached(mediator: IElementMediator): Promise<Procedure<boolean>> {
   const textCandidates = (WK.HOME.REVEAL as readonly SelectorCandidate[]).filter(
     (c): ElementFound => c.kind === 'textContent',
   );
   const countPromises = textCandidates.map(
-    (c): Promise<ElementCount> =>
-      page
-        .getByText(c.value)
-        .first()
-        .count()
-        .catch((): ElementCount => 0),
+    (c): Promise<ElementCount> => mediator.countByText(c.value),
   );
   const counts = await Promise.all(countPromises);
-  return succeed(counts.some((n): ElementFound => n > 0));
+  const isAttached = counts.some((n): ElementFound => n > 0);
+  return succeed(isAttached);
 }
 
 /**
  * Probe WK.HOME.REVEAL and return RevealStatus.
  * @param mediator - Active mediator.
- * @param page - Active page.
  * @param timeout - Race timeout ms.
  * @returns READY | OBSCURED | NOT_FOUND.
  */
 async function probeRevealStatus(
   mediator: IElementMediator,
-  page: Page,
   timeout: number,
 ): Promise<RevealStatus> {
   const candidates = WK.HOME.REVEAL as unknown as readonly SelectorCandidate[];
@@ -80,7 +74,7 @@ async function probeRevealStatus(
     .resolveVisible(candidates, timeout)
     .catch((): false => false);
   if (visibleResult && visibleResult.found) return 'READY';
-  const attachResult = await isRevealAttached(page);
+  const attachResult = await isRevealAttached(mediator);
   if (isOk(attachResult) && attachResult.value) return 'OBSCURED';
   return 'NOT_FOUND';
 }
@@ -120,13 +114,11 @@ class FindLoginAreaPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for FLA PRE');
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for FLA PRE');
-    const page = input.browser.value.page;
     const mediator = input.mediator.value;
     await tryClosePopup(mediator);
-    const privateCustomers = await probeRevealStatus(mediator, page, 3_000);
-    const credentialArea = await probeRevealStatus(mediator, page, DISCOVER_TIMEOUT);
+    const privateCustomers = await probeRevealStatus(mediator, 3_000);
+    const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT);
     const discovery: IFindLoginAreaDiscovery = { privateCustomers, credentialArea };
     return succeed({ ...input, findLoginAreaDiscovery: some(discovery) });
   }

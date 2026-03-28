@@ -7,8 +7,8 @@
  */
 
 import moment from 'moment';
-import type { Page } from 'playwright-core';
 
+import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import {
   extractAccountIds,
   extractAccountRecords,
@@ -207,14 +207,17 @@ function isTxnHostedOnCurrentOrigin(
 /**
  * SPA pivot: navigate to the SPA origin if the API traffic came from a different domain.
  * This ensures page.evaluate(fetch) has the right cookies + CORS context.
- * @param page - Playwright page.
+ * @param mediator - Element mediator for navigation and URL access.
  * @param network - Network discovery with captured traffic.
  * @returns True after pivot check completes.
  */
-async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promise<Procedure<boolean>> {
+async function pivotToSpaIfNeeded(
+  mediator: IElementMediator,
+  network: INetworkDiscovery,
+): Promise<Procedure<boolean>> {
   const spaUrl = network.discoverSpaUrl();
   if (!spaUrl) return succeed(false);
-  const currentOrigin = new URL(page.url()).origin;
+  const currentOrigin = new URL(mediator.getCurrentUrl()).origin;
   const spaOrigin = new URL(spaUrl).origin;
   if (currentOrigin === spaOrigin) return succeed(false);
   if (isTxnHostedOnCurrentOrigin(network, currentOrigin)) {
@@ -223,10 +226,7 @@ async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promi
   }
   LOG.debug('SPA pivot: %s → %s', currentOrigin, spaOrigin);
   const opts = { waitUntil: 'domcontentloaded' as const, timeout: SPA_PIVOT_TIMEOUT_MS };
-  await page.goto(spaUrl, opts).catch((): PivotDone => {
-    LOG.debug('SPA pivot: navigation failed (non-fatal)');
-    return false;
-  });
+  await mediator.navigateTo(spaUrl, opts);
   return succeed(true);
 }
 
@@ -241,7 +241,7 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   if (!ctx.browser.has) return succeed(ctx);
   const api = ctx.api.value;
   const network = ctx.mediator.value.network;
-  await pivotToSpaIfNeeded(ctx.browser.value.page, network);
+  await pivotToSpaIfNeeded(ctx.mediator.value, network);
   const rawAccounts = await discoverAndFetchAccounts(api, network);
   if (!isOk(rawAccounts)) return rawAccounts;
   await rateLimitPause(500);

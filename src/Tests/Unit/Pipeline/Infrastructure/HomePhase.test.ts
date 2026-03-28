@@ -99,6 +99,11 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
   };
   const mediator = makeMockMediator({
     /**
+     * URL mock — returns the test page URL.
+     * @returns Page URL string.
+     */
+    getCurrentUrl: (): string => pageUrl,
+    /**
      * Resolve and click mock — best-effort, returns not-found.
      * @returns Resolved not-found.
      */

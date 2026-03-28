@@ -135,6 +135,43 @@ interface IElementMediator {
 
   /** Network discovery — captures API traffic from browser page. */
   readonly network: INetworkDiscovery;
+
+  /**
+   * Navigate to a URL. Wraps page.goto().
+   * Navigation errors are terminal — homepage unreachable = stop.
+   * @param url - Target URL.
+   * @param opts - Playwright goto options.
+   * @param opts.waitUntil - Load event to wait for.
+   * @param opts.timeout - Navigation timeout in ms.
+   * @returns Succeed or fail with error message.
+   */
+  navigateTo(
+    url: string,
+    opts?: { waitUntil?: 'domcontentloaded' | 'load' | 'networkidle'; timeout?: number },
+  ): Promise<Procedure<void>>;
+
+  /**
+   * Get current page URL. SYNCHRONOUS — page.url() is sync in Playwright.
+   * Call AFTER waitForNetworkIdle to get the final URL, not a redirect intermediate.
+   * @returns Current page URL string.
+   */
+  getCurrentUrl(): string;
+
+  /**
+   * Wait for network to settle. Timeout is non-fatal.
+   * A slow analytics script should not kill the scraper.
+   * @param timeoutMs - Max wait time (default: 15000ms).
+   * @returns Always succeed — timeout is swallowed.
+   */
+  waitForNetworkIdle(timeoutMs?: number): Promise<Procedure<void>>;
+
+  /**
+   * Count elements matching visible text. Returns 0 on error.
+   * Wraps page.getByText(text).first().count() with catch → 0.
+   * @param text - Visible text to search for.
+   * @returns Element count (0 if not found or error).
+   */
+  countByText(text: string): Promise<number>;
 }
 
 export default IElementMediator;

@@ -19,6 +19,7 @@ import type {
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { IPipelineLoginConfig } from '../../../../Scrapers/Pipeline/Types/PipelineLoginConfig.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext, makeMockPage } from './MockFactories.js';
 
@@ -77,6 +78,26 @@ function makeMockMediator(): IElementMediator {
      * @returns Same candidates.
      */
     scopeToForm: (c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c,
+    /**
+     * Navigation mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    navigateTo: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    /**
+     * URL mock — returns about:blank.
+     * @returns Mock URL.
+     */
+    getCurrentUrl: (): string => 'about:blank',
+    /**
+     * Network idle mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    waitForNetworkIdle: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    /**
+     * Count by text mock — returns 0.
+     * @returns Zero.
+     */
+    countByText: (): Promise<number> => Promise.resolve(0),
     network: {
       /**
        * No endpoints in mock.

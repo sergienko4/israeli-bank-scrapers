@@ -18,11 +18,26 @@ type CleanupOk = boolean;
 type CleanupFn = IBrowserState['cleanups'][number];
 
 /**
+ * Log a cleanup failure if the result is not OK.
+ * @param result - The cleanup procedure result.
+ * @param logger - Logger for error reporting.
+ * @returns The same result, unchanged.
+ */
+function logCleanupResult(
+  result: Procedure<void>,
+  logger: IPipelineContext['logger'],
+): Procedure<void> {
+  const isFailed = !isOk(result);
+  if (isFailed) logger.debug('cleanup returned failure: %s', result.errorMessage);
+  return result;
+}
+
+/**
  * Run a single cleanup handler, swallowing any error.
  * Maps the Procedure result to a boolean for counting.
  * @param cleanup - The cleanup function returning Procedure<void>.
  * @param logger - Logger for error reporting.
- * @returns True if cleanup succeeded, false if it failed or threw.
+ * @returns Succeed if cleanup passed, fail if it failed or threw.
  */
 async function runCleanup(
   cleanup: CleanupFn,
@@ -30,10 +45,7 @@ async function runCleanup(
 ): Promise<Procedure<void>> {
   try {
     const result = await cleanup();
-    if (!isOk(result)) {
-      logger.debug('cleanup returned failure: %s', result.errorMessage);
-    }
-    return result;
+    return logCleanupResult(result, logger);
   } catch (error) {
     const msg = toErrorMessage(error as Error).slice(0, 80);
     logger.debug('cleanup error (swallowed): %s', msg);

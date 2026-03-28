@@ -13,6 +13,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import {
   makeContextWithBrowser,
+  makeMockMediator,
   makeMockContext,
   makeMockFullPage,
 } from '../MockPipelineFactories.js';
@@ -144,15 +145,15 @@ describe('checkFrameForErrors', () => {
 // ── waitForSubmitToSettle ─────────────────────────────────
 
 describe('waitForSubmitToSettle', () => {
-  it('returns succeed when page reaches networkidle', async () => {
-    const page = MAKE_SETTLE_PAGE(false);
-    const result = await waitForSubmitToSettle(page);
+  it('returns succeed when mediator.waitForNetworkIdle succeeds', async () => {
+    const mediator = makeMockMediator();
+    const result = await waitForSubmitToSettle(mediator);
     expect(result.success).toBe(true);
   });
 
-  it('returns succeed even when networkidle times out', async () => {
-    const page = MAKE_SETTLE_PAGE(true);
-    const result = await waitForSubmitToSettle(page);
+  it('returns succeed even when networkidle times out (non-fatal)', async () => {
+    const mediator = makeMockMediator();
+    const result = await waitForSubmitToSettle(mediator);
     expect(result.success).toBe(true);
   });
 });

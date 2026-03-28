@@ -19,11 +19,6 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
 
-/** Raw text value from a selector candidate. */
-type CandidateText = string;
-/** Whether an OTP form field became visible within the probe timeout. */
-type OtpDetected = boolean;
-
 /** Timeout for probing OTP form presence. */
 const OTP_PROBE_TIMEOUT = 3000;
 
@@ -35,25 +30,11 @@ const OTP_PROBE_TIMEOUT = 3000;
  * @returns Procedure with boolean detection result.
  */
 async function detectOtpForm(input: IPipelineContext): Promise<Procedure<boolean>> {
-  if (!input.browser.has) return succeed(false);
-  const page = input.browser.value.page;
-  const candidates = WK.LOGIN.ACTION.FORM.mfa;
-  /**
-   * Build a text locator for a candidate's visible text value.
-   * @param c - Selector candidate with text value.
-   * @returns Playwright locator for the candidate text.
-   */
-  const toLocator = (c: SelectorCandidate): ReturnType<typeof page.locator> => {
-    const text: CandidateText = c.value;
-    return page.locator(`text=${text}`).first();
-  };
-  const locators = candidates.map(toLocator);
-  const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state: 'visible', timeout: OTP_PROBE_TIMEOUT });
-    return i;
-  });
-  const results = await Promise.allSettled(waiters);
-  return succeed(results.some((r): OtpDetected => r.status === 'fulfilled'));
+  if (!input.mediator.has) return succeed(false);
+  const mediator = input.mediator.value;
+  const candidates = WK.LOGIN.ACTION.FORM.mfa as unknown as readonly SelectorCandidate[];
+  const result = await mediator.resolveVisible(candidates, OTP_PROBE_TIMEOUT);
+  return succeed(result.found);
 }
 
 /**

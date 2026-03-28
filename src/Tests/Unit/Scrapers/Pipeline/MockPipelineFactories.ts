@@ -353,6 +353,26 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Same array.
      */
     scopeToForm: candidates => candidates,
+    /**
+     * Navigation mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    navigateTo: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    /**
+     * URL mock — returns about:blank.
+     * @returns Mock URL string.
+     */
+    getCurrentUrl: (): string => 'about:blank',
+    /**
+     * Network idle mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    waitForNetworkIdle: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    /**
+     * Count by text mock — returns 0 (no elements).
+     * @returns Zero.
+     */
+    countByText: (): Promise<number> => Promise.resolve(0),
     network: {
       /**
        * No endpoints in mock.

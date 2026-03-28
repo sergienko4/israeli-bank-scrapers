@@ -167,7 +167,8 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
     return locator.isVisible().catch((): IsVisible => false);
   });
   const results = await Promise.all(checks);
-  return succeed(results.some(Boolean));
+  const hasLoading = results.some(Boolean);
+  return succeed(hasLoading);
 }
 
 /**
@@ -176,7 +177,10 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
  * @param attempt - Current attempt number (for logging).
  * @returns succeed(true) if loading gone, succeed(false) if still present.
  */
-async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise<Procedure<boolean>> {
+async function waitOnceForLoading(
+  frame: Page | Frame,
+  attempt: number,
+): Promise<Procedure<boolean>> {
   const loadingResult = await isAnyLoadingVisible(frame);
   if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
   LOG.debug('loading indicator visible, waiting %dms (attempt %d)', LOADING_DELAY_MS, attempt);
@@ -471,6 +475,73 @@ function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
   };
 }
 
+/** Default timeout for network idle wait (matches POST_LOGIN_SETTLE_TIMEOUT). */
+const NETWORK_IDLE_TIMEOUT = 15_000;
+
+/** Element count returned when getByText fails or element is absent. */
+type ElementCount = number;
+
+/**
+ * Build navigateTo method bound to a page.
+ * Navigation errors are terminal — fail() propagates.
+ * @param page - The Playwright page.
+ * @returns Mediator navigateTo function.
+ */
+function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
+  return async (url, opts): Promise<Procedure<void>> => {
+    try {
+      await page.goto(url, opts);
+      return succeed(undefined);
+    } catch (error) {
+      const msg = toErrorMessage(error as Error);
+      return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
+    }
+  };
+}
+
+/**
+ * Build getCurrentUrl method bound to a page.
+ * SYNCHRONOUS — page.url() is sync in Playwright. No Promise wrapping.
+ * @param page - The Playwright page.
+ * @returns Mediator getCurrentUrl function.
+ */
+function buildGetCurrentUrl(page: Page): IElementMediator['getCurrentUrl'] {
+  return (): string => page.url();
+}
+
+/**
+ * Build waitForNetworkIdle method bound to a page.
+ * Timeout is non-fatal — slow analytics ≠ broken scraper.
+ * @param page - The Playwright page.
+ * @returns Mediator waitForNetworkIdle function.
+ */
+function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkIdle'] {
+  return async (timeoutMs?): Promise<Procedure<void>> => {
+    const timeout = timeoutMs ?? NETWORK_IDLE_TIMEOUT;
+    try {
+      await page.waitForLoadState('networkidle', { timeout });
+    } catch {
+      // Timeout is non-fatal — SPA may stay "loading"
+    }
+    return succeed(undefined);
+  };
+}
+
+/**
+ * Build countByText method bound to a page.
+ * Returns 0 on any error (element not found = valid 0-count).
+ * @param page - The Playwright page.
+ * @returns Mediator countByText function.
+ */
+function buildCountByText(page: Page): IElementMediator['countByText'] {
+  return (text: string): Promise<ElementCount> =>
+    page
+      .getByText(text)
+      .first()
+      .count()
+      .catch((): ElementCount => 0);
+}
+
 /**
  * Create an ElementMediator for the given page.
  * Each instance has its own form anchor cache — safe for concurrent use.
@@ -489,6 +560,10 @@ function createElementMediator(page: Page): IElementMediator {
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
     network: createNetworkDiscovery(page),
+    navigateTo: buildNavigateTo(page),
+    getCurrentUrl: buildGetCurrentUrl(page),
+    waitForNetworkIdle: buildWaitForNetworkIdle(page),
+    countByText: buildCountByText(page),
   };
   return mediator;
 }

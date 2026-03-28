@@ -2,7 +2,6 @@ import type { Falsy } from 'utility-types';
 
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
-
 import {
   DEFAULT_WAIT_INTERVAL_MS,
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -375,7 +374,8 @@ export function humanDelay(
 ): Promise<Procedure<void>> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return createPromise<Procedure<void>>((resolve): OpDone => {
-    globalThis.setTimeout((): OpDone => resolve(succeed(undefined)), delay);
+    const done = succeed(undefined);
+    globalThis.setTimeout((): OpDone => resolve(done), delay);
     return true;
   });
 }

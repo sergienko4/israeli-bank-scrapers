@@ -9,6 +9,7 @@ import type { Frame, Page } from 'playwright-core';
 import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { makeMockMediator } from '../../../Unit/Scrapers/Pipeline/MockPipelineFactories.js';
 
 /** First WellKnown error text — used for test assertions. */
 const FIRST_ERROR_TEXT = WK.DASHBOARD.ERROR[0].value;
@@ -147,15 +148,17 @@ describe('checkFrameForErrors', () => {
 // ── waitForSubmitToSettle ──────────────────────────────────
 
 describe('waitForSubmitToSettle', () => {
-  it('returns succeed when page reaches networkidle quickly', async () => {
-    const page = makeFastSettlePage();
-    const result = await waitForSubmitToSettle(page);
+  it('returns succeed when mediator.waitForNetworkIdle succeeds', async () => {
+    const mediator = makeMockMediator();
+    const result = await waitForSubmitToSettle(mediator);
     expect(result.success).toBe(true);
   });
 
-  it('returns succeed even when networkidle times out (does not throw)', async () => {
-    const page = makeTimeoutPage();
-    const result = await waitForSubmitToSettle(page);
+  it('returns succeed even when networkidle times out (non-fatal)', async () => {
+    const mediator = makeMockMediator({
+      waitForNetworkIdle: () => Promise.resolve({ success: true, value: undefined }),
+    });
+    const result = await waitForSubmitToSettle(mediator);
     expect(result.success).toBe(true);
   });
 });

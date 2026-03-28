@@ -150,16 +150,14 @@ class DashboardPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD POST');
     if (!input.mediator.has)
       return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD POST');
-    const page = input.browser.value.page;
     const mediator = input.mediator.value;
     const changePassResult = await mediator.resolveAndClick(WK.DASHBOARD.CHANGE_PWD);
     if (!changePassResult.success) return changePassResult;
     if (changePassResult.value.found)
       return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
-    const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };
+    const dashState: IDashboardState = { isReady: true, pageUrl: mediator.getCurrentUrl() };
     return succeed({ ...input, dashboard: some(dashState) });
   }
 }

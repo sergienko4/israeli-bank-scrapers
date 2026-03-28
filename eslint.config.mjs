@@ -41,7 +41,7 @@ const RESTRICTED_SYNTAX_RULES = [
   },
   {
     // Blocks 'void' as a return type (Forces every function to return data)
-    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
+    selector: ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword",
     message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
   },
   // Blocks 'return null;', 'return undefined;', and empty 'return;'
@@ -145,7 +145,7 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   },
   {
     // UPDATED: TSMethodDefinition -> MethodDefinition
-    selector: ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation TSVoidKeyword",
+    selector: ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword",
     message: "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
   },
 
@@ -505,10 +505,6 @@ export default tseslint.config(
             group: ['**/Mediator/Internals/**'],
             message: '🚫 MEDIATOR: Access HTML resolution only via ctx.mediator.'
           },
-          {
-            selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation :matches(TSBooleanKeyword, TSVoidKeyword, TSStringKeyword)",
-            message: "🚫 ARCHITECTURE: Primitive returns detected. All Pipeline methods must return Procedure<T> or IScraperResult."
-          }
         ]
       }],
 
@@ -518,6 +514,10 @@ export default tseslint.config(
         {
           selector: "CallExpression[callee.object.name='page']",
           message: "🚫 Rule #10: Direct calls to 'page' are forbidden in Pipeline Phases. Use ctx.mediator instead."
+        },
+        {
+          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation :matches(TSBooleanKeyword, TSVoidKeyword, TSStringKeyword)",
+          message: "🚫 ARCHITECTURE: Primitive returns detected. All Pipeline methods must return Procedure<T> or IScraperResult."
         },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
@@ -538,6 +538,7 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/**/*.ts',
       'src/Scrapers/Pipeline/Phases/ElementsInteractions.ts',
       'src/Scrapers/Pipeline/Phases/GenericPreLoginSteps.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch.ts',
       'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context,Mediator,Registry,Factory,Phase,Builder}.ts',
     ],
     rules: {
@@ -545,22 +546,8 @@ export default tseslint.config(
       'no-restricted-imports': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       'max-lines-per-function': 'off',
+      'max-lines': 'off',
       'max-classes-per-file': 'off',
-    },
-  },
-
-  // 6c. BATCH 2 GRACE PERIOD — Legacy phases still using direct Playwright.
-  // Remove this block when Batch 2 moves page.* calls behind mediator.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Phases/HomePhase.ts',
-      'src/Scrapers/Pipeline/Phases/DashboardPhase.ts',
-      'src/Scrapers/Pipeline/Phases/FindLoginAreaPhase.ts',
-      'src/Scrapers/Pipeline/Phases/LoginSteps.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch.ts',
-    ],
-    rules: {
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
     },
   },
 

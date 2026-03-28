@@ -12,7 +12,6 @@ import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
 import { WK } from '../Registry/PipelineWellKnown.js';
 import { BasePhase } from '../Types/BasePhase.js';
-import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
@@ -45,16 +44,12 @@ class HomePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME PRE');
-    const page = input.browser.value.page;
+    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME PRE');
+    const mediator = input.mediator.value;
     const homepageUrl = input.config.urls.base ?? 'about:blank';
-    try {
-      await page.goto(homepageUrl, { waitUntil: 'domcontentloaded' });
-      return succeed(input);
-    } catch (error) {
-      const msg = toErrorMessage(error as Error);
-      return fail(ScraperErrorTypes.Generic, `Homepage unreachable: ${homepageUrl} — ${msg}`);
-    }
+    const navResult = await mediator.navigateTo(homepageUrl, { waitUntil: 'domcontentloaded' });
+    if (!navResult.success) return navResult;
+    return succeed(input);
   }
 
   /**
@@ -81,15 +76,18 @@ class HomePhase extends BasePhase {
    * @param input - Pipeline context with browser.
    * @returns Updated context with diagnostics.loginUrl populated.
    */
-  public async post(
+  public post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME POST');
-    const currentUrl = input.browser.value.page.url();
-    const loginUrl = await Promise.resolve(currentUrl);
+    if (!input.mediator.has) {
+      const err = fail(ScraperErrorTypes.Generic, 'No mediator for HOME POST');
+      return Promise.resolve(err);
+    }
+    const loginUrl = input.mediator.value.getCurrentUrl();
     const updatedDiag = { ...input.diagnostics, loginUrl };
-    return succeed({ ...input, diagnostics: updatedDiag });
+    const result = succeed({ ...input, diagnostics: updatedDiag });
+    return Promise.resolve(result);
   }
 }
 
