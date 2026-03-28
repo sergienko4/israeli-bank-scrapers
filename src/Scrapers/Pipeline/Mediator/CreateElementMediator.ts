@@ -12,7 +12,7 @@ import { WK } from '../Registry/PipelineWellKnown.js';
 import { getDebug } from '../Types/Debug.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
-import { fail, type Procedure, succeed } from '../Types/Procedure.js';
+import { fail, isOk, type Procedure, succeed } from '../Types/Procedure.js';
 import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from './ElementMediator.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from './FormAnchor.js';
 import {
@@ -158,30 +158,30 @@ const LOADING_DELAY_MS = 2000;
  * Check if any WellKnown loading indicator is currently visible.
  * Probes all candidates in parallel via Promise.all.
  * @param frame - Page or Frame to check.
- * @returns True if a loading indicator is visible.
+ * @returns succeed(true) if loading visible, succeed(false) if clear.
  */
-async function isAnyLoadingVisible(frame: Page | Frame): Promise<boolean> {
+async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boolean>> {
   const candidates = WK.DASHBOARD.LOADING;
   const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
     return locator.isVisible().catch((): IsVisible => false);
   });
   const results = await Promise.all(checks);
-  return results.some(Boolean);
+  return succeed(results.some(Boolean));
 }
 
 /**
  * Wait once for loading indicators to disappear, then re-check.
  * @param frame - Page or Frame.
  * @param attempt - Current attempt number (for logging).
- * @returns True if loading is gone, false if still present.
+ * @returns succeed(true) if loading gone, succeed(false) if still present.
  */
-async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise<boolean> {
-  const isLoading = await isAnyLoadingVisible(frame);
-  if (!isLoading) return true;
+async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise<Procedure<boolean>> {
+  const loadingResult = await isAnyLoadingVisible(frame);
+  if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
   LOG.debug('loading indicator visible, waiting %dms (attempt %d)', LOADING_DELAY_MS, attempt);
   await frame.waitForTimeout(LOADING_DELAY_MS);
-  return false;
+  return succeed(false);
 }
 
 /**
@@ -192,10 +192,10 @@ async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise
  */
 function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
   return async (frame: Page | Frame): Promise<Procedure<true>> => {
-    const isDone1 = await waitOnceForLoading(frame, 1);
-    if (isDone1) return succeed(true);
-    const isDone2 = await waitOnceForLoading(frame, 2);
-    if (isDone2) return succeed(true);
+    const done1 = await waitOnceForLoading(frame, 1);
+    if (isOk(done1) && done1.value) return succeed(true);
+    const done2 = await waitOnceForLoading(frame, 2);
+    if (isOk(done2) && done2.value) return succeed(true);
     await waitOnceForLoading(frame, 3);
     return succeed(true);
   };

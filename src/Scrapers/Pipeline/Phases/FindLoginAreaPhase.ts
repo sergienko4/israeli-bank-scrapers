@@ -22,7 +22,7 @@ import type {
   RevealStatus,
 } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
-import { fail, succeed } from '../Types/Procedure.js';
+import { fail, isOk, succeed } from '../Types/Procedure.js';
 import {
   tryClickCredentialArea,
   tryClickPrivateCustomers,
@@ -43,10 +43,11 @@ const REVEAL_NAV_TIMEOUT = 15_000;
 
 /**
  * Check if any WK.HOME.REVEAL text candidate exists in the DOM.
+ * succeed(true) = at least one attached. succeed(false) = none found (valid).
  * @param page - Active Playwright page.
- * @returns True if at least one candidate is attached to the DOM.
+ * @returns Procedure with boolean detection result.
  */
-async function isRevealAttached(page: Page): Promise<boolean> {
+async function isRevealAttached(page: Page): Promise<Procedure<boolean>> {
   const textCandidates = (WK.HOME.REVEAL as readonly SelectorCandidate[]).filter(
     (c): ElementFound => c.kind === 'textContent',
   );
@@ -59,7 +60,7 @@ async function isRevealAttached(page: Page): Promise<boolean> {
         .catch((): ElementCount => 0),
   );
   const counts = await Promise.all(countPromises);
-  return counts.some((n): ElementFound => n > 0);
+  return succeed(counts.some((n): ElementFound => n > 0));
 }
 
 /**
@@ -79,8 +80,8 @@ async function probeRevealStatus(
     .resolveVisible(candidates, timeout)
     .catch((): false => false);
   if (visibleResult && visibleResult.found) return 'READY';
-  const isAttached = await isRevealAttached(page);
-  if (isAttached) return 'OBSCURED';
+  const attachResult = await isRevealAttached(page);
+  if (isOk(attachResult) && attachResult.value) return 'OBSCURED';
   return 'NOT_FOUND';
 }
 

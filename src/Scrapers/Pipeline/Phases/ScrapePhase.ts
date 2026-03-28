@@ -211,15 +211,15 @@ function isTxnHostedOnCurrentOrigin(
  * @param network - Network discovery with captured traffic.
  * @returns True after pivot check completes.
  */
-async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promise<boolean> {
+async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promise<Procedure<boolean>> {
   const spaUrl = network.discoverSpaUrl();
-  if (!spaUrl) return false;
+  if (!spaUrl) return succeed(false);
   const currentOrigin = new URL(page.url()).origin;
   const spaOrigin = new URL(spaUrl).origin;
-  if (currentOrigin === spaOrigin) return false;
+  if (currentOrigin === spaOrigin) return succeed(false);
   if (isTxnHostedOnCurrentOrigin(network, currentOrigin)) {
     LOG.debug('SPA pivot: skip — current origin %s hosts txn endpoint', currentOrigin);
-    return false;
+    return succeed(false);
   }
   LOG.debug('SPA pivot: %s → %s', currentOrigin, spaOrigin);
   const opts = { waitUntil: 'domcontentloaded' as const, timeout: SPA_PIVOT_TIMEOUT_MS };
@@ -227,7 +227,7 @@ async function pivotToSpaIfNeeded(page: Page, network: INetworkDiscovery): Promi
     LOG.debug('SPA pivot: navigation failed (non-fatal)');
     return false;
   });
-  return true;
+  return succeed(true);
 }
 
 /**

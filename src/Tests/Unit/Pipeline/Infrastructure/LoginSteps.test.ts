@@ -147,15 +147,15 @@ describe('checkFrameForErrors', () => {
 // ── waitForSubmitToSettle ──────────────────────────────────
 
 describe('waitForSubmitToSettle', () => {
-  it('resolves true when page reaches networkidle quickly', async () => {
+  it('returns succeed when page reaches networkidle quickly', async () => {
     const page = makeFastSettlePage();
-    const hasSettled = await waitForSubmitToSettle(page);
-    expect(hasSettled).toBe(true);
+    const result = await waitForSubmitToSettle(page);
+    expect(result.success).toBe(true);
   });
 
-  it('resolves true even when networkidle times out (does not throw)', async () => {
+  it('returns succeed even when networkidle times out (does not throw)', async () => {
     const page = makeTimeoutPage();
-    const hasSettled = await waitForSubmitToSettle(page);
-    expect(hasSettled).toBe(true);
+    const result = await waitForSubmitToSettle(page);
+    expect(result.success).toBe(true);
   });
 });

@@ -1,0 +1,2246 @@
+[
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\ArchitectureGlobal.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"ArchitectureGlobal.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 4,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 56,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 4,
+                "column": 8,
+                "messageId": "missingJsDoc",
+                "endLine": 5,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        138,
+                        138
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'getNull'.",
+                "line": 8,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 8,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 8,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 9,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        311,
+                        311
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
+                "line": 8,
+                "column": 21,
+                "messageId": "restrictedSyntax",
+                "endLine": 8,
+                "endColumn": 25
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+                "line": 9,
+                "column": 5,
+                "messageId": "restrictedSyntax",
+                "endLine": 9,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'getVoid'.",
+                "line": 11,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 11,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 11,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 12,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        392,
+                        392
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
+                "line": 11,
+                "column": 21,
+                "messageId": "restrictedSyntax",
+                "endLine": 11,
+                "endColumn": 25
+            },
+            {
+                "ruleId": "@typescript-eslint/no-empty-function",
+                "severity": 2,
+                "message": "Unexpected empty method 'getVoid'.",
+                "line": 11,
+                "column": 26,
+                "messageId": "unexpected",
+                "endLine": 11,
+                "endColumn": 28,
+                "suggestions": [
+                    {
+                        "messageId": "suggestComment",
+                        "data": {
+                            "name": "method 'getVoid'"
+                        },
+                        "fix": {
+                            "range": [
+                                416,
+                                416
+                            ],
+                            "text": " /* empty */ "
+                        },
+                        "desc": "Add comment inside empty method 'getVoid'."
+                    }
+                ]
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'getUndefined'.",
+                "line": 12,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 12,
+                "endColumn": 22
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 12,
+                "column": 22,
+                "messageId": "missingJsDoc",
+                "endLine": 13,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        448,
+                        448
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
+                "line": 12,
+                "column": 26,
+                "messageId": "restrictedSyntax",
+                "endLine": 12,
+                "endColumn": 35
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+                "line": 13,
+                "column": 5,
+                "messageId": "restrictedSyntax",
+                "endLine": 13,
+                "endColumn": 22
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'run'.",
+                "line": 17,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 17,
+                "endColumn": 13
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 17,
+                "column": 13,
+                "messageId": "missingJsDoc",
+                "endLine": 18,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        552,
+                        552
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
+                "line": 18,
+                "column": 21,
+                "messageId": "restrictedSyntax",
+                "endLine": 18,
+                "endColumn": 36
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'process'.",
+                "line": 22,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 22,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 22,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 23,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        694,
+                        694
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface.",
+                "line": 22,
+                "column": 25,
+                "messageId": "restrictedSyntax",
+                "endLine": 22,
+                "endColumn": 32
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Function parameters cannot be 'unknown'. Define a specific Interface.",
+                "line": 24,
+                "column": 17,
+                "messageId": "restrictedSyntax",
+                "endLine": 24,
+                "endColumn": 24
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 29,
+                "column": 14,
+                "messageId": "missingJsDoc",
+                "endLine": 30,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        872,
+                        872
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 PROCEDURE: Do not discard Procedure result. Check with isSuccess()/isFail() or assign to variable.",
+                "line": 30,
+                "column": 5,
+                "messageId": "restrictedSyntax",
+                "endLine": 30,
+                "endColumn": 18
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'rename'.",
+                "line": 35,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 35,
+                "endColumn": 16
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 35,
+                "column": 16,
+                "messageId": "missingJsDoc",
+                "endLine": 36,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        991,
+                        991
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'record'.",
+                "line": 39,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 39,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 39,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 40,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        1093,
+                        1093
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "Using 'ForInStatement' is not allowed.",
+                "line": 45,
+                "column": 1,
+                "messageId": "restrictedSyntax",
+                "endLine": 47,
+                "endColumn": 2
+            },
+            {
+                "ruleId": "@typescript-eslint/no-unnecessary-type-conversion",
+                "severity": 2,
+                "message": "Passing a string to String() does not change the type or value of the string.",
+                "line": 46,
+                "column": 3,
+                "messageId": "unnecessaryTypeConversion",
+                "endLine": 46,
+                "endColumn": 9,
+                "suggestions": [
+                    {
+                        "messageId": "suggestRemove",
+                        "fix": {
+                            "range": [
+                                1225,
+                                1236
+                            ],
+                            "text": "key"
+                        },
+                        "desc": "Remove the type conversion."
+                    },
+                    {
+                        "messageId": "suggestSatisfies",
+                        "data": {
+                            "type": "string"
+                        },
+                        "fix": {
+                            "range": [
+                                1225,
+                                1236
+                            ],
+                            "text": "key satisfies string"
+                        },
+                        "desc": "Instead, assert that the value satisfies the string type."
+                    }
+                ]
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `sleepResult` must match one of the following formats: UPPER_CASE",
+                "line": 50,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 50,
+                "endColumn": 18
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 BRITTLE LOGIC: 'sleep()' or 'delay()' is forbidden. Use a proper 'waitFor' mechanism.",
+                "line": 50,
+                "column": 21,
+                "messageId": "restrictedSyntax",
+                "endLine": 50,
+                "endColumn": 32
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `delayResult` must match one of the following formats: UPPER_CASE",
+                "line": 51,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 51,
+                "endColumn": 18
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 BRITTLE LOGIC: 'sleep()' or 'delay()' is forbidden. Use a proper 'waitFor' mechanism.",
+                "line": 51,
+                "column": 21,
+                "messageId": "restrictedSyntax",
+                "endLine": 51,
+                "endColumn": 31
+            },
+            {
+                "ruleId": "simple-import-sort/exports",
+                "severity": 2,
+                "message": "Run autofix to sort these exports!",
+                "line": 52,
+                "column": 1,
+                "messageId": "sort",
+                "endLine": 52,
+                "endColumn": 37,
+                "fix": {
+                    "range": [
+                        1392,
+                        1428
+                    ],
+                    "text": "export { delayResult,sleepResult };"
+                }
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 34,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 10,
+        "fixableWarningCount": 0,
+        "source": "// Canary: Global RESTRICTED_SYNTAX_RULES_NEW — tests MethodDefinition-level rules\n// Each section must trigger at least 1 ESLint error.\n\nexport class CanaryGlobal {\n  public _data!: string; // 🚫 TYPE SKIP: Non-null assertion\n\n  // Return Value Integrity (MethodDefinition — updated from TSMethodDefinition)\n  public getNull(): null {\n    return null;\n  } // 🚫 null return + literal null\n  public getVoid(): void {} // 🚫 void return forbidden\n  public getUndefined(): undefined {\n    return undefined;\n  } // 🚫 undefined return\n\n  // Nested call\n  public run(): number {\n    return Math.abs(Math.floor(1.5));\n  } // 🚫 FORBIDDEN NESTED CALL\n\n  // Unknown params/return + unknown variable\n  public process(input: unknown): unknown {\n    // 🚫 unknown param + return\n    const data: unknown = input; // 🚫 unknown variable\n    return data;\n  }\n\n  // Procedure discard\n  public test(): boolean {\n    this.record(); // 🚫 PROCEDURE: discarded result\n    return true;\n  }\n\n  // Short alias\n  public rename({ original: o }: { original: string }): string {\n    return o;\n  } // 🚫 OBFUSCATION\n\n  private record(): { isSuccess: boolean } {\n    return { isSuccess: true };\n  }\n}\n\n// ForInStatement\nfor (const key in { a: 1 }) {\n  String(key);\n} // 🚫 ForInStatement banned\n\n// Anti-sleep\nconst sleepResult = sleep(1000); // 🚫 sleep forbidden\nconst delayResult = delay(500); // 🚫 delay forbidden\nexport { sleepResult, delayResult };\n\ndeclare function sleep(ms: number): Promise<boolean>;\ndeclare function delay(ms: number): Promise<boolean>;\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\PipelineGuardrails.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"PipelineGuardrails.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 8,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 67,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 8,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 9,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        366,
+                        366
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "max-classes-per-file",
+                "severity": 2,
+                "message": "File has too many classes (2). Maximum allowed is 1.",
+                "line": 8,
+                "column": 1,
+                "messageId": "maximumExceeded",
+                "endLine": 67,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "@typescript-eslint/no-extraneous-class",
+                "severity": 2,
+                "message": "Unexpected empty class.",
+                "line": 8,
+                "column": 7,
+                "messageId": "empty",
+                "endLine": 8,
+                "endColumn": 19
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 10,
+                "column": 1,
+                "messageId": "single",
+                "endLine": 66,
+                "endColumn": 2
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 10,
+                "column": 8,
+                "messageId": "missingJsDoc",
+                "endLine": 11,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        389,
+                        389
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
+                "line": 12,
+                "column": 20,
+                "messageId": "restrictedSyntax",
+                "endLine": 12,
+                "endColumn": 38
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'execute'.",
+                "line": 15,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 15,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 15,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 16,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        595,
+                        595
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'check'.",
+                "line": 20,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 20,
+                "endColumn": 15
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 20,
+                "column": 15,
+                "messageId": "missingJsDoc",
+                "endLine": 21,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        699,
+                        699
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
+                "line": 21,
+                "column": 5,
+                "messageId": "restrictedSyntax",
+                "endLine": 25,
+                "endColumn": 6
+            },
+            {
+                "ruleId": "no-else-return",
+                "severity": 2,
+                "message": "Unnecessary 'else' after 'return'.",
+                "line": 23,
+                "column": 12,
+                "messageId": "unexpected",
+                "endLine": 25,
+                "endColumn": 6,
+                "fix": {
+                    "range": [
+                        711,
+                        815
+                    ],
+                    "text": "(isOk: boolean): string {\n    if (isOk) {\n      return 'ok';\n    } \n      return 'fail';\n    \n  }"
+                }
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'mode'.",
+                "line": 29,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 29,
+                "endColumn": 14
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 29,
+                "column": 14,
+                "messageId": "missingJsDoc",
+                "endLine": 30,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        856,
+                        856
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 Ternary operators are disallowed. Use logical lookups.",
+                "line": 30,
+                "column": 12,
+                "messageId": "restrictedSyntax",
+                "endLine": 30,
+                "endColumn": 42
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'loop'.",
+                "line": 34,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 34,
+                "endColumn": 14
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 34,
+                "column": 14,
+                "messageId": "missingJsDoc",
+                "endLine": 35,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        987,
+                        987
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 PAGINATION: Do not use manual loops. Use the Pagination strategy abstraction.",
+                "line": 35,
+                "column": 5,
+                "messageId": "restrictedSyntax",
+                "endLine": 37,
+                "endColumn": 6
+            },
+            {
+                "ruleId": "@typescript-eslint/no-unnecessary-condition",
+                "severity": 2,
+                "message": "Unnecessary conditional, value is always truthy.",
+                "line": 35,
+                "column": 12,
+                "messageId": "alwaysTruthy",
+                "endLine": 35,
+                "endColumn": 16
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'fallback'.",
+                "line": 42,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 42,
+                "endColumn": 18
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 42,
+                "column": 18,
+                "messageId": "missingJsDoc",
+                "endLine": 43,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        1120,
+                        1120
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'isReady'.",
+                "line": 48,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 48,
+                "endColumn": 17
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 48,
+                "column": 17,
+                "messageId": "missingJsDoc",
+                "endLine": 49,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        1266,
+                        1266
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Use Enums or Constants for status checks.",
+                "line": 49,
+                "column": 23,
+                "messageId": "restrictedSyntax",
+                "endLine": 49,
+                "endColumn": 32
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'safe'.",
+                "line": 53,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 53,
+                "endColumn": 14
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 53,
+                "column": 14,
+                "messageId": "missingJsDoc",
+                "endLine": 54,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        1385,
+                        1385
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access.",
+                "line": 57,
+                "column": 14,
+                "messageId": "restrictedSyntax",
+                "endLine": 57,
+                "endColumn": 36
+            },
+            {
+                "ruleId": "class-methods-use-this",
+                "severity": 2,
+                "message": "Expected 'this' to be used by class method 'cast'.",
+                "line": 62,
+                "column": 3,
+                "messageId": "missingThis",
+                "endLine": 62,
+                "endColumn": 14
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 62,
+                "column": 14,
+                "messageId": "missingJsDoc",
+                "endLine": 63,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        1534,
+                        1534
+                    ],
+                    "text": "/**\n   *\n   */\n  "
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
+                "line": 63,
+                "column": 24,
+                "messageId": "restrictedSyntax",
+                "endLine": 63,
+                "endColumn": 29
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 31,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 11,
+        "fixableWarningCount": 0,
+        "source": "// Canary: Pipeline Section 6 guardrails — DI, mediator, result pattern, guard clauses\n// Each section must trigger at least 1 Pipeline-specific ESLint error.\n\n// 🚫 DI: Restricted import from Registry/Config\n// (commented out — would break TSC, verified by import rule separately)\n// import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig';\n\nclass CanaryHelper {}\n\nexport class CanaryPipeline {\n  // 🚫 DI ENFORCEMENT: Manual instantiation (not in safe-list)\n  public _helper = new CanaryHelper();\n\n  // 🚫 RESULT PATTERN: Primitive return (string on MethodDefinition)\n  public execute(): string {\n    return 'done';\n  }\n\n  // 🚫 else blocks disallowed — use guard clauses\n  public check(isOk: boolean): string {\n    if (isOk) {\n      return 'ok';\n    } else {\n      return 'fail';\n    }\n  }\n\n  // 🚫 Ternary operators disallowed\n  public mode(isDebug: boolean): string {\n    return isDebug ? 'verbose' : 'silent';\n  }\n\n  // 🚫 PAGINATION: While loop forbidden\n  public loop(): boolean {\n    while (true) {\n      break;\n    }\n    return true;\n  }\n\n  // 🚫 DATA INTEGRITY: '' fallback forbidden\n  public fallback(val: string | false): string {\n    const text = val || '';\n    return text;\n  }\n\n  // 🚫 ARCHITECTURE: Status string comparison\n  public isReady(status: string): boolean {\n    return status === 'success';\n  }\n\n  // 🚫 catch clause .message access\n  public safe(): string {\n    try {\n      return 'ok';\n    } catch (err) {\n      return (err as Error).message;\n    }\n  }\n\n  // 🚫 as never / as any\n  public cast(): string {\n    const data = {} as never;\n    return String(data);\n  }\n}\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\as-never.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"as-never.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 4,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `mock` must match one of the following formats: UPPER_CASE",
+                "line": 2,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 2,
+                "endColumn": 11
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
+                "line": 2,
+                "column": 20,
+                "messageId": "restrictedSyntax",
+                "endLine": 2,
+                "endColumn": 25
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 3,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 3,
+                "endColumn": 14
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 4,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 0,
+        "fixableWarningCount": 0,
+        "source": "// Canary: TSAsExpression > TSNeverKeyword — as never/as any banned in tests\nconst mock = {} as never;\nexport { mock };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\bare-return.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"bare-return.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 7,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        72,
+                        72
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-warning-comments",
+                "severity": 2,
+                "message": "Unexpected '@ts-expect-error' comment: '@ts-expect-error Intentional: canary...'.",
+                "line": 3,
+                "column": 3,
+                "messageId": "unexpectedComment",
+                "endLine": 3,
+                "endColumn": 60
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 LOGIC: Forbidden return value. Functions must explicitly return a valid object or primitive.",
+                "line": 4,
+                "column": 3,
+                "messageId": "restrictedSyntax",
+                "endLine": 4,
+                "endColumn": 10
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 6,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 6,
+                "endColumn": 19
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 5,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: ReturnStatement[argument=null] — bare return; must be caught\nfunction earlyExit(): boolean {\n  // @ts-expect-error Intentional: canary tests bare return\n  return;\n}\nexport { earlyExit };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\default-export.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"default-export.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 5,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `value` must match one of the following formats: UPPER_CASE",
+                "line": 2,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 2,
+                "endColumn": 12
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 2,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 0,
+        "fixableWarningCount": 0,
+        "source": "// Canary: import-x/no-default-export — Pipeline must use named exports only\nconst value = 42;\nexport default value;\nexport { value };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\else-block.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"else-block.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 10,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        64,
+                        64
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 'else' blocks are disallowed. Use early returns (Guard Clauses).",
+                "line": 3,
+                "column": 3,
+                "messageId": "restrictedSyntax",
+                "endLine": 7,
+                "endColumn": 4
+            },
+            {
+                "ruleId": "no-else-return",
+                "severity": 2,
+                "message": "Unnecessary 'else' after 'return'.",
+                "line": 5,
+                "column": 10,
+                "messageId": "unexpected",
+                "endLine": 7,
+                "endColumn": 4,
+                "fix": {
+                    "range": [
+                        64,
+                        166
+                    ],
+                    "text": "function withElse(x: boolean): string {\n  if (x) {\n    return 'yes';\n  } \n    return 'no';\n  \n}"
+                }
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 9,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 9,
+                "endColumn": 18
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 5,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 2,
+        "fixableWarningCount": 0,
+        "source": "// Canary: IfStatement[alternate] — use guard clauses, not else\nfunction withElse(x: boolean): string {\n  if (x) {\n    return 'yes';\n  } else {\n    return 'no';\n  }\n}\nexport { withElse };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\hardcoded-config.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"hardcoded-config.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 4,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `options` must match one of the following formats: UPPER_CASE",
+                "line": 2,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 2,
+                "endColumn": 14
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 DI: Config values must be injected via 'ctx.config'.",
+                "line": 2,
+                "column": 28,
+                "messageId": "restrictedSyntax",
+                "endLine": 2,
+                "endColumn": 32
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 3,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 3,
+                "endColumn": 17
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 4,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 0,
+        "fixableWarningCount": 0,
+        "source": "// Canary: DI config literal — timeouts/dimensions must come from ctx.config\nconst options = { timeout: 5000 };\nexport { options };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\inline-return-obj.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"inline-return-obj.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 6,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        74,
+                        74
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 5,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 5,
+                "endColumn": 19
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 3,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: ReturnStatement > ObjectExpression — must use succeed()/fail()\nfunction badReturn(): { success: boolean } {\n  return { success: true };\n}\nexport { badReturn };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\nested-call.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"nested-call.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 10,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        72,
+                        72
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 5,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 6,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        122,
+                        122
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "@typescript-eslint/naming-convention",
+                "severity": 2,
+                "message": "Variable name `result` must match one of the following formats: UPPER_CASE",
+                "line": 8,
+                "column": 7,
+                "messageId": "doesNotMatchFormat",
+                "endLine": 8,
+                "endColumn": 13
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 FORBIDDEN NESTED CALL: Assign the nested function result to a descriptive variable first for better debugging.",
+                "line": 8,
+                "column": 22,
+                "messageId": "restrictedSyntax",
+                "endLine": 8,
+                "endColumn": 29
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 9,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 9,
+                "endColumn": 16
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 6,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 2,
+        "fixableWarningCount": 0,
+        "source": "// Canary: nested CallExpression — assign to descriptive variable first\nfunction outer(x: number): number {\n  return x;\n}\nfunction inner(): number {\n  return 1;\n}\nconst result = outer(inner());\nexport { result };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\promise-any.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"promise-any.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 7,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        61,
+                        61
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 CONCURRENCY: Promise.any() swallows errors. Use Promise.allSettled().",
+                "line": 3,
+                "column": 24,
+                "messageId": "restrictedSyntax",
+                "endLine": 3,
+                "endColumn": 57
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 6,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 6,
+                "endColumn": 20
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 4,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: Promise.any() ban — must use Promise.allSettled()\nasync function raceUnsafe(): Promise<number> {\n  const result = await Promise.any([Promise.resolve(1)]);\n  return result;\n}\nexport { raceUnsafe };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\status-string.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"status-string.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 7,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        60,
+                        60
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: Use Enums or Constants for status checks.",
+                "line": 3,
+                "column": 13,
+                "messageId": "restrictedSyntax",
+                "endLine": 3,
+                "endColumn": 22
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 6,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 6,
+                "endColumn": 21
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 4,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: hardcoded status string — use Enums or Constants\nfunction checkStatus(x: string): boolean {\n  if (x === 'success') return true;\n  return false;\n}\nexport { checkStatus };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\throw-error.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"throw-error.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 6,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        77,
+                        77
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "Do not use 'throw new Error()'. Use a custom Error class (e.g., 'throw new ScraperError()') for PII safety.",
+                "line": 3,
+                "column": 9,
+                "messageId": "restrictedSyntax",
+                "endLine": 3,
+                "endColumn": 39
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 5,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 5,
+                "endColumn": 17
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 4,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: ThrowStatement — Pipeline code must use Result Pattern, not throw\nfunction crasher(): boolean {\n  throw new Error('should use fail()');\n}\nexport { crasher };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    {
+        "filePath": "C:\\Code\\israeli-bank-scrapers-fork\\src\\Scrapers\\Pipeline\\EslintCanaries\\void-return.canary.ts",
+        "messages": [
+            {
+                "ruleId": "check-file/filename-naming-convention",
+                "severity": 2,
+                "message": "The filename \"void-return.canary.ts\" does not match the \"PASCAL_CASE\" pattern",
+                "line": 2,
+                "column": 1,
+                "messageId": "noMatch",
+                "endLine": 6,
+                "endColumn": 1
+            },
+            {
+                "ruleId": "jsdoc/require-jsdoc",
+                "severity": 2,
+                "message": "Missing JSDoc comment.",
+                "line": 2,
+                "column": 1,
+                "messageId": "missingJsDoc",
+                "endLine": 3,
+                "endColumn": 1,
+                "fix": {
+                    "range": [
+                        74,
+                        74
+                    ],
+                    "text": "/**\n *\n */\n"
+                }
+            },
+            {
+                "ruleId": "no-restricted-syntax",
+                "severity": 2,
+                "message": "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
+                "line": 2,
+                "column": 23,
+                "messageId": "restrictedSyntax",
+                "endLine": 2,
+                "endColumn": 27
+            },
+            {
+                "ruleId": "no-console",
+                "severity": 2,
+                "message": "Unexpected console statement.",
+                "line": 3,
+                "column": 3,
+                "messageId": "unexpected",
+                "endLine": 3,
+                "endColumn": 14,
+                "suggestions": [
+                    {
+                        "fix": {
+                            "range": [
+                                105,
+                                132
+                            ],
+                            "text": ""
+                        },
+                        "messageId": "removeConsole",
+                        "data": {
+                            "propertyName": "log"
+                        },
+                        "desc": "Remove the console.log()."
+                    }
+                ]
+            },
+            {
+                "ruleId": "import-x/prefer-default-export",
+                "severity": 2,
+                "message": "Prefer default export on a file with single export.",
+                "line": 5,
+                "column": 10,
+                "messageId": "single",
+                "endLine": 5,
+                "endColumn": 19
+            }
+        ],
+        "suppressedMessages": [],
+        "errorCount": 5,
+        "fatalErrorCount": 0,
+        "warningCount": 0,
+        "fixableErrorCount": 1,
+        "fixableWarningCount": 0,
+        "source": "// Canary: void return type ban — functions must return meaningful values\nfunction doNothing(): void {\n  console.log('side effect');\n}\nexport { doNothing };\n",
+        "usedDeprecatedRules": [
+            {
+                "ruleId": "max-len",
+                "replacedBy": [
+                    "@stylistic/max-len"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "max-len",
+                                "url": "https://eslint.style/rules/max-len"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "ruleId": "quotes",
+                "replacedBy": [
+                    "@stylistic/quotes"
+                ],
+                "info": {
+                    "message": "Formatting rules are being moved out of ESLint core.",
+                    "url": "https://eslint.org/blog/2023/10/deprecating-formatting-rules/",
+                    "deprecatedSince": "8.53.0",
+                    "availableUntil": "11.0.0",
+                    "replacedBy": [
+                        {
+                            "message": "ESLint Stylistic now maintains deprecated stylistic core rules.",
+                            "url": "https://eslint.style/guide/migration",
+                            "plugin": {
+                                "name": "@stylistic/eslint-plugin",
+                                "url": "https://eslint.style"
+                            },
+                            "rule": {
+                                "name": "quotes",
+                                "url": "https://eslint.style/rules/quotes"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+]

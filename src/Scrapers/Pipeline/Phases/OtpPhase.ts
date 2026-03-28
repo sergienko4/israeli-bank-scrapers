@@ -17,7 +17,7 @@ import { WK } from '../Registry/PipelineWellKnown.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
-import { succeed } from '../Types/Procedure.js';
+import { isOk, succeed } from '../Types/Procedure.js';
 
 /** Raw text value from a selector candidate. */
 type CandidateText = string;
@@ -30,11 +30,12 @@ const OTP_PROBE_TIMEOUT = 3000;
 /**
  * Detect if an OTP form is present on the page.
  * Uses WellKnown otpCode candidates — if any is visible, OTP is required.
+ * succeed(true) = OTP form detected. succeed(false) = no OTP (valid path).
  * @param input - Pipeline context with browser.
- * @returns True if OTP form is detected.
+ * @returns Procedure with boolean detection result.
  */
-async function detectOtpForm(input: IPipelineContext): Promise<boolean> {
-  if (!input.browser.has) return false;
+async function detectOtpForm(input: IPipelineContext): Promise<Procedure<boolean>> {
+  if (!input.browser.has) return succeed(false);
   const page = input.browser.value.page;
   const candidates = WK.LOGIN.ACTION.FORM.mfa;
   /**
@@ -52,7 +53,7 @@ async function detectOtpForm(input: IPipelineContext): Promise<boolean> {
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  return results.some((r): OtpDetected => r.status === 'fulfilled');
+  return succeed(results.some((r): OtpDetected => r.status === 'fulfilled'));
 }
 
 /**
@@ -66,8 +67,8 @@ async function executeOtp(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const hasOtp = await detectOtpForm(input).catch((): OtpDetected => false);
-  if (!hasOtp) return succeed(input);
+  const otpResult = await detectOtpForm(input).catch((): Procedure<boolean> => succeed(false));
+  if (!isOk(otpResult) || !otpResult.value) return succeed(input);
   input.logger.debug('OTP form detected — handler not yet implemented');
   return succeed(input);
 }
