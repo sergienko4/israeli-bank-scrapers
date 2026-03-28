@@ -89,6 +89,25 @@ class HomePhase extends BasePhase {
     const result = succeed({ ...input, diagnostics: updatedDiag });
     return Promise.resolve(result);
   }
+
+  /**
+   * FINAL: validate loginUrl was captured by POST.
+   * Catches "Silent Success" — POST ran but didn't store the URL.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with diagnostics.
+   * @returns Succeed if loginUrl present, fail otherwise.
+   */
+  public final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    if (!input.diagnostics.loginUrl) {
+      const err = fail(ScraperErrorTypes.Generic, 'HOME final: loginUrl not set');
+      return Promise.resolve(err);
+    }
+    const result = succeed(input);
+    return Promise.resolve(result);
+  }
 }
 
 /**

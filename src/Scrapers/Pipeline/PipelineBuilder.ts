@@ -107,6 +107,25 @@ function buildDeclarativePhase(config: ILoginConfig): BasePhase {
     ): Promise<Procedure<IPipelineContext>> {
       return phase.post.execute(ctx, input);
     }
+
+    /**
+     * FINAL: validate login state exists before closing.
+     * Catches edge case where login "succeeded" but no state was stored.
+     * @param _ctx - Pipeline context (unused).
+     * @param input - Pipeline context with login state.
+     * @returns Succeed if login state present, fail otherwise.
+     */
+    public final(
+      _ctx: IPipelineContext,
+      input: IPipelineContext,
+    ): Promise<Procedure<IPipelineContext>> {
+      if (!input.login.has) {
+        const err = fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
+        return Promise.resolve(err);
+      }
+      const result = succeed(input);
+      return Promise.resolve(result);
+    }
   }
   return new DeclarativeLogin('login', (ctx, input) => phase.action.execute(ctx, input));
 }

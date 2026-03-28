@@ -160,6 +160,27 @@ class DashboardPhase extends BasePhase {
     const dashState: IDashboardState = { isReady: true, pageUrl: mediator.getCurrentUrl() };
     return succeed({ ...input, dashboard: some(dashState) });
   }
+
+  /**
+   * FINAL: validate dashboard readiness and stamp finalUrl into diagnostics.
+   * Catches "Silent Success" — login succeeded but dashboard never loaded.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with dashboard state.
+   * @returns Succeed with finalUrl in diagnostics, fail if dashboard missing.
+   */
+  public final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    if (!input.dashboard.has) {
+      const err = fail(ScraperErrorTypes.Generic, 'DASHBOARD final: not ready');
+      return Promise.resolve(err);
+    }
+    const dashUrl = input.dashboard.value.pageUrl;
+    const updatedDiag = { ...input.diagnostics, finalUrl: some(dashUrl) };
+    const result = succeed({ ...input, diagnostics: updatedDiag });
+    return Promise.resolve(result);
+  }
 }
 
 /**

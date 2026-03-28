@@ -166,6 +166,25 @@ class FindLoginAreaPhase extends BasePhase {
     if (config.checkReadiness) await config.checkReadiness(page).catch((): false => false);
     return succeed({ ...input, loginAreaReady: true });
   }
+
+  /**
+   * FINAL: validate loginAreaReady was set by POST.
+   * Prevents LOGIN phase from attempting fill on a non-interactive form.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with loginAreaReady flag.
+   * @returns Succeed if ready, fail otherwise.
+   */
+  public final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    if (!input.loginAreaReady) {
+      const err = fail(ScraperErrorTypes.Generic, 'FLA final: loginAreaReady not set');
+      return Promise.resolve(err);
+    }
+    const result = succeed(input);
+    return Promise.resolve(result);
+  }
 }
 
 /**

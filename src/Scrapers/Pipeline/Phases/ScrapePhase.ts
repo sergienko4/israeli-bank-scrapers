@@ -389,6 +389,24 @@ function createScrapePhase(
     ): Promise<Procedure<IPipelineContext>> {
       return executeScrapePost(_ctx, input);
     }
+
+    /**
+     * FINAL: stamp account count into diagnostics for audit trail.
+     * Does NOT fail on zero accounts — some date ranges legitimately return empty.
+     * @param _ctx - Unused.
+     * @param input - Pipeline context with scrape state.
+     * @returns Updated context with lastAction diagnostic.
+     */
+    public final(
+      _ctx: IPipelineContext,
+      input: IPipelineContext,
+    ): Promise<Procedure<IPipelineContext>> {
+      const count = (input.scrape.has && input.scrape.value.accounts.length) || 0;
+      const label = `scrape-final (${String(count)} accounts)`;
+      const updatedDiag = { ...input.diagnostics, lastAction: label };
+      const result = succeed({ ...input, diagnostics: updatedDiag });
+      return Promise.resolve(result);
+    }
   }
   return new ScrapePhaseImpl('scrape', actionExec);
 }
