@@ -30,17 +30,17 @@ describe('VISACAL_LOGIN', () => {
     });
   });
 
-  describe('lifecycle hooks — connect-iframe login flow', () => {
-    it('has checkReadiness (waits for login link before filling fields)', () => {
-      expect(VISACAL_LOGIN.checkReadiness).toBeDefined();
+  describe('generic flow — no bank-specific callbacks', () => {
+    it('has no checkReadiness (HOME phase handles it)', () => {
+      expect(VISACAL_LOGIN.checkReadiness).toBeUndefined();
     });
 
-    it('has preAction (opens Connect iframe so fields are visible)', () => {
-      expect(VISACAL_LOGIN.preAction).toBeDefined();
+    it('has no postAction (DASHBOARD phase handles it)', () => {
+      expect(VISACAL_LOGIN.postAction).toBeUndefined();
     });
 
-    it('has postAction (waits for SPA navigation after login)', () => {
-      expect(VISACAL_LOGIN.postAction).toBeDefined();
+    it('has no preAction (HOME phase handles it)', () => {
+      expect(VISACAL_LOGIN.preAction).toBeUndefined();
     });
   });
 });
@@ -50,7 +50,7 @@ describe('buildVisaCalPipeline', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(7);
+    expect(descriptor.phases).toHaveLength(6);
   });
 
   it('phase names are init, home, login, dashboard, scrape, terminate', () => {
@@ -58,14 +58,6 @@ describe('buildVisaCalPipeline', () => {
     assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
-    expect(names).toEqual([
-      'init',
-      'home',
-      'find-login-area',
-      'login',
-      'dashboard',
-      'scrape',
-      'terminate',
-    ]);
+    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
   });
 });

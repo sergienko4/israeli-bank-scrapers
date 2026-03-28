@@ -1,12 +1,12 @@
 /**
- * Unit tests for VisaCal preAction — verifies Connect iframe is opened before login.
- * preAction runs visaCalOpenLoginPopup which clicks the login link and waits for the iframe.
+ * Unit tests for VisaCal preAction — verifies generic architecture (no preAction).
+ * HOME phase handles all pre-login navigation via mediator.
  */
 
 import { VISACAL_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 
 describe('VISACAL_LOGIN.preAction', () => {
-  it('has preAction (opens Connect iframe so username/password fields are visible)', () => {
-    expect(VISACAL_LOGIN.preAction).toBeDefined();
+  it('has no preAction (HOME phase handles iframe discovery)', () => {
+    expect(VISACAL_LOGIN.preAction).toBeUndefined();
   });
 });

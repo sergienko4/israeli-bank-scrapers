@@ -7,11 +7,7 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  type IElementMediator,
-  type IRaceResult,
-  NOT_FOUND_RESULT,
-} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -34,9 +30,6 @@ import { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/Moc
 
 export { makeMockContext, makeMockPage };
 
-/** Mock page timeout setter result. */
-type TimeoutSet = boolean;
-
 // ── Browser mocks ─────────────────────────────────────────
 
 /** Minimal locator mock used by makeMockFullPage. */
@@ -56,11 +49,6 @@ const MOCK_LOCATOR = {
      * @returns True.
      */
     fill: (): Promise<boolean> => Promise.resolve(true),
-    /**
-     * Evaluate mock — returns false (no data-uw-hidden-control on test elements).
-     * @returns False.
-     */
-    evaluate: (): Promise<boolean> => Promise.resolve(false),
     /**
      * IsVisible mock — returns false.
      * @returns False.
@@ -122,7 +110,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * No-op timeout setter mock.
      * @returns True.
      */
-    setDefaultTimeout: (): TimeoutSet => true,
+    setDefaultTimeout: (): boolean => true,
     /**
      * Resolves immediately for any load state.
      * @returns Resolved true.
@@ -337,13 +325,8 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return Promise.resolve(result);
     },
     /**
-     * Resolve visible — returns NOT_FOUND_RESULT. Override for success tests.
-     * @returns NOT_FOUND_RESULT.
-     */
-    resolveVisible: (): Promise<IRaceResult> => Promise.resolve(NOT_FOUND_RESULT),
-    /**
-     * Best-effort click — returns true (found). Override for failure tests.
-     * @returns True.
+     * Best-effort click — returns false (not found). Override for success tests.
+     * @returns False.
      */
     resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
     /**
@@ -407,12 +390,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * Empty headers in mock.
        * @returns Default empty opts.
        */
-      /**
-       * Empty discovered headers stub.
-       * @returns Resolved empty headers.
-       */
-      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
-        Promise.resolve({ extraHeaders: {} }),
+      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
       /**
        * No transaction URL in mock.
        * @returns False.
@@ -423,11 +401,6 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       buildBalanceUrl: (): false => false,
-      /**
-       * No SPA URL in mock.
-       * @returns False.
-       */
-      discoverSpaUrl: (): false => false,
     },
   };
   return { ...base, ...overrides };
@@ -525,7 +498,7 @@ export function makeContextWithLogin(frame: Page = makeMockFullPage()): IPipelin
   const base = makeContextWithBrowser(frame);
   const loginState = makeMockLoginState(frame);
   const loginSome = some(loginState);
-  return { ...base, login: loginSome, loginAreaReady: true };
+  return { ...base, login: loginSome };
 }
 
 /**

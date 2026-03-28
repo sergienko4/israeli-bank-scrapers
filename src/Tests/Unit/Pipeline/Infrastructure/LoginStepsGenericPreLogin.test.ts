@@ -1,18 +1,26 @@
 /**
- * Unit tests for generic preLogin helpers in LoginSteps.
- * Tests tryClosePopup, tryClickLoginLink, tryClickPrivateCustomers.
- * All use mediator.resolveAndClick — no direct page.getByText.
+ * Unit tests for generic pre-login helpers in GenericPreLoginSteps.
+ * Tests tryClosePopup, discoverLoginClickable.
+ * All use mediator — no direct page.getByText.
  */
 
-import type { Page } from 'playwright-core';
-
+import type { IFieldContext } from '../../../../Common/SelectorResolverPipeline.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import {
-  tryClickLoginLink,
-  tryClickPrivateCustomers,
+  discoverLoginClickable,
   tryClosePopup,
 } from '../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+
+/** Build a mock resolveClickable that returns given selector. */
+function mockResolveClickable(selector: string): () => Promise<Procedure<IFieldContext>> {
+  const result: Procedure<IFieldContext> = {
+    success: true,
+    value: { isResolved: selector !== '', selector, context: {} as never, resolvedVia: 'wellKnown', round: 'mainPage' },
+  };
+  return (): Promise<Procedure<IFieldContext>> => Promise.resolve(result);
+}
 
 /**
  * Build a mediator that succeeds on resolveAndClick.
@@ -20,10 +28,7 @@ import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.
  */
 function makeSuccessMediator(): IElementMediator {
   return makeMockMediator({
-    /**
-     * Always find and click.
-     * @returns True.
-     */
+    /** Always find and click. */
     resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
   });
 }
@@ -34,10 +39,7 @@ function makeSuccessMediator(): IElementMediator {
  */
 function makeFailMediator(): IElementMediator {
   return makeMockMediator({
-    /**
-     * Nothing found.
-     * @returns False.
-     */
+    /** Nothing found. */
     resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
   });
 }
@@ -57,10 +59,7 @@ describe('tryClosePopup', () => {
 
   it('returns false when mediator throws', async () => {
     const mediator = makeMockMediator({
-      /**
-       * Throw to simulate error.
-       * @returns Rejected.
-       */
+      /** Simulate error. */
       resolveAndClick: (): Promise<boolean> => Promise.reject(new Error('fail')),
     });
     const didClose = await tryClosePopup(mediator);
@@ -68,38 +67,29 @@ describe('tryClosePopup', () => {
   });
 });
 
-describe('tryClickLoginLink', () => {
-  it('returns true when mediator finds login link', async () => {
-    const mediator = makeSuccessMediator();
-    const didClick = await tryClickLoginLink(mediator);
-    expect(didClick).toBe(true);
+describe('discoverLoginClickable', () => {
+  it('returns selector when mediator resolves a clickable login element', async () => {
+    const mediator = makeMockMediator({
+      resolveClickable: mockResolveClickable('#loginBtn'),
+    });
+    const selector = await discoverLoginClickable(mediator);
+    expect(selector).toBe('#loginBtn');
   });
 
-  it('returns false when mediator finds nothing', async () => {
-    const mediator = makeFailMediator();
-    const didClick = await tryClickLoginLink(mediator);
-    expect(didClick).toBe(false);
-  });
-});
-
-describe('tryClickPrivateCustomers', () => {
-  it('returns true when mediator clicks and page navigates', async () => {
-    const mediator = makeSuccessMediator();
-    const page = {
-      /**
-       * Simulate navigation to /login.
-       * @returns Resolved.
-       */
-      waitForURL: (): Promise<boolean> => Promise.resolve(true),
-    } as unknown as Page;
-    const didClick = await tryClickPrivateCustomers(mediator, page, 15000);
-    expect(didClick).toBe(true);
+  it('returns empty string when mediator finds no clickable', async () => {
+    const mediator = makeMockMediator({
+      resolveClickable: mockResolveClickable(''),
+    });
+    const selector = await discoverLoginClickable(mediator);
+    expect(selector).toBe('');
   });
 
-  it('returns false when mediator finds nothing', async () => {
-    const mediator = makeFailMediator();
-    const page = {} as unknown as Page;
-    const didClick = await tryClickPrivateCustomers(mediator, page, 15000);
-    expect(didClick).toBe(false);
+  it('returns null when mediator throws', async () => {
+    const mediator = makeMockMediator({
+      /** Simulate error. */
+      resolveClickable: (): Promise<never> => Promise.reject(new Error('timeout')),
+    });
+    const selector = await discoverLoginClickable(mediator);
+    expect(selector).toBeNull();
   });
 });

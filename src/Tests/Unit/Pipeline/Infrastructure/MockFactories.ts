@@ -116,6 +116,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       lastAction: 'test',
       pageTitle: none(),
       warnings: [],
+      homeDiscovery: '',
     },
     config: {} as unknown as IBankScraperConfig,
     fetchStrategy: none(),
@@ -125,8 +126,6 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     dashboard: none(),
     scrape: none(),
     api: none(),
-    loginAreaReady: true,
-    findLoginAreaDiscovery: none(),
   };
   return { ...defaults, ...overrides };
 }

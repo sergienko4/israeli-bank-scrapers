@@ -1,6 +1,6 @@
 /**
  * Unit tests for Amex pipeline config and builder.
- * Mirrors DiscountPipeline.test.ts — minimal config + builder chain.
+ * Tests AMEX_LOGIN minimal shape and buildAmexPipeline phases.
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
@@ -11,55 +11,51 @@ import {
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 
+/** Mock options for pipeline builder. */
 const MOCK_OPTIONS = makeMockOptions({ companyId: CompanyTypes.Amex });
 
-describe('AMEX_LOGIN — config shape', () => {
-  it('has three credential fields: id, password, card6Digits', () => {
-    expect(AMEX_LOGIN.fields).toHaveLength(3);
-    const keys = AMEX_LOGIN.fields.map(f => f.credentialKey);
-    expect(keys).toEqual(['id', 'password', 'card6Digits']);
+describe('AMEX_LOGIN', () => {
+  describe('config shape', () => {
+    it('has three credential fields: id, password, card6Digits', () => {
+      expect(AMEX_LOGIN.fields).toHaveLength(3);
+      const keys = AMEX_LOGIN.fields.map(f => f.credentialKey);
+      expect(keys).toEqual(['id', 'password', 'card6Digits']);
+    });
+
+    it('has empty submit (generic mediator resolves submit)', () => {
+      const submit = Array.isArray(AMEX_LOGIN.submit) ? AMEX_LOGIN.submit : [AMEX_LOGIN.submit];
+      expect(submit.length).toBe(0);
+    });
   });
 
-  it('all fields use empty selectors (WellKnown mediator resolves by Hebrew text)', () => {
-    for (const field of AMEX_LOGIN.fields) {
-      expect(field.selectors).toHaveLength(0);
-    }
-  });
+  describe('generic flow — no bank-specific callbacks', () => {
+    it('has no checkReadiness (HOME phase handles it)', () => {
+      expect(AMEX_LOGIN.checkReadiness).toBeUndefined();
+    });
 
-  it('has empty submit array (mediator uses WellKnown __submit__ fallback)', () => {
-    const submit = Array.isArray(AMEX_LOGIN.submit) ? AMEX_LOGIN.submit : [AMEX_LOGIN.submit];
-    expect(submit).toHaveLength(0);
-  });
+    it('has no postAction (DASHBOARD phase handles it)', () => {
+      expect(AMEX_LOGIN.postAction).toBeUndefined();
+    });
 
-  it('loginUrl is the home page base URL', () => {
-    expect(AMEX_LOGIN.loginUrl).toBeTruthy();
+    it('has no preAction (HOME phase handles it)', () => {
+      expect(AMEX_LOGIN.preAction).toBeUndefined();
+    });
   });
 });
 
 describe('buildAmexPipeline', () => {
-  it('returns a Procedure in success state', () => {
-    const result = buildAmexPipeline(MOCK_OPTIONS);
-    assertOk(result);
-  });
-
   it('returns descriptor with 6 phases', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
-    expect(result.value.phases).toHaveLength(7);
+    const descriptor = result.value;
+    expect(descriptor.phases).toHaveLength(6);
   });
 
-  it('phase names follow the canonical pipeline chain', () => {
+  it('phase names are init, home, login, dashboard, scrape, terminate', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
-    const names = result.value.phases.map(p => p.name);
-    expect(names).toEqual([
-      'init',
-      'home',
-      'find-login-area',
-      'login',
-      'dashboard',
-      'scrape',
-      'terminate',
-    ]);
+    const descriptor = result.value;
+    const names = descriptor.phases.map(p => p.name);
+    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
   });
 });

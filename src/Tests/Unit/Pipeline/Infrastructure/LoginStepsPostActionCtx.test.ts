@@ -55,19 +55,6 @@ function makeMockMediator(): IElementMediator {
      */
     discoverForm: (): Promise<never> => Promise.reject(new Error('not called')),
     /**
-     * Stub resolveVisible — not used in postLogin tests.
-     * @returns NOT_FOUND_RESULT equivalent.
-     */
-    resolveVisible: () =>
-      Promise.resolve({
-        found: false,
-        locator: false,
-        candidate: false,
-        context: false,
-        index: -1,
-        value: '',
-      }),
-    /**
      * Dashboard found — simulates successful login.
      * @returns True.
      */
@@ -133,12 +120,7 @@ function makeMockMediator(): IElementMediator {
        * Empty headers in mock.
        * @returns Default empty opts.
        */
-      /**
-       * Empty discovered headers stub.
-       * @returns Resolved empty headers.
-       */
-      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
-        Promise.resolve({ extraHeaders: {} }),
+      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
       /**
        * No transaction URL in mock.
        * @returns False.
@@ -149,11 +131,6 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       buildBalanceUrl: (): false => false,
-      /**
-       * No SPA URL in mock.
-       * @returns False.
-       */
-      discoverSpaUrl: (): false => false,
     },
   };
   return mediator;

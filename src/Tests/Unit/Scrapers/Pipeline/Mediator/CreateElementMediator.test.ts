@@ -67,13 +67,11 @@ const RESOLVED_CTX = {
 // ── Structure ─────────────────────────────────────────────
 
 describe('createElementMediator/structure', () => {
-  it('returns object with all IElementMediator methods', () => {
+  it('returns object with all 5 IElementMediator methods', () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
     expect(typeof mediator.resolveField).toBe('function');
     expect(typeof mediator.resolveClickable).toBe('function');
-    expect(typeof mediator.resolveVisible).toBe('function');
-    expect(typeof mediator.resolveAndClick).toBe('function');
     expect(typeof mediator.discoverErrors).toBe('function');
     expect(typeof mediator.discoverForm).toBe('function');
     expect(typeof mediator.scopeToForm).toBe('function');
