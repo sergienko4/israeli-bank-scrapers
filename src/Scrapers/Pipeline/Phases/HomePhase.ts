@@ -11,7 +11,7 @@
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
 import { WK } from '../Registry/PipelineWellKnown.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { some } from '../Types/Option.js';
@@ -20,9 +20,6 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import { tryClickLoginLinkWithHref, tryClosePopup } from './GenericPreLoginSteps.js';
-
-/** Whether a mediator click action succeeded. */
-type NavSuccess = boolean;
 
 // ── PRE: navigate to homepage ─────────────────────────────
 
@@ -112,11 +109,13 @@ const HOME_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
  * Probe for a credential field to confirm the form is present.
  * Used by FindLoginAreaPhase.POST.
  * @param mediator - Active mediator.
- * @returns True if a form field was found.
+ * @returns Procedure with IRaceResult — found=true if form field detected.
  */
-export async function waitForCredentialsForm(mediator: IElementMediator): Promise<boolean> {
+export async function waitForCredentialsForm(
+  mediator: IElementMediator,
+): Promise<Procedure<IRaceResult>> {
   const candidates = WK.HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
-  return mediator.resolveAndClick(candidates).catch((): NavSuccess => false);
+  return mediator.resolveAndClick(candidates);
 }
 
 /**

@@ -9,9 +9,9 @@
 
 import type { Page, Response } from 'playwright-core';
 
-import { getDebug } from '../../../Common/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../Registry/PipelineWellKnown.js';
 import type { IFetchOpts } from '../Strategy/FetchStrategy.js';
+import { getDebug } from '../Types/Debug.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
 

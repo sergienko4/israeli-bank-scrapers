@@ -6,15 +6,11 @@
 
 import type { Page } from 'playwright-core';
 
-import {
-  fetchGetWithinPage,
-  fetchGetWithinPageWithHeaders,
-  fetchPostWithinPage,
-} from '../../../Common/Fetch.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import { fetchGetWithinPage, fetchGetWithinPageWithHeaders, fetchPostWithinPage } from './Fetch.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
 /**

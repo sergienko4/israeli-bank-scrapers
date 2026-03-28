@@ -3,7 +3,6 @@
  * billing fallback, account dispatch, and iteration.
  */
 
-import { getDebug } from '../../../Common/Debug.js';
 import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IMonthChunk } from '../Mediator/GenericScrapeStrategy.js';
@@ -13,6 +12,7 @@ import {
   isRangeIterable,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint } from '../Mediator/NetworkDiscovery.js';
+import { getDebug } from '../Types/Debug.js';
 
 /** Full billing API URL built from the accounts endpoint origin. */
 type BillingApiUrl = string;

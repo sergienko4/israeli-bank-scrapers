@@ -44,18 +44,26 @@ describe('AMEX_LOGIN', () => {
 });
 
 describe('buildAmexPipeline', () => {
-  it('returns descriptor with 6 phases', () => {
+  it('returns descriptor with 7 phases', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(6);
+    expect(descriptor.phases).toHaveLength(7);
   });
 
-  it('phase names are init, home, login, dashboard, scrape, terminate', () => {
+  it('phase names are init, home, find-login-area, login, dashboard, scrape, terminate', () => {
     const result = buildAmexPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
-    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
+    expect(names).toEqual([
+      'init',
+      'home',
+      'find-login-area',
+      'login',
+      'dashboard',
+      'scrape',
+      'terminate',
+    ]);
   });
 });

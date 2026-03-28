@@ -289,12 +289,12 @@ async function executeWaitUntil<T>(
  * @param opts - Optional timeout and interval configuration.
  * @returns The first truthy value from asyncTest.
  */
-export function waitUntil<T>(
+export async function waitUntil<T>(
   asyncTest: () => Promise<T>,
   description = '',
   opts: IWaitUntilOpts = {},
 ): WaitUntilReturn<T> {
-  return await executeWaitUntil(asyncTest, description, opts) as WaitUntilReturn<T>;
+  return (await executeWaitUntil(asyncTest, description, opts)) as WaitUntilReturn<T>;
 }
 
 /** Sentinel indicating the race timed out before the promise resolved. */

@@ -9,7 +9,6 @@
 import moment from 'moment';
 import type { Page } from 'playwright-core';
 
-import { getDebug } from '../../../Common/Debug.js';
 import {
   extractAccountIds,
   extractAccountRecords,
@@ -17,6 +16,7 @@ import {
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
 import type { IApiFetchContext, IPipelineContext } from '../Types/PipelineContext.js';

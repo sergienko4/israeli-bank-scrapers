@@ -7,7 +7,6 @@
 import type { Moment } from 'moment';
 import moment from 'moment';
 
-import getAllMonthMoments from '../../../Common/Dates.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
@@ -15,6 +14,7 @@ import { some } from '../Types/Option.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, isOk, succeed } from '../Types/Procedure.js';
+import getAllMonthMoments from './Dates.js';
 
 /** Months to look back from the start date. */
 type MonthsBack = number;

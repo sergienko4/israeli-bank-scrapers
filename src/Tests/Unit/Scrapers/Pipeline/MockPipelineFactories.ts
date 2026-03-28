@@ -8,6 +8,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -36,7 +37,7 @@ export { makeMockContext, makeMockPage };
 const MOCK_LOCATOR = {
   /**
    * Return the first-element locator mock.
-   * @returns First locator with click/fill/isVisible/waitFor.
+   * @returns First locator with click/fill/isVisible/waitFor/evaluate.
    */
   first: (): object => ({
     /**
@@ -59,6 +60,11 @@ const MOCK_LOCATOR = {
      * @returns True.
      */
     waitFor: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * Evaluate mock — returns false (no hidden-control attribute).
+     * @returns False.
+     */
+    evaluate: (): Promise<boolean> => Promise.resolve(false),
   }),
   /**
    * Fill mock on locator.
@@ -313,9 +319,12 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
     discoverErrors: (): Promise<IFormErrorScanResult> => Promise.resolve(MEDIATOR_NO_ERRORS),
     /**
      * Loading done immediately — no spinners in tests.
-     * @returns Resolved true.
+     * @returns Succeed(true) — loading complete.
      */
-    waitForLoadingDone: (): Promise<boolean> => Promise.resolve(true),
+    waitForLoadingDone: () => {
+      const done = succeed(true as const);
+      return Promise.resolve(done);
+    },
     /**
      * Return none option.
      * @returns Resolved none.
@@ -325,10 +334,18 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return Promise.resolve(result);
     },
     /**
-     * Best-effort click — returns false (not found). Override for success tests.
-     * @returns False.
+     * Best-effort click — returns succeed(NOT_FOUND_RESULT) by default. Override for success tests.
+     * @returns Succeed with NOT_FOUND_RESULT.
      */
-    resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
+    resolveAndClick: () => {
+      const notFound = succeed(NOT_FOUND_RESULT);
+      return Promise.resolve(notFound);
+    },
+    /**
+     * Not found by default. Override for success tests.
+     * @returns NOT_FOUND_RESULT race result.
+     */
+    resolveVisible: (): Promise<typeof NOT_FOUND_RESULT> => Promise.resolve(NOT_FOUND_RESULT),
     /**
      * Return candidates unchanged.
      * @param candidates - Input candidates.
@@ -498,7 +515,7 @@ export function makeContextWithLogin(frame: Page = makeMockFullPage()): IPipelin
   const base = makeContextWithBrowser(frame);
   const loginState = makeMockLoginState(frame);
   const loginSome = some(loginState);
-  return { ...base, login: loginSome };
+  return { ...base, login: loginSome, loginAreaReady: true };
 }
 
 /**

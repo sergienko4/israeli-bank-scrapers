@@ -5,8 +5,8 @@
 
 import type { Page } from 'playwright-core';
 
-import type { IFieldContext } from '../../../../../Common/SelectorResolverPipeline.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
+import type { IFieldContext } from '../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

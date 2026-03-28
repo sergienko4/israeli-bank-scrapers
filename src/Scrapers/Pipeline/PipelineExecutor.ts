@@ -3,12 +3,12 @@
  * Each phase runs: pre → action → post. Failure at any step skips the rest.
  */
 
-import { getDebug } from '../../Common/Debug.js';
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interface.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { runAllCleanups } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import { getDebug } from './Types/Debug.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
 import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';

@@ -6,13 +6,16 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-jest.unstable_mockModule('../../../../../Common/SelectorResolverPipeline.js', () => ({
-  probeIframes: jest.fn(),
-  probeMainPage: jest.fn(),
-  buildNotFoundContext: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js',
+  () => ({
+    probeIframes: jest.fn(),
+    probeMainPage: jest.fn(),
+    buildNotFoundContext: jest.fn(),
+  }),
+);
 
-jest.unstable_mockModule('../../../../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/SelectorResolver.js', () => ({
   isPage: jest.fn(),
   tryInContext: jest.fn(),
   tryInContextInternal: jest.fn(),
@@ -37,8 +40,9 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/MetadataExtr
   },
 }));
 
-const SRP_MOD = await import('../../../../../Common/SelectorResolverPipeline.js');
-const SR_MOD = await import('../../../../../Common/SelectorResolver.js');
+const SRP_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js');
+const SR_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/SelectorResolver.js');
 const META_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/MetadataExtractors.js');
 const RESOLVER_MOD =
   await import('../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js');

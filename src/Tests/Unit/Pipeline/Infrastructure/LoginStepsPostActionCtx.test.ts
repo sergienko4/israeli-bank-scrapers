@@ -9,6 +9,7 @@ import type { Frame, Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NO_ERRORS } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { createPostLoginStep } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -18,7 +19,7 @@ import type {
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { IPipelineLoginConfig } from '../../../../Scrapers/Pipeline/Types/PipelineLoginConfig.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext, makeMockPage } from './MockFactories.js';
 
 // ── Mock helpers ───────────────────────────────────────────
@@ -46,19 +47,30 @@ function makeMockMediator(): IElementMediator {
     discoverErrors: (): Promise<typeof NO_ERRORS> => Promise.resolve(NO_ERRORS),
     /**
      * Loading already done.
-     * @returns Resolved true.
+     * @returns Succeed(true) — loading complete.
      */
-    waitForLoadingDone: (): Promise<boolean> => Promise.resolve(true),
+    waitForLoadingDone: () => {
+      const done = succeed(true as const);
+      return Promise.resolve(done);
+    },
     /**
      * Stub discoverForm.
      * @returns Rejected — not used in postLogin tests.
      */
     discoverForm: (): Promise<never> => Promise.reject(new Error('not called')),
     /**
-     * Dashboard found — simulates successful login.
-     * @returns True.
+     * Resolve and click — returns succeed(NOT_FOUND_RESULT) by default.
+     * @returns Succeed with NOT_FOUND_RESULT.
      */
-    resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
+    resolveAndClick: () => {
+      const notFound = succeed(NOT_FOUND_RESULT);
+      return Promise.resolve(notFound);
+    },
+    /**
+     * Resolve visible — returns NOT_FOUND_RESULT.
+     * @returns NOT_FOUND_RESULT.
+     */
+    resolveVisible: () => Promise.resolve(NOT_FOUND_RESULT),
     /**
      * Stub scopeToForm — passthrough.
      * @param c - Candidates.

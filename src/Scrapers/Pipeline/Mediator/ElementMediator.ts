@@ -15,13 +15,13 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
-import type { IFormAnchor } from '../../../Common/FormAnchor.js';
-import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import type { Procedure } from '../Types/Procedure.js';
+import type { IFormAnchor } from './FormAnchor.js';
 import type { IFormErrorScanResult } from './FormErrorDiscovery.js';
 import type { INetworkDiscovery } from './NetworkDiscovery.js';
+import type { IFieldContext } from './SelectorResolverPipeline.js';
 
 /** Whether an element race found a visible element. */
 type RaceFound = boolean;
@@ -96,8 +96,10 @@ interface IElementMediator {
    * Wait for loading indicators to disappear from the given frame.
    * Uses WellKnown loadingIndicator candidates. Retries up to 2 times with 2s delay.
    * Generic — works for any bank after form submit, OTP, or dashboard navigation.
+   * @param frame - The Page or Frame to monitor.
+   * @returns Procedure succeed(true) when done, fail on infrastructure error.
    */
-  waitForLoadingDone(frame: Page | Frame): Promise<boolean>;
+  waitForLoadingDone(frame: Page | Frame): Promise<Procedure<true>>;
 
   /**
    * Resolve the first visible element WITHOUT clicking. Returns metadata for inspection.
@@ -113,14 +115,17 @@ interface IElementMediator {
   ): Promise<IRaceResult>;
 
   /**
-   * Resolve a clickable element and click it. Best-effort: returns false if not found.
+   * Resolve a clickable element and click it via Procedure.
    * Uses the resolver's text→walk-up-to-interactive-ancestor pipeline.
    * Internally calls resolveVisible then clicks the winner.
    * @param candidates - WellKnown selector candidates to try.
    * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
-   * @returns True if element was found and clicked, false otherwise.
+   * @returns Procedure with IRaceResult (found=true if clicked, found=false if not found).
    */
-  resolveAndClick(candidates: readonly SelectorCandidate[], timeoutMs?: number): Promise<boolean>;
+  resolveAndClick(
+    candidates: readonly SelectorCandidate[],
+    timeoutMs?: number,
+  ): Promise<Procedure<IRaceResult>>;
 
   /** Discover and cache the form anchor from a resolved field. */
   discoverForm(resolvedContext: IFieldContext): Promise<Option<IFormAnchor>>;

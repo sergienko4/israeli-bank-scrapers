@@ -10,11 +10,11 @@ import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
-jest.unstable_mockModule('../../../../../Common/CamoufoxLauncher.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/CamoufoxLauncher.js', () => ({
   launchCamoufox: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../../../../Common/Browser.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
   ISRAEL_LOCALE: 'he-IL',
   ISRAEL_TIMEZONE: 'Asia/Jerusalem',
@@ -42,7 +42,7 @@ jest.unstable_mockModule(
   }),
 );
 
-const CAMOUFOX_MOD = await import('../../../../../Common/CamoufoxLauncher.js');
+const CAMOUFOX_MOD = await import('../../../../../Scrapers/Pipeline/Phases/CamoufoxLauncher.js');
 const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/InitPhase.js');
 
 // ── Helpers ────────────────────────────────────────────────

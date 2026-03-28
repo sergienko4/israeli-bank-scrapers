@@ -5,12 +5,12 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../../../Common/Debug.js';
 import type { CompanyTypes } from '../../../../Definitions.js';
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
+import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -116,7 +116,6 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       lastAction: 'test',
       pageTitle: none(),
       warnings: [],
-      homeDiscovery: '',
     },
     config: {} as unknown as IBankScraperConfig,
     fetchStrategy: none(),
@@ -126,6 +125,8 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     dashboard: none(),
     scrape: none(),
     api: none(),
+    loginAreaReady: false,
+    findLoginAreaDiscovery: none(),
   };
   return { ...defaults, ...overrides };
 }

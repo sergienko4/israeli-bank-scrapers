@@ -1,13 +1,15 @@
 /**
  * Generic pre-login steps — mediator-based navigation helpers.
  * ALL HTML resolution goes through mediator/resolver. No direct page.getByText.
- * These steps are best-effort — they catch errors and return false if not found.
+ * Returns Procedure<IRaceResult> per Rule #15 — zero primitive returns.
  */
 
 import type { Locator, Page } from 'playwright-core';
 
-import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
 import { WK } from '../Registry/PipelineWellKnown.js';
+import type { Procedure } from '../Types/Procedure.js';
+import { succeed } from '../Types/Procedure.js';
 
 /** Timeout for waiting for page readiness (login link visible). */
 const PAGE_READINESS_TIMEOUT = 30000;
@@ -15,35 +17,31 @@ const PAGE_READINESS_TIMEOUT = 30000;
 /** Timeout for waiting for first credential field to appear. */
 const FIELD_WAIT_TIMEOUT = 15000;
 
-/** Whether a navigation or click action succeeded. */
-type ClickResult = boolean;
 /** Whether a login link href is recognized as a login destination. */
 type IsLoginLink = boolean;
-/** Whether a form element became visible within the timeout. */
-type FieldReady = boolean;
 /** Index of the first visible locator from a set. */
 type VisibleIndex = number;
 /** Raw href attribute value from an anchor element. */
 type HrefAttr = string;
+/** Whether a form element became visible within the timeout. */
+type FieldReady = boolean;
 
 /**
  * Try to close a popup overlay using WellKnown closeElement candidates.
  * @param mediator - Element mediator with resolver.
- * @returns True if a close element was found and clicked.
+ * @returns Procedure with IRaceResult — found=true if close element was clicked.
  */
-async function tryClosePopup(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.CLOSE_POPUP;
-  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
+async function tryClosePopup(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
+  return mediator.resolveAndClick(WK.CLOSE_POPUP);
 }
 
 /**
  * Try to click a login link using WellKnown loginLink candidates.
  * @param mediator - Element mediator with resolver.
- * @returns True if a login link was found and clicked.
+ * @returns Procedure with IRaceResult — found=true if login link was clicked.
  */
-async function tryClickLoginLink(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.ENTRY;
-  return mediator.resolveAndClick(candidates).catch((): ClickResult => false);
+async function tryClickLoginLink(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
+  return mediator.resolveAndClick(WK.HOME.ENTRY);
 }
 
 /** Href patterns that indicate a login page destination. */
@@ -64,20 +62,18 @@ function isLoginHref(href: HrefAttr): IsLoginLink {
  * Uses resolveVisible to find the link, inspects href before clicking.
  * Falls back to regular resolveAndClick if resolveVisible finds nothing.
  * @param mediator - Element mediator with resolver.
- * @returns True if a login link was found and clicked.
+ * @returns Procedure with IRaceResult — found=true if a login link was clicked.
  */
-async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<ClickResult> {
+async function tryClickLoginLinkWithHref(
+  mediator: IElementMediator,
+): Promise<Procedure<IRaceResult>> {
   const candidates = WK.HOME.ENTRY;
-  const result = await mediator.resolveVisible(candidates).catch((): false => false);
-  if (!result || !result.found || !result.locator) {
-    return tryClickLoginLink(mediator);
-  }
-  const href = await result.locator.getAttribute('href').catch((): HrefAttr => '');
-  if (href && !isLoginHref(href)) {
-    return tryClickLoginLink(mediator);
-  }
-  await result.locator.click();
-  return true;
+  const visible = await mediator.resolveVisible(candidates).catch((): false => false);
+  if (!visible || !visible.found || !visible.locator) return tryClickLoginLink(mediator);
+  const href = await visible.locator.getAttribute('href').catch((): HrefAttr => '');
+  if (href && !isLoginHref(href)) return tryClickLoginLink(mediator);
+  await visible.locator.click();
+  return succeed(visible);
 }
 
 /**
@@ -86,21 +82,19 @@ async function tryClickLoginLinkWithHref(mediator: IElementMediator): Promise<Cl
  * @param mediator - Element mediator with resolver.
  * @param page - Browser page (for URL wait).
  * @param navTimeout - Navigation wait timeout in ms.
- * @returns True if clicked and navigated.
+ * @returns Procedure with IRaceResult.
  */
 async function tryClickPrivateCustomers(
   mediator: IElementMediator,
   page: Page,
   navTimeout: number,
-): Promise<ClickResult> {
-  const candidates = WK.HOME.REVEAL;
-  const didClick = await mediator.resolveAndClick(candidates).catch((): ClickResult => false);
-  if (!didClick) return false;
+): Promise<Procedure<IRaceResult>> {
+  const clickResult = await mediator.resolveAndClick(WK.HOME.REVEAL);
+  if (!clickResult.success) return clickResult;
+  if (!clickResult.value.found) return clickResult;
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
-  return page
-    .waitForURL('**/login**', navOpts)
-    .then((): ClickResult => true)
-    .catch((): ClickResult => false);
+  await page.waitForURL('**/login**', navOpts).catch((): false => false);
+  return clickResult;
 }
 
 /** Longer timeout for credential-area tab — portals with accessibility overlays load tabs asynchronously. */
@@ -110,11 +104,10 @@ const CRED_AREA_TIMEOUT = 10_000;
  * Try to click the login method tab using WellKnown credentialAreaIndicator.
  * Uses extended timeout to handle portals that render tabs asynchronously (e.g. UserWay).
  * @param mediator - Element mediator with resolver.
- * @returns True if a tab was found and clicked.
+ * @returns Procedure with IRaceResult — found=true if a tab was clicked.
  */
-async function tryClickCredentialArea(mediator: IElementMediator): Promise<ClickResult> {
-  const candidates = WK.HOME.REVEAL;
-  return mediator.resolveAndClick(candidates, CRED_AREA_TIMEOUT).catch((): ClickResult => false);
+async function tryClickCredentialArea(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
+  return mediator.resolveAndClick(WK.HOME.REVEAL, CRED_AREA_TIMEOUT);
 }
 
 /**

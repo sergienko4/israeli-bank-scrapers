@@ -5,8 +5,6 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
-import { buildContextOptions } from '../../../Common/Browser.js';
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../Base/Interface.js';
 import createElementMediator from '../Mediator/CreateElementMediator.js';
@@ -17,6 +15,8 @@ import type { IPipelineStep } from '../Types/Phase.js';
 import type { IBrowserState, IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import { buildContextOptions } from './Browser.js';
+import { launchCamoufox } from './CamoufoxLauncher.js';
 
 /** Whether a browser/page/context close operation succeeded. */
 type CloseSuccess = boolean;

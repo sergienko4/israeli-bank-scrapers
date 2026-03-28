@@ -5,10 +5,10 @@
 
 import type { Page } from 'playwright-core';
 
-import type { IFieldContext } from '../../../../../Common/SelectorResolverPipeline.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { LifecyclePromise } from '../../../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
+import type { IFieldContext } from '../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -48,10 +48,21 @@ const SUCCESS_FIELD_CTX: IFieldContext = {
 // ── loginAction ───────────────────────────────────────────
 
 describe('LoginSteps/loginAction', () => {
-  it('fails when login context is absent', async () => {
+  it('fails when loginAreaReady gate is false', async () => {
     const mediator = makeMockMediator();
     const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ mediator: mediatorSome });
+    const ctx = makeMockContext({ mediator: mediatorSome, loginAreaReady: false });
+    const config = MAKE_LOGIN_CONFIG();
+    const phase = createLoginPhase(config);
+    const result = await phase.action.execute(ctx, ctx);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('loginAreaReady=false');
+  });
+
+  it('fails when login context is absent (past gate)', async () => {
+    const mediator = makeMockMediator();
+    const mediatorSome = some(mediator);
+    const ctx = makeMockContext({ mediator: mediatorSome, loginAreaReady: true });
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(ctx, ctx);
@@ -59,11 +70,11 @@ describe('LoginSteps/loginAction', () => {
     if (!result.success) expect(result.errorMessage).toContain('No login context');
   });
 
-  it('fails when mediator is absent from context', async () => {
+  it('fails when mediator is absent from context (past gate)', async () => {
     const page = makeMockFullPage();
     const loginState = makeMockLoginState(page);
     const loginSome = some(loginState);
-    const ctx = makeMockContext({ login: loginSome });
+    const ctx = makeMockContext({ login: loginSome, loginAreaReady: true });
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(ctx, ctx);

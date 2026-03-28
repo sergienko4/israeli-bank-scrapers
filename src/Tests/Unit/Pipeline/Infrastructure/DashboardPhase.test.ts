@@ -19,7 +19,8 @@ import {
 } from '../../../../Scrapers/Pipeline/Phases/DashboardPhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeMockBrowserState,
   makeMockFetchStrategy,
@@ -30,23 +31,25 @@ import { makeMockContext } from './MockFactories.js';
 /**
  * Build a context with browser + mediator for dashboard tests.
  * @param opts - Mock configuration.
- * @param opts.resolveAndClick - What resolveAndClick returns.
+ * @param opts.clickFound - Whether resolveAndClick finds an element.
  * @param opts.resolveVisible - What resolveVisible returns.
  * @param opts.hasFetchStrategy - Whether to include fetch strategy.
  * @returns Pipeline context.
  */
 function makeDashCtx(opts: {
-  resolveAndClick?: boolean;
+  clickFound?: boolean;
   resolveVisible?: IRaceResult;
   hasFetchStrategy?: boolean;
 }): IPipelineContext {
+  const clickRace = opts.clickFound ? { ...NOT_FOUND_RESULT, found: true } : NOT_FOUND_RESULT;
+  const clickResult = succeed(clickRace);
   const browserState = makeMockBrowserState();
   const mediator = makeMockMediator({
     /**
-     * Return configured resolveAndClick result.
-     * @returns Boolean.
+     * Return configured resolveAndClick Procedure.
+     * @returns Procedure with IRaceResult.
      */
-    resolveAndClick: (): Promise<boolean> => Promise.resolve(opts.resolveAndClick ?? true),
+    resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(clickResult),
     /**
      * Return configured resolveVisible result.
      * @returns IRaceResult.
@@ -142,7 +145,7 @@ describe('DashboardPhase/ACTION', () => {
 
 describe('DashboardPhase/POST', () => {
   it('stores dashboard pageUrl', async () => {
-    const ctx = makeDashCtx({ resolveAndClick: false });
+    const ctx = makeDashCtx({ clickFound: false });
     const result = await DASHBOARD_POST_STEP.execute(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
@@ -152,7 +155,7 @@ describe('DashboardPhase/POST', () => {
   });
 
   it('fails with ChangePassword when changePassword indicator found', async () => {
-    const ctx = makeDashCtx({ resolveAndClick: true });
+    const ctx = makeDashCtx({ clickFound: true });
     const result = await DASHBOARD_POST_STEP.execute(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);

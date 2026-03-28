@@ -6,7 +6,7 @@
 import { VISACAL_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 
 describe('VISACAL_LOGIN.preAction', () => {
-  it('has no preAction (HOME phase handles iframe discovery)', () => {
-    expect(VISACAL_LOGIN.preAction).toBeUndefined();
+  it('has preAction reused from legacy VisaCal config', () => {
+    expect(VISACAL_LOGIN.preAction).toBeDefined();
   });
 });

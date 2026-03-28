@@ -9,19 +9,19 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { scopeCandidates } from '../../../Common/FormAnchor.js';
-import { isPage } from '../../../Common/SelectorResolver.js';
+import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
+import { WK, WK_CONCEPT_MAP } from '../Registry/PipelineWellKnown.js';
+import { none, type Option, some } from '../Types/Option.js';
+import { scopeCandidates } from './FormAnchor.js';
+import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
+import { isPage } from './SelectorResolver.js';
 import {
   buildNotFoundContext,
   type IFieldContext,
   type IResolveAllOpts,
   probeIframes,
   probeMainPage,
-} from '../../../Common/SelectorResolverPipeline.js';
-import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
-import { WK, WK_CONCEPT_MAP } from '../Registry/PipelineWellKnown.js';
-import { none, type Option, some } from '../Types/Option.js';
-import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
+} from './SelectorResolverPipeline.js';
 
 /** URL string of the current page or frame context. */
 type ContextUrl = string;

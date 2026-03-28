@@ -6,13 +6,13 @@
 
 import type { BrowserContext, Frame, Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../../Common/Debug.js';
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IFetchStrategy } from '../Strategy/FetchStrategy.js';
+import type { ScraperLogger } from './Debug.js';
 import type { Option } from './Option.js';
 import type { Procedure } from './Procedure.js';
 

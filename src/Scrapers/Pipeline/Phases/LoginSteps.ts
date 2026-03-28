@@ -1,18 +1,10 @@
 /**
- * Login phase — split into preLogin, loginAction, postLogin.
- * Generic for ALL banks. Bank provides only ILoginConfig.
- *
- * preLogin:    navigate + checkReadiness + preAction (open form)
- * loginAction: PURE fill fields + click submit — via ctx.mediator (black box)
- * postLogin:   wait for settle + mediator.discoverErrors + postAction
- *
- * ARCHITECTURE: LoginSteps NEVER imports HTML utilities directly.
- * All HTML resolution flows through ctx.mediator (injected by InitPhase).
+ * Login phase — preLogin/loginAction/postLogin. Generic for ALL banks.
+ * ALL HTML resolution flows through ctx.mediator (Rule #10).
  */
 
 import type { Frame, Page } from 'playwright-core';
 
-import { deepFillInput } from '../../../Common/ElementsInteractions.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../Base/Interfaces/Config/FieldConfig.js';
@@ -25,6 +17,7 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import { hasPipelinePostAction } from '../Types/PipelineLoginConfig.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import { deepFillInput } from './ElementsInteractions.js';
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -402,28 +395,25 @@ export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
 }
 
 /**
- * Safely execute a post-action callback, wrapping errors as Procedure failure.
+ * Execute a postAction callback safely, converting exceptions to Procedure failure.
  * @param action - The async callback to execute.
- * @returns Success or failure Procedure.
+ * @returns Success(true) or failure Procedure.
  */
-async function safePostAction(action: () => Promise<unknown>): Promise<Procedure<boolean>> {
+async function safePostAction(action: () => Promise<boolean>): Promise<Procedure<boolean>> {
   try {
     await action();
     return succeed(true);
   } catch (err) {
-    const msg = `Post-login action failed: ${toErrorMessage(err as Error)}`;
-    return fail(ScraperErrorTypes.Generic, msg);
+    return fail(ScraperErrorTypes.Generic, `Post-login: ${toErrorMessage(err as Error)}`);
   }
 }
 
 /**
  * Run postAction callback if provided.
- * Checks for pipeline-aware postActionWithCtx first (multi-stage login with credentials).
- * Falls back to standard postAction(page) for backward compatibility.
  * @param page - Browser page.
- * @param config - Login config with optional postAction or postActionWithCtx.
- * @param ctx - Pipeline context (passed to postActionWithCtx if present).
- * @returns True when done.
+ * @param config - Login config.
+ * @param ctx - Pipeline context.
+ * @returns Success or failure Procedure.
  */
 async function runPostAction(
   page: Page,
@@ -433,14 +423,21 @@ async function runPostAction(
   const hasPipelineCtx = hasPipelinePostAction(config);
   const ctxFn = hasPipelineCtx && config.postActionWithCtx;
   if (ctxFn) return safePostAction((): Promise<boolean> => ctxFn(page, ctx));
+  if (!config.postAction) return succeed(true);
   const postFn = config.postAction;
-  if (!postFn) return succeed(true);
   return safePostAction(async (): Promise<boolean> => {
     await postFn(page);
     return true;
   });
 }
 
+/**
+ * Execute the postLogin step body.
+ * Validates: form errors → network settle. Dashboard detection is in DASHBOARD phase.
+ * @param config - Bank's login config.
+ * @param input - Context from loginAction.
+ * @returns Success or login error with specific errorType.
+ */
 /**
  * Execute the postLogin step body.
  * Validates: form errors → network settle. Dashboard detection is in DASHBOARD phase.
@@ -455,18 +452,14 @@ async function executePostLogin(
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for postLogin');
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login state for postLogin');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for postLogin');
-  const page = input.browser.value.page;
-  const activeFrame = input.login.value.activeFrame;
+  const { page } = input.browser.value;
+  const { activeFrame } = input.login.value;
   const mediator = input.mediator.value;
-  // Layer 1: FORM — check errors on the login form BEFORE navigation
-  await mediator.waitForLoadingDone(activeFrame);
-  const formErrors = await mediator.discoverErrors(activeFrame);
-  if (formErrors.hasErrors) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Form error: ${formErrors.summary}`);
-  }
-  // Layer 2: NETWORK — wait for page to settle (may navigate)
+  const loadingDone = await mediator.waitForLoadingDone(activeFrame);
+  if (!loadingDone.success) return loadingDone;
+  const errors = await mediator.discoverErrors(activeFrame);
+  if (errors.hasErrors) return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
   await waitForSubmitToSettle(page);
-  // Bank-specific postAction if provided
   const postResult = await runPostAction(page, config, input);
   if (!postResult.success) return postResult;
   return succeed(input);

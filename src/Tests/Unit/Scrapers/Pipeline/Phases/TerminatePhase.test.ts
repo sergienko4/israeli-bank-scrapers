@@ -5,11 +5,11 @@
 
 import { jest } from '@jest/globals';
 
-import type { ScraperLogger } from '../../../../../Common/Debug.js';
 import {
   runAllCleanups,
   TERMINATE_STEP,
 } from '../../../../../Scrapers/Pipeline/Phases/TerminatePhase.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { makeMockBrowserState, makeMockContext } from '../MockPipelineFactories.js';
 

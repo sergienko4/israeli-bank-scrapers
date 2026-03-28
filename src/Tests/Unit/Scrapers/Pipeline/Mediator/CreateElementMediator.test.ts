@@ -17,7 +17,7 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/FormErrorDis
   NO_ERRORS: { hasErrors: false, errors: [], summary: '' },
 }));
 
-jest.unstable_mockModule('../../../../../Common/FormAnchor.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/FormAnchor.js', () => ({
   discoverFormAnchor: jest.fn(),
   /**
    * Mock scopeCandidates — returns candidates unchanged.
@@ -28,7 +28,7 @@ jest.unstable_mockModule('../../../../../Common/FormAnchor.js', () => ({
   scopeCandidates: jest.fn((_scope: string, candidates: unknown[]) => candidates),
 }));
 
-jest.unstable_mockModule('../../../../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Types/Debug.js', () => ({
   /**
    * Mock getDebug — returns a no-op logger.
    * @returns Logger with jest.fn() for all methods.
@@ -51,7 +51,7 @@ jest.unstable_mockModule('../../../../../Common/Debug.js', () => ({
 
 const PFR_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js');
 const FED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js');
-const FA_MOD = await import('../../../../../Common/FormAnchor.js');
+const FA_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/FormAnchor.js');
 const MED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js');
 const FACTORY = await import('../MockPipelineFactories.js');
 
@@ -255,33 +255,33 @@ describe('createElementMediator/scopeToForm', () => {
 // ── waitForLoadingDone ───────────────────────────────────
 
 describe('createElementMediator/waitForLoadingDone', () => {
-  it('returns immediately when no loading indicator is visible', async () => {
+  it('returns succeed(true) when no loading indicator is visible', async () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
-    const isDone = await mediator.waitForLoadingDone(page);
-    expect(isDone).toBe(true);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe(true);
   });
 
-  it.each([
-    { label: 'clears after retry', visibleUntil: 2, expected: true },
-    { label: 'returns false after max retries', visibleUntil: 999, expected: false },
-  ] as const)(
-    /**
-     * Parametrized: loading indicator visible until call N, then hidden.
-     * @param label - Test description.
-     * @param visibleUntil - Number of isVisible calls that return true.
-     * @param expected - Expected return value.
-     */
-    '$label',
-    async ({ visibleUntil, expected }) => {
-      let callCount = 0;
-      const page = FACTORY.makeMockLoadingPage(() => {
-        callCount++;
-        return callCount <= visibleUntil;
-      });
-      const mediator = MED_MOD.createElementMediator(page);
-      const isDone = await mediator.waitForLoadingDone(page);
-      expect(isDone).toBe(expected);
-    },
-  );
+  it('returns succeed(true) after retry clears loading', async () => {
+    let callCount = 0;
+    const page = FACTORY.makeMockLoadingPage((): boolean => {
+      callCount++;
+      return callCount <= 2;
+    });
+    const mediator = MED_MOD.createElementMediator(page);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+  });
+
+  it('returns succeed(true) even after max retries (best-effort)', async () => {
+    let callCount = 0;
+    const page = FACTORY.makeMockLoadingPage((): boolean => {
+      callCount++;
+      return callCount <= 999;
+    });
+    const mediator = MED_MOD.createElementMediator(page);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+  });
 });

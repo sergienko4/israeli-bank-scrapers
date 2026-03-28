@@ -442,6 +442,13 @@ export default tseslint.config(
   {
     files: ['src/Tests/**/Pipeline/**/*.ts'],
     rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/Common/**'],
+            message: '🚫 ARCHITECTURE: Pipeline Tests must not reference Common/. Use Pipeline local types/mocks.'
+          }]
+      }],
       'check-file/filename-naming-convention': ['error', { 'src/Tests/**/*.{test,spec}.ts': 'PASCAL_CASE' }, { ignoreMiddleExtensions: true }],
       'check-file/folder-naming-convention': ['error', { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' }],
       'check-file/folder-match-with-fex': ['error', { '*.test.ts': '**/(Unit|E2E|Scrapers)/Pipeline/**' }],

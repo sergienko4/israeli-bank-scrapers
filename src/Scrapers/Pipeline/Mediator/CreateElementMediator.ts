@@ -6,20 +6,15 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
-import { getDebug } from '../../../Common/Debug.js';
-import {
-  discoverFormAnchor,
-  type IFormAnchor,
-  scopeCandidates,
-} from '../../../Common/FormAnchor.js';
-import type { IFieldContext } from '../../../Common/SelectorResolverPipeline.js';
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { WK } from '../Registry/PipelineWellKnown.js';
+import { getDebug } from '../Types/Debug.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { fail, type Procedure, succeed } from '../Types/Procedure.js';
 import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from './ElementMediator.js';
+import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from './FormAnchor.js';
 import {
   checkFrameForErrors,
   discoverFormErrors,
@@ -27,6 +22,7 @@ import {
 } from './FormErrorDiscovery.js';
 import { createNetworkDiscovery } from './NetworkDiscovery.js';
 import { resolveFieldPipeline } from './PipelineFieldResolver.js';
+import type { IFieldContext } from './SelectorResolverPipeline.js';
 
 const LOG = getDebug('element-mediator');
 
@@ -195,13 +191,13 @@ async function waitOnceForLoading(frame: Page | Frame, attempt: number): Promise
  * @returns Mediator waitForLoadingDone function.
  */
 function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
-  return async (frame: Page | Frame): Promise<boolean> => {
+  return async (frame: Page | Frame): Promise<Procedure<true>> => {
     const isDone1 = await waitOnceForLoading(frame, 1);
-    if (isDone1) return true;
+    if (isDone1) return succeed(true);
     const isDone2 = await waitOnceForLoading(frame, 2);
-    if (isDone2) return true;
-    const isDone3 = await waitOnceForLoading(frame, 3);
-    return isDone3;
+    if (isDone2) return succeed(true);
+    await waitOnceForLoading(frame, 3);
+    return succeed(true);
   };
 }
 
@@ -422,25 +418,27 @@ async function resolveVisibleImpl(
  * @param page - The Playwright page.
  * @param candidates - WellKnown selector candidates.
  * @param timeout - Race timeout in ms.
- * @returns True if element found and clicked.
+ * @returns Procedure with IRaceResult — found=true if clicked, NOT_FOUND_RESULT if not found.
  */
 async function resolveAndClickImpl(
   page: Page,
   candidates: readonly SelectorCandidate[],
   timeout: number,
-): Promise<boolean> {
+): Promise<Procedure<IRaceResult>> {
   const result = await resolveVisibleImpl(page, candidates, timeout);
   if (result.found && result.locator) {
     await result.locator.click({ force: true });
-    return true;
+    return succeed(result);
   }
   // Fallback: attached state — element is in DOM but not visually visible
   const entries = buildLocatorEntries(page, candidates);
   const locators = entries.map((e): Locator => e.locator);
   const winnerIdx = await raceLocators(locators, timeout, 'attached');
-  if (winnerIdx < 0) return false;
+  if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
   await entries[winnerIdx].locator.click({ force: true });
-  return true;
+  const snapshot = await snapshotValue(entries[winnerIdx]);
+  const attachedResult = buildFoundResult(entries[winnerIdx], winnerIdx, snapshot);
+  return succeed(attachedResult);
 }
 
 /**
@@ -463,8 +461,11 @@ function buildResolveVisible(page: Page): IElementMediator['resolveVisible'] {
  * @returns Mediator resolveAndClick function.
  */
 function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
-  return (candidates, timeoutMs?): Promise<boolean> => {
-    if (candidates.length === 0) return Promise.resolve(false);
+  return (candidates, timeoutMs?): Promise<Procedure<IRaceResult>> => {
+    if (candidates.length === 0) {
+      const emptyResult = succeed(NOT_FOUND_RESULT);
+      return Promise.resolve(emptyResult);
+    }
     const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
     return resolveAndClickImpl(page, candidates, timeout);
   };

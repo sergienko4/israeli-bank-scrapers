@@ -44,7 +44,7 @@ describe('buildIsracardPipeline', () => {
     assertOk(result);
   });
 
-  it('returns descriptor with 6 phases', () => {
+  it('returns descriptor with 7 phases', () => {
     const result = buildIsracardPipeline(MOCK_OPTIONS);
     assertOk(result);
     expect(result.value.phases).toHaveLength(7);

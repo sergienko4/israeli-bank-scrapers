@@ -6,11 +6,11 @@
 
 import moment from 'moment';
 
-import { getDebug } from '../../../Common/Debug.js';
 import type { ITransaction } from '../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import { getDebug } from '../Types/Debug.js';
 import type { IFieldMatch } from '../Types/FieldMatch.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, isOk, succeed } from '../Types/Procedure.js';

@@ -30,34 +30,42 @@ describe('VISACAL_LOGIN', () => {
     });
   });
 
-  describe('generic flow — no bank-specific callbacks', () => {
-    it('has no checkReadiness (HOME phase handles it)', () => {
-      expect(VISACAL_LOGIN.checkReadiness).toBeUndefined();
+  describe('lifecycle hooks — reused from legacy VisaCal config', () => {
+    it('has checkReadiness (reused from VISACAL_LOGIN_CONFIG)', () => {
+      expect(VISACAL_LOGIN.checkReadiness).toBeDefined();
     });
 
-    it('has no postAction (DASHBOARD phase handles it)', () => {
-      expect(VISACAL_LOGIN.postAction).toBeUndefined();
+    it('has postAction (reused from VISACAL_LOGIN_CONFIG)', () => {
+      expect(VISACAL_LOGIN.postAction).toBeDefined();
     });
 
-    it('has no preAction (HOME phase handles it)', () => {
-      expect(VISACAL_LOGIN.preAction).toBeUndefined();
+    it('has preAction (reused from VISACAL_LOGIN_CONFIG)', () => {
+      expect(VISACAL_LOGIN.preAction).toBeDefined();
     });
   });
 });
 
 describe('buildVisaCalPipeline', () => {
-  it('returns descriptor with 6 phases', () => {
+  it('returns descriptor with 7 phases', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(6);
+    expect(descriptor.phases).toHaveLength(7);
   });
 
-  it('phase names are init, home, login, dashboard, scrape, terminate', () => {
+  it('phase names are init, home, find-login-area, login, dashboard, scrape, terminate', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
-    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
+    expect(names).toEqual([
+      'init',
+      'home',
+      'find-login-area',
+      'login',
+      'dashboard',
+      'scrape',
+      'terminate',
+    ]);
   });
 });

@@ -25,9 +25,6 @@ import type {
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 
-/** Whether a dashboard-readiness check succeeded. */
-type DashboardReady = boolean;
-
 /** Timeout for waiting for dashboard indicator (30s for SPA auth flows). */
 const DASHBOARD_TIMEOUT = 30000;
 
@@ -172,10 +169,10 @@ async function executeDashboardPost(
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD POST');
   const page = input.browser.value.page;
   const mediator = input.mediator.value;
-  const hasChangePass = await mediator
-    .resolveAndClick(WK.DASHBOARD.CHANGE_PWD)
-    .catch((): DashboardReady => false);
-  if (hasChangePass) return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
+  const changePassResult = await mediator.resolveAndClick(WK.DASHBOARD.CHANGE_PWD);
+  if (!changePassResult.success) return changePassResult;
+  if (changePassResult.value.found)
+    return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
   const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };
   return succeed({ ...input, dashboard: some(dashState) });
 }

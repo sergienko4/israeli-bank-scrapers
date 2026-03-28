@@ -5,13 +5,13 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../../Common/Fetch.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Strategy/Fetch.js', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
   fetchGetWithinPageWithHeaders: jest.fn(),
 }));
 
-const FETCH_MOD = await import('../../../../../Common/Fetch.js');
+const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Strategy/Fetch.js');
 const STRATEGY_MOD =
   await import('../../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js');
 const { makeMockFullPage: MAKE_MOCK_FULL_PAGE } = await import('../MockPipelineFactories.js');

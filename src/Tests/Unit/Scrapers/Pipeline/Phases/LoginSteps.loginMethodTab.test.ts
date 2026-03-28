@@ -1,46 +1,54 @@
 /**
  * Unit tests for LoginSteps.tryClickCredentialArea.
  * Verifies generic tab detection — clicks when present, skips when absent.
- * All banks pass through this step; banks without a method-selection page skip it.
+ * resolveAndClick returns Procedure<IRaceResult> per Rule #15.
  */
 
+import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
-import { makeMockMediator } from '../MockPipelineFactories.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeMockFullPage, makeMockMediator } from '../MockPipelineFactories.js';
+
+/** Found race result — element clicked. */
+const FOUND: IRaceResult = {
+  found: true,
+  locator: makeMockFullPage().locator('mock').first(),
+  candidate: { kind: 'textContent', value: 'כניסה עם סיסמה' },
+  context: makeMockFullPage(),
+  index: 0,
+  value: 'כניסה עם סיסמה',
+};
 
 describe('tryClickCredentialArea', () => {
-  it('returns true when mediator resolveAndClick succeeds', async () => {
+  it('returns succeed with found=true when mediator clicks a tab', async () => {
+    const found = succeed(FOUND);
     const mediator = makeMockMediator({
       /**
        * Simulate finding and clicking a tab.
-       * @returns True — element found and clicked.
+       * @returns Succeed with found result.
        */
-      resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
+      resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(found),
     });
-    const didClick = await tryClickCredentialArea(mediator);
-    expect(didClick).toBe(true);
+    const result = await tryClickCredentialArea(mediator);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (result.success) expect(result.value.found).toBe(true);
   });
 
-  it('returns false when mediator resolveAndClick finds nothing', async () => {
+  it('returns succeed with found=false when no tab found', async () => {
+    const notFound = succeed(NOT_FOUND_RESULT);
     const mediator = makeMockMediator({
       /**
        * Simulate not finding any tab.
-       * @returns False — nothing found.
+       * @returns Succeed with NOT_FOUND_RESULT.
        */
-      resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
+      resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(notFound),
     });
-    const didClick = await tryClickCredentialArea(mediator);
-    expect(didClick).toBe(false);
-  });
-
-  it('returns false when mediator throws (detached frame)', async () => {
-    const mediator = makeMockMediator({
-      /**
-       * Simulate detached frame error.
-       * @returns Rejected.
-       */
-      resolveAndClick: (): Promise<boolean> => Promise.reject(new Error('detached')),
-    });
-    const didClick = await tryClickCredentialArea(mediator);
-    expect(didClick).toBe(false);
+    const result = await tryClickCredentialArea(mediator);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (result.success) expect(result.value.found).toBe(false);
   });
 });

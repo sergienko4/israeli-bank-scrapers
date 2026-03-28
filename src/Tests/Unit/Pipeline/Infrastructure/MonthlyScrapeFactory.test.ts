@@ -81,7 +81,7 @@ describe('createMonthlyScrapeFn', () => {
        * @param month - The month being fetched.
        * @returns Empty accounts.
        */
-      fetchMonth: (_ctx, month) => {
+      getMonthTransactions: (_ctx, month) => {
         const formatted = month.format('YYYY-MM');
         fetchedMonths.push(formatted);
         return Promise.resolve(EMPTY_ACCOUNTS);
@@ -111,10 +111,10 @@ describe('createMonthlyScrapeFn', () => {
         return Promise.resolve(SETUP_OK);
       },
       /**
-       * Track fetchMonth call order.
+       * Track getMonthTransactions call order.
        * @returns Empty accounts.
        */
-      fetchMonth: () => {
+      getMonthTransactions: () => {
         callOrder.push('fetch');
         return Promise.resolve(EMPTY_ACCOUNTS);
       },
@@ -143,7 +143,7 @@ describe('createMonthlyScrapeFn', () => {
        * Should not be called.
        * @returns Empty accounts.
        */
-      fetchMonth: () => Promise.resolve(EMPTY_ACCOUNTS),
+      getMonthTransactions: () => Promise.resolve(EMPTY_ACCOUNTS),
     };
 
     const scrapeFn = createMonthlyScrapeFn(config);
@@ -166,7 +166,7 @@ describe('createMonthlyScrapeFn', () => {
        * Return same account number each month with 1 txn.
        * @returns Single account with 1 transaction.
        */
-      fetchMonth: () => {
+      getMonthTransactions: () => {
         callCount += 1;
         const accounts = [makeAccount('1234', 1)];
         const ok = succeed(accounts);
@@ -201,7 +201,7 @@ describe('createMonthlyScrapeFn', () => {
        * Return two accounts per month.
        * @returns Two accounts.
        */
-      fetchMonth: () => {
+      getMonthTransactions: () => {
         const acct1 = makeAccount('1111', 1);
         const acct2 = makeAccount('2222', 2);
         const ok = succeed([acct1, acct2]);
@@ -230,7 +230,7 @@ describe('createMonthlyScrapeFn', () => {
        * First month fails, second succeeds.
        * @returns Failure or accounts.
        */
-      fetchMonth: () => {
+      getMonthTransactions: () => {
         if (isFirstCall) {
           isFirstCall = false;
           const monthErr = fail(ScraperErrorTypes.Generic, 'Month failed');
@@ -263,7 +263,7 @@ describe('createMonthlyScrapeFn', () => {
        * Return one account.
        * @returns Single account.
        */
-      fetchMonth: () => {
+      getMonthTransactions: () => {
         const acct = makeAccount('5555', 3);
         const ok = succeed([acct]);
         return Promise.resolve(ok);
