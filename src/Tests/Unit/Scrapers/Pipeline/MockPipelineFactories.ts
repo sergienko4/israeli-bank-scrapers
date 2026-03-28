@@ -17,6 +17,7 @@ import type {
   ILoginState,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type {
   IRawAccount,
@@ -224,12 +225,12 @@ export function makeMockBrowser(context: BrowserContext = makeMockBrowserContext
 }
 
 /**
- * Default cleanups: two functions that resolve true.
- * @returns Two cleanup functions that resolve true.
+ * Default cleanups: two functions that resolve succeed(undefined).
+ * @returns Two cleanup functions that resolve with Procedure<void>.
  */
-const DEFAULT_CLEANUPS: readonly (() => Promise<boolean>)[] = [
-  (): Promise<boolean> => Promise.resolve(true),
-  (): Promise<boolean> => Promise.resolve(true),
+const DEFAULT_CLEANUPS: IBrowserState['cleanups'] = [
+  (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+  (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
 ];
 
 /**
@@ -240,7 +241,7 @@ const DEFAULT_CLEANUPS: readonly (() => Promise<boolean>)[] = [
  */
 export function makeMockBrowserState(
   page: Page = makeMockFullPage(),
-  cleanups: readonly (() => Promise<boolean>)[] = DEFAULT_CLEANUPS,
+  cleanups: IBrowserState['cleanups'] = DEFAULT_CLEANUPS,
 ): IBrowserState {
   const context = makeMockBrowserContext(page);
   return { page, context, cleanups };

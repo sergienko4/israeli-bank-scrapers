@@ -16,6 +16,9 @@ import type { ScraperLogger } from './Debug.js';
 import type { Option } from './Option.js';
 import type { Procedure } from './Procedure.js';
 
+/** Cleanup handler return type — side-effect only, no payload. */
+type CleanupResult = Procedure<void>;
+
 /** Whether the dashboard page is fully ready after login. */
 type PageReadyFlag = boolean;
 /** URL string of a page captured during the pipeline. */
@@ -29,7 +32,7 @@ type DiagnosticStr = string;
 interface IBrowserState {
   readonly page: Page;
   readonly context: BrowserContext;
-  readonly cleanups: readonly (() => Promise<boolean>)[];
+  readonly cleanups: readonly (() => Promise<CleanupResult>)[];
 }
 
 /** Login phase result context. */

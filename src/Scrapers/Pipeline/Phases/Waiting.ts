@@ -1,5 +1,8 @@
 import type { Falsy } from 'utility-types';
 
+import type { Procedure } from '../Types/Procedure.js';
+import { succeed } from '../Types/Procedure.js';
+
 import {
   DEFAULT_WAIT_INTERVAL_MS,
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -369,10 +372,10 @@ export function sleep(ms: DelayMs): Promise<OpDone> {
 export function humanDelay(
   minMs = HUMAN_DELAY_MIN_MS,
   maxMs = HUMAN_DELAY_MAX_MS,
-): Promise<boolean> {
+): Promise<Procedure<void>> {
   const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
-  return createPromise<OpDone>((resolve): OpDone => {
-    globalThis.setTimeout((): OpDone => resolve(true), delay);
+  return createPromise<Procedure<void>>((resolve): OpDone => {
+    globalThis.setTimeout((): OpDone => resolve(succeed(undefined)), delay);
     return true;
   });
 }

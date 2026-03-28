@@ -504,6 +504,10 @@ export default tseslint.config(
           {
             group: ['**/Mediator/Internals/**'],
             message: '🚫 MEDIATOR: Access HTML resolution only via ctx.mediator.'
+          },
+          {
+            selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation :matches(TSBooleanKeyword, TSVoidKeyword, TSStringKeyword)",
+            message: "🚫 ARCHITECTURE: Primitive returns detected. All Pipeline methods must return Procedure<T> or IScraperResult."
           }
         ]
       }],

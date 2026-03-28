@@ -120,10 +120,13 @@ function makeInitWithSpyCleanups(spies: jest.Mock[]): SimplePhase {
    * @returns Context with browser state containing spy cleanups.
    */
   const executeFn: ExecFn = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-    const cleanups = spies.map((spy): (() => Promise<boolean>) => (): Promise<boolean> => {
-      spy();
-      return Promise.resolve(true);
-    });
+    const cleanups: IBrowserState['cleanups'] = spies.map(
+      (spy): IBrowserState['cleanups'][number] =>
+        (): Promise<Procedure<void>> => {
+          spy();
+          return Promise.resolve(succeed(undefined));
+        },
+    );
     const state: IBrowserState = {
       page: {} as unknown as Page,
       context: {} as unknown as BrowserContext,
@@ -209,7 +212,7 @@ describe('PipelineExecutor/cleanup-idempotent-on-success', () => {
     const terminateExecute: ExecFn = async (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
       if (!input.browser.has) return succeed(input);
       const cleanups = input.browser.value.cleanups;
-      const promises = cleanups.map((fn): Promise<boolean> => fn());
+      const promises = cleanups.map((fn): Promise<Procedure<void>> => fn());
       await Promise.all(promises);
       return succeed(input);
     };

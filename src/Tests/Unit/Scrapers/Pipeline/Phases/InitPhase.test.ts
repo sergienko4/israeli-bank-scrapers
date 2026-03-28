@@ -203,13 +203,13 @@ describe('InitPhase/cleanups', () => {
     const cleanups = browserState.value.cleanups;
     expect(cleanups).toHaveLength(3);
     const didCloseBrowser = await cleanups[0]();
-    expect(didCloseBrowser).toBe(true);
+    expect(didCloseBrowser.success).toBe(true);
     expect(mockBrowser.close).toHaveBeenCalled();
     const didCloseContext = await cleanups[1]();
-    expect(didCloseContext).toBe(true);
+    expect(didCloseContext.success).toBe(true);
     expect(mockContext.close).toHaveBeenCalled();
     const didClosePage = await cleanups[2]();
-    expect(didClosePage).toBe(true);
+    expect(didClosePage.success).toBe(true);
     expect(mockPage.close).toHaveBeenCalled();
   });
 });

@@ -92,13 +92,13 @@ async function fetchOneSafe(
  * Apply rate limit delay via browser page.waitForTimeout.
  * @param ctx - Pipeline context with browser page.
  * @param delayMs - Delay in milliseconds (0 to skip).
- * @returns True after delay.
+ * @returns Succeed after delay.
  */
-async function applyRateLimit(ctx: IPipelineContext, delayMs: number): Promise<boolean> {
-  if (delayMs <= 0) return true;
-  if (!ctx.browser.has) return true;
+async function applyRateLimit(ctx: IPipelineContext, delayMs: number): Promise<Procedure<void>> {
+  if (delayMs <= 0) return succeed(undefined);
+  if (!ctx.browser.has) return succeed(undefined);
   await ctx.browser.value.page.waitForTimeout(delayMs);
-  return true;
+  return succeed(undefined);
 }
 
 /** Bundled args for the recursive fetch loop. */

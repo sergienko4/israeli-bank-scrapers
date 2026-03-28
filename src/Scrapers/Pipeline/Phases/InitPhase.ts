@@ -18,8 +18,8 @@ import { fail, succeed } from '../Types/Procedure.js';
 import { buildContextOptions } from './Browser.js';
 import { launchCamoufox } from './CamoufoxLauncher.js';
 
-/** Whether a browser/page/context close operation succeeded. */
-type CloseSuccess = boolean;
+/** Whether a fire-and-forget close call succeeded (internal, not part of cleanup chain). */
+type CloseDone = boolean;
 
 /**
  * Launch a new Camoufox browser.
@@ -48,7 +48,7 @@ async function createContextAndPage(
     const page = await context.newPage();
     return { context, page };
   } catch (err) {
-    await context.close().catch((): CloseSuccess => false);
+    await context.close().catch((): CloseDone => false);
     throw err;
   }
 }
@@ -57,34 +57,35 @@ async function createContextAndPage(
  * Configure a page with timeouts and interceptors.
  * @param page - The page to configure.
  * @param options - Scraper options.
- * @returns True after setup completes.
+ * @returns Succeed after setup completes.
  */
-async function setupPage(page: Page, options: ScraperOptions): Promise<boolean> {
+async function setupPage(page: Page, options: ScraperOptions): Promise<Procedure<void>> {
   if (options.defaultTimeout) {
     page.setDefaultTimeout(options.defaultTimeout);
   }
   if (options.preparePage) {
     await options.preparePage(page);
   }
-  return true;
+  return succeed(undefined);
 }
 
 /**
  * Build cleanup handlers for browser lifecycle.
+ * Each handler returns Procedure<void> — succeed(undefined) on close, fail on error.
  * @param page - The page to close.
  * @param context - The browser context to close.
  * @param browser - The browser to close.
- * @returns Ordered cleanup array (page → context → browser).
+ * @returns Ordered cleanup array (browser → context → page).
  */
 function buildCleanups(
   page: Page,
   context: BrowserContext,
   browser: Browser,
-): readonly (() => Promise<CloseSuccess>)[] {
+): IBrowserState['cleanups'] {
   return [
-    (): Promise<CloseSuccess> => browser.close().then((): CloseSuccess => true),
-    (): Promise<CloseSuccess> => context.close().then((): CloseSuccess => true),
-    (): Promise<CloseSuccess> => page.close().then((): CloseSuccess => true),
+    (): Promise<Procedure<void>> => browser.close().then((): Procedure<void> => succeed(undefined)),
+    (): Promise<Procedure<void>> => context.close().then((): Procedure<void> => succeed(undefined)),
+    (): Promise<Procedure<void>> => page.close().then((): Procedure<void> => succeed(undefined)),
   ];
 }
 
@@ -138,12 +139,12 @@ function wireComponents(input: IPipelineContext, launched: ILaunchedBrowser): IP
  * @param browser - Browser handle or false if not yet launched.
  * @returns True if closed, false if no browser or close failed.
  */
-async function closeBrowserSafe(browser: Browser | false): Promise<CloseSuccess> {
+async function closeBrowserSafe(browser: Browser | false): Promise<CloseDone> {
   if (!browser) return false;
   return browser
     .close()
-    .then((): CloseSuccess => true)
-    .catch((): CloseSuccess => false);
+    .then((): CloseDone => true)
+    .catch((): CloseDone => false);
 }
 
 /**

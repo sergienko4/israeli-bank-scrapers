@@ -12,7 +12,7 @@ import type { BasePhase } from './Types/BasePhase.js';
 import { getDebug } from './Types/Debug.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
-import type { IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
+import type { IBrowserState, IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, isOk, succeed, toLegacy } from './Types/Procedure.js';
 
@@ -90,7 +90,7 @@ function buildInitialContext(
  * @param ctx - The pipeline context (may or may not have browser).
  * @returns Cleanup functions, or empty array if no browser.
  */
-function extractCleanups(ctx: IPipelineContext): readonly (() => Promise<boolean>)[] {
+function extractCleanups(ctx: IPipelineContext): IBrowserState['cleanups'] {
   if (!ctx.browser.has) return [];
   return ctx.browser.value.cleanups;
 }

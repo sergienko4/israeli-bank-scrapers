@@ -383,26 +383,26 @@ function createLoginActionStep(
  * Uses networkidle instead of waitForURL('**') to avoid SPA hash-routing false positives
  * (Angular/React apps already have a '#' URL before the form is submitted).
  * @param page - Browser main page.
- * @returns True after settling or timeout.
+ * @returns Succeed after settling or timeout (timeout is non-fatal for SPAs).
  */
-export async function waitForSubmitToSettle(page: Page): Promise<boolean> {
+export async function waitForSubmitToSettle(page: Page): Promise<Procedure<void>> {
   try {
     await page.waitForLoadState('networkidle', { timeout: POST_LOGIN_SETTLE_TIMEOUT });
   } catch {
     // Timeout is OK — SPA may stay "loading"; proceed and check for errors
   }
-  return true;
+  return succeed(undefined);
 }
 
 /**
  * Execute a postAction callback safely, converting exceptions to Procedure failure.
  * @param action - The async callback to execute.
- * @returns Success(true) or failure Procedure.
+ * @returns Succeed or failure Procedure.
  */
-async function safePostAction(action: () => Promise<boolean>): Promise<Procedure<boolean>> {
+async function safePostAction(action: () => Promise<void>): Promise<Procedure<void>> {
   try {
     await action();
-    return succeed(true);
+    return succeed(undefined);
   } catch (err) {
     return fail(ScraperErrorTypes.Generic, `Post-login: ${toErrorMessage(err as Error)}`);
   }
@@ -419,16 +419,13 @@ async function runPostAction(
   page: Page,
   config: ILoginConfig,
   ctx: IPipelineContext,
-): Promise<Procedure<boolean>> {
+): Promise<Procedure<void>> {
   const hasPipelineCtx = hasPipelinePostAction(config);
   const ctxFn = hasPipelineCtx && config.postActionWithCtx;
-  if (ctxFn) return safePostAction((): Promise<boolean> => ctxFn(page, ctx));
-  if (!config.postAction) return succeed(true);
+  if (ctxFn) return safePostAction(async (): Promise<void> => { await ctxFn(page, ctx); });
+  if (!config.postAction) return succeed(undefined);
   const postFn = config.postAction;
-  return safePostAction(async (): Promise<boolean> => {
-    await postFn(page);
-    return true;
-  });
+  return safePostAction(async (): Promise<void> => { await postFn(page); });
 }
 
 /**
