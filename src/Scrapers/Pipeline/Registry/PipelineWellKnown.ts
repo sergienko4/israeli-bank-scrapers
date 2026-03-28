@@ -330,12 +330,13 @@ export const WK_CONCEPT_MAP: Partial<Record<string, FormSlot>> = {
 
 /** WellKnown API endpoint patterns — regex patterns for network discovery. */
 export const PIPELINE_WELL_KNOWN_API = {
-  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i],
+  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i, /DashboardMonth/i, /GetCardList/i],
   transactions: [
     /transactionsDetails/i,
     /filteredTransactions/i,
     /CardsTransactionsList/i,
     /lastTransactions/i,
+    /GetLatestTransactions/i,
   ],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
   auth: [
@@ -382,22 +383,24 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'OperationDate',
     'trnPurchaseDate',
     'fullPurchaseDate',
+    'purchaseDate',
     'date',
     'transactionDate',
     'txnDate',
   ],
   processedDate: ['ValueDate', 'debCrdDate', 'processedDate', 'billingDate', 'settlementDate'],
-  amount: ['OperationAmount', 'trnAmt', 'dealSum', 'amount', 'chargedAmount', 'transactionAmount'],
-  originalAmount: ['OperationAmount', 'amtBeforeConvAndIndex', 'originalAmount', 'dealSumOutbound'],
+  amount: ['OperationAmount', 'trnAmt', 'dealSum', 'amount', 'chargedAmount', 'transactionAmount', 'ilsAmount'],
+  originalAmount: ['OperationAmount', 'amtBeforeConvAndIndex', 'originalAmount', 'dealSumOutbound', 'billingAmount'],
   description: [
     'OperationDescriptionToDisplay',
     'merchantName',
+    'businessName',
     'description',
     'transDesc',
     'memo',
   ],
-  identifier: ['OperationNumber', 'trnIntId', 'identifier', 'id', 'referenceNumber', 'txnId'],
-  currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode'],
+  identifier: ['OperationNumber', 'trnIntId', 'identifier', 'id', 'referenceNumber', 'txnId', 'confirmationNumber'],
+  currency: ['trnCurrencySymbol', 'currency', 'originalCurrency', 'currencyCode', 'originalCurrencyIso'],
   balance: ['AccountBalance', 'balance', 'nextTotalDebit', 'currentBalance'],
   fromDate: ['fromTransDate', 'fromDate', 'FromDate', 'startDate'],
   toDate: ['toTransDate', 'toDate', 'ToDate', 'endDate'],
