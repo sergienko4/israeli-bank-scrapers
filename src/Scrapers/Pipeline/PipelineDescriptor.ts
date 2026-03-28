@@ -4,13 +4,12 @@
  */
 
 import type { ScraperOptions } from '../Base/Interface.js';
-import type { IPhaseDefinition } from './Types/Phase.js';
-import type { IPipelineContext } from './Types/PipelineContext.js';
+import type { BasePhase } from './Types/BasePhase.js';
 
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */
 interface IPipelineDescriptor {
   readonly options: ScraperOptions;
-  readonly phases: readonly IPhaseDefinition<IPipelineContext, IPipelineContext>[];
+  readonly phases: readonly BasePhase[];
 }
 
 export default IPipelineDescriptor;

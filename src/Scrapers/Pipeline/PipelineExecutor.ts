@@ -1,6 +1,6 @@
 /**
  * Pipeline executor — reduces over phases, short-circuits on failure.
- * Each phase runs: pre → action → post. Failure at any step skips the rest.
+ * Each phase runs: pre → action → post → final via BasePhase.run().
  */
 
 import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
@@ -8,55 +8,18 @@ import type { IScraperScrapingResult, ScraperCredentials } from '../Base/Interfa
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { runAllCleanups } from './Phases/TerminatePhase.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
+import type { BasePhase } from './Types/BasePhase.js';
 import { getDebug } from './Types/Debug.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
 import { none } from './Types/Option.js';
-import type { IPhaseDefinition, IPipelineStep } from './Types/Phase.js';
 import type { IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, isOk, succeed, toLegacy } from './Types/Procedure.js';
 
 /** Mutable state for phase reduction: tracks last context + phase list. */
 interface IContextTracker {
-  readonly phases: readonly IPhaseDefinition<IPipelineContext, IPipelineContext>[];
+  readonly phases: readonly BasePhase[];
   lastCtx: IPipelineContext;
-}
-
-/**
- * Run a single optional step if present, otherwise pass through.
- * @param step - The optional step (from phase.pre or phase.post).
- * @param ctx - Current pipeline context.
- * @param input - Input to the step.
- * @returns The step result, or succeed(input) if step is absent.
- */
-async function runOptionalStep<T>(
-  step: { has: true; value: IPipelineStep<T, T> } | { has: false },
-  ctx: IPipelineContext,
-  input: T,
-): Promise<Procedure<T>> {
-  if (!step.has) return succeed(input);
-  return step.value.execute(ctx, input);
-}
-
-/**
- * Execute a single phase: pre → action → post.
- * @param phase - The phase definition.
- * @param ctx - Current pipeline context.
- * @returns The phase result (success with updated context, or failure).
- */
-async function executePhase(
-  phase: IPhaseDefinition<IPipelineContext, IPipelineContext>,
-  ctx: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  const preResult = await runOptionalStep(phase.pre, ctx, ctx);
-  if (!isOk(preResult)) return preResult;
-  const preCtx = preResult.value;
-
-  const actionResult = await phase.action.execute(preCtx, preCtx);
-  if (!isOk(actionResult)) return actionResult;
-  const actionCtx = actionResult.value;
-
-  return await runOptionalStep(phase.post, actionCtx, actionCtx);
 }
 
 /**
@@ -162,7 +125,7 @@ async function reducePhases(
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
   tracker.lastCtx = ctx;
-  const result = await executePhase(tracker.phases[index], ctx);
+  const result = await tracker.phases[index].run(ctx);
   if (!isOk(result)) return result;
   return reducePhases(tracker, result.value, index + 1);
 }

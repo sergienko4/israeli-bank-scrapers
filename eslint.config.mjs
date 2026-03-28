@@ -443,7 +443,17 @@ export default tseslint.config(
     files: ['src/Tests/**/Pipeline/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', {
+        paths: [
+          {
+            name: "@playwright/test",
+            message: "🚫 Rule #10: Phases must use the Mediator. Direct Playwright imports are forbidden in Pipeline logic."
+          }
+        ],
         patterns: [
+          {
+            group: ['**/Registry/Config/**'],
+            message: '🚫 DI: Use ctx.config — do not import ScraperConfig directly.'
+          },
           {
             group: ['**/Common/**'],
             message: '🚫 ARCHITECTURE: Pipeline Tests must not reference Common/. Use Pipeline local types/mocks.'
@@ -464,7 +474,10 @@ export default tseslint.config(
             selector: "ExportDefaultDeclaration",
             message: "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
           },
-
+          {
+            selector: "CallExpression[callee.object.name='page']",
+            message: "🚫 Rule #10: Direct calls to 'page' are forbidden. Use ctx.mediator instead."
+          }
 
         ]
     },
@@ -475,6 +488,7 @@ export default tseslint.config(
     files: ['src/Scrapers/Pipeline/**/*.ts'],
     rules: {
       // 1. Dependency Injection & Mediator Boundary
+      'class-methods-use-this': 'off', // Phases are functional by design
       'no-restricted-imports': ['error', {
         patterns: [
           {
@@ -495,8 +509,10 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         ...RESTRICTED_SYNTAX_RULES_NEW,
-
-
+        {
+          selector: "CallExpression[callee.object.name='page']",
+          message: "🚫 Rule #10: Direct calls to 'page' are forbidden in Pipeline Phases. Use ctx.mediator instead."
+        },
       ],
       'no-else-return': ['error', { allowElseIf: false }],
       'max-depth': ['error', 1],
@@ -510,8 +526,9 @@ export default tseslint.config(
   // This block grants "super-powers" to don't pushthe files that build the DI container.
   {
     files: [
-      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context}.ts',
-      'src/Scrapers/Pipeline/Types/Procedure.ts'
+      'src/Scrapers/Pipeline/Types/Procedure.ts',
+      'src/Scrapers/Pipeline/Mediator/**/*.ts',
+      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context,Mediator,Registry,Factory}.ts',
     ],
     rules: {
       // Factories are allowed to use 'new' and 'import' from Registry

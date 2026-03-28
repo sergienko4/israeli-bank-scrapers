@@ -27,12 +27,13 @@ interface IPipelineStep<TIn, TOut> {
   execute(ctx: IPipelineContext, input: TIn): Promise<Procedure<TOut>>;
 }
 
-/** A phase groups related steps with pre/action/post hooks. */
+/** A phase groups related steps with pre/action/post/final hooks. */
 interface IPhaseDefinition<TIn, TOut> {
   readonly name: PhaseName;
   readonly pre: Option<IPipelineStep<TIn, TIn>>;
   readonly action: IPipelineStep<TIn, TOut>;
   readonly post: Option<IPipelineStep<TOut, TOut>>;
+  readonly final: Option<IPipelineStep<TOut, TOut>>;
 }
 
 export type { IPhaseDefinition, IPipelineStep, PhaseName };

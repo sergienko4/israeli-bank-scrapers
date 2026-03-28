@@ -1,12 +1,10 @@
 /**
  * DASHBOARD phase — generic wait for dashboard readiness after login.
- * Uses mediator.resolveVisible + resolveAndClick with WellKnown indicators.
- * Same flow for ALL banks — no bank-specific code.
  *
  * PRE:    probe dashboard indicators via resolveVisible (30s timeout)
- *         → store which indicator matched in diagnostics
- * ACTION: build API context from network traffic (discovered headers + endpoints)
+ * ACTION: build API context from network traffic
  * POST:   check changePassword indicators → store dashboard.pageUrl
+ * FINAL:  default no-op
  */
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
@@ -15,8 +13,8 @@ import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import { PIPELINE_WELL_KNOWN_API, WK } from '../Registry/PipelineWellKnown.js';
 import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
+import { BasePhase } from '../Types/BasePhase.js';
 import { some } from '../Types/Option.js';
-import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
 import type {
   IApiFetchContext,
   IDashboardState,
@@ -28,16 +26,6 @@ import { fail, succeed } from '../Types/Procedure.js';
 /** Timeout for waiting for dashboard indicator (30s for SPA auth flows). */
 const DASHBOARD_TIMEOUT = 30000;
 
-// ── PRE: probe dashboard indicators ───────────────────────
-
-/**
- * Execute PRE step: probe for dashboard readiness via resolveVisible.
- * Stores which indicator matched (greeting, balance, last-login) in diagnostics.
- * Best-effort: returns succeed even when no indicator found.
- * @param _ctx - Pipeline context (unused).
- * @param input - Pipeline context with browser + mediator.
- * @returns Updated context with diagnostics.
- */
 /**
  * Probe WK.LOGIN.POST.SUCCESS indicators — first visible wins.
  * @param mediator - Active mediator for the current page.
@@ -52,25 +40,6 @@ async function probeSuccessIndicators(mediator: IElementMediator): Promise<strin
   const candidateValue = (hasMatch && result.candidate.value) || '';
   return (hasMatch && `matched: ${candidateValue}`) || 'no indicator';
 }
-
-/**
- * Execute DASHBOARD PRE: probe WK.LOGIN.POST.SUCCESS indicators and store match in diagnostics.
- * @param _ctx - Pipeline context (unused).
- * @param input - Pipeline context with mediator.
- * @returns Updated context with lastAction diagnostic.
- */
-async function executeDashboardPre(
-  _ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD PRE');
-  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD PRE');
-  const matchInfo = await probeSuccessIndicators(input.mediator.value);
-  const updatedDiag = { ...input.diagnostics, lastAction: `dashboard-pre (${matchInfo})` };
-  return succeed({ ...input, diagnostics: updatedDiag });
-}
-
-// ── ACTION: build API context ─────────────────────────────
 
 /**
  * Extract URL from a discovered endpoint, or false if not found.
@@ -106,7 +75,7 @@ function discoverUrls(
  * Build auto-discovered API fetch context from network traffic.
  * @param network - Network discovery with captured traffic.
  * @param strategy - Base fetch strategy from INIT.
- * @returns API fetch context with discovered endpoints + authenticated fetch.
+ * @returns API fetch context with discovered endpoints.
  */
 async function buildApiContext(
   network: INetworkDiscovery,
@@ -133,115 +102,71 @@ async function buildApiContext(
   };
 }
 
-/**
- * Execute ACTION step: build API context from network traffic.
- * @param _ctx - Pipeline context (unused).
- * @param input - Pipeline context with mediator + fetchStrategy.
- * @returns Updated context with api populated, or succeed without api.
- */
-async function executeDashboardAction(
-  _ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) {
-    return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD');
+/** DASHBOARD phase — BasePhase with PRE/ACTION/POST. */
+class DashboardPhase extends BasePhase {
+  public readonly name = 'dashboard' as const;
+
+  /**
+   * PRE: probe dashboard indicators and store match in diagnostics.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with mediator.
+   * @returns Updated context with lastAction diagnostic.
+   */
+  async pre(_ctx: IPipelineContext, input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD PRE');
+    if (!input.mediator.has)
+      return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD PRE');
+    const matchInfo = await probeSuccessIndicators(input.mediator.value);
+    const updatedDiag = { ...input.diagnostics, lastAction: `dashboard-pre (${matchInfo})` };
+    return succeed({ ...input, diagnostics: updatedDiag });
   }
-  if (!input.fetchStrategy.has) {
-    return succeed(input);
+
+  /**
+   * ACTION: build API context from network traffic.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with mediator + fetchStrategy.
+   * @returns Updated context with api populated.
+   */
+  async action(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD');
+    if (!input.fetchStrategy.has) return succeed(input);
+    const apiCtx = await buildApiContext(input.mediator.value.network, input.fetchStrategy.value);
+    return succeed({ ...input, api: some(apiCtx) });
   }
-  const apiCtx = await buildApiContext(input.mediator.value.network, input.fetchStrategy.value);
-  return succeed({ ...input, api: some(apiCtx) });
-}
 
-// ── POST: changePassword check + store dashboard state ────
+  /**
+   * POST: check changePassword + store dashboard state.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Pipeline context with browser + mediator.
+   * @returns Updated context or ChangePassword failure.
+   */
+  async post(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD POST');
+    if (!input.mediator.has)
+      return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD POST');
+    const page = input.browser.value.page;
+    const mediator = input.mediator.value;
+    const changePassResult = await mediator.resolveAndClick(WK.DASHBOARD.CHANGE_PWD);
+    if (!changePassResult.success) return changePassResult;
+    if (changePassResult.value.found)
+      return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
+    const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };
+    return succeed({ ...input, dashboard: some(dashState) });
+  }
+}
 
 /**
- * Execute POST step: check changePassword + store dashboard.pageUrl.
- * @param _ctx - Pipeline context (unused).
- * @param input - Pipeline context with browser + mediator.
- * @returns Updated context with dashboard state, or ChangePassword failure.
+ * Create the DASHBOARD phase instance.
+ * @returns DashboardPhase.
  */
-async function executeDashboardPost(
-  _ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD POST');
-  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD POST');
-  const page = input.browser.value.page;
-  const mediator = input.mediator.value;
-  const changePassResult = await mediator.resolveAndClick(WK.DASHBOARD.CHANGE_PWD);
-  if (!changePassResult.success) return changePassResult;
-  if (changePassResult.value.found)
-    return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
-  const dashState: IDashboardState = { isReady: true, pageUrl: page.url() };
-  return succeed({ ...input, dashboard: some(dashState) });
+function createDashboardPhase(): DashboardPhase {
+  return new DashboardPhase();
 }
 
-// ── Step definitions ──────────────────────────────────────
-
-/** DASHBOARD PRE step — probe indicators. */
-const DASHBOARD_PRE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'dashboard-pre',
-  execute: executeDashboardPre,
-};
-
-/** DASHBOARD ACTION step — build API context. */
-const DASHBOARD_ACTION_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'dashboard-action',
-  execute: executeDashboardAction,
-};
-
-/** DASHBOARD POST step — changePassword + store state. */
-const DASHBOARD_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'dashboard-post',
-  execute: executeDashboardPost,
-};
-
-// ── Legacy monolithic step (backward compat) ──────────────
-
-/**
- * Execute the DASHBOARD phase as a single step (backward compat).
- * @param ctx - Pipeline context.
- * @param input - Pipeline context.
- * @returns Updated context with dashboard state.
- */
-async function executeDashboard(
-  ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  const preResult = await executeDashboardPre(ctx, input);
-  if (!preResult.success) return preResult;
-  const actionResult = await executeDashboardAction(preResult.value, preResult.value);
-  if (!actionResult.success) return actionResult;
-  return await executeDashboardPost(actionResult.value, actionResult.value);
-}
-
-/** DASHBOARD phase step — legacy monolithic. */
-const DASHBOARD_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'dashboard',
-  execute: executeDashboard,
-};
-
-// ── Phase factory ─────────────────────────────────────────
-
-/**
- * Create the full DASHBOARD phase with PRE/ACTION/POST sub-steps.
- * @returns IPhaseDefinition with pre, action, post.
- */
-function createDashboardPhase(): IPhaseDefinition<IPipelineContext, IPipelineContext> {
-  return {
-    name: 'dashboard',
-    pre: some(DASHBOARD_PRE_STEP),
-    action: DASHBOARD_ACTION_STEP,
-    post: some(DASHBOARD_POST_STEP),
-  };
-}
-
-export {
-  createDashboardPhase,
-  DASHBOARD_ACTION_STEP,
-  DASHBOARD_POST_STEP,
-  DASHBOARD_PRE_STEP,
-  DASHBOARD_STEP,
-};
-export default DASHBOARD_STEP;
+export { createDashboardPhase, DashboardPhase };

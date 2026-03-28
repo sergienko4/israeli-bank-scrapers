@@ -1,5 +1,5 @@
 /**
- * Unit tests for HomePhase — PRE / ACTION / POST separation.
+ * Unit tests for HomePhase — PRE / ACTION / POST via BasePhase class.
  * PRE: goto homepage URL
  * ACTION: close popup + click login link via mediator
  * POST: store loginUrl in diagnostics
@@ -8,11 +8,7 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  HOME_ACTION_STEP,
-  HOME_POST_STEP,
-  HOME_PRE_STEP,
-} from '../../../../Scrapers/Pipeline/Phases/HomePhase.js';
+import { HomePhase } from '../../../../Scrapers/Pipeline/Phases/HomePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
@@ -21,6 +17,9 @@ import type {
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockContext, makeMockPage } from './MockFactories.js';
+
+/** Shared phase instance for all tests. */
+const PHASE = new HomePhase();
 
 /** Minimal bank config with urls.base for HOME phase. */
 const MOCK_CONFIG = { urls: { base: 'https://test.bank.co.il' } };
@@ -100,8 +99,8 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
   };
   const mediator = makeMockMediator({
     /**
-     * Resolve and click mock — best-effort, returns false.
-     * @returns Resolved false.
+     * Resolve and click mock — best-effort, returns not-found.
+     * @returns Resolved not-found.
      */
     resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
   });
@@ -116,29 +115,27 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
 describe('HomePhase/PRE', () => {
   it('navigates to homepage URL and returns success', async () => {
     const ctx = makeHomeCtx();
-    const result = await HOME_PRE_STEP.execute(ctx, ctx);
+    const result = await PHASE.pre(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
   });
 
   it('fails when no browser in context', async () => {
     const ctx = makeMockContext();
-    const result = await HOME_PRE_STEP.execute(ctx, ctx);
+    const result = await PHASE.pre(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
-    if (!result.success) {
-      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
-    }
+    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
   });
 });
 
 describe('HomePhase/ACTION', () => {
   it('runs tryClosePopup + tryClickLoginLinkWithHref via mediator', async () => {
     const ctx = makeHomeCtx();
-    const preResult = await HOME_PRE_STEP.execute(ctx, ctx);
+    const preResult = await PHASE.pre(ctx, ctx);
     expect(preResult.success).toBe(true);
     if (!preResult.success) return preResult;
-    const actionResult = await HOME_ACTION_STEP.execute(preResult.value, preResult.value);
+    const actionResult = await PHASE.action(preResult.value, preResult.value);
     const isActionOk = isOk(actionResult);
     expect(isActionOk).toBe(true);
     return actionResult;
@@ -146,7 +143,7 @@ describe('HomePhase/ACTION', () => {
 
   it('fails when no browser in context', async () => {
     const ctx = makeMockContext();
-    const result = await HOME_ACTION_STEP.execute(ctx, ctx);
+    const result = await PHASE.action(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
   });
@@ -162,7 +159,7 @@ describe('HomePhase/ACTION', () => {
       browser: some(browserState),
       config: MOCK_CONFIG as IPipelineContext['config'],
     });
-    const result = await HOME_ACTION_STEP.execute(ctx, ctx);
+    const result = await PHASE.action(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
   });
@@ -172,11 +169,9 @@ describe('HomePhase/POST', () => {
   it('stores loginUrl from current page URL', async () => {
     const loginUrl = 'https://start.telebank.co.il/login';
     const ctx = makeHomeCtx(loginUrl);
-    const result = await HOME_POST_STEP.execute(ctx, ctx);
+    const result = await PHASE.post(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
-    if (result.success) {
-      expect(result.value.diagnostics.loginUrl).toBe(loginUrl);
-    }
+    if (result.success) expect(result.value.diagnostics.loginUrl).toBe(loginUrl);
   });
 });

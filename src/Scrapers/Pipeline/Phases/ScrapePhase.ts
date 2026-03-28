@@ -18,7 +18,8 @@ import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/Network
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
-import type { IPhaseDefinition, IPipelineStep } from '../Types/Phase.js';
+import { SimplePhase } from '../Types/BasePhase.js';
+import type { IPipelineStep } from '../Types/Phase.js';
 import type { IApiFetchContext, IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
@@ -354,19 +355,42 @@ const SCRAPE_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
 };
 
 /**
- * Create the full SCRAPE phase with PRE/ACTION/POST sub-steps.
- * @param actionStep - The scrape action step (auto/config/custom).
- * @returns IPhaseDefinition with pre, action, post.
+ * Create the full SCRAPE phase as a BasePhase with PRE/ACTION/POST.
+ * @param actionExec - Optional custom action execute function (default: auto-scrape).
+ * @returns ScrapePhase extending SimplePhase with pre/post overrides.
  */
 function createScrapePhase(
-  actionStep: IPipelineStep<IPipelineContext, IPipelineContext> = SCRAPE_STEP,
-): IPhaseDefinition<IPipelineContext, IPipelineContext> {
-  return {
-    name: 'scrape',
-    pre: some(SCRAPE_PRE_STEP),
-    action: actionStep,
-    post: some(SCRAPE_POST_STEP),
-  };
+  actionExec: IPipelineStep<IPipelineContext, IPipelineContext>['execute'] = autoScrapeExecute,
+): SimplePhase {
+  /** Scrape phase with PRE and POST diagnostics hooks. */
+  class ScrapePhaseImpl extends SimplePhase {
+    /**
+     * PRE: validate dependencies + update diagnostics.
+     * @param _ctx - Unused.
+     * @param input - Pipeline context.
+     * @returns Updated context.
+     */
+    async pre(
+      _ctx: IPipelineContext,
+      input: IPipelineContext,
+    ): Promise<Procedure<IPipelineContext>> {
+      return executeScrapePre(_ctx, input);
+    }
+
+    /**
+     * POST: update diagnostics after scraping.
+     * @param _ctx - Unused.
+     * @param input - Pipeline context.
+     * @returns Updated context.
+     */
+    async post(
+      _ctx: IPipelineContext,
+      input: IPipelineContext,
+    ): Promise<Procedure<IPipelineContext>> {
+      return executeScrapePost(_ctx, input);
+    }
+  }
+  return new ScrapePhaseImpl('scrape', actionExec);
 }
 
 export type { CustomScrapeFn } from '../Types/ScrapeConfig.js';

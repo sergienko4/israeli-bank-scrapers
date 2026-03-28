@@ -11,16 +11,16 @@ import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
-import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IPhaseDefinition } from '../../../../Scrapers/Pipeline/Types/Phase.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
+import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
   IBrowserState,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-
-// ── Shared types and constants ──────────────────────────────
 
 /** Minimal ScraperOptions for cleanup tests. */
 const MOCK_OPTIONS = {
@@ -32,10 +32,7 @@ const MOCK_OPTIONS = {
 const MOCK_CREDENTIALS = { username: 'user', password: 'pass' };
 
 type Ctx = IPipelineContext;
-type Phase = IPhaseDefinition<Ctx, Ctx>;
 type ExecFn = (_ctx: Ctx, _input: Ctx) => Promise<Procedure<Ctx>>;
-
-// ── Helpers ─────────────────────────────────────────────────
 
 /**
  * Succeed-and-passthrough execute.
@@ -49,72 +46,55 @@ function succeedExecute(_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
 }
 
 /**
- * Create a succeeding phase.
+ * Create a succeeding SimplePhase.
  * @param name - Phase name.
- * @returns A succeeding phase definition.
+ * @returns A succeeding SimplePhase.
  */
-function succeedPhase(name: Phase['name']): Phase {
-  return {
-    name,
-    pre: none(),
-    action: { name: `${name}-action`, execute: succeedExecute },
-    post: none(),
-  };
+function succeedPhase(name: PhaseName): SimplePhase {
+  return new SimplePhase(name, succeedExecute);
 }
 
 /**
- * Create a failing phase.
+ * Create a failing SimplePhase.
  * @param name - Phase name.
  * @param message - Error message.
- * @returns A failing phase definition.
+ * @returns A failing SimplePhase.
  */
-function failPhase(name: Phase['name'], message: string): Phase {
+function failPhase(name: PhaseName, message: string): SimplePhase {
   /**
-   * Return a failure procedure with the given message.
-   * @returns Resolved failure procedure.
+   * Return a failure procedure.
+   * @returns Resolved failure.
    */
   const executeFn: ExecFn = (): Promise<Procedure<Ctx>> => {
     const result = fail(ScraperErrorTypes.Generic, message);
     return Promise.resolve(result);
   };
-  return {
-    name,
-    pre: none(),
-    action: { name: `${name}-action`, execute: executeFn },
-    post: none(),
-  };
+  return new SimplePhase(name, executeFn);
 }
 
 /**
- * Create a phase that throws an exception.
+ * Create a throwing SimplePhase.
  * @param name - Phase name.
  * @param message - Error message.
- * @returns A throwing phase definition.
+ * @returns A throwing SimplePhase.
  */
-function throwPhase(name: Phase['name'], message: string): Phase {
-  return {
-    name,
-    pre: none(),
-    action: {
-      name: `${name}-action`,
-      /**
-       * Always throws.
-       * @returns Never — always throws.
-       */
-      execute: (): Promise<Procedure<Ctx>> => {
-        throw new ScraperError(message);
-      },
-    },
-    post: none(),
+function throwPhase(name: PhaseName, message: string): SimplePhase {
+  /**
+   * Always throws.
+   * @returns Never.
+   */
+  const executeFn = (): Promise<Procedure<Ctx>> => {
+    throw new ScraperError(message);
   };
+  return new SimplePhase(name, executeFn);
 }
 
 /**
  * Create a descriptor from phases.
- * @param phases - Phase definitions.
+ * @param phases - BasePhase instances.
  * @returns Pipeline descriptor.
  */
-function makeDescriptor(phases: Phase[]): IPipelineDescriptor {
+function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
   return { options: MOCK_OPTIONS, phases };
 }
 
@@ -128,11 +108,11 @@ async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePi
 }
 
 /**
- * Create an INIT phase that wires mock browser state with spy cleanups.
+ * Create an INIT SimplePhase that wires mock browser state with spy cleanups.
  * @param spies - Jest mock functions used as cleanup handlers.
- * @returns Phase that sets browser state with the provided spy cleanups.
+ * @returns SimplePhase that sets browser state with the provided spy cleanups.
  */
-function makeInitWithSpyCleanups(spies: jest.Mock[]): Phase {
+function makeInitWithSpyCleanups(spies: jest.Mock[]): SimplePhase {
   /**
    * Wire browser state with spy cleanups into context.
    * @param _ctx - Pipeline context (unused).
@@ -152,12 +132,7 @@ function makeInitWithSpyCleanups(spies: jest.Mock[]): Phase {
     const result = succeed({ ...input, browser: some(state) });
     return Promise.resolve(result);
   };
-  return {
-    name: 'init',
-    pre: none(),
-    action: { name: 'init-spy', execute: executeFn },
-    post: none(),
-  };
+  return new SimplePhase('init', executeFn);
 }
 
 // ── Tests ───────────────────────────────────────────────────
@@ -171,7 +146,6 @@ describe('PipelineExecutor/cleanup-on-phase-failure', () => {
     const phases = [initPhase, failPhase('login', 'bad creds')];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(spy0).toHaveBeenCalled();
     expect(spy1).toHaveBeenCalled();
@@ -181,10 +155,8 @@ describe('PipelineExecutor/cleanup-on-phase-failure', () => {
   it('runs browser cleanup when HOME phase fails', async () => {
     const spy0 = jest.fn();
     const initPhase = makeInitWithSpyCleanups([spy0]);
-    const phases = [initPhase, failPhase('home', 'home nav failed')];
-    const descriptor = makeDescriptor(phases);
+    const descriptor = makeDescriptor([initPhase, failPhase('home', 'home nav failed')]);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(spy0).toHaveBeenCalled();
   });
@@ -200,7 +172,6 @@ describe('PipelineExecutor/cleanup-on-phase-failure', () => {
     ];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(spy0).toHaveBeenCalled();
   });
@@ -208,10 +179,8 @@ describe('PipelineExecutor/cleanup-on-phase-failure', () => {
   it('runs browser cleanup when phase throws exception', async () => {
     const spy0 = jest.fn();
     const initPhase = makeInitWithSpyCleanups([spy0]);
-    const phases = [initPhase, throwPhase('login', 'unexpected crash')];
-    const descriptor = makeDescriptor(phases);
+    const descriptor = makeDescriptor([initPhase, throwPhase('login', 'unexpected crash')]);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('unexpected crash');
     expect(spy0).toHaveBeenCalled();
@@ -220,10 +189,8 @@ describe('PipelineExecutor/cleanup-on-phase-failure', () => {
   it('preserves original error message after cleanup', async () => {
     const spy0 = jest.fn();
     const initPhase = makeInitWithSpyCleanups([spy0]);
-    const phases = [initPhase, failPhase('login', 'invalid password')];
-    const descriptor = makeDescriptor(phases);
+    const descriptor = makeDescriptor([initPhase, failPhase('login', 'invalid password')]);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('invalid password');
   });
@@ -246,35 +213,25 @@ describe('PipelineExecutor/cleanup-idempotent-on-success', () => {
       await Promise.all(promises);
       return succeed(input);
     };
-    const terminatePhase: Phase = {
-      name: 'terminate',
-      pre: none(),
-      action: { name: 'terminate-action', execute: terminateExecute },
-      post: none(),
-    };
+    const terminatePhase = new SimplePhase('terminate', terminateExecute);
     const phases = [initPhase, succeedPhase('login'), terminatePhase];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
-
     expect(result.success).toBe(true);
   });
 });
 
 describe('PipelineExecutor/no-browser-no-cleanup', () => {
   it('skips cleanup when no INIT phase exists', async () => {
-    const phases = [failPhase('login', 'no browser')];
-    const descriptor = makeDescriptor(phases);
+    const descriptor = makeDescriptor([failPhase('login', 'no browser')]);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('no browser');
   });
 
   it('skips cleanup when INIT itself fails', async () => {
-    const phases = [failPhase('init', 'browser launch failed')];
-    const descriptor = makeDescriptor(phases);
+    const descriptor = makeDescriptor([failPhase('init', 'browser launch failed')]);
     const result = await run(descriptor);
-
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('browser launch failed');
   });

@@ -1,7 +1,7 @@
 /**
- * Unit tests for DashboardPhase — PRE/ACTION/POST split.
+ * Unit tests for DashboardPhase — PRE/ACTION/POST via BasePhase class.
  *
- * PRE:    probe dashboard indicators via resolveVisible → store which matched
+ * PRE:    probe dashboard indicators via resolveVisible → store match
  * ACTION: build API context from network traffic
  * POST:   check changePassword → store dashboard.pageUrl
  */
@@ -12,10 +12,7 @@ import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Element
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import {
   createDashboardPhase,
-  DASHBOARD_ACTION_STEP,
-  DASHBOARD_POST_STEP,
-  DASHBOARD_PRE_STEP,
-  DASHBOARD_STEP,
+  DashboardPhase,
 } from '../../../../Scrapers/Pipeline/Phases/DashboardPhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -27,6 +24,9 @@ import {
   makeMockMediator,
 } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockContext } from './MockFactories.js';
+
+/** Shared phase instance for all tests. */
+const PHASE = new DashboardPhase();
 
 /**
  * Build a context with browser + mediator for dashboard tests.
@@ -67,23 +67,11 @@ function makeDashCtx(opts: {
   });
 }
 
-// ── DASHBOARD_STEP (legacy) ──────────────────────────────
-
-describe('DashboardPhase/DASHBOARD_STEP', () => {
-  it('still exported for backward compatibility', () => {
-    expect(DASHBOARD_STEP).toBeDefined();
-    expect(DASHBOARD_STEP.name).toBe('dashboard');
-  });
-});
-
 // ── PRE step ──────────────────────────────────────────────
 
 describe('DashboardPhase/PRE', () => {
   it('succeeds when dashboard indicator found', async () => {
-    const greetingCandidate: SelectorCandidate = {
-      kind: 'regex',
-      value: '^שלום\\s+\\S+',
-    };
+    const greetingCandidate: SelectorCandidate = { kind: 'regex', value: '^שלום\\s+\\S+' };
     const mockResult: IRaceResult = {
       found: true,
       locator: false,
@@ -93,19 +81,19 @@ describe('DashboardPhase/PRE', () => {
       value: 'שלום ישראל',
     };
     const ctx = makeDashCtx({ resolveVisible: mockResult });
-    const isSuccess = isOk(await DASHBOARD_PRE_STEP.execute(ctx, ctx));
+    const isSuccess = isOk(await PHASE.pre(ctx, ctx));
     expect(isSuccess).toBe(true);
   });
 
   it('succeeds even when no dashboard indicator found (best-effort)', async () => {
     const ctx = makeDashCtx({});
-    const isSuccess = isOk(await DASHBOARD_PRE_STEP.execute(ctx, ctx));
+    const isSuccess = isOk(await PHASE.pre(ctx, ctx));
     expect(isSuccess).toBe(true);
   });
 
   it('fails when no browser in context', async () => {
     const ctx = makeMockContext();
-    const isSuccess = isOk(await DASHBOARD_PRE_STEP.execute(ctx, ctx));
+    const isSuccess = isOk(await PHASE.pre(ctx, ctx));
     expect(isSuccess).toBe(false);
   });
 });
@@ -115,28 +103,24 @@ describe('DashboardPhase/PRE', () => {
 describe('DashboardPhase/ACTION', () => {
   it('builds API context when fetchStrategy is present', async () => {
     const ctx = makeDashCtx({ hasFetchStrategy: true });
-    const result = await DASHBOARD_ACTION_STEP.execute(ctx, ctx);
+    const result = await PHASE.action(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
-    if (result.success) {
-      expect(result.value.api.has).toBe(true);
-    }
+    if (result.success) expect(result.value.api.has).toBe(true);
   });
 
   it('succeeds without API context when no fetchStrategy', async () => {
     const ctx = makeDashCtx({ hasFetchStrategy: false });
-    const result = await DASHBOARD_ACTION_STEP.execute(ctx, ctx);
+    const result = await PHASE.action(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
-    if (result.success) {
-      expect(result.value.api.has).toBe(false);
-    }
+    if (result.success) expect(result.value.api.has).toBe(false);
   });
 
   it('fails when no mediator in context', async () => {
     const browserState = makeMockBrowserState();
     const ctx = makeMockContext({ browser: some(browserState) });
-    const isSuccess = isOk(await DASHBOARD_ACTION_STEP.execute(ctx, ctx));
+    const isSuccess = isOk(await PHASE.action(ctx, ctx));
     expect(isSuccess).toBe(false);
   });
 });
@@ -146,32 +130,27 @@ describe('DashboardPhase/ACTION', () => {
 describe('DashboardPhase/POST', () => {
   it('stores dashboard pageUrl', async () => {
     const ctx = makeDashCtx({ clickFound: false });
-    const result = await DASHBOARD_POST_STEP.execute(ctx, ctx);
+    const result = await PHASE.post(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
-    if (result.success) {
-      expect(result.value.dashboard.has).toBe(true);
-    }
+    if (result.success) expect(result.value.dashboard.has).toBe(true);
   });
 
-  it('fails with ChangePassword when changePassword indicator found', async () => {
+  it('fails with ChangePassword when indicator found', async () => {
     const ctx = makeDashCtx({ clickFound: true });
-    const result = await DASHBOARD_POST_STEP.execute(ctx, ctx);
+    const result = await PHASE.post(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
-    if (!result.success) {
-      expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
-    }
+    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
   });
 });
 
-// ── createDashboardPhase factory ─────────────────────────
+// ── Factory ──────────────────────────────────────────────
 
 describe('DashboardPhase/createDashboardPhase', () => {
-  it('returns IPhaseDefinition with pre, action, and post', () => {
+  it('returns a DashboardPhase instance with correct name', () => {
     const phase = createDashboardPhase();
     expect(phase.name).toBe('dashboard');
-    expect(phase.pre.has).toBe(true);
-    expect(phase.post.has).toBe(true);
+    expect(phase).toBeInstanceOf(DashboardPhase);
   });
 });
