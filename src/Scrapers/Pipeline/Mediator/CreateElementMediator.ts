@@ -431,7 +431,7 @@ async function resolveAndClickImpl(
 ): Promise<Procedure<IRaceResult>> {
   const result = await resolveVisibleImpl(page, candidates, timeout);
   if (result.found && result.locator) {
-    await result.locator.click({ force: true });
+    await result.locator.click({ force: true, timeout }).catch((): false => false);
     return succeed(result);
   }
   // Fallback: attached state — element is in DOM but not visually visible
@@ -439,7 +439,7 @@ async function resolveAndClickImpl(
   const locators = entries.map((e): Locator => e.locator);
   const winnerIdx = await raceLocators(locators, timeout, 'attached');
   if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
-  await entries[winnerIdx].locator.click({ force: true });
+  await entries[winnerIdx].locator.click({ force: true, timeout }).catch((): false => false);
   const snapshot = await snapshotValue(entries[winnerIdx]);
   const attachedResult = buildFoundResult(entries[winnerIdx], winnerIdx, snapshot);
   return succeed(attachedResult);

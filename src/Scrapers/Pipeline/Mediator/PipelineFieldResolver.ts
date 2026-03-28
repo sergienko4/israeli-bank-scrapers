@@ -13,6 +13,7 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { WK, WK_CONCEPT_MAP } from '../Registry/PipelineWellKnown.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { scopeCandidates } from './FormAnchor.js';
+import { tryHeuristicProbe } from './HeuristicResolver.js';
 import { EMPTY_METADATA, extractMetadata, type IElementMetadata } from './MetadataExtractors.js';
 import { isPage } from './SelectorResolver.js';
 import {
@@ -110,6 +111,9 @@ async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promi
   if (iframeResult.has) return iframeResult.value;
   const mainResult = await probeMainPage(opts);
   if ('isResolved' in mainResult) return mainResult;
+  // Round 3: Heuristic — bare iframe inputs by type (password anchor + positional)
+  const heuristicResult = await tryHeuristicProbe(pageOrFrame, opts.field.credentialKey);
+  if (heuristicResult) return heuristicResult;
   return buildNotFoundContext(opts);
 }
 

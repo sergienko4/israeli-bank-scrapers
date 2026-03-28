@@ -27,8 +27,8 @@ export interface IFieldContext {
   isResolved: IsResolved;
   selector: SelectorStr;
   context: Page | Frame;
-  resolvedVia: 'bankConfig' | 'wellKnown' | 'notResolved';
-  round: 'iframe' | 'mainPage' | 'notResolved';
+  resolvedVia: 'bankConfig' | 'wellKnown' | 'heuristic' | 'notResolved';
+  round: 'iframe' | 'mainPage' | 'heuristic' | 'notResolved';
   /** Which SelectorCandidate kind actually matched (additive, optional). */
   resolvedKind?: SelectorCandidate['kind'];
   /** Diagnostic message — populated when isResolved is false. */
