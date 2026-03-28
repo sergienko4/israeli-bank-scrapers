@@ -331,7 +331,7 @@ async function pollUntilDeadline(page: Page, deadline: number, pollMs: number): 
  * @returns True if OTP page was detected.
  */
 async function waitForOtpPageInFrames(page: Page): Promise<boolean> {
-  const maxWaitMs = 15000;
+  const maxWaitMs = 30000;
   const deadline = Date.now() + maxWaitMs;
   const isFound = await pollUntilDeadline(page, deadline, 500);
   if (!isFound) LOG.debug('OTP not detected after %dms', maxWaitMs);
@@ -340,6 +340,7 @@ async function waitForOtpPageInFrames(page: Page): Promise<boolean> {
 
 /**
  * Confirm OTP delivery — click bank-specific confirm button if provided, then SMS trigger.
+ * Skips the generic SMS trigger if the bank-specific selectors already succeeded.
  * @param page - The Playwright page instance.
  * @param parsedPage - Optional parsed login page with child frame info.
  * @param triggerSelectors - Optional bank-specific confirm button selectors (from ILoginConfig.otp).
@@ -353,14 +354,16 @@ export async function handleOtpConfirm(
   await waitForOtpPageInFrames(page);
   const phoneHint = await extractPhoneHint(page);
   const childFrames = parsedPage?.childFrames;
+  let didTrigger = false;
   if (triggerSelectors) {
-    LOG.debug('OTP confirm — clicking bank-specific confirm button (phone: %s)', phoneHint);
-    await clickFromCandidates(page, triggerSelectors, childFrames);
+    didTrigger = await clickFromCandidates(page, triggerSelectors, childFrames);
     await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
   }
-  LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
-  await clickOtpTriggerIfPresent(page, childFrames);
-  await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
+  if (!didTrigger) {
+    LOG.debug('OTP confirm — clicking SMS trigger (phone: %s)', phoneHint);
+    await clickOtpTriggerIfPresent(page, childFrames);
+    await page.waitForTimeout(OTP_TRIGGER_DELAY_MS);
+  }
   return phoneHint;
 }
 

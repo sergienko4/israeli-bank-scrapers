@@ -6,6 +6,7 @@ import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 
 const MOCK_EXTRACT_PHONE_HINT = jest.fn();
 const MOCK_CLICK_OTP_TRIGGER_IF_PRESENT = jest.fn();
+const MOCK_CLICK_FROM_CANDIDATES = jest.fn();
 const MOCK_DETECT_OTP_SCREEN = jest.fn();
 const MOCK_FILL_INPUT = jest.fn();
 const MOCK_CLICK_BUTTON = jest.fn();
@@ -56,7 +57,7 @@ jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
   extractPhoneHint: MOCK_EXTRACT_PHONE_HINT,
   clickOtpTriggerIfPresent: MOCK_CLICK_OTP_TRIGGER_IF_PRESENT,
   findOtpSubmitSelector: jest.fn().mockResolvedValue(null),
-  clickFromCandidates: jest.fn().mockResolvedValue(false),
+  clickFromCandidates: MOCK_CLICK_FROM_CANDIDATES,
   OTP_SUBMIT_CANDIDATES: [{ kind: 'xpath' as const, value: '//button[contains(.,"send")]' }],
 }));
 
@@ -121,11 +122,14 @@ function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
 }
 
 describe('handleOtpConfirm', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    MOCK_CLICK_FROM_CANDIDATES.mockResolvedValue(false);
+    MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(false);
+  });
 
   it('extracts phone hint and clicks SMS trigger', async () => {
     MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('******5100');
-    MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(undefined);
     const page = makeMockPage();
 
     const hint = await OTP_HANDLER_MOD.handleOtpConfirm(page);
@@ -137,12 +141,35 @@ describe('handleOtpConfirm', () => {
 
   it('returns empty string when no phone hint found', async () => {
     MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('');
-    MOCK_CLICK_OTP_TRIGGER_IF_PRESENT.mockResolvedValue(undefined);
-
     const page = makeMockPage();
+
     const hint = await OTP_HANDLER_MOD.handleOtpConfirm(page);
 
     expect(hint).toBe('');
+  });
+
+  it('skips generic SMS trigger when bank-specific trigger succeeds', async () => {
+    MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('******1234');
+    MOCK_CLICK_FROM_CANDIDATES.mockResolvedValue(true);
+    const page = makeMockPage();
+    const triggerSelectors = [{ kind: 'css' as const, value: '#sendBtn' }];
+
+    await OTP_HANDLER_MOD.handleOtpConfirm(page, undefined, triggerSelectors);
+
+    expect(MOCK_CLICK_FROM_CANDIDATES).toHaveBeenCalledWith(page, triggerSelectors, undefined);
+    expect(MOCK_CLICK_OTP_TRIGGER_IF_PRESENT).not.toHaveBeenCalled();
+  });
+
+  it('falls back to generic SMS trigger when bank-specific trigger fails', async () => {
+    MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('');
+    MOCK_CLICK_FROM_CANDIDATES.mockResolvedValue(false);
+    const page = makeMockPage();
+    const triggerSelectors = [{ kind: 'css' as const, value: '#sendBtn' }];
+
+    await OTP_HANDLER_MOD.handleOtpConfirm(page, undefined, triggerSelectors);
+
+    expect(MOCK_CLICK_FROM_CANDIDATES).toHaveBeenCalled();
+    expect(MOCK_CLICK_OTP_TRIGGER_IF_PRESENT).toHaveBeenCalledWith(page, undefined);
   });
 });
 

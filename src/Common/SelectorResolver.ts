@@ -71,7 +71,8 @@ export function candidateToCss(candidate: SelectorCandidate): string {
   const lit = toXpathLiteral(v);
   if (candidate.kind === 'clickableText') return clickableTextXpath(v);
   if (candidate.kind === 'labelText') return `xpath=//label[contains(., ${lit})]`;
-  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), ${lit})]`;
+  if (candidate.kind === 'textContent')
+    return `xpath=//*[not(self::script) and not(self::style) and contains(text(), ${lit})]`;
   if (candidate.kind === 'css') return v;
   if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]`;
   if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]`;
