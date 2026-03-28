@@ -93,13 +93,22 @@ describe('WK.DASHBOARD/structure', () => {
 
 describe('WK.DASHBOARD/zero-css', () => {
   it('has NO kind:css entries anywhere in DASHBOARD selectors', () => {
-    const allCandidates = Object.values(WK.DASHBOARD).flat();
+    const allValues = Object.values(WK.DASHBOARD).flat();
+    /**
+     * Filter to only selector candidates (objects with kind property).
+     * @param c - Candidate or plain string (VALIDATION_HINTS are strings).
+     * @returns True if c is a selector candidate object.
+     */
+    const isCandidate = (c: unknown): c is { kind: string } =>
+      typeof c === 'object' && c !== null && 'kind' in c;
+    const allCandidates = allValues.filter(isCandidate);
     /**
      * Check if a candidate uses CSS kind.
-     * @param c - Selector candidate.
+     * @param c - Selector candidate with kind property.
+     * @param c.kind - The selector kind to check.
      * @returns True if kind is CSS.
      */
-    const isCss = (c: (typeof allCandidates)[number]): boolean => (c.kind as string) === 'css';
+    const isCss = (c: { kind: string }): boolean => c.kind === 'css';
     const cssEntries = allCandidates.filter(isCss);
     expect(cssEntries).toHaveLength(0);
   });

@@ -300,7 +300,12 @@ describe('checkFrameForErrors/found', () => {
 
 describe('discoverFormErrors/selector-building', () => {
   it('builds selector with first CSS class from cls', async () => {
-    const item: IDomItem = { tag: 'div', cls: 'error-msg other', text: 'פרטים שגויים', isHidden: false };
+    const item: IDomItem = {
+      tag: 'div',
+      cls: 'error-msg other',
+      text: 'פרטים שגויים',
+      isHidden: false,
+    };
     const ctx = MAKE_CTX_L1([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].selector).toBe('div.error-msg');

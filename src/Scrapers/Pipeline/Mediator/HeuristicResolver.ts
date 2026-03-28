@@ -53,7 +53,8 @@ const HEURISTIC_MAP: Readonly<Partial<Record<string, HeuristicStrategy>>> = {
 const PASSWORD_SELECTOR = 'input[type="password"]';
 
 /** CSS selector for visible text-like inputs (excludes password and hidden). */
-const TEXT_INPUT_SELECTOR = 'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"])';
+const TEXT_INPUT_SELECTOR =
+  'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"])';
 
 /**
  * Try to resolve a password field in the given frame.
@@ -94,7 +95,13 @@ async function resolveTextByIndex(
   if (!isEnabled) return { selector: '', context: frame };
   const elemId = await target.getAttribute('id').catch((): HeuristicSelector => '');
   const selector = elemId ? `#${elemId}` : `${TEXT_INPUT_SELECTOR} >> nth=${String(index)}`;
-  LOG.debug('Round 3 (heuristic): resolved %s → %s (index %d of %d)', fieldKey, selector, index, total);
+  LOG.debug(
+    'Round 3 (heuristic): resolved %s → %s (index %d of %d)',
+    fieldKey,
+    selector,
+    index,
+    total,
+  );
   return { selector, context: frame, kind: 'css' };
 }
 
@@ -117,7 +124,10 @@ async function heuristicResolveInFrame(
 ): Promise<IFieldMatch> {
   const strategy = HEURISTIC_MAP[fieldKey];
   if (!strategy) return { selector: '', context: frame };
-  if (strategy.type === 'password') return resolvePasswordInFrame(frame as Frame).catch((): IFieldMatch => ({ selector: '', context: frame }));
+  if (strategy.type === 'password')
+    return resolvePasswordInFrame(frame as Frame).catch(
+      (): IFieldMatch => ({ selector: '', context: frame }),
+    );
   const empty: IFieldMatch = { selector: '', context: frame };
   try {
     const result = await resolveTextByIndex(frame as Frame, strategy.index, fieldKey);
@@ -135,7 +145,12 @@ async function heuristicResolveInFrame(
  */
 function toHeuristicContext(match: IFieldMatch, fieldKey: string): IFieldContext {
   const frameUrl = 'url' in match.context ? (match.context as Frame).url() : '';
-  LOG.debug('Round 3 (heuristic): resolved %s → %s in frame %s', fieldKey, match.selector, frameUrl);
+  LOG.debug(
+    'Round 3 (heuristic): resolved %s → %s in frame %s',
+    fieldKey,
+    match.selector,
+    frameUrl,
+  );
   return {
     isResolved: true,
     selector: match.selector,
@@ -170,10 +185,7 @@ async function probeFrameAt(
  * @param fieldKey - The credential key to resolve.
  * @returns IFieldContext if found, or false if no frame had a match.
  */
-async function heuristicProbeIframes(
-  page: Page,
-  fieldKey: string,
-): Promise<IFieldContext | false> {
+async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFieldContext | false> {
   const mainFrame = page.mainFrame();
   const childFrames = page.frames().filter(f => f !== mainFrame);
   if (childFrames.length === 0) return false;

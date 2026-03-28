@@ -417,10 +417,15 @@ async function runPostAction(
 ): Promise<Procedure<void>> {
   const hasPipelineCtx = hasPipelinePostAction(config);
   const ctxFn = hasPipelineCtx && config.postActionWithCtx;
-  if (ctxFn) return safePostAction(async (): Promise<void> => { await ctxFn(page, ctx); });
+  if (ctxFn)
+    return safePostAction(async (): Promise<void> => {
+      await ctxFn(page, ctx);
+    });
   if (!config.postAction) return succeed(undefined);
   const postFn = config.postAction;
-  return safePostAction(async (): Promise<void> => { await postFn(page); });
+  return safePostAction(async (): Promise<void> => {
+    await postFn(page);
+  });
 }
 
 /**

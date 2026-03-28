@@ -82,7 +82,10 @@ function makeMockMediator(): IElementMediator {
      * Navigation mock — always succeeds.
      * @returns Succeed(undefined).
      */
-    navigateTo: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    navigateTo: (): Promise<Procedure<void>> => {
+      const done = succeed(undefined);
+      return Promise.resolve(done);
+    },
     /**
      * URL mock — returns about:blank.
      * @returns Mock URL.
@@ -92,7 +95,10 @@ function makeMockMediator(): IElementMediator {
      * Network idle mock — always succeeds.
      * @returns Succeed(undefined).
      */
-    waitForNetworkIdle: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    waitForNetworkIdle: (): Promise<Procedure<void>> => {
+      const done = succeed(undefined);
+      return Promise.resolve(done);
+    },
     /**
      * Count by text mock — returns 0.
      * @returns Zero.

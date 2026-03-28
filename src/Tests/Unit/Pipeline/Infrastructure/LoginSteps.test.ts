@@ -73,35 +73,6 @@ function makeDetachedFrame(): Page | Frame {
   } as unknown as Page;
 }
 
-/**
- * Build a mock Page where waitForLoadState resolves immediately.
- * @returns Mock Page that settles instantly.
- */
-function makeFastSettlePage(): Page {
-  return {
-    /**
-     * Resolves immediately — page is idle.
-     * @returns Resolved promise.
-     */
-    waitForLoadState: (): Promise<boolean> => Promise.resolve(true),
-  } as unknown as Page;
-}
-
-/**
- * Build a mock Page where waitForLoadState always times out.
- * @returns Mock Page that never reaches networkidle.
- */
-function makeTimeoutPage(): Page {
-  return {
-    /**
-     * Always rejects to simulate network-idle timeout.
-     * @returns Rejected promise.
-     */
-    waitForLoadState: (): Promise<boolean> =>
-      Promise.reject(new Error('Timeout: networkidle not reached')),
-  } as unknown as Page;
-}
-
 // ── checkFrameForErrors ────────────────────────────────────
 // Returns IFormErrorScanResult { hasErrors, summary } (not IFrameErrorResult)
 
@@ -156,6 +127,10 @@ describe('waitForSubmitToSettle', () => {
 
   it('returns succeed even when networkidle times out (non-fatal)', async () => {
     const mediator = makeMockMediator({
+      /**
+       * Mock network idle — always succeeds.
+       * @returns Resolved succeed.
+       */
       waitForNetworkIdle: () => Promise.resolve({ success: true, value: undefined }),
     });
     const result = await waitForSubmitToSettle(mediator);

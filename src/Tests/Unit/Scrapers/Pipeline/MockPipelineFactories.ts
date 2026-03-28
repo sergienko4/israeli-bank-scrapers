@@ -19,6 +19,12 @@ import type {
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+
+/** Pre-built succeed(undefined) — reusable across test mocks. */
+const VOID_SUCCESS: Procedure<void> = succeed(undefined);
+
+/** Pre-built resolved promise — avoids nested call lint violations in mocks. */
+export const SUCCEED_VOID: Promise<Procedure<void>> = Promise.resolve(VOID_SUCCESS);
 import type {
   IRawAccount,
   IScrapeConfig,
@@ -229,8 +235,8 @@ export function makeMockBrowser(context: BrowserContext = makeMockBrowserContext
  * @returns Two cleanup functions that resolve with Procedure<void>.
  */
 const DEFAULT_CLEANUPS: IBrowserState['cleanups'] = [
-  (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
-  (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+  (): Promise<Procedure<void>> => SUCCEED_VOID,
+  (): Promise<Procedure<void>> => SUCCEED_VOID,
 ];
 
 /**
@@ -357,7 +363,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * Navigation mock — always succeeds.
      * @returns Succeed(undefined).
      */
-    navigateTo: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    navigateTo: (): Promise<Procedure<void>> => SUCCEED_VOID,
     /**
      * URL mock — returns about:blank.
      * @returns Mock URL string.
@@ -367,7 +373,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * Network idle mock — always succeeds.
      * @returns Succeed(undefined).
      */
-    waitForNetworkIdle: (): Promise<Procedure<void>> => Promise.resolve(succeed(undefined)),
+    waitForNetworkIdle: (): Promise<Procedure<void>> => SUCCEED_VOID,
     /**
      * Count by text mock — returns 0 (no elements).
      * @returns Zero.

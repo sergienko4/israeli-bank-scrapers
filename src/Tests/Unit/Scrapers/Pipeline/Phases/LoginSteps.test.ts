@@ -13,9 +13,9 @@ import {
 } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
 import {
   makeContextWithBrowser,
-  makeMockMediator,
   makeMockContext,
   makeMockFullPage,
+  makeMockMediator,
 } from '../MockPipelineFactories.js';
 
 // ── Helper factories ───────────────────────────────────────
@@ -87,21 +87,6 @@ const MAKE_DETACHED_FRAME = (): Page =>
         isVisible: (): Promise<boolean> => Promise.reject(new Error('Frame detached')),
       }),
     }),
-  }) as unknown as Page;
-
-/**
- * Build a page mock for waitForSubmitToSettle tests.
- * @param throws - Whether waitForLoadState should throw.
- * @returns Mock page.
- */
-const MAKE_SETTLE_PAGE = (throws = false): Page =>
-  ({
-    /**
-     * Mock waitForLoadState.
-     * @returns Resolved or rejected promise.
-     */
-    waitForLoadState: (): Promise<boolean> =>
-      throws ? Promise.reject(new Error('timeout')) : Promise.resolve(true),
   }) as unknown as Page;
 
 // ── checkFrameForErrors (Layer 2) ─────────────────────────

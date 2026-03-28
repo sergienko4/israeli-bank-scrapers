@@ -124,7 +124,8 @@ function makeInitWithSpyCleanups(spies: jest.Mock[]): SimplePhase {
       (spy): IBrowserState['cleanups'][number] =>
         (): Promise<Procedure<void>> => {
           spy();
-          return Promise.resolve(succeed(undefined));
+          const done = succeed(undefined);
+          return Promise.resolve(done);
         },
     );
     const state: IBrowserState = {

@@ -70,7 +70,11 @@ describe('PipelineExecutor/final-step', () => {
       }
     }
     const phase = new FinalPhase('login', succeedExecute);
-    const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases: [phase], interceptors: [] };
+    const descriptor: IPipelineDescriptor = {
+      options: MOCK_OPTIONS,
+      phases: [phase],
+      interceptors: [],
+    };
     const result = await run(descriptor);
     expect(result.success).toBe(true);
     expect(didFinalRun).toBe(true);
@@ -96,7 +100,11 @@ describe('PipelineExecutor/final-step', () => {
       }
     }
     const phase = new FailFinalPhase('home', succeedExecute);
-    const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases: [phase], interceptors: [] };
+    const descriptor: IPipelineDescriptor = {
+      options: MOCK_OPTIONS,
+      phases: [phase],
+      interceptors: [],
+    };
     const result = await run(descriptor);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('readiness timeout');
@@ -104,7 +112,11 @@ describe('PipelineExecutor/final-step', () => {
 
   it('skips final when default no-op (BasePhase default)', async () => {
     const phase = new SimplePhase('init', succeedExecute);
-    const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases: [phase], interceptors: [] };
+    const descriptor: IPipelineDescriptor = {
+      options: MOCK_OPTIONS,
+      phases: [phase],
+      interceptors: [],
+    };
     const result = await run(descriptor);
     expect(result.success).toBe(true);
   });

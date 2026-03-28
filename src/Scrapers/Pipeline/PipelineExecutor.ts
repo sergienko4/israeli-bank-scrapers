@@ -13,7 +13,11 @@ import { getDebug } from './Types/Debug.js';
 import { toErrorMessage } from './Types/ErrorUtils.js';
 import type { IPipelineInterceptor } from './Types/Interceptor.js';
 import { none } from './Types/Option.js';
-import type { IBrowserState, IDiagnosticsState, IPipelineContext } from './Types/PipelineContext.js';
+import type {
+  IBrowserState,
+  IDiagnosticsState,
+  IPipelineContext,
+} from './Types/PipelineContext.js';
 import type { Procedure } from './Types/Procedure.js';
 import { fail, isOk, succeed, toLegacy } from './Types/Procedure.js';
 
