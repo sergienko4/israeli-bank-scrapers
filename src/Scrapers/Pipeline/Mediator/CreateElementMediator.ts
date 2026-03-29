@@ -543,6 +543,36 @@ function buildCountByText(page: Page): IElementMediator['countByText'] {
 }
 
 /**
+ * Extract all href attributes from anchor elements in one shot.
+ * Uses evaluateAll to avoid await-in-loop — single DOM round-trip.
+ * @param anchors - Locator for all anchor elements.
+ * @returns Raw href strings from the DOM.
+ */
+async function extractRawHrefs(anchors: Locator): Promise<readonly string[]> {
+  /**
+   * Map anchor elements to their href attribute values.
+   * @param els - Anchor elements from the DOM.
+   * @returns Href strings.
+   */
+  const mapper = (els: HTMLAnchorElement[]): string[] => els.map((el): string => el.href);
+  return anchors.evaluateAll(mapper).catch((): string[] => []);
+}
+
+/**
+ * Build collectAllHrefs — harvest all absolute hrefs from anchor elements.
+ * Read-only extraction via structural CSS (allowed per CLAUDE.md exceptions).
+ * @param page - The Playwright page.
+ * @returns Async function returning deduplicated absolute hrefs.
+ */
+function buildCollectAllHrefs(page: Page): () => Promise<readonly string[]> {
+  return async (): Promise<readonly string[]> => {
+    const anchors = page.locator('a[href]');
+    const rawHrefs = await extractRawHrefs(anchors);
+    return [...new Set(rawHrefs)].filter((h): boolean => h.length > 0);
+  };
+}
+
+/**
  * Create an ElementMediator for the given page.
  * Each instance has its own form anchor cache — safe for concurrent use.
  * @param page - The Playwright page to resolve elements on.
@@ -550,6 +580,7 @@ function buildCountByText(page: Page): IElementMediator['countByText'] {
  */
 function createElementMediator(page: Page): IElementMediator {
   const cache: IFormCache = { selector: '' };
+  const network = createNetworkDiscovery(page);
   const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
@@ -559,11 +590,12 @@ function createElementMediator(page: Page): IElementMediator {
     waitForLoadingDone: buildWaitForLoadingDone(),
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
-    network: createNetworkDiscovery(page),
+    network,
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
     waitForNetworkIdle: buildWaitForNetworkIdle(page),
     countByText: buildCountByText(page),
+    collectAllHrefs: buildCollectAllHrefs(page),
   };
   return mediator;
 }

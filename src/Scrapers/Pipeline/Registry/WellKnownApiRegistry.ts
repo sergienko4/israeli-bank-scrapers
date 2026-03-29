@@ -20,6 +20,7 @@ export const PIPELINE_WELL_KNOWN_API = {
     /filteredTransactions/i,
     /CardsTransactionsList/i,
     /lastTransactions/i,
+    /GetTransactionsList/i,
     /GetLatestTransactions/i,
   ],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],

@@ -205,16 +205,33 @@ function buildMonthBody(opts: IMonthBodyOpts): Record<string, unknown> {
  * @param postData - Captured POST body string.
  * @returns True if the endpoint uses monthly fetching.
  */
-function isMonthlyEndpoint(postData: PostTemplate): IsMonthly {
-  if (!postData) return false;
+/**
+ * Safe JSON parse — returns parsed object or false on failure.
+ * @param raw - Raw JSON string.
+ * @returns Parsed object or false.
+ */
+function safeParse(raw: string): Record<string, unknown> | false {
   try {
-    const body = JSON.parse(postData) as Record<string, unknown>;
-    const hasMonth = MF.month.some((f): IsMonthly => body[f] !== undefined);
-    const hasYear = MF.year.some((f): IsMonthly => body[f] !== undefined);
-    return hasMonth && hasYear;
+    return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if a captured POST body uses monthly iteration.
+ * @param postData - Captured POST body string.
+ * @returns True if the endpoint uses monthly fetching.
+ */
+function isMonthlyEndpoint(postData: PostTemplate): IsMonthly {
+  if (!postData) return false;
+  const body = safeParse(postData);
+  if (!body) return false;
+  const hasMonth = MF.month.some((f): IsMonthly => body[f] !== undefined);
+  const hasYear = MF.year.some((f): IsMonthly => body[f] !== undefined);
+  if (hasMonth && hasYear) return true;
+  // Composite date (DD/MM/YYYY) encodes both month+year in one field
+  return findCompositeField(body) !== false;
 }
 
 /**

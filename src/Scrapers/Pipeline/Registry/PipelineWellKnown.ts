@@ -269,6 +269,9 @@ export const WK = {
       { kind: 'textContent', value: 'סיסמה פגה' },
     ],
     TRANSACTIONS: [
+      { kind: 'textContent', value: 'כל העסקאות' },
+      { kind: 'ariaLabel', value: 'עסקאות' },
+      { kind: 'textContent', value: 'עסקאות' },
       { kind: 'textContent', value: 'תנועות' },
       { kind: 'textContent', value: 'פעולות' },
       { kind: 'textContent', value: 'תנועות אחרונות' },

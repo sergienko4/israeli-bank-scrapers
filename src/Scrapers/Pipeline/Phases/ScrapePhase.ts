@@ -8,14 +8,18 @@
 
 import moment from 'moment';
 
-import type { IElementMediator } from '../Mediator/ElementMediator.js';
+import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
 import {
   extractAccountIds,
   extractAccountRecords,
   findFieldValue,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import {
+  PIPELINE_WELL_KNOWN_API,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+  WK as WELL_KNOWN,
+} from '../Registry/PipelineWellKnown.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -314,15 +318,106 @@ const SCRAPE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics.
  */
-function executeScrapePre(
+/** Network idle timeout after click — waits for all pending requests to complete. */
+const NETWORK_SIGNAL_TIMEOUT_MS = 15000;
+/** SPA render timeout for lazy dashboard activation. */
+const SPA_RENDER_TIMEOUT_MS = 10000;
+/** Hydration pause before retry. */
+const HYDRATION_PAUSE_MS = 5000;
+
+/** Whether a traffic delta was detected. */
+type TrafficDeltaCount = number;
+
+/**
+ * Count API endpoints captured after a given timestamp matching WK patterns.
+ * Only counts responses with a body (not pending/failed).
+ * @param network - Network discovery with captured traffic.
+ * @param sinceMs - Epoch ms timestamp to filter from.
+ * @param patterns - WK regex patterns to match against captured URLs.
+ * @returns Number of matching endpoints with response bodies.
+ */
+function countTrafficSince(
+  network: INetworkDiscovery,
+  sinceMs: number,
+  patterns: readonly RegExp[],
+): TrafficDeltaCount {
+  const recent = network.getAllEndpoints().filter((ep): boolean => ep.timestamp > sinceMs);
+  const matched = recent.filter((ep): boolean => patterns.some((p): boolean => p.test(ep.url)));
+  return matched.filter((ep): boolean => ep.responseBody !== undefined && ep.responseBody !== null)
+    .length;
+}
+
+/**
+ * Click a resolved element, wait for network idle, check traffic delta.
+ * @param mediator - Element mediator.
+ * @param race - Resolved element race result.
+ * @param network - Network discovery for delta check.
+ * @returns Traffic delta count (0 = no signal, >0 = API captured).
+ */
+async function clickAndCheckDelta(
+  mediator: IElementMediator,
+  race: IRaceResult,
+  network: INetworkDiscovery,
+): Promise<TrafficDeltaCount> {
+  if (!race.found || !race.locator) return 0;
+  const beforeMs = Date.now();
+  await race.locator.click({ force: true, timeout: 5000 }).catch((): false => false);
+  LOG.debug('[SIGNAL] clicked, waiting for network idle...');
+  await mediator.waitForNetworkIdle(NETWORK_SIGNAL_TIMEOUT_MS).catch((): false => false);
+  const delta = countTrafficSince(network, beforeMs, PIPELINE_WELL_KNOWN_API.transactions);
+  LOG.debug('[SIGNAL] trafficDelta=%d (txn patterns since click)', delta);
+  return delta;
+}
+
+/**
+ * DASHBOARD.signal — Network Gatekeeper for transaction API capture.
+ * Clicks WK transaction text, validates via traffic delta, retries after SPA hydration.
+ * @param mediator - Element mediator for DOM interaction.
+ */
+async function triggerNavCapture(mediator: IElementMediator): Promise<void> {
+  const dashUrl = mediator.getCurrentUrl();
+  LOG.debug('[SIGNAL] dashUrl=%s', dashUrl);
+  const candidates = WELL_KNOWN.DASHBOARD.TRANSACTIONS;
+  const network = mediator.network;
+  // Attempt 1: Click + Network Delta
+  const race = await mediator.resolveVisible(candidates, SPA_RENDER_TIMEOUT_MS);
+  LOG.debug('[SIGNAL] resolveVisible found=%s', race.found);
+  const delta = await clickAndCheckDelta(mediator, race, network);
+  if (delta > 0) {
+    LOG.debug('[SIGNAL] SUCCESS — %d transaction API(s) captured', delta);
+  } else {
+    // Attempt 2: Hydration pause + retry
+    LOG.debug('[SIGNAL] no traffic delta, hydration pause...');
+    await mediator.waitForNetworkIdle(HYDRATION_PAUSE_MS).catch((): false => false);
+    const retryRace = await mediator.resolveVisible(candidates, HYDRATION_PAUSE_MS);
+    const retryDelta = await clickAndCheckDelta(mediator, retryRace, network);
+    LOG.debug('[SIGNAL] retry delta=%d', retryDelta);
+  }
+  // Snap back regardless
+  await mediator.navigateTo(dashUrl).catch((): false => false);
+  await mediator.waitForNetworkIdle(HYDRATION_PAUSE_MS).catch((): false => false);
+  const finalUrl = mediator.getCurrentUrl();
+  LOG.debug('[SIGNAL] snap-back url=%s', finalUrl);
+}
+
+/**
+ * SCRAPE PRE step — navigation trigger + update diagnostics.
+ * @param _ctx - Pipeline context (unused).
+ * @param input - Pipeline context.
+ * @returns Updated context with diagnostics.
+ */
+async function executeScrapePre(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   const nowMs = Date.now();
   const fetchStartMs = some(nowMs);
+  // Best-effort: if no link found, scrape proceeds with dashboard data only
+  if (input.mediator.has && input.browser.has) {
+    await triggerNavCapture(input.mediator.value);
+  }
   const updatedDiag = { ...input.diagnostics, fetchStartMs, lastAction: 'scrape-pre' };
-  const result = succeed({ ...input, diagnostics: updatedDiag });
-  return Promise.resolve(result);
+  return succeed({ ...input, diagnostics: updatedDiag });
 }
 
 /** SCRAPE PRE step. */

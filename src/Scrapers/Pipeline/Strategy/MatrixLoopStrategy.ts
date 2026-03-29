@@ -64,7 +64,9 @@ async function fetchMatrixChunk(
   const body = buildMonthBody(opts) as Record<string, string | object>;
   const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(ctx.txnUrl, body);
   if (!isOk(raw)) return [];
-  return extractTransactions(raw.value);
+  const txns = extractTransactions(raw.value);
+  LOG.debug('MatrixLoop: chunk %d/%d → %d txns', monthNum, yearNum, txns.length);
+  return txns;
 }
 
 /**
@@ -81,9 +83,11 @@ async function tryMatrixLoop(
   if (!txnEndpoint) return false;
   if (!txnEndpoint.postData) return false;
   if (!isMonthlyEndpoint(txnEndpoint.postData)) return false;
-  LOG.debug('MatrixLoop: monthly endpoint at %s', txnEndpoint.url);
+  const postDataLen = txnEndpoint.postData.length;
+  LOG.debug('MatrixLoop: activated — url=%s postData=%d chars', txnEndpoint.url, postDataLen);
   const startDate = parseStartDate(args.fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date());
+  LOG.debug('MatrixLoop: chunks=%d startDate=%s', chunks.length, args.fc.startDate);
   const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template: txnEndpoint.postData };
   const allTxns: ITransaction[] = [];
   const seed = Promise.resolve(true as const);
@@ -97,6 +101,7 @@ async function tryMatrixLoop(
     seed,
   );
   await chain;
+  LOG.debug('MatrixLoop: total=%d txns for account %s', allTxns.length, args.displayId);
   if (allTxns.length === 0) return false;
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,

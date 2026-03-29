@@ -172,6 +172,13 @@ interface IElementMediator {
    * @returns Element count (0 if not found or error).
    */
   countByText(text: string): Promise<number>;
+
+  /**
+   * Collect all absolute href values from anchor elements on the page.
+   * Read-only extraction — no interaction. Structural CSS allowed per CLAUDE.md.
+   * @returns Deduplicated absolute href strings.
+   */
+  collectAllHrefs(): Promise<readonly string[]>;
 }
 
 export default IElementMediator;
