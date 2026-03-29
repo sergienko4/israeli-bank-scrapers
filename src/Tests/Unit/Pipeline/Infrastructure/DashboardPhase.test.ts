@@ -143,6 +143,29 @@ describe('DashboardPhase/POST', () => {
     expect(isSuccess).toBe(false);
     if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
   });
+
+  it('hard-fails with UNPRIMED when strategy=TRIGGER and trafficCount=0', async () => {
+    const baseCtx = makeDashCtx({ clickFound: false });
+    const triggerCtx = {
+      ...baseCtx,
+      diagnostics: { ...baseCtx.diagnostics, dashboardStrategy: 'TRIGGER' as const },
+    };
+    const result = await PHASE.post(triggerCtx, triggerCtx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('UNPRIMED');
+  });
+
+  it('succeeds for BYPASS strategy even with 0 traffic', async () => {
+    const baseCtx = makeDashCtx({ clickFound: false });
+    const bypassCtx = {
+      ...baseCtx,
+      diagnostics: { ...baseCtx.diagnostics, dashboardStrategy: 'BYPASS' as const },
+    };
+    const result = await PHASE.post(bypassCtx, bypassCtx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+  });
 });
 
 // ── Factory ──────────────────────────────────────────────

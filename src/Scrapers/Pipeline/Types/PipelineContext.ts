@@ -61,6 +61,10 @@ interface IDiagnosticsState {
   readonly lastAction: DiagnosticStr;
   readonly pageTitle: Option<string>;
   readonly warnings: readonly string[];
+  /** Dashboard strategy resolved in PRE — consumed in ACTION. */
+  readonly dashboardStrategy?: 'BYPASS' | 'TRIGGER';
+  /** Target URL extracted in DASHBOARD.PRE for TRIGGER navigation. */
+  readonly dashboardTargetUrl?: PageUrlStr;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */

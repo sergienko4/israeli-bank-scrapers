@@ -6,6 +6,7 @@
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 
 // ── NOT_FOUND_RESULT constant ─────────────────────────────
@@ -113,27 +114,35 @@ describe('resolveVisible/mock', () => {
 // ── resolveAndClick still works after refactor ────────────
 
 describe('resolveAndClick/backward-compat', () => {
-  it('still returns true when mediator finds element', async () => {
+  it('returns success with found=true when mediator finds element', async () => {
     const mediator = makeMockMediator({
       /**
        * Found and clicked.
-       * @returns True.
+       * @returns Success with found=true.
        */
-      resolveAndClick: (): Promise<boolean> => Promise.resolve(true),
+      resolveAndClick: () => {
+        const found = succeed({ ...NOT_FOUND_RESULT, found: true as const });
+        return Promise.resolve(found);
+      },
     });
-    const didClick = await mediator.resolveAndClick([{ kind: 'textContent', value: 'כניסה' }]);
-    expect(didClick).toBe(true);
+    const result = await mediator.resolveAndClick([{ kind: 'textContent', value: 'כניסה' }]);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.found).toBe(true);
   });
 
-  it('still returns false when nothing matches', async () => {
+  it('returns success with found=false when nothing matches', async () => {
     const mediator = makeMockMediator({
       /**
        * Not found.
-       * @returns False.
+       * @returns Success with found=false.
        */
-      resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
+      resolveAndClick: () => {
+        const notFound = succeed(NOT_FOUND_RESULT);
+        return Promise.resolve(notFound);
+      },
     });
-    const didClick = await mediator.resolveAndClick([{ kind: 'textContent', value: 'x' }]);
-    expect(didClick).toBe(false);
+    const result = await mediator.resolveAndClick([{ kind: 'textContent', value: 'x' }]);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.found).toBe(false);
   });
 });

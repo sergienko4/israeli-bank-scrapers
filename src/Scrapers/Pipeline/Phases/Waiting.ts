@@ -1,5 +1,3 @@
-import type { Falsy } from 'utility-types';
-
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 import {
@@ -22,8 +20,6 @@ type PollValue = string | DelayMs | OpDone;
 
 /** Error thrown when an async wait operation exceeds its timeout. */
 export class TimeoutError extends Error {}
-
-type WaitUntilReturn<T> = T extends Falsy ? never : Promise<NonNullable<T>>;
 
 /** Maximum characters for a stringified diagnostic value. */
 const MAX_STRINGIFY_LENGTH = 100;
@@ -295,8 +291,8 @@ export async function waitUntil<T>(
   asyncTest: () => Promise<T>,
   description = '',
   opts: IWaitUntilOpts = {},
-): WaitUntilReturn<T> {
-  return (await executeWaitUntil(asyncTest, description, opts)) as WaitUntilReturn<T>;
+): Promise<NonNullable<T>> {
+  return (await executeWaitUntil(asyncTest, description, opts)) as NonNullable<T>;
 }
 
 /** Sentinel indicating the race timed out before the promise resolved. */

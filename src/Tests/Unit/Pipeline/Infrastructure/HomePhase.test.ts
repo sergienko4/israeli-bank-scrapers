@@ -8,13 +8,14 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { HomePhase } from '../../../../Scrapers/Pipeline/Phases/HomePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockContext, makeMockPage } from './MockFactories.js';
 
@@ -107,7 +108,10 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
      * Resolve and click mock — best-effort, returns not-found.
      * @returns Resolved not-found.
      */
-    resolveAndClick: (): Promise<boolean> => Promise.resolve(false),
+    resolveAndClick: () => {
+      const notFound = succeed(NOT_FOUND_RESULT);
+      return Promise.resolve(notFound);
+    },
   });
   const ctx = makeMockContext({
     browser: some(browserState),

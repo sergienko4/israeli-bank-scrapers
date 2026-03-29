@@ -9,7 +9,7 @@ import { ScraperErrorTypes } from '../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../Base/Interface.js';
 import type { ILoginConfig } from '../Base/Interfaces/Config/LoginConfig.js';
 import { createPopupInterceptor } from './Interceptors/PopupInterceptor.js';
-import { createDashboardPhase } from './Phases/DashboardPhase.js';
+import { createDashboardPhase, probeDashboardReveal } from './Phases/DashboardPhase.js';
 import { DECLARATIVE_LOGIN_STEP } from './Phases/DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './Phases/DirectPostLoginPhase.js';
 import { createFindLoginAreaPhase } from './Phases/FindLoginAreaPhase.js';
@@ -111,22 +111,25 @@ function buildDeclarativePhase(config: ILoginConfig): BasePhase {
     }
 
     /**
-     * FINAL: validate login state exists before closing.
+     * SIGNAL: validate login state + prove dashboard rendered via REVEAL.
      * Catches edge case where login "succeeded" but no state was stored.
+     * REVEAL probe proves the page transitioned to authenticated state.
      * @param _ctx - Pipeline context (unused).
      * @param input - Pipeline context with login state.
-     * @returns Succeed if login state present, fail otherwise.
+     * @returns Succeed with REVEAL diagnostics, fail if no login state.
      */
-    public final(
+    public async final(
       _ctx: IPipelineContext,
       input: IPipelineContext,
     ): Promise<Procedure<IPipelineContext>> {
-      if (!input.login.has) {
-        const err = fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
-        return Promise.resolve(err);
-      }
-      const result = succeed(input);
-      return Promise.resolve(result);
+      if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
+      if (!input.mediator.has) return succeed(input);
+      const mediator = input.mediator.value;
+      const log = input.logger;
+      const revealInfo = await probeDashboardReveal(mediator);
+      log.debug('[LOGIN.SIGNAL] %s', revealInfo);
+      const updatedDiag = { ...input.diagnostics, lastAction: `login-signal (${revealInfo})` };
+      return succeed({ ...input, diagnostics: updatedDiag });
     }
   }
   return new DeclarativeLogin('login', (ctx, input) => phase.action.execute(ctx, input));

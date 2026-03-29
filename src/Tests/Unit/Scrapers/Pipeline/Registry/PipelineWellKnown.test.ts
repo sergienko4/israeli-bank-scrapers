@@ -5,6 +5,11 @@
 
 import { WK } from '../../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
 
+/** Whether a WK test predicate matches. */
+type WkMatch = boolean;
+/** Extracted WK candidate value for assertion. */
+type WkValue = string;
+
 // ── LOGIN FORM dictionary ────────────────────────────────
 
 describe('WK.LOGIN.ACTION.FORM/structure', () => {
@@ -22,7 +27,7 @@ describe('WK.LOGIN.ACTION.FORM/zero-css', () => {
      * @param c - Selector candidate.
      * @returns True if kind is CSS.
      */
-    const isCss = (c: (typeof allCandidates)[number]): boolean => (c.kind as string) === 'css';
+    const isCss = (c: (typeof allCandidates)[number]): WkMatch => (c.kind as string) === 'css';
     const cssEntries = allCandidates.filter(isCss);
     expect(cssEntries).toHaveLength(0);
   });
@@ -42,7 +47,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
        * @param c - Selector candidate.
        * @returns True if candidate matches kind.
        */
-      const matchesKind = (c: (typeof submit)[number]): boolean => c.kind === kind;
+      const matchesKind = (c: (typeof submit)[number]): WkMatch => c.kind === kind;
       const hasKind = submit.some(matchesKind);
       expect(hasKind).toBe(true);
     },
@@ -55,7 +60,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
      * @param c - Selector candidate.
      * @returns True if kind is CSS.
      */
-    const isCss = (c: (typeof submit)[number]): boolean => (c.kind as string) === 'css';
+    const isCss = (c: (typeof submit)[number]): WkMatch => (c.kind as string) === 'css';
     const cssSubmit = submit.filter(isCss);
     expect(cssSubmit).toHaveLength(0);
   });
@@ -70,7 +75,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
        * @param c.kind - The selector kind to check.
        * @returns True if candidate uses a text-based kind.
        */
-      const isText = (c: { kind: string }): boolean => textKinds.has(c.kind);
+      const isText = (c: { kind: string }): WkMatch => textKinds.has(c.kind);
       const hasText = candidates.some(isText);
       expect(hasText).toBe(true);
     }
@@ -101,15 +106,8 @@ describe('WK.DASHBOARD/zero-css', () => {
      */
     const isCandidate = (c: unknown): c is { kind: string } =>
       typeof c === 'object' && c !== null && 'kind' in c;
-    const allCandidates = allValues.filter(isCandidate);
-    /**
-     * Check if a candidate uses CSS kind.
-     * @param c - Selector candidate with kind property.
-     * @param c.kind - The selector kind to check.
-     * @returns True if kind is CSS.
-     */
-    const isCss = (c: { kind: string }): boolean => c.kind === 'css';
-    const cssEntries = allCandidates.filter(isCss);
+    const allCandidates = allValues.filter(isCandidate) as { kind: string }[];
+    const cssEntries = allCandidates.filter((c): WkMatch => c.kind === 'css');
     expect(cssEntries).toHaveLength(0);
   });
 });
@@ -121,7 +119,7 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): string => c.value;
+    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.value;
     const texts = WK.DASHBOARD.ERROR.map(toValue);
     expect(texts).toContain('שם המשתמש או הסיסמה שהוזנו שגויים');
   });
@@ -132,7 +130,7 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): string => c.value;
+    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.value;
     const texts = WK.DASHBOARD.ERROR.map(toValue);
     expect(texts).toContain('פרטים שגויים');
   });
@@ -143,7 +141,7 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate kind string.
      */
-    const toKind = (c: (typeof WK.DASHBOARD.ERROR)[number]): string => c.kind;
+    const toKind = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.kind;
     const kinds = WK.DASHBOARD.ERROR.map(toKind);
     const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText']);
     /**
@@ -151,7 +149,7 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param k - Kind string.
      * @returns True if kind is allowed.
      */
-    const isAllowed = (k: string): boolean => allowedKinds.has(k);
+    const isAllowed = (k: string): WkMatch => allowedKinds.has(k);
     const hasOnlyTextKinds = kinds.every(isAllowed);
     expect(hasOnlyTextKinds).toBe(true);
   });

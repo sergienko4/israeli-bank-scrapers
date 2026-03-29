@@ -38,6 +38,14 @@ type IsVisible = boolean;
 type WinnerIndex = number;
 /** Raw href or text attribute from a DOM element. */
 type ElementAttr = string;
+/** Diagnostic string for trace logging. */
+type DiagnosticStr = string;
+/** Href string extracted from anchor ancestor walk-up. */
+type AncestorHref = string;
+/** Whether a filter predicate matches. */
+type FilterMatch = boolean;
+/** Current page URL string. */
+type PageUrl = string;
 
 /** Per-instance mutable cache for the form anchor selector. */
 interface IFormCache {
@@ -365,19 +373,60 @@ function buildLocatorEntries(
 }
 
 /**
+ * Walk up DOM from element to nearest `<a>` ancestor and return its href.
+ * Structural CSS for extraction — allowed per CLAUDE.md exceptions.
+ * Uses `closest('a')` for flat, null-safe ancestor traversal.
+ * @param el - Starting DOM element.
+ * @returns href string from the nearest anchor ancestor, or empty string.
+ */
+function walkUpToAnchorHref(el: Element): AncestorHref {
+  const anchor = el.closest('a');
+  return anchor ? anchor.href : '';
+}
+
+/**
  * Snapshot the element value immediately to prevent stale-element errors.
  * For target:'href' candidates, captures the href attribute.
+ * Walks up to nearest `<a>` ancestor if element itself has no href.
+ * Otherwise captures innerText.
+ * @param entry - The winning locator entry.
+ * @returns The captured text or href value.
+ */
+/**
+ * Extract diagnostic info from a DOM element for trace logging.
+ * @param el - DOM element to inspect.
+ * @returns Formatted diagnostic string.
+ */
+function traceElementInfo(el: Element): DiagnosticStr {
+  const tag = el.tagName;
+  const rawText = el.textContent;
+  const text = rawText ? rawText.slice(0, 30).trim() : '';
+  const href = el.getAttribute('href') ?? '';
+  const aria = el.getAttribute('aria-label') ?? '';
+  const closestA = el.closest('a');
+  const aHref = closestA ? (closestA.getAttribute('href') ?? '') : 'NO_ANCHOR';
+  return `tag=${tag} text=${text} href=${href} aria=${aria} closestA=${aHref}`;
+}
+
+/**
+ * Snapshot the element value immediately to prevent stale-element errors.
+ * For target:'href' candidates, captures href + walks up to nearest `<a>` ancestor.
  * Otherwise captures innerText.
  * @param entry - The winning locator entry.
  * @returns The captured text or href value.
  */
 async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   const target = entry.candidate.target ?? 'self';
-  if (target === 'href') {
-    const href = await entry.locator.getAttribute('href').catch((): ElementAttr => '');
-    return href ?? '';
-  }
-  return entry.locator.innerText().catch((): ElementAttr => '');
+  if (target !== 'href') return entry.locator.innerText().catch((): ElementAttr => '');
+  const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): DiagnosticStr => 'error');
+  const candidateInfo = `${entry.candidate.kind}="${entry.candidate.value}"`;
+  LOG.debug('snapshotValue: [%s] candidate=%s', elInfo, candidateInfo);
+  const directHref = await entry.locator.getAttribute('href').catch((): ElementAttr => '');
+  if (directHref) return directHref;
+  const ancestorHref = await entry.locator
+    .evaluate(walkUpToAnchorHref)
+    .catch((): AncestorHref => '');
+  return ancestorHref;
 }
 
 /**
@@ -506,7 +555,7 @@ function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
  * @returns Mediator getCurrentUrl function.
  */
 function buildGetCurrentUrl(page: Page): IElementMediator['getCurrentUrl'] {
-  return (): string => page.url();
+  return (): PageUrl => page.url();
 }
 
 /**
@@ -554,7 +603,7 @@ async function extractRawHrefs(anchors: Locator): Promise<readonly string[]> {
    * @param els - Anchor elements from the DOM.
    * @returns Href strings.
    */
-  const mapper = (els: HTMLAnchorElement[]): string[] => els.map((el): string => el.href);
+  const mapper = (els: HTMLAnchorElement[]): ElementAttr[] => els.map((el): ElementAttr => el.href);
   return anchors.evaluateAll(mapper).catch((): string[] => []);
 }
 
@@ -568,7 +617,7 @@ function buildCollectAllHrefs(page: Page): () => Promise<readonly string[]> {
   return async (): Promise<readonly string[]> => {
     const anchors = page.locator('a[href]');
     const rawHrefs = await extractRawHrefs(anchors);
-    return [...new Set(rawHrefs)].filter((h): boolean => h.length > 0);
+    return [...new Set(rawHrefs)].filter((h): FilterMatch => h.length > 0);
   };
 }
 

@@ -268,9 +268,25 @@ export const WK = {
       { kind: 'textContent', value: 'עדכון סיסמה' },
       { kind: 'textContent', value: 'סיסמה פגה' },
     ],
+    /** Proof the dashboard hydrated — used by LOGIN.SIGNAL. NOT the clickable trigger. */
+    REVEAL: [
+      { kind: 'regex', value: 'כניסתך האחרונה.*\\d{1,2}[./\\-]\\d{1,2}[./\\-]\\d{2,4}' },
+      { kind: 'textContent', value: 'עסקאות וחיובים' },
+      { kind: 'textContent', value: 'כל הפעולות' },
+      { kind: 'textContent', value: 'חיובים ועסקאות' },
+      { kind: 'textContent', value: 'חיפוש עסקאות וזיכויים' },
+      { kind: 'textContent', value: 'חיובים עתידיים' },
+      { kind: 'textContent', value: 'צפייה בכרטיסים שלי' },
+    ],
+    /** Clickable trigger to fire transaction API — used by DASHBOARD.PRE.
+     * ariaLabel candidates FIRST — they target real <a> elements, not decorative <span>.
+     */
     TRANSACTIONS: [
-      { kind: 'textContent', value: 'כל העסקאות' },
       { kind: 'ariaLabel', value: 'עסקאות' },
+      { kind: 'ariaLabel', value: 'תנועות' },
+      { kind: 'textContent', value: 'חיובים ועסקאות' },
+      { kind: 'textContent', value: 'כל העסקאות' },
+      { kind: 'textContent', value: 'פירוט עסקאות' },
       { kind: 'textContent', value: 'עסקאות' },
       { kind: 'textContent', value: 'תנועות' },
       { kind: 'textContent', value: 'פעולות' },

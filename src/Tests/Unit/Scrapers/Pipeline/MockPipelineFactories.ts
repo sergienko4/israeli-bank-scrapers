@@ -6,6 +6,11 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
+/** Whether a mock operation completed successfully. */
+type MockResult = boolean;
+/** Mock URL string. */
+type MockUrl = string;
+
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
@@ -123,7 +128,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * No-op timeout setter mock.
      * @returns True.
      */
-    setDefaultTimeout: (): boolean => true,
+    setDefaultTimeout: (): MockResult => true,
     /**
      * Resolves immediately for any load state.
      * @returns Resolved true.
@@ -368,7 +373,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * URL mock — returns about:blank.
      * @returns Mock URL string.
      */
-    getCurrentUrl: (): string => 'about:blank',
+    getCurrentUrl: (): MockUrl => 'about:blank',
     /**
      * Network idle mock — always succeeds.
      * @returns Succeed(undefined).
@@ -379,6 +384,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Zero.
      */
     countByText: (): Promise<number> => Promise.resolve(0),
+    /**
+     * No DOM in mock — empty hrefs.
+     * @returns Empty array.
+     */
+    collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
     network: {
       /**
        * No endpoints in mock.
@@ -400,6 +410,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       discoverByPatterns: (): false => false,
+      /**
+       * No SPA URL in mock.
+       * @returns False.
+       */
+      discoverSpaUrl: (): false => false,
       /**
        * No accounts in mock.
        * @returns False.
@@ -434,7 +449,8 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * Empty headers in mock.
        * @returns Default empty opts.
        */
-      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
+      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
+        Promise.resolve({ extraHeaders: {} }),
       /**
        * No transaction URL in mock.
        * @returns False.

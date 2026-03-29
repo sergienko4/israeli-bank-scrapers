@@ -104,6 +104,11 @@ function makeMockMediator(): IElementMediator {
      * @returns Zero.
      */
     countByText: (): Promise<number> => Promise.resolve(0),
+    /**
+     * No DOM in mock — empty hrefs.
+     * @returns Empty array.
+     */
+    collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
     network: {
       /**
        * No endpoints in mock.
@@ -125,6 +130,11 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverByPatterns: (): false => false,
+      /**
+       * No SPA URL in mock.
+       * @returns False.
+       */
+      discoverSpaUrl: (): false => false,
       /**
        * No accounts in mock.
        * @returns False.
@@ -159,7 +169,8 @@ function makeMockMediator(): IElementMediator {
        * Empty headers in mock.
        * @returns Default empty opts.
        */
-      buildDiscoveredHeaders: () => ({ extraHeaders: {} }),
+      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
+        Promise.resolve({ extraHeaders: {} }),
       /**
        * No transaction URL in mock.
        * @returns False.
