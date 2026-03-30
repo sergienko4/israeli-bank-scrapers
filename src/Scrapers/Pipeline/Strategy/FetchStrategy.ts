@@ -42,7 +42,25 @@ interface IFetchStrategy {
     credentials: ScraperCredentials,
     config: IBankScraperConfig,
   ): Promise<Procedure<SessionActivated>>;
+
+  /**
+   * Optional proxy GET — fetches data via .ashx proxy handler on the api.base domain.
+   * Used when the data domain (web.) has a separate auth system.
+   * Constructs URL: config.api.base/services/ProxyRequestHandler.ashx?reqName=...&params
+   * @param config - Bank config with api.base URL.
+   * @param reqName - The proxy request name (e.g., 'DashboardMonth', 'CardsTransactionsList').
+   * @param params - Additional query parameters.
+   * @returns Procedure with parsed JSON response.
+   */
+  proxyGet?<T>(
+    config: IBankScraperConfig,
+    reqName: ProxyReqName,
+    params: Record<string, string>,
+  ): Promise<Procedure<T>>;
 }
 
-export type { IFetchOpts, IFetchStrategy, PostData, SessionActivated };
+/** Proxy request name (e.g., 'DashboardMonth'). */
+type ProxyReqName = string;
+
+export type { IFetchOpts, IFetchStrategy, PostData, ProxyReqName, SessionActivated };
 export { DEFAULT_FETCH_OPTS };

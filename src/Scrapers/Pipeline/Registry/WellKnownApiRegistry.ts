@@ -32,7 +32,14 @@ export const PIPELINE_WELL_KNOWN_API = {
     /performLogon/i,
   ],
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
-} satisfies Record<string, RegExp[]>;
+  /** Proxy reqName strings — for .ashx proxy-based banks (Isracard family). */
+  proxy: {
+    /** Proxy reqNames for account/card discovery. */
+    accounts: ['DashboardMonth'],
+    /** Proxy reqNames for transaction listing. */
+    transactions: ['CardsTransactionsList'],
+  },
+} satisfies Record<string, RegExp[] | Record<string, string[]>>;
 
 // ── Transaction field name mappings ───────────────────────────────────────────────
 

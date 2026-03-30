@@ -13,6 +13,7 @@ import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import { PIPELINE_WELL_KNOWN_API, WK } from '../Registry/PipelineWellKnown.js';
 import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
+import { injectDateParams } from '../Strategy/ProxyTemplate.js';
 import { BasePhase } from '../Types/BasePhase.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
@@ -37,8 +38,7 @@ const REVEAL_TIMEOUT_MS = 15000;
 type DashboardStrategyKind = 'BYPASS' | 'TRIGGER';
 /** SPA render timeout for href extraction. */
 const TRIGGER_RENDER_TIMEOUT_MS = 10000;
-/** Network idle wait after trigger navigation. */
-const TRIGGER_NETWORK_TIMEOUT_MS = 15000;
+// TRIGGER_NETWORK_TIMEOUT_MS removed — proxy warming doesn't navigate.
 /** Whether an endpoint has a valid response body. */
 type HasBody = boolean;
 /** Count of captured transaction endpoints. */
@@ -354,77 +354,69 @@ async function trySessionActivation(ctx: IPipelineContext): Promise<Procedure<vo
 // ── Trigger Navigation ───────────────────────────────────────────────────────────
 
 /**
- * Execute TRIGGER navigation: activate session, jump to data domain, snap back.
- * @param mediator - Element mediator.
- * @param ctx - Pipeline context with credentials, config, fetchStrategy.
- * @returns Succeed(void) or fail if session activation was rejected.
+ * Warm the proxy session by fetching the first WK proxy accounts reqName via .ashx.
+ * Generic: uses WK proxy registry, not hardcoded reqNames.
+ * @param ctx - Pipeline context with fetchStrategy and config.
+ * @returns Succeed(void) or fail if proxy fetch failed.
  */
-async function executeTriggerNavigation(
-  mediator: IElementMediator,
-  ctx: IPipelineContext,
-): Promise<Procedure<void>> {
-  const dashUrl = mediator.getCurrentUrl();
-  const activationResult = await trySessionActivation(ctx);
-  if (!activationResult.success) return activationResult;
-  await executeDoubleJump(mediator, dashUrl);
-  LOG.debug('[DASHBOARD.ACTION] snap-back to %s', dashUrl);
-  await mediator.navigateTo(dashUrl).catch((): false => false);
-  await mediator.waitForNetworkIdle(5000).catch((): false => false);
+async function warmProxySession(ctx: IPipelineContext): Promise<Procedure<void>> {
+  if (!ctx.fetchStrategy.has) return succeed(undefined);
+  const strategy = ctx.fetchStrategy.value;
+  if (!strategy.proxyGet) return succeed(undefined);
+  const proxyGetFn = strategy.proxyGet.bind(strategy);
+  const reqName = PIPELINE_WELL_KNOWN_API.proxy.accounts[0];
+  if (!reqName) return succeed(undefined);
+  const templateParams = { actionCode: '0', billingDate: '', format: 'Json' };
+  const now = new Date();
+  const injected = injectDateParams(templateParams, now);
+  const paramStr = JSON.stringify(injected);
+  LOG.debug('[DASHBOARD.ACTION] proxy warming: reqName=%s params=%s', reqName, paramStr);
+  const result = await proxyGetFn(ctx.config, reqName, injected);
+  LOG.debug('[DASHBOARD.ACTION] proxy warming result: success=%s', result.success);
   return succeed(undefined);
 }
 
 /**
- * Build the data-domain URL by swapping subdomain to 'web.' + path '/transactions'.
- * Generic: works for any bank that uses a separate 'web.' subdomain for data.
- * @param currentUrl - Current page URL (used to extract domain).
- * @returns Absolute URL on the web. subdomain, or empty string if malformed.
+ * Execute TRIGGER: activate session via .ashx, then warm proxy with DashboardMonth.
+ * No Double-Jump — all data stays on the he. domain via proxy handler.
+ * @param _mediator - Element mediator (unused — proxy-only, no navigation).
+ * @param ctx - Pipeline context with credentials, config, fetchStrategy.
+ * @returns Succeed(void) or fail if session activation was rejected.
  */
-function buildDataDomainUrl(currentUrl: AbsoluteUrl): AbsoluteUrl {
-  const parsed = safeParseUrl(currentUrl);
-  if (!parsed) return '';
-  const hostParts = parsed.hostname.split('.');
-  if (hostParts.length < 2) return '';
-  hostParts[0] = 'web';
-  parsed.hostname = hostParts.join('.');
-  parsed.pathname = '/transactions';
-  parsed.search = '';
-  parsed.hash = '';
-  return parsed.href;
+async function executeTriggerNavigation(
+  _mediator: IElementMediator,
+  ctx: IPipelineContext,
+): Promise<Procedure<void>> {
+  const activationResult = await trySessionActivation(ctx);
+  if (!activationResult.success) return activationResult;
+  return warmProxySession(ctx);
 }
 
-/**
- * Safe URL parse — returns URL object or null on failure.
- * @param raw - Raw URL string.
- * @returns Parsed URL or null.
- */
-function safeParseUrl(raw: string): URL | false {
-  try {
-    return new URL(raw);
-  } catch {
-    return false;
-  }
-}
+// Double-Jump removed — replaced by proxy warming in Phase 15.
 
 /**
- * Execute Double-Jump to the data domain (web. subdomain).
- * Called when login redirect is detected after initial navigation.
- * @param mediator - Element mediator.
- * @param originalUrl - Original target URL for domain extraction.
+ * Validate the traffic hard-gate: TRIGGER must capture transaction traffic.
+ * Proxy-based banks skip this check — their data comes in SCRAPE phase.
+ * @param input - Pipeline context.
+ * @param mediator - Element mediator with network discovery.
+ * @returns Succeed(void) or fail if UNPRIMED.
  */
-async function executeDoubleJump(
-  mediator: IElementMediator,
-  originalUrl: AbsoluteUrl,
-): Promise<void> {
-  const webUrl = buildDataDomainUrl(originalUrl);
-  if (webUrl) {
-    LOG.debug('[DASHBOARD.ACTION] Double-Jump navigateTo %s', webUrl);
-    await mediator
-      .navigateTo(webUrl, { waitUntil: 'networkidle', timeout: TRIGGER_NETWORK_TIMEOUT_MS })
-      .catch((): false => false);
-    const doubleJumpUrl = mediator.getCurrentUrl();
-    LOG.debug('[DASHBOARD.ACTION] Double-Jump landed on %s', doubleJumpUrl);
-    await mediator.waitForNetworkIdle(5000).catch((): false => false);
+function validateTrafficGate(input: IPipelineContext, mediator: IElementMediator): Procedure<void> {
+  const isTrigger = input.diagnostics.dashboardStrategy === 'TRIGGER';
+  const hasProxy: IsMatch = input.fetchStrategy.has && 'proxyGet' in input.fetchStrategy.value;
+  const trafficCount = isTrigger ? countTxnTraffic(mediator.network, 0) : -1;
+  const stratLabel = isTrigger ? 'TRIGGER' : 'BYPASS';
+  const countStr = String(trafficCount);
+  LOG.debug(
+    '[DASHBOARD.POST] strategy=%s trafficCount=%s hasProxy=%s',
+    stratLabel,
+    countStr,
+    hasProxy,
+  );
+  if (isTrigger && trafficCount === 0 && !hasProxy) {
+    return fail(ScraperErrorTypes.Generic, 'DASHBOARD UNPRIMED: no transaction API captured');
   }
+  return succeed(undefined);
 }
 
 // ── Phase Class ──────────────────────────────────────────────────────────────────
@@ -511,16 +503,8 @@ class DashboardPhase extends BasePhase {
     if (!changePassResult.success) return changePassResult;
     if (changePassResult.value.found)
       return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
-    // Hard-Gate: TRIGGER must produce traffic
-    const isTrigger = input.diagnostics.dashboardStrategy === 'TRIGGER';
-    const trafficCount = isTrigger ? countTxnTraffic(mediator.network, 0) : -1;
-    LOG.debug(
-      '[DASHBOARD.POST] strategy=%s trafficCount=%d',
-      isTrigger ? 'TRIGGER' : 'BYPASS',
-      trafficCount,
-    );
-    if (isTrigger && trafficCount === 0)
-      return fail(ScraperErrorTypes.Generic, 'DASHBOARD UNPRIMED: no transaction API captured');
+    const gateResult = validateTrafficGate(input, mediator);
+    if (!gateResult.success) return gateResult;
     const dashState: IDashboardState = { isReady: true, pageUrl: mediator.getCurrentUrl() };
     return succeed({ ...input, dashboard: some(dashState) });
   }

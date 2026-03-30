@@ -8,14 +8,20 @@
 
 import moment from 'moment';
 
+import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import {
   extractAccountIds,
   extractAccountRecords,
+  extractTransactions,
   findFieldValue,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import {
+  PIPELINE_WELL_KNOWN_API,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+} from '../Registry/PipelineWellKnown.js';
+import { injectDateParams } from '../Strategy/ProxyTemplate.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
@@ -124,13 +130,27 @@ function buildFetchAllCtx(
     ids = fallback.ids;
     records = fallback.records;
   }
-  // Buffer fallback: if IDs still empty but txn endpoint has buffered data, use synthetic ID
-  if (ids.length === 0 && txnEndpoint && txnEndpoint.responseBody) {
-    LOG.debug('[SCRAPE] ids empty but txn buffer exists — using synthetic account');
-    ids = ['default'];
-    records = [txnEndpoint.responseBody as Record<string, unknown>];
-  }
   return { fc, ids, records, txnEndpoint };
+}
+
+/**
+ * Apply credential-based fallback when account IDs are empty but txn buffer exists.
+ * Uses ctx.credentials.card6Digits as the account identifier.
+ * @param fetchCtx - The fetch-all context from buildFetchAllCtx.
+ * @param ctx - Pipeline context with credentials.
+ * @returns Updated fetch context with credential-based ID, or unchanged.
+ */
+function applyCredentialFallback(
+  fetchCtx: IFetchAllAccountsCtx,
+  ctx: IPipelineContext,
+): IFetchAllAccountsCtx {
+  if (fetchCtx.ids.length > 0) return fetchCtx;
+  if (!fetchCtx.txnEndpoint || !fetchCtx.txnEndpoint.responseBody) return fetchCtx;
+  const creds = ctx.credentials as Record<string, string>;
+  const cardId = creds.card6Digits || 'default';
+  LOG.debug('[SCRAPE] ids empty — using credential card6Digits=%s', cardId);
+  const records = [fetchCtx.txnEndpoint.responseBody as Record<string, unknown>];
+  return { ...fetchCtx, ids: [cardId], records };
 }
 
 /** Parsed POST body with account info for fallback. */
@@ -244,12 +264,224 @@ async function pivotToSpaIfNeeded(
   return succeed(true);
 }
 
+// ── Proxy Scrape (Phase 15) ─────────────────────────────────────────────────────
+
+// ── Proxy Scrape (Phase 16 — Dynamic Proxy Replay) ──────────────────────────────
+
+/** Extracted card ID from proxy response. */
+type ProxyCardId = string;
+/** Whether the pipeline context has a proxy-capable strategy. */
+type HasProxy = boolean;
+
+/** Typed proxy GET function — matches IFetchStrategy.proxyGet signature. */
+type ProxyGetFn = <T>(
+  config: IPipelineContext['config'],
+  reqName: string,
+  params: Record<string, string>,
+) => Promise<Procedure<T>>;
+
+/** Start date as epoch milliseconds. */
+type StartEpochMs = number;
+
+/** Bundled context for proxy-based scrape operations. */
+interface IProxyScrapeCtx {
+  readonly proxyGet: ProxyGetFn;
+  readonly config: IPipelineContext['config'];
+  readonly startMs: StartEpochMs;
+}
+
+/**
+ * Check if the strategy supports proxy-based scraping.
+ * @param ctx - Pipeline context.
+ * @returns True if proxyGet is available.
+ */
+function hasProxyStrategy(ctx: IPipelineContext): HasProxy {
+  if (!ctx.fetchStrategy.has) return false;
+  const hasMethod: HasProxy = 'proxyGet' in ctx.fetchStrategy.value;
+  return hasMethod;
+}
+
+/**
+ * Build monthly target dates from startDate to now.
+ * @param startMs - Start date epoch ms.
+ * @returns Array of Date objects, one per month.
+ */
+function buildMonthlyDates(startMs: number): readonly Date[] {
+  const dates: Date[] = [];
+  const start = new Date(startMs);
+  const now = new Date();
+  const current = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (current <= now) {
+    dates.push(new Date(current));
+    const nextMonth = current.getMonth() + 1;
+    current.setMonth(nextMonth);
+  }
+  return dates;
+}
+
+/**
+ * Extract card IDs from proxy accounts response using BFS.
+ * Uses WK accountId fields (cardNumber, cardIndex, etc.) — generic.
+ * Falls back to credentials.card6Digits as last resort.
+ * @param response - Parsed proxy accounts response.
+ * @param credentials - User credentials for fallback.
+ * @returns Array of card ID strings.
+ */
+function extractProxyCardIds(
+  response: Record<string, unknown>,
+  credentials: Record<string, string>,
+): readonly ProxyCardId[] {
+  const bfsIds = extractAccountIds(response);
+  if (bfsIds.length > 0) {
+    const idList = bfsIds.join(', ');
+    LOG.debug('[IDENTITY] BFS discovery found card IDs: [%s]', idList);
+    return bfsIds;
+  }
+  const credCard = credentials.card6Digits || 'default';
+  LOG.debug('[IDENTITY] BFS empty — fallback to credentials card6Digits=%s', credCard);
+  return [credCard];
+}
+
+/**
+ * Wrap strategy.proxyGet in a safe closure — avoids ESLint `this` scoping issues.
+ * @param proxyGetMethod - The proxyGet method to wrap.
+ * @returns Wrapped ProxyGetFn.
+ */
+function wrapProxyGet(proxyGetMethod: ProxyGetFn): ProxyGetFn {
+  return <T>(
+    cfg: IPipelineContext['config'],
+    reqName: string,
+    p: Record<string, string>,
+  ): Promise<Procedure<T>> => proxyGetMethod<T>(cfg, reqName, p);
+}
+
+/**
+ * Fetch one monthly chunk of transactions via proxy replay.
+ * Uses WK proxy transactions reqName + injectDateParams for dynamic dates.
+ * @param pCtx - Proxy scrape context.
+ * @param targetDate - The month to fetch.
+ * @returns Extracted transactions.
+ */
+async function fetchOneProxyChunk(
+  pCtx: IProxyScrapeCtx,
+  targetDate: Date,
+): Promise<readonly ITransaction[]> {
+  const reqName = PIPELINE_WELL_KNOWN_API.proxy.transactions[0];
+  if (!reqName) return [];
+  const templateParams = { month: '', year: '', requiredDate: 'N' };
+  const injected = injectDateParams(templateParams, targetDate);
+  const dateStr = targetDate.toISOString();
+  LOG.debug('[SCRAPE.PROXY] Replaying Proxy: %s [Date: %s]', reqName, dateStr);
+  const result = await pCtx.proxyGet<Record<string, unknown>>(pCtx.config, reqName, injected);
+  if (!isOk(result)) return [];
+  const txns = extractTransactions(result.value);
+  const txnCount = String(txns.length);
+  LOG.debug('[SCRAPE.PROXY] chunk → %s txns', txnCount);
+  return txns;
+}
+
+/**
+ * Fetch all monthly chunks for one card via sequential promise chain.
+ * @param pCtx - Proxy scrape context.
+ * @param months - Target dates, one per month.
+ * @returns All transactions for the card.
+ */
+async function fetchCardChunks(
+  pCtx: IProxyScrapeCtx,
+  months: readonly Date[],
+): Promise<readonly ITransaction[]> {
+  const all: ITransaction[] = [];
+  const seed = Promise.resolve(true as const);
+  const chain = months.reduce(
+    (prev, month): Promise<true> =>
+      prev.then(async (): Promise<true> => {
+        const txns = await fetchOneProxyChunk(pCtx, month);
+        all.push(...txns);
+        return rateLimitPause(500);
+      }),
+    seed,
+  );
+  await chain;
+  return all;
+}
+
+/**
+ * Fetch transactions for all cards via proxy replay.
+ * @param pCtx - Proxy scrape context.
+ * @param cardIds - Card identifiers from BFS discovery.
+ * @returns Array of transaction accounts.
+ */
+async function fetchProxyTransactions(
+  pCtx: IProxyScrapeCtx,
+  cardIds: readonly ProxyCardId[],
+): Promise<readonly ITransactionsAccount[]> {
+  const months = buildMonthlyDates(pCtx.startMs);
+  const accounts: ITransactionsAccount[] = [];
+  const seed = Promise.resolve(true as const);
+  const chain = cardIds.reduce(
+    (prev, cardId): Promise<true> =>
+      prev.then(async (): Promise<true> => {
+        const txns = await fetchCardChunks(pCtx, months);
+        const txnCount = String(txns.length);
+        LOG.debug('[SCRAPE.PROXY] card=%s total=%s txns', cardId, txnCount);
+        if (txns.length > 0) {
+          accounts.push({ accountNumber: cardId, txns: [...txns], balance: 0 });
+        }
+        return true as const;
+      }),
+    seed,
+  );
+  await chain;
+  return accounts;
+}
+
+/**
+ * Proxy-based scrape — fetches accounts + transactions via .ashx proxy.
+ * Uses WK proxy registry + ProxyTemplate for dynamic replay. Zero hardcoded reqNames.
+ * @param ctx - Pipeline context with proxyGet strategy.
+ * @returns Updated context with scraped accounts.
+ */
+async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (!ctx.fetchStrategy.has) return succeed(ctx);
+  const strategy = ctx.fetchStrategy.value;
+  if (!strategy.proxyGet) return succeed(ctx);
+  const boundProxyGet = strategy.proxyGet.bind(strategy);
+  const proxyGet = wrapProxyGet(boundProxyGet);
+  const config = ctx.config;
+  // Step 1: Fetch accounts via WK proxy accounts reqName
+  const acctReqName = PIPELINE_WELL_KNOWN_API.proxy.accounts[0];
+  if (!acctReqName) return succeed(ctx);
+  const acctTemplate = { actionCode: '0', billingDate: '', format: 'Json' };
+  const now = new Date();
+  const acctParams = injectDateParams(acctTemplate, now);
+  const dateStr = now.toISOString();
+  LOG.debug('[SCRAPE.PROXY] Replaying Proxy: %s [Date: %s]', acctReqName, dateStr);
+  const acctResult = await proxyGet<Record<string, unknown>>(config, acctReqName, acctParams);
+  if (!isOk(acctResult)) return acctResult;
+  // Step 2: Extract card IDs via BFS (generic identity stitching)
+  const creds = ctx.credentials as Record<string, string>;
+  const cardIds = extractProxyCardIds(acctResult.value, creds);
+  const cardList = cardIds.join(', ');
+  LOG.debug('[SCRAPE.PROXY] cardIds=[%s]', cardList);
+  // Step 3: Fetch transactions per month via WK proxy transactions reqName
+  const startMs = new Date(ctx.options.startDate).getTime();
+  const pCtx: IProxyScrapeCtx = { proxyGet, config, startMs };
+  const allAccounts = await fetchProxyTransactions(pCtx, cardIds);
+  const acctCount = String(allAccounts.length);
+  LOG.debug('[SCRAPE.PROXY] total accounts=%s', acctCount);
+  const mutableAccounts = [...allAccounts];
+  applyGlobalDateFilter(mutableAccounts, startMs);
+  return succeed({ ...ctx, scrape: some({ accounts: mutableAccounts }) });
+}
+
 /**
  * Generic auto-scrape — discovers accounts + transactions.
+ * Routes to proxy-based scrape when proxyGet is available.
  * @param ctx - Pipeline context with ctx.api injected.
  * @returns Updated context with scraped accounts.
  */
 async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (hasProxyStrategy(ctx)) return proxyScrape(ctx);
   if (!ctx.api.has) return succeed(ctx);
   if (!ctx.mediator.has) return succeed(ctx);
   if (!ctx.browser.has) return succeed(ctx);
@@ -261,7 +493,8 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   await rateLimitPause(500);
   const startDate = moment(ctx.options.startDate).format('YYYYMMDD');
   const fc: IAccountFetchCtx = { api, network, startDate };
-  const fetchCtx = buildFetchAllCtx(fc, network, rawAccounts.value);
+  let fetchCtx = buildFetchAllCtx(fc, network, rawAccounts.value);
+  fetchCtx = applyCredentialFallback(fetchCtx, ctx);
   const accounts = await fetchAllAccounts(fetchCtx);
   const startMs = parseStartDate(startDate).getTime();
   applyGlobalDateFilter(accounts, startMs);

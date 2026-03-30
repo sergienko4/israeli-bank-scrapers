@@ -14,7 +14,12 @@ import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
 import { fetchGetWithinPage, fetchGetWithinPageWithHeaders, fetchPostWithinPage } from './Fetch.js';
-import type { IFetchOpts, IFetchStrategy, SessionActivated } from './FetchStrategy.js';
+import type {
+  IFetchOpts,
+  IFetchStrategy,
+  ProxyReqName,
+  SessionActivated,
+} from './FetchStrategy.js';
 
 const LOG = getDebug('browser-fetch-strategy');
 
@@ -186,6 +191,33 @@ class BrowserFetchStrategy implements IFetchStrategy {
     if (!baseUrl) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: no api.base in config');
     const servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
     return activateViaProxy({ page: this._page, servicesUrl, credentials, config });
+  }
+
+  /**
+   * Proxy GET — fetch data via .ashx proxy handler on the api.base domain.
+   * Constructs URL: config.api.base/services/ProxyRequestHandler.ashx?reqName=...&params
+   * @param config - Bank config with api.base URL.
+   * @param reqName - The proxy request name (e.g., 'DashboardMonth').
+   * @param params - Additional query parameters.
+   * @returns Procedure with parsed JSON response.
+   */
+  public async proxyGet<T>(
+    config: IBankScraperConfig,
+    reqName: ProxyReqName,
+    params: Record<string, string>,
+  ): Promise<Procedure<T>> {
+    const baseUrl = config.api.base;
+    if (!baseUrl) return fail(ScraperErrorTypes.Generic, 'proxyGet: no api.base in config');
+    const url = new URL(`${baseUrl}/services/ProxyRequestHandler.ashx`);
+    url.searchParams.set('reqName', reqName);
+    for (const [key, val] of Object.entries(params)) {
+      url.searchParams.set(key, val);
+    }
+    const fullUrl = url.toString();
+    LOG.debug('[PROXY] GET %s', fullUrl);
+    return fetchGetWithinPage<T>(this._page, fullUrl, false)
+      .then((result): Procedure<T> => resultToProcedure(result, fullUrl))
+      .catch(catchError);
   }
 }
 
