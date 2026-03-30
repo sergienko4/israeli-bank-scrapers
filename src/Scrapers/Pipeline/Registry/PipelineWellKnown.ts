@@ -322,6 +322,13 @@ export const WK = {
       { kind: 'textContent', value: 'תנועות עתידיות' },
       { kind: 'textContent', value: 'המתנה' },
     ],
+    /** Base path patterns for transaction page URLs (generic, domain-agnostic). */
+    TXN_PAGE_PATTERNS: [
+      /\/transactions$/i,
+      /\/transactions\b/i,
+      /\/transactionlist/i,
+      /\/ocp\/transactions/i,
+    ] as readonly RegExp[],
   },
 } as const;
 

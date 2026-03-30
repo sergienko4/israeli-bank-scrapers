@@ -42,6 +42,8 @@ const LOG = getDebug('scrape-phase');
 
 /**
  * Fetch using the discovered endpoint's method.
+ * Buffered: if the network store already captured the responseBody, use it directly.
+ * This avoids cross-domain re-fetch failures (e.g., web. domain session expired).
  * @param api - API fetch context with headers.
  * @param endpoint - Discovered endpoint.
  * @returns Procedure with response body.
@@ -50,6 +52,11 @@ async function fetchDiscovered<T>(
   api: IApiFetchContext,
   endpoint: IDiscoveredEndpoint,
 ): Promise<Procedure<T>> {
+  if (endpoint.responseBody) {
+    LOG.debug('[SCRAPE] Using buffered response from NetworkStore (0ms network cost)');
+    return succeed(endpoint.responseBody as T);
+  }
+  LOG.debug('[SCRAPE] Re-fetching %s %s', endpoint.method, endpoint.url);
   if (endpoint.method === 'POST') {
     const rawBody = endpoint.postData || '{}';
     const body = JSON.parse(rawBody) as Record<string, string>;
@@ -111,10 +118,17 @@ function buildFetchAllCtx(
   let records = extractAccountRecords(rawAccounts);
   const txnEndpoint = network.discoverTransactionsEndpoint();
   logTxnEndpoint(txnEndpoint);
-  const fallback = records.length === 0 && tryPostBodyFallback(txnEndpoint);
+  const hasMissingData = ids.length === 0 || records.length === 0;
+  const fallback = hasMissingData && tryPostBodyFallback(txnEndpoint);
   if (fallback) {
     ids = fallback.ids;
     records = fallback.records;
+  }
+  // Buffer fallback: if IDs still empty but txn endpoint has buffered data, use synthetic ID
+  if (ids.length === 0 && txnEndpoint && txnEndpoint.responseBody) {
+    LOG.debug('[SCRAPE] ids empty but txn buffer exists — using synthetic account');
+    ids = ['default'];
+    records = [txnEndpoint.responseBody as Record<string, unknown>];
   }
   return { fc, ids, records, txnEndpoint };
 }
@@ -423,6 +437,7 @@ export {
   createConfigScrapeStep,
   createCustomScrapeStep,
   createScrapePhase,
+  fetchDiscovered,
   genericAutoScrape,
   SCRAPE_POST_STEP,
   SCRAPE_PRE_STEP,

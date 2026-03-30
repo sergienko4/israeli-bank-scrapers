@@ -286,8 +286,40 @@ function buildPostCtx(
   return { post, capturedBody };
 }
 
+// ── Buffer Gate ─────────────────────────────────────────
+
 /**
- * POST strategy: monthly billing first, range fallback, direct.
+ * Try buffered response from NetworkStore — zero network cost.
+ * If the endpoint captured a responseBody during Dashboard, extract transactions directly.
+ * Generic: works for any bank whose NetworkStore has a captured response.
+ * @param fc - Fetch context.
+ * @param endpoint - Discovered POST endpoint with potential responseBody.
+ * @param post - POST fetch params (accountId, displayId).
+ * @returns Account with transactions, or false if no usable buffer.
+ */
+async function tryBufferedResponse(
+  fc: IAccountFetchCtx,
+  endpoint: IDiscoveredEndpoint,
+  post: IPostFetchCtx,
+): Promise<Procedure<ITransactionsAccount> | false> {
+  if (!endpoint.responseBody) return false;
+  LOG.debug('[SCRAPE] Using buffered response for transactions (0ms network cost)');
+  const body = endpoint.responseBody as Record<string, unknown>;
+  const txns = extractTransactions(body);
+  if (txns.length === 0) return false;
+  const effectiveId = post.accountId || post.displayId || 'default';
+  const assembly: IAccountAssemblyCtx = {
+    fc,
+    accountId: effectiveId,
+    displayId: post.displayId || effectiveId,
+  };
+  return buildAccountResult(assembly, txns);
+}
+
+// ── POST Strategy ───────────────────────────────────────
+
+/**
+ * POST strategy: buffer first, then matrix, billing, range, direct.
  * @param fc - Fetch context.
  * @param accountRecord - Account record from init.
  * @param endpoint - Discovered POST endpoint.
@@ -299,6 +331,9 @@ async function fetchOneAccountPost(
   endpoint: IDiscoveredEndpoint,
 ): Promise<Procedure<ITransactionsAccount>> {
   const { post, capturedBody } = buildPostCtx(accountRecord, endpoint);
+  // Step -1: Buffered response from NetworkStore (zero network cost)
+  const buffered = await tryBufferedResponse(fc, endpoint, post);
+  if (buffered !== false) return buffered;
   // Step 0: Matrix Loop (additive — monthly endpoint discovery)
   const matrixArgs = { fc, accountId: post.accountId, displayId: post.displayId };
   const matrix = await tryMatrixLoop(matrixArgs);
@@ -420,4 +455,4 @@ async function fetchAllAccounts(
 }
 
 export default fetchAllAccounts;
-export { fetchAllAccounts };
+export { fetchAllAccounts, tryBufferedResponse };

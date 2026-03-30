@@ -23,6 +23,7 @@ import type {
 } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
+import { buildTxnPagePatterns } from '../Types/UrlHelpers.js';
 
 const LOG = getDebug('dashboard-phase');
 
@@ -50,6 +51,8 @@ type PatternMatch = boolean;
 type ExtractedHref = string;
 /** Resolved absolute URL or empty string. */
 type AbsoluteUrl = string;
+/** API base URL from config (nullable). */
+type ApiBaseUrl = string | null;
 
 // ── Traffic Delta ────────────────────────────────────────────────────────────────
 
@@ -106,14 +109,7 @@ function withHrefTarget(c: SelectorCandidate): SelectorCandidate {
   return { ...c, target: 'href' as const };
 }
 
-/** WK path patterns for transaction page URLs — generic, not bank-specific. */
-const TXN_PAGE_PATTERNS = [
-  /\/transactions$/i,
-  /\/transactions\b/i,
-  /\/transactionlist/i,
-  /\/ocp\/transactions/i,
-  /web\..*\.co\.il\/transactions/i,
-];
+// TXN_PAGE_PATTERNS — built dynamically from config.api.base via buildTxnPagePatterns().
 
 /**
  * Triple-Threat href extraction:
@@ -163,17 +159,21 @@ async function extractHrefLayer2(
  * Layer 3: brute-force DOM scan — collectAllHrefs for /transactions pattern.
  * Bypasses Playwright actionability checks entirely.
  * @param mediator - Element mediator.
+ * @param apiBase - The bank's api.base URL for dynamic pattern generation.
  * @returns Matching href or empty string.
  */
-async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedHref> {
+async function extractHrefLayer3(
+  mediator: IElementMediator,
+  apiBase: ApiBaseUrl,
+): Promise<ExtractedHref> {
   const allHrefs = await mediator.collectAllHrefs();
+  const patterns = buildTxnPagePatterns(apiBase);
   /**
    * Test if an href matches any WK transaction page pattern.
    * @param h - href to test.
    * @returns True if matches.
    */
-  const matchesPattern = (h: string): IsMatch =>
-    TXN_PAGE_PATTERNS.some((p): PatternMatch => p.test(h));
+  const matchesPattern = (h: string): IsMatch => patterns.some((p): PatternMatch => p.test(h));
   const txnHref = allHrefs.find(matchesPattern);
   const sampleHrefs = allHrefs.slice(0, 10).join(', ');
   LOG.debug(
@@ -188,15 +188,19 @@ async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedH
 /**
  * Triple-Threat href extraction: ariaLabel → textContent → DOM scan.
  * @param mediator - Element mediator.
+ * @param apiBase - The bank's api.base URL for dynamic pattern generation.
  * @returns Extracted href string (empty if not found).
  */
-async function extractTransactionHref(mediator: IElementMediator): Promise<ExtractedHref> {
+async function extractTransactionHref(
+  mediator: IElementMediator,
+  apiBase: ApiBaseUrl,
+): Promise<ExtractedHref> {
   const candidates = WK.DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
   const l1 = await extractHrefLayer1(mediator, candidates);
   if (l1) return l1;
   const l2 = await extractHrefLayer2(mediator, candidates);
   if (l2) return l2;
-  return extractHrefLayer3(mediator);
+  return extractHrefLayer3(mediator, apiBase);
 }
 
 // ── Probes ───────────────────────────────────────────────────────────────────────
@@ -447,7 +451,8 @@ class DashboardPhase extends BasePhase {
     const dashStrategy = resolveDashboardStrategy(mediator.network);
     let targetUrl = '';
     if (dashStrategy === 'TRIGGER') {
-      const href = await extractTransactionHref(mediator);
+      const apiBase = input.config.api.base;
+      const href = await extractTransactionHref(mediator, apiBase);
       const pageUrl = mediator.getCurrentUrl();
       targetUrl = resolveAbsoluteHref(href, pageUrl);
     }
