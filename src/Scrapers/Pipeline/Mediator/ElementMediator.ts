@@ -29,6 +29,8 @@ type RaceFound = boolean;
 type WinnerIndex = number;
 /** Snapshot text or href captured immediately after winning the race. */
 type SnapshotValue = string;
+/** Current page URL returned by mediator. */
+type CurrentPageUrl = string;
 
 /**
  * Result of a parallel race — what was found, where, and which candidate matched.
@@ -155,7 +157,7 @@ interface IElementMediator {
    * Call AFTER waitForNetworkIdle to get the final URL, not a redirect intermediate.
    * @returns Current page URL string.
    */
-  getCurrentUrl(): string;
+  getCurrentUrl(): CurrentPageUrl;
 
   /**
    * Wait for network to settle. Timeout is non-fatal.
@@ -179,8 +181,40 @@ interface IElementMediator {
    * @returns Deduplicated absolute href strings.
    */
   collectAllHrefs(): Promise<readonly string[]>;
+
+  /**
+   * Get all cookies from the browser context.
+   * Used by LOGIN.SIGNAL to audit session establishment.
+   * @returns Array of cookie objects with name, domain, value.
+   */
+  getCookies(): Promise<readonly ICookieSnapshot[]>;
+
+  /**
+   * Add cookies to the browser context — used for cross-domain session promotion.
+   * @param cookies - Array of cookie objects to inject.
+   */
+  addCookies(cookies: readonly ICookieInjection[]): Promise<void>;
 }
+
+/** Cookie snapshot from browser context (getCookies). */
+interface ICookieSnapshot {
+  readonly name: CookieLabel;
+  readonly domain: CookieLabel;
+  readonly value: CookieLabel;
+}
+
+/** Cookie injection shape (addCookies) — includes path. */
+interface ICookieInjection {
+  readonly name: CookieLabel;
+  readonly value: CookieLabel;
+  readonly domain: CookieLabel;
+  readonly path: CookieLabel;
+}
+
+/** Opaque cookie field (name, domain, value, or path). */
+type CookieLabel = string;
 
 export default IElementMediator;
 export { NOT_FOUND_RESULT };
+export type { CookieLabel, ICookieInjection, ICookieSnapshot };
 export type { IElementMediator, IRaceResult, RaceFound, SnapshotValue, WinnerIndex };

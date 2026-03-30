@@ -13,7 +13,12 @@ import { getDebug } from '../Types/Debug.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { fail, isOk, type Procedure, succeed } from '../Types/Procedure.js';
-import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from './ElementMediator.js';
+import {
+  type ICookieSnapshot,
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from './ElementMediator.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from './FormAnchor.js';
 import {
   checkFrameForErrors,
@@ -621,6 +626,19 @@ function buildCollectAllHrefs(page: Page): () => Promise<readonly string[]> {
   };
 }
 
+/** Simplified cookie shape for session audit. */
+/**
+ * Build getCookies — extract cookies from browser context.
+ * @param page - The Playwright page.
+ * @returns Async function returning cookie array.
+ */
+function buildGetCookies(page: Page): () => Promise<readonly ICookieSnapshot[]> {
+  return async (): Promise<readonly ICookieSnapshot[]> => {
+    const raw = await page.context().cookies();
+    return raw.map((c): ICookieSnapshot => ({ name: c.name, domain: c.domain, value: c.value }));
+  };
+}
+
 /**
  * Create an ElementMediator for the given page.
  * Each instance has its own form anchor cache — safe for concurrent use.
@@ -645,6 +663,14 @@ function createElementMediator(page: Page): IElementMediator {
     waitForNetworkIdle: buildWaitForNetworkIdle(page),
     countByText: buildCountByText(page),
     collectAllHrefs: buildCollectAllHrefs(page),
+    getCookies: buildGetCookies(page),
+    /**
+     * Inject cookies into the browser context for cross-domain session promotion.
+     * @param cookies - Cookies to add.
+     */
+    addCookies: async (cookies): Promise<void> => {
+      await page.context().addCookies(cookies);
+    },
   };
   return mediator;
 }

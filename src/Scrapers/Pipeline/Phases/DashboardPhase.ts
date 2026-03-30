@@ -112,6 +112,7 @@ const TXN_PAGE_PATTERNS = [
   /\/transactions\b/i,
   /\/transactionlist/i,
   /\/ocp\/transactions/i,
+  /web\..*\.co\.il\/transactions/i,
 ];
 
 /**
@@ -325,6 +326,103 @@ async function buildApiContext(
   };
 }
 
+// ── Session Activation ──────────────────────────────────────────────────────────
+
+/**
+ * Try session activation via Strategy hook (e.g., .ashx proxy for Amex).
+ * No-op if strategy has no activateSession method.
+ * @param ctx - Pipeline context with credentials, config, fetchStrategy.
+ * @returns Succeed(void) or fail with activation error message.
+ */
+async function trySessionActivation(ctx: IPipelineContext): Promise<Procedure<void>> {
+  const strategy = ctx.fetchStrategy.has ? ctx.fetchStrategy.value : false;
+  if (!strategy || !strategy.activateSession) return succeed(undefined);
+  LOG.debug('[DASHBOARD.ACTION] activating session via Strategy hook');
+  const activation = await strategy.activateSession(ctx.credentials, ctx.config);
+  const msg = activation.success ? 'ok' : activation.errorMessage;
+  LOG.debug('[DASHBOARD.ACTION] activation result: success=%s msg=%s', activation.success, msg);
+  if (!activation.success) {
+    return fail(ScraperErrorTypes.Generic, `Session activation failed: ${msg}`);
+  }
+  return succeed(undefined);
+}
+
+// ── Trigger Navigation ───────────────────────────────────────────────────────────
+
+/**
+ * Execute TRIGGER navigation: activate session, jump to data domain, snap back.
+ * @param mediator - Element mediator.
+ * @param ctx - Pipeline context with credentials, config, fetchStrategy.
+ * @returns Succeed(void) or fail if session activation was rejected.
+ */
+async function executeTriggerNavigation(
+  mediator: IElementMediator,
+  ctx: IPipelineContext,
+): Promise<Procedure<void>> {
+  const dashUrl = mediator.getCurrentUrl();
+  const activationResult = await trySessionActivation(ctx);
+  if (!activationResult.success) return activationResult;
+  await executeDoubleJump(mediator, dashUrl);
+  LOG.debug('[DASHBOARD.ACTION] snap-back to %s', dashUrl);
+  await mediator.navigateTo(dashUrl).catch((): false => false);
+  await mediator.waitForNetworkIdle(5000).catch((): false => false);
+  return succeed(undefined);
+}
+
+/**
+ * Build the data-domain URL by swapping subdomain to 'web.' + path '/transactions'.
+ * Generic: works for any bank that uses a separate 'web.' subdomain for data.
+ * @param currentUrl - Current page URL (used to extract domain).
+ * @returns Absolute URL on the web. subdomain, or empty string if malformed.
+ */
+function buildDataDomainUrl(currentUrl: AbsoluteUrl): AbsoluteUrl {
+  const parsed = safeParseUrl(currentUrl);
+  if (!parsed) return '';
+  const hostParts = parsed.hostname.split('.');
+  if (hostParts.length < 2) return '';
+  hostParts[0] = 'web';
+  parsed.hostname = hostParts.join('.');
+  parsed.pathname = '/transactions';
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.href;
+}
+
+/**
+ * Safe URL parse — returns URL object or null on failure.
+ * @param raw - Raw URL string.
+ * @returns Parsed URL or null.
+ */
+function safeParseUrl(raw: string): URL | false {
+  try {
+    return new URL(raw);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Execute Double-Jump to the data domain (web. subdomain).
+ * Called when login redirect is detected after initial navigation.
+ * @param mediator - Element mediator.
+ * @param originalUrl - Original target URL for domain extraction.
+ */
+async function executeDoubleJump(
+  mediator: IElementMediator,
+  originalUrl: AbsoluteUrl,
+): Promise<void> {
+  const webUrl = buildDataDomainUrl(originalUrl);
+  if (webUrl) {
+    LOG.debug('[DASHBOARD.ACTION] Double-Jump navigateTo %s', webUrl);
+    await mediator
+      .navigateTo(webUrl, { waitUntil: 'networkidle', timeout: TRIGGER_NETWORK_TIMEOUT_MS })
+      .catch((): false => false);
+    const doubleJumpUrl = mediator.getCurrentUrl();
+    LOG.debug('[DASHBOARD.ACTION] Double-Jump landed on %s', doubleJumpUrl);
+    await mediator.waitForNetworkIdle(5000).catch((): false => false);
+  }
+}
+
 // ── Phase Class ──────────────────────────────────────────────────────────────────
 
 /** DASHBOARD phase — Hard-Gated with BYPASS/TRIGGER strategy. */
@@ -379,16 +477,10 @@ class DashboardPhase extends BasePhase {
     const mediator = input.mediator.value;
     const isTrigger = input.diagnostics.dashboardStrategy === 'TRIGGER';
     const targetUrl = input.diagnostics.dashboardTargetUrl ?? '';
-    if (isTrigger && targetUrl) {
-      const dashUrl = mediator.getCurrentUrl();
-      LOG.debug('[DASHBOARD.ACTION] navigateTo %s', targetUrl);
-      await mediator
-        .navigateTo(targetUrl, { waitUntil: 'networkidle', timeout: TRIGGER_NETWORK_TIMEOUT_MS })
-        .catch((): false => false);
-      LOG.debug('[DASHBOARD.ACTION] snap-back to %s', dashUrl);
-      await mediator.navigateTo(dashUrl).catch((): false => false);
-      await mediator.waitForNetworkIdle(5000).catch((): false => false);
-    } else if (isTrigger) {
+    const triggerResult =
+      isTrigger && targetUrl ? await executeTriggerNavigation(mediator, input) : succeed(undefined);
+    if (!triggerResult.success) return triggerResult;
+    if (isTrigger && !targetUrl) {
       LOG.debug('[DASHBOARD.ACTION] TRIGGER but no targetUrl — POST will validate');
     }
     const apiCtx = await buildApiContext(mediator.network, input.fetchStrategy.value);

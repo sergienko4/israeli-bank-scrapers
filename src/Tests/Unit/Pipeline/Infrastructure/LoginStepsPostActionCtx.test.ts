@@ -8,7 +8,10 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type {
+  ICookieSnapshot,
+  IElementMediator,
+} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NO_ERRORS } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { createPostLoginStep } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
@@ -109,6 +112,16 @@ function makeMockMediator(): IElementMediator {
      * @returns Empty array.
      */
     collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
+    /**
+     * No cookies in mock.
+     * @returns Empty array.
+     */
+    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve([]),
+    /**
+     * No-op cookie injection in mock.
+     * @returns Resolved.
+     */
+    addCookies: (): Promise<void> => Promise.resolve(),
     network: {
       /**
        * No endpoints in mock.

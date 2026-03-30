@@ -12,7 +12,10 @@ type MockResult = boolean;
 type MockUrl = string;
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type {
+  ICookieSnapshot,
+  IElementMediator,
+} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
@@ -389,6 +392,16 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Empty array.
      */
     collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
+    /**
+     * No cookies in mock.
+     * @returns Empty array.
+     */
+    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve([]),
+    /**
+     * No-op cookie injection in mock.
+     * @returns Resolved.
+     */
+    addCookies: (): Promise<void> => Promise.resolve(),
     network: {
       /**
        * No endpoints in mock.

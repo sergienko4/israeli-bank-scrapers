@@ -114,7 +114,14 @@ export const SCRAPER_CONFIGURATION = {
     [CompanyTypes.Amex]: {
       urls: { base: 'https://americanexpress.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://he.americanexpress.co.il' },
-      auth: { ...NULL_AUTH, companyCode: '77', countryCode: '212', idType: '1', checkLevel: '1' },
+      auth: {
+        ...NULL_AUTH,
+        companyCode: '77',
+        countryCode: '212',
+        idType: '1',
+        checkLevel: '1',
+        loginReqName: 'performLogonI',
+      },
       loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
       format: NULL_FORMAT,
       timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
@@ -123,7 +130,14 @@ export const SCRAPER_CONFIGURATION = {
     [CompanyTypes.Isracard]: {
       urls: { base: 'https://www.isracard.co.il', loginRoute: null, transactions: null },
       api: { ...NULL_API, base: 'https://digital.isracard.co.il' },
-      auth: { ...NULL_AUTH, companyCode: '11', countryCode: '212', idType: '1', checkLevel: '1' },
+      auth: {
+        ...NULL_AUTH,
+        companyCode: '11',
+        countryCode: '212',
+        idType: '1',
+        checkLevel: '1',
+        loginReqName: 'performLogonI',
+      },
       loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
       format: NULL_FORMAT,
       timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },

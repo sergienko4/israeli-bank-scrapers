@@ -126,6 +126,24 @@ function buildDeclarativePhase(config: ILoginConfig): BasePhase {
       if (!input.mediator.has) return succeed(input);
       const mediator = input.mediator.value;
       const log = input.logger;
+      // Cookie audit — prove session was established
+      await mediator.waitForNetworkIdle(10000).catch((): false => false);
+      const cookies = await mediator.getCookies();
+      /** Cookie label for logging. */
+      type CookieSummaryLabel = string;
+      const cookieNames = cookies.map((c): CookieSummaryLabel => `${c.name}@${c.domain}`);
+      const cookieSummary = cookieNames.join(', ');
+      log.debug('[LOGIN.SIGNAL] cookies=%d [%s]', cookies.length, cookieSummary);
+      // Forensic cookie log — full details for evidence
+      const currentUrl = mediator.getCurrentUrl();
+      log.debug('[LOGIN.SIGNAL] url=%s', currentUrl);
+      for (const c of cookies) {
+        const valuePreview = c.value.slice(0, 20);
+        log.debug('[LOGIN.SIGNAL] cookie: %s domain=%s value=%s', c.name, c.domain, valuePreview);
+      }
+      if (cookies.length === 0)
+        return fail(ScraperErrorTypes.Generic, 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies');
+      // REVEAL probe — prove dashboard hydrated
       const revealInfo = await probeDashboardReveal(mediator);
       log.debug('[LOGIN.SIGNAL] %s', revealInfo);
       const updatedDiag = { ...input.diagnostics, lastAction: `login-signal (${revealInfo})` };

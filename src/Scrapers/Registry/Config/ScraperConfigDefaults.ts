@@ -26,6 +26,8 @@ export interface IBankScraperConfig {
     idType: string | null;
     checkLevel: string | null;
     organizationId: string | null;
+    /** Proxy login reqName (e.g., 'performLogonI'). Null if no proxy auth needed. */
+    loginReqName: string | null;
   };
   /** Login flow capabilities — drives pre/post-login behavior. */
   loginSetup: {
@@ -74,6 +76,7 @@ export const NULL_AUTH: IBankScraperConfig['auth'] = {
   idType: null,
   checkLevel: null,
   organizationId: null,
+  loginReqName: null,
 };
 
 /** Default simple login setup — no OTP, not API-only. */
