@@ -48,7 +48,7 @@ interface IFetchStrategy {
    * Used when the data domain (web.) has a separate auth system.
    * Constructs URL: config.api.base/services/ProxyRequestHandler.ashx?reqName=...&params
    * @param config - Bank config with api.base URL.
-   * @param reqName - The proxy request name (e.g., 'DashboardMonth', 'CardsTransactionsList').
+   * @param reqName - The proxy request name (discovered from traffic, NOT hardcoded).
    * @param params - Additional query parameters.
    * @returns Procedure with parsed JSON response.
    */
@@ -59,7 +59,7 @@ interface IFetchStrategy {
   ): Promise<Procedure<T>>;
 }
 
-/** Proxy request name (e.g., 'DashboardMonth'). */
+/** Proxy request name (discovered from traffic). */
 type ProxyReqName = string;
 
 export type { IFetchOpts, IFetchStrategy, PostData, ProxyReqName, SessionActivated };

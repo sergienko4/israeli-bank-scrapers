@@ -146,14 +146,14 @@ describe('NetworkDiscovery', () => {
       expect(endpoints[0].url).toContain('DashboardMonth');
     });
 
-    it('ignores non-JSON responses (HTML)', async () => {
+    it('captures text/html responses with valid JSON body (proxy support)', async () => {
       await simulateResponse({
         url: 'https://bank.co.il/login',
-        body: {},
+        body: { status: 'ok' },
         contentType: 'text/html',
       });
       const endpoints = discovery.findEndpoints(/login/);
-      expect(endpoints.length).toBe(0);
+      expect(endpoints.length).toBe(1);
     });
 
     it('filters endpoints by URL regex', async () => {

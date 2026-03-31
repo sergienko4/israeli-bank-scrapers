@@ -12,7 +12,7 @@ const LOG = getDebug('proxy-template');
 type ProxyUrl = string;
 /** API base URL or null when not configured. */
 type ApiBaseUrl = string | null;
-/** Proxy reqName (e.g., 'DashboardMonth'). */
+/** Proxy reqName (discovered from traffic). */
 type ReqName = string;
 /** Whether a param key matches a date-related pattern. */
 type IsDateKey = boolean;

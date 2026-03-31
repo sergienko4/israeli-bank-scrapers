@@ -197,7 +197,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * Proxy GET — fetch data via .ashx proxy handler on the api.base domain.
    * Constructs URL: config.api.base/services/ProxyRequestHandler.ashx?reqName=...&params
    * @param config - Bank config with api.base URL.
-   * @param reqName - The proxy request name (e.g., 'DashboardMonth').
+   * @param reqName - The proxy request name (discovered from traffic).
    * @param params - Additional query parameters.
    * @returns Procedure with parsed JSON response.
    */

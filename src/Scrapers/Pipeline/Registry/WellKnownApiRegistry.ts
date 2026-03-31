@@ -8,38 +8,12 @@
 
 /** WellKnown API endpoint patterns — regex patterns for network discovery. */
 export const PIPELINE_WELL_KNOWN_API = {
-  accounts: [
-    /userAccountsData/i,
-    /account\/init/i,
-    /account\/info/i,
-    /DashboardMonth/i,
-    /GetCardList/i,
-  ],
-  transactions: [
-    /transactionsDetails/i,
-    /filteredTransactions/i,
-    /CardsTransactionsList/i,
-    /lastTransactions/i,
-    /GetTransactionsList/i,
-    /GetLatestTransactions/i,
-  ],
+  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i],
+  transactions: [/transactionsDetails/i, /filteredTransactions/i, /lastTransactions/i],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
-  auth: [
-    /authentication\/login/i,
-    /verification/i,
-    /loginSuccess/i,
-    /ValidateIdData/i,
-    /performLogon/i,
-  ],
+  auth: [/authentication\/login/i, /verification/i, /loginSuccess/i],
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
-  /** Proxy reqName strings — for .ashx proxy-based banks (Isracard family). */
-  proxy: {
-    /** Proxy reqNames for account/card discovery. */
-    accounts: ['DashboardMonth'],
-    /** Proxy reqNames for transaction listing. */
-    transactions: ['CardsTransactionsList'],
-  },
-} satisfies Record<string, RegExp[] | Record<string, string[]>>;
+} satisfies Record<string, RegExp[]>;
 
 // ── Transaction field name mappings ───────────────────────────────────────────────
 

@@ -17,10 +17,7 @@ import {
   findFieldValue,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import {
-  PIPELINE_WELL_KNOWN_API,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
-} from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
 import { injectDateParams } from '../Strategy/ProxyTemplate.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
@@ -264,9 +261,228 @@ async function pivotToSpaIfNeeded(
   return succeed(true);
 }
 
-// ── Proxy Scrape (Phase 15) ─────────────────────────────────────────────────────
+// ── Proxy Scrape (Phase 17 — Zero-Registry Discovery) ───────────────────────────
 
-// ── Proxy Scrape (Phase 16 — Dynamic Proxy Replay) ──────────────────────────────
+/** Proxy handler URL signature — matches any .ashx proxy endpoint. */
+const PROXY_SIGNATURE = /ProxyRequestHandler\.ashx/i;
+
+/** Key patterns that indicate an ACCOUNT/CARD response (billing data). */
+const ACCOUNT_SIGNATURE_KEYS = /billing|charges|cardsCharges/i;
+
+/** Key patterns that indicate a TRANSACTION response (amount/date/description). */
+const TXN_SIGNATURE_KEYS = /originalAmount|fullPurchaseDate|transactionDate/i;
+
+/** Whether a JSON key matches a signature pattern. */
+type IsSignatureKey = boolean;
+/** Discovered proxy reqName extracted from URL. */
+type DiscoveredReqName = string;
+
+/**
+ * Check if an object's keys match a signature pattern.
+ * @param obj - Object to check.
+ * @param pattern - Regex to match against keys.
+ * @returns True if any key matches.
+ */
+function objectKeysMatch(obj: Record<string, unknown>, pattern: RegExp): IsSignatureKey {
+  return Object.keys(obj).some((k): IsSignatureKey => pattern.test(k));
+}
+
+/**
+ * Process one BFS node — check keys and enqueue children.
+ * @param node - Current node.
+ * @param pattern - Signature pattern.
+ * @param queue - BFS queue.
+ * @returns True if signature found in this node.
+ */
+function processSignatureNode(node: unknown, pattern: RegExp, queue: unknown[]): IsSignatureKey {
+  const isArray: IsSignatureKey = Array.isArray(node);
+  if (isArray && (node as unknown[]).length > 0) queue.push((node as unknown[])[0]);
+  if (isArray) return false;
+  if (!node || typeof node !== 'object') return false;
+  const record = node as Record<string, unknown>;
+  if (objectKeysMatch(record, pattern)) return true;
+  const children = Object.values(record).filter(
+    (v): IsSignatureKey => Boolean(v && typeof v === 'object'),
+  );
+  queue.push(...children);
+  return false;
+}
+
+/**
+ * Check if a response body contains keys matching a signature pattern.
+ * Uses BFS to scan nested objects and arrays.
+ * @param body - Parsed JSON response body.
+ * @param pattern - Regex to match against object keys.
+ * @returns True if any key matches.
+ */
+function bodyHasSignature(body: unknown, pattern: RegExp): IsSignatureKey {
+  if (!body || typeof body !== 'object') return false;
+  return bfsSearchSignature([body], pattern);
+}
+
+/**
+ * BFS loop for signature search — extracted to satisfy max-depth.
+ * @param initial - Initial queue.
+ * @param pattern - Signature regex.
+ * @returns True if any node's keys match.
+ */
+function bfsSearchSignature(initial: unknown[], pattern: RegExp): IsSignatureKey {
+  const queue = initial;
+  let idx = 0;
+  let wasFound: IsSignatureKey = false;
+  while (idx < queue.length && !wasFound) {
+    wasFound = processSignatureNode(queue[idx], pattern, queue);
+    idx += 1;
+  }
+  return wasFound;
+}
+
+/**
+ * Filter proxy endpoints from a list of captured endpoints.
+ * @param endpoints - All captured endpoints from NetworkStore.
+ * @returns Only endpoints matching the .ashx proxy signature.
+ */
+function filterProxyEndpoints(
+  endpoints: readonly IDiscoveredEndpoint[],
+): readonly IDiscoveredEndpoint[] {
+  return endpoints.filter((ep): IsSignatureKey => PROXY_SIGNATURE.test(ep.url));
+}
+
+/**
+ * Find the proxy endpoint whose response matches the ACCOUNT signature.
+ * @param endpoints - All captured endpoints (pre-filtered or raw).
+ * @returns The account template endpoint, or false.
+ */
+function findProxyAccountTemplate(
+  endpoints: readonly IDiscoveredEndpoint[],
+): IDiscoveredEndpoint | false {
+  /**
+   * Check if endpoint matches account signature.
+   * @param ep - Endpoint to check.
+   * @returns True if matches.
+   */
+  const isAcct = (ep: IDiscoveredEndpoint): IsSignatureKey =>
+    bodyHasSignature(ep.responseBody, ACCOUNT_SIGNATURE_KEYS);
+  const proxies = filterProxyEndpoints(endpoints);
+  const proxyMatch = proxies.find(isAcct);
+  const match = proxyMatch ?? endpoints.find(isAcct);
+  if (match) {
+    const sigKeys = extractMatchingKeys(match.responseBody, ACCOUNT_SIGNATURE_KEYS);
+    LOG.debug('[DISCOVERY] Identified Account Template via Signature Keys: [%s]', sigKeys);
+  }
+  return match ?? false;
+}
+
+/**
+ * Find the proxy endpoint whose response matches the TRANSACTION signature.
+ * @param endpoints - All captured endpoints (pre-filtered or raw).
+ * @returns The transaction template endpoint, or false.
+ */
+function findProxyTxnTemplate(
+  endpoints: readonly IDiscoveredEndpoint[],
+): IDiscoveredEndpoint | false {
+  const proxies = filterProxyEndpoints(endpoints);
+  /**
+   * Check if endpoint matches transaction signature.
+   * @param ep - Endpoint to check.
+   * @returns True if matches.
+   */
+  const isTxn = (ep: IDiscoveredEndpoint): IsSignatureKey =>
+    bodyHasSignature(ep.responseBody, TXN_SIGNATURE_KEYS);
+  const proxyMatch = proxies.find(isTxn);
+  const match = proxyMatch ?? endpoints.find(isTxn);
+  if (match) {
+    const sigKeys = extractMatchingKeys(match.responseBody, TXN_SIGNATURE_KEYS);
+    LOG.debug('[DISCOVERY] Identified Transaction Template via Signature Keys: [%s]', sigKeys);
+  }
+  return match ?? false;
+}
+
+/**
+ * Extract matching key names from a response body for logging.
+ * @param body - Parsed JSON response.
+ * @param pattern - Signature pattern.
+ * @returns Comma-separated matching key names.
+ */
+function extractMatchingKeys(body: unknown, pattern: RegExp): DiscoveredReqName {
+  if (!body || typeof body !== 'object') return '';
+  return bfsCollectKeys([body], pattern).join(', ');
+}
+
+/**
+ * BFS loop for key collection — extracted to satisfy max-depth.
+ * @param initial - Initial queue.
+ * @param pattern - Pattern to match keys against.
+ * @returns All matching key names.
+ */
+function bfsCollectKeys(initial: unknown[], pattern: RegExp): string[] {
+  const allKeys: string[] = [];
+  const queue = initial;
+  const ctx: IKeyCollectCtx = { pattern, queue, out: allKeys };
+  let idx = 0;
+  while (idx < queue.length) {
+    collectKeysFromNode(queue[idx], ctx);
+    idx += 1;
+  }
+  return allKeys;
+}
+
+/** Bundled BFS node context for key collection. */
+interface IKeyCollectCtx {
+  readonly pattern: RegExp;
+  readonly queue: unknown[];
+  readonly out: string[];
+}
+
+/**
+ * Process one node for key collection.
+ * @param node - Current BFS node.
+ * @param ctx - Collection context with pattern, queue, and output.
+ * @returns True if processing occurred.
+ */
+function collectKeysFromNode(node: unknown, ctx: IKeyCollectCtx): IsSignatureKey {
+  const isArr: IsSignatureKey = Array.isArray(node);
+  if (isArr && (node as unknown[]).length > 0) ctx.queue.push((node as unknown[])[0]);
+  if (isArr || !node || typeof node !== 'object') return false;
+  const record = node as Record<string, unknown>;
+  const matched = Object.keys(record).filter((k): IsSignatureKey => ctx.pattern.test(k));
+  ctx.out.push(...matched);
+  const children = Object.values(record).filter(
+    (v): IsSignatureKey => Boolean(v && typeof v === 'object'),
+  );
+  ctx.queue.push(...children);
+  return true;
+}
+
+/**
+ * Extract the reqName query parameter from a proxy URL.
+ * @param url - Full .ashx URL with query params.
+ * @returns The reqName value, or empty string.
+ */
+function extractReqName(url: string): DiscoveredReqName {
+  try {
+    const parsed = new URL(url);
+    return parsed.searchParams.get('reqName') ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Extract template params from a discovered URL (clone all searchParams except reqName).
+ * @param url - Full .ashx URL with query params.
+ * @returns Cloned params as Record.
+ */
+function extractTemplateParams(url: string): Record<string, string> {
+  try {
+    const parsed = new URL(url);
+    const entries = [...parsed.searchParams.entries()];
+    const filtered = entries.filter(([key]): IsSignatureKey => key !== 'reqName');
+    return Object.fromEntries(filtered);
+  } catch {
+    return {};
+  }
+}
 
 /** Extracted card ID from proxy response. */
 type ProxyCardId = string;
@@ -288,6 +504,8 @@ interface IProxyScrapeCtx {
   readonly proxyGet: ProxyGetFn;
   readonly config: IPipelineContext['config'];
   readonly startMs: StartEpochMs;
+  readonly txnReqName: DiscoveredReqName;
+  readonly txnTemplateParams: Record<string, string>;
 }
 
 /**
@@ -296,9 +514,8 @@ interface IProxyScrapeCtx {
  * @returns True if proxyGet is available.
  */
 function hasProxyStrategy(ctx: IPipelineContext): HasProxy {
-  if (!ctx.fetchStrategy.has) return false;
-  const hasMethod: HasProxy = 'proxyGet' in ctx.fetchStrategy.value;
-  return hasMethod;
+  const hasReqName: HasProxy = Boolean(ctx.config.auth.loginReqName);
+  return hasReqName;
 }
 
 /**
@@ -366,13 +583,19 @@ async function fetchOneProxyChunk(
   pCtx: IProxyScrapeCtx,
   targetDate: Date,
 ): Promise<readonly ITransaction[]> {
-  const reqName = PIPELINE_WELL_KNOWN_API.proxy.transactions[0];
-  if (!reqName) return [];
-  const templateParams = { month: '', year: '', requiredDate: 'N' };
-  const injected = injectDateParams(templateParams, targetDate);
+  if (!pCtx.txnReqName) return [];
+  const injected = injectDateParams(pCtx.txnTemplateParams, targetDate);
   const dateStr = targetDate.toISOString();
-  LOG.debug('[SCRAPE.PROXY] Replaying Proxy: %s [Date: %s]', reqName, dateStr);
-  const result = await pCtx.proxyGet<Record<string, unknown>>(pCtx.config, reqName, injected);
+  LOG.debug(
+    '[SCRAPE.PROXY] Replaying discovered template: %s [Date: %s]',
+    pCtx.txnReqName,
+    dateStr,
+  );
+  const result = await pCtx.proxyGet<Record<string, unknown>>(
+    pCtx.config,
+    pCtx.txnReqName,
+    injected,
+  );
   if (!isOk(result)) return [];
   const txns = extractTransactions(result.value);
   const txnCount = String(txns.length);
@@ -435,38 +658,97 @@ async function fetchProxyTransactions(
   return accounts;
 }
 
+/** Bundled context for extract-or-replay decision. */
+interface IExtractCtx {
+  readonly txnTemplate: IDiscoveredEndpoint | false;
+  readonly cardIds: readonly ProxyCardId[];
+  readonly strategy: { readonly proxyGet?: ProxyGetFn };
+  readonly config: IPipelineContext['config'];
+  readonly startMs: StartEpochMs;
+  readonly creds: Record<string, string>;
+}
+
 /**
- * Proxy-based scrape — fetches accounts + transactions via .ashx proxy.
- * Uses WK proxy registry + ProxyTemplate for dynamic replay. Zero hardcoded reqNames.
+ * Try extracting transactions from buffered organic traffic.
+ * @param ctx - Extract context.
+ * @returns Transaction accounts from buffer, or empty if no usable buffer.
+ */
+function tryBufferedOrganic(ctx: IExtractCtx): readonly ITransactionsAccount[] {
+  if (!ctx.txnTemplate || !ctx.txnTemplate.responseBody) return [];
+  LOG.debug('[DISCOVERY] Using buffered organic txn response (0ms)');
+  const body = ctx.txnTemplate.responseBody as Record<string, unknown>;
+  const txns = extractTransactions(body);
+  const txnCount = String(txns.length);
+  LOG.debug('[DISCOVERY] buffered txns=%s', txnCount);
+  if (txns.length === 0) return [];
+  const cardId = ctx.cardIds.length > 0 ? ctx.cardIds[0] : ctx.creds.card6Digits;
+  const accountId = cardId || 'default';
+  return [{ accountNumber: accountId, txns: [...txns], balance: 0 }];
+}
+
+/**
+ * Extract transactions from discovered template — buffer first, then proxy replay.
+ * @param ctx - Bundled extract context.
+ * @returns Array of transaction accounts.
+ */
+async function extractOrReplayTransactions(
+  ctx: IExtractCtx,
+): Promise<readonly ITransactionsAccount[]> {
+  // Path A: Buffered — organic traffic already captured the response
+  const buffered = tryBufferedOrganic(ctx);
+  if (buffered.length > 0) return buffered;
+  // Path B: Proxy replay — .ashx template discovered, replay with date injection
+  if (!ctx.txnTemplate || !ctx.strategy.proxyGet) return [];
+  const isProxy: HasProxy = PROXY_SIGNATURE.test(ctx.txnTemplate.url);
+  if (!isProxy) return [];
+  const boundGet = ctx.strategy.proxyGet.bind(ctx.strategy);
+  const proxyGet = wrapProxyGet(boundGet);
+  const txnReqName = extractReqName(ctx.txnTemplate.url);
+  const txnParams = extractTemplateParams(ctx.txnTemplate.url);
+  const pCtx: IProxyScrapeCtx = {
+    proxyGet,
+    config: ctx.config,
+    startMs: ctx.startMs,
+    txnReqName,
+    txnTemplateParams: txnParams,
+  };
+  return await fetchProxyTransactions(pCtx, ctx.cardIds);
+}
+
+/**
+ * Proxy-based scrape — discovers templates from traffic, extracts or replays transactions.
  * @param ctx - Pipeline context with proxyGet strategy.
  * @returns Updated context with scraped accounts.
  */
 async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!ctx.fetchStrategy.has) return succeed(ctx);
+  if (!ctx.mediator.has) return succeed(ctx);
   const strategy = ctx.fetchStrategy.value;
-  if (!strategy.proxyGet) return succeed(ctx);
-  const boundProxyGet = strategy.proxyGet.bind(strategy);
-  const proxyGet = wrapProxyGet(boundProxyGet);
   const config = ctx.config;
-  // Step 1: Fetch accounts via WK proxy accounts reqName
-  const acctReqName = PIPELINE_WELL_KNOWN_API.proxy.accounts[0];
-  if (!acctReqName) return succeed(ctx);
-  const acctTemplate = { actionCode: '0', billingDate: '', format: 'Json' };
-  const now = new Date();
-  const acctParams = injectDateParams(acctTemplate, now);
-  const dateStr = now.toISOString();
-  LOG.debug('[SCRAPE.PROXY] Replaying Proxy: %s [Date: %s]', acctReqName, dateStr);
-  const acctResult = await proxyGet<Record<string, unknown>>(config, acctReqName, acctParams);
-  if (!isOk(acctResult)) return acctResult;
-  // Step 2: Extract card IDs via BFS (generic identity stitching)
+  const network = ctx.mediator.value.network;
+  // Step 1: Discover account template from NetworkStore via signature
+  const allEndpoints = network.getAllEndpoints();
+  const acctTemplate = findProxyAccountTemplate(allEndpoints);
+  if (!acctTemplate) {
+    LOG.debug('[SCRAPE.PROXY] no account template discovered — skipping proxy scrape');
+    return succeed(ctx);
+  }
+  const acctReqName = extractReqName(acctTemplate.url);
+  LOG.debug('[DISCOVERY] Using discovered account template: %s', acctReqName);
+  // Step 2: Extract card IDs from discovered account response via BFS
   const creds = ctx.credentials as Record<string, string>;
-  const cardIds = extractProxyCardIds(acctResult.value, creds);
+  const cardIds = extractProxyCardIds(acctTemplate.responseBody as Record<string, unknown>, creds);
   const cardList = cardIds.join(', ');
   LOG.debug('[SCRAPE.PROXY] cardIds=[%s]', cardList);
-  // Step 3: Fetch transactions per month via WK proxy transactions reqName
+  // Step 3: Discover transaction template from NetworkStore via signature
+  const txnTemplate = findProxyTxnTemplate(allEndpoints);
+  const txnUrl = txnTemplate ? txnTemplate.url : '';
+  const txnUrlTail = txnUrl.slice(-80);
+  LOG.debug('[SCRAPE.PROXY] discovered txn URL=%s', txnUrlTail);
+  // Step 4: Extract transactions — buffered first, then proxy replay
   const startMs = new Date(ctx.options.startDate).getTime();
-  const pCtx: IProxyScrapeCtx = { proxyGet, config, startMs };
-  const allAccounts = await fetchProxyTransactions(pCtx, cardIds);
+  const extractCtx: IExtractCtx = { txnTemplate, cardIds, strategy, config, startMs, creds };
+  const allAccounts = await extractOrReplayTransactions(extractCtx);
   const acctCount = String(allAccounts.length);
   LOG.debug('[SCRAPE.PROXY] total accounts=%s', acctCount);
   const mutableAccounts = [...allAccounts];
@@ -671,6 +953,8 @@ export {
   createCustomScrapeStep,
   createScrapePhase,
   fetchDiscovered,
+  findProxyAccountTemplate,
+  findProxyTxnTemplate,
   genericAutoScrape,
   SCRAPE_POST_STEP,
   SCRAPE_PRE_STEP,

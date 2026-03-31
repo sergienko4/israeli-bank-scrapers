@@ -13,7 +13,6 @@ import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
 import { PIPELINE_WELL_KNOWN_API, WK } from '../Registry/PipelineWellKnown.js';
 import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
-import { injectDateParams } from '../Strategy/ProxyTemplate.js';
 import { BasePhase } from '../Types/BasePhase.js';
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
@@ -353,43 +352,47 @@ async function trySessionActivation(ctx: IPipelineContext): Promise<Procedure<vo
 
 // ── Trigger Navigation ───────────────────────────────────────────────────────────
 
+/** Network idle timeout for organic dashboard loading (ms). */
+const ORGANIC_IDLE_MS = 15000;
+
 /**
- * Warm the proxy session by fetching the first WK proxy accounts reqName via .ashx.
- * Generic: uses WK proxy registry, not hardcoded reqNames.
- * @param ctx - Pipeline context with fetchStrategy and config.
- * @returns Succeed(void) or fail if proxy fetch failed.
+ * Trigger organic data loading by navigating to the bank's dashboard page.
+ * After activateSession, the browser navigates to the dashboard URL derived from config.
+ * The bank's SPA JavaScript naturally fetches data via .ashx proxy calls.
+ * NetworkStore captures these calls for signature-based discovery in SCRAPE.
+ * @param mediator - Element mediator for navigation.
+ * @param ctx - Pipeline context with config.
+ * @returns Succeed(void).
  */
-async function warmProxySession(ctx: IPipelineContext): Promise<Procedure<void>> {
-  if (!ctx.fetchStrategy.has) return succeed(undefined);
-  const strategy = ctx.fetchStrategy.value;
-  if (!strategy.proxyGet) return succeed(undefined);
-  const proxyGetFn = strategy.proxyGet.bind(strategy);
-  const reqName = PIPELINE_WELL_KNOWN_API.proxy.accounts[0];
-  if (!reqName) return succeed(undefined);
-  const templateParams = { actionCode: '0', billingDate: '', format: 'Json' };
-  const now = new Date();
-  const injected = injectDateParams(templateParams, now);
-  const paramStr = JSON.stringify(injected);
-  LOG.debug('[DASHBOARD.ACTION] proxy warming: reqName=%s params=%s', reqName, paramStr);
-  const result = await proxyGetFn(ctx.config, reqName, injected);
-  LOG.debug('[DASHBOARD.ACTION] proxy warming result: success=%s', result.success);
+async function triggerOrganicDashboard(
+  mediator: IElementMediator,
+  ctx: IPipelineContext,
+): Promise<Procedure<void>> {
+  const apiBase = ctx.config.api.base;
+  if (!apiBase) return succeed(undefined);
+  const dashUrl = `${apiBase}/personalarea/dashboard/`;
+  LOG.debug('[DASHBOARD.ACTION] organic navigation to %s', dashUrl);
+  await mediator.navigateTo(dashUrl).catch((): false => false);
+  await mediator.waitForNetworkIdle(ORGANIC_IDLE_MS).catch((): false => false);
+  const landedUrl = mediator.getCurrentUrl();
+  LOG.debug('[DASHBOARD.ACTION] organic landed on %s', landedUrl);
   return succeed(undefined);
 }
 
 /**
- * Execute TRIGGER: activate session via .ashx, then warm proxy with DashboardMonth.
- * No Double-Jump — all data stays on the he. domain via proxy handler.
- * @param _mediator - Element mediator (unused — proxy-only, no navigation).
+ * Execute TRIGGER: activate session via .ashx, then navigate to dashboard organically.
+ * The bank's SPA fetches data naturally — NetworkStore captures proxy traffic.
+ * @param mediator - Element mediator for organic navigation.
  * @param ctx - Pipeline context with credentials, config, fetchStrategy.
  * @returns Succeed(void) or fail if session activation was rejected.
  */
 async function executeTriggerNavigation(
-  _mediator: IElementMediator,
+  mediator: IElementMediator,
   ctx: IPipelineContext,
 ): Promise<Procedure<void>> {
   const activationResult = await trySessionActivation(ctx);
   if (!activationResult.success) return activationResult;
-  return warmProxySession(ctx);
+  return triggerOrganicDashboard(mediator, ctx);
 }
 
 // Double-Jump removed — replaced by proxy warming in Phase 15.
@@ -403,7 +406,7 @@ async function executeTriggerNavigation(
  */
 function validateTrafficGate(input: IPipelineContext, mediator: IElementMediator): Procedure<void> {
   const isTrigger = input.diagnostics.dashboardStrategy === 'TRIGGER';
-  const hasProxy: IsMatch = input.fetchStrategy.has && 'proxyGet' in input.fetchStrategy.value;
+  const hasProxy: IsMatch = Boolean(input.config.auth.loginReqName);
   const trafficCount = isTrigger ? countTxnTraffic(mediator.network, 0) : -1;
   const stratLabel = isTrigger ? 'TRIGGER' : 'BYPASS';
   const countStr = String(trafficCount);

@@ -52,8 +52,8 @@ const NO_CONTENT_TYPE = 'none';
 /** Sentinel for missing POST body. */
 const NO_POST_DATA = '';
 
-/** Content types that indicate a JSON API response. */
-const JSON_CONTENT_TYPES = ['application/json', 'text/json'];
+/** Content types that may contain a JSON API response. */
+const JSON_CONTENT_TYPES = ['application/json', 'text/json', 'text/plain', 'text/html'];
 
 /**
  * Check if a content-type header indicates JSON.
