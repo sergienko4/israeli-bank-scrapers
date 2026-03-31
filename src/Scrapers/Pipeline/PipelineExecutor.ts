@@ -87,6 +87,7 @@ function buildInitialContext(
     api: none(),
     loginAreaReady: false,
     findLoginAreaDiscovery: none(),
+    scrapeDiscovery: none(),
   };
   return ctx;
 }
@@ -132,7 +133,7 @@ async function runInterceptors(
   if (index >= interceptors.length) return succeed(ctx);
   const result = await interceptors[index].beforePhase(ctx);
   if (!isOk(result)) return result;
-  return runInterceptors(interceptors, result.value, index + 1);
+  return await runInterceptors(interceptors, result.value, index + 1);
 }
 
 /**
@@ -155,7 +156,7 @@ async function applyInterceptors(
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.browser.has) return succeed(ctx);
   if (tracker.interceptors.length === 0) return succeed(ctx);
-  return runInterceptors(tracker.interceptors, ctx, 0);
+  return await runInterceptors(tracker.interceptors, ctx, 0);
 }
 
 /**

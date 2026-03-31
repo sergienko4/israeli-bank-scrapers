@@ -126,6 +126,22 @@ interface IPipelineContext {
   readonly loginAreaReady: LoginAreaReadySignal;
   /** FindLoginArea.PRE discovery results — ACTION reads status instead of re-discovering. */
   readonly findLoginAreaDiscovery: Option<IFindLoginAreaDiscovery>;
+  /** Scrape.PRE qualification results — ACTION reads qualified targets only. */
+  readonly scrapeDiscovery: Option<IScrapeDiscovery>;
+}
+
+/** Scrape phase discovery — qualification results from PRE step. */
+interface IScrapeDiscovery {
+  /** Card IDs that passed the behavioral probe (API returned success). */
+  readonly qualifiedCards: readonly string[];
+  /** Card IDs that failed the probe (API returned error). */
+  readonly prunedCards: readonly string[];
+  /** Discovered transaction template URL. */
+  readonly txnTemplateUrl: PageUrlStr;
+  /** Discovered transaction template POST body. */
+  readonly txnTemplateBody: Record<string, unknown>;
+  /** Billing months for 90-day replay. */
+  readonly billingMonths: readonly string[];
 }
 
 export type {
@@ -135,5 +151,6 @@ export type {
   IDiagnosticsState,
   ILoginState,
   IPipelineContext,
+  IScrapeDiscovery,
   IScrapeState,
 };

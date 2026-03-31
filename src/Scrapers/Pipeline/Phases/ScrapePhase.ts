@@ -22,11 +22,15 @@ import {
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
   TXN_SIGNATURE_KEYS,
 } from '../Registry/WK/ScrapeWK.js';
-import { injectDateParams } from '../Strategy/ProxyTemplate.js';
+// injectDateParams removed — replay uses direct POST body cloning.
 import { getDebug } from '../Types/Debug.js';
 import { some } from '../Types/Option.js';
 import type { IPipelineStep } from '../Types/Phase.js';
-import type { IApiFetchContext, IPipelineContext } from '../Types/PipelineContext.js';
+import type {
+  IApiFetchContext,
+  IPipelineContext,
+  IScrapeDiscovery,
+} from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
 import type { CustomScrapeFn, IScrapeConfig } from '../Types/ScrapeConfig.js';
@@ -468,247 +472,42 @@ function collectKeysFromNode(node: unknown, ctx: IKeyCollectCtx): IsSignatureKey
   return true;
 }
 
-/**
- * Extract the reqName query parameter from a proxy URL.
- * @param url - Full .ashx URL with query params.
- * @returns The reqName value, or empty string.
- */
-function extractReqName(url: string): DiscoveredReqName {
-  try {
-    const parsed = new URL(url);
-    return parsed.searchParams.get('reqName') ?? '';
-  } catch {
-    return '';
-  }
-}
+// extractReqName removed — discovery in PRE.
 
-/**
- * Extract template params from a discovered URL (clone all searchParams except reqName).
- * @param url - Full .ashx URL with query params.
- * @returns Cloned params as Record.
- */
-function extractTemplateParams(url: string): Record<string, string> {
-  try {
-    const parsed = new URL(url);
-    const entries = [...parsed.searchParams.entries()];
-    const filtered = entries.filter(([key]): IsSignatureKey => key !== 'reqName');
-    return Object.fromEntries(filtered);
-  } catch {
-    return {};
-  }
-}
+// extractTemplateParams removed — template in scrapeDiscovery.
 
 /** Extracted card ID from proxy response. */
 type ProxyCardId = string;
 /** Whether the pipeline context has a proxy-capable strategy. */
 type HasProxy = boolean;
 
-/** Typed proxy GET function — matches IFetchStrategy.proxyGet signature. */
-type ProxyGetFn = <T>(
-  config: IPipelineContext['config'],
-  reqName: string,
-  params: Record<string, string>,
-) => Promise<Procedure<T>>;
-
 /** Start date as epoch milliseconds. */
 type StartEpochMs = number;
-
-/** Bundled context for proxy-based scrape operations. */
-interface IProxyScrapeCtx {
-  readonly proxyGet: ProxyGetFn;
-  readonly config: IPipelineContext['config'];
-  readonly startMs: StartEpochMs;
-  readonly txnReqName: DiscoveredReqName;
-  readonly txnTemplateParams: Record<string, string>;
-}
 
 /**
  * Check if the strategy supports proxy-based scraping.
  * @param ctx - Pipeline context.
- * @returns True if proxyGet is available.
+ * @returns True if loginReqName is set in config.
  */
 function hasProxyStrategy(ctx: IPipelineContext): HasProxy {
   const hasReqName: HasProxy = Boolean(ctx.config.auth.loginReqName);
   return hasReqName;
 }
 
-/**
- * Build monthly target dates from startDate to now.
- * @param startMs - Start date epoch ms.
- * @returns Array of Date objects, one per month.
- */
-function buildMonthlyDates(startMs: number): readonly Date[] {
-  const dates: Date[] = [];
-  const start = new Date(startMs);
-  const now = new Date();
-  const current = new Date(start.getFullYear(), start.getMonth(), 1);
-  while (current <= now) {
-    dates.push(new Date(current));
-    const nextMonth = current.getMonth() + 1;
-    current.setMonth(nextMonth);
-  }
-  return dates;
+// ── Phase 23: Lifecycle-Separated Scrape ────────────────────────────────────────
+
+/** Strategy type for replay fetchPost calls. */
+interface IReplayStrategy {
+  /** POST via browser session with optional headers. */
+  readonly fetchPost: <T>(
+    url: string,
+    data: Record<string, string>,
+    opts: { extraHeaders: Record<string, string> },
+  ) => Promise<Procedure<T>>;
 }
 
 /**
- * Extract card IDs from proxy accounts response using BFS.
- * Uses WK accountId fields (cardNumber, cardIndex, etc.) — generic.
- * Falls back to credentials.card6Digits as last resort.
- * @param response - Parsed proxy accounts response.
- * @param credentials - User credentials for fallback.
- * @returns Array of card ID strings.
- */
-function extractProxyCardIds(
-  response: Record<string, unknown>,
-  credentials: Record<string, string>,
-): readonly ProxyCardId[] {
-  const bfsIds = extractAccountIds(response);
-  if (bfsIds.length > 0) {
-    const idList = bfsIds.join(', ');
-    LOG.debug('[IDENTITY] BFS discovery found card IDs: [%s]', idList);
-    return bfsIds;
-  }
-  const credCard = credentials.card6Digits || 'default';
-  LOG.debug('[IDENTITY] BFS empty — fallback to credentials card6Digits=%s', credCard);
-  return [credCard];
-}
-
-/**
- * Wrap strategy.proxyGet in a safe closure — avoids ESLint `this` scoping issues.
- * @param proxyGetMethod - The proxyGet method to wrap.
- * @returns Wrapped ProxyGetFn.
- */
-function wrapProxyGet(proxyGetMethod: ProxyGetFn): ProxyGetFn {
-  return <T>(
-    cfg: IPipelineContext['config'],
-    reqName: string,
-    p: Record<string, string>,
-  ): Promise<Procedure<T>> => proxyGetMethod<T>(cfg, reqName, p);
-}
-
-/**
- * Fetch one monthly chunk of transactions via proxy replay.
- * Uses WK proxy transactions reqName + injectDateParams for dynamic dates.
- * @param pCtx - Proxy scrape context.
- * @param targetDate - The month to fetch.
- * @returns Extracted transactions.
- */
-async function fetchOneProxyChunk(
-  pCtx: IProxyScrapeCtx,
-  targetDate: Date,
-): Promise<readonly ITransaction[]> {
-  if (!pCtx.txnReqName) return [];
-  const injected = injectDateParams(pCtx.txnTemplateParams, targetDate);
-  const dateStr = targetDate.toISOString();
-  LOG.debug(
-    '[SCRAPE.PROXY] Replaying discovered template: %s [Date: %s]',
-    pCtx.txnReqName,
-    dateStr,
-  );
-  const result = await pCtx.proxyGet<Record<string, unknown>>(
-    pCtx.config,
-    pCtx.txnReqName,
-    injected,
-  );
-  if (!isOk(result)) return [];
-  const txns = extractTransactions(result.value);
-  const txnCount = String(txns.length);
-  LOG.debug('[SCRAPE.PROXY] chunk → %s txns', txnCount);
-  return txns;
-}
-
-/**
- * Fetch all monthly chunks for one card via sequential promise chain.
- * @param pCtx - Proxy scrape context.
- * @param months - Target dates, one per month.
- * @returns All transactions for the card.
- */
-async function fetchCardChunks(
-  pCtx: IProxyScrapeCtx,
-  months: readonly Date[],
-): Promise<readonly ITransaction[]> {
-  const all: ITransaction[] = [];
-  const seed = Promise.resolve(true as const);
-  const chain = months.reduce(
-    (prev, month): Promise<true> =>
-      prev.then(async (): Promise<true> => {
-        const txns = await fetchOneProxyChunk(pCtx, month);
-        all.push(...txns);
-        return rateLimitPause(500);
-      }),
-    seed,
-  );
-  await chain;
-  return all;
-}
-
-/**
- * Fetch transactions for all cards via proxy replay.
- * @param pCtx - Proxy scrape context.
- * @param cardIds - Card identifiers from BFS discovery.
- * @returns Array of transaction accounts.
- */
-async function fetchProxyTransactions(
-  pCtx: IProxyScrapeCtx,
-  cardIds: readonly ProxyCardId[],
-): Promise<readonly ITransactionsAccount[]> {
-  const months = buildMonthlyDates(pCtx.startMs);
-  const accounts: ITransactionsAccount[] = [];
-  const seed = Promise.resolve(true as const);
-  const chain = cardIds.reduce(
-    (prev, cardId): Promise<true> =>
-      prev.then(async (): Promise<true> => {
-        const txns = await fetchCardChunks(pCtx, months);
-        const txnCount = String(txns.length);
-        LOG.debug('[SCRAPE.PROXY] card=%s total=%s txns', cardId, txnCount);
-        if (txns.length > 0) {
-          accounts.push({ accountNumber: cardId, txns: [...txns], balance: 0 });
-        }
-        return true as const;
-      }),
-    seed,
-  );
-  await chain;
-  return accounts;
-}
-
-/** Bundled context for extract-or-replay decision. */
-interface IExtractCtx {
-  readonly txnTemplate: IDiscoveredEndpoint | false;
-  readonly cardIds: readonly ProxyCardId[];
-  readonly strategy: {
-    readonly proxyGet?: ProxyGetFn;
-    readonly fetchPost: <T>(
-      url: string,
-      data: Record<string, string>,
-      opts: { extraHeaders: Record<string, string> },
-    ) => Promise<Procedure<T>>;
-  };
-  readonly config: IPipelineContext['config'];
-  readonly startMs: StartEpochMs;
-  readonly creds: Record<string, string>;
-}
-
-/**
- * Try extracting transactions from buffered organic traffic.
- * @param ctx - Extract context.
- * @returns Transaction accounts from buffer, or empty if no usable buffer.
- */
-function tryBufferedOrganic(ctx: IExtractCtx): readonly ITransactionsAccount[] {
-  if (!ctx.txnTemplate || !ctx.txnTemplate.responseBody) return [];
-  LOG.debug('[DISCOVERY] Using buffered organic txn response (0ms)');
-  const body = ctx.txnTemplate.responseBody as Record<string, unknown>;
-  const txns = extractTransactions(body);
-  const txnCount = String(txns.length);
-  LOG.debug('[DISCOVERY] buffered txns=%s', txnCount);
-  if (txns.length === 0) return [];
-  const cardId = ctx.cardIds.length > 0 ? ctx.cardIds[0] : ctx.creds.card6Digits;
-  const accountId = cardId || 'default';
-  return [{ accountNumber: accountId, txns: [...txns], balance: 0 }];
-}
-
-/**
- * Generate billing month strings for the 90-day window.
+ * Generate billing month strings for the date range.
  * @param startMs - Start date epoch ms.
  * @returns Array of DD/MM/YYYY billing month strings.
  */
@@ -730,17 +529,11 @@ function generateBillingMonths(startMs: StartEpochMs): readonly string[] {
   return months;
 }
 
-/**
- * Replay the discovered txn template for each card and month.
- * Clones the captured POST body, swaps card4Number + billingMonth.
- * @param ctx - Extract context with template and card IDs.
- * @returns Array of transaction accounts.
- */
 /** Bundled context for replaying one month chunk. */
 interface IReplayChunkCtx {
   readonly templateBody: Record<string, unknown>;
   readonly txnUrl: DiscoveredReqName;
-  readonly strategy: IExtractCtx['strategy'];
+  readonly strategy: IReplayStrategy;
   readonly cardId: ProxyCardId;
 }
 
@@ -797,24 +590,38 @@ async function replayCardMonths(
 }
 
 /**
- * Replay the discovered txn template for each card and month.
- * @param ctx - Extract context with template and card IDs.
- * @returns Array of transaction accounts.
+ * Scrape.Action() — Clean 90-day replay for qualified cards only.
+ * Reads from ctx.scrapeDiscovery (set by PRE). No eligibility logic.
+ * @param ctx - Pipeline context with scrapeDiscovery.
+ * @returns Updated context with scraped accounts.
  */
-async function replayTxnTemplate(ctx: IExtractCtx): Promise<readonly ITransactionsAccount[]> {
-  if (!ctx.txnTemplate || !ctx.txnTemplate.postData) return [];
-  const templateBody = JSON.parse(ctx.txnTemplate.postData) as Record<string, unknown>;
-  const txnUrl = ctx.txnTemplate.url;
-  const billingMonths = generateBillingMonths(ctx.startMs);
+async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (!ctx.fetchStrategy.has) return succeed(ctx);
+  if (!ctx.scrapeDiscovery.has) {
+    LOG.debug('[SCRAPE.ACTION] no scrapeDiscovery — skipping');
+    return succeed(ctx);
+  }
+  const disc = ctx.scrapeDiscovery.value;
+  if (disc.qualifiedCards.length === 0) {
+    LOG.debug('[SCRAPE.ACTION] no qualified cards');
+    return succeed(ctx);
+  }
+  const strategy = ctx.fetchStrategy.value;
+  const qualStr = disc.qualifiedCards.join(', ');
+  const cardCount = String(disc.qualifiedCards.length);
+  LOG.debug('[SCRAPE.ACTION] replaying %s qualified cards: [%s]', cardCount, qualStr);
   const accounts: ITransactionsAccount[] = [];
-  const fallbackCard = ctx.creds.card6Digits || 'default';
-  const allCardIds = ctx.cardIds.length > 0 ? ctx.cardIds : [fallbackCard];
   const seed = Promise.resolve(true as const);
-  const chain = allCardIds.reduce(
-    (prev, cardId): Promise<true> =>
+  const chain = disc.qualifiedCards.reduce(
+    (prev: Promise<true>, cardId: string): Promise<true> =>
       prev.then(async (): Promise<true> => {
-        const rCtx: IReplayChunkCtx = { templateBody, txnUrl, strategy: ctx.strategy, cardId };
-        const cardTxns = await replayCardMonths(rCtx, billingMonths);
+        const rCtx: IReplayChunkCtx = {
+          templateBody: disc.txnTemplateBody,
+          txnUrl: disc.txnTemplateUrl,
+          strategy,
+          cardId,
+        };
+        const cardTxns = await replayCardMonths(rCtx, disc.billingMonths);
         if (cardTxns.length > 0) {
           accounts.push({ accountNumber: cardId, txns: [...cardTxns], balance: 0 });
         }
@@ -825,122 +632,16 @@ async function replayTxnTemplate(ctx: IExtractCtx): Promise<readonly ITransactio
     seed,
   );
   await chain;
-  return accounts;
+  const acctCount = String(accounts.length);
+  LOG.debug('[SCRAPE.ACTION] total accounts=%s', acctCount);
+  const filterMs = new Date(ctx.options.startDate).getTime();
+  applyGlobalDateFilter(accounts, filterMs);
+  return succeed({ ...ctx, scrape: some({ accounts }) });
 }
 
 /**
- * Extract transactions from discovered template — buffer first, then replay, then proxy.
- * @param ctx - Bundled extract context.
- * @returns Array of transaction accounts.
- */
-async function extractOrReplayTransactions(
-  ctx: IExtractCtx,
-): Promise<readonly ITransactionsAccount[]> {
-  // Path A: Template replay — use captured POST body with card + month injection
-  const templatePostData = ctx.txnTemplate ? ctx.txnTemplate.postData : '';
-  const hasTemplate: HasProxy = Boolean(templatePostData);
-  const parsedBody = templatePostData
-    ? (JSON.parse(templatePostData) as Record<string, unknown>)
-    : {};
-  const hasBillingMonth: HasProxy = 'billingMonth' in parsedBody;
-  if (hasTemplate && hasBillingMonth) {
-    LOG.debug('[REPLAY] template has billingMonth — starting 90-day loop');
-    return replayTxnTemplate(ctx);
-  }
-  // Path B: Buffered — organic traffic already captured the response
-  const buffered = tryBufferedOrganic(ctx);
-  if (buffered.length > 0) return buffered;
-  // Path C: Proxy replay — .ashx template discovered
-  if (!ctx.txnTemplate || !ctx.strategy.proxyGet) return [];
-  const isProxy: HasProxy = PROXY_SIGNATURE.test(ctx.txnTemplate.url);
-  if (!isProxy) return [];
-  const boundGet = ctx.strategy.proxyGet.bind(ctx.strategy);
-  const proxyGet = wrapProxyGet(boundGet);
-  const txnReqName = extractReqName(ctx.txnTemplate.url);
-  const txnParams = extractTemplateParams(ctx.txnTemplate.url);
-  const pCtx: IProxyScrapeCtx = {
-    proxyGet,
-    config: ctx.config,
-    startMs: ctx.startMs,
-    txnReqName,
-    txnTemplateParams: txnParams,
-  };
-  return await fetchProxyTransactions(pCtx, ctx.cardIds);
-}
-
-/**
- * Proxy-based scrape — discovers templates from traffic, extracts or replays transactions.
- * @param ctx - Pipeline context with proxyGet strategy.
- * @returns Updated context with scraped accounts.
- */
-async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!ctx.fetchStrategy.has) return succeed(ctx);
-  if (!ctx.mediator.has) return succeed(ctx);
-  const strategy = ctx.fetchStrategy.value;
-  const config = ctx.config;
-  const network = ctx.mediator.value.network;
-  // Step 1: Discover account template from NetworkStore via signature
-  const allEndpoints = network.getAllEndpoints();
-  const acctTemplate = findProxyAccountTemplate(allEndpoints);
-  if (!acctTemplate) {
-    LOG.debug('[SCRAPE.PROXY] no account template discovered — skipping proxy scrape');
-    return succeed(ctx);
-  }
-  const acctReqName = extractReqName(acctTemplate.url);
-  LOG.debug('[DISCOVERY] Using discovered account template: %s', acctReqName);
-  // Step 2: Extract card IDs from discovered account response via BFS
-  const creds = ctx.credentials as Record<string, string>;
-  const cardIds = extractProxyCardIds(acctTemplate.responseBody as Record<string, unknown>, creds);
-  const cardList = cardIds.join(', ');
-  LOG.debug('[SCRAPE.PROXY] cardIds=[%s]', cardList);
-  // Step 3: Discover transaction template from NetworkStore via signature
-  const txnTemplate = findProxyTxnTemplate(allEndpoints);
-  const txnUrl = txnTemplate ? txnTemplate.url : '';
-  const txnUrlTail = txnUrl.slice(-80);
-  // Card IDs from ALL txn-like POST bodies (scan all endpoints for the fullest card list)
-  const allTxnEndpoints = allEndpoints.filter(
-    (ep): IsSignatureKey => ep.method === 'POST' && ep.postData.includes('last4digits'),
-  );
-  const allPostCardIds = allTxnEndpoints.flatMap((ep): readonly string[] =>
-    extractAccountIds(JSON.parse(ep.postData) as Record<string, unknown>),
-  );
-  const uniquePostCardIds = [...new Set(allPostCardIds)];
-  if (uniquePostCardIds.length > 0) {
-    const postList = uniquePostCardIds.join(', ');
-    LOG.debug('[IDENTITY] BFS discovered card IDs from POST bodies: [%s]', postList);
-  }
-  LOG.debug('[SCRAPE.PROXY] discovered txn URL=%s', txnUrlTail);
-  // Dump txn template for request templating evidence
-  if (txnTemplate) {
-    const postSlice = txnTemplate.postData.slice(0, 500);
-    LOG.debug('[SCRAPE.TEMPLATE] txn postData=%s', postSlice);
-    const body = txnTemplate.responseBody as Record<string, unknown>;
-    const topKeys = Object.keys(body).join(', ');
-    LOG.debug('[SCRAPE.TEMPLATE] txn responseBody topKeys=%s', topKeys);
-  }
-  // Step 4: Extract transactions — replay with discovered card IDs
-  const startMs = new Date(ctx.options.startDate).getTime();
-  const effectiveCardIds = uniquePostCardIds.length > 0 ? uniquePostCardIds : cardIds;
-  const extractCtx: IExtractCtx = {
-    txnTemplate,
-    cardIds: effectiveCardIds,
-    strategy,
-    config,
-    startMs,
-    creds,
-  };
-  const allAccounts = await extractOrReplayTransactions(extractCtx);
-  const acctCount = String(allAccounts.length);
-  LOG.debug('[SCRAPE.PROXY] total accounts=%s', acctCount);
-  const mutableAccounts = [...allAccounts];
-  applyGlobalDateFilter(mutableAccounts, startMs);
-  return succeed({ ...ctx, scrape: some({ accounts: mutableAccounts }) });
-}
-
-/**
- * Generic auto-scrape — discovers accounts + transactions.
- * Routes to proxy-based scrape when proxyGet is available.
- * @param ctx - Pipeline context with ctx.api injected.
+ * Generic auto-scrape — routes to proxy or legacy path.
+ * @param ctx - Pipeline context.
  * @returns Updated context with scraped accounts.
  */
 async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
@@ -1030,15 +731,89 @@ const SCRAPE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics.
  */
-function scrapePreDiagnostics(
+async function scrapePreDiagnostics(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   const nowMs = Date.now();
   const fetchStartMs = some(nowMs);
   const updatedDiag = { ...input.diagnostics, fetchStartMs, lastAction: 'scrape-pre' };
-  const result = succeed({ ...input, diagnostics: updatedDiag });
-  return Promise.resolve(result);
+  // Phase 23: Behavioral qualification via ApiMediator
+  const hasProxyBank: HasProxy = Boolean(input.config.auth.loginReqName);
+  if (!hasProxyBank || !input.mediator.has || !input.api.has) {
+    return succeed({ ...input, diagnostics: updatedDiag });
+  }
+  const network = input.mediator.value.network;
+  const api = input.api.value;
+  const creds = input.credentials as Record<string, string>;
+  const allEndpoints = network.getAllEndpoints();
+  // Discover txn template (prefer replayable with billingMonth in POST body)
+  const txnTemplate = findProxyTxnTemplate(allEndpoints);
+  if (!txnTemplate || !txnTemplate.postData) {
+    LOG.debug('[SCRAPE.PRE] no replayable txn template found');
+    return succeed({ ...input, diagnostics: updatedDiag });
+  }
+  const templateBody = JSON.parse(txnTemplate.postData) as Record<string, unknown>;
+  const txnUrl = txnTemplate.url;
+  // Extract card IDs from ALL POST bodies with last4digits
+  const allTxnEps = allEndpoints.filter(
+    (ep: IDiscoveredEndpoint): IsSignatureKey =>
+      ep.method === 'POST' && ep.postData.includes('last4digits'),
+  );
+  const allPostIds = allTxnEps.flatMap((ep: IDiscoveredEndpoint): readonly string[] =>
+    extractAccountIds(JSON.parse(ep.postData) as Record<string, unknown>),
+  );
+  const uniqueIds = [...new Set(allPostIds)];
+  const fallback = creds.card6Digits || 'default';
+  const allCardIds = uniqueIds.length > 0 ? uniqueIds : [fallback];
+  // Generate billing months
+  const startMs = new Date(input.options.startDate).getTime();
+  const billingMonths = generateBillingMonths(startMs);
+  const lastMonth = billingMonths[billingMonths.length - 1] || '';
+  // Behavioral probe via ApiMediator (auto-injected headers)
+  const qualified: string[] = [];
+  const pruned: string[] = [];
+  const cardCount = String(allCardIds.length);
+  LOG.debug('[SCRAPE.PRE] qualifying %s cards with month=%s', cardCount, lastMonth);
+  const seed = Promise.resolve(true as const);
+  const cardArr: readonly string[] = allCardIds;
+  const chain = cardArr.reduce(
+    (prev: Promise<true>, cardId: string): Promise<true> =>
+      prev.then(async (): Promise<true> => {
+        const body = { ...templateBody, card4Number: cardId, billingMonth: lastMonth };
+        const probeResult = await api.fetchPost<Record<string, unknown>>(txnUrl, body);
+        if (!isOk(probeResult)) {
+          pruned.push(cardId);
+          LOG.debug('[QUALIFY] card=%s → PRUNED (network error)', cardId);
+          return rateLimitPause(300);
+        }
+        const resp = probeResult.value;
+        const isApiOk: IsSignatureKey = resp.isSuccess !== false;
+        if (isApiOk) {
+          qualified.push(cardId);
+          LOG.debug('[QUALIFY] card=%s → ACTIVE (API Success)', cardId);
+        } else {
+          const rawCode = resp.errorCode;
+          const codeStr = typeof rawCode === 'string' ? rawCode : String(rawCode as number);
+          pruned.push(cardId);
+          LOG.debug('[QUALIFY] card=%s → PRUNED (API Error: %s)', cardId, codeStr);
+        }
+        return rateLimitPause(300);
+      }),
+    seed,
+  );
+  await chain;
+  const qualStr = qualified.join(', ');
+  const pruneStr = pruned.join(', ');
+  LOG.debug('[SCRAPE.PRE] qualified=[%s] pruned=[%s]', qualStr, pruneStr);
+  const discovery: IScrapeDiscovery = {
+    qualifiedCards: qualified,
+    prunedCards: pruned,
+    txnTemplateUrl: txnUrl,
+    txnTemplateBody: templateBody,
+    billingMonths,
+  };
+  return succeed({ ...input, diagnostics: updatedDiag, scrapeDiscovery: some(discovery) });
 }
 
 /** SCRAPE PRE step. */
@@ -1053,12 +828,44 @@ const SCRAPE_PRE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
  * @param input - Pipeline context after scraping.
  * @returns Updated context with diagnostics.
  */
+/**
+ * Log the forensic audit table — qualified vs pruned cards.
+ * @param input - Pipeline context with scrapeDiscovery.
+ * @returns True if audit was logged.
+ */
+function logForensicAudit(input: IPipelineContext): IsSignatureKey {
+  if (!input.scrapeDiscovery.has) return false;
+  const disc = input.scrapeDiscovery.value;
+  const accounts = input.scrape.has ? input.scrape.value.accounts : [];
+  LOG.debug('[AUDIT] | Card | Status | Reason | Txns |');
+  disc.qualifiedCards.map((card: string): IsSignatureKey => {
+    const acct = accounts.find((a): IsSignatureKey => a.accountNumber === card);
+    const txnCount = acct ? String(acct.txns.length) : '0';
+    LOG.debug('[AUDIT] | %s | QUALIFIED | API Success | %s |', card, txnCount);
+    return true;
+  });
+  disc.prunedCards.map((card: string): IsSignatureKey => {
+    LOG.debug('[AUDIT] | %s | PRUNED | API Error | 0 |', card);
+    return true;
+  });
+  return true;
+}
+
+/**
+ * SCRAPE POST step — diagnostics + forensic audit table.
+ * @param _ctx - Pipeline context (unused).
+ * @param input - Pipeline context after scraping.
+ * @returns Updated context with diagnostics.
+ */
 function scrapePostDiagnostics(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   const accountCount = (input.scrape.has && input.scrape.value.accounts.length) || 0;
   const countStr = String(accountCount);
+  // Phase 23: Forensic Audit Table
+  const hasDiscovery: IsSignatureKey = input.scrapeDiscovery.has;
+  if (hasDiscovery) logForensicAudit(input);
   const updatedDiag = { ...input.diagnostics, lastAction: `scrape-post (${countStr} accounts)` };
   const result = succeed({ ...input, diagnostics: updatedDiag });
   return Promise.resolve(result);
