@@ -10,7 +10,7 @@
 import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_HOME } from '../Registry/WK/HomeWK.js';
 import { BasePhase } from '../Types/BasePhase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -26,7 +26,7 @@ import { tryClickLoginLinkWithHref } from './GenericPreLoginSteps.js';
 export async function waitForCredentialsForm(
   mediator: IElementMediator,
 ): Promise<Procedure<IRaceResult>> {
-  const candidates = WK.HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
+  const candidates = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
   return mediator.resolveAndClick(candidates);
 }
 

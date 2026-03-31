@@ -8,7 +8,7 @@
  * Best-effort: never fails the pipeline. Popup absence is valid.
  */
 
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -41,7 +41,7 @@ function createPopupInterceptor(): IPipelineInterceptor {
       if (elapsed < POPUP_COOLDOWN_MS) return succeed(ctx);
       lastRunMs = now;
       const mediator = ctx.mediator.value;
-      await mediator.resolveAndClick(WK.CLOSE_POPUP).catch((): false => false);
+      await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
       return succeed(ctx);
     },
   };

@@ -7,7 +7,9 @@
 import type { Locator, Page } from 'playwright-core';
 
 import type { IElementMediator, IRaceResult } from '../Mediator/ElementMediator.js';
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_HOME } from '../Registry/WK/HomeWK.js';
+import { WK_LOGIN_FORM } from '../Registry/WK/LoginWK.js';
+import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 
@@ -32,7 +34,7 @@ type FieldReady = boolean;
  * @returns Procedure with IRaceResult — found=true if close element was clicked.
  */
 async function tryClosePopup(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
-  return mediator.resolveAndClick(WK.CLOSE_POPUP);
+  return mediator.resolveAndClick(WK_CLOSE_POPUP);
 }
 
 /**
@@ -41,7 +43,7 @@ async function tryClosePopup(mediator: IElementMediator): Promise<Procedure<IRac
  * @returns Procedure with IRaceResult — found=true if login link was clicked.
  */
 async function tryClickLoginLink(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
-  return mediator.resolveAndClick(WK.HOME.ENTRY);
+  return mediator.resolveAndClick(WK_HOME.ENTRY);
 }
 
 /** Href patterns that indicate a login page destination. */
@@ -67,7 +69,7 @@ function isLoginHref(href: HrefAttr): IsLoginLink {
 async function tryClickLoginLinkWithHref(
   mediator: IElementMediator,
 ): Promise<Procedure<IRaceResult>> {
-  const candidates = WK.HOME.ENTRY;
+  const candidates = WK_HOME.ENTRY;
   const visible = await mediator.resolveVisible(candidates).catch((): false => false);
   if (!visible || !visible.found || !visible.locator) return tryClickLoginLink(mediator);
   const href = await visible.locator.getAttribute('href').catch((): HrefAttr => '');
@@ -89,7 +91,7 @@ async function tryClickPrivateCustomers(
   page: Page,
   navTimeout: number,
 ): Promise<Procedure<IRaceResult>> {
-  const clickResult = await mediator.resolveAndClick(WK.HOME.REVEAL);
+  const clickResult = await mediator.resolveAndClick(WK_HOME.REVEAL);
   if (!clickResult.success) return clickResult;
   if (!clickResult.value.found) return clickResult;
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
@@ -107,7 +109,7 @@ const CRED_AREA_TIMEOUT = 10_000;
  * @returns Procedure with IRaceResult — found=true if a tab was clicked.
  */
 async function tryClickCredentialArea(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
-  return mediator.resolveAndClick(WK.HOME.REVEAL, CRED_AREA_TIMEOUT);
+  return mediator.resolveAndClick(WK_HOME.REVEAL, CRED_AREA_TIMEOUT);
 }
 
 /**
@@ -117,7 +119,7 @@ async function tryClickCredentialArea(mediator: IElementMediator): Promise<Proce
  * @returns True if any login link became visible, false on timeout.
  */
 async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
-  const candidates = WK.HOME.ENTRY;
+  const candidates = WK_HOME.ENTRY;
   const locators = candidates.map((c): Locator => page.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<VisibleIndex> => {
     await loc.waitFor({ state: 'visible', timeout: PAGE_READINESS_TIMEOUT });
@@ -134,7 +136,7 @@ async function waitForAnyLoginLink(page: Page): Promise<FieldReady> {
  * @returns True if a field indicator became visible, false on timeout.
  */
 async function waitForFirstField(page: Page): Promise<FieldReady> {
-  const fieldCandidates = [...WK.LOGIN.ACTION.FORM.id, ...WK.LOGIN.ACTION.FORM.password];
+  const fieldCandidates = [...WK_LOGIN_FORM.id, ...WK_LOGIN_FORM.password];
   const locators = fieldCandidates.map((c): Locator => {
     if (c.kind === 'placeholder') return page.getByPlaceholder(c.value).first();
     if (c.kind === 'labelText') return page.getByLabel(c.value).first();

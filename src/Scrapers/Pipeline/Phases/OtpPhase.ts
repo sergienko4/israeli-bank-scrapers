@@ -13,7 +13,7 @@
  */
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_LOGIN_FORM } from '../Registry/WK/LoginWK.js';
 import type { IPipelineStep } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -32,7 +32,7 @@ const OTP_PROBE_TIMEOUT = 3000;
 async function detectOtpForm(input: IPipelineContext): Promise<Procedure<boolean>> {
   if (!input.mediator.has) return succeed(false);
   const mediator = input.mediator.value;
-  const candidates = WK.LOGIN.ACTION.FORM.mfa as unknown as readonly SelectorCandidate[];
+  const candidates = WK_LOGIN_FORM.mfa as unknown as readonly SelectorCandidate[];
   const result = await mediator.resolveVisible(candidates, OTP_PROBE_TIMEOUT);
   return succeed(result.found);
 }

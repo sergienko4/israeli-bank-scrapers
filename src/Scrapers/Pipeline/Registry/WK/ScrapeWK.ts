@@ -1,8 +1,26 @@
 /**
- * WellKnown API endpoint patterns + transaction field mappings.
- * Used by NetworkDiscovery and GenericScrapeStrategy.
- * Separated from PipelineWellKnown.ts for max-lines compliance.
+ * Scrape phase WK constants — signature keys for organic discovery,
+ * plus API endpoint patterns and transaction field mappings.
+ * Isolated: NO imports from Home, Login, or Dashboard WK.
  */
+
+/** Known date formats across Israeli banks. */
+export const KNOWN_DATE_FORMATS: string[] = [
+  'YYYYMMDD',
+  'YYYY-MM-DD',
+  'DD/MM/YYYY',
+  'YYYY-MM-DDTHH:mm:ss',
+  'DD-MM-YYYY',
+  'YYYY.MM.DD',
+  'DD.MM.YYYY',
+  'YYYY.MM.DDTHH:mm:ss',
+];
+
+/** Key patterns that indicate an ACCOUNT/CARD response (billing data). */
+export const ACCOUNT_SIGNATURE_KEYS = /billing|charges|cardsCharges/i;
+
+/** Key patterns that indicate a TRANSACTION response (amount/date/description). */
+export const TXN_SIGNATURE_KEYS = /originalAmount|fullPurchaseDate|transactionDate/i;
 
 // ── API endpoint URL patterns ─────────────────────────────────────────────────────
 

@@ -3,10 +3,10 @@
  * Verifies that regex patterns match logged-in greetings but NOT nav/footer text.
  */
 
-import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK_LOGIN_SUCCESS } from '../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
 
 /** Extract regex candidates from dashboardIndicator. */
-const REGEX_CANDIDATES = WK.LOGIN.POST.SUCCESS.filter((c): boolean => c.kind === 'regex');
+const REGEX_CANDIDATES = WK_LOGIN_SUCCESS.filter((c): boolean => c.kind === 'regex');
 
 /**
  * Test if any regex candidate matches the given text.

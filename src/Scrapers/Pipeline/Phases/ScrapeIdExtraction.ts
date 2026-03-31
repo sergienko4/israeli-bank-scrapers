@@ -5,7 +5,7 @@
  */
 
 import { findFieldValue, matchField } from '../Mediator/GenericScrapeStrategy.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../Types/FieldMatch.js';

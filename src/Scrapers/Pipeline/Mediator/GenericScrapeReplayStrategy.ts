@@ -6,7 +6,7 @@
 import {
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
-} from '../Registry/PipelineWellKnown.js';
+} from '../Registry/WK/ScrapeWK.js';
 
 /** Max depth for iterative replaceField BFS. */
 const MAX_REPLACE_DEPTH = 15;

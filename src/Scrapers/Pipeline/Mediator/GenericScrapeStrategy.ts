@@ -9,7 +9,10 @@ import moment from 'moment';
 import type { ITransaction } from '../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../Transactions.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import {
+  KNOWN_DATE_FORMATS,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+} from '../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../Types/Debug.js';
 import type { IFieldMatch } from '../Types/FieldMatch.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -46,17 +49,7 @@ type ItemCount = number;
 /** Max depth for BFS field search. */
 const MAX_SEARCH_DEPTH = 10;
 
-/** Known date formats across Israeli banks. */
-const KNOWN_DATE_FORMATS = [
-  'YYYYMMDD',
-  'YYYY-MM-DD',
-  'DD/MM/YYYY',
-  'YYYY-MM-DDTHH:mm:ss',
-  'DD-MM-YYYY',
-  'YYYY.MM.DD',
-  'DD.MM.YYYY',
-  'YYYY.MM.DDTHH:mm:ss',
-];
+// KNOWN_DATE_FORMATS imported from Registry/WK/ScrapeWK.ts
 
 /** BFS queue item for iterative deep search. */
 interface ISearchItem {

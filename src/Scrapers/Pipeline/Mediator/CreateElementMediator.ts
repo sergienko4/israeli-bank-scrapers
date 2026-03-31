@@ -8,7 +8,7 @@ import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_DASHBOARD } from '../Registry/WK/DashboardWK.js';
 import { getDebug } from '../Types/Debug.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import { none, type Option, some } from '../Types/Option.js';
@@ -174,7 +174,7 @@ const LOADING_DELAY_MS = 2000;
  * @returns succeed(true) if loading visible, succeed(false) if clear.
  */
 async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boolean>> {
-  const candidates = WK.DASHBOARD.LOADING;
+  const candidates = WK_DASHBOARD.LOADING;
   const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
     return locator.isVisible().catch((): IsVisible => false);

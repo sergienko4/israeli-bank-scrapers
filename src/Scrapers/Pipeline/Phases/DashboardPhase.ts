@@ -11,7 +11,9 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_API, WK } from '../Registry/PipelineWellKnown.js';
+import { WK_DASHBOARD } from '../Registry/WK/DashboardWK.js';
+import { WK_LOGIN_SUCCESS } from '../Registry/WK/LoginWK.js';
+import { PIPELINE_WELL_KNOWN_API } from '../Registry/WK/ScrapeWK.js';
 import type { IFetchStrategy, PostData } from '../Strategy/FetchStrategy.js';
 import { BasePhase } from '../Types/BasePhase.js';
 import { getDebug } from '../Types/Debug.js';
@@ -23,7 +25,7 @@ import type {
 } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
-import { buildTxnPagePatterns } from '../Types/UrlHelpers.js';
+// UrlHelpers.ts deleted — patterns come from DashboardWK directly.
 
 const LOG = getDebug('dashboard-phase');
 
@@ -50,8 +52,7 @@ type PatternMatch = boolean;
 type ExtractedHref = string;
 /** Resolved absolute URL or empty string. */
 type AbsoluteUrl = string;
-/** API base URL from config (nullable). */
-type ApiBaseUrl = string | null;
+// ApiBaseUrl removed — no longer needed after UrlHelpers deletion.
 
 // ── Traffic Delta ────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ function withHrefTarget(c: SelectorCandidate): SelectorCandidate {
   return { ...c, target: 'href' as const };
 }
 
-// TXN_PAGE_PATTERNS — built dynamically from config.api.base via buildTxnPagePatterns().
+// TXN_PAGE_PATTERNS from DashboardWK — generic path patterns for transaction URLs.
 
 /**
  * Triple-Threat href extraction:
@@ -158,15 +159,11 @@ async function extractHrefLayer2(
  * Layer 3: brute-force DOM scan — collectAllHrefs for /transactions pattern.
  * Bypasses Playwright actionability checks entirely.
  * @param mediator - Element mediator.
- * @param apiBase - The bank's api.base URL for dynamic pattern generation.
  * @returns Matching href or empty string.
  */
-async function extractHrefLayer3(
-  mediator: IElementMediator,
-  apiBase: ApiBaseUrl,
-): Promise<ExtractedHref> {
+async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedHref> {
   const allHrefs = await mediator.collectAllHrefs();
-  const patterns = buildTxnPagePatterns(apiBase);
+  const patterns = WK_DASHBOARD.TXN_PAGE_PATTERNS;
   /**
    * Test if an href matches any WK transaction page pattern.
    * @param h - href to test.
@@ -187,19 +184,15 @@ async function extractHrefLayer3(
 /**
  * Triple-Threat href extraction: ariaLabel → textContent → DOM scan.
  * @param mediator - Element mediator.
- * @param apiBase - The bank's api.base URL for dynamic pattern generation.
  * @returns Extracted href string (empty if not found).
  */
-async function extractTransactionHref(
-  mediator: IElementMediator,
-  apiBase: ApiBaseUrl,
-): Promise<ExtractedHref> {
-  const candidates = WK.DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+async function extractTransactionHref(mediator: IElementMediator): Promise<ExtractedHref> {
+  const candidates = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
   const l1 = await extractHrefLayer1(mediator, candidates);
   if (l1) return l1;
   const l2 = await extractHrefLayer2(mediator, candidates);
   if (l2) return l2;
-  return extractHrefLayer3(mediator, apiBase);
+  return extractHrefLayer3(mediator);
 }
 
 // ── Probes ───────────────────────────────────────────────────────────────────────
@@ -210,7 +203,7 @@ async function extractTransactionHref(
  * @returns Human-readable match summary.
  */
 async function probeSuccessIndicators(mediator: IElementMediator): Promise<string> {
-  const successCandidates = WK.LOGIN.POST.SUCCESS as unknown as readonly SelectorCandidate[];
+  const successCandidates = WK_LOGIN_SUCCESS as unknown as readonly SelectorCandidate[];
   const result = await mediator
     .resolveVisible(successCandidates, DASHBOARD_TIMEOUT)
     .catch((): false => false);
@@ -255,7 +248,7 @@ function buildDateCandidates(): readonly SelectorCandidate[] {
  * @returns Human-readable match summary.
  */
 async function probeDashboardReveal(mediator: IElementMediator): Promise<string> {
-  const staticCandidates = WK.DASHBOARD.REVEAL as unknown as readonly SelectorCandidate[];
+  const staticCandidates = WK_DASHBOARD.REVEAL as unknown as readonly SelectorCandidate[];
   const dateCandidates = buildDateCandidates();
   const allCandidates = [...staticCandidates, ...dateCandidates];
   const result = await mediator
@@ -376,6 +369,69 @@ async function triggerOrganicDashboard(
   await mediator.waitForNetworkIdle(ORGANIC_IDLE_MS).catch((): false => false);
   const landedUrl = mediator.getCurrentUrl();
   LOG.debug('[DASHBOARD.ACTION] organic landed on %s', landedUrl);
+  // Forensic navigation: find the transactions href and navigate to it
+  const txnHref = await extractTransactionHref(mediator);
+  const pageUrl = mediator.getCurrentUrl();
+  const txnUrl = resolveAbsoluteHref(txnHref, pageUrl);
+  if (!txnUrl) {
+    LOG.debug('[DASHBOARD.ACTION] no transaction href found — using StatusPage data');
+    return succeed(undefined);
+  }
+  LOG.debug('[DASHBOARD.ACTION] forensic navigation to %s', txnUrl);
+  await mediator.navigateTo(txnUrl).catch((): false => false);
+  await mediator.waitForNetworkIdle(ORGANIC_IDLE_MS).catch((): false => false);
+  const txnLandedUrl = mediator.getCurrentUrl();
+  LOG.debug('[DASHBOARD.ACTION] forensic landed on %s', txnLandedUrl);
+  // Deep forensic: open filter and set date range
+  await triggerDateFilter(mediator);
+  return succeed(undefined);
+}
+
+/** Timeout for date filter interaction. */
+const DATE_FILTER_TIMEOUT_MS = 5000;
+
+/**
+ * Multi-step forensic: open filter panel, set date, apply.
+ * Step 1: Click filter trigger ("סינון" / "חיפוש") to reveal date inputs.
+ * Step 2: Find date input ("מתאריך") and fill with 90-day-back date.
+ * Step 3: Click apply button ("הצג") to trigger filtered data fetch.
+ * @param mediator - Element mediator for UI interaction.
+ * @returns Succeed(void) after filter interaction or skip.
+ */
+async function triggerDateFilter(mediator: IElementMediator): Promise<Procedure<void>> {
+  // Step 1: Click filter trigger to reveal date panel
+  const filterTrigger = WK_DASHBOARD.FILTER_TRIGGER as unknown as readonly SelectorCandidate[];
+  const triggerClick = await mediator.resolveAndClick(filterTrigger);
+  const didClickFilter: IsMatch = triggerClick.success && triggerClick.value.found;
+  LOG.debug('[FORENSIC] filter trigger click: found=%s', didClickFilter);
+  // Step 2: Look for date input (directly or after filter panel opened)
+  const dateFrom = WK_DASHBOARD.DATE_FROM as unknown as readonly SelectorCandidate[];
+  const dateField = await mediator.resolveVisible(dateFrom, DATE_FILTER_TIMEOUT_MS);
+  if (!dateField.found) {
+    LOG.debug('[FORENSIC] date filter not found — dumping page text for inspection');
+    const allHrefs = await mediator.collectAllHrefs();
+    const hrefSample = allHrefs.slice(0, 20).join(', ');
+    LOG.debug('[FORENSIC] page hrefs: [%s]', hrefSample);
+    const txnCount = await mediator.countByText('עסקאות');
+    const filterCount = await mediator.countByText('סינון');
+    const dateCount = await mediator.countByText('מתאריך');
+    const txnStr = String(txnCount);
+    const filterStr = String(filterCount);
+    const dateStr = String(dateCount);
+    LOG.debug('[FORENSIC] DOM probe: עסקאות=%s סינון=%s מתאריך=%s', txnStr, filterStr, dateStr);
+    return succeed(undefined);
+  }
+  LOG.debug('[FORENSIC] date filter FOUND: %s', dateField.value);
+  // Step 3: Fill date + apply
+  const fillResult = await mediator.resolveField('dateFrom', dateFrom).catch((): false => false);
+  const didFill: IsMatch = Boolean(fillResult);
+  LOG.debug('[FORENSIC] date fill result: %s', didFill);
+  // Step 4: Click apply/show button
+  const applyBtn = WK_DASHBOARD.FILTER_APPLY as unknown as readonly SelectorCandidate[];
+  const applyClick = await mediator.resolveAndClick(applyBtn);
+  const didApply: IsMatch = applyClick.success && applyClick.value.found;
+  LOG.debug('[FORENSIC] apply click: %s', didApply);
+  await mediator.waitForNetworkIdle(ORGANIC_IDLE_MS).catch((): false => false);
   return succeed(undefined);
 }
 
@@ -446,8 +502,7 @@ class DashboardPhase extends BasePhase {
     const dashStrategy = resolveDashboardStrategy(mediator.network);
     let targetUrl = '';
     if (dashStrategy === 'TRIGGER') {
-      const apiBase = input.config.api.base;
-      const href = await extractTransactionHref(mediator, apiBase);
+      const href = await extractTransactionHref(mediator);
       const pageUrl = mediator.getCurrentUrl();
       targetUrl = resolveAbsoluteHref(href, pageUrl);
     }
@@ -502,7 +557,7 @@ class DashboardPhase extends BasePhase {
       return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD POST');
     const mediator = input.mediator.value;
     // Change-password check
-    const changePassResult = await mediator.resolveAndClick(WK.DASHBOARD.CHANGE_PWD);
+    const changePassResult = await mediator.resolveAndClick(WK_DASHBOARD.CHANGE_PWD);
     if (!changePassResult.success) return changePassResult;
     if (changePassResult.value.found)
       return fail(ScraperErrorTypes.ChangePassword, 'Password change required');

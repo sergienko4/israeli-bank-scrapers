@@ -9,7 +9,7 @@ import {
   waitForAnyLoginLink,
   waitForFirstField,
 } from '../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
-import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK_HOME } from '../../../../Scrapers/Pipeline/Registry/WK/HomeWK.js';
 
 /**
  * Build a mock page where specific texts become visible.
@@ -69,7 +69,7 @@ function makeVisiblePage(visibleTexts: readonly string[]): Page {
 
 describe('waitForAnyLoginLink', () => {
   it('resolves true when a WellKnown loginLink text is visible', async () => {
-    const loginText = WK.HOME.ENTRY[0].value;
+    const loginText = WK_HOME.ENTRY[0].value;
     const page = makeVisiblePage([loginText]);
     const isReady = await waitForAnyLoginLink(page);
     expect(isReady).toBe(true);

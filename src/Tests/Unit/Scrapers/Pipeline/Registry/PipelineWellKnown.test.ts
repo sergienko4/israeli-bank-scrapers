@@ -3,7 +3,8 @@
  * Validates structure: all required fields, zero CSS entries, required candidate kinds.
  */
 
-import { WK } from '../../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK_DASHBOARD } from '../../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
+import { WK_LOGIN_FORM } from '../../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
 
 /** Whether a WK test predicate matches. */
 type WkMatch = boolean;
@@ -14,14 +15,14 @@ type WkValue = string;
 
 describe('WK.LOGIN.ACTION.FORM/structure', () => {
   it('contains exactly the expected semantic form slots', () => {
-    const keys = Object.keys(WK.LOGIN.ACTION.FORM).sort();
+    const keys = Object.keys(WK_LOGIN_FORM).sort();
     expect(keys).toEqual(['id', 'mfa', 'num', 'otpArea', 'password', 'submit']);
   });
 });
 
 describe('WK.LOGIN.ACTION.FORM/zero-css', () => {
   it('has NO kind:css entries anywhere in LOGIN FORM selectors', () => {
-    const allCandidates = Object.values(WK.LOGIN.ACTION.FORM).flat();
+    const allCandidates = Object.values(WK_LOGIN_FORM).flat();
     /**
      * Check if a candidate uses CSS kind.
      * @param c - Selector candidate.
@@ -41,7 +42,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
      */
     'submit has %s candidates',
     kind => {
-      const submit = WK.LOGIN.ACTION.FORM.submit;
+      const submit = WK_LOGIN_FORM.submit;
       /**
        * Check if a candidate matches the expected kind.
        * @param c - Selector candidate.
@@ -54,7 +55,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
   );
 
   it('submit has NO kind:css entry', () => {
-    const submit = WK.LOGIN.ACTION.FORM.submit;
+    const submit = WK_LOGIN_FORM.submit;
     /**
      * Check if a candidate uses CSS kind.
      * @param c - Selector candidate.
@@ -67,7 +68,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
 
   it('each login field has at least one text-based candidate', () => {
     const textKinds = new Set(['labelText', 'textContent', 'placeholder', 'ariaLabel', 'name']);
-    for (const [key, candidates] of Object.entries(WK.LOGIN.ACTION.FORM)) {
+    for (const [key, candidates] of Object.entries(WK_LOGIN_FORM)) {
       if (key === 'submit') continue;
       /**
        * Check if a candidate uses a text-based kind.
@@ -86,7 +87,7 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
 
 describe('WK.DASHBOARD/structure', () => {
   it('contains all expected dashboard keys', () => {
-    const keys = Object.keys(WK.DASHBOARD);
+    const keys = Object.keys(WK_DASHBOARD);
     expect(keys).toContain('ERROR');
     expect(keys).toContain('ACCOUNT');
     expect(keys).toContain('CHANGE_PWD');
@@ -98,7 +99,7 @@ describe('WK.DASHBOARD/structure', () => {
 
 describe('WK.DASHBOARD/zero-css', () => {
   it('has NO kind:css entries anywhere in DASHBOARD selectors', () => {
-    const allValues = Object.values(WK.DASHBOARD).flat();
+    const allValues = Object.values(WK_DASHBOARD).flat();
     /**
      * Filter to only selector candidates (objects with kind property).
      * @param c - Candidate or plain string (VALIDATION_HINTS are strings).
@@ -119,8 +120,8 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.value;
-    const texts = WK.DASHBOARD.ERROR.map(toValue);
+    const toValue = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.value;
+    const texts = WK_DASHBOARD.ERROR.map(toValue);
     expect(texts).toContain('שם המשתמש או הסיסמה שהוזנו שגויים');
   });
 
@@ -130,8 +131,8 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.value;
-    const texts = WK.DASHBOARD.ERROR.map(toValue);
+    const toValue = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.value;
+    const texts = WK_DASHBOARD.ERROR.map(toValue);
     expect(texts).toContain('פרטים שגויים');
   });
 
@@ -141,8 +142,8 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate kind string.
      */
-    const toKind = (c: (typeof WK.DASHBOARD.ERROR)[number]): WkValue => c.kind;
-    const kinds = WK.DASHBOARD.ERROR.map(toKind);
+    const toKind = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.kind;
+    const kinds = WK_DASHBOARD.ERROR.map(toKind);
     const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText']);
     /**
      * Check if kind is in allowed set.

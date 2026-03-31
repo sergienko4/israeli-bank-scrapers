@@ -15,7 +15,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_DASHBOARD } from '../Registry/WK/DashboardWK.js';
 
 /** Sentinel for elements with no CSS class attribute. */
 const NO_CLASS = 'no-class';
@@ -110,7 +110,7 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
       const fieldTags = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
       const els = [...document.querySelectorAll(sel)];
       return els
-        .filter((el): boolean => !fieldTags.has(el.tagName))
+        .filter((el): IsHidden => !fieldTags.has(el.tagName))
         .map((el): IRawDomItem => {
           const cs = globalThis.getComputedStyle(el);
           const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
@@ -167,7 +167,7 @@ function toFormError(item: IRawDomItem): IFormError {
  * @returns True if text contains a known error phrase.
  */
 function isKnownErrorText(text: string): HasErrors {
-  const errorPatterns = WK.DASHBOARD.ERROR;
+  const errorPatterns = WK_DASHBOARD.ERROR;
   return errorPatterns.some((pattern): HasErrors => text.includes(pattern.value));
 }
 
@@ -252,7 +252,7 @@ async function probeWellKnownText(
 export async function checkFrameForErrors(
   frameOrPage: Page | Frame,
 ): Promise<IFormErrorScanResult> {
-  const candidates = WK.DASHBOARD.ERROR;
+  const candidates = WK_DASHBOARD.ERROR;
   const initial: Promise<IFormErrorScanResult> = Promise.resolve(NO_ERRORS);
   type TReduce = Promise<IFormErrorScanResult>;
   return candidates.reduce<TReduce>(async (prev, candidate): TReduce => {

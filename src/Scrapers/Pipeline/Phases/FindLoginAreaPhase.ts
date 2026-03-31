@@ -13,7 +13,7 @@ import type { SelectorCandidate } from '../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../Mediator/ElementMediator.js';
-import { WK } from '../Registry/PipelineWellKnown.js';
+import { WK_HOME } from '../Registry/WK/HomeWK.js';
 import { BasePhase } from '../Types/BasePhase.js';
 import { some } from '../Types/Option.js';
 import type {
@@ -47,7 +47,7 @@ const REVEAL_NAV_TIMEOUT = 15_000;
  * @returns Procedure with boolean detection result.
  */
 async function isRevealAttached(mediator: IElementMediator): Promise<Procedure<boolean>> {
-  const textCandidates = (WK.HOME.REVEAL as readonly SelectorCandidate[]).filter(
+  const textCandidates = (WK_HOME.REVEAL as readonly SelectorCandidate[]).filter(
     (c): ElementFound => c.kind === 'textContent',
   );
   const countPromises = textCandidates.map(
@@ -68,7 +68,7 @@ async function probeRevealStatus(
   mediator: IElementMediator,
   timeout: number,
 ): Promise<RevealStatus> {
-  const candidates = WK.HOME.REVEAL as unknown as readonly SelectorCandidate[];
+  const candidates = WK_HOME.REVEAL as unknown as readonly SelectorCandidate[];
   const visibleResult = await mediator
     .resolveVisible(candidates, timeout)
     .catch((): false => false);

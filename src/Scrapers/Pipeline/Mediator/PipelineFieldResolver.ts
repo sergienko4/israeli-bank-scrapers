@@ -10,7 +10,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../Base/Config/LoginConfigTypes.js';
-import { WK, WK_CONCEPT_MAP } from '../Registry/PipelineWellKnown.js';
+import { WK_CONCEPT_MAP, WK_LOGIN_FORM } from '../Registry/WK/LoginWK.js';
 import { none, type Option, some } from '../Types/Option.js';
 import { scopeCandidates } from './FormAnchor.js';
 import { tryHeuristicProbe } from './HeuristicResolver.js';
@@ -172,7 +172,7 @@ export async function resolveFieldPipeline(
 ): Promise<IPipelineFieldContext> {
   const wkSlot = WK_CONCEPT_MAP[args.fieldKey];
   let wk: readonly SelectorCandidate[] = [];
-  if (wkSlot !== undefined) wk = WK.LOGIN.ACTION.FORM[wkSlot];
+  if (wkSlot !== undefined) wk = WK_LOGIN_FORM[wkSlot];
   const scope = args.formSelector ?? NO_FORM_SCOPE;
   const scopedBank = applyFormScope(args.bankCandidates, scope);
   const scopedWk = applyFormScope(wk, scope);

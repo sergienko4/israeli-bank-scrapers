@@ -14,7 +14,7 @@ import {
   replaceField,
 } from '../Mediator/GenericScrapeStrategy.js';
 import type { INetworkDiscovery } from '../Mediator/NetworkDiscovery.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../Registry/WK/ScrapeWK.js';
 import type { IApiFetchContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';

@@ -8,11 +8,11 @@ import type { Frame, Page } from 'playwright-core';
 
 import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
 import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
-import { WK } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { WK_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
 import { makeMockMediator } from '../../../Unit/Scrapers/Pipeline/MockPipelineFactories.js';
 
 /** First WellKnown error text — used for test assertions. */
-const FIRST_ERROR_TEXT = WK.DASHBOARD.ERROR[0].value;
+const FIRST_ERROR_TEXT = WK_DASHBOARD.ERROR[0].value;
 
 // ── Mock helpers ───────────────────────────────────────────
 
@@ -108,7 +108,7 @@ describe('checkFrameForErrors', () => {
 
   it('stops on first match and returns that candidate', async () => {
     // Both first and second WellKnown texts visible — order determines first match
-    const secondText = WK.DASHBOARD.ERROR[1].value;
+    const secondText = WK_DASHBOARD.ERROR[1].value;
     const frame = makeMockFrame([FIRST_ERROR_TEXT, secondText]);
     const errorResult = await checkFrameForErrors(frame);
     expect(errorResult.hasErrors).toBe(true);

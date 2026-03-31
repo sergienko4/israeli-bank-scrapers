@@ -8,7 +8,7 @@
 
 import type { Page } from 'playwright-core';
 
-import { PIPELINE_WELL_KNOWN_API } from '../Registry/PipelineWellKnown.js';
+import { PIPELINE_WELL_KNOWN_API } from '../Registry/WK/ScrapeWK.js';
 import type { IDiscoveredEndpoint } from './NetworkDiscovery.js';
 
 /** WellKnown token field names in auth response bodies. */
