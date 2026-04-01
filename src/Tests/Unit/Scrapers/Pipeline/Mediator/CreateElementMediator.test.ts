@@ -7,17 +7,20 @@
 import { jest } from '@jest/globals';
 
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js',
   () => ({ resolveFieldPipeline: jest.fn() }),
 );
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js', () => ({
-  discoverFormErrors: jest.fn(),
-  checkFrameForErrors: jest.fn(),
-  NO_ERRORS: { hasErrors: false, errors: [], summary: '' },
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js',
+  () => ({
+    discoverFormErrors: jest.fn(),
+    checkFrameForErrors: jest.fn(),
+    NO_ERRORS: { hasErrors: false, errors: [], summary: '' },
+  }),
+);
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/FormAnchor.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Form/FormAnchor.js', () => ({
   discoverFormAnchor: jest.fn(),
   /**
    * Mock scopeCandidates — returns candidates unchanged.
@@ -49,10 +52,13 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Types/Debug.js', () =
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-const PFR_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js');
-const FED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js');
-const FA_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/FormAnchor.js');
-const MED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js');
+const PFR_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js');
+const FED_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js');
+const FA_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Form/FormAnchor.js');
+const MED_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js');
 const FACTORY = await import('../MockPipelineFactories.js');
 
 /** Resolved IFieldContext returned by mock resolveFieldPipeline. */

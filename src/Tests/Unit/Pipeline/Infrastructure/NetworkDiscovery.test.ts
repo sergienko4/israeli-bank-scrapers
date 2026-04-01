@@ -5,8 +5,8 @@
 
 import type { Page, Response } from 'playwright-core';
 
-import type { INetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/NetworkDiscovery.js';
-import { createNetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/NetworkDiscovery.js';
+import type { INetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
+import { createNetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 
 // ── Mock Page ────────────────────────────────────────────
 

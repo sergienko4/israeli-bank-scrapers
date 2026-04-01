@@ -4,8 +4,8 @@
  */
 
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
-import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 

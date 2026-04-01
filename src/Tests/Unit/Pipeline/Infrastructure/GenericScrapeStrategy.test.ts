@@ -11,7 +11,7 @@ import {
   findFirstArray,
   isMonthlyEndpoint,
   parseAutoDate,
-} from '../../../../Scrapers/Pipeline/Mediator/GenericScrapeStrategy.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Network/GenericScrapeStrategy.js';
 
 describe('findFieldValue', () => {
   it('finds a direct field match', () => {

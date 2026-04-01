@@ -6,11 +6,11 @@
 import moment from 'moment';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
 import {
   DEFAULT_FETCH_OPTS,
   type IFetchStrategy,
 } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IRawAccount } from '../../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';
@@ -20,6 +20,9 @@ import {
   makeMockScrapeConfig,
   MOCK_RAW_ACCOUNT,
 } from '../MockPipelineFactories.js';
+
+/** URL path for API requests. */
+type ApiPath = string;
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -336,7 +339,7 @@ describe('ScrapeExecutor/computeStartDate', () => {
         buildRequest: (
           acctId: string,
           startDate: string,
-        ): { path: string; postData: Record<string, string> } => {
+        ): { path: ApiPath; postData: Record<string, string> } => {
           capturedDates.push(startDate);
           return { path: `/api/txns/${acctId}`, postData: {} };
         },
@@ -367,7 +370,7 @@ describe('ScrapeExecutor/computeStartDate', () => {
         buildRequest: (
           acctId: string,
           startDate: string,
-        ): { path: string; postData: Record<string, string> } => {
+        ): { path: ApiPath; postData: Record<string, string> } => {
           capturedDates.push(startDate);
           return { path: `/api/txns/${acctId}`, postData: {} };
         },

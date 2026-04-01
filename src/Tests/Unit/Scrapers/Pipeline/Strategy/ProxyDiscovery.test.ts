@@ -4,11 +4,11 @@
  * Rule #9: Tests first, then code.
  */
 
-import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/NetworkDiscoveryTypes.js';
+import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import {
   findProxyAccountTemplate,
   findProxyTxnTemplate,
-} from '../../../../../Scrapers/Pipeline/Phases/ScrapePhase.js';
+} from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
 
 /** Whether a template was discovered. */
 type WasDiscovered = boolean;

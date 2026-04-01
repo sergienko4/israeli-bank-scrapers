@@ -4,9 +4,9 @@
  * resolveAndClick returns Procedure<IRaceResult> per Rule #15.
  */
 
-import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
+import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockFullPage, makeMockMediator } from '../MockPipelineFactories.js';

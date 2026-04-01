@@ -5,7 +5,7 @@
 
 import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/Login/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { makeContextWithLogin, makeMockMediator } from '../MockPipelineFactories.js';
 

@@ -8,8 +8,8 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { HomePhase } from '../../../../Scrapers/Pipeline/Phases/HomePhase.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { HomePhase } from '../../../../Scrapers/Pipeline/Phases/Home/HomePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,

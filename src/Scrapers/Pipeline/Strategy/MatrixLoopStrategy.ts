@@ -12,34 +12,39 @@ import {
   extractTransactions,
   generateMonthChunks,
   isMonthlyEndpoint,
-} from '../Mediator/GenericScrapeStrategy.js';
-import {
-  buildAccountResult,
-  parseStartDate,
-  rateLimitPause,
-} from '../Phases/ScrapeFetchHelpers.js';
-import type { IAccountAssemblyCtx, IAccountFetchCtx } from '../Phases/ScrapeTypes.js';
+} from '../Mediator/Network/GenericScrapeStrategy.js';
 import { getDebug } from '../Types/Debug.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk } from '../Types/Procedure.js';
+import { buildAccountResult, parseStartDate, rateLimitPause } from './Scrape/ScrapeDataStrategy.js';
+import type { IAccountAssemblyCtx, IAccountFetchCtx } from './Scrape/ScrapeTypes.js';
 
 const LOG = getDebug('matrix-loop');
 
 /** Rate limit between monthly chunk fetches. */
 const MATRIX_RATE_LIMIT_MS = 300;
 
+/** Account identifier for API queries. */
+type AccountNum = string;
+/** User-facing display identifier (last 4 digits). */
+type DisplayLabel = string;
+/** URL of a discovered API endpoint. */
+type EndpointUrl = string;
+/** Raw POST body template string. */
+type BodyTemplate = string;
+
 /** Bundled args for the Matrix Loop. */
 interface IMatrixLoopArgs {
   readonly fc: IAccountFetchCtx;
-  readonly accountId: string;
-  readonly displayId: string;
+  readonly accountId: AccountNum;
+  readonly displayId: DisplayLabel;
 }
 
 /** Bundled args for fetching one month chunk. */
 interface IChunkFetchArgs {
   readonly args: IMatrixLoopArgs;
-  readonly txnUrl: string;
-  readonly template: string;
+  readonly txnUrl: EndpointUrl;
+  readonly template: BodyTemplate;
 }
 
 /**

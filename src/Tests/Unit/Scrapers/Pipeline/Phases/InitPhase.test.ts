@@ -10,11 +10,14 @@ import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/CamoufoxLauncher.js', () => ({
-  launchCamoufox: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Phases/Init/CamoufoxLauncher.js',
+  () => ({
+    launchCamoufox: jest.fn(),
+  }),
+);
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/Browser.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/Init/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
   ISRAEL_LOCALE: 'he-IL',
   ISRAEL_TIMEZONE: 'Asia/Jerusalem',
@@ -42,10 +45,14 @@ jest.unstable_mockModule(
   }),
 );
 
-const CAMOUFOX_MOD = await import('../../../../../Scrapers/Pipeline/Phases/CamoufoxLauncher.js');
-const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/InitPhase.js');
+const CAMOUFOX_MOD =
+  await import('../../../../../Scrapers/Pipeline/Phases/Init/CamoufoxLauncher.js');
+const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhase.js');
 
 // ── Helpers ────────────────────────────────────────────────
+
+/** URL returned by mock page. */
+type MockUrl = string;
 
 /** Mock browser stack returned by MAKE_BROWSER_MOCK. */
 interface IMockBrowserStack {
@@ -72,7 +79,7 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
      * Mock URL getter.
      * @returns Test bank URL string.
      */
-    url: (): string => 'https://test.bank',
+    url: (): MockUrl => 'https://test.bank',
     goto: jest.fn().mockResolvedValue(null),
     locator: jest.fn().mockReturnValue({ first: jest.fn().mockReturnValue({ click: jest.fn() }) }),
   };

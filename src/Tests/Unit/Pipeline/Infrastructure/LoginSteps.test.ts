@@ -6,8 +6,8 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
-import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
+import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/Login/LoginSteps.js';
 import { WK_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
 import { makeMockMediator } from '../../../Unit/Scrapers/Pipeline/MockPipelineFactories.js';
 

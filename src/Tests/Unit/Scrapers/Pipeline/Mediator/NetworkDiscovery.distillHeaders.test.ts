@@ -4,7 +4,7 @@
  * distillHeaders returns Procedure<DistilledHeaders> — tests use assertOk for narrowing.
  */
 
-import { distillHeaders } from '../../../../../Scrapers/Pipeline/Mediator/NetworkDiscovery.js';
+import { distillHeaders } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 
 describe('distillHeaders', () => {

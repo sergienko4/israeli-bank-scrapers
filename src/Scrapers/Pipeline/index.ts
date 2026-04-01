@@ -25,8 +25,8 @@ export { GraphQLFetchStrategy } from './Strategy/GraphQLFetchStrategy.js';
 export { NativeFetchStrategy } from './Strategy/NativeFetchStrategy.js';
 
 // Mediator
-export { createElementMediator } from './Mediator/CreateElementMediator.js';
-export type { IElementMediator } from './Mediator/ElementMediator.js';
+export { createElementMediator } from './Mediator/Elements/CreateElementMediator.js';
+export type { IElementMediator } from './Mediator/Elements/ElementMediator.js';
 
 // Pipeline
 export type { DirectPostLoginFn, NativeLoginFn, ScrapeFn } from './PipelineBuilder.js';

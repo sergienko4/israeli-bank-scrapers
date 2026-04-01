@@ -21,31 +21,42 @@ const POPUP_COOLDOWN_MS = 5000;
 type EpochMs = number;
 
 /**
+ * Attempt popup dismissal if cooldown elapsed.
+ * @param ctx - Current pipeline context.
+ * @param lastRunMs - Last probe timestamp wrapper (mutated).
+ * @param lastRunMs.value - Epoch-ms of last probe.
+ * @returns Succeed always — popup absence is valid.
+ */
+async function tryDismiss(
+  ctx: IPipelineContext,
+  lastRunMs: { value: EpochMs },
+): Promise<Procedure<IPipelineContext>> {
+  if (!ctx.mediator.has) return succeed(ctx);
+  const elapsed = Date.now() - lastRunMs.value;
+  if (elapsed < POPUP_COOLDOWN_MS) return succeed(ctx);
+  lastRunMs.value = Date.now();
+  await ctx.mediator.value.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
+  return succeed(ctx);
+}
+
+/**
  * Create a PopupInterceptor with per-instance cooldown state.
  * Each pipeline run gets a fresh interceptor — no "ghost state" leaks.
  * @returns IPipelineInterceptor that dismisses popups between phases.
  */
 function createPopupInterceptor(): IPipelineInterceptor {
-  let lastRunMs: EpochMs = 0;
-  const interceptor: IPipelineInterceptor = {
+  const lastRunMs = { value: 0 as EpochMs };
+  return {
     name: 'popup-dismiss',
     /**
-     * Dismiss popups if cooldown has elapsed.
-     * @param ctx - Current pipeline context.
-     * @returns Succeed always — popup absence is valid.
+     * Dismiss popups if cooldown elapsed.
+     * @param ctx - Pipeline context.
+     * @returns Succeed with context.
      */
     async beforePhase(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-      if (!ctx.mediator.has) return succeed(ctx);
-      const now = Date.now();
-      const elapsed = now - lastRunMs;
-      if (elapsed < POPUP_COOLDOWN_MS) return succeed(ctx);
-      lastRunMs = now;
-      const mediator = ctx.mediator.value;
-      await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
-      return succeed(ctx);
+      return tryDismiss(ctx, lastRunMs);
     },
   };
-  return interceptor;
 }
 
 export default createPopupInterceptor;

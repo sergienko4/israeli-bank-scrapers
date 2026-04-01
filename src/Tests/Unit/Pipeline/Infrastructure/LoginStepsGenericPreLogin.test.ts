@@ -9,12 +9,12 @@ import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IElementMediator,
   IRaceResult,
-} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   tryClickLoginLink,
   tryClosePopup,
-} from '../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
+} from '../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {

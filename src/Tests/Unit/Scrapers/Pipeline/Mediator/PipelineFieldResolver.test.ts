@@ -6,8 +6,10 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
+type MockStr = string;
+
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js',
   () => ({
     probeIframes: jest.fn(),
     probeMainPage: jest.fn(),
@@ -15,37 +17,45 @@ jest.unstable_mockModule(
   }),
 );
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/SelectorResolver.js', () => ({
-  isPage: jest.fn(),
-  tryInContext: jest.fn(),
-  tryInContextInternal: jest.fn(),
-  candidateToCss: jest.fn((c: { kind: string; value: string }) => c.value),
-  extractCredentialKey: jest.fn((s: string) => s),
-  queryWithTimeout: jest.fn(),
-  toXpathLiteral: jest.fn((v: string) => `"${v}"`),
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js',
+  () => ({
+    isPage: jest.fn(),
+    tryInContext: jest.fn(),
+    tryInContextInternal: jest.fn(),
+    candidateToCss: jest.fn((c: { kind: MockStr; value: MockStr }) => c.value),
+    extractCredentialKey: jest.fn((s: string) => s),
+    queryWithTimeout: jest.fn(),
+    toXpathLiteral: jest.fn((v: string) => `"${v}"`),
+  }),
+);
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/MetadataExtractors.js', () => ({
-  extractMetadata: jest.fn(),
-  EMPTY_METADATA: {
-    id: '',
-    className: '',
-    tagName: '',
-    type: '',
-    name: '',
-    formId: '',
-    ariaLabel: '',
-    placeholder: '',
-    isVisible: false,
-  },
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Elements/MetadataExtractors.js',
+  () => ({
+    extractMetadata: jest.fn(),
+    EMPTY_METADATA: {
+      id: '',
+      className: '',
+      tagName: '',
+      type: '',
+      name: '',
+      formId: '',
+      ariaLabel: '',
+      placeholder: '',
+      isVisible: false,
+    },
+  }),
+);
 
 const SRP_MOD =
-  await import('../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js');
-const SR_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/SelectorResolver.js');
-const META_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/MetadataExtractors.js');
+  await import('../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js');
+const SR_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js');
+const META_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Elements/MetadataExtractors.js');
 const RESOLVER_MOD =
-  await import('../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js');
+  await import('../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js');
 const FACTORY = await import('../MockPipelineFactories.js');
 
 /** Shared mock page for all tests — page content is irrelevant since resolution is mocked. */

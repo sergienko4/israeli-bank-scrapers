@@ -6,11 +6,11 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { checkFrameForErrors } from '../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
+import { checkFrameForErrors } from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 import {
   createLoginPhase,
   waitForSubmitToSettle,
-} from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+} from '../../../../../Scrapers/Pipeline/Phases/Login/LoginSteps.js';
 import {
   makeContextWithBrowser,
   makeMockContext,

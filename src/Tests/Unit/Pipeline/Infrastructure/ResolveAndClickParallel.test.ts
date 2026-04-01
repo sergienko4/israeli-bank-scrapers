@@ -5,7 +5,7 @@
 
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 

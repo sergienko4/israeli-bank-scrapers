@@ -6,8 +6,8 @@
 import moment from 'moment';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IMonthlyConfig } from '../../../../Scrapers/Pipeline/Phases/MonthlyScrapeFactory.js';
-import { createMonthlyScrapeFn } from '../../../../Scrapers/Pipeline/Phases/MonthlyScrapeFactory.js';
+import type { IMonthlyConfig } from '../../../../Scrapers/Pipeline/Phases/Scrape/MonthlyScrapeFactory.js';
+import { createMonthlyScrapeFn } from '../../../../Scrapers/Pipeline/Phases/Scrape/MonthlyScrapeFactory.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';

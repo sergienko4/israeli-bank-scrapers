@@ -3,29 +3,30 @@
  * Covers both GET (URL template) and POST (body template) strategies.
  */
 
+import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Network/GenericScrapeReplayStrategy.js';
 import {
   generateMonthChunks,
   isRangeIterable,
   replaceField,
-} from '../../../../../Scrapers/Pipeline/Mediator/GenericScrapeStrategy.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/GenericScrapeStrategy.js';
 
 describe('replaceField', () => {
   it('replaces a WellKnown field by name', () => {
     const body: Record<string, unknown> = { cardUniqueId: '4054', month: 3 };
-    const didReplace = replaceField(body, ['cardUniqueId', 'accountId'], '9999');
+    const didReplace = replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], '9999');
     expect(didReplace).toBe(true);
     expect(body.cardUniqueId).toBe('9999');
   });
 
   it('returns false when no field matches', () => {
     const body: Record<string, unknown> = { someOtherField: 'abc' };
-    const didReplace = replaceField(body, ['cardUniqueId', 'accountId'], '9999');
+    const didReplace = replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], '9999');
     expect(didReplace).toBe(false);
   });
 
   it('replaces the FIRST matching field name', () => {
     const body: Record<string, unknown> = { accountId: '111', cardUniqueId: '222' };
-    const didReplace = replaceField(body, ['accountId', 'cardUniqueId'], '999');
+    const didReplace = replaceField(body as JsonRecord, ['accountId', 'cardUniqueId'], '999');
     expect(didReplace).toBe(true);
     expect(body.accountId).toBe('999');
     expect(body.cardUniqueId).toBe('222');
@@ -41,7 +42,7 @@ describe('POST body template for VisaCal pattern', () => {
       transactionType: 'ALL',
     };
     const body = { ...capturedBody };
-    replaceField(body, ['cardUniqueId', 'accountId'], '0067');
+    replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], '0067');
     expect(body.cardUniqueId).toBe('0067');
     expect(body.fromDate).toBe('2026-01-01');
   });
@@ -54,7 +55,7 @@ describe('POST body template for VisaCal pattern', () => {
     const accountIds = ['4054', '0067', '3020', '3308'];
     const bodies = accountIds.map((id): Record<string, unknown> => {
       const body = { ...capturedBody };
-      replaceField(body, ['cardUniqueId', 'accountId'], id);
+      replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], id);
       return body;
     });
     expect(bodies[0].cardUniqueId).toBe('4054');

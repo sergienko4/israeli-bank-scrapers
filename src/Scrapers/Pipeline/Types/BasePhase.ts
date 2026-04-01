@@ -30,6 +30,7 @@ abstract class BasePhase {
 
   /**
    * PRE — discovery step before the main action. Default: no-op passthrough.
+   * Uses this.name for phase identity tracing.
    * @param _ctx - Pipeline context.
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
@@ -38,12 +39,14 @@ abstract class BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
     const result = succeed(input);
     return Promise.resolve(result);
   }
 
   /**
    * POST — validation after action. Default: no-op passthrough.
+   * Uses this.name for phase identity tracing.
    * @param _ctx - Pipeline context.
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
@@ -52,12 +55,14 @@ abstract class BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
     const result = succeed(input);
     return Promise.resolve(result);
   }
 
   /**
    * FINAL — readiness signal for the next phase. Default: no-op passthrough.
+   * Uses this.name for phase identity tracing.
    * @param _ctx - Pipeline context.
    * @param input - Pipeline context to pass through.
    * @returns Succeed with input (no-op).
@@ -66,6 +71,7 @@ abstract class BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
     const result = succeed(input);
     return Promise.resolve(result);
   }

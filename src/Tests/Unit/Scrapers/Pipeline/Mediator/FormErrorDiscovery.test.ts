@@ -7,20 +7,23 @@
 
 import type { Page } from 'playwright-core';
 
+type MockStr = string;
+type MockBool = boolean;
+
 import {
   checkFrameForErrors,
   discoverFormErrors,
   NO_ERRORS,
-} from '../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
 // ── DOM item type ─────────────────────────────────────────
 
 /** Mirrors the internal IRawDomItem used by discoverFormErrors. */
 interface IDomItem {
-  tag: string;
-  cls: string;
-  text: string;
-  isHidden: boolean;
+  tag: MockStr;
+  cls: MockStr;
+  text: MockStr;
+  isHidden: MockBool;
 }
 
 /**

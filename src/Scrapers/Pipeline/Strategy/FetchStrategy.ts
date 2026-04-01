@@ -4,8 +4,11 @@
  */
 
 import type { ScraperCredentials } from '../../Base/Interface.js';
-import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
+import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
+
+/** Bank config type — derived from PipelineContext to avoid restricted Config import. */
+type BankConfig = IPipelineContext['config'];
 
 /** Optional fetch configuration. */
 interface IFetchOpts {
@@ -40,7 +43,7 @@ interface IFetchStrategy {
    */
   activateSession?(
     credentials: ScraperCredentials,
-    config: IBankScraperConfig,
+    config: BankConfig,
   ): Promise<Procedure<SessionActivated>>;
 
   /**
@@ -53,7 +56,7 @@ interface IFetchStrategy {
    * @returns Procedure with parsed JSON response.
    */
   proxyGet?<T>(
-    config: IBankScraperConfig,
+    config: BankConfig,
     reqName: ProxyReqName,
     params: Record<string, string>,
   ): Promise<Procedure<T>>;

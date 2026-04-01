@@ -5,12 +5,12 @@
  * Rule #9: Tests first, then code.
  */
 
-import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/NetworkDiscoveryTypes.js';
-import { tryBufferedResponse } from '../../../../../Scrapers/Pipeline/Phases/ScrapeAccountHelpers.js';
+import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+import { tryBufferedResponse } from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapeDispatchStep.js';
 import type {
   IAccountFetchCtx,
   IPostFetchCtx,
-} from '../../../../../Scrapers/Pipeline/Phases/ScrapeTypes.js';
+} from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

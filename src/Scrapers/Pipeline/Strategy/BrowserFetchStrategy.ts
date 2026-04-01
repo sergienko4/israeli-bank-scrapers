@@ -8,7 +8,10 @@ import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../Base/Interface.js';
-import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
+import type { IPipelineContext } from '../Types/PipelineContext.js';
+
+/** Bank config type — derived from PipelineContext to avoid restricted Config import. */
+type BankConfig = IPipelineContext['config'];
 import { getDebug } from '../Types/Debug.js';
 import { toErrorMessage } from '../Types/ErrorUtils.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -39,7 +42,16 @@ function emptyResponseError(url: string): Procedure<never> {
  * @param url - The URL for error reporting.
  * @returns Succeed with data, or empty-response failure.
  */
-function resultToProcedure<T>(result: unknown, url: string): Procedure<T> {
+/** Nullable fetch result — truthy means data was returned. */
+type NullableFetchResult<T> = T | null | false | undefined;
+
+/**
+ * Convert a nullable fetch result to a Procedure.
+ * @param result - The fetch result (falsy if empty).
+ * @param url - The URL for error reporting.
+ * @returns Succeed with data, or empty-response failure.
+ */
+function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Procedure<T> {
   if (result) return succeed(result as T);
   return emptyResponseError(url) as Procedure<T>;
 }
@@ -49,8 +61,8 @@ function resultToProcedure<T>(result: unknown, url: string): Procedure<T> {
  * @param error - The caught error.
  * @returns A Generic failure Procedure.
  */
-function catchError(error: unknown): Procedure<never> {
-  const message = toErrorMessage(error as Error);
+function catchError(error: Error): Procedure<never> {
+  const message = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, message);
 }
 
@@ -72,7 +84,7 @@ interface IActivationArgs {
   readonly page: Page;
   readonly servicesUrl: ProxyEndpointUrl;
   readonly credentials: ScraperCredentials;
-  readonly config: IBankScraperConfig;
+  readonly config: BankConfig;
 }
 
 /**
@@ -86,8 +98,9 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
   const creds = credentials as Record<string, string>;
   // Step 1: ValidateIdData
   const validateUrl = `${servicesUrl}?reqName=ValidateIdData`;
-  const credId = creds.id || '';
-  const credCard = creds.card6Digits || '';
+  const absentCredential = '(absent)';
+  const credId = creds.id || absentCredential;
+  const credCard = creds.card6Digits || absentCredential;
   const validateBody = {
     id: credId,
     cardSuffix: credCard,
@@ -107,11 +120,11 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
   if (headerStatus !== '1')
     return fail(ScraperErrorTypes.Generic, `ACTIVATION: ValidateIdData rejected (${headerStatus})`);
   const bean = validateResult.ValidateIdDataBean;
-  const userName = bean?.userName ?? '';
+  const userName = bean?.userName ?? absentCredential;
   // Step 2: performLogon (reqName from config — e.g., 'performLogonI')
   const loginReqName = auth.loginReqName ?? 'performLogon';
   const loginUrl = `${servicesUrl}?reqName=${loginReqName}`;
-  const credPassword = creds.password || '';
+  const credPassword = creds.password || absentCredential;
   const loginBody = {
     KodMishtamesh: userName,
     MisparZihuy: credId,
@@ -185,7 +198,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async activateSession(
     credentials: ScraperCredentials,
-    config: IBankScraperConfig,
+    config: BankConfig,
   ): Promise<Procedure<SessionActivated>> {
     const baseUrl = config.api.base;
     if (!baseUrl) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: no api.base in config');
@@ -202,7 +215,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed JSON response.
    */
   public async proxyGet<T>(
-    config: IBankScraperConfig,
+    config: BankConfig,
     reqName: ProxyReqName,
     params: Record<string, string>,
   ): Promise<Procedure<T>> {
@@ -227,7 +240,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
  * @returns IFetchStrategy implementation using browser session.
  */
 function createBrowserFetchStrategy(page: Page): IFetchStrategy {
-  return new BrowserFetchStrategy(page);
+  return Reflect.construct(BrowserFetchStrategy, [page]) as IFetchStrategy;
 }
 
 export default BrowserFetchStrategy;

@@ -1,0 +1,263 @@
+/**
+ * Generic scrape executor — reads IScrapeConfig, fetches accounts + transactions.
+ * Banks provide config (URLs, mappers). This module handles fetch, iteration, assembly.
+ */
+
+import moment from 'moment';
+
+import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
+import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import type { IFetchOpts, IFetchStrategy } from '../Strategy/FetchStrategy.js';
+import { DEFAULT_FETCH_OPTS } from '../Strategy/FetchStrategy.js';
+import { toErrorMessage } from '../Types/ErrorUtils.js';
+import { some } from '../Types/Option.js';
+import type { IPipelineContext } from '../Types/PipelineContext.js';
+import type { Procedure } from '../Types/Procedure.js';
+import { fail, isOk, succeed } from '../Types/Procedure.js';
+import type { IRawAccount, IScrapeConfig } from '../Types/ScrapeConfig.js';
+
+/** Formatted date string for API request parameters. */
+type StartDateFmt = string;
+/** HTTP request path segment (no base URL). */
+type PathStr = string;
+/** HTTP method string (GET, POST, etc.). */
+type MethodStr = string;
+/** Extracted balance value from API response. */
+type BalanceNum = number;
+
+/** Bundled dependencies for scrape operations. */
+interface IScrapeOps<TA, TT> {
+  readonly strategy: IFetchStrategy;
+  readonly config: IScrapeConfig<TA, TT>;
+  readonly opts: IFetchOpts;
+  readonly startDate: StartDateFmt;
+}
+
+/**
+ * Build fetch options with bank-specific headers.
+ * @param config - The scrape config with header factory.
+ * @param ctx - Pipeline context for header resolution.
+ * @returns IFetchOpts with extraHeaders.
+ */
+function buildFetchOpts<TA, TT>(config: IScrapeConfig<TA, TT>, ctx: IPipelineContext): IFetchOpts {
+  const headersResult = safeCall(
+    (): Record<string, string> => config.extraHeaders(ctx),
+    'extraHeaders',
+  );
+  if (!isOk(headersResult)) return DEFAULT_FETCH_OPTS;
+  const extraHeaders = headersResult.value;
+  const hasHeaders = Object.keys(extraHeaders).length > 0;
+  if (!hasHeaders) return DEFAULT_FETCH_OPTS;
+  const opts: IFetchOpts = { extraHeaders };
+  return opts;
+}
+
+/**
+ * Compute start date string from options and config.
+ * @param ctx - Pipeline context with options.
+ * @param dateFormat - The bank's date format string.
+ * @returns Formatted start date.
+ */
+function computeStartDate(ctx: IPipelineContext, dateFormat: StartDateFmt): StartDateFmt {
+  const defaultStart = moment().subtract(1, 'years');
+  const optionsStart = moment(ctx.options.startDate);
+  const start = moment.max(defaultStart, optionsStart);
+  return start.format(dateFormat);
+}
+
+/** Built request shape from buildRequest callback. */
+interface IBuiltRequest {
+  readonly path: PathStr;
+  readonly postData: Record<string, string>;
+}
+
+/** Fetch dispatch arguments. */
+interface IDispatchArgs {
+  readonly strategy: IFetchStrategy;
+  readonly method: MethodStr;
+  readonly path: PathStr;
+  readonly postData: Record<string, string>;
+  readonly opts: IFetchOpts;
+}
+
+/**
+ * Dispatch a fetch call by HTTP method.
+ * @param args - Bundled fetch arguments.
+ * @returns Procedure with the response.
+ */
+function dispatchFetch<TResult>(args: IDispatchArgs): Promise<Procedure<TResult>> {
+  if (args.method === 'POST')
+    return args.strategy.fetchPost<TResult>(args.path, args.postData, args.opts);
+  return args.strategy.fetchGet<TResult>(args.path, args.opts);
+}
+
+/**
+ * Fetch the account list from the bank API.
+ * @param ops - Bundled scrape operations.
+ * @returns Procedure with raw accounts or failure.
+ */
+async function fetchAccountList<TA, TT>(
+  ops: IScrapeOps<TA, TT>,
+): Promise<Procedure<readonly IRawAccount[]>> {
+  const acctCfg = ops.config.accounts;
+  const raw = await dispatchFetch<TA>({
+    strategy: ops.strategy,
+    method: acctCfg.method,
+    path: acctCfg.path,
+    postData: acctCfg.postData,
+    opts: ops.opts,
+  });
+  if (!isOk(raw)) return raw;
+  try {
+    const accounts = acctCfg.mapper(raw.value);
+    return succeed(accounts);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `Account mapper failed: ${msg}`);
+  }
+}
+
+/**
+ * Safely call a bank-provided callback, wrapping thrown errors as Procedure failure.
+ * @param fn - The bank callback to execute.
+ * @param label - Error label for diagnostics (e.g. 'buildRequest').
+ * @returns Procedure with the callback result or a failure.
+ */
+function safeCall<T>(fn: () => T, label: string): Procedure<T> {
+  try {
+    const result = fn();
+    return succeed(result);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `${label} failed: ${msg}`);
+  }
+}
+
+/**
+ * Fetch raw transaction data for one account via strategy.
+ * @param ops - Bundled scrape operations.
+ * @param req - Built request from buildRequest callback.
+ * @returns Procedure with raw response or failure.
+ */
+async function fetchRawTxns<TA, TT>(
+  ops: IScrapeOps<TA, TT>,
+  req: IBuiltRequest,
+): Promise<Procedure<TT>> {
+  return dispatchFetch<TT>({
+    strategy: ops.strategy,
+    method: ops.config.transactions.method,
+    path: req.path,
+    postData: req.postData,
+    opts: ops.opts,
+  });
+}
+
+/**
+ * Assemble an ITransactionsAccount from raw account + mapped transactions.
+ * @param account - The raw account with ID and balance.
+ * @param txns - Mapped transactions.
+ * @param balance - Override balance (from balanceExtractor, or account.balance).
+ * @returns Assembled account.
+ */
+function buildAccount(
+  account: IRawAccount,
+  txns: readonly ITransaction[],
+  balance: number,
+): ITransactionsAccount {
+  return {
+    accountNumber: account.accountId,
+    balance,
+    txns: txns as ITransaction[],
+  } satisfies ITransactionsAccount;
+}
+
+/**
+ * Fetch transactions for one account.
+ * @param ops - Bundled scrape operations.
+ * @param account - The raw account to fetch transactions for.
+ * @returns Procedure with ITransactionsAccount or failure.
+ */
+async function fetchOneAccount<TA, TT>(
+  ops: IScrapeOps<TA, TT>,
+  account: IRawAccount,
+): Promise<Procedure<ITransactionsAccount>> {
+  const txnCfg = ops.config.transactions;
+  /**
+   * Build the fetch request for this account.
+   * @returns URL path and POST data.
+   */
+  const buildReq = (): IBuiltRequest => txnCfg.buildRequest(account.accountId, ops.startDate);
+  const reqResult = safeCall(buildReq, 'buildRequest');
+  if (!isOk(reqResult)) return reqResult;
+  const raw = await fetchRawTxns(ops, reqResult.value);
+  if (!isOk(raw)) return raw;
+  /**
+   * Map raw response to typed transactions.
+   * @returns Mapped transaction array.
+   */
+  const mapTxns = (): readonly ITransaction[] => txnCfg.mapper(raw.value);
+  const mapped = safeCall(mapTxns, 'Transaction mapper');
+  if (!isOk(mapped)) return mapped;
+  const extractor = ops.config.balanceExtractor;
+  let balance: Procedure<BalanceNum> = succeed(account.balance);
+  if (extractor) {
+    balance = safeCall((): BalanceNum => extractor(raw.value), 'balanceExtractor');
+  }
+  let resolvedBalance = account.balance;
+  if (isOk(balance)) {
+    resolvedBalance = balance.value;
+  }
+  const acct = buildAccount(account, mapped.value, resolvedBalance);
+  return succeed(acct);
+}
+
+/**
+ * Fetch all accounts recursively (sequential mode).
+ * @param ops - Bundled scrape operations.
+ * @param accounts - Raw account list.
+ * @param index - Current index.
+ * @returns Procedure with all account results.
+ */
+async function fetchSequential<TA, TT>(
+  ops: IScrapeOps<TA, TT>,
+  accounts: readonly IRawAccount[],
+  index: number,
+): Promise<Procedure<readonly ITransactionsAccount[]>> {
+  if (index >= accounts.length) return succeed([]);
+  const result = await fetchOneAccount(ops, accounts[index]);
+  if (!isOk(result)) return result;
+  const rest = await fetchSequential(ops, accounts, index + 1);
+  if (!isOk(rest)) return rest;
+  return succeed([result.value, ...rest.value]);
+}
+
+/**
+ * Execute the generic scrape flow.
+ * @param ctx - Pipeline context with fetchStrategy.
+ * @param config - The bank's scrape configuration.
+ * @returns Updated context with scrape.accounts populated.
+ */
+async function executeScrape<TA, TT>(
+  ctx: IPipelineContext,
+  config: IScrapeConfig<TA, TT>,
+): Promise<Procedure<IPipelineContext>> {
+  if (!ctx.fetchStrategy.has) {
+    return fail(ScraperErrorTypes.Generic, 'No fetchStrategy in context');
+  }
+  const ops: IScrapeOps<TA, TT> = {
+    strategy: ctx.fetchStrategy.value,
+    config,
+    opts: buildFetchOpts(config, ctx),
+    startDate: computeStartDate(ctx, config.dateFormat),
+  };
+  const accountsResult = await fetchAccountList(ops);
+  if (!isOk(accountsResult)) return accountsResult;
+
+  const txnResult = await fetchSequential(ops, accountsResult.value, 0);
+  if (!isOk(txnResult)) return txnResult;
+
+  return succeed({ ...ctx, scrape: some({ accounts: txnResult.value }) });
+}
+
+export default executeScrape;
+export { executeScrape };

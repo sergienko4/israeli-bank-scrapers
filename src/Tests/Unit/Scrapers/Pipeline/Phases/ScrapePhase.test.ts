@@ -7,7 +7,7 @@ import {
   createConfigScrapeStep,
   createCustomScrapeStep,
   SCRAPE_STEP,
-} from '../../../../../Scrapers/Pipeline/Phases/ScrapePhase.js';
+} from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {

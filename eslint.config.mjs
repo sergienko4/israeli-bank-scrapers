@@ -218,16 +218,13 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   // DI: Block ALL manual instantiation except builtins
   {
     // Add your safe classes to the negative lookahead (the ?! section)
-    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|ScraperError|PipelineBuilder|SimplePhase|HomePhase|FindLoginAreaPhase|DashboardPhase|ScrapePhase)[A-Z]/]",
+    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|SimplePhase|HomePhase|FindLoginAreaPhase|DashboardPhase|ScrapePhase)[A-Z]/]",
     message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
   },
-
-  // Handler Delegation: Phases must call handlers
   {
-    selector: "ClassDeclaration[id.name=/Phase$/] MethodDefinition[key.name='execute'] BlockStatement > :not(ExpressionStatement[expression.callee.property.name=/handle|executeHandler/]):not(ReturnStatement)",
-    message: "🚫 ARCHITECTURE: Phase logic must be delegated to a Handler. Use ctx.handlers.execute().",
+    selector: "Line:matches([value*='eslint-disable-next-line'], [value*='eslint-disable-line'])",
+    message: "🚫 LINT BYPASS: Inline disables are strictly forbidden. Refactor the logic to comply or move it to a dedicated Strategy/Mediator.",
   },
-
   // Guard Clauses & Logic Flow - No else blocks
   {
     selector: "IfStatement[alternate]",
@@ -301,7 +298,12 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
     // Type Bypasses (as never / as any)
     selector: "TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)",
     message: "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
-  }
+  },
+  {
+    selector: "ClassDeclaration[id.name=/Phase$/] MethodDefinition[key.name='execute'] > BlockStatement > ExpressionStatement[expression.type!='CallExpression']",
+    message: "🚫 ARCHITECTURE: Phase execution is READ-ONLY orchestration. Move logic to a Step/Handler.",
+  },
+
 ];
 
 export default tseslint.config(
@@ -486,74 +488,63 @@ export default tseslint.config(
   },
 
   // 6. PIPELINE LOGIC (DI, MEDIATOR, HANDLERS & RESULT PATTERN)
+  // 6. PIPELINE LOGIC (STRICT ARCHITECTURAL ENFORCEMENT)
   {
     files: ['src/Scrapers/Pipeline/**/*.ts'],
+    plugins: {
+      'check-file': checkFile,
+      'import-x': importPlugin,
+    },
     rules: {
-      // 1. Dependency Injection & Mediator Boundary
-      'class-methods-use-this': 'off', // Phases are functional by design
-      'no-restricted-imports': ['error', {
-        patterns: [
-          {
-            group: ['**/Registry/Config/**'],
-            message: '🚫 DI: Use ctx.config — do not import ScraperConfig directly.'
-          },
-          {
-            group: ['**/Constants/**', '**/env'],
-            message: '🚫 DI: Use ctx.config instead of direct imports.'
-          },
-          {
-            group: ['**/Mediator/Internals/**'],
-            message: '🚫 MEDIATOR: Access HTML resolution only via ctx.mediator.'
-          },
-        ]
+      // --- A. THE "NESTED OR DEATH" GATE ---
+      'check-file/folder-naming-convention': ['error', {
+        'src/Scrapers/Pipeline/Phases/*/': 'PASCAL_CASE',
+        'src/Scrapers/Pipeline/Mediator/*/': 'PASCAL_CASE', // <--- FORCES MEDIATOR SUBFOLDERS
+        'src/Scrapers/Pipeline/Strategy/*/': 'PASCAL_CASE', // FORCES SUBFOLDERS
+      }],
+      'check-file/filename-naming-convention': ['error', {
+        // FORCES THE 4-STAGE LIFECYCLE + MEDIATOR ACTIONS
+        'src/Scrapers/Pipeline/Phases/**/*{Pre,Action,Post,Reveal,Step,Phase}.ts': 'PASCAL_CASE',
+        'src/Scrapers/Pipeline/Mediator/**/*Action.ts': 'PASCAL_CASE',
+        'src/Scrapers/Pipeline/Strategy/**/*Strategy.ts': 'PASCAL_CASE',
       }],
 
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES_NEW,
-        {
-          selector: "CallExpression[callee.object.name='page']",
-          message: "🚫 Rule #10: Direct calls to 'page' are forbidden in Pipeline Phases. Use ctx.mediator instead."
-        },
-        {
-          selector: "MethodDefinition[key.name!=/^(constructor|setup|init)$/] > TSTypeAnnotation :matches(TSBooleanKeyword, TSVoidKeyword, TSStringKeyword)",
-          message: "🚫 ARCHITECTURE: Primitive returns detected. All Pipeline methods must return Procedure<T> or IScraperResult."
-        },
-      ],
-      'no-else-return': ['error', { allowElseIf: false }],
+      // --- B. THE GLOBAL ARCHITECTURAL FORCE ---
+      // This applies to ALL files in Pipeline, including Mediator and Strategy
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES_NEW],
+
+      // --- C. DEFAULT COMPLEXITY (STRICT) ---
+      'max-lines': ['error', { max: 150, skipBlankLines: true }],
+      'max-lines-per-function': ['error', { max: 15 }],
       'max-depth': ['error', 1],
-      '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: false, allowTypedFunctionExpressions: false }],
-      'import-x/no-duplicates': 'error',
-      'import-x/max-dependencies': ['error', { max: 15, ignoreTypeImports: true }],
-      'import-x/no-useless-path-segments': ['error', { noUselessIndex: true }],
     },
   },
-  // 6b. PIPELINE INFRASTRUCTURE (THE EXCEPTIONS)
-  // Mediator, Strategy, Executor, and factory files get relaxed rules.
-  // These are the ONLY files allowed to use direct Playwright, 'new', and Registry imports.
+  // 7. INFRASTRUCTURE EXCEPTIONS (COMPLEXITY ONLY)
   {
-    files: [
-      'src/Scrapers/Pipeline/Types/Procedure.ts',
-      'src/Scrapers/Pipeline/Types/BasePhase.ts',
-      'src/Scrapers/Pipeline/Mediator/**/*.ts',
-      'src/Scrapers/Pipeline/Phases/ElementsInteractions.ts',
-      'src/Scrapers/Pipeline/Phases/GenericPreLoginSteps.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch.ts',
-      'src/Scrapers/Pipeline/**/*{Strategy,Scraper,Pipeline,Executor,Context,Mediator,Registry,Factory,Phase,Builder}.ts',
-    ],
+    // These files can be longer, but they MUST still follow Section 6's architecture
+    files: ['src/Scrapers/Pipeline/{Mediator,Strategy,Types}/**/*.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
-      'no-restricted-imports': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      'max-lines-per-function': 'off',
       'max-lines': 'off',
-      'max-classes-per-file': 'off',
-    },
+      'max-lines-per-function': 'off',
+      // DO NOT redefine no-restricted-syntax here; let Section 6 handle it.
+    }
   },
 
-  // 7. ENTRY POINT EXEMPTIONS
+  // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
-    files: ['src/index.ts', 'src/scheduler.ts', 'src/**/index.ts'],
-    rules: { 'check-file/filename-naming-convention': 'off' },
+    files: ['src/Scrapers/Pipeline/Phases/*.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: "Program",
+        message: "🚫 ARCHITECTURE: Phase files must reside in a Domain subfolder (e.g., Phases/Login/LoginStep.ts)."
+      }],
+    },
+  },
+  // 9. INDEX FILES EXCEPTION
+  {
+    files: ['**/index.ts'],
+    rules: {
+      'check-file/filename-naming-convention': 'off',
+    },
   },
 );

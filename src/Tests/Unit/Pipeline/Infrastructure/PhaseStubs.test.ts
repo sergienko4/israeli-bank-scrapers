@@ -1,11 +1,11 @@
 import {
   createLoginStep,
   DECLARATIVE_LOGIN_STEP,
-} from '../../../../Scrapers/Pipeline/Phases/DeclarativeLoginPhase.js';
-import { DIRECT_POST_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/DirectPostLoginPhase.js';
-import { NATIVE_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/NativeLoginPhase.js';
-import { OTP_STEP } from '../../../../Scrapers/Pipeline/Phases/OtpPhase.js';
-import { SCRAPE_STEP } from '../../../../Scrapers/Pipeline/Phases/ScrapePhase.js';
+} from '../../../../Scrapers/Pipeline/Phases/Login/DeclarativeLoginPhase.js';
+import { DIRECT_POST_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/Login/DirectPostLoginPhase.js';
+import { NATIVE_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Phases/Login/NativeLoginPhase.js';
+import { OTP_STEP } from '../../../../Scrapers/Pipeline/Phases/Otp/OtpPhase.js';
+import { SCRAPE_STEP } from '../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
 import { PIPELINE_REGISTRY } from '../../../../Scrapers/Pipeline/PipelineRegistry.js';
 import type { IPipelineStep } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';

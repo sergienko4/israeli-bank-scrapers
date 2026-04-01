@@ -10,10 +10,13 @@
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
+/** Human-readable label for diagnostics logging. */
+type DiagnosticLabel = string;
+
 /** Middleware that runs between pipeline phases. */
 interface IPipelineInterceptor {
   /** Human-readable name for diagnostics. */
-  readonly name: string;
+  readonly name: DiagnosticLabel;
   /**
    * Run before the next phase starts.
    * Receives accumulated context, returns updated context or failure.

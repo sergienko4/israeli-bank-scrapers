@@ -11,10 +11,10 @@ import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/L
 import type {
   ICookieSnapshot,
   IElementMediator,
-} from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NO_ERRORS } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
-import { createPostLoginStep } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NO_ERRORS } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
+import { createPostLoginStep } from '../../../../Scrapers/Pipeline/Phases/Login/LoginSteps.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,

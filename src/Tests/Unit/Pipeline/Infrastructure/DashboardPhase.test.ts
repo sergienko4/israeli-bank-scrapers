@@ -8,12 +8,12 @@
 
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   createDashboardPhase,
   DashboardPhase,
-} from '../../../../Scrapers/Pipeline/Phases/DashboardPhase.js';
+} from '../../../../Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';

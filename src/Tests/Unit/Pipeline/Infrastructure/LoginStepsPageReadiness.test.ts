@@ -5,11 +5,11 @@
 
 import type { Locator, Page } from 'playwright-core';
 
+import { WK_HOME } from '../../../../Scrapers/Pipeline/Registry/WK/HomeWK.js';
 import {
   waitForAnyLoginLink,
   waitForFirstField,
-} from '../../../../Scrapers/Pipeline/Phases/GenericPreLoginSteps.js';
-import { WK_HOME } from '../../../../Scrapers/Pipeline/Registry/WK/HomeWK.js';
+} from '../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
 
 /**
  * Build a mock page where specific texts become visible.

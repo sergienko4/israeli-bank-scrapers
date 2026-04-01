@@ -6,7 +6,7 @@
 import type { Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
+import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { IPipelineLoginConfig } from '../../../../Scrapers/Pipeline/Types/PipelineLoginConfig.js';

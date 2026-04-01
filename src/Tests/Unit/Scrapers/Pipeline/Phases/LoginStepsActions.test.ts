@@ -1,20 +1,20 @@
 /**
- * Unit tests for LoginSteps.ts — loginAction and postLogin phases.
+ * Unit tests for LoginSteps.ts — loginAction phase.
+ * postLogin tests are in LoginStepsPostLogin.test.ts.
  * preLogin and error-detection tests are in LoginSteps.test.ts.
  */
 
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { LifecyclePromise } from '../../../../../Scrapers/Base/Interfaces/CallbackTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import type { IFieldContext } from '../../../../../Scrapers/Pipeline/Mediator/SelectorResolverPipeline.js';
-import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { IFieldContext } from '../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js';
+import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/Login/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeContextWithLogin,
-  makeMockBrowserState,
   makeMockContext,
   makeMockFullPage,
   makeMockLoginState,
@@ -43,6 +43,16 @@ const SUCCESS_FIELD_CTX: IFieldContext = {
   context: makeMockFullPage() as unknown as Page,
   resolvedVia: 'wellKnown',
   round: 'mainPage',
+};
+
+/** Minimal found IRaceResult for resolveAndClick mock return. */
+const MOCK_RACE_FOUND: IRaceResult = {
+  found: true,
+  locator: false,
+  candidate: false,
+  context: false,
+  index: 0,
+  value: '',
 };
 
 // ── loginAction ───────────────────────────────────────────
@@ -98,10 +108,10 @@ describe('LoginSteps/loginAction', () => {
       },
       /**
        * Return success for submit.
-       * @returns Succeed with field context.
+       * @returns Succeed with race result.
        */
-      resolveClickable: () => {
-        const r = succeed(SUCCESS_FIELD_CTX);
+      resolveAndClick: () => {
+        const r = succeed(MOCK_RACE_FOUND);
         return Promise.resolve(r);
       },
     });
@@ -148,7 +158,7 @@ describe('LoginSteps/loginAction', () => {
     expect(resolvedFields).toHaveLength(1);
   });
 
-  it('calls mediator.resolveClickable after all fields filled', async () => {
+  it('calls mediator.resolveAndClick after all fields filled', async () => {
     let isClickableCalled = false;
     const ctx = makeContextWithLogin();
     const mediator = makeMockMediator({
@@ -162,11 +172,11 @@ describe('LoginSteps/loginAction', () => {
       },
       /**
        * Track clickable call.
-       * @returns Succeed with field context.
+       * @returns Succeed with race result.
        */
-      resolveClickable: () => {
+      resolveAndClick: () => {
         isClickableCalled = true;
-        const r = succeed(SUCCESS_FIELD_CTX);
+        const r = succeed(MOCK_RACE_FOUND);
         return Promise.resolve(r);
       },
     });
@@ -193,7 +203,7 @@ describe('LoginSteps/loginAction', () => {
        * Fail for submit.
        * @returns Fail procedure.
        */
-      resolveClickable: () => {
+      resolveAndClick: () => {
         const r = fail(ScraperErrorTypes.Generic, 'submit not found');
         return Promise.resolve(r);
       },
@@ -220,10 +230,10 @@ describe('LoginSteps/loginAction', () => {
       },
       /**
        * Succeed for submit.
-       * @returns Succeed with field context.
+       * @returns Succeed with race result.
        */
-      resolveClickable: () => {
-        const r = succeed(SUCCESS_FIELD_CTX);
+      resolveAndClick: () => {
+        const r = succeed(MOCK_RACE_FOUND);
         return Promise.resolve(r);
       },
     });
@@ -232,161 +242,6 @@ describe('LoginSteps/loginAction', () => {
     const config = MAKE_LOGIN_CONFIG();
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(withMediator, withMediator);
-    expect(result.success).toBe(true);
-  });
-});
-
-// ── postLogin ─────────────────────────────────────────────
-
-describe('LoginSteps/postLogin', () => {
-  it('fails when browser is absent', async () => {
-    const page = makeMockFullPage();
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const mediator = makeMockMediator();
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ login: loginSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG();
-    const phase = createLoginPhase(config);
-    const result = await phase.post.execute(ctx, ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('No browser');
-  });
-
-  it('fails when login state is absent', async () => {
-    const page = makeMockFullPage();
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const mediator = makeMockMediator();
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ browser: browserSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG();
-    const phase = createLoginPhase(config);
-    const result = await phase.post.execute(ctx, ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('No login state');
-  });
-
-  it('fails when mediator is absent', async () => {
-    const page = makeMockFullPage();
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const ctx = makeMockContext({ browser: browserSome, login: loginSome });
-    const config = MAKE_LOGIN_CONFIG();
-    const phase = createLoginPhase(config);
-    const result = await phase.post.execute(ctx, ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('No mediator');
-  });
-
-  it('fails with InvalidPassword when discoverErrors finds errors', async () => {
-    const page = makeMockFullPage();
-    const mediator = makeMockMediator({
-      /**
-       * Return form error.
-       * @returns Error scan result.
-       */
-      discoverErrors: () =>
-        Promise.resolve({ hasErrors: true, errors: [], summary: 'פרטים שגויים' }),
-    });
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ browser: browserSome, login: loginSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG();
-    const phase = createLoginPhase(config);
-    const result = await phase.post.execute(ctx, ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorType).toBe('INVALID_PASSWORD');
-      expect(result.errorMessage).toContain('פרטים שגויים');
-    }
-  });
-
-  it('calls postAction when no errors detected', async () => {
-    const page = makeMockFullPage();
-    const postActionCalled: boolean[] = [];
-    const mediator = makeMockMediator({
-      /**
-       * Return no errors.
-       * @returns No-errors scan result.
-       */
-      discoverErrors: () => Promise.resolve({ hasErrors: false, errors: [], summary: '' }),
-    });
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ browser: browserSome, login: loginSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG({
-      /**
-       * Mock postAction — tracks calls.
-       * @returns True.
-       */
-      postAction: (): LifecyclePromise => {
-        postActionCalled.push(true);
-        return Promise.resolve();
-      },
-    });
-    const phase = createLoginPhase(config);
-    await phase.post.execute(ctx, ctx);
-    expect(postActionCalled).toHaveLength(1);
-  });
-
-  it('does NOT call postAction when errors detected', async () => {
-    const page = makeMockFullPage();
-    const postActionCalled: boolean[] = [];
-    const mediator = makeMockMediator({
-      /**
-       * Return form error.
-       * @returns Error scan result.
-       */
-      discoverErrors: () => Promise.resolve({ hasErrors: true, errors: [], summary: 'error' }),
-    });
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ browser: browserSome, login: loginSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG({
-      /**
-       * Mock postAction — should NOT be called.
-       * @returns True.
-       */
-      postAction: (): LifecyclePromise => {
-        postActionCalled.push(true);
-        return Promise.resolve();
-      },
-    });
-    const phase = createLoginPhase(config);
-    await phase.post.execute(ctx, ctx);
-    expect(postActionCalled).toHaveLength(0);
-  });
-
-  it('returns succeed(input) when no errors detected', async () => {
-    const page = makeMockFullPage();
-    const mediator = makeMockMediator({
-      /**
-       * Return no errors.
-       * @returns No-errors scan result.
-       */
-      discoverErrors: () => Promise.resolve({ hasErrors: false, errors: [], summary: '' }),
-    });
-    const browserState = makeMockBrowserState(page);
-    const browserSome = some(browserState);
-    const loginState = makeMockLoginState(page);
-    const loginSome = some(loginState);
-    const mediatorSome = some(mediator);
-    const ctx = makeMockContext({ browser: browserSome, login: loginSome, mediator: mediatorSome });
-    const config = MAKE_LOGIN_CONFIG();
-    const phase = createLoginPhase(config);
-    const result = await phase.post.execute(ctx, ctx);
     expect(result.success).toBe(true);
   });
 });
