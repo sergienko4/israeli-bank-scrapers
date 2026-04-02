@@ -9,8 +9,8 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   DEFAULT_FETCH_OPTS,
   type IFetchStrategy,
-} from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/ScrapeExecutor.js';
+} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IRawAccount } from '../../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';

@@ -14,8 +14,8 @@ import {
 import {
   findProxyAccountTemplate,
   findProxyTxnTemplate,
-} from '../../Strategy/Scrape/ProxyScrapeReplayStrategy.js';
-import { executeScrape } from '../../Strategy/ScrapeExecutor.js';
+} from '../../Strategy/Scrape/Proxy/ProxyScrapeReplayStrategy.js';
+import { executeScrape } from '../../Strategy/Scrape/ScrapeExecutor.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

@@ -1,22 +1,18 @@
 /**
- * Discount pipeline config — TRULY MINIMAL.
- * Bank provides ONLY credential field names.
- * NO scraper file needed — generic auto-scrape via ctx.api + WellKnown.
+ * Discount pipeline — portal redirect handled by PRE-LOGIN phase.
+ * All URLs resolved from ctx.config at runtime. Zero hardcoded strings.
+ * PRE-LOGIN reads ctx.config.urls.portalUrl and navigates there.
  */
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { createPipelineBuilder } from '../../PipelineBuilder.js';
-import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import { createPipelineBuilder } from '../../Core/PipelineBuilder.js';
+import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
-const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Discount];
-
-/** Discount login config — ONLY credential fields. Everything else is generic. */
+/** Discount login fields — credential keys only. WellKnown resolves selectors. */
 const DISCOUNT_LOGIN: ILoginConfig = {
-  loginUrl: CFG.urls.base || '',
+  loginUrl: 'https://www.discountbank.co.il',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -28,9 +24,9 @@ const DISCOUNT_LOGIN: ILoginConfig = {
 
 /**
  * Build the Discount pipeline descriptor.
- * NO withScraper — uses generic auto-scrape (ctx.api + WellKnown).
+ * Portal redirect handled by PRE-LOGIN reading ctx.config.urls.portalUrl.
  * @param options - Scraper options from the user.
- * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
+ * @returns Pipeline descriptor.
  */
 function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

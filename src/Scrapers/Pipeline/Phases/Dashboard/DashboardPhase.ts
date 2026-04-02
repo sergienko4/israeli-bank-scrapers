@@ -13,7 +13,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { executeDashboardAction, executeDashboardPost } from './DashboardActions.js';
 import { executePre } from './DashboardPreStep.js';
 
-export { probeDashboardReveal } from '../../Strategy/DashboardDiscoveryStep.js';
+export { probeDashboardReveal } from '../../Mediator/Dashboard/DashboardDiscovery.js';
 
 /** DASHBOARD phase — Hard-Gated with BYPASS/TRIGGER strategy. */
 class DashboardPhase extends BasePhase {

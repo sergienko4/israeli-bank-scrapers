@@ -6,24 +6,24 @@
 import moment from 'moment';
 
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
-import {
-  extractAccountIds,
-  extractAccountRecords,
-  findFieldValue,
-} from '../../Mediator/Network/GenericScrapeStrategy.js';
 import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../Mediator/Network/NetworkDiscovery.js';
-import { scrapeAllAccounts } from '../../Phases/Scrape/ScrapeDispatchStep.js';
+import {
+  extractAccountIds,
+  extractAccountRecords,
+  findFieldValue,
+} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
+import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import { hasProxyStrategy, proxyScrape } from './ProxyScrapeReplayStrategy.js';
-import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataStrategy.js';
+import { hasProxyStrategy, proxyScrape } from './Proxy/ProxyScrapeReplayStrategy.js';
+import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
 import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
 /** Internal account ID used for billing API calls. */
@@ -247,7 +247,7 @@ async function pivotToSpaIfNeeded(
  * @returns Updated context with scraped accounts.
  */
 async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (hasProxyStrategy(ctx)) return proxyScrape(ctx);
+  if (hasProxyStrategy()) return proxyScrape(ctx);
   if (!ctx.api.has) return succeed(ctx);
   if (!ctx.mediator.has) return succeed(ctx);
   if (!ctx.browser.has) return succeed(ctx);
@@ -261,9 +261,18 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   const fc: IAccountFetchCtx = { api, network, startDate };
   let loadCtx = buildLoadAllCtx(fc, network, rawAccounts.value);
   loadCtx = applyCredentialFallback(loadCtx, ctx);
+  const idCount = String(loadCtx.ids.length);
+  const recCount = String(loadCtx.records.length);
+  process.stderr.write(
+    `[SCRAPE.ACTION] GenericAutoScrape: ${idCount} accounts, ${recCount} records\n`,
+  );
   const accounts = await scrapeAllAccounts(loadCtx);
   const startMs = parseStartDate(startDate).getTime();
   applyGlobalDateFilter(accounts, startMs);
+  const acctCount = String(accounts.length);
+  const totalTxns = accounts.reduce((sum, a) => sum + a.txns.length, 0);
+  const txnCount = String(totalTxns);
+  process.stderr.write(`[SCRAPE.ACTION] Result: ${acctCount} accounts, ${txnCount} txns\n`);
   return succeed({ ...ctx, scrape: some({ accounts: [...accounts] }) });
 }
 

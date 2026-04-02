@@ -5,11 +5,8 @@
 
 import type { Locator, Page } from 'playwright-core';
 
+import { waitForAnyLoginLink } from '../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
 import { WK_HOME } from '../../../../Scrapers/Pipeline/Registry/WK/HomeWK.js';
-import {
-  waitForAnyLoginLink,
-  waitForFirstField,
-} from '../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
 
 /**
  * Build a mock page where specific texts become visible.
@@ -88,16 +85,4 @@ describe('waitForAnyLoginLink', () => {
   });
 });
 
-describe('waitForFirstField', () => {
-  it('resolves true when field placeholder becomes visible', async () => {
-    const page = makeVisiblePage(['שם משתמש']);
-    const isReady = await waitForFirstField(page);
-    expect(isReady).toBe(true);
-  });
-
-  it('resolves false when no field text is visible', async () => {
-    const page = makeVisiblePage([]);
-    const isReady = await waitForFirstField(page);
-    expect(isReady).toBe(false);
-  });
-});
+// waitForFirstField tests removed — PRE-LOGIN.POST now uses input[type="password"] gate

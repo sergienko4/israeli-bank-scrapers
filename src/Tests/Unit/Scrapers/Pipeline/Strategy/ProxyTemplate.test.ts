@@ -6,7 +6,7 @@
 import {
   buildProxyUrl,
   injectDateParams,
-} from '../../../../../Scrapers/Pipeline/Strategy/ProxyTemplate.js';
+} from '../../../../../Scrapers/Pipeline/Strategy/Scrape/Proxy/ProxyTemplate.js';
 
 /** Whether a URL contains expected content. */
 type UrlCheck = boolean;

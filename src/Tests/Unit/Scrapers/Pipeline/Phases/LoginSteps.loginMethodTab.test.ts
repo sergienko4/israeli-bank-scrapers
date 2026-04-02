@@ -6,7 +6,7 @@
 
 import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
+import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginActions.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockFullPage, makeMockMediator } from '../MockPipelineFactories.js';

@@ -6,8 +6,8 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
-import { waitUntil } from '../../Phases/Timing/Waiting.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { waitUntil } from '../Timing/Waiting.js';
 import { IFRAME_DEFAULT_TIMEOUT_MS, IFRAME_POLL_INTERVAL_MS } from './ElementsInteractionConfig.js';
 import { capturePageText, type IWaitOptions } from './ElementsInteractions.js';
 

@@ -12,6 +12,18 @@ import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 import { succeed } from './Procedure.js';
 
+/** Lookup for success/fail trace tags. */
+const RESULT_TAG: Record<string, string> = { true: 'OK', false: 'FAIL' };
+
+/**
+ * Map Procedure success to trace tag.
+ * @param r - Procedure result.
+ * @returns 'OK' or 'FAIL'.
+ */
+function traceTag(r: Procedure<IPipelineContext>): string {
+  return RESULT_TAG[String(r.success)];
+}
+
 /** Abstract base for all pipeline phases. */
 abstract class BasePhase {
   /** Phase identifier — must match the pipeline execution order. */
@@ -84,12 +96,17 @@ abstract class BasePhase {
    */
   public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
     const preResult = await this.pre(ctx, ctx);
+    process.stderr.write(`  [${this.name}] PRE → ${traceTag(preResult)}\n`);
     if (!preResult.success) return preResult;
     const actionResult = await this.action(preResult.value, preResult.value);
+    process.stderr.write(`  [${this.name}] ACTION → ${traceTag(actionResult)}\n`);
     if (!actionResult.success) return actionResult;
     const postResult = await this.post(actionResult.value, actionResult.value);
+    process.stderr.write(`  [${this.name}] POST → ${traceTag(postResult)}\n`);
     if (!postResult.success) return postResult;
-    return this.final(postResult.value, postResult.value);
+    const finalResult = await this.final(postResult.value, postResult.value);
+    process.stderr.write(`  [${this.name}] FINAL → ${traceTag(finalResult)}\n`);
+    return finalResult;
   }
 }
 

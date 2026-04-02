@@ -1,10 +1,12 @@
 /**
- * Home phase WK constants — login entry, reveal, form check.
- * Isolated: NO imports from Login, Dashboard, or Scrape WK.
+ * HOME phase WK constants — login entry points only.
+ * NO reveal toggles — those belong to PRE-LOGIN (PreLoginWK.ts).
+ * Isolated: NO imports from PreLogin, Login, Dashboard, or Scrape WK.
  */
 
-/** Home phase WK — entry points, reveal toggles, form readiness checks. */
+/** HOME phase WK — entry points that navigate to the login page. */
 export const WK_HOME = {
+  /** Links/buttons that take the browser to the login page or open login modal. */
   ENTRY: [
     { kind: 'textContent', value: 'כניסה לחשבון' },
     { kind: 'textContent', value: 'כניסה לאיזור האישי' },
@@ -13,30 +15,7 @@ export const WK_HOME = {
     { kind: 'textContent', value: 'כניסה' },
     { kind: 'ariaLabel', value: 'כניסה לחשבון' },
   ],
-  REVEAL: [
-    { kind: 'textContent', value: 'לקוחות פרטיים' },
-    { kind: 'textContent', value: 'אזור אישי' },
-    { kind: 'textContent', value: 'כניסה עם סיסמה' },
-    { kind: 'textContent', value: 'כניסה לחשבון' },
-    { kind: 'textContent', value: 'כניסה רגילה' },
-    { kind: 'textContent', value: 'כניסה בסיסמה קבועה' },
-    { kind: 'textContent', value: 'כניסה עם שם משתמש' },
-    { kind: 'textContent', value: 'סיסמה קבועה' },
-    { kind: 'ariaLabel', value: 'כניסה עם סיסמה קבועה' },
-    { kind: 'ariaLabel', value: 'כניסה רגילה' },
-  ],
-  FIELD_READY: [
-    { kind: 'placeholder', value: 'תעודת זהות' },
-    { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'ת.ז' },
-    { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
-    { kind: 'placeholder', value: 'סיסמה' },
-    { kind: 'placeholder', value: 'קוד סודי' },
-    { kind: 'labelText', value: 'תעודת זהות' },
-    { kind: 'labelText', value: 'שם משתמש' },
-    { kind: 'labelText', value: 'סיסמה' },
-  ],
+  /** Form field readiness indicators — used by PRE-LOGIN.POST to detect form load. */
   FORM_CHECK: [
     { kind: 'labelText', value: 'תעודת זהות' },
     { kind: 'labelText', value: 'מספר זהות' },

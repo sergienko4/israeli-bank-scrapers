@@ -37,3 +37,5 @@ interface IPhaseDefinition<TIn, TOut> {
 }
 
 export type { IPhaseDefinition, IPipelineStep, PhaseName };
+
+/** Async hook executed during a pipeline phase. */

@@ -11,6 +11,7 @@
 
 export { WK_DASHBOARD } from './DashboardWK.js';
 export { WK_HOME } from './HomeWK.js';
-export { WK_CONCEPT_MAP, WK_LOGIN_FORM, WK_LOGIN_SUCCESS } from './LoginWK.js';
+export { WK_CONCEPT_MAP, WK_LOGIN_ERROR, WK_LOGIN_FORM } from './LoginWK.js';
+export { WK_PRELOGIN } from './PreLoginWK.js';
 export { ACCOUNT_SIGNATURE_KEYS, TXN_SIGNATURE_KEYS } from './ScrapeWK.js';
 export { WK_CLOSE_POPUP } from './SharedWK.js';

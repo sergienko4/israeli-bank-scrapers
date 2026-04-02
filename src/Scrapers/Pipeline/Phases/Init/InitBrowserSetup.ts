@@ -6,11 +6,11 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
+import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
+import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
-import { buildContextOptions } from './Browser.js';
-import { launchCamoufox } from './CamoufoxLauncher.js';
 
 /** Whether a close call succeeded. */
 type CloseDone = boolean;

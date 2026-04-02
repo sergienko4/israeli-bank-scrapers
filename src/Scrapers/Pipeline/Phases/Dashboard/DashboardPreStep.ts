@@ -3,14 +3,14 @@
  * Extracted from DashboardPhase.ts to respect max-lines.
  */
 
-import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import {
   extractTransactionHref,
   NO_HREF,
   probeSuccessIndicators,
   resolveAbsoluteHref,
   resolveDashboardStrategy,
-} from '../../Strategy/DashboardDiscoveryStep.js';
+} from '../../Mediator/Dashboard/DashboardDiscovery.js';
+import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

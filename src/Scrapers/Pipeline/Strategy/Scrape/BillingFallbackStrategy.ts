@@ -5,12 +5,12 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { IMonthChunk } from '../../Mediator/Network/GenericScrapeStrategy.js';
+import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscovery.js';
+import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import {
   extractTransactions,
   generateMonthChunks,
-} from '../../Mediator/Network/GenericScrapeStrategy.js';
-import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscovery.js';
+} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
@@ -19,7 +19,7 @@ import {
   deduplicateTxns,
   parseStartDate,
   rateLimitPause,
-} from './ScrapeDataStrategy.js';
+} from './ScrapeDataActions.js';
 import type {
   IAccountAssemblyCtx,
   IAccountFetchCtx,

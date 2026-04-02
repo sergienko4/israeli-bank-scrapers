@@ -8,7 +8,6 @@ import MizrahiScraper from '../Mizrahi/MizrahiScraper.js';
 import OneZeroScraper from '../OneZero/OneZeroScraper.js';
 import OtsarHahayalScraper from '../OtsarHahayal/OtsarHahayalScraper.js';
 import PagiScraper from '../Pagi/PagiScraper.js';
-import VisaCalScraper from '../VisaCal/VisaCalScraper.js';
 import YahavScraper from '../Yahav/YahavScraper.js';
 
 type ScraperFactory = (options: ScraperOptions) => IScraper<ScraperCredentials>;
@@ -54,12 +53,8 @@ const SCRAPER_REGISTRY_LEUMI_TO_YAHAV: Partial<Record<CompanyTypes, ScraperFacto
    * @returns OtsarHahayal scraper instance.
    */
   [CompanyTypes.OtsarHahayal]: options => new OtsarHahayalScraper(options),
-  /**
-   * Create a VisaCal scraper.
-   * @param options - Scraper configuration options.
-   * @returns VisaCal scraper instance.
-   */
-  [CompanyTypes.VisaCal]: options => new VisaCalScraper(options),
+  // VisaCal — handled by Pipeline (PIPELINE_REGISTRY)
+  // [CompanyTypes.VisaCal]: options => new VisaCalScraper(options),
   /**
    * Create a Yahav scraper.
    * @param options - Scraper configuration options.

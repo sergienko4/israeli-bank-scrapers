@@ -9,9 +9,9 @@ import type { BrowserContext, Frame, Page } from 'playwright-core';
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
-import type { IBankScraperConfig } from '../../Registry/Config/ScraperConfigDefaults.js';
 import type { IElementMediator } from '../Mediator/Elements/ElementMediator.js';
-import type { IFetchStrategy } from '../Strategy/FetchStrategy.js';
+import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
+import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
 import type { ScraperLogger } from './Debug.js';
 import type { Option } from './Option.js';
 import type { Procedure } from './Procedure.js';
@@ -45,6 +45,7 @@ interface ILoginState {
 interface IDashboardState {
   readonly isReady: PageReadyFlag;
   readonly pageUrl: PageUrlStr;
+  readonly trafficPrimed: PageReadyFlag;
 }
 
 /** Scrape phase result context. */
@@ -109,7 +110,7 @@ interface IPipelineContext {
   readonly companyId: CompanyTypes;
   readonly logger: ScraperLogger;
   readonly diagnostics: IDiagnosticsState;
-  readonly config: IBankScraperConfig;
+  readonly config: IPipelineBankConfig;
   readonly fetchStrategy: Option<IFetchStrategy>;
   readonly mediator: Option<IElementMediator>;
   readonly browser: Option<IBrowserState>;

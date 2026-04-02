@@ -5,19 +5,19 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Strategy/Fetch.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
   fetchGetWithinPageWithHeaders: jest.fn(),
 }));
 
-const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Strategy/Fetch.js');
+const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js');
 const STRATEGY_MOD =
-  await import('../../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js');
+  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js');
 const { makeMockFullPage: MAKE_MOCK_FULL_PAGE } = await import('../MockPipelineFactories.js');
 
 const { DEFAULT_FETCH_OPTS } =
-  await import('../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js');
+  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js');
 
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };

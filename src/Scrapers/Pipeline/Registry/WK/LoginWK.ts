@@ -27,6 +27,7 @@ export const WK_LOGIN_FORM = {
     { kind: 'name', value: 'nationalID' },
   ],
   password: [
+    { kind: 'xpath', value: '//input[@type="password"]' },
     { kind: 'placeholder', value: 'סיסמה' },
     { kind: 'placeholder', value: 'סיסמא' },
     { kind: 'placeholder', value: 'קוד סודי' },
@@ -77,21 +78,19 @@ export const WK_LOGIN_FORM = {
   ],
 } satisfies Record<string, readonly SelectorCandidate[]>;
 
-/** Login success indicators — raced by DashboardPhase. */
-export const WK_LOGIN_SUCCESS = [
-  { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
-  { kind: 'regex', value: '^שלום\\s+\\S+' },
-  { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
-  { kind: 'regex', value: '^Hello,?\\s+\\w+' },
-  { kind: 'textContent', value: 'יציאה' },
-  { kind: 'textContent', value: 'התנתק' },
-  { kind: 'textContent', value: 'כניסתך האחרונה' },
-  { kind: 'textContent', value: 'מצב החשבון' },
-  { kind: 'textContent', value: 'יתרת עו"ש' },
-  { kind: 'textContent', value: 'עסקאות וחיובים' },
-  { kind: 'textContent', value: 'עסקאות אחרונות' },
-  { kind: 'textContent', value: 'תנועות אחרונות' },
-  { kind: 'textContent', value: 'יתרה' },
+/** Login error texts — detected by LOGIN.POST after form submission. */
+export const WK_LOGIN_ERROR = [
+  { kind: 'textContent', value: 'פרטים שגויים' },
+  { kind: 'textContent', value: 'שכחת את הפרטים?' },
+  { kind: 'textContent', value: 'שגיאה' },
+  { kind: 'textContent', value: 'או לשחזר בקלות' },
+  { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
+  { kind: 'textContent', value: 'אחד או יותר מהפרטים שהזנת שגויים' },
+  { kind: 'textContent', value: 'תהליך הזיהוי נכשל' },
+  { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
+  { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
+  { kind: 'textContent', value: 'תקינה' },
+  { kind: 'textContent', value: 'אינם תואמים' },
 ] as const;
 
 /** Credential key → FORM slot mapping. */

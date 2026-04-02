@@ -1,21 +1,17 @@
 /**
- * Amex (American Express Israel) pipeline config — TRULY MINIMAL.
- * NO scraper file needed — generic auto-scrape via ctx.api + WellKnown.
- * HomePhase clicks WK_FORM_FIELDS.credentialAreaIndicator to reveal the login form.
+ * Amex pipeline — 100% generic. Zero legacy imports.
+ * GenericAutoScrape handles everything via network traffic discovery.
  */
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { createPipelineBuilder } from '../../PipelineBuilder.js';
-import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import { createPipelineBuilder } from '../../Core/PipelineBuilder.js';
+import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
-const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Amex];
-
+/** Amex login config — credential keys only. WellKnown resolves selectors. */
 export const AMEX_LOGIN: ILoginConfig = {
-  loginUrl: CFG.urls.base || '',
+  loginUrl: '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -28,7 +24,7 @@ export const AMEX_LOGIN: ILoginConfig = {
 /**
  * Build the Amex pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
+ * @returns Pipeline descriptor.
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

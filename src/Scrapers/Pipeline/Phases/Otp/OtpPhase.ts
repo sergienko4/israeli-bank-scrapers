@@ -12,30 +12,11 @@
  * If no getOtpCode callback, OTP phase is skipped.
  */
 
-import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
-import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
+import detectOtpForm from '../../Mediator/Form/OtpProbe.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-
-/** Timeout for probing OTP form presence. */
-const OTP_PROBE_TIMEOUT = 3000;
-
-/**
- * Detect if an OTP form is present on the page.
- * Uses WellKnown otpCode candidates — if any is visible, OTP is required.
- * succeed(true) = OTP form detected. succeed(false) = no OTP (valid path).
- * @param input - Pipeline context with browser.
- * @returns Procedure with boolean detection result.
- */
-async function detectOtpForm(input: IPipelineContext): Promise<Procedure<boolean>> {
-  if (!input.mediator.has) return succeed(false);
-  const mediator = input.mediator.value;
-  const candidates = WK_LOGIN_FORM.mfa as unknown as readonly SelectorCandidate[];
-  const result = await mediator.resolveVisible(candidates, OTP_PROBE_TIMEOUT);
-  return succeed(result.found);
-}
 
 /**
  * Execute the OTP phase: detect OTP form, fill if present.
@@ -48,7 +29,13 @@ async function executeOtp(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const otpResult = await detectOtpForm(input).catch((): Procedure<boolean> => succeed(false));
+  if (!input.mediator.has) return succeed(input);
+  /**
+   * Fallback for probe error — OTP not required.
+   * @returns Succeed(false).
+   */
+  const fallback = (): Procedure<boolean> => succeed(false);
+  const otpResult = await detectOtpForm(input.mediator.value).catch(fallback);
   if (!isOk(otpResult) || !otpResult.value) return succeed(input);
   input.logger.debug('OTP form detected — handler not yet implemented');
   return succeed(input);

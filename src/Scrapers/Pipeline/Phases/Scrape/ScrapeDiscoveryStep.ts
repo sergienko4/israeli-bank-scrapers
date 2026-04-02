@@ -1,18 +1,17 @@
 /**
- * SCRAPE PRE step — behavioral qualification via ApiMediator.
- * Phase 23: Cards qualified by API response, not companyCode.
- * Proxy qualification in ScrapeProxyQualification.ts.
+ * SCRAPE PRE step — forensic priming + diagnostics.
+ * When trafficPrimed=false, delegates to Mediator's DashboardTrigger.
+ * All WK/DOM logic in Mediator — Phase is thin orchestration only.
  */
 
-import type { IProxyQualCtx } from '../../Strategy/Scrape/ScrapeProxyQualification.js';
-import { runProxyQualification } from '../../Strategy/Scrape/ScrapeProxyQualification.js';
+import { triggerDashboardUi } from '../../Mediator/Dashboard/DashboardTrigger.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 
-type HasProxy = boolean;
+type DidPrime = boolean;
 
 /**
  * Build the base diagnostics for scrape PRE.
@@ -21,40 +20,35 @@ type HasProxy = boolean;
  */
 function buildPreDiag(input: IPipelineContext): IPipelineContext['diagnostics'] {
   const nowMs = Date.now();
-  return {
-    ...input.diagnostics,
-    fetchStartMs: some(nowMs),
-    lastAction: 'scrape-pre',
-  };
+  return { ...input.diagnostics, fetchStartMs: some(nowMs), lastAction: 'scrape-pre' };
 }
 
 /**
- * Check if proxy qualification should run.
+ * Run forensic priming if dashboard was not primed.
+ * Delegates to Mediator's triggerDashboardUi — zero WK in Phase.
  * @param input - Pipeline context.
- * @returns True if proxy bank with mediator and API.
+ * @returns Procedure after priming attempt.
  */
-function canQualify(input: IPipelineContext): HasProxy {
-  const hasProxyBank: HasProxy = Boolean(input.config.auth.loginReqName);
-  return hasProxyBank && input.mediator.has && input.api.has;
+async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<DidPrime>> {
+  const isPrimed = !input.dashboard.has || input.dashboard.value.trafficPrimed;
+  if (isPrimed || !input.mediator.has) return succeed(true);
+  process.stderr.write('[PHASE: SCRAPE] [PRE] trafficPrimed=false -> Forensic via Mediator\n');
+  return triggerDashboardUi(input.mediator.value);
 }
 
 /**
- * SCRAPE PRE step — diagnostics + behavioral qualification.
+ * SCRAPE PRE step — forensic priming + diagnostics.
  * @param _ctx - Unused.
  * @param input - Pipeline context.
- * @returns Updated context with diagnostics and scrapeDiscovery.
+ * @returns Updated context with diagnostics.
  */
 async function scrapePreDiagnostics(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  await maybeForensicPrime(input);
   const diag = buildPreDiag(input);
-  if (!canQualify(input)) return succeed({ ...input, diagnostics: diag });
-  if (!input.mediator.has || !input.api.has) return succeed({ ...input, diagnostics: diag });
-  const network = input.mediator.value.network;
-  const api = input.api.value;
-  const pq: IProxyQualCtx = { input, diag, network, api };
-  return await runProxyQualification(pq);
+  return succeed({ ...input, diagnostics: diag });
 }
 
 /** SCRAPE PRE step. */

@@ -15,7 +15,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
+import { WK_LOGIN_ERROR } from '../../Registry/WK/LoginWK.js';
 
 /** Sentinel for elements with no CSS class attribute. */
 const NO_CLASS = 'no-class';
@@ -167,7 +167,7 @@ function toFormError(item: IRawDomItem): IFormError {
  * @returns True if text contains a known error phrase.
  */
 function isKnownErrorText(text: string): HasErrors {
-  const errorPatterns = WK_DASHBOARD.ERROR;
+  const errorPatterns = WK_LOGIN_ERROR;
   return errorPatterns.some((pattern): HasErrors => text.includes(pattern.value));
 }
 
@@ -252,7 +252,7 @@ async function probeWellKnownText(
 export async function checkFrameForErrors(
   frameOrPage: Page | Frame,
 ): Promise<IFormErrorScanResult> {
-  const candidates = WK_DASHBOARD.ERROR;
+  const candidates = WK_LOGIN_ERROR;
   const initial: Promise<IFormErrorScanResult> = Promise.resolve(NO_ERRORS);
   type TReduce = Promise<IFormErrorScanResult>;
   return candidates.reduce<TReduce>(async (prev, candidate): TReduce => {

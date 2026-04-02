@@ -4,7 +4,7 @@
  * Rule #9: Tests first, then code.
  */
 
-import { BrowserFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js';
+import { BrowserFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js';
 
 /** Whether the method exists on the prototype. */
 type HasMethod = boolean;

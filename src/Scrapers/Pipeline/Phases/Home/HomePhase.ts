@@ -7,28 +7,12 @@
  * FINAL:  default no-op (readiness signal added in follow-up)
  */
 
-import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { IElementMediator, IRaceResult } from '../../Mediator/Elements/ElementMediator.js';
-import { WK_HOME } from '../../Registry/WK/HomeWK.js';
-import { tryClickLoginLinkWithHref } from '../../Strategy/GenericPreLoginSteps.js';
+import { tryClickLoginLinkWithHref } from '../../Mediator/Home/HomeActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-
-/**
- * Probe for a credential field to confirm the form is present.
- * Used by FindLoginAreaPhase.POST.
- * @param mediator - Active mediator.
- * @returns Procedure with IRaceResult — found=true if form field detected.
- */
-export async function waitForCredentialsForm(
-  mediator: IElementMediator,
-): Promise<Procedure<IRaceResult>> {
-  const candidates = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
-  return mediator.resolveAndClick(candidates);
-}
 
 /** HOME phase — BasePhase with PRE/ACTION/POST implemented. */
 class HomePhase extends BasePhase {
@@ -47,9 +31,11 @@ class HomePhase extends BasePhase {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME PRE');
     const mediator = input.mediator.value;
-    const homepageUrl = input.config.urls.base ?? 'about:blank';
+    const homepageUrl = input.config.urls.base;
+    process.stderr.write(`    [HOME.PRE] navigating to ${homepageUrl}\n`);
     const navResult = await mediator.navigateTo(homepageUrl, { waitUntil: 'domcontentloaded' });
     if (!navResult.success) return navResult;
+    process.stderr.write(`    [HOME.PRE] landed on ${mediator.getCurrentUrl()}\n`);
     return succeed(input);
   }
 
@@ -68,6 +54,8 @@ class HomePhase extends BasePhase {
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME ACTION');
     const mediator = input.mediator.value;
     await tryClickLoginLinkWithHref(mediator);
+    const afterUrl = mediator.getCurrentUrl();
+    process.stderr.write(`    [HOME.ACTION] after login link click → ${afterUrl}\n`);
     return succeed(input);
   }
 

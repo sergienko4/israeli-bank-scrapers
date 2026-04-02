@@ -1,6 +1,6 @@
 /**
- * Post-login step — wait for settle, check errors, run postAction.
- * Extracted from LoginSteps.ts to respect max-lines.
+ * Post-login step — wait, check errors, run postAction via Mediator.
+ * All callback resolution delegated to Mediator/Form/PostActionResolver.
  */
 
 import type { Frame, Page } from 'playwright-core';
@@ -8,14 +8,12 @@ import type { Frame, Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { runPostCallback } from '../../Mediator/Form/PostActionResolver.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
-import { hasPipelinePostAction } from '../../Types/PipelineLoginConfig.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
-/** Timeout for post-login page settle (networkidle). */
 const SETTLE_TIMEOUT = 15000;
 
 /**
@@ -28,76 +26,10 @@ export async function waitForSubmitToSettle(mediator: IElementMediator): Promise
 }
 
 /**
- * Execute a callback safely, wrapping exceptions as Procedure failure.
- * @param action - The async callback to execute.
- * @returns Succeed or failure Procedure.
- */
-async function safeAction(action: () => Promise<void>): Promise<Procedure<void>> {
-  try {
-    await action();
-    return succeed(undefined);
-  } catch (err) {
-    const msg = toErrorMessage(err as Error);
-    return fail(ScraperErrorTypes.Generic, `Post-login: ${msg}`);
-  }
-}
-
-/**
- * Wrap a legacy postAction as an async callback.
- * @param fn - Legacy post-action function.
- * @param page - Browser page.
- * @returns Async callback.
- */
-function wrapLegacy(fn: (page: Page) => Promise<void>, page: Page): () => Promise<void> {
-  return async (): Promise<void> => {
-    await fn(page);
-  };
-}
-
-/**
- * Resolve the post-action callback function if any.
- * @param browserPage - Browser page.
- * @param config - Login config.
- * @param ctx - Pipeline context.
- * @returns Async callback or false.
- */
-function resolvePostAction(
-  browserPage: Page,
-  config: ILoginConfig,
-  ctx: IPipelineContext,
-): (() => Promise<void>) | false {
-  const hasPipelineCtx = hasPipelinePostAction(config);
-  const ctxFn = hasPipelineCtx && config.postActionWithCtx;
-  if (ctxFn)
-    return async (): Promise<void> => {
-      await ctxFn(browserPage, ctx);
-    };
-  if (!config.postAction) return false;
-  return wrapLegacy(config.postAction, browserPage);
-}
-
-/**
- * Run postAction callback if provided.
- * @param browserPage - Browser page.
- * @param config - Login config.
- * @param ctx - Pipeline context.
- * @returns Success or failure Procedure.
- */
-async function runCallback(
-  browserPage: Page,
-  config: ILoginConfig,
-  ctx: IPipelineContext,
-): Promise<Procedure<void>> {
-  const action = resolvePostAction(browserPage, config, ctx);
-  if (!action) return succeed(undefined);
-  return safeAction(action);
-}
-
-/**
  * Wait for loading, check for form errors.
  * @param mediator - Element mediator.
  * @param activeFrame - Login frame.
- * @returns Failure if errors found.
+ * @returns Failure if errors found, false otherwise.
  */
 async function checkFormErrors(
   mediator: IElementMediator,
@@ -114,27 +46,28 @@ async function checkFormErrors(
  * Execute the postLogin step body.
  * @param config - Bank's login config.
  * @param input - Context from loginAction.
- * @returns Success or login error with specific errorType.
+ * @returns Success or login error.
  */
 async function executePostLogin(
   config: ILoginConfig,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for postLogin');
-  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login state for postLogin');
-  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for postLogin');
-  const formError = await checkFormErrors(input.mediator.value, input.login.value.activeFrame);
+  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser');
+  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login state');
+  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator');
+  const mediator = input.mediator.value;
+  const formError = await checkFormErrors(mediator, input.login.value.activeFrame);
   if (formError) return formError;
-  await waitForSubmitToSettle(input.mediator.value);
-  const result = await runCallback(input.browser.value.page, config, input);
-  if (!result.success) return result;
+  await waitForSubmitToSettle(mediator);
+  const cbResult = await runPostCallback(input.browser.value.page, config, input);
+  if (!cbResult.success) return cbResult;
   return succeed(input);
 }
 
 /**
- * Create the postLogin step.
+ * Create the postLogin step from config.
  * @param config - Bank's login config.
- * @returns Pipeline step: wait + mediator error check + postAction.
+ * @returns Pipeline step for post-login validation.
  */
 function createPostLoginStep(
   config: ILoginConfig,
@@ -148,5 +81,7 @@ function createPostLoginStep(
     ): Promise<Procedure<IPipelineContext>> => await executePostLogin(config, input),
   };
 }
+
+export { executeLoginSignal } from '../../Mediator/Auth/LoginSignalProbe.js';
 
 export { createPostLoginStep };

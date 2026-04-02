@@ -9,7 +9,7 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
+import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -117,37 +117,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       warnings: [],
     },
     config: {
-      urls: { base: null, loginRoute: null, transactions: null },
-      api: {
-        base: null,
-        purchaseHistory: null,
-        card: null,
-        calTransactions: null,
-        calFrames: null,
-        calPending: null,
-        calInit: null,
-        calLoginResponse: null,
-        calOrigin: null,
-        calXSiteId: null,
-      },
-      auth: {
-        companyCode: null,
-        countryCode: null,
-        idType: null,
-        checkLevel: null,
-        organizationId: null,
-        loginReqName: null,
-      },
-      loginSetup: { isApiOnly: false, hasOtpConfirm: false, hasOtpCode: false },
-      format: {
-        date: null,
-        apiLang: null,
-        numItemsPerPage: null,
-        sortCode: null,
-        maxRowsPerRequest: null,
-      },
-      timing: { elementRenderMs: null, loginDelayMinMs: null, loginDelayMaxMs: null },
-      selectors: {},
+      urls: { base: 'https://test.bank' },
     },
     fetchStrategy: none(),
     mediator: none(),

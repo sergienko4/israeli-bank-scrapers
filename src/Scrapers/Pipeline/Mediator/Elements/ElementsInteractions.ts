@@ -7,8 +7,8 @@
 
 import { type Frame, type Page } from 'playwright-core';
 
-import { humanDelay } from '../../Phases/Timing/Waiting.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { humanDelay } from '../Timing/Waiting.js';
 import {
   CLICK_BUTTON_DELAY_MAX_MS,
   CLICK_BUTTON_DELAY_MIN_MS,
@@ -115,7 +115,7 @@ async function elementPresentOnPage(
   return (await pageOrFrame.locator(selector).count()) > 0;
 }
 
-export { deepFillInput, fillInput, setValue } from './ElementsInputHelpers.js';
+export { deepFillInput, fillInput, setValue } from './ElementsInputActions.js';
 export {
   waitUntilElementDisappear,
   waitUntilElementFound,

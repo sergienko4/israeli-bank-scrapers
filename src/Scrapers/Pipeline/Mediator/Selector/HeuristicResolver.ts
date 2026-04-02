@@ -64,15 +64,17 @@ const TEXT_INPUT_SELECTOR =
 async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
   const locator = frame.locator(PASSWORD_SELECTOR).first();
   const count = await locator.count().catch((): InputIndex => 0);
+  process.stderr.write(`      [HEURISTIC] input[type="password"] count=${String(count)}\n`);
   if (count === 0) return { selector: '', context: frame };
   const isVis: IsViable = await locator.isVisible().catch((): IsViable => false);
+  process.stderr.write(`      [HEURISTIC] input[type="password"] visible=${String(isVis)}\n`);
   if (!isVis) return { selector: '', context: frame };
   const elemId = await locator.getAttribute('id').catch((): HeuristicSelector => '');
   let selector = PASSWORD_SELECTOR;
   if (elemId) {
     selector = `#${elemId}`;
   }
-  LOG.debug('Round 3 (heuristic): resolved password → %s', selector);
+  process.stderr.write(`      [HEURISTIC] RESOLVED password → ${selector}\n`);
   return { selector, context: frame, kind: 'css' };
 }
 
@@ -210,12 +212,35 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
  * @param fieldKey - The credential key to resolve.
  * @returns IFieldContext if found, or false if heuristic failed.
  */
+/**
+ * Probe iframes first, then fall back to main frame.
+ * @param page - The Playwright page.
+ * @param fieldKey - The credential key to resolve.
+ * @returns IFieldContext if found, or false.
+ */
+async function probePageHeuristic(page: Page, fieldKey: string): Promise<IFieldContext | false> {
+  const iframeResult = await heuristicProbeIframes(page, fieldKey);
+  if (iframeResult) return iframeResult;
+  LOG.debug('Round 3 (heuristic): trying main page for "%s"', fieldKey);
+  const mainFrame = page.mainFrame();
+  const mainMatch = await heuristicResolveInFrame(mainFrame, fieldKey);
+  if (mainMatch.selector) return toHeuristicContext(mainMatch, fieldKey);
+  return false;
+}
+
+/**
+ * Try heuristic resolution — entry point called by PipelineFieldResolver.
+ * When pageOrFrame is a Page: searches all child iframes.
+ * When pageOrFrame is a Frame (scoped): probes THAT frame directly (sticky frame).
+ * @param pageOrFrame - The Playwright page or frame.
+ * @param fieldKey - The credential key to resolve.
+ * @returns IFieldContext if found, or false if heuristic failed.
+ */
 async function tryHeuristicProbe(
   pageOrFrame: Page | Frame,
   fieldKey: string,
 ): Promise<IFieldContext | false> {
-  if (isPage(pageOrFrame)) return heuristicProbeIframes(pageOrFrame, fieldKey);
-  // Scoped: probe this specific frame directly (sticky frame from previous field)
+  if (isPage(pageOrFrame)) return probePageHeuristic(pageOrFrame, fieldKey);
   const match = await heuristicResolveInFrame(pageOrFrame, fieldKey);
   if (!match.selector) return false;
   return toHeuristicContext(match, fieldKey);

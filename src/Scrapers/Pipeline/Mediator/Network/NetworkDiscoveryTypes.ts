@@ -2,7 +2,7 @@
  * Types for network discovery — discovered endpoints and discovery interface.
  */
 
-import type { IFetchOpts } from '../../Strategy/FetchStrategy.js';
+import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 
 /** Full URL of a captured API endpoint. */
 type CapturedUrl = string;

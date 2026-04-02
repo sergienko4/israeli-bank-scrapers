@@ -5,8 +5,8 @@ import {
   WELL_KNOWN_DASHBOARD_SELECTORS,
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../../../Registry/WellKnownSelectors.js';
-import { RACE_TIMED_OUT, raceTimeout } from '../../Phases/Timing/Waiting.js';
 import { getDebug } from '../../Types/Debug.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../Timing/Waiting.js';
 import {
   isClickableElement,
   isFillableInput,

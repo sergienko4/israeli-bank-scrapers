@@ -3,7 +3,7 @@
  * Covers: phase ordering, init/terminate placement, optional phases insertion.
  */
 
-import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
+import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,

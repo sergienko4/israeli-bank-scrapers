@@ -5,8 +5,8 @@
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/ScrapeExecutor.js';
+import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';

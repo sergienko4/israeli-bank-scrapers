@@ -1,20 +1,17 @@
 /**
- * Isracard pipeline config — TRULY MINIMAL.
- * NO scraper file needed — generic auto-scrape via ctx.api + WellKnown.
+ * Isracard pipeline — 100% generic. Zero legacy imports.
+ * GenericAutoScrape handles everything via network traffic discovery.
  */
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig.js';
-import { createPipelineBuilder } from '../../PipelineBuilder.js';
-import type { IPipelineDescriptor } from '../../PipelineDescriptor.js';
+import { createPipelineBuilder } from '../../Core/PipelineBuilder.js';
+import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
-const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Isracard];
-
+/** Isracard login config — credential keys only. WellKnown resolves selectors. */
 export const ISRACARD_LOGIN: ILoginConfig = {
-  loginUrl: CFG.urls.base || '',
+  loginUrl: '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },
@@ -27,7 +24,7 @@ export const ISRACARD_LOGIN: ILoginConfig = {
 /**
  * Build the Isracard pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline: init → home → login → dashboard → scrape → terminate.
+ * @returns Pipeline descriptor.
  */
 function buildIsracardPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()

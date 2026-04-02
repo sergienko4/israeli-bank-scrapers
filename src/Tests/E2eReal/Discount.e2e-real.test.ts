@@ -6,7 +6,6 @@ import {
   assertFailedLogin,
   assertSuccessfulScrape,
   BROWSER_ARGS,
-  lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
@@ -28,7 +27,7 @@ DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
   it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
-      startDate: lastMonthStartDate(),
+      startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });

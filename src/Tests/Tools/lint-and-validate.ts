@@ -31,14 +31,19 @@ for (const filePath of STAGED_FILES) {
     issues.push('[Rule #10] Playwright leaked into Phase.');
   }
 
-  // Async Safety: skip function declarations (function fetchX / function executeX)
-  // Only flags actual CALLS that aren't awaited, ignoring definitions
-  const dangling =
-    code.match(
-      /(?<!await\s+)(?<!async\s+)(?<!function\s+)(?<!const\s+)(?<!export\s+)(?:execute|fetch|run|step)\w+\(/g,
-    ) ?? [];
-  for (const call of dangling) {
-    issues.push(`[Async] Unawaited: ${call.replace('(', '')}`);
+  // Async Safety: find all execute/fetch/run/step calls, exclude awaited + declarations
+  const callPattern = /^.*(?:execute|fetch|run|step)\w+\(/gm;
+  const safePattern =
+    /await\s|async\s|function\s|const\s|export\s|return\s|import\s|describe\(|it\(|['"`]/;
+  const namePattern = /(?:execute|fetch|run|step)\w+/;
+  let callMatch = callPattern.exec(code);
+  while (callMatch) {
+    const line = callMatch[0];
+    if (!safePattern.test(line)) {
+      const nameMatch = namePattern.exec(line);
+      if (nameMatch) issues.push(`[Async] Unawaited: ${nameMatch[0]}`);
+    }
+    callMatch = callPattern.exec(code);
   }
 
   if (issues.length > 0) {

@@ -3,7 +3,7 @@
  * Verifies that throwing mappers/buildRequest are caught as Procedure failures.
  */
 
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/ScrapeExecutor.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IScrapeConfig } from '../../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';
 import {

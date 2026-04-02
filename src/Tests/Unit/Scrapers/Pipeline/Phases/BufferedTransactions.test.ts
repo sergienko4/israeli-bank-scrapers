@@ -6,7 +6,7 @@
  */
 
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
-import { tryBufferedResponse } from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapeDispatchStep.js';
+import { tryBufferedResponse } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeDispatch.js';
 import type {
   IAccountFetchCtx,
   IPostFetchCtx,

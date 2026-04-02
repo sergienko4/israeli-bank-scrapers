@@ -14,7 +14,7 @@ import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Element
 import {
   tryClickLoginLink,
   tryClosePopup,
-} from '../../../../Scrapers/Pipeline/Strategy/GenericPreLoginSteps.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {

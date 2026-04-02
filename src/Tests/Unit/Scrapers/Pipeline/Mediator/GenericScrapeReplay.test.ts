@@ -3,12 +3,12 @@
  * Covers both GET (URL template) and POST (body template) strategies.
  */
 
-import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Network/GenericScrapeReplayStrategy.js';
 import {
   generateMonthChunks,
   isRangeIterable,
   replaceField,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/GenericScrapeStrategy.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
 
 describe('replaceField', () => {
   it('replaces a WellKnown field by name', () => {

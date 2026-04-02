@@ -115,9 +115,11 @@ async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promi
   if (iframeResult.has) return iframeResult.value;
   const mainResult = await probeMainPage(opts);
   if ('isResolved' in mainResult) return mainResult;
-  // Round 3: Heuristic — bare iframe inputs by type (password anchor + positional)
+  // Round 3: Heuristic — input[type="password"] on main page + iframes
+  process.stderr.write(`      [RESOLVER] Round 3 heuristic for "${opts.field.credentialKey}"\n`);
   const heuristicResult = await tryHeuristicProbe(pageOrFrame, opts.field.credentialKey);
   if (heuristicResult) return heuristicResult;
+  process.stderr.write(`      [RESOLVER] All rounds failed for "${opts.field.credentialKey}"\n`);
   return buildNotFoundContext(opts);
 }
 

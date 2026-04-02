@@ -5,8 +5,8 @@
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
-import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
+import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import { executePipeline } from '../../../../Scrapers/Pipeline/Core/PipelineExecutor.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -40,7 +40,7 @@ function succeedExecute(_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
  * @returns Scraping result.
  */
 async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePipeline> {
-  return executePipeline(descriptor, MOCK_CREDENTIALS);
+  return await executePipeline(descriptor, MOCK_CREDENTIALS);
 }
 
 describe('PipelineExecutor/final-step', () => {

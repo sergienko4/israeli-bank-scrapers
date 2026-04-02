@@ -5,17 +5,6 @@
 
 /** Dashboard phase WK — post-authentication UI helpers. */
 export const WK_DASHBOARD = {
-  ERROR: [
-    { kind: 'textContent', value: 'פרטים שגויים' },
-    { kind: 'textContent', value: 'שכחת את הפרטים?' },
-    { kind: 'textContent', value: 'שגיאה' },
-    { kind: 'textContent', value: 'או לשחזר בקלות' },
-    { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
-    { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
-    { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
-    { kind: 'textContent', value: 'תקינה' },
-    { kind: 'textContent', value: 'אינם תואמים' },
-  ],
   VALIDATION_HINTS: [
     'כניסה באמצעות',
     'שדה חובה',
@@ -46,6 +35,17 @@ export const WK_DASHBOARD = {
     { kind: 'textContent', value: 'חיובים עתידיים' },
     { kind: 'textContent', value: 'צפייה בכרטיסים שלי' },
   ],
+  /** Menu expand triggers — collapsed menus that hide transaction links. */
+  MENU_EXPAND: [
+    { kind: 'textContent', value: 'פעולות' },
+    { kind: 'textContent', value: 'עו"ש' },
+    { kind: 'textContent', value: 'חשבון עו"ש' },
+    { kind: 'textContent', value: 'פעולות נוספות' },
+    { kind: 'textContent', value: 'תפריט' },
+    { kind: 'ariaLabel', value: 'פעולות' },
+    { kind: 'ariaLabel', value: 'תפריט' },
+    { kind: 'ariaLabel', value: 'עוד' },
+  ],
   TRANSACTIONS: [
     { kind: 'ariaLabel', value: 'עסקאות' },
     { kind: 'ariaLabel', value: 'תנועות' },
@@ -54,9 +54,10 @@ export const WK_DASHBOARD = {
     { kind: 'textContent', value: 'פירוט עסקאות' },
     { kind: 'textContent', value: 'עסקאות' },
     { kind: 'textContent', value: 'תנועות' },
-    { kind: 'textContent', value: 'פעולות' },
     { kind: 'textContent', value: 'תנועות אחרונות' },
     { kind: 'textContent', value: 'פירוט תנועות' },
+    { kind: 'textContent', value: 'תנועות בחשבון' },
+    { kind: 'textContent', value: 'תנועות עו"ש' },
   ],
   SKIP: [
     { kind: 'textContent', value: 'דלג' },
@@ -110,5 +111,22 @@ export const WK_DASHBOARD = {
     { kind: 'textContent', value: 'הצג תנועות' },
     { kind: 'ariaLabel', value: 'הצג' },
   ],
+  /** Success indicators — proves login completed and dashboard loaded. */
+  SUCCESS: [
+    { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
+    { kind: 'regex', value: '^שלום\\s+\\S+' },
+    { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
+    { kind: 'regex', value: '^Hello,?\\s+\\w+' },
+    { kind: 'textContent', value: 'יציאה' },
+    { kind: 'textContent', value: 'התנתק' },
+    { kind: 'textContent', value: 'כניסתך האחרונה' },
+    { kind: 'textContent', value: 'מצב החשבון' },
+    { kind: 'textContent', value: 'יתרת עו"ש' },
+    { kind: 'textContent', value: 'עסקאות וחיובים' },
+    { kind: 'textContent', value: 'עסקאות אחרונות' },
+    { kind: 'textContent', value: 'תנועות אחרונות' },
+    { kind: 'textContent', value: 'יתרה' },
+  ],
 } as const;
+
 export default WK_DASHBOARD;

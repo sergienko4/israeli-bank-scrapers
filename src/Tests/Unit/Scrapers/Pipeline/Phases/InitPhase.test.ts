@@ -11,17 +11,20 @@ import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Phases/Init/CamoufoxLauncher.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js',
   () => ({
     launchCamoufox: jest.fn(),
   }),
 );
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/Init/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-  ISRAEL_LOCALE: 'he-IL',
-  ISRAEL_TIMEZONE: 'Asia/Jerusalem',
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserContextBuilder.js',
+  () => ({
+    buildContextOptions: jest.fn().mockReturnValue({}),
+    ISRAEL_LOCALE: 'he-IL',
+    ISRAEL_TIMEZONE: 'Asia/Jerusalem',
+  }),
+);
 
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js',
@@ -46,7 +49,7 @@ jest.unstable_mockModule(
 );
 
 const CAMOUFOX_MOD =
-  await import('../../../../../Scrapers/Pipeline/Phases/Init/CamoufoxLauncher.js');
+  await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhase.js');
 
 // ── Helpers ────────────────────────────────────────────────

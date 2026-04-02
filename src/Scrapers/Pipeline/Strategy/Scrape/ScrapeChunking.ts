@@ -4,20 +4,20 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
-import type { JsonRecord } from '../../Mediator/Network/GenericScrapeReplayStrategy.js';
-import type { IMonthChunk } from '../../Mediator/Network/GenericScrapeStrategy.js';
+import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import {
   extractTransactions,
   generateMonthChunks,
   replaceField,
-} from '../../Mediator/Network/GenericScrapeStrategy.js';
+} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import {
   buildAccountResult,
   deduplicateTxns,
   parseStartDate,
   rateLimitPause,
-} from '../../Strategy/Scrape/ScrapeDataStrategy.js';
+} from '../../Strategy/Scrape/ScrapeDataActions.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { IAccountAssemblyCtx, IChunkingCtx } from './ScrapeTypes.js';

@@ -1,7 +1,7 @@
-import { BrowserFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js';
-import { DEFAULT_FETCH_OPTS } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
-import { GraphQLFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/GraphQLFetchStrategy.js';
-import { NativeFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/NativeFetchStrategy.js';
+import { BrowserFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js';
+import { DEFAULT_FETCH_OPTS } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import { GraphQLFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import { NativeFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { makeMockPage } from './MockFactories.js';
 
 /** Shorthand for default fetch opts. */

@@ -1,10 +1,8 @@
 import { CompanyTypes } from '../../Definitions.js';
-import AmexScraper from '../Amex/AmexScraper.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import BehatsdaaScraper from '../Behatsdaa/BehatsdaaScraper.js';
 import BeinleumiScraper from '../Beinleumi/BeinleumiScraper.js';
 import BeyahadBishvilhaScraper from '../BeyahadBishvilha/BeyahadBishvilhaScraper.js';
-import DiscountScraper from '../Discount/DiscountScraper.js';
 import HapoalimScraper from '../Hapoalim/HapoalimScraper.js';
 import IsracardScraper from '../Isracard/IsracardScraper.js';
 
@@ -16,12 +14,8 @@ export type ScraperFactory = (options: ScraperOptions) => IScraper<ScraperCreden
  * Split to stay within the max-dependencies limit.
  */
 const SCRAPER_REGISTRY_AMEX_TO_ISRACARD: Partial<Record<CompanyTypes, ScraperFactory>> = {
-  /**
-   * Create an Amex scraper.
-   * @param options - Scraper configuration options.
-   * @returns Amex scraper instance.
-   */
-  [CompanyTypes.Amex]: options => new AmexScraper(options),
+  // Amex — handled by Pipeline (PIPELINE_REGISTRY)
+  // [CompanyTypes.Amex]: options => new AmexScraper(options),
   /**
    * Create a Behatsdaa scraper.
    * @param options - Scraper configuration options.
@@ -40,12 +34,8 @@ const SCRAPER_REGISTRY_AMEX_TO_ISRACARD: Partial<Record<CompanyTypes, ScraperFac
    * @returns BeyahadBishvilha scraper instance.
    */
   [CompanyTypes.BeyahadBishvilha]: options => new BeyahadBishvilhaScraper(options),
-  /**
-   * Create a Discount scraper.
-   * @param options - Scraper configuration options.
-   * @returns Discount scraper instance.
-   */
-  [CompanyTypes.Discount]: options => new DiscountScraper(options),
+  // Discount — handled by Pipeline (PIPELINE_REGISTRY)
+  // [CompanyTypes.Discount]: options => new DiscountScraper(options),
   /**
    * Create a Hapoalim scraper.
    * @param options - Scraper configuration options.

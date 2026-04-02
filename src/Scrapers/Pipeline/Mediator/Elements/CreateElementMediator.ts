@@ -9,6 +9,7 @@ import type { Frame, Locator, Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
+import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { none, type Option, some } from '../../Types/Option.js';
@@ -291,6 +292,18 @@ function buildWalkUpLocators(ctx: Page | Frame, text: string): Locator[] {
 }
 
 /**
+ * Build locators for a clickableText candidate — innermost element with text.
+ * Excludes elements that have children also containing the text.
+ * @param ctx - Playwright Page or Frame context.
+ * @param text - Visible text to find.
+ * @returns Array of Playwright Locators targeting the most specific match.
+ */
+function buildClickableTextLocators(ctx: Page | Frame, text: string): Locator[] {
+  const innermost = `//*[contains(., "${text}") and not(.//*[contains(., "${text}")])]`;
+  return [ctx.locator(`xpath=${innermost}`).first()];
+}
+
+/**
  * Build a Playwright locator from a SelectorCandidate.
  * Handles textContent (walk-up), ariaLabel, placeholder, xpath, name kinds.
  * Works on both Page and Frame (for iframe search).
@@ -300,11 +313,13 @@ function buildWalkUpLocators(ctx: Page | Frame, text: string): Locator[] {
  */
 function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate): Locator[] {
   if (candidate.kind === 'textContent') return buildWalkUpLocators(ctx, candidate.value);
+  if (candidate.kind === 'clickableText') return buildClickableTextLocators(ctx, candidate.value);
   if (candidate.kind === 'ariaLabel')
     return [
       ctx.getByLabel(candidate.value).first(), // form inputs
-      ctx.getByRole('button', { name: candidate.value, exact: false }).first(), // accessible buttons
-      ctx.getByRole('link', { name: candidate.value, exact: false }).first(), // accessible links
+      ctx.getByRole('button', { name: candidate.value, exact: false }).first(),
+      ctx.getByRole('link', { name: candidate.value, exact: false }).first(),
+      ctx.getByRole('tab', { name: candidate.value, exact: false }).first(),
     ];
   if (candidate.kind === 'placeholder') return [ctx.getByPlaceholder(candidate.value).first()];
   if (candidate.kind === 'xpath') return [ctx.locator(candidate.value).first()];
@@ -535,12 +550,9 @@ function buildResolveVisible(page: Page): IElementMediator['resolveVisible'] {
  */
 function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
   return (candidates, timeoutMs?): Promise<Procedure<IRaceResult>> => {
-    if (candidates.length === 0) {
-      const emptyResult = succeed(NOT_FOUND_RESULT);
-      return Promise.resolve(emptyResult);
-    }
-    const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
-    return resolveAndClickImpl(page, candidates, timeout);
+    if (candidates.length === 0)
+      return resolveAndClickImpl(page, WK_LOGIN_FORM.submit, timeoutMs ?? CLICK_RACE_TIMEOUT);
+    return resolveAndClickImpl(page, candidates, timeoutMs ?? CLICK_RACE_TIMEOUT);
   };
 }
 

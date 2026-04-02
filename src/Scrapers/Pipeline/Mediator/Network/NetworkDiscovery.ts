@@ -10,7 +10,7 @@
 import type { Page, Response } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
-import type { IFetchOpts } from '../../Strategy/FetchStrategy.js';
+import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getDebug } from '../../Types/Debug.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
@@ -19,6 +19,8 @@ const LOG = getDebug('network-discovery');
 
 /** Whether a content-type header indicates a JSON API response. */
 type IsJsonContent = boolean;
+/** Whether a header value was new (not seen before). */
+type IsNew = boolean;
 /** Raw URL string of a discovered endpoint. */
 type EndpointUrl = string;
 /** Raw HTTP POST body string. */
@@ -331,12 +333,21 @@ function collectSourcedValues(
   headerNames: readonly string[],
 ): readonly ISourcedValue[] {
   const seen = new Set<string>();
-  return captured.reduce<ISourcedValue[]>((result, ep): ISourcedValue[] => {
+  const result: ISourcedValue[] = [];
+  /**
+   * Process one endpoint — extract header, dedup, collect.
+   * @param ep - Discovered endpoint.
+   * @returns True if value was new.
+   */
+  const processOne = (ep: IDiscoveredEndpoint): IsNew => {
     const val = extractHeader(ep, headerNames);
-    if (val === false || seen.has(val)) return result;
+    if (val === false || seen.has(val)) return false;
     seen.add(val);
-    return [...result, { value: val, sourceUrl: ep.url }];
-  }, []);
+    result.push({ value: val, sourceUrl: ep.url });
+    return true;
+  };
+  captured.forEach(processOne);
+  return result;
 }
 
 /**

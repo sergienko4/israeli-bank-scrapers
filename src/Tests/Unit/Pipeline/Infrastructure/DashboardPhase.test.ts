@@ -144,7 +144,7 @@ describe('DashboardPhase/POST', () => {
     if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
   });
 
-  it('hard-fails with UNPRIMED when strategy=TRIGGER and trafficCount=0', async () => {
+  it('soft-passes with trafficPrimed=false when strategy=TRIGGER and trafficCount=0', async () => {
     const baseCtx = makeDashCtx({ clickFound: false });
     const triggerCtx = {
       ...baseCtx,
@@ -152,8 +152,8 @@ describe('DashboardPhase/POST', () => {
     };
     const result = await PHASE.post(triggerCtx, triggerCtx);
     const isSuccess = isOk(result);
-    expect(isSuccess).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('UNPRIMED');
+    expect(isSuccess).toBe(true);
+    if (result.success) expect(result.value.dashboard.has).toBe(true);
   });
 
   it('succeeds for BYPASS strategy even with 0 traffic', async () => {

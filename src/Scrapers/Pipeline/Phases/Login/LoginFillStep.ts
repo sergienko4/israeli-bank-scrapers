@@ -15,7 +15,7 @@ import {
   fillFieldStep,
   type IFillAccum,
   type IFillContext,
-} from '../../Strategy/LoginScopeStep.js';
+} from '../../Mediator/Form/LoginScopeResolver.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
@@ -58,14 +58,17 @@ export interface IFillResult {
  * @returns Fill result with resolved context.
  */
 export async function fillOneField(opts: IFillFieldOpts): Promise<IFillResult> {
-  const result = await opts.mediator.resolveField(
-    opts.fill.credentialKey,
-    opts.fill.selectors,
-    opts.scopeContext,
-    opts.formSelector,
-  );
-  if (!result.success) return { isOk: false, procedure: result };
-  await deepFillInput(result.value.context, result.value.selector, opts.fill.value);
+  const { credentialKey, selectors, value } = opts.fill;
+  process.stderr.write(`    [LOGIN.FILL] resolving "${credentialKey}"...\n`);
+  const scope = opts.scopeContext;
+  const form = opts.formSelector;
+  const result = await opts.mediator.resolveField(credentialKey, selectors, scope, form);
+  if (!result.success) {
+    process.stderr.write(`    [LOGIN.FILL] "${credentialKey}" → NOT FOUND\n`);
+    return { isOk: false, procedure: result };
+  }
+  process.stderr.write(`    [LOGIN.FILL] "${credentialKey}" → FOUND\n`);
+  await deepFillInput(result.value.context, result.value.selector, value);
   return { isOk: true, procedure: succeed(true), resolvedContext: result.value.context };
 }
 

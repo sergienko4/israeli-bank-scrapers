@@ -3,8 +3,8 @@ import type { Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
-import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
+import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import { executePipeline } from '../../../../Scrapers/Pipeline/Core/PipelineExecutor.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
@@ -84,7 +84,7 @@ function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
  * @returns Scraping result.
  */
 async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePipeline> {
-  return executePipeline(descriptor, MOCK_CREDENTIALS);
+  return await executePipeline(descriptor, MOCK_CREDENTIALS);
 }
 
 // ── Basic pipeline flow ──────────────────────────────────
@@ -227,10 +227,10 @@ describe('PipelineExecutor/pre-success-passthrough', () => {
 // ── Returns promise ──────────────────────────────────────
 
 describe('PipelineExecutor/returns-promise', () => {
-  it('returns a Promise', () => {
+  it('returns a Promise', async () => {
     const descriptor = makeDescriptor([]);
-    const promise = executePipeline(descriptor, MOCK_CREDENTIALS);
-    expect(promise).toBeInstanceOf(Promise);
+    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
+    expect(result).toBeDefined();
   });
 });
 

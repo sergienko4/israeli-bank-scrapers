@@ -4,7 +4,10 @@
  */
 
 import { WK_DASHBOARD } from '../../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
-import { WK_LOGIN_FORM } from '../../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
+import {
+  WK_LOGIN_ERROR,
+  WK_LOGIN_FORM,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
 
 /** Whether a WK test predicate matches. */
 type WkMatch = boolean;
@@ -88,7 +91,6 @@ describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
 describe('WK.DASHBOARD/structure', () => {
   it('contains all expected dashboard keys', () => {
     const keys = Object.keys(WK_DASHBOARD);
-    expect(keys).toContain('ERROR');
     expect(keys).toContain('ACCOUNT');
     expect(keys).toContain('CHANGE_PWD');
     expect(keys).toContain('TRANSACTIONS');
@@ -113,15 +115,15 @@ describe('WK.DASHBOARD/zero-css', () => {
   });
 });
 
-describe('WK.DASHBOARD/ERROR', () => {
+describe('WK.LOGIN/ERROR', () => {
   it('ERROR contains VisaCal-specific error text', () => {
     /**
      * Extract value from candidate.
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.value;
-    const texts = WK_DASHBOARD.ERROR.map(toValue);
+    const toValue = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.value;
+    const texts = WK_LOGIN_ERROR.map(toValue);
     expect(texts).toContain('שם המשתמש או הסיסמה שהוזנו שגויים');
   });
 
@@ -131,8 +133,8 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate value string.
      */
-    const toValue = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.value;
-    const texts = WK_DASHBOARD.ERROR.map(toValue);
+    const toValue = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.value;
+    const texts = WK_LOGIN_ERROR.map(toValue);
     expect(texts).toContain('פרטים שגויים');
   });
 
@@ -142,8 +144,8 @@ describe('WK.DASHBOARD/ERROR', () => {
      * @param c - Selector candidate.
      * @returns Candidate kind string.
      */
-    const toKind = (c: (typeof WK_DASHBOARD.ERROR)[number]): WkValue => c.kind;
-    const kinds = WK_DASHBOARD.ERROR.map(toKind);
+    const toKind = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.kind;
+    const kinds = WK_LOGIN_ERROR.map(toKind);
     const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText']);
     /**
      * Check if kind is in allowed set.

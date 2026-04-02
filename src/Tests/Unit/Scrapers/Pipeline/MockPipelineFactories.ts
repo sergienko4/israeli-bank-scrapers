@@ -18,7 +18,7 @@ import type {
 } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
-import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
+import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,

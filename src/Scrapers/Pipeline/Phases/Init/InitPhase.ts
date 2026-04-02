@@ -7,7 +7,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import createElementMediator from '../../Mediator/Elements/CreateElementMediator.js';
-import { createBrowserFetchStrategy } from '../../Strategy/BrowserFetchStrategy.js';
+import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
