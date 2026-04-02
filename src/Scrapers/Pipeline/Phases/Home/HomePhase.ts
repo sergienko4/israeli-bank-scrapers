@@ -2,7 +2,7 @@
  * HOME phase — navigate from home page URL to the login page.
  *
  * PRE:    goto(urls.base) — "Homepage unreachable" on failure
- * ACTION: tryClosePopup → discover + click login link (WK.HOME.ENTRY)
+ * ACTION: discover + click login link (WK.HOME.ENTRY) — popup handled by interceptor
  * POST:   store discovered loginUrl in diagnostics
  * FINAL:  default no-op (readiness signal added in follow-up)
  */

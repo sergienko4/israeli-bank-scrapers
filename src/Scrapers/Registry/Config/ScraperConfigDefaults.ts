@@ -157,11 +157,12 @@ export const VISACAL_API: IBankScraperConfig['api'] = {
   base: null,
   purchaseHistory: null,
   card: null,
-  calTransactions: null,
-  calFrames: null,
-  calPending: null,
+  calTransactions:
+    'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
+  calFrames: 'https://api.cal-online.co.il/Frames/api/Frames/GetFrameStatus',
+  calPending: 'https://api.cal-online.co.il/Transactions/api/approvals/getClearanceRequests',
   calInit: null,
   calLoginResponse: null,
-  calOrigin: null,
-  calXSiteId: null,
+  calOrigin: 'https://digital-web.cal-online.co.il',
+  calXSiteId: '09031987-273E-2311-906C-8AF85B17C8D9',
 };

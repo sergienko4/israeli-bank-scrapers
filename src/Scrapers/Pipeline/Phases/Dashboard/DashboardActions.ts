@@ -20,11 +20,13 @@ async function executeDashboardAction(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD');
   if (!input.fetchStrategy.has) return succeed(input);
+  const mediator = input.mediator.value;
+  const network = mediator.network;
+  // Extract + cache auth BEFORE trigger — iframes detach after SPA pivot
+  await network.cacheAuthToken();
   const isTrigger = input.diagnostics.dashboardStrategy === 'TRIGGER';
-  if (isTrigger) {
-    await triggerDashboardUi(input.mediator.value);
-  }
-  const network = input.mediator.value.network;
+  if (isTrigger) await triggerDashboardUi(mediator);
+  // Build API context AFTER trigger — captures endpoint template from SPA traffic
   const apiCtx = await buildApiContext(network, input.fetchStrategy.value);
   return succeed({ ...input, api: some(apiCtx) });
 }

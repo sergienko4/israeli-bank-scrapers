@@ -74,7 +74,7 @@ function isJsonContentType(contentType: ContentTypeStr): IsJsonContent {
  */
 function extractRequestMeta(response: Response): {
   url: EndpointUrl;
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PUT';
   postData: PostBodyStr;
   contentType: ContentTypeStr;
   requestHeaders: Record<string, string>;
@@ -82,7 +82,7 @@ function extractRequestMeta(response: Response): {
   const headers = response.headers();
   const contentType = headers['content-type'] ?? NO_CONTENT_TYPE;
   const url = response.url();
-  const method = response.request().method() as 'GET' | 'POST';
+  const method = response.request().method() as 'GET' | 'POST' | 'PUT';
   const rawPost = response.request().postData();
   const postData = rawPost ?? NO_POST_DATA;
   const requestHeaders = response.request().headers();
@@ -100,7 +100,8 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
   try {
     const text = await response.text();
     const responseBody = JSON.parse(text) as unknown;
-    return { ...meta, responseBody, timestamp: Date.now() };
+    const responseHeaders = response.headers();
+    return { ...meta, responseHeaders, responseBody, timestamp: Date.now() };
   } catch {
     return false;
   }
@@ -142,11 +143,20 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
  * @returns True (always — fire-and-forget).
  */
 function handleResponse(captured: IDiscoveredEndpoint[], response: Response): CaptureResult {
+  const url = response.url();
+  const status = response.status();
+  const method = response.request().method();
   parseResponse(response)
     .then((endpoint): CaptureResult => {
+      const isInteresting = method === 'POST' || url.includes('/col-rest/');
+      if (!endpoint && isInteresting) {
+        const ct = response.headers()['content-type'] ?? 'none';
+        process.stderr.write(`    [NET] SKIP: ${method} ${url} (s=${String(status)} ct=${ct})\n`);
+      }
       if (!endpoint) return false;
       captured.push(endpoint);
-      LOG.debug('captured: %s %s', endpoint.method, endpoint.url);
+      const ref = endpoint.requestHeaders.referer || 'none';
+      process.stderr.write(`    [NET] captured: ${endpoint.method} ${endpoint.url} (ref=${ref})\n`);
       return true;
     })
     .catch((): CaptureResult => false);
@@ -236,7 +246,8 @@ function buildCoreMethods(
     discoverByPatterns: (patterns: readonly RegExp[]): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, patterns),
     /** @inheritdoc */
-    discoverSpaUrl: (): string | false => discoverSpaUrlFromTraffic(captured),
+    discoverSpaUrl: (currentOrigin?: string): string | false =>
+      discoverSpaUrlFromTraffic(captured, currentOrigin),
   };
 }
 
@@ -278,16 +289,21 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
  * @param captured - All captured endpoints.
  * @returns SPA URL or false.
  */
-function discoverSpaUrlFromTraffic(captured: readonly IDiscoveredEndpoint[]): string | false {
-  // Find an API endpoint (matches txn/accounts WellKnown) whose referer is a DIFFERENT domain
+/**
+ * Tier 1: Find SPA URL from cross-domain referer on WellKnown API endpoints.
+ * @param captured - All captured endpoints.
+ * @returns SPA URL or false.
+ */
+function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false {
   const apiPatterns = [
     ...PIPELINE_WELL_KNOWN_API.transactions,
     ...PIPELINE_WELL_KNOWN_API.accounts,
     ...PIPELINE_WELL_KNOWN_API.balance,
+    ...PIPELINE_WELL_KNOWN_API.auth,
   ];
   const apiEndpoint = captured.find((ep): PatternTest => {
-    const isApiEndpoint = apiPatterns.some((p): PatternTest => p.test(ep.url));
-    if (!isApiEndpoint) return false;
+    const isApi = apiPatterns.some((p): PatternTest => p.test(ep.url));
+    if (!isApi) return false;
     const referer = ep.requestHeaders.referer;
     if (!referer) return false;
     const epOrigin = new URL(ep.url).origin;
@@ -295,10 +311,258 @@ function discoverSpaUrlFromTraffic(captured: readonly IDiscoveredEndpoint[]): st
     return epOrigin !== refOrigin;
   });
   if (!apiEndpoint) return false;
-  const discoveredReferer = apiEndpoint.requestHeaders.referer;
-  if (!discoveredReferer) return false;
-  return discoveredReferer;
+  const ref = apiEndpoint.requestHeaders.referer;
+  if (!ref) return false;
+  LOG.debug('SPA Tier1 (referer): %s from %s', ref, apiEndpoint.url);
+  return ref;
 }
+
+/**
+ * Tier 2: Find SPA URL from CORS access-control-allow-origin response header.
+ * Generic W3C standard — every cross-origin API returns this header.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin for filtering.
+ * @returns SPA URL or false.
+ */
+/**
+ * Check if a CORS header reveals a cross-domain SPA.
+ * @param ep - Captured endpoint.
+ * @param pageOrigin - Current page origin.
+ * @returns SPA URL or false.
+ */
+function checkCorsHeader(ep: IDiscoveredEndpoint, pageOrigin: string): string | false {
+  const cors = ep.responseHeaders['access-control-allow-origin'];
+  if (!cors || cors === '*') return false;
+  const corsOrigin = new URL(cors).origin;
+  const epOrigin = new URL(ep.url).origin;
+  const isCross = corsOrigin !== epOrigin && corsOrigin !== pageOrigin;
+  if (!isCross) return false;
+  LOG.debug('SPA Tier2 (CORS): %s from %s', cors, ep.url);
+  return cors;
+}
+
+/**
+ * Tier 2: Find SPA URL from CORS allow-origin response header.
+ * @param captured - All captured endpoints.
+ * @param pageOrigin - Current page origin for filtering.
+ * @returns SPA URL or false.
+ */
+function findByCorsOrigin(
+  captured: readonly IDiscoveredEndpoint[],
+  pageOrigin: string,
+): string | false {
+  const hit = captured.find((ep): PatternTest => checkCorsHeader(ep, pageOrigin) !== false);
+  if (!hit) return false;
+  return checkCorsHeader(hit, pageOrigin);
+}
+
+/**
+ * Discover SPA URL from traffic — 2-tier: referer → CORS allow-origin.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin (optional).
+ * @returns SPA URL or false.
+ */
+/** URL pattern in JSON config bodies — matches https://sub.domain.co.il paths. */
+const CONFIG_URL_REGEX = /https:\/\/[\w-]+\.[\w.-]+\.\w{2,}/g;
+
+/**
+ * Tier 3: Scan captured JSON response bodies for cross-subdomain URLs.
+ * Config files (config.prod.json) often contain the SPA dashboard URL.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin.
+ * @returns SPA URL or false.
+ */
+/** Subdomains that are infrastructure, not SPA dashboards. */
+const INFRA_PREFIXES = ['api.', 'connect.', 'css.', 'cdn.', 'login.'];
+
+/**
+ * Check if a URL is a candidate SPA on the same parent domain.
+ * @param url - Discovered URL.
+ * @param currentHost - Current page hostname.
+ * @param parentDomain - Parent domain suffix.
+ * @returns True if candidate SPA.
+ */
+function isSpaCandidate(url: string, currentHost: string, parentDomain: string): PatternTest {
+  const host = new URL(url).hostname;
+  const isSameParent = host.endsWith(parentDomain);
+  const isDifferent = host !== currentHost;
+  const isNotInfra = !INFRA_PREFIXES.some((p): PatternTest => host.startsWith(p));
+  return isSameParent && isDifferent && isNotInfra;
+}
+
+/**
+ * Scan a single config endpoint body for SPA URLs.
+ * @param ep - Config endpoint.
+ * @param currentHost - Current hostname.
+ * @param parentDomain - Parent domain suffix.
+ * @returns SPA URL or false.
+ */
+function scanConfigBody(
+  ep: IDiscoveredEndpoint,
+  currentHost: string,
+  parentDomain: string,
+): string | false {
+  const body = JSON.stringify(ep.responseBody);
+  const urls = body.match(CONFIG_URL_REGEX);
+  if (!urls) return false;
+  const hit = urls.find((u): PatternTest => isSpaCandidate(u, currentHost, parentDomain));
+  if (!hit) return false;
+  LOG.debug('SPA Tier3 (config): %s from %s', hit, ep.url);
+  return hit;
+}
+
+/**
+ * Tier 3: Scan captured JSON config bodies for cross-subdomain URLs.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin.
+ * @returns SPA URL or false.
+ */
+function findByConfigBody(
+  captured: readonly IDiscoveredEndpoint[],
+  currentOrigin: string,
+): string | false {
+  const currentHost = new URL(currentOrigin).hostname;
+  const parentDomain = currentHost.split('.').slice(-3).join('.');
+  const configEps = captured.filter(
+    (ep): PatternTest => ep.url.includes('config') || ep.url.includes('settings'),
+  );
+  const hit = configEps.find(
+    (ep): PatternTest => scanConfigBody(ep, currentHost, parentDomain) !== false,
+  );
+  if (!hit) return false;
+  return scanConfigBody(hit, currentHost, parentDomain);
+}
+
+/**
+ * Discover SPA URL — 3-tier: referer → CORS → config body scan.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin (optional).
+ * @returns SPA URL or false.
+ */
+function discoverSpaUrlFromTraffic(
+  captured: readonly IDiscoveredEndpoint[],
+  currentOrigin?: string,
+): string | false {
+  const byReferer = findByReferer(captured);
+  if (byReferer) return byReferer;
+  if (!currentOrigin) return false;
+  const byCors = findByCorsOrigin(captured, currentOrigin);
+  if (byCors) return byCors;
+  return findByConfigBody(captured, currentOrigin);
+}
+
+// ── API Origin Discovery (Pre-Emptive Forensic) ─────────────
+
+/** URL pattern for API paths in JSON config bodies. */
+const API_PATH_REGEX = /https:\/\/[^"]+\/api\//gi;
+
+/**
+ * Tier 1: Scan config body for API URLs.
+ * @param captured - All captured endpoints.
+ * @returns API origin or false.
+ */
+/**
+ * Extract API origin from a single config endpoint body.
+ * @param ep - Config endpoint.
+ * @returns API origin or false.
+ */
+function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
+  const body = JSON.stringify(ep.responseBody);
+  const urls = body.match(API_PATH_REGEX);
+  if (!urls || urls.length === 0) return false;
+  const origin = new URL(urls[0]).origin;
+  LOG.debug('apiOrigin Tier1 (config): %s from %s', origin, ep.url);
+  return origin;
+}
+
+/**
+ * Tier 1: Scan config body for API URLs.
+ * @param captured - All captured endpoints.
+ * @returns API origin or false.
+ */
+function discoverApiFromConfig(captured: readonly IDiscoveredEndpoint[]): string | false {
+  const configEps = captured.filter(
+    (ep): PatternTest => ep.url.includes('config') || ep.url.includes('settings'),
+  );
+  const hit = configEps.find((ep): PatternTest => extractApiFromBody(ep) !== false);
+  if (!hit) return false;
+  return extractApiFromBody(hit);
+}
+
+/**
+ * Tier 2: Find API origin from api.* subdomain endpoints.
+ * @param captured - All captured endpoints.
+ * @returns API origin or false.
+ */
+function discoverApiFromSubdomain(captured: readonly IDiscoveredEndpoint[]): string | false {
+  const hit = captured.find((ep): PatternTest => new URL(ep.url).hostname.startsWith('api.'));
+  if (!hit) return false;
+  const origin = new URL(hit.url).origin;
+  LOG.debug('apiOrigin Tier2 (subdomain): %s', origin);
+  return origin;
+}
+
+/**
+ * Tier 3: Find API origin from any captured POST with /api/ in URL.
+ * @param captured - All captured endpoints.
+ * @returns API origin or false.
+ */
+function discoverApiFromPath(captured: readonly IDiscoveredEndpoint[]): string | false {
+  const hit = captured.find((ep): PatternTest => ep.method === 'POST' && ep.url.includes('/api/'));
+  if (!hit) return false;
+  const origin = new URL(hit.url).origin;
+  LOG.debug('apiOrigin Tier3 (path): %s', origin);
+  return origin;
+}
+
+/**
+ * Discover API origin — 3-tier: config body → api.* subdomain → /api/ path.
+ * @param captured - All captured endpoints.
+ * @returns API origin URL or false.
+ */
+function discoverApiOriginFromTraffic(captured: readonly IDiscoveredEndpoint[]): string | false {
+  const fromConfig = discoverApiFromConfig(captured);
+  if (fromConfig) return fromConfig;
+  const fromSubdomain = discoverApiFromSubdomain(captured);
+  if (fromSubdomain) return fromSubdomain;
+  return discoverApiFromPath(captured);
+}
+
+// ── Content-First Discovery ─────────────────────────────────
+
+/**
+ * Check if a JSON body contains any of the given field names.
+ * Stringifies the body and checks for key presence — lightweight, no BFS.
+ * @param body - Parsed JSON response body.
+ * @param fieldNames - WK field names to search for.
+ * @returns True if any field name found as a JSON key.
+ */
+function bodyHasFields(body: Record<string, string>, fieldNames: readonly string[]): PatternTest {
+  const json = JSON.stringify(body);
+  return fieldNames.some((f): PatternTest => json.includes(`"${f}"`));
+}
+
+/**
+ * Content-First: find captured endpoint whose body contains WK field names.
+ * Scans ALL captured JSON bodies — no URL matching needed.
+ * @param captured - All captured endpoints.
+ * @param fieldNames - WK field names (e.g. WK.accountId).
+ * @returns First matching endpoint or false.
+ */
+function discoverByContent(
+  captured: readonly IDiscoveredEndpoint[],
+  fieldNames: readonly string[],
+): IDiscoveredEndpoint | false {
+  const hit = captured.find((ep): PatternTest => {
+    if (!ep.responseBody) return false;
+    return bodyHasFields(ep.responseBody as Record<string, string>, fieldNames);
+  });
+  if (!hit) return false;
+  LOG.debug('Content discovery: found field in %s', hit.url);
+  return hit;
+}
+
+// ── Origin Utilities ────────────────────────────────────────
 
 /**
  * Extract bare origin (scheme+host) from a URL or origin string.
@@ -513,6 +777,113 @@ function buildBalUrlFromTraffic(
 }
 
 /**
+ * Check if any captured endpoint matches the patterns.
+ * @param captured - Live captured endpoints.
+ * @param patterns - WellKnown regex patterns.
+ * @returns First matching endpoint or false.
+ */
+function findTrafficHit(
+  captured: readonly IDiscoveredEndpoint[],
+  patterns: readonly RegExp[],
+): IDiscoveredEndpoint | false {
+  const hit = captured.find(
+    (ep): PatternTest =>
+      ep.responseBody !== undefined &&
+      ep.responseBody !== null &&
+      patterns.some((p): PatternTest => p.test(ep.url)),
+  );
+  return hit ?? false;
+}
+
+/** Bundled args for traffic waiting. */
+interface ITrafficWaitArgs {
+  readonly page: Page;
+  readonly captured: readonly IDiscoveredEndpoint[];
+  readonly patterns: readonly RegExp[];
+}
+
+/**
+ * Wait for a response matching WellKnown patterns via Playwright.
+ * Non-polling: uses Playwright's native event-driven response matching.
+ * @param args - Page, captured endpoints, and patterns.
+ * @param timeoutMs - Max wait time.
+ * @returns First matching endpoint or false on timeout.
+ */
+async function awaitTraffic(
+  args: ITrafficWaitArgs,
+  timeoutMs: number,
+): Promise<IDiscoveredEndpoint | false> {
+  const immediate = findTrafficHit(args.captured, args.patterns);
+  if (immediate) return immediate;
+  /**
+   * Match response URL against WellKnown patterns.
+   * @param r - Playwright response.
+   * @returns True if URL matches.
+   */
+  const matchUrl = (r: Response): PatternTest => {
+    const url = r.url();
+    return args.patterns.some((p): PatternTest => p.test(url));
+  };
+  await args.page.waitForResponse(matchUrl, { timeout: timeoutMs }).catch((): false => false);
+  return findTrafficHit(args.captured, args.patterns);
+}
+
+/**
+ * Create a network discovery instance bound to a page.
+ * Starts capturing immediately on creation.
+ * @param page - Playwright page to observe.
+ * @returns Network discovery interface.
+ */
+/** Timeout for fire-and-forget POST interceptor (ms). */
+const POST_INTERCEPT_TIMEOUT = 120_000;
+
+/**
+ * Intercept POST responses matching WellKnown patterns from any frame.
+ * `page.waitForResponse` captures cross-origin iframe traffic that
+ * `page.on('response')` misses. Generic for all banks.
+ * @param page - Playwright page.
+ * @param captured - Mutable captured endpoints array.
+ * @returns True (fire-and-forget).
+ */
+function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): CaptureResult {
+  const allPatterns = [
+    ...PIPELINE_WELL_KNOWN_API.auth,
+    ...PIPELINE_WELL_KNOWN_API.transactions,
+    ...PIPELINE_WELL_KNOWN_API.accounts,
+    ...PIPELINE_WELL_KNOWN_API.balance,
+  ];
+  /**
+   * Match POST requests against WellKnown patterns.
+   * @param r - Playwright response.
+   * @returns True if POST + URL matches.
+   */
+  /**
+   * Match POST/PUT requests against WellKnown patterns.
+   * @param r - Playwright response.
+   * @returns True if API method + URL matches.
+   */
+  const isWkApi = (r: Response): PatternTest => {
+    const method = r.request().method();
+    const isApiMethod = method === 'POST' || method === 'PUT';
+    const url = r.url();
+    return isApiMethod && allPatterns.some((p): PatternTest => p.test(url));
+  };
+  page
+    .waitForResponse(isWkApi, { timeout: POST_INTERCEPT_TIMEOUT })
+    .then(async (resp): Promise<CaptureResult> => {
+      const endpoint = await parseResponse(resp);
+      if (!endpoint) return false;
+      const isDupe = captured.some((ep): PatternTest => ep.url === endpoint.url);
+      if (isDupe) return false;
+      captured.push(endpoint);
+      process.stderr.write(`    [NET] intercepted POST: ${endpoint.url}\n`);
+      return true;
+    })
+    .catch((): CaptureResult => false);
+  return true;
+}
+
+/**
  * Create a network discovery instance bound to a page.
  * Starts capturing immediately on creation.
  * @param page - Playwright page to observe.
@@ -521,6 +892,7 @@ function buildBalUrlFromTraffic(
 function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
   page.on('response', (r: Response): CaptureResult => handleResponse(captured, r));
+  interceptPostResponses(page, captured);
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
   const headers = buildHeaderMethods(captured, page);
@@ -532,7 +904,62 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
     buildBalanceUrl: (accountId: string): string | false =>
       buildBalUrlFromTraffic(captured, accountId),
   };
-  return { ...core, ...endpoints, ...headers, ...urlBuilders };
+  const traffic = {
+    /** @inheritdoc */
+    waitForTraffic: (
+      patterns: readonly RegExp[],
+      timeoutMs: number,
+    ): Promise<IDiscoveredEndpoint | false> =>
+      awaitTraffic({ page, captured, patterns }, timeoutMs),
+  };
+  const authState = { cached: false as string | false };
+  /**
+   * Discover auth with cache support.
+   * @returns Token or false.
+   */
+  const cachedDiscoverAuth = async (): Promise<string | false> => {
+    if (authState.cached) return authState.cached;
+    return discoverAuthThreeTier(captured, page);
+  };
+  const authCache = {
+    /** @inheritdoc */
+    cacheAuthToken: async (): Promise<string | false> => {
+      const token = await discoverAuthThreeTier(captured, page);
+      if (token) {
+        authState.cached = token;
+        process.stderr.write(`    [NET] auth cached: ${token.slice(0, 20)}...\n`);
+      }
+      return authState.cached;
+    },
+    /** @inheritdoc */
+    discoverAuthToken: cachedDiscoverAuth,
+    /**
+     * Build headers with cached auth.
+     * @returns Fetch options with auth + origin + site-id.
+     */
+    buildDiscoveredHeaders: async (): Promise<IFetchOpts> => {
+      const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      const auth = await cachedDiscoverAuth();
+      if (auth) extraHeaders.authorization = auth;
+      const origin = headers.discoverOrigin();
+      if (origin) extraHeaders.Origin = origin;
+      if (origin) extraHeaders.Referer = origin;
+      const siteId = headers.discoverSiteId();
+      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      return { extraHeaders };
+    },
+  };
+  const apiOrigin = {
+    /** @inheritdoc */
+    discoverApiOrigin: (): string | false => discoverApiOriginFromTraffic(captured),
+  };
+  const contentScan = {
+    /** @inheritdoc */
+    discoverEndpointByContent: (fieldNames: readonly string[]): IDiscoveredEndpoint | false =>
+      discoverByContent(captured, fieldNames),
+  };
+  const base = { ...core, ...endpoints, ...headers, ...urlBuilders };
+  return { ...base, ...traffic, ...authCache, ...apiOrigin, ...contentScan };
 }
 
 export { distillHeaders } from '../Elements/HeaderDistillation.js';

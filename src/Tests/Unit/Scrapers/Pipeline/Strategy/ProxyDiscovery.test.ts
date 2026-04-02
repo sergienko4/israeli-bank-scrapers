@@ -27,6 +27,7 @@ function mockEp(url: string, responseBody: unknown): IDiscoveredEndpoint {
     responseBody,
     contentType: 'text/html',
     requestHeaders: {},
+    responseHeaders: {},
     timestamp: Date.now(),
   };
 }

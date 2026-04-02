@@ -32,7 +32,8 @@ async function runPhase(
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  const intercepted = await applyInterceptors(tracker, ctx);
+  const nextPhase = tracker.phases[index].name;
+  const intercepted = await applyInterceptors(tracker, ctx, nextPhase);
   if (!isOk(intercepted)) return intercepted;
   tracker.lastCtx = intercepted.value;
   return tracker.phases[index].run(intercepted.value);

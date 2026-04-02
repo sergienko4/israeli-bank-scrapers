@@ -6,6 +6,7 @@
 import { runAllCleanups } from '../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../Types/BasePhase.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
+import type { PhaseName } from '../Types/Phase.js';
 import type { IBrowserState, IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { isOk, succeed } from '../Types/Procedure.js';
@@ -47,30 +48,47 @@ export async function ensureBrowserCleanup(
  * @param interceptors - Ordered interceptor list.
  * @param ctx - Current pipeline context.
  * @param index - Current interceptor index.
+ * @param nextPhase - Name of the phase about to run.
+ * @returns Updated context or failure.
+ */
+/** Bundled args for interceptor reduction. */
+interface IInterceptorArgs {
+  readonly interceptors: readonly IPipelineInterceptor[];
+  readonly nextPhase: PhaseName;
+}
+
+/**
+ * Run interceptors sequentially.
+ * @param args - Interceptor list + next phase name.
+ * @param ctx - Current pipeline context.
+ * @param index - Current interceptor index.
  * @returns Updated context or failure.
  */
 async function runInterceptors(
-  interceptors: readonly IPipelineInterceptor[],
+  args: IInterceptorArgs,
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  if (index >= interceptors.length) return succeed(ctx);
-  const result = await interceptors[index].beforePhase(ctx);
+  if (index >= args.interceptors.length) return succeed(ctx);
+  const result = await args.interceptors[index].beforePhase(ctx, args.nextPhase);
   if (!isOk(result)) return result;
-  return await runInterceptors(interceptors, result.value, index + 1);
+  return await runInterceptors(args, result.value, index + 1);
 }
 
 /**
  * Apply interceptors if browser available.
  * @param tracker - Context tracker with interceptors.
  * @param ctx - Current pipeline context.
+ * @param nextPhase - Name of the phase about to run.
  * @returns Updated context after interceptors.
  */
 export async function applyInterceptors(
   tracker: IContextTracker,
   ctx: IPipelineContext,
+  nextPhase: PhaseName,
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.browser.has) return succeed(ctx);
   if (tracker.interceptors.length === 0) return succeed(ctx);
-  return await runInterceptors(tracker.interceptors, ctx, 0);
+  const args: IInterceptorArgs = { interceptors: tracker.interceptors, nextPhase };
+  return await runInterceptors(args, ctx, 0);
 }

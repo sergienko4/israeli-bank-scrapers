@@ -26,10 +26,16 @@ export const TXN_SIGNATURE_KEYS = /originalAmount|fullPurchaseDate|transactionDa
 
 /** WellKnown API endpoint patterns — regex patterns for network discovery. */
 export const PIPELINE_WELL_KNOWN_API = {
-  accounts: [/userAccountsData/i, /account\/init/i, /account\/info/i],
+  accounts: [
+    /userAccountsData/i,
+    /account\/init/i,
+    /account\/info/i,
+    /\/Init$/i,
+    /GetCOLMetadata/i,
+  ],
   transactions: [/transactionsDetails/i, /filteredTransactions/i, /lastTransactions/i],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
-  auth: [/authentication\/login/i, /verification/i, /loginSuccess/i],
+  auth: [/authentication\/login/i, /authentication\//i, /verification/i, /loginSuccess/i],
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
 } satisfies Record<string, RegExp[]>;
 

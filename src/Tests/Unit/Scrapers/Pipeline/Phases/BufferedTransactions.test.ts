@@ -31,6 +31,7 @@ function mockEndpoint(responseBody: unknown): IDiscoveredEndpoint {
     responseBody,
     contentType: 'application/json',
     requestHeaders: {},
+    responseHeaders: {},
     timestamp: Date.now(),
   };
 }
@@ -149,6 +150,26 @@ function mockFetchCtx(): IAccountFetchCtx {
        * @returns False.
        */
       buildBalanceUrl: (): false => false,
+      /**
+       * No traffic in mock.
+       * @returns False.
+       */
+      waitForTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No auth cache in mock.
+       * @returns False.
+       */
+      cacheAuthToken: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No API origin in mock.
+       * @returns False.
+       */
+      discoverApiOrigin: (): false => false,
+      /**
+       * No content match in mock.
+       * @returns False.
+       */
+      discoverEndpointByContent: (): false => false,
     },
     startDate: '20260101',
   };

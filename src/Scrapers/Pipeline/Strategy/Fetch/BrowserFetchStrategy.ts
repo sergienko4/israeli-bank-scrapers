@@ -4,7 +4,7 @@
  * Returns Procedure<T> — never throws.
  */
 
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../Base/Interface.js';
@@ -181,6 +181,32 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
   return succeed(true);
 }
 
+/** Whether target origin matches frame. */
+type OriginMatch = boolean;
+
+/**
+ * Find a frame matching the target URL's origin.
+ * @param page - Playwright page with attached frames.
+ * @param targetUrl - The API URL to fetch.
+ * @returns Matching frame, or the page itself.
+ */
+function resolveContext(page: Page, targetUrl: string): Page | Frame {
+  const targetOrigin = new URL(targetUrl).origin;
+  const pageOrigin = new URL(page.url()).origin;
+  if (targetOrigin === pageOrigin) return page;
+  const frame = page.frames().find((f): OriginMatch => {
+    const frameUrl = f.url();
+    if (!frameUrl || frameUrl === 'about:blank') return false;
+    return new URL(frameUrl).origin === targetOrigin;
+  });
+  if (frame) {
+    const frameUrl = frame.url().slice(0, 50);
+    process.stderr.write(`    [FETCH] using iframe context: ${frameUrl}\n`);
+    return frame;
+  }
+  return page;
+}
+
 /** Browser fetch — delegates to fetchPostWithinPage/fetchGetWithinPage. */
 class BrowserFetchStrategy implements IFetchStrategy {
   private readonly _page: Page;
@@ -205,7 +231,8 @@ class BrowserFetchStrategy implements IFetchStrategy {
     data: Record<string, string>,
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
-    return fetchPostWithinPage<T>(this._page, url, { data, extraHeaders: opts.extraHeaders })
+    const ctx = resolveContext(this._page, url);
+    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: opts.extraHeaders })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
@@ -218,12 +245,13 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
+    const ctx = resolveContext(this._page, url);
     if (!hasHeaders) {
-      return fetchGetWithinPage<T>(this._page, url, false)
+      return fetchGetWithinPage<T>(ctx, url, false)
         .then((result): Procedure<T> => resultToProcedure(result, url))
         .catch(catchError);
     }
-    return fetchGetWithinPageWithHeaders<T>(this._page, url, opts.extraHeaders)
+    return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }

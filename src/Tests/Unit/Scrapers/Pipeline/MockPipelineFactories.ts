@@ -157,6 +157,16 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns Self for chaining.
      */
     on: (): Page => ({}) as unknown as Page,
+    /**
+     * Mock waitForResponse — resolves immediately with no match.
+     * @returns Never-resolving promise (interceptor fire-and-forget).
+     */
+    waitForResponse: (): Promise<false> => Promise.race([]),
+    /**
+     * Mock frames — returns empty array (no iframes in test).
+     * @returns Empty array.
+     */
+    frames: (): Page[] => [],
   } as unknown as Page;
 }
 
@@ -474,6 +484,26 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       buildBalanceUrl: (): false => false,
+      /**
+       * No traffic in mock.
+       * @returns False.
+       */
+      waitForTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No auth cache in mock.
+       * @returns False.
+       */
+      cacheAuthToken: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No API origin in mock.
+       * @returns False.
+       */
+      discoverApiOrigin: (): false => false,
+      /**
+       * No content match in mock.
+       * @returns False.
+       */
+      discoverEndpointByContent: (): false => false,
     },
   };
   return { ...base, ...overrides };

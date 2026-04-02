@@ -7,7 +7,6 @@
 import type { Locator, Page } from 'playwright-core';
 
 import { WK_HOME } from '../../Registry/WK/HomeWK.js';
-import { WK_CLOSE_POPUP } from '../../Registry/WK/SharedWK.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
@@ -21,15 +20,6 @@ type FieldReady = boolean;
 
 /** Timeout for waiting for page readiness (login link visible). */
 const PAGE_READINESS_TIMEOUT = 30000;
-
-/**
- * Try to close a popup overlay using WellKnown closeElement candidates.
- * @param mediator - Element mediator with resolver.
- * @returns Procedure with IRaceResult.
- */
-async function tryClosePopup(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
-  return mediator.resolveAndClick(WK_CLOSE_POPUP);
-}
 
 /**
  * Try to click a login link using WellKnown loginLink candidates.
@@ -80,4 +70,4 @@ async function waitForAnyLoginLink(browserPage: Page): Promise<FieldReady> {
   return results.some((r): FieldReady => r.status === 'fulfilled');
 }
 
-export { tryClickLoginLink, tryClickLoginLinkWithHref, tryClosePopup, waitForAnyLoginLink };
+export { tryClickLoginLink, tryClickLoginLinkWithHref, waitForAnyLoginLink };

@@ -67,6 +67,16 @@ function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
      * @returns Self for chaining.
      */
     on: (): Page => ({}) as unknown as Page,
+    /**
+     * Mock waitForResponse — never resolves (fire-and-forget).
+     * @returns Never-resolving promise.
+     */
+    waitForResponse: (): Promise<false> => Promise.race([]),
+    /**
+     * Mock frames — no iframes in test.
+     * @returns Empty array.
+     */
+    frames: (): Page[] => [],
   } as unknown as Page;
 }
 

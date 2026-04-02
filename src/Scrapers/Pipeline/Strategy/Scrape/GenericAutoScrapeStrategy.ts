@@ -10,6 +10,7 @@ import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../Mediator/Network/NetworkDiscovery.js';
+import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
 import {
   extractAccountIds,
   extractAccountRecords,
@@ -71,9 +72,14 @@ async function discoverAndLoadAccounts(
   api: IApiFetchContext,
   network: INetworkDiscovery,
 ): Promise<Procedure<ApiPayload>> {
-  const endpoint = network.discoverAccountsEndpoint();
-  if (!endpoint) return succeed({});
-  return loadDiscovered<ApiPayload>(api, endpoint);
+  const byUrl = network.discoverAccountsEndpoint();
+  if (byUrl) return loadDiscovered<ApiPayload>(api, byUrl);
+  const byContent = network.discoverEndpointByContent([...WK.accountId]);
+  if (byContent) {
+    LOG.debug('[SCRAPE] Content discovery: %s', byContent.url);
+    return loadDiscovered<ApiPayload>(api, byContent);
+  }
+  return succeed({});
 }
 
 /** Parsed POST body with account info for fallback. */
@@ -242,6 +248,41 @@ async function pivotToSpaIfNeeded(
 }
 
 /**
+ * Bootstrap account IDs from Init API when 0 accounts discovered.
+ * Uses apiOrigin + auth token to call Init, extracts cardUniqueId.
+ * @param loadCtx - Current load context with 0 ids.
+ * @param api - API fetch context with auth headers.
+ * @param network - Network discovery for apiOrigin.
+ * @returns Updated context with seeded IDs, or unchanged.
+ */
+/**
+ * Apply Init API bootstrap when 0 accounts discovered.
+ * Delegates to Mediator's AccountBootstrap.
+ * @param loadCtx - Current load context.
+ * @param api - API fetch context.
+ * @param network - Network discovery (mediator).
+ * @returns Updated context with seeded IDs, or unchanged.
+ */
+/**
+ * Harvest accounts from sessionStorage when all other methods fail.
+ * Uses Content-First scan via mediator — generic for all SPAs.
+ * @param loadCtx - Current load context with 0 ids.
+ * @param ctx - Pipeline context with browser page.
+ * @returns Updated context with seeded IDs, or unchanged.
+ */
+async function applyStorageHarvest(
+  loadCtx: IFetchAllAccountsCtx,
+  ctx: IPipelineContext,
+): Promise<IFetchAllAccountsCtx> {
+  if (loadCtx.ids.length > 0) return loadCtx;
+  if (!ctx.browser.has) return loadCtx;
+  const page = ctx.browser.value.page;
+  const result = await harvestAccountsFromStorage(page);
+  if (result.ids.length === 0) return loadCtx;
+  return { ...loadCtx, ids: [...result.ids], records: [...result.records] };
+}
+
+/**
  * Generic auto-scrape — routes to proxy or legacy path.
  * @param ctx - Pipeline context.
  * @returns Updated context with scraped accounts.
@@ -261,6 +302,7 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   const fc: IAccountFetchCtx = { api, network, startDate };
   let loadCtx = buildLoadAllCtx(fc, network, rawAccounts.value);
   loadCtx = applyCredentialFallback(loadCtx, ctx);
+  loadCtx = await applyStorageHarvest(loadCtx, ctx);
   const idCount = String(loadCtx.ids.length);
   const recCount = String(loadCtx.records.length);
   process.stderr.write(

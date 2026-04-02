@@ -30,17 +30,17 @@ describe('VISACAL_LOGIN', () => {
     });
   });
 
-  describe('lifecycle hooks — reused from legacy VisaCal config', () => {
-    it('has checkReadiness (reused from VISACAL_LOGIN_CONFIG)', () => {
-      expect(VISACAL_LOGIN.checkReadiness).toBeDefined();
+  describe('declarative config — no legacy hooks', () => {
+    it('has no preAction (pipeline mediator handles)', () => {
+      expect(VISACAL_LOGIN).not.toHaveProperty('preAction');
     });
 
-    it('has postAction (reused from VISACAL_LOGIN_CONFIG)', () => {
-      expect(VISACAL_LOGIN.postAction).toBeDefined();
+    it('has no postAction (pipeline mediator handles)', () => {
+      expect(VISACAL_LOGIN).not.toHaveProperty('postAction');
     });
 
-    it('has preAction (reused from VISACAL_LOGIN_CONFIG)', () => {
-      expect(VISACAL_LOGIN.preAction).toBeDefined();
+    it('has no checkReadiness (pipeline mediator handles)', () => {
+      expect(VISACAL_LOGIN).not.toHaveProperty('checkReadiness');
     });
   });
 });

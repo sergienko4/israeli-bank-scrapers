@@ -66,6 +66,8 @@ interface IDiagnosticsState {
   readonly dashboardStrategy?: 'BYPASS' | 'TRIGGER';
   /** Target URL extracted in DASHBOARD.PRE for TRIGGER navigation. */
   readonly dashboardTargetUrl?: PageUrlStr;
+  /** Auth token discovered from iframe sessionStorage in DASHBOARD.FINAL. */
+  readonly discoveredAuth?: string | false;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */

@@ -49,6 +49,11 @@ export default async function executeLoginSignal(
     return fail(ScraperErrorTypes.Generic, 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies');
   }
   const revealInfo = await probeDashboardReveal(mediator);
+  const authToken = await mediator.network.discoverAuthToken();
+  const hasAuth = Boolean(authToken);
+  const authFound: Record<string, string> = { true: 'FOUND', false: 'NONE' };
+  const authLabel = authFound[String(hasAuth)];
+  process.stderr.write(`    [LOGIN.FINAL] authToken=${authLabel}\n`);
   input.logger.debug('[LOGIN.SIGNAL] %s', revealInfo);
   const diag = { ...input.diagnostics, lastAction: `login-signal (${revealInfo})` };
   return succeed({ ...input, diagnostics: diag });

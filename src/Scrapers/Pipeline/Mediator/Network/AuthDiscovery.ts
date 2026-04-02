@@ -6,7 +6,7 @@
  * All in the mediator — banks never know about auth.
  */
 
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IDiscoveredEndpoint } from './NetworkDiscovery.js';
@@ -15,7 +15,7 @@ import type { IDiscoveredEndpoint } from './NetworkDiscovery.js';
 const TOKEN_BODY_FIELDS = ['token', 'calConnectToken', 'access_token', 'authToken', 'jwt'];
 
 /** WellKnown sessionStorage keys for auth tokens. */
-const STORAGE_AUTH_KEYS = ['auth-module', 'auth', 'token', 'session'];
+const STORAGE_AUTH_KEYS = ['auth-module', 'auth', 'token', 'session', 'guid'];
 
 /** WellKnown request header names for auth. */
 const AUTH_HEADER_NAMES = ['authorization', 'x-auth-token'];
@@ -198,24 +198,229 @@ async function discoverFromStorage(page: Page): Promise<string | false> {
   return false;
 }
 
-// ── Public: 3-tier discovery ───────────────────────────
+// ── Tier 3b: ALL Frame SessionStorages ────────────────
 
 /**
- * Discover auth token: headers → response bodies → sessionStorage.
+ * Extract first valid token from a list of raw storage values.
+ * @param values - Non-empty storage values from frames.
+ * @returns Prefixed token or false.
+ */
+/**
+ * Check if a single raw value is a valid token.
+ * @param raw - Storage value.
+ * @returns Token or false.
+ */
+function checkOneValue(raw: StorageValue): string | false {
+  const token = tryParseJsonToken(raw);
+  if (token) {
+    process.stderr.write('    [AUTH] iframe token found (json)\n');
+    return token;
+  }
+  // Raw string > 20 chars — likely a GUID/token, prefix it
+  if (raw.length > 20) {
+    process.stderr.write(`    [AUTH] iframe raw token: ${raw.slice(0, 20)}...\n`);
+    return prefixToken(raw);
+  }
+  process.stderr.write(`    [AUTH] iframe raw value (short): ${raw}\n`);
+  return false;
+}
+
+/**
+ * Extract first valid token from a list of raw storage values.
+ * @param values - Non-empty storage values from frames.
+ * @returns Prefixed token or false.
+ */
+function extractFirstToken(values: readonly StorageValue[]): string | false {
+  const hit = values.find((v): IsTokenLike => checkOneValue(v) !== false);
+  if (!hit) return false;
+  return checkOneValue(hit);
+}
+
+/**
+ * Read sessionStorage from a single frame.
+ * @param frame - Playwright frame.
+ * @returns Raw storage value or sentinel.
+ */
+async function readFrameStorage(frame: Frame): Promise<StorageValue> {
+  return frame
+    .evaluate(
+      /**
+       * Read first non-empty sessionStorage auth value.
+       * @param keys - Storage key names.
+       * @returns First found value or sentinel.
+       */
+      (keys: StorageValue[]): StorageValue => {
+        const vals = keys.map((k): StorageValue => sessionStorage.getItem(k) ?? '');
+        return vals.find(Boolean) ?? 'NONE';
+      },
+      STORAGE_AUTH_KEYS,
+    )
+    .catch((): StorageValue => 'NONE');
+}
+
+/**
+ * Read auth token from sessionStorage of ALL page frames (iframes).
+ * Cross-origin iframes store tokens that main page can't see.
+ * @param page - Playwright page.
+ * @returns Token string or false.
+ */
+/**
+ * Dump sessionStorage keys from one frame for diagnostics.
+ * @param frame - Playwright frame.
+ * @returns Key list string.
+ */
+async function dumpFrameKeys(frame: Frame): Promise<string> {
+  const keys = await frame
+    .evaluate((): StorageValue => {
+      const allKeys = Object.keys(sessionStorage);
+      return allKeys.join(', ') || 'EMPTY';
+    })
+    .catch((): StorageValue => 'CROSS-ORIGIN');
+  const url = frame.url().slice(0, 50);
+  if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
+    process.stderr.write(`    [AUTH] frame ${url} keys=[${keys}]\n`);
+  }
+  return keys;
+}
+
+/**
+ * Read auth token from sessionStorage of ALL page frames.
+ * @param page - Playwright page.
+ * @returns Token string or false.
+ */
+async function discoverFromAllFrames(page: Page): Promise<string | false> {
+  const frames = page.frames();
+  const dumpPromises = frames.map(dumpFrameKeys);
+  await Promise.allSettled(dumpPromises);
+  const storagePromises = frames.map(readFrameStorage);
+  const results = await Promise.allSettled(storagePromises);
+  const values = results
+    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== 'NONE')
+    .map((r): StorageValue => (r as PromiseFulfilledResult<StorageValue>).value);
+  return extractFirstToken(values);
+}
+
+// ── Tier 3c: Scan ALL storage keys for tokens ────────
+
+/**
+ * Scan all sessionStorage keys in a frame for token-like JSON values.
+ * Generic — no key name assumptions. Checks TOKEN_BODY_FIELDS inside values.
+ * @param frame - Playwright frame.
+ * @returns Token or false.
+ */
+/**
+ * Read all JSON-like sessionStorage values from a frame.
+ * @param frame - Playwright frame.
+ * @returns Array of JSON strings.
+ */
+async function readAllJsonStorageValues(frame: Frame): Promise<readonly string[]> {
+  return frame
+    .evaluate((): string[] =>
+      Object.keys(sessionStorage)
+        .map((k): StorageValue => sessionStorage.getItem(k) ?? '')
+        .filter((v): IsTokenLike => v.startsWith('{')),
+    )
+    .catch((): string[] => []);
+}
+
+/**
+ * Scan all sessionStorage keys in a frame for token-like JSON values.
+ * @param frame - Playwright frame.
+ * @returns Token or false.
+ */
+async function scanFrameForTokens(frame: Frame): Promise<string | false> {
+  const allValues = await readAllJsonStorageValues(frame);
+  const tokenVal = allValues.find((v): IsTokenLike => tryParseJsonToken(v) !== false);
+  if (!tokenVal) return false;
+  process.stderr.write(`    [AUTH] Tier3c: token from frame ${frame.url().slice(0, 40)}\n`);
+  return tryParseJsonToken(tokenVal);
+}
+
+/**
+ * Tier 3c: Scan ALL storage keys across all frames for token-like values.
+ * @param page - Playwright page.
+ * @returns Token or false.
+ */
+async function discoverFromAllStorageKeys(page: Page): Promise<string | false> {
+  const frames = page.frames();
+  const scanPromises = frames.map(scanFrameForTokens);
+  const results = await Promise.allSettled(scanPromises);
+  const tokens = results
+    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== false)
+    .map((r): StorageValue => (r as PromiseFulfilledResult<string>).value);
+  if (tokens.length === 0) return false;
+  return tokens[0];
+}
+
+// ── Tier 4: Poll auth-module across all frames ───────
+
+/** Max polling time for auth-module to appear (ms). */
+const AUTH_POLL_TIMEOUT = 10_000;
+/** Poll interval (ms). */
+const AUTH_POLL_INTERVAL = 100;
+
+/**
+ * Poll all frames for auth-module until it appears or timeout.
+ * Uses Playwright waitForFunction per frame — native polling, no manual setTimeout.
+ * @param page - Playwright page.
+ * @returns Token or false.
+ */
+async function pollForAuthModule(page: Page): Promise<string | false> {
+  process.stderr.write('    [AUTH] polling auth-module across frames...\n');
+  const startMs = Date.now();
+  const frames = page.frames();
+  const waiters = frames.map(
+    (frame): Promise<string | false> =>
+      frame
+        .waitForFunction((): StorageValue => sessionStorage.getItem('auth-module') ?? '', {
+          polling: AUTH_POLL_INTERVAL,
+          timeout: AUTH_POLL_TIMEOUT,
+        })
+        .then(async (handle): Promise<string | false> => {
+          const raw = await handle.jsonValue();
+          if (!raw) return false;
+          return tryParseJsonToken(raw);
+        })
+        .catch((): false => false),
+  );
+  const results = await Promise.allSettled(waiters);
+  const tokens = results
+    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== false)
+    .map((r): StorageValue => (r as PromiseFulfilledResult<string>).value);
+  if (tokens.length === 0) return false;
+  const elapsed = String(Date.now() - startMs);
+  process.stderr.write(`    [AUTH] auth-module found after ${elapsed}ms\n`);
+  return tokens[0];
+}
+
+// ── Public: 5-tier discovery ───────────────────────────
+
+/**
+ * Discover auth token — 5 tiers:
+ * 1. Request headers (authorization)
+ * 2. Response bodies (token fields)
+ * 3a. Main page sessionStorage
+ * 3b. ALL iframe sessionStorages (instant)
+ * 4. Poll auth-module across all frames (up to 30s)
  * @param captured - Captured endpoints.
- * @param page - Playwright page for sessionStorage fallback.
+ * @param page - Playwright page.
  * @returns Auth token or false.
  */
 async function discoverAuthThreeTier(
   captured: readonly IDiscoveredEndpoint[],
   page: Page,
 ): Promise<string | false> {
-  // Prefer fresh sources (response body, sessionStorage) over stale captured headers
   const fromBody = discoverFromResponses(captured);
   if (fromBody) return fromBody;
   const fromStorage = await discoverFromStorage(page);
   if (fromStorage) return fromStorage;
-  return discoverFromHeaders(captured);
+  const fromFrames = await discoverFromAllFrames(page);
+  if (fromFrames) return fromFrames;
+  const fromAllKeys = await discoverFromAllStorageKeys(page);
+  if (fromAllKeys) return fromAllKeys;
+  const fromHeaders = discoverFromHeaders(captured);
+  if (fromHeaders) return fromHeaders;
+  return pollForAuthModule(page);
 }
 
 export { AUTH_HEADER_NAMES, discoverAuthThreeTier, discoverFromHeaders };

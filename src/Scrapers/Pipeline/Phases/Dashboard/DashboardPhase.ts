@@ -14,6 +14,7 @@ import { executeDashboardAction, executeDashboardPost } from './DashboardActions
 import { executePre } from './DashboardPreStep.js';
 
 export { probeDashboardReveal } from '../../Mediator/Dashboard/DashboardDiscovery.js';
+import { extractAuthFromContext } from '../../Mediator/Dashboard/DashboardProbe.js';
 
 /** DASHBOARD phase — Hard-Gated with BYPASS/TRIGGER strategy. */
 class DashboardPhase extends BasePhase {
@@ -70,19 +71,16 @@ class DashboardPhase extends BasePhase {
    * @param input - Pipeline context.
    * @returns Succeed with finalUrl, fail if not ready.
    */
-  public final(
+  public async final(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.dashboard.has) {
-      const err = fail(ScraperErrorTypes.Generic, 'DASHBOARD SIGNAL: not ready');
-      return Promise.resolve(err);
-    }
+    if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD SIGNAL: not ready');
     const dashUrl = input.dashboard.value.pageUrl;
-    const diag = { ...input.diagnostics, finalUrl: some(dashUrl) };
-    const result = succeed({ ...input, diagnostics: diag });
-    return Promise.resolve(result);
+    const discoveredAuth = await extractAuthFromContext(input);
+    const diag = { ...input.diagnostics, finalUrl: some(dashUrl), discoveredAuth };
+    return succeed({ ...input, diagnostics: diag });
   }
 }
 

@@ -38,6 +38,16 @@ function makeMockPage(): Page {
      * @returns Mock URL.
      */
     url: (): string => 'https://test.bank.co.il',
+    /**
+     * Mock waitForResponse — never resolves.
+     * @returns Never-resolving promise.
+     */
+    waitForResponse: (): Promise<false> => Promise.race([]),
+    /**
+     * Mock frames — no iframes.
+     * @returns Empty array.
+     */
+    frames: (): Page[] => [],
   };
   return self as unknown as Page;
 }

@@ -34,12 +34,13 @@ type BillingApiUrl = string;
 type MonthStr = string;
 
 /**
- * Build billing URL from accounts endpoint origin.
- * @param accountsUrl - Discovered accounts endpoint URL.
+ * Build billing URL from an endpoint origin.
+ * Uses the WK transaction path pattern from ScrapeWK.
+ * @param endpointUrl - Any captured endpoint URL on the API domain.
  * @returns Full billing API URL.
  */
-function buildBillingUrl(accountsUrl: BillingApiUrl): BillingApiUrl {
-  const apiBase = new URL(accountsUrl).origin;
+function buildBillingUrl(endpointUrl: BillingApiUrl): BillingApiUrl {
+  const apiBase = new URL(endpointUrl).origin;
   const path = '/Transactions/api/transactionsDetails/getCardTransactionsDetails';
   return `${apiBase}${path}`;
 }
@@ -154,9 +155,12 @@ async function tryBillingFallback(
   post: IPostFetchCtx,
   txnEndpoint?: IDiscoveredEndpoint | false,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const originSource = txnEndpoint ?? fc.network.discoverAccountsEndpoint();
-  if (!originSource) return fail(ScraperErrorTypes.Generic, 'No endpoint for billing origin');
-  const billingUrl = buildBillingUrl(originSource.url);
+  const originEp = txnEndpoint ?? fc.network.discoverAccountsEndpoint();
+  const epUrl = originEp && originEp.url;
+  const apiOrigin = epUrl || fc.network.discoverApiOrigin();
+  if (!apiOrigin) return fail(ScraperErrorTypes.Generic, 'No endpoint for billing origin');
+  const billingUrl = buildBillingUrl(apiOrigin);
+  process.stderr.write(`[SCRAPE.BILLING] url=${billingUrl}\n`);
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date());
   const ctx: IBillingChunkCtx = { fc, billingUrl, accountId: post.accountId };

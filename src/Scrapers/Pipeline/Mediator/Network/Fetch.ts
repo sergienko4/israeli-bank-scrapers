@@ -1,4 +1,4 @@
-import { type Page } from 'playwright-core';
+import { type Frame, type Page } from 'playwright-core';
 
 import type { Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
@@ -211,13 +211,12 @@ export async function fetchGraphql<TResult>(
 
 /**
  * GET request inside the browser context (cookies + CORS handled by browser).
- * The SPA pivot in ScrapePhase.PRE ensures the page is on the correct origin.
- * @param page - The Playwright page with an active session.
+ * @param context - The Playwright page or frame context.
  * @param url - The URL to fetch.
  * @returns A tuple of [responseBody, httpStatus].
  */
-async function evaluateGet(page: Page, url: UrlStr): Promise<readonly [string, number]> {
-  return page.evaluate(async (innerUrl: UrlStr): Promise<readonly [BodyStr, StatusCode]> => {
+async function evaluateGet(context: Page | Frame, url: UrlStr): Promise<readonly [string, number]> {
+  return context.evaluate(async (innerUrl: UrlStr): Promise<readonly [BodyStr, StatusCode]> => {
     const response = await fetch(innerUrl, { credentials: 'include' });
     if (response.status === 204) return ['', response.status] as const;
     return [await response.text(), response.status] as const;
@@ -226,17 +225,17 @@ async function evaluateGet(page: Page, url: UrlStr): Promise<readonly [string, n
 
 /**
  * GET request with custom headers inside the browser context.
- * @param page - The Playwright page.
+ * @param context - The Playwright page or frame context.
  * @param url - The URL to fetch.
  * @param headers - Extra headers to include.
  * @returns [responseText, statusCode].
  */
 async function evaluateGetWithHeaders(
-  page: Page,
+  context: Page | Frame,
   url: UrlStr,
   headers: Record<string, string>,
 ): Promise<readonly [string, number]> {
-  return page.evaluate(
+  return context.evaluate(
     async (args: {
       url: UrlStr;
       headers: Record<string, string>;
@@ -303,13 +302,13 @@ function handleParseError(opts: IParseErrorOpts): Nullable<Record<string, JsonVa
 
 /**
  * Perform a GET request inside a Playwright page context (with cookies).
- * @param page - The Playwright page with an active session.
+ * @param page - The Playwright page or frame context.
  * @param url - The URL to fetch.
  * @param shouldIgnoreErrors - Whether to swallow parse errors.
  * @returns The parsed JSON response body, or null on failure when errors are ignored.
  */
 export async function fetchGetWithinPage<TResult>(
-  page: Page,
+  page: Page | Frame,
   url: UrlStr,
   shouldIgnoreErrors = false,
 ): Promise<Nullable<TResult>> {
@@ -323,13 +322,13 @@ export async function fetchGetWithinPage<TResult>(
 
 /**
  * GET via browser page session with custom headers.
- * @param page - Playwright page.
+ * @param page - The Playwright page or frame context.
  * @param url - Target URL.
  * @param extraHeaders - Custom headers to include.
  * @returns Parsed JSON result or null.
  */
 export async function fetchGetWithinPageWithHeaders<TResult>(
-  page: Page,
+  page: Page | Frame,
   url: UrlStr,
   extraHeaders: Record<string, string>,
 ): Promise<Nullable<TResult>> {
@@ -377,15 +376,15 @@ async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, n
 /**
  * POST request via page.evaluate — runs inside the browser context.
  * The SPA pivot in ScrapePhase.PRE ensures the page is on the correct origin.
- * @param page - The Playwright page to execute the fetch in.
+ * @param context - The Playwright page or frame to execute the fetch in.
  * @param args - The URL, data, and extra headers.
  * @returns A tuple of [responseBody, httpStatus].
  */
 async function runPostEvaluate(
-  page: Page,
+  context: Page | Frame,
   args: IPostEvaluateArgs,
 ): Promise<readonly [string, number]> {
-  return page.evaluate(doPostFetch, args);
+  return context.evaluate(doPostFetch, args);
 }
 
 /** Options for parsing a POST-within-page response. */
@@ -420,13 +419,13 @@ function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, JsonVal
 
 /**
  * Perform a POST request inside a Playwright page context (with cookies).
- * @param page - The Playwright page with an active session.
+ * @param page - The Playwright page or frame context.
  * @param url - The URL to post to.
  * @param opts - Request body, optional extra headers, and error handling.
  * @returns The parsed JSON response body, or null on failure when errors are ignored.
  */
 export async function fetchPostWithinPage<TResult>(
-  page: Page,
+  page: Page | Frame,
   url: UrlStr,
   opts: IFetchPostOptions,
 ): Promise<Nullable<TResult>> {

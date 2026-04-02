@@ -18,7 +18,7 @@ interface IDiscoveredEndpoint {
   /** Full URL including query params. */
   readonly url: CapturedUrl;
   /** HTTP method (GET or POST). */
-  readonly method: 'GET' | 'POST';
+  readonly method: 'GET' | 'POST' | 'PUT';
   /** POST body if applicable. */
   readonly postData: CapturedPostData;
   /** Parsed JSON response body. */
@@ -27,6 +27,8 @@ interface IDiscoveredEndpoint {
   readonly contentType: CapturedContentType;
   /** Request headers sent by page JS (for auth token, origin, site ID). */
   readonly requestHeaders: Record<string, string>;
+  /** Response headers from server (for CORS, content-type, cookies). */
+  readonly responseHeaders: Record<string, string>;
   /** Capture timestamp (ms since epoch). */
   readonly timestamp: CaptureTimestamp;
 }
@@ -58,7 +60,12 @@ interface INetworkDiscovery {
    * Finds the referer of the first API-domain endpoint (the SPA that made the call).
    * @returns SPA URL or false if no cross-domain API calls captured.
    */
-  discoverSpaUrl(): string | false;
+  /**
+   * Discover SPA URL from traffic — Tier 1: cross-domain referer, Tier 2: CORS allow-origin.
+   * @param currentOrigin - Current page origin for CORS filtering.
+   * @returns SPA URL or false.
+   */
+  discoverSpaUrl(currentOrigin?: string): string | false;
 
   /**
    * Discover endpoint by WellKnown API category.
@@ -112,6 +119,40 @@ interface INetworkDiscovery {
    * @returns Balance URL or false.
    */
   buildBalanceUrl(accountId: string): string | false;
+
+  /**
+   * Wait for a captured endpoint matching any pattern.
+   * Polls every 500ms. Succeeds immediately on first match with response body.
+   * @param patterns - WellKnown regex patterns to watch for.
+   * @param timeoutMs - Max wait time.
+   * @returns First matching endpoint or false on timeout.
+   */
+  waitForTraffic(
+    patterns: readonly RegExp[],
+    timeoutMs: number,
+  ): Promise<IDiscoveredEndpoint | false>;
+
+  /**
+   * Content-First: find captured endpoint whose response body contains field names.
+   * Scans ALL captured JSON bodies for WK field signatures.
+   * @param fieldNames - WK field names to search for (e.g. WK.accountId).
+   * @returns First matching endpoint or false.
+   */
+  discoverEndpointByContent(fieldNames: readonly string[]): IDiscoveredEndpoint | false;
+
+  /**
+   * Discover API origin from captured traffic.
+   * 3-tier: config body scan → api.* subdomain → /api/ path.
+   * @returns API origin URL or false.
+   */
+  discoverApiOrigin(): string | false;
+
+  /**
+   * Pre-cache auth token from iframes before SPA pivot detaches them.
+   * Subsequent discoverAuthToken calls return the cached value.
+   * @returns Cached token or false.
+   */
+  cacheAuthToken(): Promise<string | false>;
 }
 
 export type { IDiscoveredEndpoint, INetworkDiscovery };

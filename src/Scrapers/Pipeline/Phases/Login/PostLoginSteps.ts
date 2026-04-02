@@ -1,5 +1,6 @@
 /**
- * Post-login step — wait, check errors, run postAction via Mediator.
+ * Post-login step — wait for SSO/traffic, check errors, run postAction.
+ * Patient Observer: waits for organic SPA traffic from iframe SSO redirect.
  * All callback resolution delegated to Mediator/Form/PostActionResolver.
  */
 
@@ -7,6 +8,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
+import { waitForPostLoginTraffic } from '../../Mediator/Auth/PostLoginTrafficProbe.js';
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import { runPostCallback } from '../../Mediator/Form/PostActionResolver.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
@@ -58,7 +60,7 @@ async function executePostLogin(
   const mediator = input.mediator.value;
   const formError = await checkFormErrors(mediator, input.login.value.activeFrame);
   if (formError) return formError;
-  await waitForSubmitToSettle(mediator);
+  await waitForPostLoginTraffic(mediator);
   const cbResult = await runPostCallback(input.browser.value.page, config, input);
   if (!cbResult.success) return cbResult;
   return succeed(input);

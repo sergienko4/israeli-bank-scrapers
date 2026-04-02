@@ -21,9 +21,10 @@ interface IPipelineInterceptor {
    * Run before the next phase starts.
    * Receives accumulated context, returns updated context or failure.
    * @param ctx - Current pipeline context.
+   * @param nextPhase - Name of the phase about to run.
    * @returns Updated context or failure.
    */
-  beforePhase(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>>;
+  beforePhase(ctx: IPipelineContext, nextPhase: string): Promise<Procedure<IPipelineContext>>;
 }
 
 export default IPipelineInterceptor;

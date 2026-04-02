@@ -6,7 +6,7 @@
 import { VISACAL_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 
 describe('VISACAL_LOGIN.preAction', () => {
-  it('has preAction reused from legacy VisaCal config', () => {
-    expect(VISACAL_LOGIN.preAction).toBeDefined();
+  it('has no preAction — pipeline mediator handles navigation', () => {
+    expect(VISACAL_LOGIN).not.toHaveProperty('preAction');
   });
 });

@@ -27,7 +27,7 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js',
   () => ({
     createElementMediator: jest.fn().mockReturnValue({
       resolveField: jest.fn(),

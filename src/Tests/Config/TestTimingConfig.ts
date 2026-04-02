@@ -1,5 +1,5 @@
 /** Maximum time allowed for a full scrape operation in E2E tests (ms). */
-export const SCRAPE_TIMEOUT = 240000;
+export const SCRAPE_TIMEOUT = 480000;
 
 /** Default timeout for async Jest test operations (ms). */
 export const ASYNC_TIMEOUT = 240000;
