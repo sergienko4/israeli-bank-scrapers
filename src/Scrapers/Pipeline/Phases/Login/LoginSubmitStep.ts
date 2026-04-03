@@ -13,9 +13,10 @@ import { fail, succeed } from '../../Types/Procedure.js';
 
 /**
  * Execute the loginAction step body.
+ * Stores submit method in diagnostics so POST knows what to validate.
  * @param config - Bank's login config.
  * @param input - Context with login.activeFrame.
- * @returns Same context after filling + submitting.
+ * @returns Same context with submitMethod in diagnostics.
  */
 async function executeLoginAction(
   config: ILoginConfig,
@@ -27,7 +28,8 @@ async function executeLoginAction(
   const creds = input.credentials as Record<string, string>;
   const result = await fillAndSubmit(input.mediator.value, config, creds);
   if (!result.success) return result;
-  return succeed(input);
+  const diag = { ...input.diagnostics, submitMethod: result.value.method };
+  return succeed({ ...input, diagnostics: diag });
 }
 
 /**

@@ -75,36 +75,23 @@ async function isHiddenControlElement(ctx: Page | Frame, selector: SelectorStr):
     .catch(CATCH_FALSE);
 }
 
-/** AngularJS event descriptors: [name, bubbles]. */
-const ANGULAR_EVENTS: readonly [string, boolean][] = [
-  ['input', true],
-  ['change', false],
-  ['blur', false],
-];
-
-/**
- * Dispatch a list of events on an element.
- * @param el - Target DOM element.
- * @param events - Array of [name, bubbles] tuples.
- * @returns True after all events dispatched.
- */
-function dispatchEvents(el: Element, events: readonly [string, boolean][]): OpResult {
-  for (const [name, isBubbling] of events) {
-    const evt: Event = Reflect.construct(Event, [name, { bubbles: isBubbling }]);
-    el.dispatchEvent(evt);
-  }
-  return true;
-}
-
 /**
  * Browser-context: set input value and dispatch AngularJS events.
+ * Self-contained — all logic inline for Playwright evaluate() serialization.
+ * Works on ALL browsers (Chrome, Firefox, Camoufox).
  * @param el - DOM input element.
  * @param val - Value to set.
  * @returns True after events dispatched.
  */
 function dispatchAngularEvents(el: Element, val: InputValue): OpResult {
   (el as HTMLInputElement).value = val;
-  return dispatchEvents(el, ANGULAR_EVENTS);
+  const inputEvt = Reflect.construct(Event, ['input', { bubbles: true }]);
+  el.dispatchEvent(inputEvt);
+  const changeEvt = Reflect.construct(Event, ['change', { bubbles: false }]);
+  el.dispatchEvent(changeEvt);
+  const blurEvt = Reflect.construct(Event, ['blur', { bubbles: false }]);
+  el.dispatchEvent(blurEvt);
+  return true;
 }
 
 /**

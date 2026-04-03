@@ -59,6 +59,8 @@ export const WK_LOGIN_FORM = {
     { kind: 'textContent', value: 'קוד מזהה' },
   ],
   submit: [
+    { kind: 'xpath', value: '//button[@type="submit"]' },
+    { kind: 'xpath', value: '//input[@type="submit"]' },
     { kind: 'ariaLabel', value: 'כניסה' },
     { kind: 'ariaLabel', value: 'התחברות' },
     { kind: 'ariaLabel', value: 'התחבר' },

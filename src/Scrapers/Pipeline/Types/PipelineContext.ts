@@ -68,6 +68,8 @@ interface IDiagnosticsState {
   readonly dashboardTargetUrl?: PageUrlStr;
   /** Auth token discovered from iframe sessionStorage in DASHBOARD.FINAL. */
   readonly discoveredAuth?: string | false;
+  /** How the login form was submitted — used by POST to decide validation. */
+  readonly submitMethod?: 'enter' | 'click' | 'both';
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */

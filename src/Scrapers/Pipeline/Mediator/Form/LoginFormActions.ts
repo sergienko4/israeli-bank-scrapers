@@ -22,6 +22,15 @@ interface IFillAllResult {
   readonly frameContext: Page | Frame | undefined;
 }
 
+/** How the login form was submitted. */
+type SubmitMethod = 'enter' | 'click' | 'both';
+
+/** Result of fillAndSubmit — includes which submit method fired. */
+interface ISubmitResult {
+  readonly success: boolean;
+  readonly method: SubmitMethod;
+}
+
 /**
  * Normalize submit config to array. Empty = [] (mediator handles WK fallback).
  * @param submit - Single or array of candidates.
@@ -58,33 +67,82 @@ async function fillAllFields(
 }
 
 /**
- * Fill fields and click submit in the SAME frame context.
- * Scoping submit to the form's frame prevents clicking wrong-frame buttons.
+ * Try pressing Enter in the frame context to submit the form.
+ * @param frameCtx - Page or Frame where fields were filled (false if none).
+ * @returns True if Enter was pressed.
+ */
+async function tryEnterSubmit(frameCtx: Page | Frame | false): Promise<boolean> {
+  if (!frameCtx || !('press' in frameCtx)) return false;
+  const url = frameCtx.url().slice(0, 50);
+  process.stderr.write(`    [LOGIN.ACTION] pressing Enter in ${url}\n`);
+  await frameCtx.press('input', 'Enter').catch((): false => false);
+  return true;
+}
+
+/**
+ * Try clicking the submit button scoped to the discovered form.
+ * @param mediator - Element mediator.
+ * @param config - Login config.
+ * @returns Procedure succeed(true) if clicked, succeed(false) if not found, fail on error.
+ */
+async function tryClickSubmit(
+  mediator: IElementMediator,
+  config: ILoginConfig,
+): Promise<Procedure<boolean>> {
+  const candidates = normalizeSubmit(config.submit);
+  const scoped = mediator.scopeToForm(candidates);
+  const result = await mediator.resolveAndClick(scoped);
+  if (!result.success) return result;
+  if (!result.value.found) return succeed(false);
+  process.stderr.write(`    [LOGIN.ACTION] submit clicked: "${result.value.value}"\n`);
+  return succeed(true);
+}
+
+/**
+ * Fill fields then submit — Enter first, then Click.
+ * Returns which method fired so POST knows what to validate.
  * @param mediator - Element mediator.
  * @param config - Login config.
  * @param creds - Credentials map.
- * @returns Procedure with boolean result.
+ * @returns Procedure with ISubmitResult (method: enter|click|both).
  */
 async function fillAndSubmit(
   mediator: IElementMediator,
   config: ILoginConfig,
   creds: Record<string, string>,
-): Promise<Procedure<boolean>> {
+): Promise<Procedure<ISubmitResult>> {
   const count = String(config.fields.length);
   process.stderr.write(`    [LOGIN.ACTION] filling ${count} fields\n`);
   const fillResult = await fillAllFields(mediator, config.fields, creds);
   if (!fillResult.procedure.success) return fillResult.procedure;
-  // Press Enter in the focused frame (iframe form submit)
-  const frameCtx = fillResult.frameContext;
-  if (frameCtx && 'press' in frameCtx) {
-    process.stderr.write(`    [LOGIN.ACTION] pressing Enter in ${frameCtx.url().slice(0, 50)}\n`);
-    await frameCtx.press('input', 'Enter').catch((): false => false);
-  }
-  const candidates = normalizeSubmit(config.submit);
-  const submitResult = await mediator.resolveAndClick(candidates);
-  if (!submitResult.success) return submitResult;
-  process.stderr.write(`    [LOGIN.ACTION] submit clicked: "${submitResult.value.value}"\n`);
-  return succeed(submitResult.value.found);
+  const enterCtx = fillResult.frameContext ?? false;
+  const didEnter = await tryEnterSubmit(enterCtx);
+  const clickResult = await tryClickSubmit(mediator, config);
+  if (!clickResult.success && !didEnter) return clickResult;
+  const didClick = clickResult.success && clickResult.value;
+  const method = resolveSubmitMethod(didEnter, didClick);
+  process.stderr.write(`    [LOGIN.ACTION] submit method: ${method}\n`);
+  return succeed({ success: true, method });
+}
+
+/** Submit method lookup: [didEnter][didClick] → method. */
+const SUBMIT_METHOD_MAP: Record<string, SubmitMethod> = {
+  'true-true': 'both',
+  'true-false': 'enter',
+  'false-true': 'click',
+  'false-false': 'click',
+};
+
+/**
+ * Resolve which submit method was used from boolean flags.
+ * @param didEnter - Whether Enter was pressed.
+ * @param didClick - Whether submit button was clicked.
+ * @returns The submit method used.
+ */
+function resolveSubmitMethod(didEnter: boolean, didClick: boolean): SubmitMethod {
+  const key = `${String(didEnter)}-${String(didClick)}`;
+  return SUBMIT_METHOD_MAP[key];
 }
 
 export { fillAllFields, fillAndSubmit };
+export type { ISubmitResult, SubmitMethod };

@@ -8,6 +8,15 @@
 export const WK_PRELOGIN = {
   /** Form gate — universal check that the login form is rendered. */
   FORM_GATE: [{ kind: 'xpath', value: '//input[@type="password"]' }],
+  /** Submit gate — visible submit button proves the form is interactable. */
+  SUBMIT_GATE: [
+    { kind: 'xpath', value: '//button[@type="submit"]' },
+    { kind: 'xpath', value: '//input[@type="submit"]' },
+    {
+      kind: 'xpath',
+      value: '//button[contains(@ng-click,"login") or contains(@ng-click,"submit")]',
+    },
+  ],
   /** Reveal toggles — buttons/tabs that show the login form or switch login method. */
   REVEAL: [
     // clickableText — innermost element (tabs, buttons inside popups)
@@ -15,6 +24,7 @@ export const WK_PRELOGIN = {
     { kind: 'clickableText', value: 'כניסה עם סיסמה' },
     { kind: 'clickableText', value: 'כניסה רגילה' },
     { kind: 'clickableText', value: 'כניסה בסיסמה קבועה' },
+    { kind: 'clickableText', value: 'כניסה באמצעות סיסמה קבועה' },
     { kind: 'clickableText', value: 'סיסמה קבועה' },
     // ariaLabel — role-aware (tab, button, link)
     { kind: 'ariaLabel', value: 'כניסה עם שם משתמש' },

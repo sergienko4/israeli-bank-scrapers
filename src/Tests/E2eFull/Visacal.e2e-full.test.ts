@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
@@ -16,10 +15,6 @@ const hasCredentials = !!(process.env.VISACAL_USERNAME && process.env.VISACAL_PA
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
 DESCRIBE_IF('E2E: VisaCal (real credentials)', () => {
-  beforeAll(() => {
-    jest.setTimeout(SCRAPE_TIMEOUT);
-  });
-
   it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.VisaCal,
@@ -33,5 +28,5 @@ DESCRIBE_IF('E2E: VisaCal (real credentials)', () => {
 
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
-  });
+  }, SCRAPE_TIMEOUT);
 });

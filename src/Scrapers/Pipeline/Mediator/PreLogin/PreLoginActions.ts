@@ -44,12 +44,37 @@ async function waitForFormGate(mediator: IElementMediator): Promise<boolean> {
  * @param mediator - Element mediator (black box).
  * @returns True if password field found.
  */
+/**
+ * Guard: is the login form already visible AND interactable?
+ * Checks: 1) password input visible 2) submit button visible 3) both truly visible (no ng-hide).
+ * @param mediator - Element mediator (black box).
+ * @returns True ONLY if both are truly interactable.
+ */
+/**
+ * Guard: is the login form already visible AND interactable?
+ * Checks BOTH password input AND submit button are truly visible.
+ * If both exist → skip reveal (form is already rendered).
+ * If either missing → run reveal flow.
+ * @param mediator - Element mediator (black box).
+ * @returns True to skip reveal, false to run reveal.
+ */
 async function isFormAlreadyVisible(mediator: IElementMediator): Promise<boolean> {
-  const result = await mediator
+  const pwdResult = await mediator
     .resolveVisible(FORM_GATE, FORM_PROBE_TIMEOUT)
     .catch((): false => false);
-  if (!result) return false;
-  return result.found;
+  const hasPwd = pwdResult && pwdResult.found;
+  if (!hasPwd) {
+    process.stderr.write('    [PRE-LOGIN.PRE] guard: pwd=false → reveal\n');
+    return false;
+  }
+  const submitGate = WK_PRELOGIN.SUBMIT_GATE as unknown as readonly SelectorCandidate[];
+  const submitResult = await mediator
+    .resolveVisible(submitGate, FORM_PROBE_TIMEOUT)
+    .catch((): false => false);
+  const hasSubmit = submitResult && submitResult.found;
+  const tag = `pwd=true submit=${String(hasSubmit)}`;
+  process.stderr.write(`    [PRE-LOGIN.PRE] guard: ${tag}\n`);
+  return hasSubmit;
 }
 
 /**

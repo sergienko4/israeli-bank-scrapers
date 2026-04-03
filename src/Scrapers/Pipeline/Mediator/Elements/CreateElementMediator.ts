@@ -364,6 +364,54 @@ async function raceLocators(
   return winner.value;
 }
 
+/**
+ * Hit-test: check if the browser compositor can reach this element.
+ * Uses elementFromPoint at the element's center — handles ALL hiding:
+ * CSS 3D backface, ng-hide inheritance, z-index, overflow clip.
+ * @param locator - The Playwright locator to test.
+ * @returns True if the element is hit-testable at its center.
+ */
+async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
+  return locator.evaluate((el: Element): boolean => {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(cx, cy);
+    return el === hit || el.contains(hit);
+  }).catch((): IsVisible => false);
+}
+
+/**
+ * Race locators then validate winner with elementFromPoint hit-test.
+ * If winner fails hit-test, check remaining settled results.
+ * Falls back to first Playwright-visible if no hit-test passes.
+ * @param locators - Locators to race.
+ * @param timeout - Timeout in ms.
+ * @returns Index of first truly visible locator, or -1.
+ */
+async function raceLocatorsWithHitTest(
+  locators: Locator[],
+  timeout: number,
+): Promise<WinnerIndex> {
+  const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
+    await loc.waitFor({ state: 'visible', timeout });
+    return i;
+  });
+  const results = await Promise.allSettled(waiters);
+  const fulfilled = results
+    .filter((r): IsVisible => r.status === 'fulfilled')
+    .map((r): WinnerIndex => (r as PromiseFulfilledResult<WinnerIndex>).value);
+  const hitTestPromises = fulfilled.map(async (idx): Promise<WinnerIndex> => {
+    const isHit = await isTrulyVisible(locators[idx]);
+    if (isHit) return idx;
+    return -1;
+  });
+  const hitTests = await Promise.all(hitTestPromises);
+  const hitWinner = hitTests.find((idx): IsVisible => idx >= 0);
+  if (hitWinner !== undefined && hitWinner >= 0) return hitWinner;
+  return -1;
+}
+
 /** A locator paired with the candidate and context that produced it. */
 interface ILocatorEntry {
   readonly locator: Locator;
@@ -493,7 +541,7 @@ async function resolveVisibleImpl(
   if (entries.length === 0) return NOT_FOUND_RESULT;
   const locators = entries.map((e): Locator => e.locator);
   LOG.debug('resolveVisible: %d locators, timeout=%dms', locators.length, timeout);
-  const winnerIdx = await raceLocators(locators, timeout);
+  const winnerIdx = await raceLocatorsWithHitTest(locators, timeout);
   if (winnerIdx < 0) return NOT_FOUND_RESULT;
   const value = await snapshotValue(entries[winnerIdx]);
   return buildFoundResult(entries[winnerIdx], winnerIdx, value);
@@ -515,7 +563,7 @@ async function resolveAndClickImpl(
 ): Promise<Procedure<IRaceResult>> {
   const result = await resolveVisibleImpl(page, candidates, timeout);
   if (result.found && result.locator) {
-    await result.locator.click({ force: true, timeout }).catch((): false => false);
+    await result.locator.click({ timeout }).catch((): false => false);
     return succeed(result);
   }
   // Fallback: attached state — element is in DOM but not visually visible
