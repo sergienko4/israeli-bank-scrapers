@@ -1,114 +1,88 @@
 /**
- * Terminate phase — cleanup browser resources in LIFO order.
- * Extracted from BaseScraperWithBrowser.terminate().
- * Never fails the pipeline — cleanup errors are logged and swallowed.
+ * TERMINATE phase — thin orchestration, all logic in Mediator/Terminate.
+ * PRE:    guard (no browser → passthrough)
+ * ACTION: run LIFO cleanups — never fails
+ * POST:   stamp diagnostics
+ * FINAL:  done
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
-import type { IPipelineStep } from '../../Types/Phase.js';
-import type { IBrowserState, IPipelineContext } from '../../Types/PipelineContext.js';
+import {
+  executeLogResults,
+  executeRunCleanups,
+  executeSignalDone,
+  executeStartCleanup,
+  runAllCleanups,
+} from '../../Mediator/Terminate/TerminateActions.js';
+import { BasePhase } from '../../Types/BasePhase.js';
+import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
-
-/** Whether a single cleanup handler completed without error. */
-type CleanupOk = boolean;
-
-/** Type alias for the cleanup function signature from IBrowserState. */
-type CleanupFn = IBrowserState['cleanups'][number];
 
 /**
- * Log a cleanup failure if the result is not OK.
- * @param result - The cleanup procedure result.
- * @param logger - Logger for error reporting.
- * @returns The same result, unchanged.
+ * Compat step — use createTerminatePhase() for new code.
+ * @param _ctx - Unused.
+ * @param input - Pipeline context.
+ * @returns Cleanup result.
  */
-function logCleanupResult(
-  result: Procedure<void>,
-  logger: IPipelineContext['logger'],
-): Procedure<void> {
-  const isFailed = !isOk(result);
-  if (isFailed) logger.debug('cleanup returned failure: %s', result.errorMessage);
-  return result;
+function terminateStepExec(
+  _ctx: IPipelineContext,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  return executeRunCleanups(input);
 }
 
-/**
- * Run a single cleanup handler, swallowing any error.
- * Maps the Procedure result to a boolean for counting.
- * @param cleanup - The cleanup function returning Procedure<void>.
- * @param logger - Logger for error reporting.
- * @returns Succeed if cleanup passed, fail if it failed or threw.
- */
-async function runCleanup(
-  cleanup: CleanupFn,
-  logger: IPipelineContext['logger'],
-): Promise<Procedure<void>> {
-  try {
-    const result = await cleanup();
-    return logCleanupResult(result, logger);
-  } catch (error) {
-    const msg = toErrorMessage(error as Error).slice(0, 80);
-    logger.debug('cleanup error (swallowed): %s', msg);
-    return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
+/** Compat step — tests use .execute(). Prefer createTerminatePhase(). */
+const TERMINATE_STEP = {
+  name: 'terminate' as const,
+  execute: terminateStepExec,
+};
+
+/** TERMINATE phase — BasePhase with PRE/ACTION/POST/FINAL. */
+class TerminatePhase extends BasePhase {
+  public readonly name = 'terminate' as const;
+
+  /** @inheritdoc */
+  public async pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return executeStartCleanup(input);
+  }
+
+  /** @inheritdoc */
+  public async action(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return executeRunCleanups(input);
+  }
+
+  /** @inheritdoc */
+  public async post(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return executeLogResults(input);
+  }
+
+  /** @inheritdoc */
+  public async final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return executeSignalDone(input);
   }
 }
 
 /**
- * Run cleanups recursively in LIFO order (index decreasing).
- * @param cleanups - Cleanup functions registered during init.
- * @param logger - Logger for error reporting.
- * @param index - Current index (starts at last element).
- * @returns Count of successful cleanups.
+ * Create the TERMINATE phase instance.
+ * @returns TerminatePhase.
  */
-async function runCleanupsRecursive(
-  cleanups: readonly CleanupFn[],
-  logger: IPipelineContext['logger'],
-  index: number,
-): Promise<number> {
-  if (index < 0) return 0;
-  const result = await runCleanup(cleanups[index], logger);
-  const didSucceed: CleanupOk = isOk(result);
-  const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
-  if (!didSucceed) return restCount;
-  return restCount + 1;
+function createTerminatePhase(): TerminatePhase {
+  return new TerminatePhase();
 }
 
-/**
- * Run all cleanup handlers in LIFO order. Entry point for emergency cleanup.
- * @param cleanups - Cleanup functions registered during init.
- * @param logger - Logger for error reporting.
- * @returns Count of successful cleanups.
- */
-async function runAllCleanups(
-  cleanups: readonly CleanupFn[],
-  logger: IPipelineContext['logger'],
-): Promise<number> {
-  const lastIndex = cleanups.length - 1;
-  return await runCleanupsRecursive(cleanups, logger, lastIndex);
-}
-
-/**
- * Execute the terminate phase — LIFO cleanup, never fails.
- * @param _ctx - Current pipeline context (unused).
- * @param input - Input context with browser state.
- * @returns Always succeed(input).
- */
-async function executeTerminate(
-  _ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.browser.has) return succeed(input);
-  const cleanups = input.browser.value.cleanups;
-  const lastIndex = cleanups.length - 1;
-  await runCleanupsRecursive(cleanups, input.logger, lastIndex);
-  return succeed(input);
-}
-
-/** Terminate step — runs reverse-order cleanup handlers. */
-const TERMINATE_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'terminate',
-  execute: executeTerminate,
-};
-
-export default TERMINATE_STEP;
-export { runAllCleanups, TERMINATE_STEP };
+export { createTerminatePhase, runAllCleanups, TERMINATE_STEP, TerminatePhase };

@@ -218,7 +218,7 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   // DI: Block ALL manual instantiation except builtins
   {
     // Add your safe classes to the negative lookahead (the ?! section)
-    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|SimplePhase|HomePhase|FindLoginAreaPhase|DashboardPhase|ScrapePhase)[A-Z]/]",
+    selector: "NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|SimplePhase|HomePhase|FindLoginAreaPhase|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]",
     message: "🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.",
   },
   {

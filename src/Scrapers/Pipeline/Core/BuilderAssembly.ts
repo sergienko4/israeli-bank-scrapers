@@ -6,15 +6,11 @@
 import { createDashboardPhase } from '../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../Phases/Init/InitPhase.js';
-import { OTP_STEP } from '../Phases/Otp/OtpPhase.js';
+import { createOtpPhase } from '../Phases/Otp/OtpPhase.js';
 import { createFindLoginAreaPhase } from '../Phases/PreLogin/FindLoginAreaPhase.js';
 import { createScrapePhase } from '../Phases/Scrape/ScrapePhase.js';
-import { TERMINATE_STEP } from '../Phases/Terminate/TerminatePhase.js';
+import { createTerminatePhase } from '../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../Types/BasePhase.js';
-import type { IPipelineStep } from '../Types/Phase.js';
-import type { IPipelineContext } from '../Types/PipelineContext.js';
-import type { Procedure } from '../Types/Procedure.js';
-import { SimplePhase } from '../Types/SimplePhase.js';
 import {
   buildLoginPhase,
   type IBuilderState,
@@ -22,29 +18,6 @@ import {
   resolveScrapeExec,
   type StepExecFn,
 } from './BuilderStepResolvers.js';
-
-type StepResult = Promise<Procedure<IPipelineContext>>;
-type Ctx = IPipelineContext;
-
-/**
- * Create a SimplePhase wrapping a step.
- * @param name - Phase name.
- * @param step - Pipeline step.
- * @returns BasePhase.
- */
-function phaseFromStep(
-  name: string,
-  step: IPipelineStep<IPipelineContext, IPipelineContext>,
-): BasePhase {
-  /**
-   * Delegate to step.
-   * @param ctx - Context.
-   * @param input - Input.
-   * @returns Result.
-   */
-  const exec = (ctx: Ctx, input: Ctx): StepResult => step.execute(ctx, input);
-  return Reflect.construct(SimplePhase, [name, exec]) as BasePhase;
-}
 
 /**
  * Build browser init phases.
@@ -64,7 +37,7 @@ function browserInitPhases(): readonly BasePhase[] {
  */
 function buildOtpPhase(state: IBuilderState): readonly BasePhase[] {
   if (!state.hasOtp) return [];
-  return [phaseFromStep('otp', OTP_STEP)];
+  return [createOtpPhase()];
 }
 
 /**
@@ -110,7 +83,7 @@ function assemblePhases(state: IBuilderState): BasePhase[] {
   phases.push(loginPhase);
   phases.push(...optionalPhases(state));
   if (state.hasBrowser) {
-    const term = phaseFromStep('terminate', TERMINATE_STEP);
+    const term = createTerminatePhase();
     phases.push(term);
   }
   return phases;
