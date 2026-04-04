@@ -4,6 +4,7 @@
  */
 
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
+import { createLoginPhaseFromConfig } from '../Phases/Login/LoginPhase.js';
 import {
   createConfigScrapeStep,
   createCustomScrapeStep,
@@ -15,7 +16,6 @@ import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import type { IScrapeConfigBase } from '../Types/ScrapeConfig.js';
 import { SimplePhase } from '../Types/SimplePhase.js';
-import { buildDeclarativePhase } from './BuilderLoginPhase.js';
 import { DECLARATIVE_LOGIN_STEP } from './DeclarativeLoginPhase.js';
 import { DIRECT_POST_LOGIN_STEP } from './DirectPostLoginPhase.js';
 import { NATIVE_LOGIN_STEP } from './NativeLoginPhase.js';
@@ -114,7 +114,7 @@ function resolveScrapeExec(state: IBuilderState): StepExecFn {
  * @returns Login BasePhase.
  */
 function buildLoginPhase(state: IBuilderState): BasePhase {
-  if (state.loginConfig) return buildDeclarativePhase(state.loginConfig);
+  if (state.loginConfig) return createLoginPhaseFromConfig(state.loginConfig);
   const exec = resolveLoginExec(state);
   return Reflect.construct(SimplePhase, ['login', exec]) as BasePhase;
 }
