@@ -17,6 +17,7 @@ import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IsSignatureKey, JsonNode } from '../JsonTraversalStrategy.js';
 import { bodyHasSignature, extractMatchingKeys } from '../JsonTraversalStrategy.js';
 import { applyGlobalDateFilter, rateLimitPause } from '../ScrapeDataActions.js';
+import { withTrace } from '../ScrapeTraceWrapper.js';
 
 /** Proxy handler URL signature — matches any .ashx proxy endpoint. */
 const PROXY_SIGNATURE = /ProxyRequestHandler\.ashx/i;
@@ -175,22 +176,20 @@ async function replayOneMonth(
   month: string,
 ): Promise<readonly ITransaction[]> {
   const body = { ...rCtx.templateBody, card4Number: rCtx.cardId, billingMonth: month };
-  LOG.trace({ event: 'scrape-card', card: rCtx.cardId, month, txnCount: 0 });
-  const result = await rCtx.strategy.fetchPost<Record<string, unknown>>(
-    rCtx.txnUrl,
-    body as unknown as Record<string, string>,
-    { extraHeaders: { 'Content-Type': 'application/json' } },
-  );
-  if (!isOk(result)) return [];
-  const respPreview = JSON.stringify(result.value).slice(0, 200);
-  LOG.debug({
-    event: 'generic-trace',
-    phase: 'scrape',
-    message: `[REPLAY] response=${maskVisibleText(respPreview)}`,
-  });
-  const txns = extractTransactions(result.value);
-  LOG.trace({ event: 'scrape-card', card: rCtx.cardId, month, txnCount: txns.length });
-  return txns;
+  /**
+   * POST fetch for one month chunk.
+   * @returns Extracted transactions.
+   */
+  const fetch = async (): Promise<readonly ITransaction[]> => {
+    const result = await rCtx.strategy.fetchPost<Record<string, unknown>>(
+      rCtx.txnUrl,
+      body as unknown as Record<string, string>,
+      { extraHeaders: { 'Content-Type': 'application/json' } },
+    );
+    if (!isOk(result)) return [];
+    return extractTransactions(result.value);
+  };
+  return withTrace(rCtx.cardId, month, fetch);
 }
 
 /**
@@ -251,13 +250,18 @@ async function replayOneMonthGet(
   const suffixMap: Record<string, string> = { true: `&${paramStr}`, false: '' };
   const hasSuffix = String(paramStr.length > 0);
   const fullUrl = `${gCtx.txnUrl}${suffixMap[hasSuffix]}`;
-  LOG.trace({ event: 'scrape-card', card: gCtx.cardId, month, txnCount: 0 });
-  const emptyHeaders = { extraHeaders: {} };
-  const result = await gCtx.strategy.fetchGet<Record<string, unknown>>(fullUrl, emptyHeaders);
-  if (!isOk(result)) return [];
-  const txns = extractTransactions(result.value);
-  LOG.trace({ event: 'scrape-card', card: gCtx.cardId, month, txnCount: txns.length });
-  return txns;
+  LOG.trace({ event: 'net-capture', method: 'GET', url: maskVisibleText(fullUrl) });
+  /**
+   * GET fetch for one month chunk.
+   * @returns Extracted transactions.
+   */
+  const fetch = async (): Promise<readonly ITransaction[]> => {
+    const emptyHeaders = { extraHeaders: {} };
+    const result = await gCtx.strategy.fetchGet<Record<string, unknown>>(fullUrl, emptyHeaders);
+    if (!isOk(result)) return [];
+    return extractTransactions(result.value);
+  };
+  return withTrace(gCtx.cardId, month, fetch);
 }
 
 /**

@@ -18,6 +18,7 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildAccountResult, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
+import { withTrace } from './ScrapeTraceWrapper.js';
 import type { IAccountAssemblyCtx, IAccountFetchCtx } from './ScrapeTypes.js';
 
 const LOG = getDebug('matrix-loop');
@@ -61,23 +62,24 @@ async function fetchMatrixChunk(
   const chunkDate = new Date(chunkStart);
   const monthNum = chunkDate.getMonth() + 1;
   const yearNum = chunkDate.getFullYear();
-  const opts = {
-    template: ctx.template,
-    accountId: ctx.args.accountId,
-    month: monthNum,
-    year: yearNum,
+  const month = `${String(monthNum)}/${String(yearNum)}`;
+  /**
+   * POST fetch for one matrix chunk.
+   * @returns Extracted transactions.
+   */
+  const fetch = async (): Promise<readonly ITransaction[]> => {
+    const opts = {
+      template: ctx.template,
+      accountId: ctx.args.accountId,
+      month: monthNum,
+      year: yearNum,
+    };
+    const body = buildMonthBody(opts) as Record<string, string | object>;
+    const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(ctx.txnUrl, body);
+    if (!isOk(raw)) return [];
+    return extractTransactions(raw.value);
   };
-  const body = buildMonthBody(opts) as Record<string, string | object>;
-  const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(ctx.txnUrl, body);
-  if (!isOk(raw)) return [];
-  const txns = extractTransactions(raw.value);
-  LOG.debug({
-    event: 'scrape-card',
-    card: ctx.args.accountId,
-    month: `${String(monthNum)}/${String(yearNum)}`,
-    txnCount: txns.length,
-  });
-  return txns;
+  return withTrace(ctx.args.accountId, month, fetch);
 }
 
 /**
