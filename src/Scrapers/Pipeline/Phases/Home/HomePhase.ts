@@ -19,24 +19,24 @@ class HomePhase extends BasePhase {
   public readonly name = 'home' as const;
 
   /**
-   * PRE: navigate to homepage URL.
+   * PRE: locate login navigation link on the page (INIT already navigated).
    * @param _ctx - Pipeline context (unused).
-   * @param input - Pipeline context with browser + config.
-   * @returns Updated context, or failure if goto fails.
+   * @param input - Pipeline context with browser + mediator.
+   * @returns Updated context with current URL logged.
    */
-  public async pre(
+  public pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME PRE');
-    const mediator = input.mediator.value;
-    const homepageUrl = input.config.urls.base;
-    process.stderr.write(`    [HOME.PRE] navigating to ${homepageUrl}\n`);
-    const navResult = await mediator.navigateTo(homepageUrl, { waitUntil: 'domcontentloaded' });
-    if (!navResult.success) return navResult;
-    process.stderr.write(`    [HOME.PRE] landed on ${mediator.getCurrentUrl()}\n`);
-    return succeed(input);
+    if (!input.mediator.has) {
+      const err = fail(ScraperErrorTypes.Generic, 'No mediator for HOME PRE');
+      return Promise.resolve(err);
+    }
+    const currentUrl = input.mediator.value.getCurrentUrl();
+    process.stderr.write(`    [HOME.PRE] page at ${currentUrl}\n`);
+    const result = succeed(input);
+    return Promise.resolve(result);
   }
 
   /**

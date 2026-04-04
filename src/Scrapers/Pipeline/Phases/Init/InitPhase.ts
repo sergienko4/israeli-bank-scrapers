@@ -1,16 +1,19 @@
 /**
- * Init phase — browser launch + page setup + strategy + mediator creation.
- * Browser setup helpers in InitBrowserSetup.ts.
+ * INIT phase — PRE/ACTION/POST/FINAL per pipeline protocol.
+ * PRE:    launch browser + create page (get DNS)
+ * ACTION: goto bank URL (navigate to page)
+ * POST:   validate page loaded correctly
+ * FINAL:  wire mediator + fetchStrategy → signal to HOME
  */
 
-import type { Browser, BrowserContext, Page } from 'playwright-core';
+import type { Browser } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import createElementMediator from '../../Mediator/Elements/CreateElementMediator.js';
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
+import { BasePhase } from '../../Types/BasePhase.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { some } from '../../Types/Option.js';
-import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -22,76 +25,138 @@ import {
   setupPage,
 } from './InitBrowserSetup.js';
 
-/** Launched browser components for wiring into context. */
-interface ILaunchedBrowser {
-  readonly browser: Browser;
-  readonly context: BrowserContext;
-  readonly page: Page;
-}
+/** Whether the page loaded with a valid status. */
+type PageValid = boolean;
 
 /**
- * Wire browser components into context after successful launch.
- * @param input - The base context to extend.
- * @param launched - The launched browser, context, and page.
- * @returns New context with browser, fetchStrategy, mediator.
+ * Wire fetchStrategy + mediator into context (FINAL helper).
+ * @param input - Pipeline context with browser.
+ * @returns Updated context or failure.
  */
-function wireComponents(input: IPipelineContext, launched: ILaunchedBrowser): IPipelineContext {
-  const state = buildBrowserState(launched.page, launched.context, launched.browser);
-  const fetchStrategy = createBrowserFetchStrategy(launched.page);
-  const mediator = createElementMediator(launched.page);
-  return {
+function wireStrategyAndMediator(input: IPipelineContext): Procedure<IPipelineContext> {
+  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT FINAL: no browser');
+  const page = input.browser.value.page;
+  const fetchStrategy = createBrowserFetchStrategy(page);
+  const mediator = createElementMediator(page);
+  const loginUrl = page.url();
+  const diag = { ...input.diagnostics, loginUrl };
+  return succeed({
     ...input,
-    browser: some(state),
     fetchStrategy: some(fetchStrategy),
     mediator: some(mediator),
-  };
+    diagnostics: diag,
+  });
 }
 
 /**
- * Handle init failure — close browser if launched, return failure Procedure.
- * @param caught - The caught error.
- * @param browser - Browser handle or false.
- * @param ctx - Pipeline context for logging.
- * @returns Failure Procedure.
+ * Launch browser, create page, wire into context.
+ * @param input - Pipeline context with options.
+ * @returns Updated context with browser state.
  */
-async function handleInitError(
-  caught: Error,
-  browser: Browser | false,
-  ctx: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  await closeBrowserSafe(browser);
-  const msg = toErrorMessage(caught);
-  ctx.logger.debug('InitPhase failed: %s', msg);
-  return fail(ScraperErrorTypes.Generic, `InitPhase failed: ${msg}`);
-}
-
-/**
- * Execute the init phase — launch browser, create page, wire strategy + mediator.
- * @param ctx - Current pipeline context.
- * @param input - Input context to extend.
- * @returns New context with browser, fetchStrategy, and mediator populated.
- */
-async function executeInit(
-  ctx: IPipelineContext,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function launchAndWire(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   let browser: Browser | false = false;
   try {
-    browser = await launchBrowser(ctx.options);
+    browser = await launchBrowser(input.options);
     const launched = await createContextAndPage(browser);
-    await setupPage(launched.page, ctx.options);
-    const wired = wireComponents(input, { browser, ...launched });
-    return succeed(wired);
+    await setupPage(launched.page, input.options);
+    const state = buildBrowserState(launched.page, launched.context, browser);
+    return succeed({ ...input, browser: some(state) });
   } catch (error) {
-    return handleInitError(error as Error, browser, ctx);
+    await closeBrowserSafe(browser);
+    const msg = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
   }
 }
 
-/** Init phase step — launches browser and creates page. */
-const INIT_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
-  name: 'init-browser',
-  execute: executeInit,
-};
+/**
+ * Navigate to the bank's base URL.
+ * @param input - Pipeline context with browser + config.
+ * @returns Same context after navigation, or failure.
+ */
+async function navigateToBank(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT ACTION: no browser');
+  const page = input.browser.value.page;
+  const targetUrl = input.config.urls.base;
+  process.stderr.write(`    [INIT.ACTION] navigating to ${targetUrl}\n`);
+  try {
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
+    const landedUrl = page.url();
+    process.stderr.write(`    [INIT.ACTION] landed on ${landedUrl}\n`);
+    return succeed(input);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `INIT ACTION: navigation failed — ${msg}`);
+  }
+}
 
-export default INIT_STEP;
-export { INIT_STEP };
+/** INIT phase — BasePhase with PRE/ACTION/POST/FINAL. */
+class InitPhase extends BasePhase {
+  public readonly name = 'init' as const;
+
+  /**
+   * PRE: launch browser + create page (get DNS).
+   * @param _ctx - Unused.
+   * @param input - Pipeline context with options.
+   * @returns Updated context with browser state.
+   */
+  public async pre(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return launchAndWire(input);
+  }
+
+  /**
+   * ACTION: goto bank URL (navigate to page).
+   * @param _ctx - Unused.
+   * @param input - Pipeline context with browser.
+   * @returns Same context after navigation.
+   */
+  public async action(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    return navigateToBank(input);
+  }
+
+  /**
+   * POST: validate page loaded correctly.
+   * @param _ctx - Unused.
+   * @param input - Pipeline context with browser.
+   * @returns Succeed if page valid, fail if blank/error.
+   */
+  public async post(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT POST: no browser');
+    const page = input.browser.value.page;
+    const currentUrl = page.url();
+    const title = await page.title().catch((): string => '');
+    const isValid: PageValid = currentUrl !== 'about:blank';
+    process.stderr.write(`    [INIT.POST] url=${currentUrl} title="${title}"\n`);
+    if (!isValid) return fail(ScraperErrorTypes.Generic, 'INIT POST: page is blank');
+    return succeed(input);
+  }
+
+  /**
+   * FINAL: wire mediator + fetchStrategy → signal to HOME.
+   * @param _ctx - Unused.
+   * @param input - Pipeline context with browser.
+   * @returns Updated context with mediator + fetchStrategy.
+   */
+  public final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    void this.name;
+    const wired = wireStrategyAndMediator(input);
+    return Promise.resolve(wired);
+  }
+}
+
+export { InitPhase };
+export { createInitPhase, INIT_STEP } from './InitPhaseFactory.js';

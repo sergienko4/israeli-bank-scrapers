@@ -83,6 +83,11 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
      * @returns Test bank URL string.
      */
     url: (): MockUrl => 'https://test.bank',
+    /**
+     * Mock title getter.
+     * @returns Test page title.
+     */
+    title: (): Promise<string> => Promise.resolve('Test Bank'),
     goto: jest.fn().mockResolvedValue(null),
     locator: jest.fn().mockReturnValue({ first: jest.fn().mockReturnValue({ click: jest.fn() }) }),
   };
@@ -232,7 +237,7 @@ describe('InitPhase/error', () => {
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errorMessage).toContain('InitPhase failed');
+      expect(result.errorMessage).toContain('INIT PRE');
       expect(result.errorMessage).toContain('binary not found');
     }
   });
@@ -246,7 +251,7 @@ describe('InitPhase/error', () => {
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errorMessage).toContain('InitPhase failed');
+      expect(result.errorMessage).toContain('INIT PRE');
     }
   });
 });

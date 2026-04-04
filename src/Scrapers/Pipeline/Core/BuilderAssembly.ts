@@ -5,7 +5,7 @@
 
 import { createDashboardPhase } from '../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../Phases/Home/HomePhase.js';
-import { INIT_STEP } from '../Phases/Init/InitPhase.js';
+import { createInitPhase } from '../Phases/Init/InitPhase.js';
 import { OTP_STEP } from '../Phases/Otp/OtpPhase.js';
 import { createFindLoginAreaPhase } from '../Phases/PreLogin/FindLoginAreaPhase.js';
 import { createScrapePhase } from '../Phases/Scrape/ScrapePhase.js';
@@ -51,7 +51,7 @@ function phaseFromStep(
  * @returns Init, home, FLA phases.
  */
 function browserInitPhases(): readonly BasePhase[] {
-  const initPhase = phaseFromStep('init', INIT_STEP);
+  const initPhase = createInitPhase();
   const homePhase = createHomePhase();
   const flaPhase = createFindLoginAreaPhase();
   return [initPhase, homePhase, flaPhase];
