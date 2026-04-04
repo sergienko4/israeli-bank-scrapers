@@ -1,87 +1,61 @@
 /**
- * DASHBOARD phase — Hard-Gated Strategy-Driven Pipeline.
- * PRE step in DashboardPreStep.ts. POST step in DashboardPostStep.ts.
- * Action helpers in DashboardActions.ts.
+ * DASHBOARD phase — thin orchestration, all logic in Mediator/Dashboard.
+ * PRE:    locate nav link (probe + resolve strategy)
+ * ACTION: click trigger (dispatch strategy + build API context)
+ * POST:   validate traffic delta (change-password + traffic gate)
+ * FINAL:  collect endpoints + auth → signal to SCRAPE
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import {
+  executeClickTrigger,
+  executeCollectAndSignal,
+  executePreLocateNav,
+  executeValidateTraffic,
+} from '../../Mediator/Dashboard/DashboardPhaseActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
-import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
-import { executeDashboardAction, executeDashboardPost } from './DashboardActions.js';
-import { executePre } from './DashboardPreStep.js';
 
 export { probeDashboardReveal } from '../../Mediator/Dashboard/DashboardDiscovery.js';
 
-import { extractAuthFromContext } from '../../Mediator/Dashboard/DashboardProbe.js';
-
-/** DASHBOARD phase — Hard-Gated with BYPASS/TRIGGER strategy. */
+/** DASHBOARD phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class DashboardPhase extends BasePhase {
   public readonly name = 'dashboard' as const;
 
-  /**
-   * PRE: Resolve strategy + extract href for TRIGGER.
-   * @param _ctx - Unused.
-   * @param input - Pipeline context.
-   * @returns Updated context.
-   */
+  /** @inheritdoc */
   public async pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for DASHBOARD PRE');
-    if (!input.mediator.has)
-      return fail(ScraperErrorTypes.Generic, 'No mediator for DASHBOARD PRE');
-    return await executePre(input.mediator.value, input);
+    return executePreLocateNav(input);
   }
 
-  /**
-   * ACTION: Execute strategy then build API context.
-   * @param _ctx - Unused.
-   * @param input - Pipeline context.
-   * @returns Updated context with api populated.
-   */
+  /** @inheritdoc */
   public async action(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    return await executeDashboardAction(input);
+    return executeClickTrigger(input);
   }
 
-  /**
-   * POST: Validate traffic + change-password + store dashboard state.
-   * @param _ctx - Unused.
-   * @param input - Pipeline context.
-   * @returns Updated context or hard failure.
-   */
+  /** @inheritdoc */
   public async post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    return await executeDashboardPost(input);
+    return executeValidateTraffic(input);
   }
 
-  /**
-   * SIGNAL: Validate PRIMED state.
-   * @param _ctx - Unused.
-   * @param input - Pipeline context.
-   * @returns Succeed with finalUrl, fail if not ready.
-   */
+  /** @inheritdoc */
   public async final(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD SIGNAL: not ready');
-    const dashUrl = input.dashboard.value.pageUrl;
-    const discoveredAuth = await extractAuthFromContext(input);
-    const diag = { ...input.diagnostics, finalUrl: some(dashUrl), discoveredAuth };
-    return succeed({ ...input, diagnostics: diag });
+    return executeCollectAndSignal(input);
   }
 }
 
