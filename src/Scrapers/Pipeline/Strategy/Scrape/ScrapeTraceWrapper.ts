@@ -1,6 +1,7 @@
 /**
  * withTrace — higher-order wrapper for scrape iteration tracing.
  * Emits scrape-card events before and after each fetch call.
+ * Captures durationMs and status for the Flight Recorder.
  * Used by ProxyScrapeReplayStrategy and MatrixLoopStrategy.
  */
 
@@ -9,11 +10,19 @@ import { getDebug } from '../../Types/Debug.js';
 
 /** Number of transactions returned from a traced iteration. */
 type TracedTxnCount = number;
+/** Elapsed time in milliseconds. */
+type ElapsedMs = number;
+/** Trace outcome status. */
+type TraceOutcome = 'ok' | 'empty' | 'error';
+
+/** Status lookup: has txns → ok, else → empty. */
+const STATUS_MAP: Record<string, TraceOutcome> = { true: 'ok', false: 'empty' };
 
 const LOG = getDebug('scrape-trace');
 
 /**
  * Wrap an async card×month iteration with entry/exit scrape-card events.
+ * Emits duration and status on exit for observability.
  * @param card - Card index being replayed.
  * @param month - Billing month being fetched.
  * @param fn - The actual fetch function.
@@ -25,10 +34,20 @@ async function withTrace(
   fn: () => Promise<readonly ITransaction[]>,
 ): Promise<readonly ITransaction[]> {
   LOG.trace({ event: 'scrape-card', card, month, txnCount: 0 });
-  const txns = await fn();
-  const count: TracedTxnCount = txns.length;
-  LOG.trace({ event: 'scrape-card', card, month, txnCount: count });
-  return txns;
+  const startMs = Date.now();
+  try {
+    const txns = await fn();
+    const count: TracedTxnCount = txns.length;
+    const durationMs: ElapsedMs = Date.now() - startMs;
+    const hasTxns = String(count > 0);
+    const status = STATUS_MAP[hasTxns];
+    LOG.trace({ event: 'scrape-card', card, month, txnCount: count, durationMs, status });
+    return txns;
+  } catch (err) {
+    const durationMs: ElapsedMs = Date.now() - startMs;
+    LOG.trace({ event: 'scrape-card', card, month, txnCount: 0, durationMs, status: 'error' });
+    throw err;
+  }
 }
 
 export default withTrace;

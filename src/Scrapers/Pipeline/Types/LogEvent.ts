@@ -32,6 +32,10 @@ type CardIndex = string;
 type BillingMonth = string;
 /** Transaction count from a scrape call. */
 type TxnCount = number;
+/** Duration in milliseconds for a traced operation. */
+type DurationMs = number;
+/** Trace status for a completed operation. */
+type TraceStatus = 'ok' | 'empty' | 'error';
 /** Account count from scrape results. */
 type AccountCount = number;
 /** Number of endpoints captured. */
@@ -90,7 +94,14 @@ type PipelineLogEvent =
   | { event: 'proxy-response'; captured: WasCaptured }
   | { event: 'dashboard-post'; strategy: ApiStrategy; primed: IsPrimed; url: EventUrl }
   | { event: 'dashboard-auth'; authFound: AuthFound }
-  | { event: 'scrape-card'; card: CardIndex; month: BillingMonth; txnCount: TxnCount }
+  | {
+      event: 'scrape-card';
+      card: CardIndex;
+      month: BillingMonth;
+      txnCount: TxnCount;
+      durationMs?: DurationMs;
+      status?: TraceStatus;
+    }
   | { event: 'scrape-result'; accounts: AccountCount; txns: TxnCount }
   | { event: 'scrape-pre'; template: EventUrl; cards: readonly CardIndex[] }
   | { event: 'net-capture'; method: HttpMethod; url: EventUrl }
