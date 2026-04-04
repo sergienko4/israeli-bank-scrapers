@@ -2,6 +2,7 @@ import { type Frame, type Page } from 'playwright-core';
 
 import { type IFieldConfig, type SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { tryInContextInternal } from './SelectorResolver.js';
 
 const LOG = getDebug('selector-resolver-pipeline');
@@ -121,13 +122,20 @@ function buildNotFoundMessage(ctx: INotFoundContext): DiagMsg {
 /**
  * Log all tried candidates when resolution fails.
  * @param key - The credential key that failed to resolve.
- * @param url - The page URL where resolution was attempted.
+ * @param _url - The page URL where resolution was attempted.
  * @param tried - The formatted candidate strings that were tried.
  * @returns True after logging completes.
  */
-function logTriedCandidates(key: FieldKey, url: PageUrl, tried: TriedList): IsResolved {
-  LOG.debug('FAILED "%s" on %s (%d tried)', key, url, tried.length);
-  for (const line of tried) LOG.debug(line);
+function logTriedCandidates(key: FieldKey, _url: PageUrl, tried: TriedList): IsResolved {
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: key,
+    result: 'NOT_FOUND',
+  });
+  for (const line of tried) {
+    LOG.debug({ event: 'generic-trace', phase: 'login', message: maskVisibleText(line) });
+  }
   return true;
 }
 
@@ -162,7 +170,7 @@ export async function buildNotFoundContext(opts: IResolveAllOpts): Promise<IFiel
     tried,
     pageTitle,
   });
-  LOG.debug(msg);
+  LOG.debug({ event: 'generic-trace', phase: 'login', message: maskVisibleText(msg) });
   return buildNotResolvedResult(pageOrFrame, msg);
 }
 
@@ -193,7 +201,12 @@ async function tryFrame(frame: Frame, allCandidates: SelectorCandidate[]): Promi
   const found = await tryInContextInternal(frame, allCandidates);
   if (found.css) {
     const frameUrl = frame.url();
-    LOG.debug('Round 1: resolved in iframe %s → %s', frameUrl, found.css);
+    LOG.debug({
+      event: 'element-resolve',
+      phase: 'login',
+      field: `iframe:${maskVisibleText(frameUrl)}`,
+      result: 'FOUND',
+    });
     return { selector: found.css, context: frame, kind: found.kind };
   }
   return { selector: '', context: frame };
@@ -241,7 +254,13 @@ export async function searchInChildFrames(
   cachedFrames?: Frame[],
 ): Promise<IFieldMatch> {
   const childFrames = getChildFrames(page, cachedFrames);
-  if (childFrames.length > 0) LOG.debug('Round 1: searching %d iframe(s)', childFrames.length);
+  if (childFrames.length > 0) {
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'login',
+      message: `Round 1: searching ${String(childFrames.length)} iframe(s)`,
+    });
+  }
   const actions = childFrames.map(
     (frame): (() => Promise<IFieldMatch>) =>
       () =>
@@ -262,10 +281,15 @@ export async function resolveInMainContext(
   allCandidates: SelectorCandidate[],
   credentialKey: FieldKey,
 ): Promise<IFieldMatch> {
-  LOG.debug('Round 2: searching main page');
+  LOG.debug({ event: 'generic-trace', phase: 'login', message: 'Round 2: searching main page' });
   const main = await tryInContextInternal(pageOrFrame, allCandidates);
   if (!main.css) return { selector: '', context: pageOrFrame };
-  LOG.debug('Round 2: resolved "%s" → %s', credentialKey, main.css);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: credentialKey,
+    result: 'FOUND',
+  });
   return { selector: main.css, context: pageOrFrame, kind: main.kind };
 }
 

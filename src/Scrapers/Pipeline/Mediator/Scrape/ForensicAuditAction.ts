@@ -4,6 +4,7 @@
  */
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -35,7 +36,11 @@ function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): IsA
   if (acct) {
     txnCount = String(acct.txns.length);
   }
-  LOG.debug('[AUDIT] | %s | QUALIFIED | API Success | %s |', card, txnCount);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `[AUDIT] | ${maskVisibleText(card)} | QUALIFIED | API Success | ${txnCount} |`,
+  });
   return true;
 }
 
@@ -51,10 +56,18 @@ function logForensicAudit(input: IPipelineContext): IsAuditEntry {
   if (input.scrape.has) {
     accounts = input.scrape.value.accounts;
   }
-  LOG.debug('[AUDIT] | Card | Status | Reason | Txns |');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: '[AUDIT] | Card | Status | Reason | Txns |',
+  });
   disc.qualifiedCards.map((card: string): IsAuditEntry => logQualifiedCard(card, accounts));
   disc.prunedCards.map((card: string): IsAuditEntry => {
-    LOG.debug('[AUDIT] | %s | PRUNED | API Error | 0 |', card);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `[AUDIT] | ${maskVisibleText(card)} | PRUNED | API Error | 0 |`,
+    });
     return true;
   });
   return true;

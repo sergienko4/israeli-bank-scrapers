@@ -12,6 +12,7 @@ import {
 } from '../../Mediator/Dashboard/DashboardDiscovery.js';
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -59,6 +60,39 @@ function buildPreDiag(
   };
 }
 
+/** Whether logging was emitted. */
+type DidLog = boolean;
+
+/**
+ * Log the resolved PRE strategy.
+ * @param resolution - Resolved strategy info.
+ * @returns True after logging.
+ */
+function logPreStrategy(resolution: IPreResolution): DidLog {
+  const target = maskVisibleText(resolution.targetUrl);
+  const info = maskVisibleText(resolution.matchInfo);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `strategy=${resolution.dashStrategy} target=${target} (${info})`,
+  });
+  return true;
+}
+
+/**
+ * Resolve target URL only when strategy is TRIGGER.
+ * @param strategy - Dashboard strategy.
+ * @param mediator - Element mediator.
+ * @returns Target URL or NO_HREF.
+ */
+async function resolveTarget(
+  strategy: IPreResolution['dashStrategy'],
+  mediator: IElementMediator,
+): Promise<string> {
+  if (strategy === 'TRIGGER') return resolveTriggerHref(mediator);
+  return NO_HREF;
+}
+
 /**
  * Execute PRE logic: probe, resolve strategy, extract target.
  * @param mediator - Element mediator.
@@ -70,14 +104,11 @@ async function executePre(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   const matchInfo = await probeSuccessIndicators(mediator);
-  const network = mediator.network;
-  const dashStrategy = resolveDashboardStrategy(network, input.diagnostics.apiStrategy);
-  let targetUrl = NO_HREF;
-  if (dashStrategy === 'TRIGGER') {
-    targetUrl = await resolveTriggerHref(mediator);
-  }
-  LOG.debug('[PRE] strategy=%s target=%s (%s)', dashStrategy, targetUrl, matchInfo);
-  const diag = buildPreDiag(input, { matchInfo, dashStrategy, targetUrl });
+  const dashStrategy = resolveDashboardStrategy(mediator.network, input.diagnostics.apiStrategy);
+  const targetUrl = await resolveTarget(dashStrategy, mediator);
+  const resolution: IPreResolution = { matchInfo, dashStrategy, targetUrl };
+  logPreStrategy(resolution);
+  const diag = buildPreDiag(input, resolution);
   return succeed({ ...input, diagnostics: diag });
 }
 

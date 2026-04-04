@@ -12,6 +12,7 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IFindLoginAreaDiscovery, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -40,18 +41,21 @@ async function executePreLocateReveal(
   mediator: IElementMediator,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  process.stderr.write(`    [PRE-LOGIN.PRE] URL=${mediator.getCurrentUrl()}\n`);
-  if (await isFormAlreadyVisible(mediator)) {
-    process.stderr.write('    [PRE-LOGIN.PRE] form ALREADY VISIBLE\n');
+  const logger = input.logger;
+  const rawUrl = mediator.getCurrentUrl();
+  const currentUrl = maskVisibleText(rawUrl);
+  logger.trace({ event: 'generic-trace', phase: 'find-login-area', message: currentUrl });
+  if (await isFormAlreadyVisible(mediator, logger)) {
+    logger.debug({ event: 'pre-login-form', hasPwd: true, iframes: 0 });
     const noReveal: IFindLoginAreaDiscovery = {
       privateCustomers: 'NOT_FOUND',
       credentialArea: 'NOT_FOUND',
     };
     return succeed({ ...input, findLoginAreaDiscovery: some(noReveal) });
   }
-  process.stderr.write('    [PRE-LOGIN.PRE] probing reveal\n');
-  const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT);
-  const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT);
+  logger.debug({ event: 'generic-trace', phase: 'find-login-area', message: 'probing reveal' });
+  const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
+  const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
   const discovery: IFindLoginAreaDiscovery = { privateCustomers, credentialArea };
   return succeed({ ...input, findLoginAreaDiscovery: some(discovery) });
 }
@@ -68,18 +72,22 @@ async function executeFireRevealClicks(
   page: Page,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  const logger = input.logger;
   const disc = input.findLoginAreaDiscovery.has && input.findLoginAreaDiscovery.value;
   if (disc && disc.privateCustomers !== 'NOT_FOUND') {
-    await tryClickPrivateCustomers(mediator, page, REVEAL_NAV_TIMEOUT);
+    await tryClickPrivateCustomers({
+      mediator,
+      browserPage: page,
+      navTimeout: REVEAL_NAV_TIMEOUT,
+      logger,
+    });
   }
   if (disc && disc.credentialArea !== 'NOT_FOUND') {
-    await tryClickCredentialArea(mediator);
+    await tryClickCredentialArea(mediator, logger);
   }
-  const hasPwd = await isFormAlreadyVisible(mediator);
+  const hasPwd = await isFormAlreadyVisible(mediator, logger);
   const iframeCount = page.frames().length - 1;
-  const pwdTag = String(hasPwd);
-  const iframeTag = String(iframeCount);
-  process.stderr.write(`    [PRE-LOGIN.ACTION] pwd=${pwdTag} iframes=${iframeTag}\n`);
+  logger.debug({ event: 'pre-login-form', hasPwd, iframes: iframeCount });
   return succeed(input);
 }
 
@@ -95,10 +103,12 @@ async function executeValidateForm(
 ): Promise<Procedure<IPipelineContext>> {
   const isReady = await validateFormGatePost(mediator);
   if (!isReady) {
-    process.stderr.write('    [PRE-LOGIN.POST] FAIL: no password field\n');
+    input.logger.debug({ event: 'pre-login-form', hasPwd: false, iframes: 0 });
     return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN: no password field');
   }
-  process.stderr.write(`    [PRE-LOGIN.POST] FOUND at ${mediator.getCurrentUrl()}\n`);
+  const validatedUrl = mediator.getCurrentUrl();
+  const maskedUrl = maskVisibleText(validatedUrl);
+  input.logger.debug({ event: 'element-found', phase: 'find-login-area', text: maskedUrl });
   return succeed({ ...input, loginAreaReady: true });
 }
 
@@ -112,7 +122,11 @@ function executeSignalToLogin(input: IPipelineContext): Procedure<IPipelineConte
   if (!input.loginAreaReady) {
     return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN FINAL: login form not ready');
   }
-  process.stderr.write('    [PRE-LOGIN.FINAL] login form READY → signal to LOGIN\n');
+  input.logger.debug({
+    event: 'generic-trace',
+    phase: 'find-login-area',
+    message: 'login form READY',
+  });
   return succeed(input);
 }
 

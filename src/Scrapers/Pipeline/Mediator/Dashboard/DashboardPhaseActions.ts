@@ -9,6 +9,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IDashboardState, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -83,7 +84,7 @@ async function dispatchStrategy(
   input: IPipelineContext,
 ): Promise<Procedure<boolean>> {
   if (strategy === 'TRIGGER' && input.mediator.has) {
-    return triggerDashboardUi(input.mediator.value);
+    return triggerDashboardUi(input.mediator.value, input.logger);
   }
   if (strategy === 'PROXY') return dispatchProxyStrategy(input);
   const ok = succeed(true);
@@ -104,12 +105,12 @@ async function activateProxySession(input: IPipelineContext): Promise<Procedure<
   if (!input.fetchStrategy.has) return succeed(false);
   const strategy = input.fetchStrategy.value;
   if (!strategy.activateSession) return succeed(true);
-  process.stderr.write('[DASHBOARD.ACTION] PROXY: activating session...\n');
+  input.logger.debug({ event: 'proxy-activate', step: 'session-init', result: 'OK' });
   const proxyUrl = input.diagnostics.discoveredProxyUrl;
   const result = await strategy.activateSession(input.credentials, input.config, proxyUrl);
-  const tagMap: Record<string, string> = { true: 'OK', false: 'FAIL' };
+  const tagMap: Record<string, 'OK' | 'FAIL'> = { true: 'OK', false: 'FAIL' };
   const tag = tagMap[String(result.success)];
-  process.stderr.write(`[DASHBOARD.ACTION] PROXY: session activation=${tag}\n`);
+  input.logger.debug({ event: 'proxy-activate', step: 'session-result', result: tag });
   return result;
 }
 
@@ -128,6 +129,7 @@ async function dispatchProxyStrategy(input: IPipelineContext): Promise<Procedure
     strategy: input.fetchStrategy.value,
     proxyUrl: input.diagnostics.discoveredProxyUrl,
     proxyParams: input.config.auth?.params,
+    logger: input.logger,
   });
 }
 
@@ -144,10 +146,26 @@ async function executeValidateTraffic(
   const pwdCheck = await checkChangePassword(mediator);
   if (pwdCheck) return pwdCheck;
   const dashStrategy = input.diagnostics.dashboardStrategy ?? 'BYPASS';
-  const isPrimed = validateTrafficGate(mediator.network, dashStrategy, false);
+  const isPrimed = validateTrafficGate({
+    network: mediator.network,
+    dashStrategy,
+    hasProxy: false,
+    logger: input.logger,
+  });
   const pageUrl = mediator.getCurrentUrl();
-  const tag = `strategy=${dashStrategy} primed=${String(isPrimed)}`;
-  process.stderr.write(`    [DASHBOARD.POST] ${tag} url=${pageUrl}\n`);
+  /** Strategy lookup: PROXY stays PROXY, all others → DIRECT. */
+  const strategyMap: Record<string, 'DIRECT' | 'PROXY'> = {
+    PROXY: 'PROXY',
+    BYPASS: 'DIRECT',
+    TRIGGER: 'DIRECT',
+  };
+  const strategy = strategyMap[dashStrategy] ?? 'DIRECT';
+  input.logger.debug({
+    event: 'dashboard-post',
+    strategy,
+    primed: isPrimed,
+    url: maskVisibleText(pageUrl),
+  });
   const dashState: IDashboardState = { isReady: true, pageUrl, trafficPrimed: isPrimed };
   return succeed({ ...input, dashboard: some(dashState) });
 }
@@ -164,10 +182,8 @@ async function executeCollectAndSignal(
   const dashUrl = input.dashboard.value.pageUrl;
   const discoveredAuth = await extractAuthFromContext(input);
   const diag = { ...input.diagnostics, finalUrl: some(dashUrl), discoveredAuth };
-  const authLabel: Record<string, string> = { true: 'FOUND', false: 'NONE' };
   const hasAuth = Boolean(discoveredAuth);
-  const authTag = authLabel[String(hasAuth)];
-  process.stderr.write(`    [DASHBOARD.FINAL] auth=${authTag}\n`);
+  input.logger.debug({ event: 'dashboard-auth', authFound: hasAuth });
   return succeed({ ...input, diagnostics: diag });
 }
 

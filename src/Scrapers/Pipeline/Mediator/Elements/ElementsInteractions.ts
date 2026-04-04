@@ -8,6 +8,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { humanDelay } from '../Timing/Waiting.js';
 import {
   CLICK_BUTTON_DELAY_MAX_MS,
@@ -85,7 +86,11 @@ async function captureElementHtml(
  * @returns True after click.
  */
 async function clickButton(ctx: Page | Frame, buttonSelector: SelectorStr): Promise<OpResult> {
-  LOG.debug('click %s', buttonSelector);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `click ${maskVisibleText(buttonSelector)}`,
+  });
   await humanDelay(CLICK_BUTTON_DELAY_MIN_MS, CLICK_BUTTON_DELAY_MAX_MS);
   await ctx.locator(buttonSelector).first().click();
   return true;

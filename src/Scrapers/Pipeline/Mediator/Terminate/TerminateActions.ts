@@ -31,7 +31,7 @@ function logCleanupResult(
   logger: IPipelineContext['logger'],
 ): Procedure<void> {
   const isFailed = !isOk(result);
-  if (isFailed) logger.debug('cleanup returned failure: %s', result.errorMessage);
+  if (isFailed) logger.debug({ event: 'cleanup-error', message: result.errorMessage });
   return result;
 }
 
@@ -50,7 +50,7 @@ async function runCleanup(
     return logCleanupResult(result, logger);
   } catch (error) {
     const msg = toErrorMessage(error as Error).slice(0, 80);
-    logger.debug('cleanup error (swallowed): %s', msg);
+    logger.debug({ event: 'cleanup-error', message: msg });
     return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
   }
 }

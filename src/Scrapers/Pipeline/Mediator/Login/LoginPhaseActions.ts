@@ -13,6 +13,7 @@ import type { Frame, Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { none, some } from '../../Types/Option.js';
 import type { ILoginState, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -79,7 +80,11 @@ async function executeDiscoverForm(
   if (!frameResult.success) return frameResult;
   const activeFrame = frameResult.value;
   const loginState: ILoginState = { activeFrame, persistentOtpToken: none() };
-  process.stderr.write(`    [LOGIN.PRE] activeFrame=${activeFrame.url().slice(0, 60)}\n`);
+  input.logger.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: maskVisibleText(`activeFrame=${activeFrame.url()}`),
+  });
   return succeed({ ...input, login: some(loginState) });
 }
 
@@ -98,7 +103,12 @@ async function executeFillAndSubmit(
   if (!input.loginAreaReady) return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: not ready');
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: no login state');
   const creds = input.credentials as Record<string, string>;
-  const result = await fillAndSubmit(mediator, config, creds);
+  const result = await fillAndSubmit({
+    mediator,
+    config,
+    creds,
+    logger: input.logger,
+  });
   if (!result.success) return result;
   const diag = { ...input.diagnostics, submitMethod: result.value.method };
   return succeed({ ...input, diagnostics: diag });
@@ -125,7 +135,7 @@ async function executeValidateLogin(
   if (errors.hasErrors) {
     return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
   }
-  await waitForPostLoginTraffic(mediator);
+  await waitForPostLoginTraffic(mediator, input.logger);
   const cbResult = await runPostCallback(input.browser.value.page, config, input);
   if (!cbResult.success) return cbResult;
   return succeed(input);

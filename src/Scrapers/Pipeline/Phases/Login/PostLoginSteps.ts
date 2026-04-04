@@ -60,7 +60,7 @@ async function executePostLogin(
   const mediator = input.mediator.value;
   const formError = await checkFormErrors(mediator, input.login.value.activeFrame);
   if (formError) return formError;
-  await waitForPostLoginTraffic(mediator);
+  await waitForPostLoginTraffic(mediator, input.logger);
   const cbResult = await runPostCallback(input.browser.value.page, config, input);
   if (!cbResult.success) return cbResult;
   return succeed(input);

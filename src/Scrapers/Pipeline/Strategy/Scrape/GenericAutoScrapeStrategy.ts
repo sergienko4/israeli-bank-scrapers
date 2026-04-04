@@ -19,6 +19,7 @@ import {
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -50,10 +51,18 @@ async function loadDiscovered<T>(
   endpoint: IDiscoveredEndpoint,
 ): Promise<Procedure<T>> {
   if (endpoint.responseBody) {
-    LOG.debug('[SCRAPE] Using buffered response from NetworkStore (0ms network cost)');
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: 'Using buffered response (0ms network cost)',
+    });
     return succeed(endpoint.responseBody as T);
   }
-  LOG.debug('[SCRAPE] Re-loading %s %s', endpoint.method, endpoint.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `Re-loading ${endpoint.method} ${maskVisibleText(endpoint.url)}`,
+  });
   if (endpoint.method === 'POST') {
     const rawBody = endpoint.postData || '{}';
     const body = JSON.parse(rawBody) as Record<string, string>;
@@ -76,7 +85,11 @@ async function discoverAndLoadAccounts(
   if (byUrl) return loadDiscovered<ApiPayload>(api, byUrl);
   const byContent = network.discoverEndpointByContent([...WK.accountId]);
   if (byContent) {
-    LOG.debug('[SCRAPE] Content discovery: %s', byContent.url);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `Content discovery: ${maskVisibleText(byContent.url)}`,
+    });
     return loadDiscovered<ApiPayload>(api, byContent);
   }
   return succeed({});
@@ -110,13 +123,21 @@ function extractCardIdFromArray(body: Record<string, unknown>): string | false {
 function resolveAccountFromBody(body: ApiPayload): IPostBodyFallback | false {
   const cardId = extractCardIdFromArray(body);
   if (cardId) {
-    LOG.debug('account fallback: cardId=%s from cards array', cardId);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `account fallback: cardId=${cardId} from cards array`,
+    });
     return { accountId: cardId, record: body };
   }
   const rawId = findFieldValue(body, WK.queryId);
   if (!rawId) return false;
   const accountId = String(rawId);
-  LOG.debug('account fallback: accountId=%s from top level', accountId);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `account fallback: accountId=${accountId} from top level`,
+  });
   return { accountId, record: body };
 }
 
@@ -145,7 +166,11 @@ function tryPostBodyFallback(
   if (!txnEndpoint || !txnEndpoint.postData) return false;
   const fallback = extractAccountFromPostBody(txnEndpoint.postData);
   if (!fallback) return false;
-  LOG.debug('account fallback from POST body: %s', fallback.accountId);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `account fallback from POST body: ${fallback.accountId}`,
+  });
   return { ids: [fallback.accountId], records: [fallback.record] };
 }
 
@@ -156,10 +181,18 @@ function tryPostBodyFallback(
  */
 function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | false {
   if (ep) {
-    LOG.debug('autoScrape: txnEndpoint=%s method=%s', ep.url, ep.method);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `autoScrape: txnEndpoint=${maskVisibleText(ep.url)} method=${ep.method}`,
+    });
     return ep;
   }
-  LOG.debug('autoScrape: txnEndpoint=NONE method=NONE');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: 'autoScrape: txnEndpoint=NONE method=NONE',
+  });
   return ep;
 }
 
@@ -202,7 +235,11 @@ function applyCredentialFallback(
   if (!loadCtx.txnEndpoint || !loadCtx.txnEndpoint.responseBody) return loadCtx;
   const creds = ctx.credentials as Record<string, string>;
   const cardId = creds.card6Digits || 'default';
-  LOG.debug('[SCRAPE] ids empty — using credential card6Digits=%s', cardId);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `ids empty — using credential card6Digits=${cardId}`,
+  });
   const records = [loadCtx.txnEndpoint.responseBody as Record<string, unknown>];
   return { ...loadCtx, ids: [cardId], records };
 }
@@ -238,10 +275,20 @@ async function pivotToSpaIfNeeded(
   const spaOrigin = new URL(spaUrl).origin;
   if (currentOrigin === spaOrigin) return succeed(false);
   if (isTxnHostedOnCurrentOrigin(network, currentOrigin)) {
-    LOG.debug('SPA pivot: skip — current origin %s hosts txn endpoint', currentOrigin);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message:
+        'SPA pivot: skip — current origin ' +
+        `${maskVisibleText(currentOrigin)} hosts txn endpoint`,
+    });
     return succeed(false);
   }
-  LOG.debug('SPA pivot: %s → %s', currentOrigin, spaOrigin);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `SPA pivot: ${maskVisibleText(currentOrigin)} → ${maskVisibleText(spaOrigin)}`,
+  });
   const opts = { waitUntil: 'domcontentloaded' as const, timeout: SPA_PIVOT_TIMEOUT_MS };
   await mediator.navigateTo(spaUrl, opts);
   return succeed(true);
@@ -305,16 +352,17 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
   loadCtx = await applyStorageHarvest(loadCtx, ctx);
   const idCount = String(loadCtx.ids.length);
   const recCount = String(loadCtx.records.length);
-  process.stderr.write(
-    `[SCRAPE.ACTION] GenericAutoScrape: ${idCount} accounts, ${recCount} records\n`,
-  );
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `GenericAutoScrape: ${idCount} accounts, ${recCount} records`,
+  });
   const accounts = await scrapeAllAccounts(loadCtx);
   const startMs = parseStartDate(startDate).getTime();
   applyGlobalDateFilter(accounts, startMs);
   const acctCount = String(accounts.length);
   const totalTxns = accounts.reduce((sum, a) => sum + a.txns.length, 0);
-  const txnCount = String(totalTxns);
-  process.stderr.write(`[SCRAPE.ACTION] Result: ${acctCount} accounts, ${txnCount} txns\n`);
+  LOG.debug({ event: 'scrape-result', accounts: Number(acctCount), txns: totalTxns });
   return succeed({ ...ctx, scrape: some({ accounts: [...accounts] }) });
 }
 

@@ -30,8 +30,20 @@ import type {
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+
+/** No-op mock logger for tests. */
+const MOCK_LOGGER = {
+  trace: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  fatal: jest.fn(),
+  child: jest.fn(),
+} as unknown as ScraperLogger;
 
 /** Submit candidate used in test configs. */
 const SUBMIT_CANDIDATE: SelectorCandidate = {
@@ -104,7 +116,12 @@ describe('fillAndSubmit/scopeToForm', () => {
     const overrides = buildScopeOverrides(scopeSpy, clickSpy);
     const mediator = FACTORY.makeMockMediator(overrides);
     const config = makeLoginConfig();
-    await LFA_MOD.fillAndSubmit(mediator, config, { password: 'test123' });
+    await LFA_MOD.fillAndSubmit({
+      mediator,
+      config,
+      creds: { password: 'test123' },
+      logger: MOCK_LOGGER,
+    });
     expect(scopeSpy).toHaveBeenCalledWith(config.submit);
   });
 
@@ -120,7 +137,12 @@ describe('fillAndSubmit/scopeToForm', () => {
     const overrides = buildScopeOverrides(scopeSpy, clickSpy);
     const mediator = FACTORY.makeMockMediator(overrides);
     const config2 = makeLoginConfig();
-    await LFA_MOD.fillAndSubmit(mediator, config2, { password: 'x' });
+    await LFA_MOD.fillAndSubmit({
+      mediator,
+      config: config2,
+      creds: { password: 'x' },
+      logger: MOCK_LOGGER,
+    });
     expect(clickSpy).toHaveBeenCalledWith(scoped);
   });
 
@@ -142,7 +164,12 @@ describe('fillAndSubmit/scopeToForm', () => {
     const overrides = buildScopeOverrides(passthrough, clickMock);
     const mediator = FACTORY.makeMockMediator(overrides);
     const config = makeLoginConfig();
-    const result = await LFA_MOD.fillAndSubmit(mediator, config, { password: 'x' });
+    const result = await LFA_MOD.fillAndSubmit({
+      mediator,
+      config,
+      creds: { password: 'x' },
+      logger: MOCK_LOGGER,
+    });
     expect(result.success).toBe(true);
     if (result.success) expect(result.value.method).toBe('click');
   });

@@ -15,6 +15,7 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 
@@ -424,10 +425,18 @@ function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
   const collected: UntypedValue[] = [];
   drainLifoStack(stack, collected);
   if (collected.length > 0) {
-    LOG.debug('findFirstArray: collected %d items', collected.length);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `findFirstArray: collected ${String(collected.length)} items`,
+    });
     return collected;
   }
-  LOG.debug('findFirstArray: falling back to BFS');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: 'findFirstArray: falling back to BFS',
+  });
   const allObjects = flattenObjectTree(obj);
   const arrays = allObjects.map((o): readonly UntypedValue[] | false => {
     const arr = Object.values(o).find(Array.isArray);
@@ -501,7 +510,11 @@ function castSearchable(items: readonly UntypedValue[]): readonly ApiRecord[] {
  */
 function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   const items = findFirstArray(responseBody);
-  LOG.debug('extractAccountRecords: %d items', items.length);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `extractAccountRecords: ${String(items.length)} items`,
+  });
   return castSearchable(items);
 }
 
@@ -529,9 +542,17 @@ function extractAccountIds(responseBody: ApiRecord): readonly string[] {
 function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
   const topKeys = Object.keys(responseBody);
   const keyList = topKeys.join(',');
-  LOG.debug('extractTransactions: topKeys=%s', keyList);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `extractTransactions: topKeys=${maskVisibleText(keyList)}`,
+  });
   const items = findFirstArray(responseBody);
-  LOG.debug('extractTransactions: %d items found', items.length);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `extractTransactions: ${String(items.length)} items found`,
+  });
   const searchable = castSearchable(items);
   return searchable.map(autoMapTransaction);
 }

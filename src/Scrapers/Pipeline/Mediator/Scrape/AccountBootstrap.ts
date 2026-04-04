@@ -7,7 +7,10 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import { getDebug } from '../../Types/Debug.js';
 import { extractAccountIds, extractAccountRecords } from './ScrapeAutoMapper.js';
+
+const LOG = getDebug('account-bootstrap');
 
 /** Raw JSON string from sessionStorage. */
 type StorageValue = string;
@@ -105,11 +108,19 @@ async function scanAllFrames(page: Page): Promise<IBootstrapResult | false> {
  * @returns Bootstrapped IDs + records, or empty.
  */
 async function harvestAccountsFromStorage(page: Page): Promise<IBootstrapResult> {
-  process.stderr.write('[SCRAPE] Harvesting accounts from sessionStorage...\n');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'SCRAPE',
+    message: 'Harvesting accounts from sessionStorage',
+  });
   const immediate = await scanAllFrames(page);
   if (immediate) {
     const count = String(immediate.ids.length);
-    process.stderr.write(`[SCRAPE] Storage harvest: ${count} accounts found\n`);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'SCRAPE',
+      message: `Storage harvest: ${count} accounts found`,
+    });
     return immediate;
   }
   // Wait for SPA to populate — use waitForFunction on each frame
@@ -138,13 +149,21 @@ async function harvestAccountsFromStorage(page: Page): Promise<IBootstrapResult>
     .map((r): StorageValue => (r as PromiseFulfilledResult<StorageValue>).value);
   const matchVal = nonEmpty.find((v): IsJsonLike => tryExtractAccounts(v) !== false);
   if (!matchVal) {
-    process.stderr.write('[SCRAPE] Storage harvest: 0 accounts found\n');
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'SCRAPE',
+      message: 'Storage harvest: 0 accounts found',
+    });
     return EMPTY_BOOTSTRAP;
   }
   const result = tryExtractAccounts(matchVal);
   if (!result) return EMPTY_BOOTSTRAP;
   const count = String(result.ids.length);
-  process.stderr.write(`[SCRAPE] Storage harvest: ${count} accounts found (polled)\n`);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'SCRAPE',
+    message: `Storage harvest: ${count} accounts found (polled)`,
+  });
   return result;
 }
 

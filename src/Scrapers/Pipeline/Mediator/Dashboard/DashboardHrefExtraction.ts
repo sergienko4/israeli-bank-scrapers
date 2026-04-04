@@ -6,6 +6,7 @@
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
 const LOG = createLogger('dashboard-href');
@@ -43,7 +44,11 @@ async function extractHrefLayer1(
   const timeout = TRIGGER_RENDER_TIMEOUT_MS;
   const race = await mediator.resolveVisible(hrefCandidates, timeout);
   const href = (race.found && race.value) || NO_HREF;
-  LOG.debug('[PRE] L1 ariaLabel: found=%s href="%s"', race.found, href);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `L1 ariaLabel: found=${String(race.found)} href="${maskVisibleText(href)}"`,
+  });
   return href;
 }
 
@@ -61,7 +66,11 @@ async function extractHrefLayer2(
   const timeout = TRIGGER_RENDER_TIMEOUT_MS;
   const race = await mediator.resolveVisible(hrefCandidates, timeout);
   const href = (race.found && race.value) || NO_HREF;
-  LOG.debug('[PRE] L2 textContent: found=%s href="%s"', race.found, href);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `L2 textContent: found=${String(race.found)} href="${maskVisibleText(href)}"`,
+  });
   return href;
 }
 
@@ -84,7 +93,11 @@ async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedH
   const allHrefs = await mediator.collectAllHrefs();
   const txnHref = allHrefs.find(matchesTxnPattern);
   const label = txnHref ?? 'none';
-  LOG.debug('[PRE] L3 DOM scan: match=%s total=%d', label, allHrefs.length);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `L3 DOM scan: match=${maskVisibleText(label)} total=${String(allHrefs.length)}`,
+  });
   return txnHref ?? '';
 }
 

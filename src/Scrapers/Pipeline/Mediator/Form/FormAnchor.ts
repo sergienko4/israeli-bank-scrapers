@@ -3,6 +3,7 @@ import { type Frame, type Page } from 'playwright-core';
 import { type SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { type Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 
 const LOG = getDebug('form-anchor');
 
@@ -213,7 +214,11 @@ export async function discoverFormAnchor(
 ): Promise<Nullable<IFormAnchor>> {
   const formSelector = await evaluateFormWalk(ctx, resolvedSelector);
   if (!formSelector) return EMPTY_RESULT;
-  LOG.debug('discovered form anchor: %s', formSelector);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `discovered form anchor: ${maskVisibleText(formSelector)}`,
+  });
   return { selector: formSelector, context: ctx };
 }
 

@@ -11,6 +11,8 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import type { IFieldConfig } from '../../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { reduceField, validateCredentials } from '../../Phases/Login/LoginFillStep.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
@@ -43,23 +45,26 @@ function normalizeSubmit(submit: ILoginConfig['submit']): readonly SelectorCandi
   return [submit];
 }
 
+/** Bundled args for filling all credential fields. */
+interface IFillAllArgs {
+  readonly mediator: IElementMediator;
+  readonly fields: ILoginConfig['fields'];
+  readonly creds: Record<string, string>;
+  readonly logger: ScraperLogger;
+}
+
 /**
  * Fill all credential fields sequentially via mediator.
  * Returns the resolved frame scope for submit targeting.
- * @param mediator - IElementMediator.
- * @param fields - Field configs.
- * @param creds - Credentials map.
+ * @param args - Bundled fill-all arguments.
  * @returns Fill result with frame context.
  */
-async function fillAllFields(
-  mediator: IElementMediator,
-  fields: ILoginConfig['fields'],
-  creds: Record<string, string>,
-): Promise<IFillAllResult> {
+async function fillAllFields(args: IFillAllArgs): Promise<IFillAllResult> {
+  const { mediator, fields, creds, logger } = args;
   const validation = validateCredentials(fields, creds);
   if (!validation.success) return { procedure: validation, frameContext: undefined };
   const ordered = passwordFirst(fields);
-  const ctx: IFillContext = { mediator, creds };
+  const ctx: IFillContext = { mediator, creds, logger };
   const seed = Promise.resolve<IFillAccum>({ scope: {}, procedure: succeed(true) });
   const final = await ordered.reduce(
     (p: Promise<IFillAccum>, f: IFieldConfig): Promise<IFillAccum> => reduceField(ctx, p, f),
@@ -73,12 +78,16 @@ async function fillAllFields(
  * Enter fires first (native form submit), Click fires second (Angular ng-click).
  * Both are safe — fillWithFrameworkDetection updates Angular model before either fires.
  * @param frameCtx - Page or Frame where fields were filled (false if none).
+ * @param logger - Pipeline logger.
  * @returns True if Enter was pressed.
  */
-async function tryEnterSubmit(frameCtx: Page | Frame | false): Promise<boolean> {
+async function tryEnterSubmit(
+  frameCtx: Page | Frame | false,
+  logger: ScraperLogger,
+): Promise<boolean> {
   if (!frameCtx || !('press' in frameCtx)) return false;
-  const url = frameCtx.url().slice(0, 50);
-  process.stderr.write(`    [LOGIN.ACTION] pressing Enter in ${url}\n`);
+  const url = frameCtx.url();
+  logger.debug({ event: 'login-submit', method: 'enter', url: maskVisibleText(url) });
   await frameCtx.press('input', 'Enter').catch((): false => false);
   return true;
 }
@@ -87,45 +96,53 @@ async function tryEnterSubmit(frameCtx: Page | Frame | false): Promise<boolean> 
  * Try clicking the submit button scoped to the discovered form.
  * @param mediator - Element mediator.
  * @param config - Login config.
+ * @param logger - Pipeline logger.
  * @returns Procedure succeed(true) if clicked, succeed(false) if not found, fail on error.
  */
 async function tryClickSubmit(
   mediator: IElementMediator,
   config: ILoginConfig,
+  logger: ScraperLogger,
 ): Promise<Procedure<boolean>> {
   const candidates = normalizeSubmit(config.submit);
   const scoped = mediator.scopeToForm(candidates);
   const result = await mediator.resolveAndClick(scoped);
   if (!result.success) return result;
   if (!result.value.found) return succeed(false);
-  process.stderr.write(`    [LOGIN.ACTION] submit clicked: "${result.value.value}"\n`);
+  const masked = maskVisibleText(result.value.value);
+  logger.debug({ event: 'login-submit', method: 'click', url: masked });
   return succeed(true);
+}
+
+/** Bundled args for fill-and-submit. */
+interface IFillAndSubmitArgs {
+  readonly mediator: IElementMediator;
+  readonly config: ILoginConfig;
+  readonly creds: Record<string, string>;
+  readonly logger: ScraperLogger;
 }
 
 /**
  * Fill fields then submit — Enter first, then Click.
  * Returns which method fired so POST knows what to validate.
- * @param mediator - Element mediator.
- * @param config - Login config.
- * @param creds - Credentials map.
+ * @param args - Bundled fill-and-submit arguments.
  * @returns Procedure with ISubmitResult (method: enter|click|both).
  */
-async function fillAndSubmit(
-  mediator: IElementMediator,
-  config: ILoginConfig,
-  creds: Record<string, string>,
-): Promise<Procedure<ISubmitResult>> {
+async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmitResult>> {
+  const { mediator, config, creds, logger } = args;
   const count = String(config.fields.length);
-  process.stderr.write(`    [LOGIN.ACTION] filling ${count} fields\n`);
-  const fillResult = await fillAllFields(mediator, config.fields, creds);
+  logger.debug({ event: 'generic-trace', phase: 'LOGIN', message: `filling ${count} fields` });
+  const fillResult = await fillAllFields({ mediator, fields: config.fields, creds, logger });
   if (!fillResult.procedure.success) return fillResult.procedure;
   const enterCtx = fillResult.frameContext ?? false;
-  const didEnter = await tryEnterSubmit(enterCtx);
-  const clickResult = await tryClickSubmit(mediator, config);
+  const didEnter = await tryEnterSubmit(enterCtx, logger);
+  const clickResult = await tryClickSubmit(mediator, config, logger);
   if (!clickResult.success && !didEnter) return clickResult;
   const didClick = clickResult.success && clickResult.value;
   const method = resolveSubmitMethod(didEnter, didClick);
-  process.stderr.write(`    [LOGIN.ACTION] submit method: ${method}\n`);
+  const currentUrl = mediator.getCurrentUrl();
+  const maskedUrl = maskVisibleText(currentUrl);
+  logger.debug({ event: 'login-submit', method, url: maskedUrl });
   return succeed({ success: true, method });
 }
 

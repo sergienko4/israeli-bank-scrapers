@@ -12,6 +12,7 @@ import type { Page, Response } from 'playwright-core';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
 
@@ -150,13 +151,15 @@ function handleResponse(captured: IDiscoveredEndpoint[], response: Response): Ca
     .then((endpoint): CaptureResult => {
       const isInteresting = method === 'POST' || url.includes('/col-rest/');
       if (!endpoint && isInteresting) {
-        const ct = response.headers()['content-type'] ?? 'none';
-        process.stderr.write(`    [NET] SKIP: ${method} ${url} (s=${String(status)} ct=${ct})\n`);
+        LOG.trace({ event: 'net-skip', method, url: maskVisibleText(url), status });
       }
       if (!endpoint) return false;
       captured.push(endpoint);
-      const ref = endpoint.requestHeaders.referer || 'none';
-      process.stderr.write(`    [NET] captured: ${endpoint.method} ${endpoint.url} (ref=${ref})\n`);
+      LOG.trace({
+        event: 'net-capture',
+        method: endpoint.method,
+        url: maskVisibleText(endpoint.url),
+      });
       return true;
     })
     .catch((): CaptureResult => false);
@@ -331,7 +334,12 @@ function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false
   if (!apiEndpoint) return false;
   const ref = apiEndpoint.requestHeaders.referer;
   if (!ref) return false;
-  LOG.debug('SPA Tier1 (referer): %s from %s', ref, apiEndpoint.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message:
+      `SPA Tier1 (referer): ${maskVisibleText(ref)} ` + `from ${maskVisibleText(apiEndpoint.url)}`,
+  });
   return ref;
 }
 
@@ -355,7 +363,11 @@ function checkCorsHeader(ep: IDiscoveredEndpoint, pageOrigin: string): string | 
   const epOrigin = new URL(ep.url).origin;
   const isCross = corsOrigin !== epOrigin && corsOrigin !== pageOrigin;
   if (!isCross) return false;
-  LOG.debug('SPA Tier2 (CORS): %s from %s', cors, ep.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `SPA Tier2 (CORS): ${maskVisibleText(cors)} from ${maskVisibleText(ep.url)}`,
+  });
   return cors;
 }
 
@@ -425,7 +437,11 @@ function scanConfigBody(
   if (!urls) return false;
   const hit = urls.find((u): PatternTest => isSpaCandidate(u, currentHost, parentDomain));
   if (!hit) return false;
-  LOG.debug('SPA Tier3 (config): %s from %s', hit, ep.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `SPA Tier3 (config): ${maskVisibleText(hit)} from ${maskVisibleText(ep.url)}`,
+  });
   return hit;
 }
 
@@ -489,7 +505,11 @@ function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
   const urls = body.match(API_PATH_REGEX);
   if (!urls || urls.length === 0) return false;
   const origin = new URL(urls[0]).origin;
-  LOG.debug('apiOrigin Tier1 (config): %s from %s', origin, ep.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `apiOrigin Tier1 (config): ${maskVisibleText(origin)} from ${maskVisibleText(ep.url)}`,
+  });
   return origin;
 }
 
@@ -516,7 +536,11 @@ function discoverApiFromSubdomain(captured: readonly IDiscoveredEndpoint[]): str
   const hit = captured.find((ep): PatternTest => new URL(ep.url).hostname.startsWith('api.'));
   if (!hit) return false;
   const origin = new URL(hit.url).origin;
-  LOG.debug('apiOrigin Tier2 (subdomain): %s', origin);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `apiOrigin Tier2 (subdomain): ${maskVisibleText(origin)}`,
+  });
   return origin;
 }
 
@@ -529,7 +553,11 @@ function discoverApiFromPath(captured: readonly IDiscoveredEndpoint[]): string |
   const hit = captured.find((ep): PatternTest => ep.method === 'POST' && ep.url.includes('/api/'));
   if (!hit) return false;
   const origin = new URL(hit.url).origin;
-  LOG.debug('apiOrigin Tier3 (path): %s', origin);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `apiOrigin Tier3 (path): ${maskVisibleText(origin)}`,
+  });
   return origin;
 }
 
@@ -576,7 +604,11 @@ function discoverByContent(
     return bodyHasFields(ep.responseBody as Record<string, string>, fieldNames);
   });
   if (!hit) return false;
-  LOG.debug('Content discovery: found field in %s', hit.url);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `Content discovery: found field in ${maskVisibleText(hit.url)}`,
+  });
   return hit;
 }
 
@@ -690,7 +722,11 @@ async function assembleDiscoveredHeaders(
   const originLabel = origin || 'NONE';
   const siteIdLabel = siteId || 'NONE';
   const authLabel = formatTokenPreview(auth);
-  LOG.debug('discoveredHeaders: auth=%s origin=%s siteId=%s', authLabel, originLabel, siteIdLabel);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `discoveredHeaders: auth=${authLabel} origin=${originLabel} siteId=${siteIdLabel}`,
+  });
   return { extraHeaders };
 }
 
@@ -894,7 +930,11 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): Ca
       const isDupe = captured.some((ep): PatternTest => ep.url === endpoint.url);
       if (isDupe) return false;
       captured.push(endpoint);
-      process.stderr.write(`    [NET] intercepted POST: ${endpoint.url}\n`);
+      LOG.trace({
+        event: 'net-capture',
+        method: endpoint.method,
+        url: maskVisibleText(endpoint.url),
+      });
       return true;
     })
     .catch((): CaptureResult => false);
@@ -945,7 +985,9 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
       const token = await discoverAuthThreeTier(captured, page);
       if (token) {
         authState.cached = token;
-        process.stderr.write(`    [NET] auth cached: ${token.slice(0, 20)}...\n`);
+        const truncated = token.slice(0, 20);
+        const preview = maskVisibleText(truncated);
+        LOG.trace({ event: 'generic-trace', phase: 'DASHBOARD', message: preview });
       }
       return authState.cached;
     },

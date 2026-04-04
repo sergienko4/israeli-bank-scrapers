@@ -151,8 +151,7 @@ function buildVirtualTemplate(
   const reqName = pattern.source.replaceAll('\\', '');
   const txnUrl = `${proxyUrl}?reqName=${reqName}`;
   const txnParams = pq.input.config.auth?.params?.transactions ?? {};
-  const idxStr = cardIndices.join(', ');
-  process.stderr.write(`[SCRAPE.PRE] virtual template: ${txnUrl} cards=[${idxStr}]\n`);
+  LOG.debug({ event: 'scrape-pre', template: txnUrl, cards: cardIndices });
   return { txnUrl, templateBody: txnParams as Record<string, unknown>, allCardIds: cardIndices };
 }
 
@@ -278,14 +277,22 @@ function buildDirectDiscovery(
 async function runProxyQualification(pq: IProxyQualCtx): Promise<Procedure<IPipelineContext>> {
   const resolved = resolveTemplateAndCards(pq);
   if (!resolved) {
-    LOG.debug('[SCRAPE.PRE] no replayable txn template found');
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: '[SCRAPE.PRE] no replayable txn template found',
+    });
     return succeed({ ...pq.input, diagnostics: pq.diag });
   }
   // PROXY: skip probe — DashboardMonth already validated these cards
   const isProxy = pq.input.diagnostics.apiStrategy === 'PROXY';
   if (isProxy) return buildDirectDiscovery(pq, resolved);
   const cardCount = String(resolved.allCardIds.length);
-  LOG.debug('[SCRAPE.PRE] qualifying %s cards', cardCount);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `[SCRAPE.PRE] qualifying ${cardCount} cards`,
+  });
   return qualifyAndBuild(pq, resolved);
 }
 

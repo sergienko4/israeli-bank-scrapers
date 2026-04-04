@@ -9,6 +9,7 @@ import type { IDiscoveredEndpoint } from '../../../Mediator/Network/NetworkDisco
 import { extractTransactions } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { ACCOUNT_SIGNATURE_KEYS, TXN_SIGNATURE_KEYS } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
+import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { some } from '../../../Types/Option.js';
 import type { IPipelineContext, IScrapeDiscovery } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -60,7 +61,13 @@ function findProxyAccountTemplate(
   if (match) {
     const acctBody = match.responseBody as JsonNode;
     const sigKeys = extractMatchingKeys(acctBody, ACCOUNT_SIGNATURE_KEYS);
-    LOG.debug('[DISCOVERY] Identified Account Template via Signature Keys: [%s]', sigKeys);
+    const sigKeysRaw = String(sigKeys);
+    const sigKeysStr = maskVisibleText(sigKeysRaw);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `[DISCOVERY] Identified Account Template via Signature Keys: [${sigKeysStr}]`,
+    });
   }
   return match ?? false;
 }
@@ -106,7 +113,13 @@ function findProxyTxnTemplate(
     const responseBody = match.responseBody as JsonNode;
     const sigKeys = extractMatchingKeys(responseBody, TXN_SIGNATURE_KEYS);
     const keyStr = sigKeys.join(', ');
-    LOG.debug('[DISCOVERY] Identified Transaction Template via Signature Keys: [%s]', keyStr);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message:
+        '[DISCOVERY] Identified Transaction Template ' +
+        `via Signature Keys: [${maskVisibleText(keyStr)}]`,
+    });
   }
   return match ?? false;
 }
@@ -162,8 +175,7 @@ async function replayOneMonth(
   month: string,
 ): Promise<readonly ITransaction[]> {
   const body = { ...rCtx.templateBody, card4Number: rCtx.cardId, billingMonth: month };
-  const bodyStr = JSON.stringify(body);
-  LOG.debug('[REPLAY] card=%s month=%s body=%s', rCtx.cardId, month, bodyStr);
+  LOG.trace({ event: 'scrape-card', card: rCtx.cardId, month, txnCount: 0 });
   const result = await rCtx.strategy.fetchPost<Record<string, unknown>>(
     rCtx.txnUrl,
     body as unknown as Record<string, string>,
@@ -171,10 +183,13 @@ async function replayOneMonth(
   );
   if (!isOk(result)) return [];
   const respPreview = JSON.stringify(result.value).slice(0, 200);
-  LOG.debug('[REPLAY] response=%s', respPreview);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `[REPLAY] response=${maskVisibleText(respPreview)}`,
+  });
   const txns = extractTransactions(result.value);
-  const txnCount = String(txns.length);
-  LOG.debug('[REPLAY] card=%s month=%s → %s txns', rCtx.cardId, month, txnCount);
+  LOG.trace({ event: 'scrape-card', card: rCtx.cardId, month, txnCount: txns.length });
   return txns;
 }
 
@@ -236,13 +251,12 @@ async function replayOneMonthGet(
   const suffixMap: Record<string, string> = { true: `&${paramStr}`, false: '' };
   const hasSuffix = String(paramStr.length > 0);
   const fullUrl = `${gCtx.txnUrl}${suffixMap[hasSuffix]}`;
-  process.stderr.write(`[SCRAPE.GET] card=${gCtx.cardId} month=${month} url=${fullUrl}\n`);
+  LOG.trace({ event: 'scrape-card', card: gCtx.cardId, month, txnCount: 0 });
   const emptyHeaders = { extraHeaders: {} };
   const result = await gCtx.strategy.fetchGet<Record<string, unknown>>(fullUrl, emptyHeaders);
   if (!isOk(result)) return [];
   const txns = extractTransactions(result.value);
-  const txnCount = String(txns.length);
-  process.stderr.write(`[SCRAPE.GET] card=${gCtx.cardId} month=${month} → ${txnCount} txns\n`);
+  LOG.trace({ event: 'scrape-card', card: gCtx.cardId, month, txnCount: txns.length });
   return txns;
 }
 
@@ -334,18 +348,30 @@ async function replayOneCard(args: IReplayCardArgs): Promise<readonly ITransacti
 async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!ctx.fetchStrategy.has) return succeed(ctx);
   if (!ctx.scrapeDiscovery.has) {
-    LOG.debug('[SCRAPE.ACTION] no scrapeDiscovery — skipping');
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: '[SCRAPE.ACTION] no scrapeDiscovery — skipping',
+    });
     return succeed(ctx);
   }
   const disc = ctx.scrapeDiscovery.value;
   if (disc.qualifiedCards.length === 0) {
-    LOG.debug('[SCRAPE.ACTION] no qualified cards');
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: '[SCRAPE.ACTION] no qualified cards',
+    });
     return succeed(ctx);
   }
   const strategy = ctx.fetchStrategy.value;
   const qualStr = disc.qualifiedCards.join(', ');
   const cardCount = String(disc.qualifiedCards.length);
-  process.stderr.write(`[SCRAPE.ACTION] replaying ${cardCount} cards: [${qualStr}]\n`);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `replaying ${cardCount} cards: [${qualStr}]`,
+  });
   const accounts: ITransactionsAccount[] = [];
   const seed = Promise.resolve(true as const);
   const chain = disc.qualifiedCards.reduce(
@@ -364,8 +390,7 @@ async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineCo
   applyGlobalDateFilter(accounts, filterMs);
   const acctCount = String(accounts.length);
   const totalTxns = accounts.reduce((s, a) => s + a.txns.length, 0);
-  const txnStr = String(totalTxns);
-  process.stderr.write(`[SCRAPE.ACTION] Result: ${acctCount} accounts, ${txnStr} txns\n`);
+  LOG.debug({ event: 'scrape-result', accounts: Number(acctCount), txns: totalTxns });
   return succeed({ ...ctx, scrape: some({ accounts }) });
 }
 

@@ -9,7 +9,11 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IDiscoveredEndpoint } from './NetworkDiscovery.js';
+
+const LOG = getDebug('auth-discovery');
 
 /** WellKnown token field names in auth response bodies. */
 const TOKEN_BODY_FIELDS = ['token', 'calConnectToken', 'access_token', 'authToken', 'jwt'];
@@ -213,15 +217,23 @@ async function discoverFromStorage(page: Page): Promise<string | false> {
 function checkOneValue(raw: StorageValue): string | false {
   const token = tryParseJsonToken(raw);
   if (token) {
-    process.stderr.write('    [AUTH] iframe token found (json)\n');
+    LOG.trace({ event: 'generic-trace', phase: 'DASHBOARD', message: 'iframe token found (json)' });
     return token;
   }
   // Raw string > 20 chars — likely a GUID/token, prefix it
   if (raw.length > 20) {
-    process.stderr.write(`    [AUTH] iframe raw token: ${raw.slice(0, 20)}...\n`);
+    LOG.trace({
+      event: 'generic-trace',
+      phase: 'DASHBOARD',
+      message: maskVisibleText(`iframe raw token: ${raw.slice(0, 20)}`),
+    });
     return prefixToken(raw);
   }
-  process.stderr.write(`    [AUTH] iframe raw value (short): ${raw}\n`);
+  LOG.trace({
+    event: 'generic-trace',
+    phase: 'DASHBOARD',
+    message: maskVisibleText(`iframe raw value (short): ${raw}`),
+  });
   return false;
 }
 
@@ -278,7 +290,7 @@ async function dumpFrameKeys(frame: Frame): Promise<string> {
     .catch((): StorageValue => 'CROSS-ORIGIN');
   const url = frame.url().slice(0, 50);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
-    process.stderr.write(`    [AUTH] frame ${url} keys=[${keys}]\n`);
+    LOG.trace({ event: 'auth-frame', url: maskVisibleText(url), keys: keys.split(', ') });
   }
   return keys;
 }
@@ -332,7 +344,11 @@ async function scanFrameForTokens(frame: Frame): Promise<string | false> {
   const allValues = await readAllJsonStorageValues(frame);
   const tokenVal = allValues.find((v): IsTokenLike => tryParseJsonToken(v) !== false);
   if (!tokenVal) return false;
-  process.stderr.write(`    [AUTH] Tier3c: token from frame ${frame.url().slice(0, 40)}\n`);
+  LOG.trace({
+    event: 'generic-trace',
+    phase: 'DASHBOARD',
+    message: maskVisibleText(`Tier3c: token from frame ${frame.url().slice(0, 40)}`),
+  });
   return tryParseJsonToken(tokenVal);
 }
 
@@ -366,7 +382,11 @@ const AUTH_POLL_INTERVAL = 100;
  * @returns Token or false.
  */
 async function pollForAuthModule(page: Page): Promise<string | false> {
-  process.stderr.write('    [AUTH] polling auth-module across frames...\n');
+  LOG.trace({
+    event: 'generic-trace',
+    phase: 'DASHBOARD',
+    message: 'polling auth-module across frames',
+  });
   const startMs = Date.now();
   const frames = page.frames();
   const waiters = frames.map(
@@ -389,7 +409,11 @@ async function pollForAuthModule(page: Page): Promise<string | false> {
     .map((r): StorageValue => (r as PromiseFulfilledResult<string>).value);
   if (tokens.length === 0) return false;
   const elapsed = String(Date.now() - startMs);
-  process.stderr.write(`    [AUTH] auth-module found after ${elapsed}ms\n`);
+  LOG.trace({
+    event: 'generic-trace',
+    phase: 'DASHBOARD',
+    message: `auth-module found after ${elapsed}ms`,
+  });
   return tokens[0];
 }
 

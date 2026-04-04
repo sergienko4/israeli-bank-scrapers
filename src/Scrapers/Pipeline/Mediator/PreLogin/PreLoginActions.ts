@@ -8,6 +8,8 @@ import type { Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_PRELOGIN } from '../../Registry/WK/PreLoginWK.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 
@@ -56,15 +58,19 @@ async function waitForFormGate(mediator: IElementMediator): Promise<boolean> {
  * If both exist → skip reveal (form is already rendered).
  * If either missing → run reveal flow.
  * @param mediator - Element mediator (black box).
+ * @param logger - Pipeline logger.
  * @returns True to skip reveal, false to run reveal.
  */
-async function isFormAlreadyVisible(mediator: IElementMediator): Promise<boolean> {
+async function isFormAlreadyVisible(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<boolean> {
   const pwdResult = await mediator
     .resolveVisible(FORM_GATE, FORM_PROBE_TIMEOUT)
     .catch((): false => false);
   const hasPwd = pwdResult && pwdResult.found;
   if (!hasPwd) {
-    process.stderr.write('    [PRE-LOGIN.PRE] guard: pwd=false → reveal\n');
+    logger.debug({ event: 'pre-login-guard', hasPwd: false, hasSubmit: false });
     return false;
   }
   const submitGate = WK_PRELOGIN.SUBMIT_GATE as unknown as readonly SelectorCandidate[];
@@ -72,8 +78,7 @@ async function isFormAlreadyVisible(mediator: IElementMediator): Promise<boolean
     .resolveVisible(submitGate, FORM_PROBE_TIMEOUT)
     .catch((): false => false);
   const hasSubmit = submitResult && submitResult.found;
-  const tag = `pwd=true submit=${String(hasSubmit)}`;
-  process.stderr.write(`    [PRE-LOGIN.PRE] guard: ${tag}\n`);
+  logger.debug({ event: 'pre-login-guard', hasPwd: true, hasSubmit });
   return hasSubmit;
 }
 
@@ -91,51 +96,73 @@ async function validateFormGatePost(mediator: IElementMediator): Promise<boolean
   return result.found;
 }
 
+/** Timeout in milliseconds for navigation waits. */
+type NavTimeoutMs = number;
+
+/** Bundled args for private-customers reveal click. */
+interface IRevealClickArgs {
+  readonly mediator: IElementMediator;
+  readonly browserPage: Page;
+  readonly navTimeout: NavTimeoutMs;
+  readonly logger: ScraperLogger;
+}
+
 /**
  * Click a WK_PRELOGIN.REVEAL element, then wait for password field.
- * @param mediator - Element mediator.
- * @param browserPage - Browser page.
- * @param navTimeout - Navigation wait timeout.
+ * @param args - Bundled reveal click arguments.
  * @returns Procedure with IRaceResult.
  */
-async function tryClickPrivateCustomers(
-  mediator: IElementMediator,
-  browserPage: Page,
-  navTimeout: number,
-): Promise<Procedure<IRaceResult>> {
+async function tryClickPrivateCustomers(args: IRevealClickArgs): Promise<Procedure<IRaceResult>> {
+  const { mediator, browserPage, navTimeout, logger } = args;
   const clickResult = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL);
   if (!clickResult.success) {
-    process.stderr.write('      [PRE-LOGIN] reveal click: FAIL\n');
+    logger.debug({
+      event: 'generic-trace',
+      phase: 'find-login-area',
+      message: 'reveal click: FAIL',
+    });
     return clickResult;
   }
   if (!clickResult.value.found) {
-    process.stderr.write('      [PRE-LOGIN] reveal click: NOT FOUND\n');
+    logger.debug({
+      event: 'generic-trace',
+      phase: 'find-login-area',
+      message: 'reveal click: NOT FOUND',
+    });
     return clickResult;
   }
   const label = clickResult.value.value;
-  process.stderr.write(`      [PRE-LOGIN] reveal CLICKED: "${label}"\n`);
+  logger.debug({ event: 'pre-login-reveal', text: maskVisibleText(label), formGate: false });
   const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
   await browserPage.waitForURL('**/login**', navOpts).catch((): false => false);
   const hasForm = await waitForFormGate(mediator);
-  process.stderr.write(`      [PRE-LOGIN] after reveal: formGate=${String(hasForm)}\n`);
+  logger.debug({ event: 'pre-login-reveal', text: maskVisibleText(label), formGate: hasForm });
   return clickResult;
 }
 
 /**
  * Click the login method tab, then wait for password field.
  * @param mediator - Element mediator.
+ * @param logger - Pipeline logger.
  * @returns Procedure with IRaceResult.
  */
-async function tryClickCredentialArea(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
+async function tryClickCredentialArea(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<Procedure<IRaceResult>> {
   const result = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL, CRED_AREA_TIMEOUT);
   if (result.success && result.value.found) {
     const label = result.value.value;
-    process.stderr.write(`      [PRE-LOGIN] credentialArea CLICKED: "${label}"\n`);
+    logger.debug({ event: 'pre-login-reveal', text: maskVisibleText(label), formGate: false });
     const hasForm = await waitForFormGate(mediator);
-    process.stderr.write(`      [PRE-LOGIN] after credentialArea: formGate=${String(hasForm)}\n`);
+    logger.debug({ event: 'pre-login-reveal', text: maskVisibleText(label), formGate: hasForm });
   }
   if (result.success && !result.value.found) {
-    process.stderr.write('      [PRE-LOGIN] credentialArea: NOT FOUND\n');
+    logger.debug({
+      event: 'generic-trace',
+      phase: 'find-login-area',
+      message: 'credentialArea: NOT FOUND',
+    });
   }
   return result;
 }

@@ -12,6 +12,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { isPage } from './SelectorResolver.js';
 import type { IFieldContext, IFieldMatch } from './SelectorResolverPipeline.js';
 
@@ -64,17 +65,23 @@ const TEXT_INPUT_SELECTOR =
 async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
   const locator = frame.locator(PASSWORD_SELECTOR).first();
   const count = await locator.count().catch((): InputIndex => 0);
-  process.stderr.write(`      [HEURISTIC] input[type="password"] count=${String(count)}\n`);
+  const resultMap: Record<string, 'FOUND' | 'NOT_FOUND'> = { true: 'FOUND', false: 'NOT_FOUND' };
+  const pwdResult = resultMap[String(count > 0)];
+  LOG.trace({ event: 'element-resolve', phase: 'LOGIN', field: 'password', result: pwdResult });
   if (count === 0) return { selector: '', context: frame };
   const isVis: IsViable = await locator.isVisible().catch((): IsViable => false);
-  process.stderr.write(`      [HEURISTIC] input[type="password"] visible=${String(isVis)}\n`);
+  LOG.trace({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `password visible=${String(isVis)}`,
+  });
   if (!isVis) return { selector: '', context: frame };
   const elemId = await locator.getAttribute('id').catch((): HeuristicSelector => '');
   let selector = PASSWORD_SELECTOR;
   if (elemId) {
     selector = `#${elemId}`;
   }
-  process.stderr.write(`      [HEURISTIC] RESOLVED password → ${selector}\n`);
+  LOG.trace({ event: 'element-resolve', phase: 'LOGIN', field: 'password', result: 'FOUND' });
   return { selector, context: frame, kind: 'css' };
 }
 
@@ -103,13 +110,12 @@ async function resolveTextByIndex(
   if (elemId) {
     selector = `#${elemId}`;
   }
-  LOG.debug(
-    'Round 3 (heuristic): resolved %s → %s (index %d of %d)',
-    fieldKey,
-    selector,
-    index,
-    total,
-  );
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `heuristic:${fieldKey}`,
+    result: 'FOUND',
+  });
   return { selector, context: frame, kind: 'css' };
 }
 
@@ -152,16 +158,12 @@ async function heuristicResolveInFrame(
  * @returns IFieldContext with heuristic metadata.
  */
 function toHeuristicContext(match: IFieldMatch, fieldKey: string): IFieldContext {
-  let frameUrl = '';
-  if ('url' in match.context) {
-    frameUrl = (match.context as Frame).url();
-  }
-  LOG.debug(
-    'Round 3 (heuristic): resolved %s → %s in frame %s',
-    fieldKey,
-    match.selector,
-    frameUrl,
-  );
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `heuristic:${fieldKey}`,
+    result: 'FOUND',
+  });
   return {
     isResolved: true,
     selector: match.selector,
@@ -200,7 +202,13 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
   const mainFrame = page.mainFrame();
   const childFrames = page.frames().filter(f => f !== mainFrame);
   if (childFrames.length === 0) return false;
-  LOG.debug('Round 3 (heuristic): searching %d iframe(s) for "%s"', childFrames.length, fieldKey);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'login',
+    message:
+      `Round 3: searching ${String(childFrames.length)} iframe(s)` +
+      ` for "${maskVisibleText(fieldKey)}"`,
+  });
   return probeFrameAt(childFrames, fieldKey, 0);
 }
 
@@ -221,7 +229,11 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
 async function probePageHeuristic(page: Page, fieldKey: string): Promise<IFieldContext | false> {
   const iframeResult = await heuristicProbeIframes(page, fieldKey);
   if (iframeResult) return iframeResult;
-  LOG.debug('Round 3 (heuristic): trying main page for "%s"', fieldKey);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'login',
+    message: `Round 3 (heuristic): trying main page for "${maskVisibleText(fieldKey)}"`,
+  });
   const mainFrame = page.mainFrame();
   const mainMatch = await heuristicResolveInFrame(mainFrame, fieldKey);
   if (mainMatch.selector) return toHeuristicContext(mainMatch, fieldKey);

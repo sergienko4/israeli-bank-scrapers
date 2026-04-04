@@ -29,7 +29,7 @@ class HomePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no mediator');
-    const result = await executeLocateLoginNav(input.mediator.value);
+    const result = await executeLocateLoginNav(input.mediator.value, input.logger);
     if (!result.success) return result;
     return succeed(input);
   }
@@ -41,7 +41,7 @@ class HomePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no mediator');
-    return executeNavigateToLogin(input.mediator.value, input);
+    return executeNavigateToLogin(input.mediator.value, input, input.logger);
   }
 
   /** @inheritdoc */
@@ -52,7 +52,12 @@ class HomePhase extends BasePhase {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME POST: no mediator');
     const homepageUrl = input.config.urls.base;
-    return executeValidateLoginArea(input.mediator.value, input, homepageUrl);
+    return executeValidateLoginArea({
+      mediator: input.mediator.value,
+      input,
+      homepageUrl,
+      logger: input.logger,
+    });
   }
 
   /** @inheritdoc */
@@ -65,7 +70,7 @@ class HomePhase extends BasePhase {
       const err = fail(ScraperErrorTypes.Generic, 'HOME FINAL: no mediator');
       return Promise.resolve(err);
     }
-    const signal = executeStoreLoginSignal(input.mediator.value, input);
+    const signal = executeStoreLoginSignal(input.mediator.value, input, input.logger);
     return Promise.resolve(signal);
   }
 }

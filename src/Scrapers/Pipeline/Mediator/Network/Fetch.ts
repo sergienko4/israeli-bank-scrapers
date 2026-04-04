@@ -4,6 +4,7 @@ import type { Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import {
   BODY_PREVIEW_LIMIT,
   JSON_CONTENT_TYPE,
@@ -65,7 +66,11 @@ export function detectWafBlock(status: StatusCode, body: BodyStr): BodyStr {
  * @returns True after logging completes.
  */
 function logApiCall(tag: HeaderVal, status: StatusCode, durationMs: StatusCode): CheckResult {
-  LOG.debug('%s → %d (%dms)', tag, status, durationMs);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `${tag} → ${String(status)} (${String(durationMs)}ms)`,
+  });
   return true;
 }
 
@@ -79,14 +84,26 @@ function logApiCall(tag: HeaderVal, status: StatusCode, durationMs: StatusCode):
 function logResponseIssues(status: StatusCode, text: BodyStr, url: UrlStr): CheckResult {
   if (text !== '') {
     const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
-    LOG.debug('response body: %s', bodyPreview);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `response body: ${maskVisibleText(bodyPreview)}`,
+    });
   }
   if (status !== 200 && status !== 204) {
-    LOG.debug('non-200: status=%d url=%s', status, url);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `non-200: status=${String(status)} url=${maskVisibleText(url)}`,
+    });
   }
   const wafReason = detectWafBlock(status, text);
   if (wafReason) {
-    LOG.debug('WAF block: %s url=%s', wafReason, url);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'scrape',
+      message: `WAF block: ${wafReason} url=${maskVisibleText(url)}`,
+    });
   }
   return true;
 }
@@ -108,7 +125,11 @@ async function parseFetchGetResponse<TResult>(
   logApiCall(`GET ${urlTail}`, fetchResult.status, elapsed);
   const text = await fetchResult.text();
   const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
-  LOG.debug('response body: %s', bodyPreview);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `response body: ${maskVisibleText(bodyPreview)}`,
+  });
   if (fetchResult.status !== 200) {
     const statusStr = String(fetchResult.status);
     throw new ScraperError(`GET request returned status ${statusStr}`);
@@ -167,7 +188,11 @@ export async function fetchPost<TResult>(
   logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
   const text = await result.text();
   const preview = text.substring(0, BODY_PREVIEW_LIMIT);
-  LOG.debug('response body: %s', preview);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `response body: ${maskVisibleText(preview)}`,
+  });
   return JSON.parse(text) as TResult;
 }
 

@@ -12,6 +12,7 @@ import {
   generateMonthChunks,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
 import {
@@ -71,11 +72,21 @@ async function scrapeOneBillingChunk(
 ): Promise<readonly ITransaction[]> {
   const { month, year } = chunkMonthYear(chunk);
   const body = { cardUniqueId: ctx.accountId, month, year };
-  LOG.debug({ month, year, cardUniqueId: ctx.accountId, url: ctx.billingUrl }, 'billing chunk');
+  const maskedUrl = maskVisibleText(ctx.billingUrl);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `billing chunk m=${month} y=${year} url=${maskedUrl}`,
+  });
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(ctx.billingUrl, body);
   if (!isOk(raw)) return [];
   const txns = extractTransactions(raw.value);
-  LOG.debug('billing chunk: m=%s y=%s → %d txns', month, year, txns.length);
+  LOG.debug({
+    event: 'scrape-card',
+    card: ctx.accountId,
+    month: `${month}/${year}`,
+    txnCount: txns.length,
+  });
   return txns;
 }
 
@@ -160,7 +171,7 @@ async function tryBillingFallback(
   const apiOrigin = epUrl || fc.network.discoverApiOrigin();
   if (!apiOrigin) return fail(ScraperErrorTypes.Generic, 'No endpoint for billing origin');
   const billingUrl = buildBillingUrl(apiOrigin);
-  process.stderr.write(`[SCRAPE.BILLING] url=${billingUrl}\n`);
+  LOG.debug({ event: 'generic-trace', phase: 'scrape', message: `billing url=${billingUrl}` });
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date());
   const ctx: IBillingChunkCtx = { fc, billingUrl, accountId: post.accountId };

@@ -1,46 +1,62 @@
 /**
- * Pipeline trace service — emits 7-stage phase transitions to stderr.
+ * Pipeline trace service — emits structured phase-lifecycle events.
  * Infrastructure concern — lives in Core/, not Types/.
  */
 
+import type { ScraperLogger } from '../Types/Debug.js';
+
 /** Trace outcome after phase execution. */
-type TraceStatus = string;
+type TraceTag = string;
+/** Whether tracing was emitted. */
+type DidTrace = boolean;
+
+/** Outcome lookup — avoids ternary. */
+const OUTCOME: Record<string, string> = { true: 'OK', false: 'FAIL' };
 
 /**
- * Build phase trace tag.
+ * Build phase index tag for log context.
  * @param index - 0-based phase index.
  * @param total - Total phase count.
+ * @returns Formatted index string (e.g. '1/7').
+ */
+function buildPhaseIndex(index: number, total: number): TraceTag {
+  return `${String(index + 1)}/${String(total)}`;
+}
+
+/**
+ * Emit phase start event via structured logger.
+ * @param logger - Pino logger from context.
  * @param name - Phase name.
- * @returns Formatted tag string.
+ * @param indexTag - Phase index tag.
+ * @returns True after tracing.
  */
-function buildPhaseTag(index: number, total: number, name: string): TraceStatus {
-  return `[PIPELINE] [${String(index + 1)}/${String(total)}] ${name}`;
+function traceStart(logger: ScraperLogger, name: TraceTag, indexTag: TraceTag): DidTrace {
+  logger.debug({ event: 'phase-lifecycle', phase: name, action: 'START', index: indexTag });
+  return true;
 }
 
 /**
- * Emit phase start trace to stderr.
- * @param tag - Phase tag from buildPhaseTag.
- * @returns The tag (pass-through for chaining).
+ * Emit phase result event via structured logger.
+ * @param ctx - Bundled trace context (logger, name, indexTag, isSuccess).
+ * @returns True after tracing.
  */
-function traceStart(tag: TraceStatus): TraceStatus {
-  process.stderr.write(`${tag} → START\n`);
-  return tag;
+interface ITraceResultCtx {
+  readonly logger: ScraperLogger;
+  readonly name: TraceTag;
+  readonly indexTag: TraceTag;
+  readonly isSuccess: DidTrace;
 }
 
 /**
- * Emit phase result trace to stderr.
- * @param tag - Phase tag from buildPhaseTag.
- * @param isSuccess - Whether the phase succeeded.
- * @returns The tag (pass-through).
+ * Emit phase result event via structured logger.
+ * @param ctx - Bundled trace context.
+ * @returns True after tracing.
  */
-function traceResult(tag: TraceStatus, isSuccess: boolean): TraceStatus {
-  if (isSuccess) {
-    process.stderr.write(`${tag} → OK\n`);
-    return tag;
-  }
-  process.stderr.write(`${tag} → FAIL\n`);
-  return tag;
+function traceResult(ctx: ITraceResultCtx): DidTrace {
+  const action = OUTCOME[String(ctx.isSuccess)];
+  ctx.logger.debug({ event: 'phase-lifecycle', phase: ctx.name, action, index: ctx.indexTag });
+  return true;
 }
 
-export default buildPhaseTag;
-export { buildPhaseTag, traceResult, traceStart };
+export default buildPhaseIndex;
+export { buildPhaseIndex, traceResult, traceStart };

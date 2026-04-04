@@ -6,6 +6,8 @@
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_PRELOGIN } from '../../Registry/WK/PreLoginWK.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { RevealStatus } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -37,11 +39,13 @@ async function isRevealAttached(mediator: IElementMediator): Promise<Procedure<b
  * Probe WK_PRELOGIN.REVEAL and return RevealStatus.
  * @param mediator - Active mediator.
  * @param timeout - Race timeout ms.
+ * @param logger - Pipeline logger.
  * @returns READY | OBSCURED | NOT_FOUND.
  */
 export async function probeRevealStatus(
   mediator: IElementMediator,
   timeout: number,
+  logger: ScraperLogger,
 ): Promise<RevealStatus> {
   const candidates = WK_PRELOGIN.REVEAL as unknown as readonly SelectorCandidate[];
   const visibleResult = await mediator
@@ -49,12 +53,11 @@ export async function probeRevealStatus(
     .catch((): false => false);
   if (visibleResult && visibleResult.found) {
     const matchedText = visibleResult.value;
-    const fallback = '?';
-    const cand = visibleResult.candidate || undefined;
-    const matchedKind = cand?.kind ?? fallback;
-    const matchedVal = cand?.value ?? fallback;
-    const tag = `kind=${matchedKind} text="${matchedVal}"`;
-    process.stderr.write(`      [PROBE] REVEAL READY: ${tag} snapshot="${matchedText}"\n`);
+    logger.debug({
+      event: 'pre-login-reveal',
+      text: maskVisibleText(matchedText),
+      formGate: false,
+    });
     return 'READY';
   }
   const attachResult = await isRevealAttached(mediator);

@@ -8,6 +8,7 @@
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { buildDateCandidates } from './DashboardDateCandidates.js';
@@ -143,22 +144,29 @@ async function probeDashboardReveal(mediator: IElementMediator): Promise<string>
 /** Whether transaction traffic was observed. */
 type TrafficPrimed = boolean;
 
+/** Bundled args for traffic gate validation. */
+interface ITrafficGateArgs {
+  readonly network: INetworkDiscovery;
+  readonly dashStrategy: DashboardStrategyKind;
+  readonly hasProxy: TrafficPrimed;
+  readonly logger?: ScraperLogger;
+}
+
 /**
  * Validate traffic gate — soft (warn, never fail).
- * @param network - Network discovery.
- * @param dashStrategy - BYPASS or TRIGGER.
- * @param hasProxy - Whether bank uses proxy auth.
+ * @param args - Bundled traffic gate arguments.
  * @returns true if traffic observed, false if not.
  */
-function validateTrafficGate(
-  network: INetworkDiscovery,
-  dashStrategy: string,
-  hasProxy: TrafficPrimed,
-): TrafficPrimed {
+function validateTrafficGate(args: ITrafficGateArgs): TrafficPrimed {
+  const { network, dashStrategy, hasProxy, logger } = args;
   if (dashStrategy !== 'TRIGGER') return true;
   const traffic = countTxnTraffic(network, 0);
   if (traffic === 0 && !hasProxy) {
-    process.stderr.write('[DASHBOARD.POST] trafficPrimed=false — soft pass\n');
+    logger?.debug({
+      event: 'generic-trace',
+      phase: 'DASHBOARD',
+      message: 'trafficPrimed=false — soft pass',
+    });
     return false;
   }
   return true;

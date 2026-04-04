@@ -7,6 +7,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { waitUntil } from '../Timing/Waiting.js';
 import { IFRAME_DEFAULT_TIMEOUT_MS, IFRAME_POLL_INTERVAL_MS } from './ElementsInteractionConfig.js';
 import { capturePageText, type IWaitOptions } from './ElementsInteractions.js';
@@ -41,9 +42,18 @@ async function logFoundDiagnostics(
   selector: SelectorStr,
   startMs: number,
 ): Promise<OpResult> {
-  LOG.debug('waitForSelector %s → found (%dms)', selector, Date.now() - startMs);
+  const elapsedStr = String(Date.now() - startMs);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `waitForSelector ${maskVisibleText(selector)} → found (${elapsedStr}ms)`,
+  });
   const html = await captureElementHtml(ctx, selector);
-  LOG.debug('element html: %s', html);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `element html: ${maskVisibleText(html)}`,
+  });
   return true;
 }
 
@@ -61,9 +71,18 @@ interface ITimeoutDiagArgs {
  * @returns Never — always rethrows.
  */
 async function logTimeoutDiagnostics(args: ITimeoutDiagArgs, error: Error): Promise<never> {
-  LOG.debug('waitForSelector %s → TIMEOUT (%dms)', args.selector, Date.now() - args.startMs);
+  const elapsedStr = String(Date.now() - args.startMs);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `waitForSelector ${maskVisibleText(args.selector)} → TIMEOUT (${elapsedStr}ms)`,
+  });
   const text = await capturePageText(args.ctx);
-  LOG.debug('page text: %s', text);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `page text: ${maskVisibleText(text)}`,
+  });
   throw error;
 }
 

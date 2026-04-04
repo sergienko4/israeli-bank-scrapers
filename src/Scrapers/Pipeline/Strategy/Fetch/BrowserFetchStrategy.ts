@@ -15,6 +15,7 @@ import {
 } from '../../Mediator/Network/Fetch.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
@@ -162,14 +163,22 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
     checkLevel: authFields.checkLevel,
     companyCode: authFields.companyCode,
   };
-  LOG.debug('[ACTIVATION] ValidateIdData POST to %s', validateUrl);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'fetch',
+    message: `ValidateIdData POST to ${maskVisibleText(validateUrl)}`,
+  });
   const validateResult = await fetchPostWithinPage<IValidateResponse>(page, validateUrl, {
     data: validateBody,
   }).catch((): IValidateResponse | false => false);
   if (!validateResult)
     return fail(ScraperErrorTypes.Generic, 'ACTIVATION: ValidateIdData fetch failed');
   const headerStatus = validateResult.Header.Status;
-  LOG.debug('[ACTIVATION] ValidateIdData Status=%s', headerStatus);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'fetch',
+    message: `ValidateIdData Status=${headerStatus}`,
+  });
   if (headerStatus !== '1')
     return fail(ScraperErrorTypes.Generic, `ACTIVATION: ValidateIdData rejected (${headerStatus})`);
   const bean = validateResult.ValidateIdDataBean;
@@ -185,12 +194,16 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
     countryCode: authFields.countryCode,
     idType: authFields.idType,
   };
-  LOG.debug('[ACTIVATION] performLogon POST to %s', loginUrl);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'fetch',
+    message: `performLogon POST to ${maskVisibleText(loginUrl)}`,
+  });
   const loginResult = await fetchPostWithinPage<Record<string, unknown>>(page, loginUrl, {
     data: loginBody,
   }).catch((): false => false);
   if (!loginResult) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: performLogon fetch failed');
-  LOG.debug('[ACTIVATION] performLogon completed');
+  LOG.debug({ event: 'generic-trace', phase: 'fetch', message: 'performLogon completed' });
   return succeed(true);
 }
 
@@ -214,7 +227,11 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
   });
   if (frame) {
     const frameUrl = frame.url().slice(0, 50);
-    process.stderr.write(`    [FETCH] using iframe context: ${frameUrl}\n`);
+    LOG.trace({
+      event: 'generic-trace',
+      phase: 'fetch',
+      message: `using iframe context: ${frameUrl}`,
+    });
     return frame;
   }
   return page;
@@ -311,7 +328,11 @@ class BrowserFetchStrategy implements IFetchStrategy {
       url.searchParams.set(key, val);
     }
     const fullUrl = url.toString();
-    LOG.debug('[PROXY] GET %s', fullUrl);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'fetch',
+      message: `PROXY GET ${maskVisibleText(fullUrl)}`,
+    });
     return fetchGetWithinPage<T>(this._page, fullUrl, false)
       .then((result): Procedure<T> => resultToProcedure(result, fullUrl))
       .catch(catchError);

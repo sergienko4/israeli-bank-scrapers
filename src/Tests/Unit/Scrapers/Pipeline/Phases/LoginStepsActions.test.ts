@@ -77,7 +77,7 @@ describe('LoginSteps/loginAction', () => {
     const phase = createLoginPhase(config);
     const result = await phase.action.execute(ctx, ctx);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('No login context');
+    if (!result.success) expect(result.errorMessage).toContain('no login state');
   });
 
   it('fails when mediator is absent from context (past gate)', async () => {

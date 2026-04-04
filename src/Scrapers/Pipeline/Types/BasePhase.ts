@@ -7,20 +7,30 @@
  * TypeScript compiler refuses to build a phase missing action().
  */
 
+import type { PipelineLogEvent } from './LogEvent.js';
 import type { PhaseName } from './Phase.js';
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 import { succeed } from './Procedure.js';
 
+/** Phase outcome trace label. */
+type TraceLabel = string;
+
 /** Lookup for success/fail trace tags. */
-const RESULT_TAG: Record<string, string> = { true: 'OK', false: 'FAIL' };
+const RESULT_TAG: Record<
+  string,
+  PipelineLogEvent['event'] extends TraceLabel ? TraceLabel : never
+> = {
+  true: 'OK',
+  false: 'FAIL',
+};
 
 /**
  * Map Procedure success to trace tag.
  * @param r - Procedure result.
  * @returns 'OK' or 'FAIL'.
  */
-function traceTag(r: Procedure<IPipelineContext>): string {
+function traceTag(r: Procedure<IPipelineContext>): TraceLabel {
   return RESULT_TAG[String(r.success)];
 }
 
@@ -95,17 +105,38 @@ abstract class BasePhase {
    * @returns Final context after all 4 stages, or first failure.
    */
   public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+    const log = ctx.logger;
     const preResult = await this.pre(ctx, ctx);
-    process.stderr.write(`  [${this.name}] PRE → ${traceTag(preResult)}\n`);
+    log.debug({
+      event: 'phase-stage',
+      phase: this.name,
+      stage: 'PRE',
+      result: traceTag(preResult),
+    });
     if (!preResult.success) return preResult;
     const actionResult = await this.action(preResult.value, preResult.value);
-    process.stderr.write(`  [${this.name}] ACTION → ${traceTag(actionResult)}\n`);
+    log.debug({
+      event: 'phase-stage',
+      phase: this.name,
+      stage: 'ACTION',
+      result: traceTag(actionResult),
+    });
     if (!actionResult.success) return actionResult;
     const postResult = await this.post(actionResult.value, actionResult.value);
-    process.stderr.write(`  [${this.name}] POST → ${traceTag(postResult)}\n`);
+    log.debug({
+      event: 'phase-stage',
+      phase: this.name,
+      stage: 'POST',
+      result: traceTag(postResult),
+    });
     if (!postResult.success) return postResult;
     const finalResult = await this.final(postResult.value, postResult.value);
-    process.stderr.write(`  [${this.name}] FINAL → ${traceTag(finalResult)}\n`);
+    log.debug({
+      event: 'phase-stage',
+      phase: this.name,
+      stage: 'FINAL',
+      result: traceTag(finalResult),
+    });
     return finalResult;
   }
 }

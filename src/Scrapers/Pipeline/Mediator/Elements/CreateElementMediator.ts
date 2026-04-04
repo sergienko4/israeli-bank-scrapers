@@ -12,6 +12,7 @@ import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { none, type Option, some } from '../../Types/Option.js';
 import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../Form/FormAnchor.js';
@@ -197,7 +198,13 @@ async function waitOnceForLoading(
 ): Promise<Procedure<boolean>> {
   const loadingResult = await isAnyLoadingVisible(frame);
   if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
-  LOG.debug('loading indicator visible, waiting %dms (attempt %d)', LOADING_DELAY_MS, attempt);
+  const delayStr = String(LOADING_DELAY_MS);
+  const attemptStr = String(attempt);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'DASHBOARD',
+    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
+  });
   await frame.waitForTimeout(LOADING_DELAY_MS);
   return succeed(false);
 }
@@ -252,7 +259,11 @@ function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] 
     const handleError = (error: Error): Option<IFormAnchor> => {
       const msg = toErrorMessage(error);
       const truncated = msg.slice(0, 60);
-      LOG.debug('discoverForm failed (non-fatal): %s', truncated);
+      LOG.debug({
+        event: 'generic-trace',
+        phase: 'LOGIN',
+        message: `discoverForm failed (non-fatal): ${truncated}`,
+      });
       return none();
     };
     return discoverFormCore(cache, resolvedContext).catch(handleError);
@@ -504,7 +515,13 @@ async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   if (target !== 'href') return entry.locator.innerText().catch((): ElementAttr => '');
   const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): DiagnosticStr => 'error');
   const candidateInfo = `${entry.candidate.kind}="${entry.candidate.value}"`;
-  LOG.debug('snapshotValue: [%s] candidate=%s', elInfo, candidateInfo);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message:
+      `snapshotValue: [${maskVisibleText(elInfo)}] ` +
+      `candidate=${maskVisibleText(candidateInfo)}`,
+  });
   const directHref = await entry.locator.getAttribute('href').catch((): ElementAttr => '');
   if (directHref) return directHref;
   const ancestorHref = await entry.locator
@@ -541,7 +558,13 @@ async function resolveVisibleImpl(
   const entries = buildLocatorEntries(page, candidates);
   if (entries.length === 0) return NOT_FOUND_RESULT;
   const locators = entries.map((e): Locator => e.locator);
-  LOG.debug('resolveVisible: %d locators, timeout=%dms', locators.length, timeout);
+  const countStr = String(locators.length);
+  const timeoutStr = String(timeout);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `resolveVisible: ${countStr} locators, timeout=${timeoutStr}ms`,
+  });
   const winnerIdx = await raceLocatorsWithHitTest(locators, timeout);
   if (winnerIdx < 0) return NOT_FOUND_RESULT;
   const value = await snapshotValue(entries[winnerIdx]);

@@ -18,7 +18,7 @@ import {
   type IContextTracker,
 } from './PipelineMiddleware.js';
 import { toResult } from './PipelineResult.js';
-import { buildPhaseTag, traceResult, traceStart } from './PipelineTraceService.js';
+import { buildPhaseIndex, traceResult, traceStart } from './PipelineTraceService.js';
 
 /**
  * Run one phase with interceptors.
@@ -53,11 +53,11 @@ async function reducePhases(
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
   const phase = tracker.phases[index];
-  const tag = buildPhaseTag(index, tracker.phases.length, phase.name);
-  traceStart(tag);
+  const indexTag = buildPhaseIndex(index, tracker.phases.length);
+  traceStart(ctx.logger, phase.name, indexTag);
   const result = await runPhase(tracker, ctx, index);
   const isSuccess = isOk(result);
-  traceResult(tag, isSuccess);
+  traceResult({ logger: ctx.logger, name: phase.name, indexTag, isSuccess });
   if (!isSuccess) return result;
   return reducePhases(tracker, result.value, index + 1);
 }

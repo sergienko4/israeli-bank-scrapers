@@ -5,6 +5,8 @@
  */
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
 /** Max wait for organic SPA traffic after login. */
@@ -20,16 +22,20 @@ const POST_LOGIN_PATTERNS: readonly RegExp[] = [
  * Wait for organic SPA traffic after login submit.
  * SSO redirect fires transaction APIs from iframe — Patient Observer.
  * @param mediator - Element mediator with network discovery.
+ * @param logger - Pipeline logger.
  * @returns True if transaction traffic detected.
  */
-async function waitForPostLoginTraffic(mediator: IElementMediator): Promise<boolean> {
+async function waitForPostLoginTraffic(
+  mediator: IElementMediator,
+  logger?: ScraperLogger,
+): Promise<boolean> {
   const hit = await mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, TRAFFIC_WAIT_TIMEOUT);
   if (hit) {
-    process.stderr.write(`    [LOGIN.POST] SPA traffic: ${hit.url}\n`);
+    logger?.trace({ event: 'login-validate', hasTraffic: true, url: maskVisibleText(hit.url) });
     return true;
   }
   const currentUrl = mediator.getCurrentUrl();
-  process.stderr.write(`    [LOGIN.POST] no SPA traffic (url=${currentUrl})\n`);
+  logger?.trace({ event: 'login-validate', hasTraffic: false, url: maskVisibleText(currentUrl) });
   return false;
 }
 

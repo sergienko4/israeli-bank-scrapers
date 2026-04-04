@@ -7,6 +7,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IPageEvalAllOpts, IPageEvalOpts } from './ElementsInteractions.js';
 
 const LOG = createLogger('elements-eval');
@@ -54,7 +55,11 @@ async function pageEvalAll<TResult>(
     return await locator.evaluateAll(callback);
   } catch (error) {
     const msg = toErrorMessage(error as Error);
-    LOG.debug('pageEvalAll(%s) error: %s', selector, msg);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'SCRAPE',
+      message: `pageEvalAll(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
+    });
     return defaultResult;
   }
 }
@@ -77,7 +82,11 @@ async function pageEval<TResult>(
     return await locator.first().evaluate(callback);
   } catch (error) {
     const msg = toErrorMessage(error as Error);
-    LOG.debug('pageEval(%s) error: %s', selector, msg);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'SCRAPE',
+      message: `pageEval(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
+    });
     return defaultResult;
   }
 }

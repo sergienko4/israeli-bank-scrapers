@@ -10,7 +10,9 @@
 
 import type { IElementMediator } from '../Mediator/Elements/ElementMediator.js';
 import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
+import type { ScraperLogger } from '../Types/Debug.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
+import { maskVisibleText } from '../Types/LogEvent.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
@@ -39,13 +41,18 @@ type NetworkDelta = number;
  * Log network endpoint delta after popup dismissal.
  * @param mediator - Element mediator.
  * @param epsBefore - Endpoint count before dismiss.
+ * @param logger - Pipeline logger.
  * @returns Delta count.
  */
-function traceNetworkDelta(mediator: IElementMediator, epsBefore: number): NetworkDelta {
+function traceNetworkDelta(
+  mediator: IElementMediator,
+  epsBefore: number,
+  logger: ScraperLogger,
+): NetworkDelta {
   const epsAfter = mediator.network.getAllEndpoints().length;
   const delta = epsAfter - epsBefore;
   if (delta > 0) {
-    process.stderr.write(`    [POPUP] network delta: +${String(delta)} endpoints after dismiss\n`);
+    logger.trace({ event: 'popup-delta', delta });
   }
   return delta;
 }
@@ -56,12 +63,17 @@ const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'dashboard']);
 /**
  * Attempt to dismiss one popup via WK_CLOSE_POPUP.
  * @param mediator - Element mediator.
+ * @param logger - Pipeline logger.
  * @returns True if a popup was found and clicked.
  */
-async function tryDismissOnce(mediator: IElementMediator): Promise<WasDismissed> {
+async function tryDismissOnce(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<WasDismissed> {
   const result = await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
   if (!result || !result.success || !result.value.found) return false;
-  process.stderr.write(`    [POPUP] dismissed: "${result.value.value}"\n`);
+  const masked = maskVisibleText(result.value.value);
+  logger.debug({ event: 'popup-dismiss', text: masked, attempt: 0, max: MAX_POPUP_ATTEMPTS });
   await mediator.waitForNetworkIdle(POPUP_SETTLE_MS).catch((): false => false);
   return true;
 }
@@ -69,16 +81,29 @@ async function tryDismissOnce(mediator: IElementMediator): Promise<WasDismissed>
 /**
  * Dismiss up to MAX_POPUP_ATTEMPTS popups sequentially.
  * @param mediator - Element mediator.
+ * @param logger - Pipeline logger.
  * @returns Count of dismissed popups.
  */
-async function dismissPopups(mediator: IElementMediator): Promise<number> {
-  const didDismissFirst = await tryDismissOnce(mediator);
+async function dismissPopups(mediator: IElementMediator, logger: ScraperLogger): Promise<number> {
+  const didDismissFirst = await tryDismissOnce(mediator, logger);
   if (!didDismissFirst) return 0;
-  process.stderr.write(`    [POPUP] attempt 1/${String(MAX_POPUP_ATTEMPTS)}\n`);
-  const didDismissSecond = await tryDismissOnce(mediator);
+  logger.debug({ event: 'popup-dismiss', text: 'attempt', attempt: 1, max: MAX_POPUP_ATTEMPTS });
+  const didDismissSecond = await tryDismissOnce(mediator, logger);
   if (!didDismissSecond) return 1;
-  process.stderr.write(`    [POPUP] attempt 2/${String(MAX_POPUP_ATTEMPTS)}\n`);
+  logger.debug({ event: 'popup-dismiss', text: 'attempt', attempt: 2, max: MAX_POPUP_ATTEMPTS });
   return MAX_POPUP_ATTEMPTS;
+}
+
+/** Whether cooldown period is still active. */
+type IsInCooldown = boolean;
+
+/**
+ * Check whether cooldown has elapsed.
+ * @param lastRunMs - Last probe epoch-ms.
+ * @returns True if still in cooldown.
+ */
+function isInCooldown(lastRunMs: EpochMs): IsInCooldown {
+  return Date.now() - lastRunMs < POPUP_COOLDOWN_MS;
 }
 
 /**
@@ -94,14 +119,13 @@ async function tryDismiss(
   lastRunMs: { value: EpochMs },
   nextPhase: string,
 ): Promise<Procedure<IPipelineContext>> {
-  const isSkip = !ctx.mediator.has || !POPUP_PHASES.has(nextPhase);
-  if (isSkip) return succeed(ctx);
-  if (Date.now() - lastRunMs.value < POPUP_COOLDOWN_MS) return succeed(ctx);
+  if (!ctx.mediator.has || !POPUP_PHASES.has(nextPhase)) return succeed(ctx);
+  if (isInCooldown(lastRunMs.value)) return succeed(ctx);
   lastRunMs.value = Date.now();
   const mediator = ctx.mediator.value;
-  const epsBefore = mediator.network.getAllEndpoints().length;
-  await dismissPopups(mediator);
-  traceNetworkDelta(mediator, epsBefore);
+  const eps = mediator.network.getAllEndpoints().length;
+  await dismissPopups(mediator, ctx.logger);
+  traceNetworkDelta(mediator, eps, ctx.logger);
   return succeed(ctx);
 }
 

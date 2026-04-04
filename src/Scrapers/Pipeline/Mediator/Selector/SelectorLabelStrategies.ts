@@ -1,6 +1,7 @@
 import { type Frame, type Locator, type Page } from 'playwright-core';
 
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 
 const LOG = getDebug('selector-label');
 
@@ -130,15 +131,29 @@ export async function findInputByForAttr(
 ): Promise<string> {
   const inputSelector = `#${forAttr}`;
   if ((await ctx.locator(inputSelector).count()) === 0) {
-    LOG.debug('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    LOG.debug({
+      event: 'element-resolve',
+      phase: 'login',
+      field: `labelText:for=${maskVisibleText(forAttr)}`,
+      result: 'NOT_FOUND',
+    });
     return '';
   }
   const isFillable = await isFillableInput(ctx, inputSelector);
   if (!isFillable) {
-    LOG.debug('labelText "%s" for="%s" → #%s NOT FILLABLE', labelValue, forAttr, forAttr);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'login',
+      message: `labelText "${maskVisibleText(labelValue)}" for="${forAttr}" → NOT FILLABLE`,
+    });
     return '';
   }
-  LOG.debug('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `labelText:${maskVisibleText(labelValue)}`,
+    result: 'FOUND',
+  });
   return inputSelector;
 }
 
@@ -161,7 +176,12 @@ export async function resolveByNestedInput(opts: IXpathStrategyOpts): Promise<st
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
   if (!isFillable) return '';
-  LOG.debug('resolved labelText → nested input via %s', baseXpath);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: 'labelText:nested',
+    result: 'FOUND',
+  });
   return xpath;
 }
 
@@ -194,7 +214,12 @@ export async function resolveByAriaRef(opts: IAriaRefOpts): Promise<string> {
   const selector = `input[aria-labelledby="${labelId}"]`;
   const isFound = await queryFn(ctx, selector);
   if (!isFound) return '';
-  LOG.debug('resolved labelText "%s" → aria-labelledby="%s"', labelValue, labelId);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `labelText:${maskVisibleText(labelValue)}`,
+    result: 'FOUND',
+  });
   return selector;
 }
 
@@ -210,7 +235,12 @@ export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
   if (!isFillable) return '';
-  LOG.debug('resolved labelText → sibling input via %s', baseXpath);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: 'labelText:sibling',
+    result: 'FOUND',
+  });
   return xpath;
 }
 
@@ -226,7 +256,12 @@ export async function resolveByProximity(opts: IXpathStrategyOpts): Promise<stri
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
   if (!isFillable) return '';
-  LOG.debug('resolved labelText → proximity input via %s', baseXpath);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: 'labelText:proximity',
+    result: 'FOUND',
+  });
   return xpath;
 }
 
@@ -284,7 +319,12 @@ export async function resolveByContainerInput(
   if (!isFound) return '';
   const isOk = await isFillableInput(ctx, xpath);
   if (!isOk) return '';
-  LOG.debug('textContent "%s" → container input walk-up', textValue);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `textContent:${maskVisibleText(textValue)}`,
+    result: 'FOUND',
+  });
   return xpath;
 }
 
@@ -306,7 +346,12 @@ function buildAncestorProbe(opts: IAncestorProbeOpts, tag: TagStr): () => Promis
     const xpath = `xpath=//${tag}[.//text()[contains(., "${opts.textValue}")]]`;
     const isFound = await opts.queryFn(opts.ctx, xpath);
     if (!isFound) return '';
-    LOG.debug('textContent "%s" → walk-up to <%s>', opts.textValue, tag);
+    LOG.debug({
+      event: 'element-resolve',
+      phase: 'login',
+      field: `textContent:${maskVisibleText(opts.textValue)}`,
+      result: 'FOUND',
+    });
     return xpath;
   };
 }
@@ -386,7 +431,11 @@ export async function resolveLabelText(opts: IResolveLabelTextOpts): Promise<str
   const strictXpath = divSpanStrictXpath(labelValue);
   const divSpanLoc = ctx.locator(strictXpath).first();
   if ((await divSpanLoc.count()) === 0) return '';
-  LOG.debug('labelText "%s" found via div/span fallback', labelValue);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'login',
+    message: `labelText "${maskVisibleText(labelValue)}" found via div/span fallback`,
+  });
   return resolveLabelStrategies({
     ctx,
     label: divSpanLoc,

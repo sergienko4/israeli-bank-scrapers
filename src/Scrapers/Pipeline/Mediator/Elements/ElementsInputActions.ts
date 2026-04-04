@@ -7,6 +7,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { humanDelay } from '../Timing/Waiting.js';
 import {
   FILL_ATTEMPT_TIMEOUT_MS,
@@ -111,7 +112,7 @@ async function deepFillInput(
   selector: SelectorStr,
   value: InputValue,
 ): Promise<OpResult> {
-  LOG.debug('fill %s', selector);
+  LOG.debug({ event: 'login-fill', field: maskVisibleText(selector), result: 'FOUND' });
   await humanDelay(FILL_INPUT_DELAY_MIN_MS, FILL_INPUT_DELAY_MAX_MS);
   const locator = ctx.locator(selector).first();
   const didFill = await locator

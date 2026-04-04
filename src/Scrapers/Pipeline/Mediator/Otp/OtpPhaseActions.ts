@@ -48,7 +48,11 @@ async function executeHandleOtp(input: IPipelineContext): Promise<Procedure<IPip
   const fallback = (): Procedure<boolean> => succeed(false);
   const otpResult = await detectOtpForm(input.mediator.value).catch(fallback);
   if (!isOk(otpResult) || !otpResult.value) return succeed(input);
-  input.logger.debug('OTP form detected — handler not yet implemented');
+  input.logger.debug({
+    event: 'generic-trace',
+    phase: 'OTP',
+    message: 'OTP form detected — handler not yet implemented',
+  });
   return succeed(input);
 }
 

@@ -15,6 +15,7 @@ import {
 } from '../../Phases/Init/InitBrowserSetup.js';
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -57,11 +58,21 @@ async function executeNavigateToBank(
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT ACTION: no browser');
   const page = input.browser.value.page;
   const targetUrl = input.config.urls.base;
-  process.stderr.write(`    [INIT.ACTION] navigating to ${targetUrl}\n`);
+  input.logger.debug({
+    event: 'navigation',
+    phase: 'init',
+    url: maskVisibleText(targetUrl),
+    didNavigate: false,
+  });
   try {
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
     const landedUrl = page.url();
-    process.stderr.write(`    [INIT.ACTION] landed on ${landedUrl}\n`);
+    input.logger.debug({
+      event: 'navigation',
+      phase: 'init',
+      url: maskVisibleText(landedUrl),
+      didNavigate: true,
+    });
     return succeed(input);
   } catch (error) {
     const msg = toErrorMessage(error as Error);
@@ -81,7 +92,11 @@ async function executeValidatePage(input: IPipelineContext): Promise<Procedure<I
   const emptyTitle: PageTitle = '';
   const title = await page.title().catch((): PageTitle => emptyTitle);
   const isValid: PageValid = currentUrl !== 'about:blank';
-  process.stderr.write(`    [INIT.POST] url=${currentUrl} title="${title}"\n`);
+  input.logger.debug({
+    event: 'page-validate',
+    url: maskVisibleText(currentUrl),
+    title: maskVisibleText(title),
+  });
   if (!isValid) return fail(ScraperErrorTypes.Generic, 'INIT POST: page is blank');
   return succeed(input);
 }

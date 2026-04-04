@@ -42,8 +42,12 @@ function buildPreDiag(input: IPipelineContext): IPipelineContext['diagnostics'] 
 async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<DidPrime>> {
   const isPrimed = !input.dashboard.has || input.dashboard.value.trafficPrimed;
   if (isPrimed || !input.mediator.has) return succeed(true);
-  process.stderr.write('[SCRAPE.PRE] trafficPrimed=false -> Forensic via Mediator\n');
-  return triggerDashboardUi(input.mediator.value);
+  input.logger.debug({
+    event: 'generic-trace',
+    phase: 'SCRAPE',
+    message: 'trafficPrimed=false -> Forensic via Mediator',
+  });
+  return triggerDashboardUi(input.mediator.value, input.logger);
 }
 
 /**

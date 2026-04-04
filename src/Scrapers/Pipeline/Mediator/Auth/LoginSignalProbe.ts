@@ -4,6 +4,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -27,9 +28,19 @@ async function auditCookies(
   const cookies = await mediator.getCookies();
   const names = cookies.map((c): CookieSummary => `${c.name}@${c.domain}`);
   const summary = names.join(', ');
-  log.debug('[LOGIN.SIGNAL] cookies=%d [%s]', cookies.length, summary);
+  const countStr = String(cookies.length);
+  log.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `cookies=${countStr} [${maskVisibleText(summary)}]`,
+  });
   const currentUrl = mediator.getCurrentUrl();
-  log.debug('[LOGIN.SIGNAL] url=%s', currentUrl);
+  log.debug({
+    event: 'navigation',
+    phase: 'LOGIN',
+    url: maskVisibleText(currentUrl),
+    didNavigate: true,
+  });
   return cookies.length;
 }
 
@@ -51,16 +62,23 @@ export default async function executeLoginSignal(
   const revealInfo = await probeDashboardReveal(mediator);
   const authToken = await mediator.network.discoverAuthToken();
   const hasAuth = Boolean(authToken);
-  const authFound: Record<string, string> = { true: 'FOUND', false: 'NONE' };
-  const authLabel = authFound[String(hasAuth)];
-  process.stderr.write(`    [LOGIN.FINAL] authToken=${authLabel}\n`);
   const proxyUrl = mediator.network.discoverProxyEndpoint();
   /** Strategy lookup: proxy found → PROXY, else → DIRECT. */
   const strategyMap: Record<string, 'DIRECT' | 'PROXY'> = { true: 'PROXY', false: 'DIRECT' };
   const hasProxy = Boolean(proxyUrl);
   const apiStrategy = strategyMap[String(hasProxy)];
-  process.stderr.write(`    [LOGIN.FINAL] apiStrategy=${apiStrategy}\n`);
-  input.logger.debug('[LOGIN.SIGNAL] %s', revealInfo);
+  input.logger.debug({
+    event: 'login-signal',
+    strategy: apiStrategy,
+    authToken: hasAuth,
+    cookies: cookieCount,
+  });
+  const revealStr = maskVisibleText(revealInfo);
+  input.logger.debug({
+    event: 'generic-trace',
+    phase: 'LOGIN',
+    message: `signal reveal: ${revealStr}`,
+  });
   const diag = {
     ...input.diagnostics,
     lastAction: `login-signal (${revealInfo})`,

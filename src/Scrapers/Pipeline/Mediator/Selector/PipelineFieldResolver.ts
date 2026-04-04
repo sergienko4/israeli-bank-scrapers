@@ -11,6 +11,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { WK_CONCEPT_MAP, WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
+import { getDebug } from '../../Types/Debug.js';
 import { none, type Option, some } from '../../Types/Option.js';
 import {
   EMPTY_METADATA,
@@ -27,6 +28,8 @@ import {
   probeIframes,
   probeMainPage,
 } from './SelectorResolverPipeline.js';
+
+const LOG = getDebug('pipeline-field-resolver');
 
 /** URL string of the current page or frame context. */
 type ContextUrl = string;
@@ -116,10 +119,20 @@ async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promi
   const mainResult = await probeMainPage(opts);
   if ('isResolved' in mainResult) return mainResult;
   // Round 3: Heuristic — input[type="password"] on main page + iframes
-  process.stderr.write(`      [RESOLVER] Round 3 heuristic for "${opts.field.credentialKey}"\n`);
+  LOG.trace({
+    event: 'element-resolve',
+    phase: 'LOGIN',
+    field: opts.field.credentialKey,
+    result: 'NOT_FOUND',
+  });
   const heuristicResult = await tryHeuristicProbe(pageOrFrame, opts.field.credentialKey);
   if (heuristicResult) return heuristicResult;
-  process.stderr.write(`      [RESOLVER] All rounds failed for "${opts.field.credentialKey}"\n`);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'LOGIN',
+    field: opts.field.credentialKey,
+    result: 'NOT_FOUND',
+  });
   return buildNotFoundContext(opts);
 }
 

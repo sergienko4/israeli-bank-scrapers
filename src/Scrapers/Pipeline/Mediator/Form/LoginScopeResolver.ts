@@ -12,6 +12,7 @@ import {
   type IFillOpts,
   type IFillResult,
 } from '../../Phases/Login/LoginFillStep.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
@@ -31,6 +32,7 @@ interface IFillAccum {
 interface IFillContext {
   readonly mediator: IElementMediator;
   readonly creds: Record<string, string>;
+  readonly logger: ScraperLogger;
 }
 
 interface IScopeUpdateArgs {
@@ -58,6 +60,7 @@ function buildFieldOpts(
     fill,
     scopeContext: scope.ctx,
     formSelector: scope.formSelector,
+    logger: ctx.logger,
   };
 }
 

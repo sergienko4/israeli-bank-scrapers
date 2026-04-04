@@ -6,10 +6,40 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { validateTrafficGate } from '../../Mediator/Dashboard/DashboardDiscovery.js';
 import checkChangePassword from '../../Mediator/Dashboard/DashboardProbe.js';
+import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IDashboardState, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+
+/** Strategy lookup: PROXY stays PROXY, all others → DIRECT. */
+const DASH_STRATEGY_MAP: Record<string, 'DIRECT' | 'PROXY'> = {
+  PROXY: 'PROXY',
+  BYPASS: 'DIRECT',
+  TRIGGER: 'DIRECT',
+};
+
+/**
+ * Build dashboard state after traffic gate check.
+ * @param mediator - Narrowed element mediator.
+ * @param input - Pipeline context.
+ * @param isPrimed - Whether traffic was primed.
+ * @returns Updated context with dashboard state.
+ */
+function buildDashboardState(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+  isPrimed: boolean,
+): Procedure<IPipelineContext> {
+  const pageUrl = mediator.getCurrentUrl();
+  const dashStrategy = input.diagnostics.dashboardStrategy ?? 'BYPASS';
+  const strategy = DASH_STRATEGY_MAP[dashStrategy] ?? 'DIRECT';
+  const masked = maskVisibleText(pageUrl);
+  input.logger.debug({ event: 'dashboard-post', strategy, primed: isPrimed, url: masked });
+  const dashState: IDashboardState = { isReady: true, pageUrl, trafficPrimed: isPrimed };
+  return succeed({ ...input, dashboard: some(dashState) });
+}
 
 /**
  * Execute POST: change-password check + soft traffic gate + state build.
@@ -22,13 +52,13 @@ async function executeDashboardPost(input: IPipelineContext): Promise<Procedure<
   const pwdCheck = await checkChangePassword(mediator);
   if (pwdCheck) return pwdCheck;
   const dashStrategy = input.diagnostics.dashboardStrategy ?? 'BYPASS';
-  const hasProxy = false;
-  const isPrimed = validateTrafficGate(mediator.network, dashStrategy, hasProxy);
-  const pageUrl = mediator.getCurrentUrl();
-  const tag = `strategy=${dashStrategy} primed=${String(isPrimed)}`;
-  process.stderr.write(`    [DASHBOARD.POST] ${tag} url=${pageUrl}\n`);
-  const dashState: IDashboardState = { isReady: true, pageUrl, trafficPrimed: isPrimed };
-  return succeed({ ...input, dashboard: some(dashState) });
+  const isPrimed = validateTrafficGate({
+    network: mediator.network,
+    dashStrategy,
+    hasProxy: false,
+    logger: input.logger,
+  });
+  return buildDashboardState(mediator, input, isPrimed);
 }
 
 export default executeDashboardPost;

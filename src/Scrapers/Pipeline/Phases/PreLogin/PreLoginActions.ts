@@ -10,6 +10,7 @@ import {
   tryClickCredentialArea,
   tryClickPrivateCustomers,
 } from '../../Mediator/PreLogin/PreLoginActions.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IFindLoginAreaDiscovery, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -21,23 +22,31 @@ const REVEAL_NAV_TIMEOUT = 15_000;
 /** Timeout for credential area discovery. */
 const DISCOVER_TIMEOUT = 15_000;
 
+/** Bundled args for firing reveal clicks. */
+interface IFireRevealArgs {
+  readonly mediator: IElementMediator;
+  readonly page: Page;
+  readonly discovery: IFindLoginAreaDiscovery;
+  readonly logger: ScraperLogger;
+}
+
 /**
  * Fire reveal clicks based on PRE discovery.
- * @param mediator - Active mediator.
- * @param page - Active page.
- * @param discovery - PRE discovery results.
+ * @param args - Bundled reveal click arguments.
  * @returns False (best-effort).
  */
-async function fireRevealClicks(
-  mediator: IElementMediator,
-  page: Page,
-  discovery: IFindLoginAreaDiscovery,
-): Promise<false> {
+async function fireRevealClicks(args: IFireRevealArgs): Promise<false> {
+  const { mediator, page, discovery, logger } = args;
   if (discovery.privateCustomers !== 'NOT_FOUND') {
-    await tryClickPrivateCustomers(mediator, page, REVEAL_NAV_TIMEOUT);
+    await tryClickPrivateCustomers({
+      mediator,
+      browserPage: page,
+      navTimeout: REVEAL_NAV_TIMEOUT,
+      logger,
+    });
   }
   if (discovery.credentialArea !== 'NOT_FOUND') {
-    await tryClickCredentialArea(mediator);
+    await tryClickCredentialArea(mediator, logger);
   }
   return false;
 }

@@ -45,7 +45,11 @@ async function scrapePostWithRange(
   const rangeResult = await scrapeWithMonthlyChunking(ctx);
   const hasResults = isOk(rangeResult) && rangeResult.value.txns.length > 0;
   if (hasResults) return rangeResult;
-  LOG.debug('range=0 txns, trying billing fallback');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: 'range=0 txns, trying billing fallback',
+  });
   return tryBillingFallback(fc, postCtx);
 }
 
@@ -88,10 +92,13 @@ function buildPostCtx(
   const rawPost = endpoint.postData || '{}';
   const capturedBody = JSON.parse(rawPost) as ApiPayload;
   const baseBody = templatePostBody(rawPost, accountRecord as JsonRecord);
-  LOG.debug(
-    { cardUniqueId: cardId, source: CARD_SOURCE_LABELS[String(cardId !== accountId)] },
-    'buildPostCtx',
-  );
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message:
+      `buildPostCtx: cardUniqueId=${cardId} ` +
+      `source=${CARD_SOURCE_LABELS[String(cardId !== accountId)]}`,
+  });
   const post: IPostFetchCtx = {
     baseBody,
     url: endpoint.url,
@@ -114,7 +121,11 @@ async function tryBufferedResponse(
   postCtx: IPostFetchCtx,
 ): Promise<Procedure<ITransactionsAccount> | false> {
   if (!endpoint.responseBody) return false;
-  LOG.debug('[SCRAPE] Using buffered response (0ms network cost)');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: 'Using buffered response (0ms network cost)',
+  });
   const body = endpoint.responseBody as Record<string, unknown>;
   const txns = extractTransactions(body);
   if (txns.length === 0) return false;

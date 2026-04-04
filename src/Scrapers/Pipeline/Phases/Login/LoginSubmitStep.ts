@@ -1,19 +1,18 @@
 /**
- * Login submit step — orchestrates fill + submit via mediator.
- * All field resolution + submit logic in Mediator/Form/LoginFormActions.
+ * Login submit step — thin orchestration, delegates to Mediator.
+ * All field resolution + submit logic in Mediator/Login/LoginPhaseActions.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import { fillAndSubmit } from '../../Mediator/Form/LoginFormActions.js';
+import { executeFillAndSubmit } from '../../Mediator/Login/LoginPhaseActions.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail } from '../../Types/Procedure.js';
 
 /**
- * Execute the loginAction step body.
- * Stores submit method in diagnostics so POST knows what to validate.
+ * Execute the loginAction step — guard + delegate to Mediator.
  * @param config - Bank's login config.
  * @param input - Context with login.activeFrame.
  * @returns Same context with submitMethod in diagnostics.
@@ -23,13 +22,8 @@ async function executeLoginAction(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.loginAreaReady) return fail(ScraperErrorTypes.Generic, 'gate: loginAreaReady=false');
-  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'No login context');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator');
-  const creds = input.credentials as Record<string, string>;
-  const result = await fillAndSubmit(input.mediator.value, config, creds);
-  if (!result.success) return result;
-  const diag = { ...input.diagnostics, submitMethod: result.value.method };
-  return succeed({ ...input, diagnostics: diag });
+  return executeFillAndSubmit(config, input.mediator.value, input);
 }
 
 /**

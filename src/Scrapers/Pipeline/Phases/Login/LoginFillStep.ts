@@ -16,6 +16,9 @@ import {
   type IFillAccum,
   type IFillContext,
 } from '../../Mediator/Form/LoginScopeResolver.js';
+import type { IFieldContext } from '../../Mediator/Selector/SelectorResolverPipeline.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
@@ -40,6 +43,7 @@ export interface IFillFieldOpts {
   readonly fill: IFillOpts;
   readonly scopeContext?: Page | Frame;
   readonly formSelector?: FormSelector;
+  readonly logger: ScraperLogger;
 }
 
 /** Whether fill succeeded. */
@@ -52,23 +56,50 @@ export interface IFillResult {
   readonly resolvedContext?: Page | Frame;
 }
 
+/** Lookup for resolve outcome labels. */
+const RESOLVE_STATUS: Record<string, string> = { true: 'FOUND', false: 'NOT_FOUND' };
+
+/**
+ * Log field resolution intent and outcome.
+ * @param log - Logger instance.
+ * @param key - Credential key name.
+ * @param success - Whether resolution succeeded.
+ * @returns The success flag for chaining.
+ */
+function logResolveResult(log: ScraperLogger, key: CredentialKey, success: IsPresent): IsPresent {
+  const status = RESOLVE_STATUS[String(success)];
+  log.debug({ event: 'login-fill', field: maskVisibleText(key), result: status });
+  return success;
+}
+
+/**
+ * Resolve a credential field via mediator, logging the outcome.
+ * @param opts - Bundled fill options.
+ * @returns Resolve result from the mediator.
+ */
+async function resolveCredentialField(opts: IFillFieldOpts): Promise<Procedure<IFieldContext>> {
+  const key = opts.fill.credentialKey;
+  const msg = `resolving ${maskVisibleText(key)}`;
+  opts.logger.debug({ event: 'generic-trace', phase: 'LOGIN', message: msg });
+  const result = await opts.mediator.resolveField(
+    key,
+    opts.fill.selectors,
+    opts.scopeContext,
+    opts.formSelector,
+  );
+  logResolveResult(opts.logger, key, result.success);
+  return result;
+}
+
 /**
  * Fill one credential field via mediator.
  * @param opts - Bundled fill options.
  * @returns Fill result with resolved context.
  */
 export async function fillOneField(opts: IFillFieldOpts): Promise<IFillResult> {
-  const { credentialKey, selectors, value } = opts.fill;
-  process.stderr.write(`    [LOGIN.FILL] resolving "${credentialKey}"...\n`);
-  const scope = opts.scopeContext;
-  const form = opts.formSelector;
-  const result = await opts.mediator.resolveField(credentialKey, selectors, scope, form);
-  if (!result.success) {
-    process.stderr.write(`    [LOGIN.FILL] "${credentialKey}" → NOT FOUND\n`);
-    return { isOk: false, procedure: result };
-  }
-  process.stderr.write(`    [LOGIN.FILL] "${credentialKey}" → FOUND\n`);
-  await deepFillInput(result.value.context, result.value.selector, value);
+  const result = await resolveCredentialField(opts);
+  if (!result.success) return { isOk: false, procedure: result };
+  await deepFillInput(result.value.context, result.value.selector, opts.fill.value);
   return { isOk: true, procedure: succeed(true), resolvedContext: result.value.context };
 }
 

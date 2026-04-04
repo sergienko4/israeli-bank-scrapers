@@ -5,6 +5,7 @@
  */
 
 import { getDebug } from '../../../Types/Debug.js';
+import { maskVisibleText } from '../../../Types/LogEvent.js';
 
 const LOG = getDebug('proxy-template');
 
@@ -46,7 +47,11 @@ function buildProxyUrl(
     url.searchParams.set(key, val);
   }
   const fullUrl = url.toString();
-  LOG.debug('[PROXY] Replaying Proxy: %s', reqName);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `[PROXY] Replaying Proxy: ${maskVisibleText(reqName)}`,
+  });
   return fullUrl;
 }
 

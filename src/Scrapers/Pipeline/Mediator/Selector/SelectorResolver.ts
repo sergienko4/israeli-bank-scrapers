@@ -6,6 +6,7 @@ import {
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../../../Registry/WellKnownSelectors.js';
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import { RACE_TIMED_OUT, raceTimeout } from '../Timing/Waiting.js';
 import {
   isClickableElement,
@@ -154,11 +155,11 @@ interface IProbeResult {
  * @returns True after logging completes.
  */
 function debugCandidateSkipped(candidate: SelectorCandidate): IsFound {
-  LOG.debug(
-    'candidate %s "%s" → skipped (cross-origin / detached frame)',
-    candidate.kind,
-    candidate.value,
-  );
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'login',
+    message: `candidate ${candidate.kind}` + ` "${maskVisibleText(candidate.value)}" → skipped`,
+  });
   return true;
 }
 
@@ -234,15 +235,29 @@ async function probeStandardCandidate(
   const css = candidateToCss(candidate);
   const isFound = await queryWithTimeout(ctx, css);
   if (!isFound) {
-    LOG.debug('candidate %s "%s" → NOT FOUND', candidate.kind, candidate.value);
+    LOG.debug({
+      event: 'element-resolve',
+      phase: 'login',
+      field: `${candidate.kind}:${maskVisibleText(candidate.value)}`,
+      result: 'NOT_FOUND',
+    });
     return { css: '', kind: candidate.kind };
   }
   const isFillable = await checkFillable(ctx, css, candidate.kind);
   if (!isFillable) {
-    LOG.debug('candidate %s "%s" → NOT FILLABLE', candidate.kind, candidate.value);
+    LOG.debug({
+      event: 'generic-trace',
+      phase: 'login',
+      message: `candidate ${candidate.kind} "${maskVisibleText(candidate.value)}" → NOT FILLABLE`,
+    });
     return { css: '', kind: candidate.kind };
   }
-  LOG.debug('resolved %s "%s" → %s', candidate.kind, candidate.value, css);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `${candidate.kind}:${maskVisibleText(candidate.value)}`,
+    result: 'FOUND',
+  });
   return { css, kind: candidate.kind };
 }
 
@@ -328,7 +343,12 @@ async function probeClickableText(
   if (!isFound) return { css: '', kind: 'clickableText' };
   const hasClick = await isClickableElement(ctx, xpath).catch((): IsFound => true);
   if (!hasClick) return { css: '', kind: 'clickableText' };
-  LOG.debug('resolved clickableText "%s" → %s', candidate.value, xpath);
+  LOG.debug({
+    event: 'element-resolve',
+    phase: 'login',
+    field: `clickableText:${maskVisibleText(candidate.value)}`,
+    result: 'FOUND',
+  });
   return { css: xpath, kind: 'clickableText' };
 }
 
@@ -419,13 +439,13 @@ async function resolveAll(opts: IResolveAllOpts): Promise<IFieldContext> {
   const { pageOrFrame, field, pageUrl, bankCandidates, wellKnownCandidates } = opts;
   const bankCount = String(bankCandidates.length);
   const wellKnownCount = String(wellKnownCandidates.length);
-  LOG.debug(
-    'resolving "%s": %sb+%swk on %s',
-    field.credentialKey,
-    bankCount,
-    wellKnownCount,
-    pageUrl,
-  );
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'login',
+    message:
+      `resolving "${field.credentialKey}": ` +
+      `${bankCount}b+${wellKnownCount}wk on ${maskVisibleText(pageUrl)}`,
+  });
   const iframeResult = isPage(pageOrFrame) && (await probeIframes(pageOrFrame, opts));
   if (iframeResult && 'isResolved' in iframeResult) return iframeResult;
   const mainResult = await probeMainPage(opts);

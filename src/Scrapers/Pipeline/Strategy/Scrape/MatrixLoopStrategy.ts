@@ -14,6 +14,7 @@ import {
   isMonthlyEndpoint,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { getDebug } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildAccountResult, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
@@ -70,7 +71,12 @@ async function fetchMatrixChunk(
   const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(ctx.txnUrl, body);
   if (!isOk(raw)) return [];
   const txns = extractTransactions(raw.value);
-  LOG.debug('MatrixLoop: chunk %d/%d → %d txns', monthNum, yearNum, txns.length);
+  LOG.debug({
+    event: 'scrape-card',
+    card: ctx.args.accountId,
+    month: `${String(monthNum)}/${String(yearNum)}`,
+    txnCount: txns.length,
+  });
   return txns;
 }
 
@@ -89,10 +95,20 @@ async function tryMatrixLoop(
   if (!txnEndpoint.postData) return false;
   if (!isMonthlyEndpoint(txnEndpoint.postData)) return false;
   const postDataLen = txnEndpoint.postData.length;
-  LOG.debug('MatrixLoop: activated — url=%s postData=%d chars', txnEndpoint.url, postDataLen);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message:
+      `MatrixLoop: activated — url=${maskVisibleText(txnEndpoint.url)} ` +
+      `postData=${String(postDataLen)} chars`,
+  });
   const startDate = parseStartDate(args.fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date());
-  LOG.debug('MatrixLoop: chunks=%d startDate=%s', chunks.length, args.fc.startDate);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'scrape',
+    message: `MatrixLoop: chunks=${String(chunks.length)} startDate=${args.fc.startDate}`,
+  });
   const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template: txnEndpoint.postData };
   const allTxns: ITransaction[] = [];
   const seed = Promise.resolve(true as const);
@@ -106,7 +122,7 @@ async function tryMatrixLoop(
     seed,
   );
   await chain;
-  LOG.debug('MatrixLoop: total=%d txns for account %s', allTxns.length, args.displayId);
+  LOG.debug({ event: 'scrape-result', accounts: 1, txns: allTxns.length });
   if (allTxns.length === 0) return false;
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,

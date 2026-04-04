@@ -6,6 +6,7 @@
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
@@ -39,7 +40,11 @@ async function fillAndApplyFilter(mediator: IElementMediator): Promise<Procedure
   const dateFrom = WK_DASHBOARD.DATE_FROM as unknown as readonly SelectorCandidate[];
   const dateField = await mediator.resolveVisible(dateFrom, DATE_FILTER_TIMEOUT_MS);
   if (!dateField.found) return succeed(undefined);
-  LOG.debug('[FORENSIC] date filter FOUND: %s', dateField.value);
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `date filter FOUND: ${maskVisibleText(dateField.value)}`,
+  });
   await mediator.resolveField('dateFrom', dateFrom).catch((): false => false);
   const applyBtn = WK_DASHBOARD.FILTER_APPLY as unknown as readonly SelectorCandidate[];
   await mediator.resolveAndClick(applyBtn);
@@ -55,10 +60,11 @@ async function fillAndApplyFilter(mediator: IElementMediator): Promise<Procedure
 async function triggerDateFilter(mediator: IElementMediator): Promise<Procedure<void>> {
   const filterTrigger = WK_DASHBOARD.FILTER_TRIGGER as unknown as readonly SelectorCandidate[];
   const triggerClick = await mediator.resolveAndClick(filterTrigger);
-  LOG.debug(
-    '[FORENSIC] filter trigger: found=%s',
-    triggerClick.success && triggerClick.value.found,
-  );
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: `filter trigger: found=${String(triggerClick.success && triggerClick.value.found)}`,
+  });
   return fillAndApplyFilter(mediator);
 }
 
@@ -75,7 +81,11 @@ async function triggerDateFilter(mediator: IElementMediator): Promise<Procedure<
  * @returns Resolved absolute URL or empty.
  */
 async function extractFallbackUrl(mediator: IElementMediator): Promise<string> {
-  LOG.debug('[ACTION] no target URL — extracting from current page');
+  LOG.debug({
+    event: 'generic-trace',
+    phase: 'dashboard',
+    message: 'no target URL — extracting from current page',
+  });
   const txnHref = await extractTransactionHref(mediator);
   const currentUrl = mediator.getCurrentUrl();
   return resolveAbsoluteHref(txnHref, currentUrl);
@@ -94,10 +104,20 @@ async function triggerOrganicDashboard(
 ): Promise<Procedure<void>> {
   const resolvedUrl = targetUrl || (await extractFallbackUrl(mediator));
   if (!resolvedUrl) return succeed(undefined);
-  LOG.debug('[ACTION] organic navigation to %s', resolvedUrl);
+  LOG.debug({
+    event: 'navigation',
+    phase: 'dashboard',
+    url: maskVisibleText(resolvedUrl),
+    didNavigate: true,
+  });
   await safeNavigate(mediator, resolvedUrl);
   const landed = mediator.getCurrentUrl();
-  LOG.debug('[ACTION] landed on %s', landed);
+  LOG.debug({
+    event: 'navigation',
+    phase: 'dashboard',
+    url: maskVisibleText(landed),
+    didNavigate: true,
+  });
   return triggerDateFilter(mediator);
 }
 
