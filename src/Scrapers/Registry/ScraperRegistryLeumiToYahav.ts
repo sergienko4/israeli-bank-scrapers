@@ -53,8 +53,6 @@ const SCRAPER_REGISTRY_LEUMI_TO_YAHAV: Partial<Record<CompanyTypes, ScraperFacto
    * @returns OtsarHahayal scraper instance.
    */
   [CompanyTypes.OtsarHahayal]: options => new OtsarHahayalScraper(options),
-  // VisaCal — handled by Pipeline (PIPELINE_REGISTRY)
-  // [CompanyTypes.VisaCal]: options => new VisaCalScraper(options),
   /**
    * Create a Yahav scraper.
    * @param options - Scraper configuration options.
