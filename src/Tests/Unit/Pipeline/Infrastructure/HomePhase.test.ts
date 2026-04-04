@@ -98,6 +98,8 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
     context: {} as unknown as IBrowserState['context'],
     cleanups: [],
   };
+  /** Found result for resolveVisible — login link detected. */
+  const foundResult = { ...NOT_FOUND_RESULT, found: true, value: 'כניסה' };
   const mediator = makeMockMediator({
     /**
      * URL mock — returns the test page URL.
@@ -105,13 +107,23 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
      */
     getCurrentUrl: (): string => pageUrl,
     /**
-     * Resolve and click mock — best-effort, returns not-found.
-     * @returns Resolved not-found.
+     * Resolve visible — returns found for HOME.PRE.
+     * @returns Found race result.
+     */
+    resolveVisible: () => Promise.resolve(foundResult),
+    /**
+     * Resolve and click — best-effort, returns found.
+     * @returns Resolved found.
      */
     resolveAndClick: () => {
-      const notFound = succeed(NOT_FOUND_RESULT);
-      return Promise.resolve(notFound);
+      const result = succeed(foundResult);
+      return Promise.resolve(result);
     },
+    /**
+     * Collect all hrefs — returns empty (no fallback needed).
+     * @returns Empty array.
+     */
+    collectAllHrefs: () => Promise.resolve([]),
   });
   const ctx = makeMockContext({
     browser: some(browserState),
@@ -122,14 +134,14 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
 }
 
 describe('HomePhase/PRE', () => {
-  it('navigates to homepage URL and returns success', async () => {
+  it('locates login nav link and returns success', async () => {
     const ctx = makeHomeCtx();
     const result = await PHASE.pre(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
   });
 
-  it('fails when no browser in context', async () => {
+  it('fails when no mediator in context', async () => {
     const ctx = makeMockContext();
     const result = await PHASE.pre(ctx, ctx);
     const isSuccess = isOk(result);
@@ -139,7 +151,7 @@ describe('HomePhase/PRE', () => {
 });
 
 describe('HomePhase/ACTION', () => {
-  it('runs tryClosePopup + tryClickLoginLinkWithHref via mediator', async () => {
+  it('clicks login link and navigates via mediator', async () => {
     const ctx = makeHomeCtx();
     const preResult = await PHASE.pre(ctx, ctx);
     expect(preResult.success).toBe(true);
@@ -175,10 +187,20 @@ describe('HomePhase/ACTION', () => {
 });
 
 describe('HomePhase/POST', () => {
-  it('stores loginUrl from current page URL', async () => {
+  it('validates login area detected (URL changed from homepage)', async () => {
     const loginUrl = 'https://start.telebank.co.il/login';
     const ctx = makeHomeCtx(loginUrl);
     const result = await PHASE.post(ctx, ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+  });
+});
+
+describe('HomePhase/FINAL', () => {
+  it('stores loginUrl in diagnostics and signals PRE-LOGIN', async () => {
+    const loginUrl = 'https://start.telebank.co.il/login';
+    const ctx = makeHomeCtx(loginUrl);
+    const result = await PHASE.final(ctx, ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
     if (result.success) expect(result.value.diagnostics.loginUrl).toBe(loginUrl);

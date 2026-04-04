@@ -1,103 +1,72 @@
 /**
- * HOME phase — navigate from home page URL to the login page.
- *
- * PRE:    goto(urls.base) — "Homepage unreachable" on failure
- * ACTION: discover + click login link (WK.HOME.ENTRY) — popup handled by interceptor
- * POST:   store discovered loginUrl in diagnostics
- * FINAL:  default no-op (readiness signal added in follow-up)
+ * HOME phase — thin orchestration, all logic in Mediator/Home/HomeActions.
+ * PRE:    locate login nav (WK_HOME.ENTRY)
+ * ACTION: click + navigate to login page
+ * POST:   validate page/iframe has login area
+ * FINAL:  store loginUrl → signal to PRE-LOGIN
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { tryClickLoginLinkWithHref } from '../../Mediator/Home/HomeActions.js';
+import {
+  executeLocateLoginNav,
+  executeNavigateToLogin,
+  executeStoreLoginSignal,
+  executeValidateLoginArea,
+} from '../../Mediator/Home/HomeActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
-/** HOME phase — BasePhase with PRE/ACTION/POST implemented. */
+/** HOME phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class HomePhase extends BasePhase {
   public readonly name = 'home' as const;
 
-  /**
-   * PRE: locate login navigation link on the page (INIT already navigated).
-   * @param _ctx - Pipeline context (unused).
-   * @param input - Pipeline context with browser + mediator.
-   * @returns Updated context with current URL logged.
-   */
-  public pre(
+  /** @inheritdoc */
+  public async pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.mediator.has) {
-      const err = fail(ScraperErrorTypes.Generic, 'No mediator for HOME PRE');
-      return Promise.resolve(err);
-    }
-    const currentUrl = input.mediator.value.getCurrentUrl();
-    process.stderr.write(`    [HOME.PRE] page at ${currentUrl}\n`);
-    const result = succeed(input);
-    return Promise.resolve(result);
+    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no mediator');
+    const result = await executeLocateLoginNav(input.mediator.value);
+    if (!result.success) return result;
+    return succeed(input);
   }
 
-  /**
-   * ACTION: clear overlays then navigate to the login URL.
-   * @param _ctx - Pipeline context (unused).
-   * @param input - Pipeline context with browser + mediator.
-   * @returns Same context (navigation is side-effect).
-   */
+  /** @inheritdoc */
   public async action(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'No browser for HOME ACTION');
-    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator for HOME ACTION');
-    const mediator = input.mediator.value;
-    await tryClickLoginLinkWithHref(mediator);
-    const afterUrl = mediator.getCurrentUrl();
-    process.stderr.write(`    [HOME.ACTION] after login link click → ${afterUrl}\n`);
-    return succeed(input);
+    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no mediator');
+    return executeNavigateToLogin(input.mediator.value, input);
   }
 
-  /**
-   * POST: store the login URL in diagnostics.
-   * @param _ctx - Pipeline context (unused).
-   * @param input - Pipeline context with browser.
-   * @returns Updated context with diagnostics.loginUrl populated.
-   */
-  public post(
+  /** @inheritdoc */
+  public async post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.mediator.has) {
-      const err = fail(ScraperErrorTypes.Generic, 'No mediator for HOME POST');
-      return Promise.resolve(err);
-    }
-    const loginUrl = input.mediator.value.getCurrentUrl();
-    const updatedDiag = { ...input.diagnostics, loginUrl };
-    const result = succeed({ ...input, diagnostics: updatedDiag });
-    return Promise.resolve(result);
+    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME POST: no mediator');
+    const homepageUrl = input.config.urls.base;
+    return executeValidateLoginArea(input.mediator.value, input, homepageUrl);
   }
 
-  /**
-   * FINAL: validate loginUrl was captured by POST.
-   * Catches "Silent Success" — POST ran but didn't store the URL.
-   * @param _ctx - Pipeline context (unused).
-   * @param input - Pipeline context with diagnostics.
-   * @returns Succeed if loginUrl present, fail otherwise.
-   */
+  /** @inheritdoc */
   public final(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    if (!input.diagnostics.loginUrl) {
-      const err = fail(ScraperErrorTypes.Generic, 'HOME final: loginUrl not set');
+    if (!input.mediator.has) {
+      const err = fail(ScraperErrorTypes.Generic, 'HOME FINAL: no mediator');
       return Promise.resolve(err);
     }
-    const result = succeed(input);
-    return Promise.resolve(result);
+    const signal = executeStoreLoginSignal(input.mediator.value, input);
+    return Promise.resolve(signal);
   }
 }
 
