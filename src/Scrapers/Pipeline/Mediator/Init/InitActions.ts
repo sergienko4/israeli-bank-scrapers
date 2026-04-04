@@ -23,15 +23,15 @@ import createElementMediator from '../Elements/CreateElementMediator.js';
 
 /** Whether the page loaded with a valid status. */
 type PageValid = boolean;
+/** Browser page title string. */
+type PageTitle = string;
 
 /**
  * PRE: Launch browser, create page, wire browser state into context.
  * @param input - Pipeline context with options.
  * @returns Updated context with browser state, or failure.
  */
-async function executeLaunchBrowser(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   let browser: Browser | false = false;
   try {
     browser = await launchBrowser(input.options);
@@ -74,13 +74,12 @@ async function executeNavigateToBank(
  * @param input - Pipeline context with browser.
  * @returns Succeed if page valid, fail if blank.
  */
-async function executeValidatePage(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeValidatePage(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT POST: no browser');
   const page = input.browser.value.page;
   const currentUrl = page.url();
-  const title = await page.title().catch((): string => '');
+  const emptyTitle: PageTitle = '';
+  const title = await page.title().catch((): PageTitle => emptyTitle);
   const isValid: PageValid = currentUrl !== 'about:blank';
   process.stderr.write(`    [INIT.POST] url=${currentUrl} title="${title}"\n`);
   if (!isValid) return fail(ScraperErrorTypes.Generic, 'INIT POST: page is blank');
@@ -107,9 +106,4 @@ function executeWireComponents(input: IPipelineContext): Procedure<IPipelineCont
   });
 }
 
-export {
-  executeLaunchBrowser,
-  executeNavigateToBank,
-  executeValidatePage,
-  executeWireComponents,
-};
+export { executeLaunchBrowser, executeNavigateToBank, executeValidatePage, executeWireComponents };

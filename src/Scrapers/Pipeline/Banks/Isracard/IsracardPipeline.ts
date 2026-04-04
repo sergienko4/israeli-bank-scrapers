@@ -11,7 +11,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 
 /** Isracard login config — credential keys only. WellKnown resolves selectors. */
 export const ISRACARD_LOGIN: ILoginConfig = {
-  loginUrl: 'https://www.isracard.co.il',
+  loginUrl: '',
   fields: [
     { credentialKey: 'id', selectors: [] },
     { credentialKey: 'password', selectors: [] },

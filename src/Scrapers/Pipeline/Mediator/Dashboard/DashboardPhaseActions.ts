@@ -35,9 +35,7 @@ type TargetUrl = string;
  * @param input - Pipeline context with mediator.
  * @returns Updated context with dashboardStrategy in diagnostics.
  */
-async function executePreLocateNav(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no mediator');
   const mediator = input.mediator.value;
   const matchInfo: MatchInfo = await probeSuccessIndicators(mediator);
@@ -63,9 +61,7 @@ async function executePreLocateNav(
  * @param input - Pipeline context.
  * @returns Updated context with api populated.
  */
-async function executeClickTrigger(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeClickTrigger(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD ACTION: no mediator');
   if (!input.fetchStrategy.has) return succeed(input);
   const network = input.mediator.value.network;
@@ -104,9 +100,7 @@ async function dispatchStrategy(
  * @param input - Pipeline context.
  * @returns Succeed(true) or failure.
  */
-async function activateProxySession(
-  input: IPipelineContext,
-): Promise<Procedure<boolean>> {
+async function activateProxySession(input: IPipelineContext): Promise<Procedure<boolean>> {
   if (!input.fetchStrategy.has) return succeed(false);
   const strategy = input.fetchStrategy.value;
   if (!strategy.activateSession) return succeed(true);
@@ -124,9 +118,7 @@ async function activateProxySession(
  * @param input - Pipeline context.
  * @returns Procedure result.
  */
-async function dispatchProxyStrategy(
-  input: IPipelineContext,
-): Promise<Procedure<boolean>> {
+async function dispatchProxyStrategy(input: IPipelineContext): Promise<Procedure<boolean>> {
   if (!input.mediator.has || !input.fetchStrategy.has) return succeed(false);
   if (!input.diagnostics.discoveredProxyUrl) return succeed(false);
   const sessionResult = await activateProxySession(input);

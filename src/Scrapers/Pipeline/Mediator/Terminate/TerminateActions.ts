@@ -94,9 +94,7 @@ async function runAllCleanups(
  * @param input - Pipeline context.
  * @returns Pass-through.
  */
-function executeStartCleanup(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeStartCleanup(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const result = succeed(input);
   return Promise.resolve(result);
 }
@@ -106,9 +104,7 @@ function executeStartCleanup(
  * @param input - Pipeline context with browser state.
  * @returns Always succeed(input).
  */
-async function executeRunCleanups(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeRunCleanups(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return succeed(input);
   const cleanups = input.browser.value.cleanups;
   const lastIndex = cleanups.length - 1;
@@ -121,9 +117,7 @@ async function executeRunCleanups(
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics.
  */
-function executeLogResults(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeLogResults(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const diag = { ...input.diagnostics, lastAction: 'terminate-post' };
   const result = succeed({ ...input, diagnostics: diag });
   return Promise.resolve(result);
@@ -134,9 +128,7 @@ function executeLogResults(
  * @param input - Pipeline context.
  * @returns Updated context.
  */
-function executeSignalDone(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeSignalDone(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const diag = { ...input.diagnostics, lastAction: 'terminate-done' };
   const result = succeed({ ...input, diagnostics: diag });
   return Promise.resolve(result);

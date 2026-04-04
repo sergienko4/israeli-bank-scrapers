@@ -13,6 +13,7 @@ export const WK_HOME = {
     { kind: 'textContent', value: 'כניסה והרשמה' },
     { kind: 'textContent', value: 'התחברות' },
     { kind: 'textContent', value: 'כניסה' },
+    { kind: 'textContent', value: 'החשבון שלי' },
     { kind: 'ariaLabel', value: 'כניסה לחשבון' },
   ],
   /** Form field readiness indicators — used by PRE-LOGIN.POST to detect form load. */

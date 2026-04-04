@@ -21,9 +21,7 @@ type OtpDetected = boolean;
  * @param input - Pipeline context with mediator.
  * @returns Updated context with otpDetected in diagnostics.
  */
-async function executeDetectOtp(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeDetectOtp(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   /**
    * Fallback for probe error — OTP not required.
@@ -41,9 +39,7 @@ async function executeDetectOtp(
  * @param input - Pipeline context.
  * @returns Pass-through (always succeed).
  */
-async function executeHandleOtp(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeHandleOtp(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   /**
    * Fallback for probe error — OTP not required.
@@ -61,9 +57,7 @@ async function executeHandleOtp(
  * @param input - Pipeline context.
  * @returns Pass-through.
  */
-function executeValidateOtp(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeValidateOtp(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const result = succeed(input);
   return Promise.resolve(result);
 }
@@ -73,9 +67,7 @@ function executeValidateOtp(
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics stamp.
  */
-function executeSignalToDashboard(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeSignalToDashboard(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const diag = { ...input.diagnostics, lastAction: 'otp-final' };
   const result = succeed({ ...input, diagnostics: diag });
   return Promise.resolve(result);

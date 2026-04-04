@@ -5,10 +5,10 @@
 
 /** Popup close candidates — used by every PRE step. */
 const WK_CLOSE_POPUP = [
-  { kind: 'textContent', value: 'סגור' },
-  { kind: 'textContent', value: 'close' },
-  { kind: 'textContent', value: 'ביטול' },
-  { kind: 'textContent', value: '✕' },
+  { kind: 'exactText', value: 'סגור' },
+  { kind: 'exactText', value: 'close' },
+  { kind: 'exactText', value: 'ביטול' },
+  { kind: 'exactText', value: '✕' },
   { kind: 'ariaLabel', value: 'סגור' },
   { kind: 'ariaLabel', value: 'close' },
 ] as const;

@@ -60,11 +60,12 @@ describe('createLoginStep', () => {
 });
 
 describe('PipelineRegistry', () => {
-  it('contains Amex, Discount, and VisaCal', () => {
+  it('contains Amex, Discount, Isracard, and VisaCal', () => {
     const keys = Object.keys(PIPELINE_REGISTRY);
     expect(keys).toContain('amex');
     expect(keys).toContain('discount');
+    expect(keys).toContain('isracard');
     expect(keys).toContain('visaCal');
-    expect(keys).toHaveLength(3);
+    expect(keys).toHaveLength(4);
   });
 });

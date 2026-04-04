@@ -39,7 +39,8 @@ class FindLoginAreaPhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN ACTION: no browser');
-    if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN ACTION: no mediator');
+    if (!input.mediator.has)
+      return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN ACTION: no mediator');
     return executeFireRevealClicks(input.mediator.value, input.browser.value.page, input);
   }
 

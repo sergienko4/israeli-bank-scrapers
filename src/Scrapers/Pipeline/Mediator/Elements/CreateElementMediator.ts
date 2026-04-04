@@ -325,6 +325,8 @@ function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate)
   if (candidate.kind === 'xpath') return [ctx.locator(candidate.value).first()];
   if (candidate.kind === 'name') return [ctx.locator(`[name="${candidate.value}"]`).first()];
   if (candidate.kind === 'regex') return [ctx.getByText(new RegExp(candidate.value)).first()];
+  if (candidate.kind === 'exactText')
+    return [ctx.getByText(candidate.value, { exact: true }).first()];
   return [ctx.getByText(candidate.value).first()];
 }
 

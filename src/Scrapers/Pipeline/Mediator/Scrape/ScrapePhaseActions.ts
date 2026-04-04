@@ -69,9 +69,7 @@ async function maybeProxyQualify(
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics.
  */
-async function executeForensicPre(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeForensicPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   await maybeForensicPrime(input);
   const diag = buildPreDiag(input);
   return maybeProxyQualify(input, diag);
@@ -82,9 +80,7 @@ async function executeForensicPre(
  * @param input - Pipeline context with api context.
  * @returns Updated context with scraped accounts.
  */
-async function executeMatrixLoop(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+async function executeMatrixLoop(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   return genericAutoScrape(input);
 }
 
@@ -93,9 +89,7 @@ async function executeMatrixLoop(
  * @param input - Pipeline context after scraping.
  * @returns Updated context with post diagnostics.
  */
-function executeValidateResults(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const accountCount = (input.scrape.has && input.scrape.value.accounts.length) || 0;
   const countStr = String(accountCount);
   if (input.scrapeDiscovery.has) logForensicAudit(input);
@@ -109,9 +103,7 @@ function executeValidateResults(
  * @param input - Pipeline context with scrape state.
  * @returns Updated context with lastAction diagnostic.
  */
-function executeStampAccounts(
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
+function executeStampAccounts(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const count = (input.scrape.has && input.scrape.value.accounts.length) || 0;
   const label = `scrape-final (${String(count)} accounts)`;
   const diag = { ...input.diagnostics, lastAction: label };

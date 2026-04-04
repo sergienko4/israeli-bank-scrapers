@@ -36,9 +36,7 @@ const SETTLE_TIMEOUT = 15000;
  * @param mediator - Element mediator.
  * @returns Procedure with IRaceResult (found element info).
  */
-async function executeLocateLoginNav(
-  mediator: IElementMediator,
-): Promise<Procedure<IRaceResult>> {
+async function executeLocateLoginNav(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
   const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
   const visible = await mediator
     .resolveVisible(candidates, ENTRY_TIMEOUT)
@@ -88,13 +86,9 @@ async function executeNavigateToLogin(
  * @param mediator - Element mediator.
  * @returns First matching login href or false.
  */
-async function findLoginHrefOnPage(
-  mediator: IElementMediator,
-): Promise<LoginUrlStr | false> {
+async function findLoginHrefOnPage(mediator: IElementMediator): Promise<LoginUrlStr | false> {
   const allHrefs = await mediator.collectAllHrefs();
-  const match = allHrefs.find(
-    (h): DidFind => LOGIN_PATH_PATTERNS.some((p): DidFind => p.test(h)),
-  );
+  const match = allHrefs.find((h): DidFind => LOGIN_PATH_PATTERNS.some((p): DidFind => p.test(h)));
   return match ?? false;
 }
 
@@ -138,9 +132,7 @@ async function executeValidateLoginArea(
   const navTag = String(didNavigate);
   const frameTag = String(frameCount);
   const formTag = String(hasLoginForm);
-  process.stderr.write(
-    `    [HOME.POST] nav=${navTag} frames=${frameTag} loginForm=${formTag}\n`,
-  );
+  process.stderr.write(`    [HOME.POST] nav=${navTag} frames=${frameTag} loginForm=${formTag}\n`);
   // Success if: navigated to different URL, OR iframe appeared, OR login form found
   if (didNavigate || hasFrames || hasLoginForm) return succeed(input);
   return fail(ScraperErrorTypes.Generic, 'HOME POST: login area not detected');
@@ -180,9 +172,7 @@ async function tryClickLoginLink(mediator: IElementMediator): Promise<Procedure<
  */
 async function waitForAnyLoginLink(browserPage: Page): Promise<DidFind> {
   const candidates = WK_HOME.ENTRY;
-  const locators = candidates.map(
-    (c): Locator => browserPage.getByText(c.value).first(),
-  );
+  const locators = candidates.map((c): Locator => browserPage.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout: ENTRY_TIMEOUT });
     return i;

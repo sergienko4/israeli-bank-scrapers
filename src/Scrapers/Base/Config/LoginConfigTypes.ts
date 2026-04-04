@@ -20,7 +20,8 @@ export type SelectorCandidate =
   | { kind: 'ariaLabel'; value: string; target?: SelectorTarget; match?: string }
   | { kind: 'name'; value: string; target?: SelectorTarget; match?: string }
   | { kind: 'xpath'; value: string; target?: SelectorTarget; match?: string }
-  | { kind: 'regex'; value: string; target?: SelectorTarget; match?: string };
+  | { kind: 'regex'; value: string; target?: SelectorTarget; match?: string }
+  | { kind: 'exactText'; value: string; target?: SelectorTarget; match?: string };
 
 /**
  * Get the target for a candidate — defaults to 'self' when absent.

@@ -33,8 +33,8 @@ describe('ISRACARD_LOGIN — config shape', () => {
     expect(submit).toHaveLength(0);
   });
 
-  it('loginUrl is the home page base URL', () => {
-    expect(ISRACARD_LOGIN.loginUrl).toBeTruthy();
+  it('loginUrl is empty (HOME phase handles navigation from PipelineBankConfig)', () => {
+    expect(ISRACARD_LOGIN.loginUrl).toBe('');
   });
 });
 

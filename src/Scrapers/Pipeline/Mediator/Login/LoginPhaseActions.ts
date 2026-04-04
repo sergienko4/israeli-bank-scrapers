@@ -48,10 +48,7 @@ async function runCheckReadiness(
  * @param page - Browser page.
  * @returns Active frame (Page or Frame), or failure Procedure.
  */
-async function runPreAction(
-  config: ILoginConfig,
-  page: Page,
-): Promise<Procedure<Page | Frame>> {
+async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure<Page | Frame>> {
   if (!config.preAction) return succeed(page as Page | Frame);
   try {
     const frame = await config.preAction(page);
