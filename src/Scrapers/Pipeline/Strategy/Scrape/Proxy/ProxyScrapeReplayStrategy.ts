@@ -377,7 +377,9 @@ async function proxyScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineCo
   const chain = disc.qualifiedCards.reduce(
     (prev: Promise<true>, cardId: string): Promise<true> =>
       prev.then(async (): Promise<true> => {
+        LOG.debug({ event: 'scrape-card', card: cardId, month: 'START', txnCount: 0 });
         const cardTxns = await replayOneCard({ ctx, disc, strategy, cardId });
+        LOG.debug({ event: 'scrape-card', card: cardId, month: 'DONE', txnCount: cardTxns.length });
         if (cardTxns.length > 0) {
           accounts.push({ accountNumber: cardId, txns: [...cardTxns], balance: 0 });
         }
