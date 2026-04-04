@@ -14,6 +14,7 @@ import { executeDashboardAction, executeDashboardPost } from './DashboardActions
 import { executePre } from './DashboardPreStep.js';
 
 export { probeDashboardReveal } from '../../Mediator/Dashboard/DashboardDiscovery.js';
+
 import { extractAuthFromContext } from '../../Mediator/Dashboard/DashboardProbe.js';
 
 /** DASHBOARD phase — Hard-Gated with BYPASS/TRIGGER strategy. */

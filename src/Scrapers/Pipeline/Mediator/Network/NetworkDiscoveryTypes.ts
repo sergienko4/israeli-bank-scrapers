@@ -153,6 +153,14 @@ interface INetworkDiscovery {
    * @returns Cached token or false.
    */
   cacheAuthToken(): Promise<string | false>;
+
+  /**
+   * Discover proxy/gateway base URL from captured traffic.
+   * Matches WK proxy patterns (ProxyRequestHandler, ServiceEndpoint).
+   * Returns the base URL (path without query params) for constructing API requests.
+   * @returns Proxy base URL or false if no proxy traffic captured.
+   */
+  discoverProxyEndpoint(): string | false;
 }
 
 export type { IDiscoveredEndpoint, INetworkDiscovery };

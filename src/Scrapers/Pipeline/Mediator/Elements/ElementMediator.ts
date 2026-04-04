@@ -215,6 +215,14 @@ interface ICookieInjection {
 type CookieLabel = string;
 
 export default IElementMediator;
+export type {
+  CookieLabel,
+  ICookieInjection,
+  ICookieSnapshot,
+  IElementMediator,
+  IRaceResult,
+  RaceFound,
+  SnapshotValue,
+  WinnerIndex,
+};
 export { NOT_FOUND_RESULT };
-export type { CookieLabel, ICookieInjection, ICookieSnapshot };
-export type { IElementMediator, IRaceResult, RaceFound, SnapshotValue, WinnerIndex };

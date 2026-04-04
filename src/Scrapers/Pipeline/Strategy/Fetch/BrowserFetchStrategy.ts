@@ -36,6 +36,7 @@ interface IBankConfig {
   };
 }
 type BankConfig = IBankConfig;
+
 import type {
   IFetchOpts,
   IFetchStrategy,
@@ -116,15 +117,27 @@ interface IActivationArgs {
  * @param auth - Auth config (optional fields).
  * @returns Resolved auth fields as strings.
  */
+/** Default auth fields for Isracard-family proxy banks. */
+const PROXY_AUTH_DEFAULTS = {
+  countryCode: '212',
+  idType: '1',
+  checkLevel: '1',
+  loginReqName: 'performLogonI',
+} as const;
+
+/**
+ * Resolve auth fields with WK defaults for proxy activation.
+ * @param auth - Auth config (may have only companyCode).
+ * @returns Resolved auth fields as strings.
+ */
 function resolveAuthFields(auth: BankConfig['auth']): Record<string, string> {
-  if (!auth)
-    return { countryCode: '', idType: '', checkLevel: '', companyCode: '', loginReqName: '' };
+  if (!auth) return { ...PROXY_AUTH_DEFAULTS, companyCode: '' };
   return {
-    countryCode: auth.countryCode ?? '',
-    idType: auth.idType ?? '',
-    checkLevel: auth.checkLevel ?? '',
+    countryCode: auth.countryCode ?? PROXY_AUTH_DEFAULTS.countryCode,
+    idType: auth.idType ?? PROXY_AUTH_DEFAULTS.idType,
+    checkLevel: auth.checkLevel ?? PROXY_AUTH_DEFAULTS.checkLevel,
     companyCode: auth.companyCode ?? '',
-    loginReqName: auth.loginReqName ?? 'performLogon',
+    loginReqName: auth.loginReqName ?? PROXY_AUTH_DEFAULTS.loginReqName,
   };
 }
 
@@ -261,15 +274,19 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * Uses config.auth for companyCode/countryCode/idType/checkLevel (generic, not hardcoded).
    * @param credentials - User credentials (id, password, card6Digits).
    * @param config - Bank config with auth params and api.base URL.
+   * @param discoveredServicesUrl - Proxy URL from network discovery (overrides config.api.base).
    * @returns Succeed(true) if session activated, fail if auth rejected.
    */
   public async activateSession(
     credentials: ScraperCredentials,
     config: BankConfig,
+    discoveredServicesUrl?: string,
   ): Promise<Procedure<SessionActivated>> {
-    const baseUrl = config.api?.base;
-    if (!baseUrl) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: no api.base in config');
-    const servicesUrl = `${baseUrl}/services/ProxyRequestHandler.ashx`;
+    const servicesUrl =
+      discoveredServicesUrl ?? `${config.api?.base ?? ''}/services/ProxyRequestHandler.ashx`;
+    if (!servicesUrl || servicesUrl.startsWith('/')) {
+      return fail(ScraperErrorTypes.Generic, 'ACTIVATION: no servicesUrl');
+    }
     return activateViaProxy({ page: this._page, servicesUrl, credentials, config });
   }
 

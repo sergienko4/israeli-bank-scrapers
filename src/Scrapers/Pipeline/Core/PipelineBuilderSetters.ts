@@ -6,6 +6,7 @@
 import type { OtpConfig } from '../../Base/Config/LoginConfigTypes.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
+import type { IProxyAuth } from '../Registry/Config/PipelineBankConfig.js';
 import type { IScrapeConfig, IScrapeConfigBase } from '../Types/ScrapeConfig.js';
 import type { LoginFn } from './BuilderAssembly.js';
 import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
@@ -30,6 +31,7 @@ interface IBuilderState {
   hasOtp: HasCapability;
   scrapeFn: ScrapeFn | false;
   scrapeConfig: IScrapeConfigBase | false;
+  proxyAuth: IProxyAuth | false;
 }
 
 /**
@@ -48,6 +50,7 @@ function createEmptyState(): IBuilderState {
     hasOtp: false,
     scrapeFn: false,
     scrapeConfig: false,
+    proxyAuth: false,
   };
 }
 
@@ -126,6 +129,7 @@ function snapshotFields(state: IBuilderState): IBuilderFields {
     hasOtp: state.hasOtp,
     scrapeFn: state.scrapeFn,
     scrapeConfig: state.scrapeConfig,
+    proxyAuth: state.proxyAuth,
   };
 }
 

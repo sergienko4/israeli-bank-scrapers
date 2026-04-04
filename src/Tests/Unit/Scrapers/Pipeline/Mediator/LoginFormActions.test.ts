@@ -5,14 +5,11 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Phases/Login/LoginFillStep.js',
-  () => ({
-    fillOneField: jest.fn(),
-    validateCredentials: jest.fn(),
-    reduceField: jest.fn(),
-  }),
-);
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Phases/Login/LoginFillStep.js', () => ({
+  fillOneField: jest.fn(),
+  validateCredentials: jest.fn(),
+  reduceField: jest.fn(),
+}));
 
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Form/LoginScopeResolver.js',
@@ -65,14 +62,19 @@ const RESOLVED_FOUND: Promise<Procedure<IRaceResult>> = Promise.resolve(SUCCEED_
  * Setup mocks so fillAndSubmit reaches the submit-click path.
  * @returns True when setup is complete.
  */
-function setupFillSuccess(): boolean {
+/** Whether test setup completed. */
+type DidSetup = boolean;
+
+/**
+ * Setup mocks so fillAndSubmit reaches the submit-click path.
+ * @returns True when setup is complete.
+ */
+function setupFillSuccess(): DidSetup {
   const validateFn = FILL_MOD.validateCredentials as unknown as jest.Mock;
   const validResult = succeed(true);
   validateFn.mockReturnValue(validResult);
   const reduceFn = FILL_MOD.reduceField as unknown as jest.Mock;
-  reduceFn.mockImplementation(
-    (_ctx: unknown, prev: Promise<unknown>): Promise<unknown> => prev,
-  );
+  reduceFn.mockImplementation((_ctx: unknown, prev: Promise<unknown>): Promise<unknown> => prev);
   return true;
 }
 
@@ -96,13 +98,9 @@ describe('fillAndSubmit/scopeToForm', () => {
 
   it('calls scopeToForm on submit candidates before clicking', async () => {
     /** Passthrough scope spy that records calls. */
-    const scopeSpy = jest.fn(
-      (c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c,
-    );
+    const scopeSpy = jest.fn((c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c);
     /** Click spy that returns found result. */
-    const clickSpy = jest.fn(
-      (): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND,
-    );
+    const clickSpy = jest.fn((): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND);
     const overrides = buildScopeOverrides(scopeSpy, clickSpy);
     const mediator = FACTORY.makeMockMediator(overrides);
     const config = makeLoginConfig();
@@ -116,13 +114,9 @@ describe('fillAndSubmit/scopeToForm', () => {
       { kind: 'css' as const, value: 'form#login button' },
     ];
     /** Scope spy that returns scoped candidates. */
-    const scopeSpy = jest.fn(
-      (): readonly SelectorCandidate[] => scoped,
-    );
+    const scopeSpy = jest.fn((): readonly SelectorCandidate[] => scoped);
     /** Click spy that returns found result. */
-    const clickSpy = jest.fn(
-      (): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND,
-    );
+    const clickSpy = jest.fn((): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND);
     const overrides = buildScopeOverrides(scopeSpy, clickSpy);
     const mediator = FACTORY.makeMockMediator(overrides);
     const config2 = makeLoginConfig();

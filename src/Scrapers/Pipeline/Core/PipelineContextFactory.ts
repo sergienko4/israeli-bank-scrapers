@@ -40,7 +40,7 @@ function resolveCoreDeps(
   const companyId = descriptor.options.companyId;
   const logger = createLogger(`pipeline-${companyId}`);
   const resolved = resolvePipelineBankConfig(companyId);
-  const config = resolved || { urls: { base: '' }, api: {}, auth: {} };
+  const config = resolved || { urls: { base: '' } };
   return { options: descriptor.options, credentials, companyId, logger, config };
 }
 

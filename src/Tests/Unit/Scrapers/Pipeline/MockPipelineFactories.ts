@@ -504,6 +504,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       discoverEndpointByContent: (): false => false,
+      /**
+       * No proxy endpoint in mock.
+       * @returns False.
+       */
+      discoverProxyEndpoint: (): false => false,
     },
   };
   return { ...base, ...overrides };

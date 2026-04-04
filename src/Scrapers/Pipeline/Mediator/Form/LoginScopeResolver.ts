@@ -135,5 +135,5 @@ function passwordFirst(fields: readonly IFieldConfig[]): readonly IFieldConfig[]
   return [...pwd, ...rest];
 }
 
-export { fillFieldStep, passwordFirst };
 export type { IFieldScope, IFillAccum, IFillContext };
+export { fillFieldStep, passwordFirst };

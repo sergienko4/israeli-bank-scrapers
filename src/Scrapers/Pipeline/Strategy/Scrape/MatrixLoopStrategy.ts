@@ -117,5 +117,5 @@ async function tryMatrixLoop(
 }
 
 export default tryMatrixLoop;
-export { tryMatrixLoop };
 export type { IMatrixLoopArgs };
+export { tryMatrixLoop };

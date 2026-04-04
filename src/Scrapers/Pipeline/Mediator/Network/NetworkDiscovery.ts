@@ -194,6 +194,19 @@ function discoverByWellKnown(
 }
 
 /**
+ * Discover proxy/gateway base URL from captured traffic.
+ * Matches WK proxy patterns (ProxyRequestHandler, ServiceEndpoint).
+ * Returns the base URL (path without query params).
+ * @param captured - All captured endpoints.
+ * @returns Proxy base URL or false.
+ */
+function discoverProxyUrl(captured: readonly IDiscoveredEndpoint[]): EndpointUrl | false {
+  const hit = discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.proxy);
+  if (!hit) return false;
+  return extractBaseUrl(hit.url);
+}
+
+/**
  * Check if an endpoint has a non-empty value for any of the header names.
  * @param ep - Captured endpoint.
  * @param headerNames - Header names to check.
@@ -254,7 +267,10 @@ function buildCoreMethods(
 /** Type alias for endpoint discovery methods. */
 type EndpointMethods = Pick<
   INetworkDiscovery,
-  'discoverAccountsEndpoint' | 'discoverTransactionsEndpoint' | 'discoverBalanceEndpoint'
+  | 'discoverAccountsEndpoint'
+  | 'discoverTransactionsEndpoint'
+  | 'discoverBalanceEndpoint'
+  | 'discoverProxyEndpoint'
 >;
 
 /** Type alias for header discovery methods. */
@@ -279,6 +295,8 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
     /** @inheritdoc */
     discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
+    /** @inheritdoc */
+    discoverProxyEndpoint: (): string | false => discoverProxyUrl(captured),
   };
 }
 

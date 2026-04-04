@@ -26,8 +26,10 @@ interface IFillAllResult {
 type SubmitMethod = 'enter' | 'click' | 'both';
 
 /** Result of fillAndSubmit — includes which submit method fired. */
+/** Whether the submit operation succeeded. */
+type SubmitSuccess = boolean;
 interface ISubmitResult {
-  readonly success: boolean;
+  readonly success: SubmitSuccess;
   readonly method: SubmitMethod;
 }
 
@@ -68,6 +70,8 @@ async function fillAllFields(
 
 /**
  * Try pressing Enter in the frame context to submit the form.
+ * Enter fires first (native form submit), Click fires second (Angular ng-click).
+ * Both are safe — fillWithFrameworkDetection updates Angular model before either fires.
  * @param frameCtx - Page or Frame where fields were filled (false if none).
  * @returns True if Enter was pressed.
  */
@@ -144,5 +148,5 @@ function resolveSubmitMethod(didEnter: boolean, didClick: boolean): SubmitMethod
   return SUBMIT_METHOD_MAP[key];
 }
 
-export { fillAllFields, fillAndSubmit };
 export type { ISubmitResult, SubmitMethod };
+export { fillAllFields, fillAndSubmit };

@@ -63,13 +63,17 @@ interface IDiagnosticsState {
   readonly pageTitle: Option<string>;
   readonly warnings: readonly string[];
   /** Dashboard strategy resolved in PRE — consumed in ACTION. */
-  readonly dashboardStrategy?: 'BYPASS' | 'TRIGGER';
+  readonly dashboardStrategy?: 'BYPASS' | 'TRIGGER' | 'PROXY';
   /** Target URL extracted in DASHBOARD.PRE for TRIGGER navigation. */
   readonly dashboardTargetUrl?: PageUrlStr;
   /** Auth token discovered from iframe sessionStorage in DASHBOARD.FINAL. */
   readonly discoveredAuth?: string | false;
   /** How the login form was submitted — used by POST to decide validation. */
   readonly submitMethod?: 'enter' | 'click' | 'both';
+  /** API strategy discovered in LOGIN.FINAL — DIRECT (SPA) or PROXY (gateway). */
+  readonly apiStrategy?: 'DIRECT' | 'PROXY';
+  /** Proxy/gateway base URL discovered in LOGIN.FINAL for PROXY strategy. */
+  readonly discoveredProxyUrl?: PageUrlStr;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */
@@ -86,6 +90,8 @@ interface IApiFetchContext {
   readonly balanceUrl: string | false;
   /** Discovered pending endpoint URL (or false). */
   readonly pendingUrl: string | false;
+  /** Discovered proxy/gateway base URL for API calls (e.g. ProxyRequestHandler). */
+  readonly proxyUrl: string | false;
 }
 
 /** Phase-Gate signal: true means FindLoginArea.POST confirmed the form is interactive. */

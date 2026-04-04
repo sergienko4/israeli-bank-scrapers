@@ -21,3 +21,9 @@ export const PAGE_TEXT_CAPTURE_LIMIT = 400;
 
 /** Maximum characters to capture from an element's outer HTML for diagnostics. */
 export const ELEMENT_HTML_CAPTURE_LIMIT = 300;
+
+/** Timeout for Playwright .fill() before falling back to DOM manipulation (ms). */
+export const FILL_ATTEMPT_TIMEOUT_MS = 3000;
+
+/** Delay between keystrokes for pressSequentially fallback (ms). */
+export const PRESS_SEQUENTIALLY_DELAY_MS = 50;

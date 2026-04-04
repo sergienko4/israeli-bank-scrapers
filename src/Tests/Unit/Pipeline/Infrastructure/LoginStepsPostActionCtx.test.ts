@@ -214,6 +214,11 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverEndpointByContent: (): false => false,
+      /**
+       * No proxy endpoint in mock.
+       * @returns False.
+       */
+      discoverProxyEndpoint: (): false => false,
     },
   };
   return mediator;

@@ -54,8 +54,19 @@ export default async function executeLoginSignal(
   const authFound: Record<string, string> = { true: 'FOUND', false: 'NONE' };
   const authLabel = authFound[String(hasAuth)];
   process.stderr.write(`    [LOGIN.FINAL] authToken=${authLabel}\n`);
+  const proxyUrl = mediator.network.discoverProxyEndpoint();
+  /** Strategy lookup: proxy found → PROXY, else → DIRECT. */
+  const strategyMap: Record<string, 'DIRECT' | 'PROXY'> = { true: 'PROXY', false: 'DIRECT' };
+  const hasProxy = Boolean(proxyUrl);
+  const apiStrategy = strategyMap[String(hasProxy)];
+  process.stderr.write(`    [LOGIN.FINAL] apiStrategy=${apiStrategy}\n`);
   input.logger.debug('[LOGIN.SIGNAL] %s', revealInfo);
-  const diag = { ...input.diagnostics, lastAction: `login-signal (${revealInfo})` };
+  const diag = {
+    ...input.diagnostics,
+    lastAction: `login-signal (${revealInfo})`,
+    apiStrategy,
+    discoveredProxyUrl: proxyUrl || undefined,
+  };
   return succeed({ ...input, diagnostics: diag });
 }
 

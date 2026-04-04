@@ -44,6 +44,7 @@ interface IFetchStrategy {
   activateSession?(
     credentials: ScraperCredentials,
     config: BankConfig,
+    servicesUrl?: string,
   ): Promise<Procedure<SessionActivated>>;
 
   /**

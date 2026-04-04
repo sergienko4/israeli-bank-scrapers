@@ -46,5 +46,5 @@ class SimplePhase extends BasePhase {
   }
 }
 
-export { SimplePhase };
 export type { ActionExecFn };
+export { SimplePhase };

@@ -7,6 +7,7 @@
 import type { OtpConfig } from '../../Base/Config/LoginConfigTypes.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
+import type { IProxyAuth } from '../Registry/Config/PipelineBankConfig.js';
 import type { Procedure } from '../Types/Procedure.js';
 import type { IScrapeConfig } from '../Types/ScrapeConfig.js';
 import type { LoginFn } from './BuilderAssembly.js';
@@ -109,6 +110,16 @@ class PipelineBuilder {
     config: IScrapeConfig<TA, TT>,
   ): this {
     setScrapeConfig(this._s, config);
+    return this;
+  }
+
+  /**
+   * Set proxy auth params for proxy-based banks (Amex, Isracard).
+   * @param auth - Proxy auth config with companyCode.
+   * @returns This builder.
+   */
+  public withProxyAuth(auth: IProxyAuth): this {
+    this._s.proxyAuth = auth;
     return this;
   }
 

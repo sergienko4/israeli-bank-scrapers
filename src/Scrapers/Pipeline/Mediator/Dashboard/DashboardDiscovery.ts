@@ -18,7 +18,7 @@ export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
 const DASHBOARD_TIMEOUT = 30000;
 /** Timeout for REVEAL probe. */
 const REVEAL_TIMEOUT_MS = 15000;
-type DashboardStrategyKind = 'BYPASS' | 'TRIGGER';
+type DashboardStrategyKind = 'BYPASS' | 'TRIGGER' | 'PROXY';
 type HasBody = boolean;
 type TxnTrafficCount = number;
 type IsMatch = boolean;
@@ -55,11 +55,19 @@ function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): TxnTraffi
 }
 
 /**
- * Resolve dashboard strategy based on existing traffic.
+ * Resolve dashboard strategy based on LOGIN.FINAL signal + existing traffic.
+ * PROXY: proxy endpoint discovered → fire API calls directly.
+ * BYPASS: SPA traffic already captured → no action needed.
+ * TRIGGER: no traffic → click UI to generate it.
  * @param network - Network discovery.
- * @returns BYPASS if traffic exists, TRIGGER if not.
+ * @param apiStrategy - API strategy from LOGIN.FINAL signal.
+ * @returns Dashboard strategy kind.
  */
-function resolveDashboardStrategy(network: INetworkDiscovery): DashboardStrategyKind {
+function resolveDashboardStrategy(
+  network: INetworkDiscovery,
+  apiStrategy?: 'DIRECT' | 'PROXY',
+): DashboardStrategyKind {
+  if (apiStrategy === 'PROXY') return 'PROXY';
   const existingCount = countTxnTraffic(network, 0);
   if (existingCount > 0) return 'BYPASS';
   return 'TRIGGER';

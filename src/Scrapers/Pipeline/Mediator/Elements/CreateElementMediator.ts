@@ -372,13 +372,15 @@ async function raceLocators(
  * @returns True if the element is hit-testable at its center.
  */
 async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
-  return locator.evaluate((el: Element): boolean => {
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const hit = document.elementFromPoint(cx, cy);
-    return el === hit || el.contains(hit);
-  }).catch((): IsVisible => false);
+  return locator
+    .evaluate((el: Element): IsVisible => {
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      return el === hit || el.contains(hit);
+    })
+    .catch((): IsVisible => false);
 }
 
 /**
@@ -389,10 +391,7 @@ async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
  * @param timeout - Timeout in ms.
  * @returns Index of first truly visible locator, or -1.
  */
-async function raceLocatorsWithHitTest(
-  locators: Locator[],
-  timeout: number,
-): Promise<WinnerIndex> {
+async function raceLocatorsWithHitTest(locators: Locator[], timeout: number): Promise<WinnerIndex> {
   const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
     await loc.waitFor({ state: 'visible', timeout });
     return i;

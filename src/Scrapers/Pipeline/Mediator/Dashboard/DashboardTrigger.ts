@@ -1,22 +1,32 @@
 /**
- * Dashboard trigger — Best-effort organic UI click.
- * Try ONE click, wait 5s for traffic. If none, succeed — traffic already captured from LOGIN.POST.
- * All HTML resolution via Mediator black box.
+ * Dashboard trigger — Best-effort organic UI click + Proxy API trigger.
+ * TRIGGER: Try ONE click, wait 5s for traffic.
+ * PROXY: Fire WK proxy request via fetchStrategy, capture response.
+ * All HTML resolution via Mediator black box. All request names from WK.
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import type { IProxyParams } from '../../Registry/Config/PipelineBankConfig.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
-import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import { PIPELINE_WELL_KNOWN_API, PIPELINE_WELL_KNOWN_PROXY } from '../../Registry/WK/ScrapeWK.js';
+import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { resolveDateTokens } from './DateResolver.js';
 
 /** Whether a UI element was found and clicked. */
 type DidClick = boolean;
+/** URL string for proxy endpoints. */
+type ProxyEndpointUrl = string;
+/** Encoded query parameter string. */
+type QueryParam = string;
 /** Best-effort timeout — don't block, traffic captured in LOGIN.POST. */
 const TRAFFIC_TIMEOUT = 5000;
 /** Timeout for WK element discovery. */
 const WK_TIMEOUT = 5000;
+/** Proxy traffic wait timeout. */
+const PROXY_TRAFFIC_TIMEOUT = 10000;
 
 /** Combined patterns for traffic-first matching. */
 const TXN_PATTERNS: readonly RegExp[] = [
@@ -53,13 +63,11 @@ async function waitAndTrace(mediator: IElementMediator, label: string): Promise<
 }
 
 /**
- * Best-effort trigger: ONE click attempt, short wait, then succeed.
+ * Best-effort TRIGGER: ONE click attempt, short wait, then succeed.
  * @param mediator - Element mediator (black box).
  * @returns Procedure — always succeeds.
  */
-export default async function triggerDashboardUi(
-  mediator: IElementMediator,
-): Promise<Procedure<DidClick>> {
+async function triggerDashboardUi(mediator: IElementMediator): Promise<Procedure<DidClick>> {
   const txn = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
   const txnLabel = await tryWkClick(mediator, txn);
   if (txnLabel) return succeed(await waitAndTrace(mediator, txnLabel));
@@ -70,4 +78,58 @@ export default async function triggerDashboardUi(
   return succeed(false);
 }
 
-export { triggerDashboardUi };
+/**
+ * Build the proxy dashboard URL from WK pattern + resolved config params.
+ * @param proxyUrl - Proxy base URL.
+ * @param dashboardParams - Resolved dashboard params (e.g. { billingDate: '2026-04-01' }).
+ * @returns Full URL with reqName + resolved params.
+ */
+function buildProxyDashboardUrl(
+  proxyUrl: ProxyEndpointUrl,
+  dashboardParams: Record<string, QueryParam>,
+): ProxyEndpointUrl {
+  const pattern = PIPELINE_WELL_KNOWN_API.proxyDashboard[0];
+  const reqName = pattern.source.replaceAll('\\', '');
+  const base = `${proxyUrl}?reqName=${reqName}&${PIPELINE_WELL_KNOWN_PROXY.queryDefaults}`;
+  const extraParams = Object.entries(dashboardParams)
+    .map(([k, v]): QueryParam => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  if (!extraParams) return base;
+  return `${base}&${extraParams}`;
+}
+
+/** Bundled args for proxy dashboard trigger. */
+interface IProxyTriggerArgs {
+  readonly mediator: IElementMediator;
+  readonly strategy: IFetchStrategy;
+  readonly proxyUrl: ProxyEndpointUrl;
+  readonly proxyParams?: IProxyParams;
+}
+
+/**
+ * PROXY strategy: fire GET via fetchStrategy on the proxy URL.
+ * Uses WK.proxyDashboard patterns + config params with DateResolver.
+ * Browser session cookies authenticate the request.
+ * Network interceptor captures the response for SCRAPE discovery.
+ * @param args - Bundled proxy trigger arguments.
+ * @returns Procedure succeed(true) if captured, succeed(false) if failed.
+ */
+async function triggerProxyDashboard(args: IProxyTriggerArgs): Promise<Procedure<DidClick>> {
+  const rawParams = args.proxyParams?.dashboard ?? {};
+  const resolvedParams = resolveDateTokens(rawParams, new Date());
+  const dashUrl = buildProxyDashboardUrl(args.proxyUrl, resolvedParams);
+  process.stderr.write(`[DASHBOARD.ACTION] PROXY: firing ${dashUrl}\n`);
+  const emptyHeaders = { extraHeaders: {} };
+  const result = await args.strategy.fetchGet(dashUrl, emptyHeaders);
+  if (!result.success) {
+    process.stderr.write('[DASHBOARD.ACTION] PROXY: fetch failed\n');
+    return succeed(false);
+  }
+  process.stderr.write('[DASHBOARD.ACTION] PROXY: response captured\n');
+  const hit = await args.mediator.network.waitForTraffic(TXN_PATTERNS, PROXY_TRAFFIC_TIMEOUT);
+  if (hit) process.stderr.write(`[DASHBOARD.ACTION] PROXY traffic: ${hit.url}\n`);
+  return succeed(true);
+}
+
+export default triggerDashboardUi;
+export { triggerDashboardUi, triggerProxyDashboard };

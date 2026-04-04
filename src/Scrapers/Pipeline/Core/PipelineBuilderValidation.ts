@@ -7,6 +7,7 @@ import type { OtpConfig } from '../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
 import type { ILoginConfig } from '../../Base/Interfaces/Config/LoginConfig.js';
+import type { IProxyAuth } from '../Registry/Config/PipelineBankConfig.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { fail, succeed } from '../Types/Procedure.js';
@@ -36,6 +37,7 @@ interface IBuilderFields {
   readonly hasOtp: HasCapability;
   readonly scrapeFn: ScrapeFn | false;
   readonly scrapeConfig: IScrapeConfigBase | false;
+  readonly proxyAuth: IProxyAuth | false;
 }
 
 /**
@@ -69,6 +71,7 @@ function toBuilderState(fields: IBuilderFields): IBuilderState {
     otpConfig: fields.otpConfig,
     scrapeFn: fields.scrapeFn,
     scrapeConfig: fields.scrapeConfig,
+    proxyAuth: fields.proxyAuth,
   };
 }
 

@@ -26,6 +26,7 @@ type PageUrl = string;
 type IsFound = boolean;
 /** Candidate kind identifier. */
 type CandidateKind = string;
+
 import {
   CANDIDATE_TIMEOUT_MS,
   CREDENTIAL_KEY_MAP,

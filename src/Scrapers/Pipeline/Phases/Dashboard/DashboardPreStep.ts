@@ -37,7 +37,7 @@ type TargetUrl = string;
 /** Bundled PRE resolution results. */
 interface IPreResolution {
   readonly matchInfo: MatchInfo;
-  readonly dashStrategy: 'BYPASS' | 'TRIGGER';
+  readonly dashStrategy: 'BYPASS' | 'TRIGGER' | 'PROXY';
   readonly targetUrl: TargetUrl;
 }
 
@@ -71,7 +71,7 @@ async function executePre(
 ): Promise<Procedure<IPipelineContext>> {
   const matchInfo = await probeSuccessIndicators(mediator);
   const network = mediator.network;
-  const dashStrategy = resolveDashboardStrategy(network);
+  const dashStrategy = resolveDashboardStrategy(network, input.diagnostics.apiStrategy);
   let targetUrl = NO_HREF;
   if (dashStrategy === 'TRIGGER') {
     targetUrl = await resolveTriggerHref(mediator);

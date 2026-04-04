@@ -75,6 +75,7 @@ interface IBuilderState {
   readonly otpConfig: unknown;
   readonly scrapeFn: ((ctx: Ctx) => StepResult) | false;
   readonly scrapeConfig: IScrapeConfigBase | false;
+  readonly proxyAuth: { readonly companyCode: string } | false;
 }
 
 /**

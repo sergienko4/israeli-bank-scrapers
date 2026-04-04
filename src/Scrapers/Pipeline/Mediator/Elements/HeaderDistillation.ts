@@ -116,5 +116,5 @@ function distillHeaders(headers: Record<string, string>): Procedure<DistilledHea
 }
 
 export default distillHeaders;
-export { distillHeaders };
 export type { DistilledHeaders, IHeaderDecision };
+export { distillHeaders };

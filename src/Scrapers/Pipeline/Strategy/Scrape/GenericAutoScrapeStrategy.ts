@@ -288,7 +288,7 @@ async function applyStorageHarvest(
  * @returns Updated context with scraped accounts.
  */
 async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (hasProxyStrategy()) return proxyScrape(ctx);
+  if (hasProxyStrategy(ctx)) return proxyScrape(ctx);
   if (!ctx.api.has) return succeed(ctx);
   if (!ctx.mediator.has) return succeed(ctx);
   if (!ctx.browser.has) return succeed(ctx);

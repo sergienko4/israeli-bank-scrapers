@@ -24,18 +24,29 @@ function urlOrFalse(hit: { url: string } | false): string | false {
  * @param network - Network discovery.
  * @returns Discovered URLs object.
  */
-function discoverUrls(
-  network: INetworkDiscovery,
-): Pick<IApiFetchContext, 'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'> {
+/** Discovered URL fields in API context. */
+type DiscoveredUrls = Pick<
+  IApiFetchContext,
+  'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl' | 'proxyUrl'
+>;
+
+/**
+ * Discover all endpoint URLs from network traffic.
+ * @param network - Network discovery.
+ * @returns Discovered URLs object.
+ */
+function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
   const acctHit = network.discoverAccountsEndpoint();
   const txnHit = network.discoverTransactionsEndpoint();
   const balHit = network.discoverBalanceEndpoint();
   const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
+  const proxyUrl = network.discoverProxyEndpoint();
   return {
     accountsUrl: urlOrFalse(acctHit),
     transactionsUrl: urlOrFalse(txnHit),
     balanceUrl: urlOrFalse(balHit),
     pendingUrl: urlOrFalse(pendHit),
+    proxyUrl,
   };
 }
 
