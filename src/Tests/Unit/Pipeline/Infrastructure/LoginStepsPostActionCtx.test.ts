@@ -108,6 +108,22 @@ function makeMockMediator(): IElementMediator {
      */
     countByText: (): Promise<number> => Promise.resolve(0),
     /**
+     * No attribute in mock — always false.
+     * @returns Succeed(false).
+     */
+    checkAttribute: () => {
+      const noAttr = succeed(false);
+      return Promise.resolve(noAttr);
+    },
+    /**
+     * No navigation in mock.
+     * @returns Succeed(false).
+     */
+    waitForURL: () => {
+      const noNav = succeed(false);
+      return Promise.resolve(noNav);
+    },
+    /**
      * No DOM in mock — empty hrefs.
      * @returns Empty array.
      */

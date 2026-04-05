@@ -41,8 +41,10 @@ function makeDashCtx(opts: {
   resolveVisible?: IRaceResult;
   hasFetchStrategy?: boolean;
 }): IPipelineContext {
-  const clickRace = opts.clickFound ? { ...NOT_FOUND_RESULT, found: true } : NOT_FOUND_RESULT;
+  const foundRace = { ...NOT_FOUND_RESULT, found: true } as IRaceResult;
+  const clickRace = opts.clickFound ? foundRace : NOT_FOUND_RESULT;
   const clickResult = succeed(clickRace);
+  const visibleDefault = opts.clickFound ? foundRace : NOT_FOUND_RESULT;
   const browserState = makeMockBrowserState();
   const mediator = makeMockMediator({
     /**
@@ -55,7 +57,7 @@ function makeDashCtx(opts: {
      * @returns IRaceResult.
      */
     resolveVisible: (): Promise<IRaceResult> =>
-      Promise.resolve(opts.resolveVisible ?? NOT_FOUND_RESULT),
+      Promise.resolve(opts.resolveVisible ?? visibleDefault),
   });
   const hasFetch = opts.hasFetchStrategy !== false;
   const fetchStrategy = makeMockFetchStrategy();

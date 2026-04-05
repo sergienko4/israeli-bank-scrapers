@@ -113,6 +113,7 @@ type PipelineLogEvent =
       frames: FrameCount;
       loginForm: HasLoginForm;
     }
+  | { event: 'home-nav-sequence'; trigger: MaskedText; target: MaskedText }
   | { event: 'cleanup-error'; message: MaskedText }
   | { event: 'generic-trace'; phase: PhaseName; message: MaskedText };
 

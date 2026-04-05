@@ -1,7 +1,10 @@
 /**
- * HOME phase Mediator actions — locate, click, validate, signal.
+ * HOME phase Mediator actions — navigate, validate, signal.
  * Phase orchestrates ONLY. All logic here.
  * Uses ONLY WK_HOME. Never imports from PreLoginWK or LoginWK.
+ *
+ * Rule #20: PRE is passive (HomeResolver.ts). ACTION is the Executioner.
+ * Supports DIRECT (single click) and SEQUENTIAL (menu toggle + child click).
  */
 
 import type { Locator, Page } from 'playwright-core';
@@ -15,6 +18,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import type { IHomeDiscovery } from './HomeResolver.js';
 
 /** Whether a login link was found. */
 type DidFind = boolean;
@@ -26,62 +30,48 @@ type FrameCount = number;
 /** Login path patterns — common across Israeli banks. */
 const LOGIN_PATH_PATTERNS = [/personalarea\/login/i, /login/i, /auth/i];
 
-/** Timeout for waiting for login link. */
-const ENTRY_TIMEOUT = 15000;
-
 /** Timeout for settle after click. */
 const SETTLE_TIMEOUT = 15000;
 
-/**
- * PRE: Locate login nav link via WK_HOME.ENTRY.
- * If not found → fail (ACTION should not run).
- * @param mediator - Element mediator.
- * @param logger - Pipeline logger.
- * @returns Procedure with IRaceResult (found element info).
- */
-async function executeLocateLoginNav(
-  mediator: IElementMediator,
-  logger: ScraperLogger,
-): Promise<Procedure<IRaceResult>> {
-  const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
-  const visible = await mediator
-    .resolveVisible(candidates, ENTRY_TIMEOUT)
-    .catch((): false => false);
-  if (!visible || !visible.found) {
-    return fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
-  }
-  logger.debug({ event: 'element-found', phase: 'home', text: maskVisibleText(visible.value) });
-  return succeed(visible);
+/** Timeout for waiting for login link in POST. */
+const ENTRY_TIMEOUT = 15000;
+
+/** Timeout for menu child visibility after dropdown open. */
+const MENU_WAIT_MS = 5000;
+
+/** Timeout for SPA URL change after menu click. */
+const SPA_NAV_TIMEOUT = 10000;
+
+/** Bundled args for navigation execution. */
+interface INavExecArgs {
+  readonly mediator: IElementMediator;
+  readonly input: IPipelineContext;
+  readonly discovery: IHomeDiscovery;
+  readonly logger: ScraperLogger;
 }
 
 /**
- * ACTION: Click the login entry link. Wait for navigation OR iframe.
- * Scans for login href as fallback if click doesn't navigate.
- * @param mediator - Element mediator.
- * @param input - Pipeline context with browser.
- * @param logger - Pipeline logger.
+ * ACTION: Navigate to login page using discovery from PRE.
+ * DIRECT: single click → wait. SEQUENTIAL: click trigger → find menu child → click → wait.
+ * Falls back to href scan if navigation doesn't occur.
+ * @param args - Bundled navigation arguments.
  * @returns Procedure with updated context.
  */
-async function executeNavigateToLogin(
-  mediator: IElementMediator,
-  input: IPipelineContext,
-  logger: ScraperLogger,
-): Promise<Procedure<IPipelineContext>> {
+async function executeNavigateToLogin(args: INavExecArgs): Promise<Procedure<IPipelineContext>> {
+  const { mediator, discovery, logger } = args;
   const urlBefore = mediator.getCurrentUrl();
-  // Click WK entry link
-  const clickResult = await mediator.resolveAndClick(
-    WK_HOME.ENTRY as unknown as readonly SelectorCandidate[],
-  );
-  if (clickResult.success && clickResult.value.found) {
-    const label = clickResult.value.value;
-    logger.debug({ event: 'element-found', phase: 'home', text: maskVisibleText(label) });
+  const isSequential = discovery.strategy === 'SEQUENTIAL';
+  if (isSequential) {
+    await executeSequentialNav(mediator, discovery, logger);
   }
-  // Wait for navigation or iframe to settle
+  if (!isSequential) {
+    await executeDirectNav(mediator, discovery, logger);
+  }
   await mediator.waitForNetworkIdle(SETTLE_TIMEOUT).catch((): false => false);
   const urlAfter = mediator.getCurrentUrl();
   const didNavigate = urlBefore !== urlAfter;
-  logger.debug({ event: 'navigation', phase: 'home', url: maskVisibleText(urlAfter), didNavigate });
-  // If click didn't navigate, scan for login href and navigate directly
+  const maskedUrl = maskVisibleText(urlAfter);
+  logger.debug({ event: 'navigation', phase: 'home', url: maskedUrl, didNavigate });
   if (!didNavigate) await tryFallbackNavigation(mediator, logger);
   const finalUrl = mediator.getCurrentUrl();
   logger.trace({
@@ -90,7 +80,63 @@ async function executeNavigateToLogin(
     url: maskVisibleText(finalUrl),
     didNavigate: urlBefore !== finalUrl,
   });
-  return succeed(input);
+  return succeed(args.input);
+}
+
+/**
+ * Execute DIRECT navigation — single click on trigger text.
+ * @param mediator - Element mediator.
+ * @param discovery - Discovery with triggerText.
+ * @param logger - Pipeline logger.
+ * @returns True if clicked.
+ */
+async function executeDirectNav(
+  mediator: IElementMediator,
+  discovery: IHomeDiscovery,
+  logger: ScraperLogger,
+): Promise<DidFind> {
+  const candidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
+  const result = await mediator.resolveAndClick([candidate]).catch((): false => false);
+  if (!result || !result.success || !result.value.found) return false;
+  const label = result.value.value;
+  logger.debug({ event: 'element-found', phase: 'home', text: maskVisibleText(label) });
+  return true;
+}
+
+/**
+ * Execute SEQUENTIAL navigation — click trigger (menu), wait, click child.
+ * @param mediator - Element mediator.
+ * @param discovery - Discovery with triggerText + menuCandidates.
+ * @param logger - Pipeline logger.
+ * @returns True if target clicked.
+ */
+async function executeSequentialNav(
+  mediator: IElementMediator,
+  discovery: IHomeDiscovery,
+  logger: ScraperLogger,
+): Promise<DidFind> {
+  // Step 1: Click trigger (open menu)
+  const triggerCandidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
+  await mediator.resolveAndClick([triggerCandidate]).catch((): false => false);
+  logger.debug({
+    event: 'element-found',
+    phase: 'home',
+    text: maskVisibleText(discovery.triggerText),
+  });
+  // Step 2: Wait for menu child to become visible
+  await mediator.waitForNetworkIdle(MENU_WAIT_MS).catch((): false => false);
+  // Step 3: Click the menu child
+  if (discovery.menuCandidates.length === 0) return false;
+  const candidates = discovery.menuCandidates;
+  const menuResult = await mediator.resolveAndClick(candidates).catch((): false => false);
+  if (!menuResult || !menuResult.success || !menuResult.value.found) return false;
+  const targetText = menuResult.value.value;
+  const maskedTrigger = maskVisibleText(discovery.triggerText);
+  const maskedTarget = maskVisibleText(targetText);
+  logger.debug({ event: 'home-nav-sequence', trigger: maskedTrigger, target: maskedTarget });
+  // Step 4: SPA wait — wait for URL to contain /login (Angular routing delay)
+  await mediator.waitForURL('**/login**', SPA_NAV_TIMEOUT);
+  return true;
 }
 
 /**
@@ -144,7 +190,6 @@ async function executeValidateLoginArea(
   let frameCount: FrameCount = 0;
   if (input.browser.has) frameCount = input.browser.value.page.frames().length;
   const hasFrames = frameCount > 1;
-  // Check for login form fields in any frame
   const formGate = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
   const formProbe = await mediator
     .resolveVisible(formGate, ENTRY_TIMEOUT)
@@ -156,7 +201,6 @@ async function executeValidateLoginArea(
     frames: frameCount,
     loginForm: hasLoginForm,
   });
-  // Success if: navigated to different URL, OR iframe appeared, OR login form found
   if (didNavigate || hasFrames || hasLoginForm) return succeed(input);
   return fail(ScraperErrorTypes.Generic, 'HOME POST: login area not detected');
 }
@@ -212,7 +256,6 @@ async function waitForAnyLoginLink(browserPage: Page): Promise<DidFind> {
 }
 
 export {
-  executeLocateLoginNav,
   executeNavigateToLogin,
   executeStoreLoginSignal,
   executeValidateLoginArea,

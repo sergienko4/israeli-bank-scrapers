@@ -1,26 +1,30 @@
 /**
- * HOME phase — thin orchestration, all logic in Mediator/Home/HomeActions.
- * PRE:    locate login nav (WK_HOME.ENTRY)
- * ACTION: click + navigate to login page
+ * HOME phase — thin orchestration, all logic in Mediator/Home.
+ * PRE:    passive discovery via HomeResolver (zero clicks)
+ * ACTION: navigate to login via HomeActions (all clicks here)
  * POST:   validate page/iframe has login area
  * FINAL:  store loginUrl → signal to PRE-LOGIN
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import {
-  executeLocateLoginNav,
   executeNavigateToLogin,
   executeStoreLoginSignal,
   executeValidateLoginArea,
 } from '../../Mediator/Home/HomeActions.js';
+import { type IHomeDiscovery, resolveHomeStrategy } from '../../Mediator/Home/HomeResolver.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
+/** Cached discovery from PRE for ACTION. */
+type CachedDiscovery = IHomeDiscovery | false;
+
 /** HOME phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class HomePhase extends BasePhase {
   public readonly name = 'home' as const;
+  private _discovery: CachedDiscovery = false;
 
   /** @inheritdoc */
   public async pre(
@@ -29,8 +33,9 @@ class HomePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no mediator');
-    const result = await executeLocateLoginNav(input.mediator.value, input.logger);
+    const result = await resolveHomeStrategy(input.mediator.value, input.logger);
     if (!result.success) return result;
+    this._discovery = result.value;
     return succeed(input);
   }
 
@@ -41,7 +46,13 @@ class HomePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no mediator');
-    return executeNavigateToLogin(input.mediator.value, input, input.logger);
+    if (!this._discovery) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no discovery');
+    return executeNavigateToLogin({
+      mediator: input.mediator.value,
+      input,
+      discovery: this._discovery,
+      logger: input.logger,
+    });
   }
 
   /** @inheritdoc */

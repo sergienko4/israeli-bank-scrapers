@@ -2,7 +2,6 @@ import { CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import LeumiScraper from '../Leumi/LeumiScraper.js';
 import MassadScraper from '../Massad/MassadScraper.js';
-import MaxScraper from '../Max/MaxScraper.js';
 import MercantileScraper from '../Mercantile/MercantileScraper.js';
 import MizrahiScraper from '../Mizrahi/MizrahiScraper.js';
 import OneZeroScraper from '../OneZero/OneZeroScraper.js';
@@ -29,12 +28,6 @@ const SCRAPER_REGISTRY_LEUMI_TO_YAHAV: Partial<Record<CompanyTypes, ScraperFacto
    * @returns Massad scraper instance.
    */
   [CompanyTypes.Massad]: options => new MassadScraper(options),
-  /**
-   * Create a Max scraper.
-   * @param options - Scraper configuration options.
-   * @returns Max scraper instance.
-   */
-  [CompanyTypes.Max]: options => new MaxScraper(options),
   /**
    * Create a Mercantile scraper.
    * @param options - Scraper configuration options.

@@ -31,6 +31,10 @@ type WinnerIndex = number;
 type SnapshotValue = string;
 /** Current page URL returned by mediator. */
 type CurrentPageUrl = string;
+/** Whether an HTML attribute was found on the element. */
+type HasAttribute = boolean;
+/** Whether the URL matched the expected pattern after navigation. */
+type DidNavigate = boolean;
 
 /**
  * Result of a parallel race — what was found, where, and which candidate matched.
@@ -168,12 +172,30 @@ interface IElementMediator {
   waitForNetworkIdle(timeoutMs?: number): Promise<Procedure<void>>;
 
   /**
+   * Wait for URL to match a glob pattern (SPA navigation wait).
+   * Non-fatal: returns succeed(false) on timeout.
+   * @param pattern - Glob pattern (e.g. '**\/login**').
+   * @param timeoutMs - Max wait time (default: 10000ms).
+   * @returns Procedure with true if URL matched, false on timeout.
+   */
+  waitForURL(pattern: string, timeoutMs?: number): Promise<Procedure<DidNavigate>>;
+
+  /**
    * Count elements matching visible text. Returns 0 on error.
    * Wraps page.getByText(text).first().count() with catch → 0.
    * @param text - Visible text to search for.
    * @returns Element count (0 if not found or error).
    */
   countByText(text: string): Promise<number>;
+
+  /**
+   * Check if a resolved element has a specific HTML attribute (passive, no click).
+   * Used by HOME.PRE to detect toggle vs navigation link (href presence).
+   * @param result - The resolved race result from resolveVisible.
+   * @param attrName - The HTML attribute to check (e.g. 'href').
+   * @returns Procedure with true if attribute exists and is non-empty.
+   */
+  checkAttribute(result: IRaceResult, attrName: string): Promise<Procedure<HasAttribute>>;
 
   /**
    * Collect all absolute href values from anchor elements on the page.

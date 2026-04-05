@@ -12,8 +12,12 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
+/** Timeout for change-password probe (ms). */
+const CHANGE_PWD_TIMEOUT = 3000;
+
 /**
- * Check change-password prompt via mediator using WK_DASHBOARD.
+ * Check change-password prompt via passive probe (Rule #20: POST is read-only).
+ * Uses resolveVisible — no click, no DOM mutation.
  * @param mediator - Element mediator.
  * @returns Failure if password change required, false otherwise.
  */
@@ -58,9 +62,11 @@ export default async function checkChangePassword(
   mediator: IElementMediator,
 ): Promise<Procedure<IPipelineContext> | false> {
   const candidates = WK_DASHBOARD.CHANGE_PWD as unknown as readonly SelectorCandidate[];
-  const changePwd = await mediator.resolveAndClick(candidates);
-  if (!changePwd.success) return changePwd;
-  if (changePwd.value.found)
+  const changePwd = await mediator
+    .resolveVisible(candidates, CHANGE_PWD_TIMEOUT)
+    .catch((): false => false);
+  if (changePwd && changePwd.found) {
     return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
+  }
   return false;
 }

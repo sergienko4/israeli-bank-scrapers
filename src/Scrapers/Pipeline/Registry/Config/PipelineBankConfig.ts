@@ -55,6 +55,9 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       },
     },
   },
+  [CompanyTypes.Max]: {
+    urls: { base: 'https://www.max.co.il' },
+  },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     auth: {

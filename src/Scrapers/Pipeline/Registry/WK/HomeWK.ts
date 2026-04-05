@@ -16,6 +16,11 @@ export const WK_HOME = {
     { kind: 'textContent', value: 'החשבון שלי' },
     { kind: 'ariaLabel', value: 'כניסה לחשבון' },
   ],
+  /** Menu/dropdown items revealed after clicking a toggle ENTRY. */
+  MENU: [
+    { kind: 'ariaLabel', value: 'כניסה לאזור אישי - לקוחות פרטיים' },
+    { kind: 'textContent', value: 'לקוחות פרטיים' },
+  ],
   /** Form field readiness indicators — used by PRE-LOGIN.POST to detect form load. */
   FORM_CHECK: [
     { kind: 'labelText', value: 'תעודת זהות' },

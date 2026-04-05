@@ -717,11 +717,56 @@ async function extractRawHrefs(anchors: Locator): Promise<readonly string[]> {
  * @param page - The Playwright page.
  * @returns Async function returning deduplicated absolute hrefs.
  */
+/**
+ * Build checkAttribute — passive attribute detection on a resolved element.
+ * Reconstructs a locator from the race result text and checks the attribute.
+ * @param page - The Playwright page.
+ * @returns Async function returning Procedure with attribute presence.
+ */
+function buildCheckAttribute(page: Page): IElementMediator['checkAttribute'] {
+  return async (result, attrName) => {
+    if (!result.found) return succeed(false);
+    const loc = page.getByText(result.value).first();
+    const attr = await loc.getAttribute(attrName).catch((): ElementAttr => '');
+    const attrStr = attr ?? '';
+    const hasAttr = attrStr.length > 0;
+    return succeed(hasAttr);
+  };
+}
+
+/**
+ * Build collectAllHrefs — harvest all absolute hrefs from anchor elements.
+ * Read-only extraction via structural CSS (allowed per CLAUDE.md exceptions).
+ * @param page - The Playwright page.
+ * @returns Async function returning deduplicated absolute hrefs.
+ */
 function buildCollectAllHrefs(page: Page): () => Promise<readonly string[]> {
   return async (): Promise<readonly string[]> => {
     const anchors = page.locator('a[href]');
     const rawHrefs = await extractRawHrefs(anchors);
     return [...new Set(rawHrefs)].filter((h): FilterMatch => h.length > 0);
+  };
+}
+
+/** Default timeout for SPA URL wait. */
+const URL_WAIT_TIMEOUT = 10000;
+
+/** Whether URL matched the expected pattern. */
+type UrlMatched = boolean;
+
+/**
+ * Build waitForURL — wait for page URL to match a glob pattern.
+ * Non-fatal: returns succeed(false) on timeout.
+ * @param page - The Playwright page.
+ * @returns Async function returning Procedure with match result.
+ */
+function buildWaitForURL(page: Page): IElementMediator['waitForURL'] {
+  return async (pattern, timeoutMs = URL_WAIT_TIMEOUT) => {
+    const didMatch: UrlMatched = await page
+      .waitForURL(pattern, { timeout: timeoutMs })
+      .then((): UrlMatched => true)
+      .catch((): UrlMatched => false);
+    return succeed(didMatch);
   };
 }
 
@@ -760,6 +805,8 @@ function createElementMediator(page: Page): IElementMediator {
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
     waitForNetworkIdle: buildWaitForNetworkIdle(page),
+    checkAttribute: buildCheckAttribute(page),
+    waitForURL: buildWaitForURL(page),
     countByText: buildCountByText(page),
     collectAllHrefs: buildCollectAllHrefs(page),
     getCookies: buildGetCookies(page),
