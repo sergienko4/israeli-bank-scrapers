@@ -123,7 +123,7 @@
     "pino": "^10.3.1",
     "playwright-core": "^1.58.2",
     "utility-types": "^3.11.0",
-    "uuid": "^11.1.0"
+    "uuid": "^14.0.0"
   },
   "files": [
     "lib/**/*"
