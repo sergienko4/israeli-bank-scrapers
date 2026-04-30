@@ -35,17 +35,13 @@ function makeFetchStrategy(opts: {
      * @returns Procedure.
      */
     fetchPost: () =>
-      opts.postResult === 'fail'
-        ? fail(ScraperErrorTypes.Generic, 'post-fail')
-        : succeed(body as unknown as Record<string, unknown>),
+      opts.postResult === 'fail' ? fail(ScraperErrorTypes.Generic, 'post-fail') : succeed(body),
     /**
      * GET per configured outcome.
      * @returns Procedure.
      */
     fetchGet: () =>
-      opts.getResult === 'fail'
-        ? fail(ScraperErrorTypes.Generic, 'get-fail')
-        : succeed(body as unknown as Record<string, unknown>),
+      opts.getResult === 'fail' ? fail(ScraperErrorTypes.Generic, 'get-fail') : succeed(body),
   } as unknown as IFetchStrategy;
 }
 

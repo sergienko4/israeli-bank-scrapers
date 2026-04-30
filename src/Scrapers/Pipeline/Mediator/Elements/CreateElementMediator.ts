@@ -152,13 +152,13 @@ function resolveFieldForPage(opts: IResolveOpts): Promise<Procedure<IFieldContex
  * @returns Mediator resolveField function.
  */
 function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return ((
+  return (
     ...args: Parameters<IElementMediator['resolveField']>
   ): Promise<Procedure<IFieldContext>> => {
     const [fieldKey, candidates, scopeContext, formSelector] = args;
     const opts: IResolveOpts = { page, fieldKey, candidates, scopeContext, formSelector };
     return resolveFieldForPage(opts);
-  }) as IElementMediator['resolveField'];
+  };
 }
 
 /**

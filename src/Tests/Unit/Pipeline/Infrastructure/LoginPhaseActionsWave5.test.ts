@@ -6,7 +6,7 @@
  * error/redirect (483, 490).
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
@@ -89,7 +89,7 @@ describe('LoginPhaseActions — Wave 5 branches', () => {
     };
     const ctx = {
       ...ctxBase,
-      browser: some({ ...ctxBaseBrowser, page: pageWithWait as unknown as Page }),
+      browser: some({ ...ctxBaseBrowser, page: pageWithWait }),
       diagnostics: { ...ctxBase.diagnostics, loginUrl: 'https://bank.example.com/login' },
     };
     const result = await executeValidateLogin(

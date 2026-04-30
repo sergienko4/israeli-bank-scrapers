@@ -124,11 +124,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(getFn).toHaveBeenCalled();
-    const lastCallArgs = (getFn as unknown as jest.Mock).mock.calls[0] as [
-      unknown,
-      string,
-      boolean,
-    ];
+    const lastCallArgs = getFn.mock.calls[0] as [unknown, string, boolean];
     expect(lastCallArgs[2]).toBe(false);
   });
 });

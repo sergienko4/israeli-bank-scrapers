@@ -60,6 +60,34 @@ function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): TxnTraffi
   return withBody.filter((ep): HasBody => hasTxnArray(ep.responseBody)).length;
 }
 
+/** Lowercased URL schemes rejected by `resolveAbsoluteHref` —
+ *  `javascript:` / `data:` / `vbscript:` / `file:` / `ws[s]:` are unsafe
+ *  or unsupported targets for a dashboard navigation step (CodeQL
+ *  js/incomplete-url-substring-sanitization). */
+const REJECTED_HREF_SCHEMES: readonly string[] = [
+  'javascript:',
+  'data:',
+  'vbscript:',
+  'file:',
+  'ws:',
+  'wss:',
+];
+
+/** "Did the href match a rejected URL scheme?" — semantic alias over
+ *  `boolean` to satisfy Rule #15 (no primitive returns at boundaries). */
+type IsRejectedScheme = boolean;
+
+/**
+ * Test whether an href starts with a rejected URL scheme. Case-insensitive
+ * because the WHATWG URL parser also normalises scheme to lower-case.
+ * @param href - Trimmed href string.
+ * @returns True iff href begins with any rejected scheme.
+ */
+function startsWithRejectedScheme(href: string): IsRejectedScheme {
+  const lower = href.toLowerCase().trim();
+  return REJECTED_HREF_SCHEMES.some((scheme): IsRejectedScheme => lower.startsWith(scheme));
+}
+
 /**
  * Build absolute URL from a relative href.
  * @param href - Relative or absolute href.
@@ -67,7 +95,7 @@ function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): TxnTraffi
  * @returns Absolute URL string, or empty if malformed.
  */
 function resolveAbsoluteHref(href: string, pageUrl: string): AbsoluteHref {
-  if (!href || href.startsWith('#') || href.startsWith('javascript:')) return '';
+  if (!href || href.startsWith('#') || startsWithRejectedScheme(href)) return '';
   try {
     return new URL(href, pageUrl).href;
   } catch {

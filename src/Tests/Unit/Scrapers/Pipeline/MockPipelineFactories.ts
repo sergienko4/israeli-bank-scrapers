@@ -296,7 +296,7 @@ export function makeMockFetchStrategy(data: object = {}): IFetchStrategy {
      * Return succeed with mock data.
      * @returns Succeed procedure with data.
      */
-    fetchPost: <T>() => {
+    fetchPost: <T>(): Promise<Procedure<T>> => {
       const result = succeed(data as T);
       return Promise.resolve(result);
     },
@@ -304,11 +304,11 @@ export function makeMockFetchStrategy(data: object = {}): IFetchStrategy {
      * Return succeed with mock data.
      * @returns Succeed procedure with data.
      */
-    fetchGet: <T>() => {
+    fetchGet: <T>(): Promise<Procedure<T>> => {
       const result = succeed(data as T);
       return Promise.resolve(result);
     },
-  } as unknown as IFetchStrategy;
+  };
 }
 
 // ── Mediator mocks ────────────────────────────────────────

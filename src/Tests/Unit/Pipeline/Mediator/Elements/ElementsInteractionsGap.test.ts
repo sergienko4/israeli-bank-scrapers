@@ -2,7 +2,7 @@
  * Unit tests for ElementsInteractions branch/fn gaps.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 
 import {
   captureElementHtml,
@@ -83,13 +83,13 @@ describe('capturePageText', () => {
 describe('captureElementHtml', () => {
   it('returns truncated HTML for matched element', async () => {
     const p = makePageEval('<div>x</div>');
-    const result = await captureElementHtml(p as unknown as Frame, 'div');
+    const result = await captureElementHtml(p, 'div');
     expect(result).toBe('<div>x</div>');
   });
 
   it('returns fallback on evaluate rejection', async () => {
     const p = makePageReject();
-    const result = await captureElementHtml(p as unknown as Frame, 'div');
+    const result = await captureElementHtml(p, 'div');
     expect(result).toContain('context unavailable');
   });
 });
@@ -97,7 +97,7 @@ describe('captureElementHtml', () => {
 describe('clickButton', () => {
   it('returns true after click', async () => {
     const p = makePageEval(null);
-    const isOk = await clickButton(p as unknown as Frame, 'button');
+    const isOk = await clickButton(p, 'button');
     expect(isOk).toBe(true);
   }, 5000);
 });
@@ -113,7 +113,7 @@ describe('clickLink', () => {
 describe('elementPresentOnPage', () => {
   it('returns true when count > 0', async () => {
     const p = makePageEval(null);
-    const isOk = await elementPresentOnPage(p as unknown as Frame, 'div');
+    const isOk = await elementPresentOnPage(p, 'div');
     expect(isOk).toBe(true);
   });
 
@@ -131,7 +131,7 @@ describe('elementPresentOnPage', () => {
         count: (): Promise<number> => Promise.resolve(0),
       }),
     } as unknown as Page;
-    const isOk = await elementPresentOnPage(page as unknown as Frame, 'div');
+    const isOk = await elementPresentOnPage(page, 'div');
     expect(isOk).toBe(false);
   });
 });

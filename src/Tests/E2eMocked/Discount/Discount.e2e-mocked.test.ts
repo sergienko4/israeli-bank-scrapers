@@ -62,7 +62,7 @@ describe('offline Discount invalid-creds', () => {
       startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
       browserContext: context,
       skipCloseBrowser: true,
-    } as never);
+    });
     const result = await scraper.scrape(INVALID_CREDS);
     expect(result.success).toBe(false);
     expect(interceptor.escapes).toHaveLength(0);

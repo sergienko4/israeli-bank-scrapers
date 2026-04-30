@@ -20,7 +20,7 @@ describe('NetworkDiscovery — content scan branches', () => {
         contentType: 'application/json',
         requestHeaders: {},
         responseHeaders: {},
-        responseBody: 0 as unknown as Record<string, unknown>,
+        responseBody: 0,
         timestamp: 0,
       },
     ];

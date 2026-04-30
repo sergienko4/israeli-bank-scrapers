@@ -40,7 +40,7 @@ function makeMockOptions(overrides: Partial<ScraperOptions> = {}): ScraperOption
  * @returns A ScraperCredentials object for testing.
  */
 function makeMockCredentials(): ScraperCredentials {
-  return { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' } as ScraperCredentials;
+  return { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' };
 }
 
 /**

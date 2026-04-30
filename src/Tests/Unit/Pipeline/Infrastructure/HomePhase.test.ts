@@ -130,7 +130,7 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
   const ctx = makeMockContext({
     browser: some(browserState),
     mediator: some(mediator),
-    config: MOCK_CONFIG as IPipelineContext['config'],
+    config: MOCK_CONFIG,
   });
   return ctx;
 }
@@ -282,7 +282,7 @@ describe('HomePhase/ACTION', () => {
       ...ctx,
       executor: none(),
       apiMediator: none(),
-    } as unknown as IActionContext;
+    };
     const result = await PHASE.action(actionCtx, actionCtx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);

@@ -45,7 +45,7 @@ function makeMediatorSpy(primedResult: Procedure<AuthorizationHeaderValue>): IAp
       await Promise.resolve();
       return primedResult;
     }),
-  } as unknown as IApiMediator;
+  };
 }
 
 /**

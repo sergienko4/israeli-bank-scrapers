@@ -64,7 +64,7 @@ function makePhaseCtx(bearer: string): IPipelineContext {
   const base = makeMockContext();
   return {
     ...base,
-    apiMediator: some(bus) as unknown as IPipelineContext['apiMediator'],
+    apiMediator: some(bus),
   };
 }
 

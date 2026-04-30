@@ -4,7 +4,6 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
 import { createBrowserFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js';
 import { DEFAULT_FETCH_OPTS } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -166,7 +165,7 @@ describe('BrowserFetchStrategy.activateSession (proxy path)', () => {
         password: 'p',
         id: '111',
         card6Digits: '222',
-      } as unknown as ScraperCredentials,
+      },
       config,
       'https://discovered.example/services/ProxyRequestHandler.ashx',
     );
@@ -272,7 +271,7 @@ describe('BrowserFetchStrategy — resolveAuthFields defaults × overrides', () 
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: 'u', password: 'p', id: '1', card6Digits: '2' } as unknown as ScraperCredentials,
+      { username: 'u', password: 'p', id: '1', card6Digits: '2' },
       config,
     );
     const isOkResult9 = isOk(result);

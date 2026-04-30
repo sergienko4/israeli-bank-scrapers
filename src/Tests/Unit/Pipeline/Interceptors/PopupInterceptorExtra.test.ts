@@ -60,7 +60,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     const makeMediatorResult1 = makeMediator(true);
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(makeMediatorResult1) as unknown as IPipelineContext['mediator'],
+      mediator: some(makeMediatorResult1),
     };
     const result = await interceptor.beforePhase(ctx, 'home');
     expect(result).toBeDefined();
@@ -74,7 +74,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     const makeMediatorResult3 = makeMediator(false);
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(makeMediatorResult3) as unknown as IPipelineContext['mediator'],
+      mediator: some(makeMediatorResult3),
     };
     const result = await interceptor.beforePhase(ctx, 'dashboard');
     expect(result).toBeDefined();
@@ -88,7 +88,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     const makeMediatorResult5 = makeMediator(true);
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(makeMediatorResult5) as unknown as IPipelineContext['mediator'],
+      mediator: some(makeMediatorResult5),
     };
     const r1 = await interceptor.beforePhase(ctx, 'home');
     const r2 = await interceptor.beforePhase(ctx, 'home');
@@ -102,7 +102,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     const makeMediatorResult6 = makeMediator(true);
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(makeMediatorResult6) as unknown as IPipelineContext['mediator'],
+      mediator: some(makeMediatorResult6),
     };
     const result = await interceptor.beforePhase(ctx, 'login');
     expect(result).toBeDefined();
@@ -147,7 +147,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(mediator) as unknown as IPipelineContext['mediator'],
+      mediator: some(mediator),
     };
     const result = await interceptor.beforePhase(ctx, 'home');
     expect(result).toBeDefined();
@@ -194,7 +194,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(mediator) as unknown as IPipelineContext['mediator'],
+      mediator: some(mediator),
     };
     const result = await interceptor.beforePhase(ctx, 'home');
     expect(result).toBeDefined();
@@ -229,7 +229,7 @@ describe('PopupInterceptor — dismissal paths', () => {
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,
-      mediator: some(mediator) as unknown as IPipelineContext['mediator'],
+      mediator: some(mediator),
     };
     const result = await interceptor.beforePhase(ctx, 'home');
     expect(result).toBeDefined();

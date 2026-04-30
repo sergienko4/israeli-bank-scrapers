@@ -93,7 +93,7 @@ describe('buildNotFoundContext', () => {
        * @returns Rejected promise.
        */
       title: (): Promise<string> => Promise.reject(new Error('no title')),
-    } as unknown as Page;
+    };
     const result = await buildNotFoundContext({
       pageOrFrame: page,
       field: FIELD,

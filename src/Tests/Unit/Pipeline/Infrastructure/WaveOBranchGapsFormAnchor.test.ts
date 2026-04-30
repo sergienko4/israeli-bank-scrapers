@@ -161,7 +161,7 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
        * @returns Empty response.
        */
       fetchPost: (): Promise<ReturnType<typeof succeed<Record<string, unknown>>>> => {
-        const okEmpty = succeed({} as Record<string, unknown>);
+        const okEmpty = succeed({});
         return Promise.resolve(okEmpty);
       },
     };

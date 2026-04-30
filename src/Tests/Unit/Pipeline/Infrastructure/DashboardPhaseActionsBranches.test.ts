@@ -5,8 +5,6 @@
  * click retry paths, menu click/waitForNetworkIdle catch branches.
  */
 
-import type { Page } from 'playwright-core';
-
 import {
   executeCollectAndSignal,
   executeDashboardNavigationSealed,
@@ -69,7 +67,7 @@ describe('executePreLocateNav — screenshot catch', () => {
         throw new TestError('screenshot fail');
       },
     };
-    const ctx = makeContextWithBrowser(brokenPage as unknown as Page);
+    const ctx = makeContextWithBrowser(brokenPage);
     const result = await executePreLocateNav(ctx);
     // Phase completes (may fail on no-target, but the screenshot path is hit).
     expect(typeof result.success).toBe('boolean');
@@ -94,7 +92,7 @@ describe('executePreLocateNav — dumpDashboardText catch', () => {
     };
     const ctx = {
       ...base,
-      browser: some({ ...baseBrowser, page: brokenPage as unknown as Page }),
+      browser: some({ ...baseBrowser, page: brokenPage }),
     };
     const result = await executePreLocateNav(ctx);
     // No target => fails, but dumpDashboardText catch exercised.

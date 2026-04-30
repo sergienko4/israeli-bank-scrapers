@@ -19,7 +19,7 @@ import type {
   IScrapeState,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import type { ITransaction } from '../../../../Transactions.js';
 import {
   makeContextWithBrowser,
   makeMockContext,
@@ -218,7 +218,7 @@ describe('ScrapePhaseActions — Wave 5 branches', () => {
               { chargedAmount: 0, originalAmount: 0 } as unknown as ITransaction,
               { chargedAmount: 0, originalAmount: 0 } as unknown as ITransaction,
             ],
-          } as unknown as ITransactionsAccount,
+          },
         ],
       }),
     });

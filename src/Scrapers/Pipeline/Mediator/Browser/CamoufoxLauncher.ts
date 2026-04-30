@@ -15,5 +15,5 @@ export async function launchCamoufox(headless: boolean): Promise<Browser> {
   return camoufoxModule.Camoufox({
     headless,
     locale: ISRAEL_LOCALE,
-  }) as unknown as Browser;
+  });
 }

@@ -148,7 +148,7 @@ export function makeCtx(bus: IApiMediator): IActionContext {
   const base = makeMockContext({ options: opts });
   const withMediator: IPipelineContext = {
     ...base,
-    apiMediator: some(bus) as unknown as IPipelineContext['apiMediator'],
+    apiMediator: some(bus),
   };
   return withMediator as unknown as IActionContext;
 }

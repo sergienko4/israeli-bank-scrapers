@@ -261,7 +261,7 @@ async function waitForFormReady(
  * @returns Procedure with IRaceResult.
  */
 async function tryClickLoginLink(mediator: IElementMediator): Promise<Procedure<IRaceResult>> {
-  return mediator.resolveAndClick(WK_HOME.ENTRY as unknown as readonly SelectorCandidate[]);
+  return mediator.resolveAndClick(WK_HOME.ENTRY);
 }
 
 /**

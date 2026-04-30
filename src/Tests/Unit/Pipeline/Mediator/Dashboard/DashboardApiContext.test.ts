@@ -38,9 +38,9 @@ function makeStrategy(counters: ICallCounters): IFetchStrategy {
     fetchGet: async <T>(): Promise<Procedure<T>> => {
       await Promise.resolve();
       counters.gets += 1;
-      return fail(ScraperErrorTypes.Generic, 'get-fail') as Procedure<T>;
+      return fail(ScraperErrorTypes.Generic, 'get-fail');
     },
-  } as unknown as IFetchStrategy;
+  };
 }
 
 describe('buildApiContext', () => {

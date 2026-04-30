@@ -29,7 +29,7 @@ export function makeEndpoint(overrides: Partial<IDiscoveredEndpoint> = {}): IDis
     responseHeaders: {},
     timestamp: 0,
   };
-  return { ...base, ...overrides } as IDiscoveredEndpoint;
+  return { ...base, ...overrides };
 }
 
 /**
@@ -170,7 +170,7 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
      */
     fetchPost: <T>(): Promise<Procedure<T>> => {
       const failResult = fail(ScraperErrorTypes.Generic, 'no-stub');
-      return Promise.resolve(failResult) as Promise<Procedure<T>>;
+      return Promise.resolve(failResult);
     },
     /**
      * Test helper.
@@ -178,7 +178,7 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
      */
     fetchGet: <T>(): Promise<Procedure<T>> => {
       const failResult = fail(ScraperErrorTypes.Generic, 'no-stub');
-      return Promise.resolve(failResult) as Promise<Procedure<T>>;
+      return Promise.resolve(failResult);
     },
     accountsUrl: false as const,
     transactionsUrl: false as const,
@@ -186,7 +186,7 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
     pendingUrl: false as const,
     proxyUrl: false as const,
   };
-  return { ...base, ...overrides } as IApiFetchContext;
+  return { ...base, ...overrides };
 }
 
 /**
@@ -245,7 +245,7 @@ export function stubFetchGetOk(body: unknown): IApiFetchContext['fetchGet'] {
 export function stubFetchPostFail(): IApiFetchContext['fetchPost'] {
   return <T>(): Promise<Procedure<T>> => {
     const failResult = fail(ScraperErrorTypes.Generic, 'post failed');
-    return Promise.resolve(failResult) as Promise<Procedure<T>>;
+    return Promise.resolve(failResult);
   };
 }
 
@@ -256,6 +256,6 @@ export function stubFetchPostFail(): IApiFetchContext['fetchPost'] {
 export function stubFetchGetFail(): IApiFetchContext['fetchGet'] {
   return <T>(): Promise<Procedure<T>> => {
     const failResult = fail(ScraperErrorTypes.Generic, 'get failed');
-    return Promise.resolve(failResult) as Promise<Procedure<T>>;
+    return Promise.resolve(failResult);
   };
 }

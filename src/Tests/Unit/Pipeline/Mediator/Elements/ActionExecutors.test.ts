@@ -51,7 +51,7 @@ describe('candidateToSelector', () => {
   });
   it('fallback default builder returns text=', () => {
     const c = { kind: 'unknownKind' as unknown as SelectorCandidate['kind'], value: 'v' };
-    const candidateToSelectorResult9 = candidateToSelector(c as SelectorCandidate);
+    const candidateToSelectorResult9 = candidateToSelector(c);
     expect(candidateToSelectorResult9).toBe('text=v');
   });
   it('builds labelText selector', () => {

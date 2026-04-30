@@ -100,7 +100,7 @@ describe('api-direct-call RunStep queryTemplate branches', () => {
       name: 'bind',
       urlTag: BRANCH_URL_TAG,
       body: { shape: {} },
-      queryTemplate: { $literal: 42 } as unknown as IStepConfig['queryTemplate'],
+      queryTemplate: { $literal: 42 },
       extractsToCarry: {},
     };
     const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });

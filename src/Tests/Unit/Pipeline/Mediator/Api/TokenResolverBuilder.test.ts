@@ -219,11 +219,11 @@ describe('buildResolverFromStrategy — identity', () => {
   });
 
   it('each build produces an independent resolver (closure isolation)', async () => {
-    const initialOk1 = succeed('header-A' as AuthorizationHeaderValue);
-    const freshOk1 = succeed('header-A-fresh' as AuthorizationHeaderValue);
+    const initialOk1 = succeed('header-A');
+    const freshOk1 = succeed('header-A-fresh');
     const pair1 = makeScriptedStrategy(initialOk1, freshOk1, false);
-    const initialOk2 = succeed('header-B' as AuthorizationHeaderValue);
-    const freshOk2 = succeed('header-B-fresh' as AuthorizationHeaderValue);
+    const initialOk2 = succeed('header-B');
+    const freshOk2 = succeed('header-B-fresh');
     const pair2 = makeScriptedStrategy(initialOk2, freshOk2, false);
     const bus = makeStubMediator();
     const ctx = makeStubCtx();

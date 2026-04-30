@@ -5,7 +5,6 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
 import { createBrowserFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -91,7 +90,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: 'u', password: 'p', id: '1', card6Digits: '2' } as unknown as ScraperCredentials,
+      { username: 'u', password: 'p', id: '1', card6Digits: '2' },
       config,
     );
     const isOkResult10 = isOk(result);
@@ -107,7 +106,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: '', password: '', id: '', card6Digits: '' } as unknown as ScraperCredentials,
+      { username: '', password: '', id: '', card6Digits: '' },
       config,
     );
     const isOkResult11 = isOk(result);
@@ -130,7 +129,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: 'u', password: 'p', id: '1', card6Digits: '2' } as unknown as ScraperCredentials,
+      { username: 'u', password: 'p', id: '1', card6Digits: '2' },
       config,
     );
     const isOkResult12 = isOk(result);
@@ -149,7 +148,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: 'u', password: 'p', id: '', card6Digits: '' } as unknown as ScraperCredentials,
+      { username: 'u', password: 'p', id: '', card6Digits: '' },
       config,
     );
     const isOkResult13 = isOk(result);
@@ -168,7 +167,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: '', password: '', id: '', card6Digits: '' } as unknown as ScraperCredentials,
+      { username: '', password: '', id: '', card6Digits: '' },
       config,
     );
     const isOkResult14 = isOk(result);
@@ -184,7 +183,7 @@ describe('BrowserFetchStrategy.activateSession — branch matrix', () => {
     } as unknown as BankConfigStub;
     if (!strategy.activateSession) throw new TestError('activateSession missing');
     const result = await strategy.activateSession(
-      { username: 'u', password: 'p', id: '1', card6Digits: '2' } as unknown as ScraperCredentials,
+      { username: 'u', password: 'p', id: '1', card6Digits: '2' },
       config,
       'https://override.example/services/ProxyRequestHandler.ashx',
     );

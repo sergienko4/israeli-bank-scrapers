@@ -97,7 +97,7 @@ interface IProbeBody {
  * @returns POST body.
  */
 function buildProbeBody(qCtx: IQualifyCtx, cardId: string): IProbeBody {
-  return { ...qCtx.templateBody, card4Number: cardId, billingMonth: qCtx.lastMonth } as IProbeBody;
+  return { ...qCtx.templateBody, card4Number: cardId, billingMonth: qCtx.lastMonth };
 }
 
 /**

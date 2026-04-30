@@ -4,7 +4,7 @@
  * Tests that postActionWithCtx is preferred over postAction when both are present.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
@@ -295,7 +295,7 @@ function makeMockBrowserState(page: Page): IBrowserState {
  */
 function makeMockLoginState(page: Page): ILoginState {
   const state: ILoginState = {
-    activeFrame: page as unknown as Page | Frame,
+    activeFrame: page,
     persistentOtpToken: none(),
   };
   return state;

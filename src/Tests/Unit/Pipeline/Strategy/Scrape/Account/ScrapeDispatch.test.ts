@@ -46,7 +46,7 @@ function makeEmptyCtx(): IFetchAllAccountsCtx {
 function makeCtx(overrides: Partial<IFetchAllAccountsCtx> = {}): IFetchAllAccountsCtx {
   const api = makeApi({
     fetchGet: stubFetchGetOk({}),
-    fetchPost: stubFetchGetOk({}) as IFetchAllAccountsCtx['fc']['api']['fetchPost'],
+    fetchPost: stubFetchGetOk({}),
     transactionsUrl: 'https://example.com/txn',
   });
   const network = makeNetwork({
@@ -123,7 +123,7 @@ describe('scrapeAllAccounts', () => {
       responseBody: {},
     });
     const api = makeApi({
-      fetchPost: stubFetchGetOk({}) as IFetchAllAccountsCtx['fc']['api']['fetchPost'],
+      fetchPost: stubFetchGetOk({}),
     });
     const network = makeNetwork({
       /**
@@ -186,9 +186,9 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
        * Fetch stub that should never be reached.
        * @returns Never called.
        */
-      fetchGet: ((): Promise<never> => {
+      fetchGet: (): Promise<never> => {
         throw new ScraperError('fetchGet must not be invoked after deadline');
-      }) as IAccountFetchCtx['api']['fetchGet'],
+      },
       transactionsUrl: 'https://example.com/txn',
     });
     const network = makeNetwork({
@@ -231,7 +231,7 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
      */
     const neverSettles = (): Promise<never> => new Promise((): void => undefined);
     const api = makeApi({
-      fetchGet: neverSettles as IAccountFetchCtx['api']['fetchGet'],
+      fetchGet: neverSettles,
       transactionsUrl: 'https://example.com/txn',
     });
     const network = makeNetwork({

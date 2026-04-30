@@ -31,7 +31,7 @@ function makeEndpoint(
     responseHeaders: opts.responseHeaders ?? { 'content-type': 'application/json' },
     responseBody: opts.responseBody ?? {},
     timestamp: 0,
-  } as IDiscoveredEndpoint;
+  };
 }
 
 describe('NetworkDiscovery — createFrozenNetwork', () => {

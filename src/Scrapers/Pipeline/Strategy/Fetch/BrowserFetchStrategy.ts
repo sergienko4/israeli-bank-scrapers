@@ -74,7 +74,7 @@ type NullableFetchResult<T> = T | null | false | undefined;
  */
 function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Procedure<T> {
   if (result) return succeed(result as T);
-  return emptyResponseError(url) as Procedure<T>;
+  return emptyResponseError(url);
 }
 
 /**
@@ -335,7 +335,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
  * @returns IFetchStrategy implementation using browser session.
  */
 function createBrowserFetchStrategy(page: Page): IFetchStrategy {
-  return Reflect.construct(BrowserFetchStrategy, [page]) as IFetchStrategy;
+  return Reflect.construct(BrowserFetchStrategy, [page]);
 }
 
 export default BrowserFetchStrategy;

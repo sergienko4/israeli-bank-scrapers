@@ -143,7 +143,7 @@ describe('executeMatrixLoop branches', () => {
         txnTemplateUrl: 'https://bank.example.com/txn',
         txnTemplateBody: {},
         billingMonths: [],
-      } as IScrapeDiscovery),
+      }),
       diagnostics: {
         loginUrl: '',
         finalUrl: none(),

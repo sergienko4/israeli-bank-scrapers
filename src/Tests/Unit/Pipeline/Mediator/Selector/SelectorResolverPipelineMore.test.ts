@@ -67,7 +67,7 @@ function makeFrame(found = false, url = 'https://f.bank.co.il'): Frame {
  * @returns Mock page.
  */
 function makePageWithFrames(childFrames: Frame[] = []): Page {
-  const main = makeFrame(false, '') as unknown as Frame;
+  const main = makeFrame(false, '');
   return {
     /**
      * $.

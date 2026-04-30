@@ -73,10 +73,7 @@ describe('labelText via <span> with nested input', () => {
         possibleResults: { success: ['https://test-bank.local/home'] },
       },
     );
-    const result = await scraper.scrape({ username: 'u', password: 'p' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
   }, 30000);
 });
@@ -132,10 +129,7 @@ describe('labelText via <div> with sibling input', () => {
         possibleResults: { success: ['https://test-bank.local/home'] },
       },
     );
-    const result = await scraper.scrape({ username: 'u', password: 'p' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
   }, 30000);
 });
@@ -196,10 +190,7 @@ describe('placeholder resolution (regression)', () => {
         possibleResults: { success: ['https://test-bank.local/home'] },
       },
     );
-    const result = await scraper.scrape({ username: 'u', password: 'p' } as {
-      username: string;
-      password: string;
-    });
+    const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
   }, 30000);
 });

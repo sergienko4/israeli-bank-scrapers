@@ -72,9 +72,9 @@ function makeActionsCtx(args: IActionsCtxArgs): IPipelineContext {
   const credentials = { ...base.credentials, ...(args.credentials ?? {}) };
   return {
     ...base,
-    apiMediator: some(args.bus) as unknown as IPipelineContext['apiMediator'],
-    options: options as typeof base.options,
-    credentials: credentials as typeof base.credentials,
+    apiMediator: some(args.bus),
+    options: options,
+    credentials: credentials,
   };
 }
 

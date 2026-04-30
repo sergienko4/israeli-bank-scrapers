@@ -1,105 +1,113 @@
 /**
  * Callback-invoking branch coverage for ElementsInteractions.
- * Mocks pageOrFrame.evaluate to invoke the callback with a synthetic
- * document.querySelector global — exercising the ?. / ?? branches.
+ *
+ * Strategy: run under Jest's jsdom environment so that `document` and
+ * `document.querySelector` are real DOM APIs supplied by jsdom. The
+ * production code (`document.querySelector(sel)?.outerHTML.slice(...) ?? '—'`)
+ * is exercised against a real DOM tree:
+ *   - hit branch  → jsdom returns a real Element with real outerHTML
+ *   - miss branch → jsdom returns null (DOM contract; provided by 3rd party)
+ *
+ * No null/undefined is declared, returned, or annotated by this file —
+ * the project's "no null returns" guardrail is satisfied without any
+ * ESLint exception. The mock Page only forwards the callback to jsdom.
+ *
+ * @jest-environment jsdom
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 
 import {
   captureElementHtml,
   capturePageText,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js';
 
-/** Query outcome script. */
-interface IDocScript {
-  /** Selector to HTML map. Missing entries → querySelector returns null. */
-  readonly elements: Record<string, string>;
-  /** Page body innerText if asked. */
-  readonly bodyText?: string;
-}
-
-/** Element stub shape returned by querySelector. */
-interface IElementStub {
-  outerHTML: string;
-}
-/** Querystub factory alias. */
-type Querier = (sel: string) => unknown;
-
-/**
- * Install synthetic document global with querySelector.
- * @param script - Query outcome script.
- * @returns Restore function.
- */
-function installDocument(script: IDocScript): () => boolean {
-  const g = globalThis as unknown as { document?: unknown };
-  const prev = g.document;
-  /**
-   * Query implementation bound to the script map.
-   * @param sel - Selector.
-   * @returns Element stub or undefined when not found.
-   */
-  const querier: Querier = (sel: string) => {
-    if (sel in script.elements) {
-      const hit: IElementStub = { outerHTML: script.elements[sel] };
-      return hit;
-    }
-    // Fallthrough returns undefined implicitly — captureElementHtml uses ?.outerHTML which tolerates it.
-    return undefined as unknown;
-  };
-  g.document = {
-    querySelector: querier,
-    body: { innerText: script.bodyText ?? '' },
-  };
-  return (): boolean => {
-    g.document = prev;
-    return true;
-  };
+/** Minimal evaluate-only Page mock used by both functions under test. */
+interface IEvaluatePage {
+  readonly evaluate: <TResult>(fn: (arg?: unknown) => TResult, arg?: unknown) => Promise<TResult>;
 }
 
 /**
- * Build a page that invokes the evaluate callback with synthetic document.
- * @param script - Doc script.
- * @returns Mock page.
+ * Build a Page stub whose evaluate() runs the callback synchronously
+ * in this Node+jsdom process — so it sees the real document above.
+ * @returns Page-shaped object that forwards evaluate to the local jsdom.
  */
-function makeCallbackPage(script: IDocScript): Page {
-  return {
-    /**
-     * Invoke fn(arg) under synthetic document.
-     * @param fn - Inner callback.
-     * @param arg - Arg.
-     * @returns Callback result.
-     */
-    evaluate: <T>(fn: (arg?: unknown) => T, arg?: unknown): Promise<T> => {
-      const restore = installDocument(script);
-      try {
-        const fnResult1 = fn(arg);
-        return Promise.resolve(fnResult1);
-      } finally {
-        restore();
-      }
-    },
-  } as unknown as Page;
+/**
+ * Synchronously execute the production callback under the local jsdom
+ * document, then wrap the result in a resolved Promise (matching the
+ * Playwright `Page.evaluate` signature).
+ * @param fn - Production callback (executed with the real jsdom document).
+ * @param arg - Single argument forwarded to fn (Playwright contract).
+ * @returns Promise resolving to fn's return value.
+ */
+function syncJsdomEvaluate<TResult>(
+  fn: (arg?: unknown) => TResult,
+  arg?: unknown,
+): Promise<TResult> {
+  const callbackResult = fn(arg);
+  return Promise.resolve(callbackResult);
 }
 
-describe('ElementsInteractions — callback invocation branches', () => {
-  it('captureElementHtml callback: querySelector hit → slice outerHTML', async () => {
-    const page = makeCallbackPage({ elements: { 'div.x': '<div class="x">hello</div>' } });
-    const result = await captureElementHtml(page as unknown as Frame, 'div.x');
-    expect(result).toContain('div');
+/**
+ * Build a Page-shaped stub whose evaluate forwards to the local jsdom.
+ * @returns Page-typed stub for use with captureElementHtml/capturePageText.
+ */
+function makeJsdomPage(): Page {
+  const stub: IEvaluatePage = { evaluate: syncJsdomEvaluate };
+  return stub as unknown as Page;
+}
+
+/**
+ * Replace document.body content with the supplied HTML.
+ * @param html - Inner HTML for the body.
+ * @returns True after assignment (no void returns per project rule).
+ */
+function setBodyHtml(html: string): boolean {
+  document.body.innerHTML = html;
+  return true;
+}
+
+/**
+ * Stub document.body.innerText (jsdom does not implement it).
+ * Production code reads `document.body.innerText` for whitespace
+ * collapsing; this provides a configurable getter that returns the
+ * supplied string while keeping the rest of the DOM behaviour real.
+ * @param text - Value to expose as document.body.innerText.
+ * @returns True after definition.
+ */
+function setBodyInnerText(text: string): boolean {
+  Object.defineProperty(document.body, 'innerText', {
+    value: text,
+    configurable: true,
+    writable: true,
+  });
+  return true;
+}
+
+describe('ElementsInteractions — callback invocation branches (jsdom)', () => {
+  beforeEach(() => {
+    setBodyHtml('');
   });
 
-  it('captureElementHtml callback: querySelector miss → "—" via ??', async () => {
-    const page = makeCallbackPage({ elements: {} });
-    const result = await captureElementHtml(page as unknown as Frame, 'div.absent');
+  it('captureElementHtml: querySelector hit → outerHTML is sliced', async () => {
+    setBodyHtml('<div class="x">hello</div>');
+    const page = makeJsdomPage();
+    const result = await captureElementHtml(page, 'div.x');
+    expect(result).toContain('div');
+    expect(result).toContain('hello');
+  });
+
+  it('captureElementHtml: querySelector miss → "—" via ?? fallback', async () => {
+    setBodyHtml('<p>nothing matching</p>');
+    const page = makeJsdomPage();
+    const result = await captureElementHtml(page, 'div.absent');
     expect(result).toBe('—');
   });
 
-  it('capturePageText callback: body innerText + replaceAll + slice', async () => {
-    const page = makeCallbackPage({
-      elements: {},
-      bodyText: 'hello    world   lots   of  whitespace ' + 'x'.repeat(500),
-    });
+  it('capturePageText: body innerText collapsed and sliced', async () => {
+    const longTail = 'x'.repeat(500);
+    setBodyInnerText(`hello    world   lots   of  whitespace ${longTail}`);
+    const page = makeJsdomPage();
     const result = await capturePageText(page);
     expect(result.length).toBeLessThanOrEqual(400);
     expect(result).toContain('hello world lots of whitespace');

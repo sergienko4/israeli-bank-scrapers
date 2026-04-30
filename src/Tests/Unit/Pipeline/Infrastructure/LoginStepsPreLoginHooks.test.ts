@@ -89,7 +89,7 @@ describe('createPreLoginStep — runCheckReadiness branches', () => {
         await Promise.resolve();
         wasCalled = true;
       },
-    } as unknown as Partial<ILoginConfig>);
+    });
     const step = createPreLoginStep(config);
     const ctx = ctxWithBrowser();
     const result = await step.execute(ctx, ctx);
@@ -107,7 +107,7 @@ describe('createPreLoginStep — runCheckReadiness branches', () => {
         await Promise.resolve();
         throw new TestError('readiness-fail');
       },
-    } as unknown as Partial<ILoginConfig>);
+    });
     const step = createPreLoginStep(config);
     const ctx = ctxWithBrowser();
     const result = await step.execute(ctx, ctx);
@@ -130,7 +130,7 @@ describe('createPreLoginStep — runCheckReadiness branches', () => {
        * @returns Frame.
        */
       preAction: (): Promise<Frame> => Promise.resolve(preActionFrame),
-    } as unknown as Partial<ILoginConfig>);
+    });
     const step = createPreLoginStep(config);
     const ctx = ctxWithBrowser();
     const result = await step.execute(ctx, ctx);
@@ -150,7 +150,7 @@ describe('createPreLoginStep — runCheckReadiness branches', () => {
         await Promise.resolve();
         throw new TestError('pre-action-fail');
       },
-    } as unknown as Partial<ILoginConfig>);
+    });
     const step = createPreLoginStep(config);
     const ctx = ctxWithBrowser();
     const result = await step.execute(ctx, ctx);

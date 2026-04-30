@@ -66,7 +66,7 @@ const NON_SERIALIZABLE_FN: unknown = nonSerializableFn;
 describe('RefResolver.resolveRef fingerprint', () => {
   it('returns scope.fingerprint when present', (): void => {
     const scope = makeScope({ fingerprint: { metadata: { ts: 1 } } });
-    const result = resolveRef('fingerprint' as RefToken, scope);
+    const result = resolveRef('fingerprint', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('fingerprint should resolve');
     expect(result.value).toEqual({ metadata: { ts: 1 } });
@@ -74,7 +74,7 @@ describe('RefResolver.resolveRef fingerprint', () => {
 
   it('fails when scope.fingerprint is absent', (): void => {
     const scope = makeScope();
-    const result = resolveRef('fingerprint' as RefToken, scope);
+    const result = resolveRef('fingerprint', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('scope.fingerprint is absent');
   });
@@ -83,7 +83,7 @@ describe('RefResolver.resolveRef fingerprint', () => {
 describe('RefResolver.resolveRef time + uuid', () => {
   it('returns a 36-char UUID string for uuid', (): void => {
     const scope = makeScope();
-    const result = resolveRef('uuid' as RefToken, scope);
+    const result = resolveRef('uuid', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('uuid should resolve');
     const v = result.value as string;
@@ -92,7 +92,7 @@ describe('RefResolver.resolveRef time + uuid', () => {
 
   it('returns a unix-seconds number for now', (): void => {
     const scope = makeScope();
-    const result = resolveRef('now' as RefToken, scope);
+    const result = resolveRef('now', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('now should resolve');
     const n = result.value as number;
@@ -102,7 +102,7 @@ describe('RefResolver.resolveRef time + uuid', () => {
 
   it('returns a millisecond number for nowMs', (): void => {
     const scope = makeScope();
-    const result = resolveRef('nowMs' as RefToken, scope);
+    const result = resolveRef('nowMs', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('nowMs should resolve');
     const n = result.value as number;
@@ -114,7 +114,7 @@ describe('RefResolver.resolveRef keypair', () => {
   it('returns ec.publicKeyBase64 when scope.keypair.ec is present', (): void => {
     const ec = makeTestKeypair();
     const scope = makeScope({ keypair: { ec } });
-    const result = resolveRef('keypair.ec.publicKeyBase64' as RefToken, scope);
+    const result = resolveRef('keypair.ec.publicKeyBase64', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('ec keypair should resolve');
     expect(result.value).toBe(ec.publicKeyBase64);
@@ -122,7 +122,7 @@ describe('RefResolver.resolveRef keypair', () => {
 
   it('fails when scope.keypair is absent', (): void => {
     const scope = makeScope();
-    const result = resolveRef('keypair.ec.publicKeyBase64' as RefToken, scope);
+    const result = resolveRef('keypair.ec.publicKeyBase64', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('scope.keypair is absent');
   });
@@ -130,7 +130,7 @@ describe('RefResolver.resolveRef keypair', () => {
   it('fails when scope.keypair.ec is missing for an ec ref', (): void => {
     const rsa = makeTestKeypair();
     const scope = makeScope({ keypair: { rsa } });
-    const result = resolveRef('keypair.ec.publicKeyBase64' as RefToken, scope);
+    const result = resolveRef('keypair.ec.publicKeyBase64', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('scope.keypair.ec is absent');
   });
@@ -138,7 +138,7 @@ describe('RefResolver.resolveRef keypair', () => {
   it('fails when scope.keypair.rsa is missing for an rsa ref', (): void => {
     const ec = makeTestKeypair();
     const scope = makeScope({ keypair: { ec } });
-    const result = resolveRef('keypair.rsa.publicKeyBase64' as RefToken, scope);
+    const result = resolveRef('keypair.rsa.publicKeyBase64', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('scope.keypair.rsa is absent');
   });
@@ -155,7 +155,7 @@ describe('RefResolver.resolveRef keypair', () => {
 describe('RefResolver.resolveRef carry', () => {
   it('returns the carry value when present', (): void => {
     const scope = makeScope({ carry: { token: 'abc' } });
-    const result = resolveRef('carry.token' as RefToken, scope);
+    const result = resolveRef('carry.token', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('carry should resolve');
     expect(result.value).toBe('abc');
@@ -163,7 +163,7 @@ describe('RefResolver.resolveRef carry', () => {
 
   it('fails when the named carry field is undefined', (): void => {
     const scope = makeScope();
-    const result = resolveRef('carry.absent' as RefToken, scope);
+    const result = resolveRef('carry.absent', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('carry.absent');
   });
@@ -172,7 +172,7 @@ describe('RefResolver.resolveRef carry', () => {
 describe('RefResolver.resolveRef creds', () => {
   it('returns a string creds value via coerceToJsonValue', (): void => {
     const scope = makeScope({ creds: { password: '0000' } });
-    const result = resolveRef('creds.password' as RefToken, scope);
+    const result = resolveRef('creds.password', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('creds should resolve');
     expect(result.value).toBe('0000');
@@ -180,7 +180,7 @@ describe('RefResolver.resolveRef creds', () => {
 
   it('returns a number creds value verbatim', (): void => {
     const scope = makeScope({ creds: { attempt: 3 } });
-    const result = resolveRef('creds.attempt' as RefToken, scope);
+    const result = resolveRef('creds.attempt', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('creds number should resolve');
     expect(result.value).toBe(3);
@@ -188,7 +188,7 @@ describe('RefResolver.resolveRef creds', () => {
 
   it('returns a boolean creds value verbatim', (): void => {
     const scope = makeScope({ creds: { enabled: true } });
-    const result = resolveRef('creds.enabled' as RefToken, scope);
+    const result = resolveRef('creds.enabled', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('creds boolean should resolve');
     expect(result.value).toBe(true);
@@ -196,7 +196,7 @@ describe('RefResolver.resolveRef creds', () => {
 
   it('returns null creds verbatim', (): void => {
     const scope = makeScope({ creds: { mark: null } });
-    const result = resolveRef('creds.mark' as RefToken, scope);
+    const result = resolveRef('creds.mark', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('creds null should resolve');
     expect(result.value).toBeNull();
@@ -204,14 +204,14 @@ describe('RefResolver.resolveRef creds', () => {
 
   it('fails on non-JSON creds like functions', (): void => {
     const scope = makeScope({ creds: { fn: NON_SERIALIZABLE_FN } });
-    const result = resolveRef('creds.fn' as RefToken, scope);
+    const result = resolveRef('creds.fn', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('not JSON-serialisable');
   });
 
   it('fails when creds slot is undefined', (): void => {
     const scope = makeScope();
-    const result = resolveRef('creds.missing' as RefToken, scope);
+    const result = resolveRef('creds.missing', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('creds.missing');
   });
@@ -220,7 +220,7 @@ describe('RefResolver.resolveRef creds', () => {
 describe('RefResolver.resolveRef config', () => {
   it('resolves a dotted config path', (): void => {
     const scope = makeScope();
-    const result = resolveRef('config.signer.canonical.clientVersion' as RefToken, scope);
+    const result = resolveRef('config.signer.canonical.clientVersion', scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('config should resolve');
     expect(result.value).toBe('9.9.9');
@@ -228,7 +228,7 @@ describe('RefResolver.resolveRef config', () => {
 
   it('fails when the config path does not exist', (): void => {
     const scope = makeScope();
-    const result = resolveRef('config.nonexistent.field' as RefToken, scope);
+    const result = resolveRef('config.nonexistent.field', scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('config.nonexistent.field');
   });

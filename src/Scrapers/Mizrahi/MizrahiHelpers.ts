@@ -99,7 +99,7 @@ function parseDetailsFields(fields: { Label: string; Value: string }[]): IMoreDe
     record.Value.trim(),
   ]);
   return {
-    entries: Object.fromEntries(entries) as Record<string, string>,
+    entries: Object.fromEntries(entries),
     memo: entries
       .filter(([label]) => MEMO_PREFIXES.some(key => label.startsWith(key)))
       .map(([label, value]) => `${label} ${value}`)

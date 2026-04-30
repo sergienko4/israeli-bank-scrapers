@@ -141,7 +141,7 @@ describe('CreateElementMediator — walkUpToAnchorHref callback (invoked locally
        *
        * @returns Result.
        */
-      first: (): Locator => locator as unknown as Locator,
+      first: (): Locator => locator,
       /**
        * Test helper.
        *
@@ -229,7 +229,7 @@ describe('CreateElementMediator — traceElementInfo callback (invoked locally)'
        *
        * @returns Result.
        */
-      first: (): Locator => locator as unknown as Locator,
+      first: (): Locator => locator,
       /**
        * Test helper.
        *
@@ -331,7 +331,7 @@ describe('CreateElementMediator — resolveVisibleInContextImpl winner<0 branch'
        *
        * @returns Result.
        */
-      first: (): Locator => locator as unknown as Locator,
+      first: (): Locator => locator,
       /**
        * Test helper.
        *
@@ -404,7 +404,7 @@ describe('CreateElementMediator — buildCandidateLocators default fallback kind
        *
        * @returns Result.
        */
-      first: (): Locator => locator as unknown as Locator,
+      first: (): Locator => locator,
       /**
        * Test helper.
        *
@@ -466,7 +466,7 @@ describe('CreateElementMediator — extractIdentity callback (invoked locally)',
        *
        * @returns Result.
        */
-      first: (): Locator => locator as unknown as Locator,
+      first: (): Locator => locator,
       /**
        * Test helper.
        *

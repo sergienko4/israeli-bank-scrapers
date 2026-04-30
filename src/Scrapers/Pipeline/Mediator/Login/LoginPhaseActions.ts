@@ -343,7 +343,7 @@ async function executeDiscoverFields(args: IDiscoverFieldsArgs): Promise<ILoginF
     seedPromise,
   );
   const fallbackFrameId = computeContextId(args.activeFrame, args.page);
-  const passwordTarget = final.targets.get('password' as LoginFieldKey);
+  const passwordTarget = final.targets.get('password');
   const activeFrameId = passwordTarget?.contextId ?? fallbackFrameId;
   const submitTarget = await resolveSubmitTarget(args, final.formAnchor, activeFrameId);
   return { targets: final.targets, formAnchor: final.formAnchor, activeFrameId, submitTarget };
@@ -376,7 +376,7 @@ async function discoverFormFromField(
 function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly SelectorCandidate[] {
   if (Array.isArray(submit) && submit.length > 0) return submit;
   if (!Array.isArray(submit)) return [submit];
-  return WK_LOGIN_FORM.submit as unknown as readonly SelectorCandidate[];
+  return WK_LOGIN_FORM.submit;
 }
 
 /**

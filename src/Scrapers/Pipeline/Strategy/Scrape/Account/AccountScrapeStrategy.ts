@@ -116,7 +116,7 @@ function buildPostCtx(
   const cardId = extractCardId(accountRecord) || accountId;
   const rawPost = endpoint.postData || '{}';
   const capturedBody = JSON.parse(rawPost) as ApiPayload;
-  const baseBody = templatePostBody(rawPost, accountRecord as JsonRecord);
+  const baseBody = templatePostBody(rawPost, accountRecord);
   LOG.debug({
     message:
       `buildPostCtx: cardUniqueId=${cardId} ` +

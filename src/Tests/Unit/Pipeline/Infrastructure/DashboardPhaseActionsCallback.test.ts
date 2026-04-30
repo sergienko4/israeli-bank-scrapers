@@ -44,7 +44,7 @@ function makeDumpPage(script: IDumpScript): Page {
       const cbResult = fn(elements as unknown as Element[]);
       return Promise.resolve(cbResult);
     },
-  } as unknown as Page;
+  };
 }
 
 describe('DashboardPhaseActions — $$eval callback branches', () => {
@@ -69,13 +69,10 @@ describe('DashboardPhaseActions — $$eval callback branches', () => {
        */
       $$eval: <T>(sel: string, fn: (els: Element[]) => T): Promise<T> => {
         const extra = { textContent: null as unknown as string };
-        const els = [
-          ...texts.map(t => ({ textContent: t }) as Pick<Element, 'textContent'>),
-          extra,
-        ];
+        const els = [...texts.map(t => ({ textContent: t })), extra];
         return basePage.$$eval(sel, () => fn(els as unknown as Element[]));
       },
-    } as unknown as Page;
+    };
     const base = makeContextWithBrowser(wrapped);
     const mediator = makeMockMediator({
       /**

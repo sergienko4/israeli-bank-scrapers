@@ -25,7 +25,7 @@ class GraphQLFetchStrategy extends NativeFetchStrategy {
     variables: Record<string, unknown>,
     opts?: IFetchOpts,
   ): Promise<Procedure<T>> {
-    const body: PostData = { query, variables: variables as object };
+    const body: PostData = { query, variables: variables };
     return this.fetchPost<T>(this._baseUrl, body, opts ?? EMPTY_OPTS);
   }
 }

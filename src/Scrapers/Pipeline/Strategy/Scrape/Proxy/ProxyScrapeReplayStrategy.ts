@@ -177,11 +177,9 @@ async function replayOneMonth(
    * @returns Extracted transactions.
    */
   const fetch = async (): Promise<readonly ITransaction[]> => {
-    const result = await rCtx.strategy.fetchPost<ApiResponseBody>(
-      rCtx.txnUrl,
-      body as unknown as Record<string, string>,
-      { extraHeaders: { 'Content-Type': 'application/json' } },
-    );
+    const result = await rCtx.strategy.fetchPost<ApiResponseBody>(rCtx.txnUrl, body, {
+      extraHeaders: { 'Content-Type': 'application/json' },
+    });
     if (!isOk(result)) return [];
     return extractTransactions(result.value);
   };
@@ -561,7 +559,7 @@ async function proxyScrape(ctx: IActionContext): Promise<Procedure<IActionContex
   const accounts = await dispatchScrapeStrategy(ctx, disc, strategy);
   const withPending = await mergePendingIntoProxyAccounts(ctx, disc, accounts);
   const filterMs = new Date(ctx.options.startDate).getTime();
-  applyGlobalDateFilter(withPending as ITransactionsAccount[], filterMs);
+  applyGlobalDateFilter(withPending, filterMs);
   let totalTxns = 0;
   for (const acct of withPending) totalTxns += acct.txns.length;
   LOG.debug({ accounts: withPending.length, txns: totalTxns });

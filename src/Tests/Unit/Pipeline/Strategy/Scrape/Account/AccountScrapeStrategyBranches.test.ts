@@ -139,7 +139,7 @@ describe('AccountScrapeStrategy — branch extensions', () => {
       responseBody: undefined,
     });
     const api = makeApi({
-      fetchPost: stubFetchPostOk({ Transactions: [] } as unknown as Record<string, unknown>),
+      fetchPost: stubFetchPostOk({ Transactions: [] }),
     });
     const network = makeNetwork({
       /**

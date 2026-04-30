@@ -203,5 +203,5 @@ export function createMockScraperOptions(overrides: Partial<ScraperOptions> = {}
     companyId: CompanyTypes.Leumi,
     startDate: new Date('2024-01-01'),
     ...overrides,
-  } as ScraperOptions;
+  };
 }

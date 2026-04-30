@@ -142,7 +142,7 @@ function ctxOf(bus: IApiMediator): IActionContext {
   const base = makeMockContext();
   const withBus: IPipelineContext = {
     ...base,
-    apiMediator: some(bus) as unknown as IPipelineContext['apiMediator'],
+    apiMediator: some(bus),
   };
   return withBus as unknown as IActionContext;
 }

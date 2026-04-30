@@ -10,6 +10,18 @@
  */
 export const SCRAPE_TIMEOUT = 900_000;
 
+/** Maximum time allowed for an invalid-credentials smoke test (ms).
+ *
+ *   90_000 ms = 90 seconds. Smoke tests use *synthetic* invalid creds, so
+ *   the bank's auth endpoint MUST reject within seconds (typical 30-60s
+ *   including browser launch + page load + reject). We hard-cap at 90s to
+ *   catch CAPTCHA-loops / WAF stalls / network hangs FAST instead of
+ *   burning the SCRAPE_TIMEOUT 15-min budget on each bank — a 17-bank
+ *   serial smoke run drops from 25min worst-case to ~10min realistic
+ *   plus per-bank hang detection in 90s instead of 15min.
+ */
+export const SMOKE_TIMEOUT = 90_000;
+
 /** Default timeout for async Jest test operations (ms). */
 export const ASYNC_TIMEOUT = 240000;
 

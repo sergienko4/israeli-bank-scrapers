@@ -100,7 +100,7 @@ export function candidateToCss(candidate: SelectorCandidate): CssStr {
  * @returns Whether the argument is a Page instance.
  */
 export function isPage(pageOrFrame: Page | Frame): pageOrFrame is Page {
-  return 'frames' in pageOrFrame && typeof (pageOrFrame as unknown as Page).frames === 'function';
+  return 'frames' in pageOrFrame && typeof pageOrFrame.frames === 'function';
 }
 
 /**

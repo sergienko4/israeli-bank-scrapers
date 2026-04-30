@@ -2,7 +2,7 @@
  * Extra coverage for CreateElementMediator — resolveVisible + resolveAndClick + extractActionMediator + attribute/href paths (split).
  */
 
-import type { Frame, Locator, Page } from 'playwright-core';
+import type { Locator, Page } from 'playwright-core';
 
 import createElementMediator, {
   extractActionMediator,
@@ -50,11 +50,7 @@ describe('CreateElementMediator resolveVisible — coverage of all candidate kin
     const locator = makeRichLocator({ visible: true, hitTest: true });
     const page = makeRichPage({ locator });
     const m = createElementMediator(page);
-    const r = await m.resolveVisibleInContext(
-      [{ kind: 'textContent', value: 'X' }],
-      page as unknown as Frame,
-      500,
-    );
+    const r = await m.resolveVisibleInContext([{ kind: 'textContent', value: 'X' }], page, 500);
     expect(r.found).toBe(true);
   }, 5000);
 });

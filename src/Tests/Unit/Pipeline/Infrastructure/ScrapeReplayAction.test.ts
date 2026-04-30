@@ -192,7 +192,7 @@ describe('replaceField — exhaustion', () => {
 
   it('handles arrays of objects', () => {
     const body: JsonRecord = {
-      items: [{ other: 1 }, { accountId: 'OLD' }] as unknown as JsonRecord[keyof JsonRecord],
+      items: [{ other: 1 }, { accountId: 'OLD' }],
     };
     const isChanged = replaceField(body, ['accountId'], 'NEW');
     expect(isChanged).toBe(true);

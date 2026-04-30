@@ -26,7 +26,7 @@ interface IWaitCallbacks<T> {
  * @returns True after handling.
  */
 function handlePollResult<T>(value: T, cbs: IWaitCallbacks<T>, nextFn: () => boolean): OpDone {
-  if (value) return cbs.resolve(value as unknown as NonNullable<T>);
+  if (value) return cbs.resolve(value);
   return nextFn();
 }
 

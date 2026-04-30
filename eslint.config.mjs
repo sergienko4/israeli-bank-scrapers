@@ -445,6 +445,11 @@ export default tseslint.config(
       'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],// Tests can be longer
       'max-len': 'off',// Test descriptions can be long
       'check-file/filename-naming-convention': 'off',// Allow standard test naming
+      // Jest recognises `@jest-environment` as a docblock pragma to switch
+      // the test environment per file (e.g. jsdom vs node). It is a real
+      // tag from Jest, not a custom invention — whitelist it for tests so
+      // jsdoc/check-tag-names does not reject it.
+      'jsdoc/check-tag-names': ['error', { definedTags: ['jest-environment'] }],
 
       //🚨 Prevent the 'as never' / 'as any' bypass in mocks
       'no-restricted-syntax': [
@@ -589,4 +594,5 @@ export default tseslint.config(
       ],
     },
   },
+
 );

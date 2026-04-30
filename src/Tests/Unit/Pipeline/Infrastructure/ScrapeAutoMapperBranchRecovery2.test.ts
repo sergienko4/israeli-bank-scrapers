@@ -22,7 +22,7 @@ describe('ScrapeAutoMapper — branch recovery', () => {
       description: 'test',
       currency: 'ILS',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     // result is either a mapped transaction or false — both are acceptable;
     // the key assertion is that we exercised the NaN fallback without throwing.
     expect(result === false || typeof result === 'object').toBe(true);

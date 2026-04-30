@@ -289,7 +289,7 @@ describe('LoginPhaseActions — branch completion', () => {
         return Promise.resolve();
       },
     };
-    const base = makeContextWithLogin(pageWithWait as unknown as Page);
+    const base = makeContextWithLogin(pageWithWait);
     const ctx = {
       ...base,
       diagnostics: { ...base.diagnostics, loginUrl },

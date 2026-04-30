@@ -2,8 +2,6 @@
  * Unit tests for OtpTriggerPhaseActions — PRE/ACTION/POST/FINAL orchestration.
  */
 
-import type { Page } from 'playwright-core';
-
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   executeTriggerAction,
@@ -174,7 +172,7 @@ describe('executeTriggerPre — phone hint extraction', () => {
        */
       evaluate: (): Promise<string> => Promise.reject(new Error('eval fail')),
     };
-    const base = makeContextWithBrowser(rejectingPage as unknown as Page);
+    const base = makeContextWithBrowser(rejectingPage);
     const ctx = {
       ...base,
       config: { ...base.config, otp: { enabled: false } },

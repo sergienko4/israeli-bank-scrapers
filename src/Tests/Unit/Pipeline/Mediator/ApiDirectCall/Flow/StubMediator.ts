@@ -63,7 +63,7 @@ function makePrimeSession(args: IStubMediatorArgs): IApiMediator['primeSession']
  */
 async function apiGetStub<T>(): Promise<Procedure<T>> {
   await Promise.resolve();
-  return fail(ScraperErrorTypes.Generic, 'unused') as Procedure<T>;
+  return fail(ScraperErrorTypes.Generic, 'unused');
 }
 
 /**
@@ -72,7 +72,7 @@ async function apiGetStub<T>(): Promise<Procedure<T>> {
  */
 async function apiQueryStub<T>(): Promise<Procedure<T>> {
   await Promise.resolve();
-  return fail(ScraperErrorTypes.Generic, 'unused') as Procedure<T>;
+  return fail(ScraperErrorTypes.Generic, 'unused');
 }
 
 /**

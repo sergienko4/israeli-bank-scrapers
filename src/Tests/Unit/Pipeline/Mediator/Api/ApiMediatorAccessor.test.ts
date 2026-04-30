@@ -37,7 +37,7 @@ describe('resolveApiMediator — resolver behaviour', () => {
     const base = makeMockContext();
     const ctx: IPipelineContext = {
       ...base,
-      apiMediator: some(bus) as unknown as IPipelineContext['apiMediator'],
+      apiMediator: some(bus),
     };
     const result = resolveApiMediator(ctx, 'TestLabel');
     assertOk(result);

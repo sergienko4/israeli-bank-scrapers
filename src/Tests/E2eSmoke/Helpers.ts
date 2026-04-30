@@ -1,9 +1,12 @@
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
-import { CI_BROWSER_ARGS, SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
+import { CI_BROWSER_ARGS } from '../Config/TestTimingConfig.js';
 
-export { SCRAPE_TIMEOUT };
+/** Re-exported smoke-specific timeout — 90s per-test cap so invalid-creds
+ *  rejections complete fast and CAPTCHA / WAF / network hangs are caught
+ *  in 90s instead of the SCRAPE_TIMEOUT 15-min budget. */
+export { SMOKE_TIMEOUT } from '../Config/TestTimingConfig.js';
 export const isCiEnvironment = !!process.env.CI;
 export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
 

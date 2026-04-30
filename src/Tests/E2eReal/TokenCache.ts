@@ -72,9 +72,16 @@ async function readCacheSafe(cachePath: string, log: ScraperLogger): Promise<str
   }
 }
 
+/** Owner-only file mode for the token cache (Unix rwx for owner, none
+ *  for group/other). Mitigates CodeQL js/insecure-temporary-file by
+ *  ensuring no other local user can read or hijack the cache. On
+ *  Windows this maps to "Full control" for the current user only via
+ *  the Node FS layer's mode-bit translation. */
+const CACHE_FILE_MODE = 0o600;
+
 /**
- * Safely write the cache file (UTF-8, truncating any prior content).
- * Returns false on any write error (permissions, full disk).
+ * Safely write the cache file (UTF-8, truncating any prior content) with
+ * owner-only permissions. Returns false on any write error.
  * @param cachePath - Absolute path.
  * @param token - Token string.
  * @param log - Logger for WARN diagnostics.
@@ -86,7 +93,7 @@ async function writeCacheSafe(
   log: ScraperLogger,
 ): Promise<boolean> {
   try {
-    await fs.writeFile(cachePath, token, { encoding: 'utf8' });
+    await fs.writeFile(cachePath, token, { encoding: 'utf8', mode: CACHE_FILE_MODE });
     return true;
   } catch (err) {
     const e = err as NodeJS.ErrnoException;

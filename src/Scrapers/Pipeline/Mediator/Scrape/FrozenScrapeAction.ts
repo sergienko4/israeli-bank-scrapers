@@ -86,7 +86,7 @@ async function runFrozenScrape(
     accountRecords: loadCtx.records,
   });
   const filterMs = parseStartDate(startDate).getTime();
-  applyGlobalDateFilter(withPending as ITransactionsAccount[], filterMs);
+  applyGlobalDateFilter(withPending, filterMs);
   logScrapeResult(withPending);
   return succeed({ ...input, scrape: some({ accounts: [...withPending] }) });
 }

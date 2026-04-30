@@ -2,6 +2,9 @@
  * Unit tests for Mediator/Otp/OtpShared — OTP_FALLBACK + otpScreenshot catch lambda.
  */
 
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import {
   NOT_FOUND,
@@ -25,6 +28,11 @@ import { makeMockContext } from '../Infrastructure/MockFactories.js';
 type IBrowserStateOption = Option<IBrowserState>;
 /** Diagnostics alias — hides `as never` cast pattern. */
 type IDiagnosticsShape = IActionContext['diagnostics'];
+
+/** Portable test-only RUNS_ROOT — avoids hard-coding a Windows path so
+ *  Linux CI runners do not create directories named `C:\tmp\...`. */
+const TEST_TMP_ROOT = os.tmpdir();
+const OTPSHARED_TEST_RUNS_ROOT = path.join(TEST_TMP_ROOT, 'otpshared-test-runs');
 
 describe('OTP_FALLBACK', () => {
   it('returns succeed(NOT_FOUND)', () => {
@@ -88,7 +96,7 @@ describe('otpScreenshot', () => {
 
   it('returns the path when screenshot succeeds (LOG_LEVEL=trace)', async () => {
     process.env.LOG_LEVEL = 'trace';
-    process.env.RUNS_ROOT = String.raw`C:\tmp\otpshared-test-runs`;
+    process.env.RUNS_ROOT = OTPSHARED_TEST_RUNS_ROOT;
     // Re-import RunLabel/TraceConfig fresh so cached folders pick up new env.
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.resetTraceConfigCache();
@@ -108,7 +116,7 @@ describe('otpScreenshot', () => {
 
   it('swallows screenshot rejection via .catch (line 61 lambda)', async () => {
     process.env.LOG_LEVEL = 'trace';
-    process.env.RUNS_ROOT = String.raw`C:\tmp\otpshared-test-runs`;
+    process.env.RUNS_ROOT = OTPSHARED_TEST_RUNS_ROOT;
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.resetTraceConfigCache();
     tc.setActiveBank('beinleumi');

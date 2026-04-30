@@ -200,7 +200,7 @@ describe('Feature — ProxyQualification — branch completion', () => {
       options: {
         ...baseInput.options,
         startDate: new Date('2099-01-01'),
-      } as unknown as IPipelineContext['options'],
+      },
     };
     const result = await runProxyQualification({
       input,

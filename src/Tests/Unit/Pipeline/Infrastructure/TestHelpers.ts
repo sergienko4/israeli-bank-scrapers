@@ -106,7 +106,7 @@ export function makeScreenshotPage(bodyText = ''): Page {
      * @returns The body text string.
      */
     evaluate: (): Promise<string> => Promise.resolve(bodyText),
-  } as unknown as Page;
+  };
 }
 
 /**
@@ -195,7 +195,7 @@ export function makeMockActionExecutor(overrides: Partial<IActionMediator> = {})
      * @returns Resolved false.
      */
     waitForTxnEndpoint: (): Promise<boolean> => Promise.resolve(false),
-  } as unknown as IActionMediator;
+  };
   return { ...base, ...overrides };
 }
 

@@ -91,7 +91,6 @@
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.24",
     "@types/source-map-support": "^0.5.10",
-    "@types/uuid": "^10.0.0",
     "cross-env": "^10.1.0",
     "dotenv": "^17.3.1",
     "eslint": "^10.0.2",
@@ -131,8 +130,7 @@
     "moment-timezone": "^0.6.0",
     "pino": "^10.3.1",
     "playwright-core": "^1.58.2",
-    "utility-types": "^3.11.0",
-    "uuid": "^11.1.0"
+    "utility-types": "^3.11.0"
   },
   "files": [
     "lib/**/*"

@@ -93,7 +93,7 @@ async function runApiDirectCallPre(
 function mergeOptionsIntoCreds(ctx: IPipelineContext): GenericCreds {
   const opts = ctx.options as unknown as Record<string, unknown>;
   const creds = ctx.credentials as unknown as Record<string, unknown>;
-  return { ...creds, ...opts } as GenericCreds;
+  return { ...creds, ...opts };
 }
 
 /**

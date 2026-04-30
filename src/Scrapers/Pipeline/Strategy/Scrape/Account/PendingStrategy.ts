@@ -235,10 +235,7 @@ async function fetchAndMergePending(args: IPendingArgs): Promise<readonly ITrans
   if (cardIds.length === 0) return accounts;
   LOG.debug({ message: `pending POST: ${String(cardIds.length)} cards` });
   const body = { cardUniqueIDArray: cardIds };
-  const raw = await api.fetchPost<IPendingResponse>(
-    pendingUrl,
-    body as unknown as Record<string, string | object>,
-  );
+  const raw = await api.fetchPost<IPendingResponse>(pendingUrl, body);
   if (!isOk(raw)) return accounts;
   if (!raw.value.result?.cardsList) return accounts;
   const idMap = buildIdToDisplayMap(accountRecords);

@@ -151,5 +151,5 @@ export async function waitUntil<T>(
   opts: IWaitUntilOpts = {},
 ): Promise<NonNullable<T>> {
   const result = await executeWaitUntil(asyncTest, description, opts);
-  return result as NonNullable<T>;
+  return result;
 }

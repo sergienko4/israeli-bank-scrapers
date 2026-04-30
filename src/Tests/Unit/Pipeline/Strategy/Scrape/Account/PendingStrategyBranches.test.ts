@@ -113,9 +113,7 @@ describe('PendingStrategy — branch completion', () => {
       network,
       accounts,
       // Record uses last4 display that matches accountNumber 9999 + cardUniqueId='card-xyz'.
-      accountRecords: [
-        { cardUniqueId: 'card-xyz', last4Digits: '4718' } as Record<string, unknown>,
-      ],
+      accountRecords: [{ cardUniqueId: 'card-xyz', last4Digits: '4718' }],
     });
     // 9999 was enriched, 7777 unchanged reference preserved
     const enriched = result.find(a => a.accountNumber === '4718');
@@ -164,7 +162,7 @@ describe('PendingStrategy — branch completion', () => {
       network,
       accounts,
       // cardUniqueID numeric — exercises safeStr number → toString branch
-      accountRecords: [{ cardUniqueID: 12345 } as unknown as Record<string, unknown>],
+      accountRecords: [{ cardUniqueID: 12345 }],
     });
     const isArrayResult1 = Array.isArray(result);
     expect(isArrayResult1).toBe(true);
@@ -194,7 +192,7 @@ describe('PendingStrategy — branch completion', () => {
       api,
       network,
       accounts,
-      accountRecords: [{ CardUniqueId: 'pascal-id' } as unknown as Record<string, unknown>],
+      accountRecords: [{ CardUniqueId: 'pascal-id' }],
     });
     // No cardsList → accounts unchanged
     expect(result).toBe(accounts);

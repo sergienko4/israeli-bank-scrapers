@@ -238,7 +238,7 @@ function makeExecPage(fakeAncestors: IFakeElement[]): Page {
      * @returns Result.
      */
     evaluateAll: <T>(cb: (els: unknown[]) => T): Promise<T> => {
-      const cbResult = cb(fakeAncestors as unknown[]);
+      const cbResult = cb(fakeAncestors);
       return Promise.resolve(cbResult);
     },
   };
@@ -262,7 +262,7 @@ function makeExecPage(fakeAncestors: IFakeElement[]): Page {
      * @returns Result.
      */
     evaluateAll: <T>(cb: (els: unknown[]) => T): Promise<T> => {
-      const cbResult = cb(fakeAncestors as unknown[]);
+      const cbResult = cb(fakeAncestors);
       return Promise.resolve(cbResult);
     },
     /**

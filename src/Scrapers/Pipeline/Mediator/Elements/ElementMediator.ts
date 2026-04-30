@@ -92,7 +92,7 @@ const NOT_FOUND_RESULT: IRaceResult = {
   locator: false,
   candidate: false,
   context: false,
-  index: -1 as WinnerIndex,
+  index: -1,
   value: '',
   identity: false,
 };

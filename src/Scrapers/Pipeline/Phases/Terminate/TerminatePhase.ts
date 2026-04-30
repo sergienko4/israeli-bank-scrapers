@@ -27,7 +27,7 @@ import { succeed } from '../../Types/Procedure.js';
  */
 function buildTerminateActionCtx(input: IPipelineContext): IActionContext {
   const noExecutor = { has: false } as IActionContext['executor'];
-  return { ...input, executor: noExecutor } as unknown as IActionContext;
+  return { ...input, executor: noExecutor };
 }
 
 /**

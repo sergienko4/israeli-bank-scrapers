@@ -301,7 +301,7 @@ function makeMockFetch(tally: ICallTally): typeof globalThis.fetch {
     const resp = dispatch({ url, init, tally });
     return resp as unknown as Response;
   }
-  return mockFetch as typeof globalThis.fetch;
+  return mockFetch;
 }
 
 /**

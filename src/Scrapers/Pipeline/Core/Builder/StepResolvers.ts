@@ -138,7 +138,7 @@ function buildLoginPhase(state: IBuilderState): BasePhase {
   if (state.apiDirectConfig) return createApiDirectCallPhase(state.apiDirectConfig);
   if (state.loginConfig) return createLoginPhaseFromConfig(state.loginConfig);
   const exec = resolveLoginExec(state);
-  return Reflect.construct(SimplePhase, ['login', exec]) as BasePhase;
+  return Reflect.construct(SimplePhase, ['login', exec]);
 }
 
 export type { IBuilderState, LoginFn, StepExecFn };

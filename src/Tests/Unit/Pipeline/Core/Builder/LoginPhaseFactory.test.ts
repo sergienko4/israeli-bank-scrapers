@@ -84,7 +84,7 @@ describe('buildDeclarativePhase', () => {
       fields: [],
       submit: [],
       possibleResults: { success: [] },
-    } as unknown as ILoginConfig;
+    };
     const phase = buildDeclarativePhase(emptyConfig);
     const full = makeMockContext();
     const actionCtx = full as unknown as IActionContext;

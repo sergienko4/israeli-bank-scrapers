@@ -22,7 +22,7 @@ describe('ScrapeAutoMapper — Wave 5 branches', () => {
       description: 'x',
       originalAmount: 'not-a-number',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     if (result !== false) {
       // Falls back to amount (-10) when originalAmount unparseable.
       expect(typeof result.originalAmount).toBe('number');
@@ -37,7 +37,7 @@ describe('ScrapeAutoMapper — Wave 5 branches', () => {
       description: 'Card zero charge',
       dealSumType: '0', // activates card flag
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     if (result !== false) {
       expect(result.chargedAmount).toBe(0);
     }
@@ -50,7 +50,7 @@ describe('ScrapeAutoMapper — Wave 5 branches', () => {
       amount: Infinity,
       description: 'x',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     expect(result).toBe(false);
   });
 
@@ -61,7 +61,7 @@ describe('ScrapeAutoMapper — Wave 5 branches', () => {
       amount: -10,
       description: 'x',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     // parseAutoDate passes through → new Date('totally-invalid...').getTime() = NaN
     expect(result).toBe(false);
   });
@@ -118,7 +118,7 @@ describe('ScrapeAutoMapper — Wave 5 branches', () => {
   // huntEntry: non-object, non-array at stack top (line 825 fallthrough)
   it('extractTransactions handles primitive-only record (no children)', () => {
     const body = { a: 1, b: 'string', c: true };
-    const result = extractTransactions(body as unknown as Record<string, unknown>);
+    const result = extractTransactions(body);
     expect(result).toEqual([]);
   });
 

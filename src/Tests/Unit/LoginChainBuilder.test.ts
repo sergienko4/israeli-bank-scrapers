@@ -97,7 +97,7 @@ function createStubLoginOptions(): ILoginOptions {
     fields: [],
     submitButtonSelector: '#submit',
     possibleResults: {},
-  } as unknown as ILoginOptions;
+  };
 }
 
 /**

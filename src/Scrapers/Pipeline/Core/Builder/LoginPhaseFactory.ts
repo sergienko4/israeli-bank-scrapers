@@ -79,7 +79,7 @@ function buildStubFullContext(input: IActionContext): IPipelineContext {
     browser: { has: false },
     login: { has: false },
     scrape: { has: false },
-  } as IPipelineContext;
+  };
 }
 
 /**
@@ -104,7 +104,7 @@ function buildExecFn(phase: ReturnType<typeof createLoginPhase>): ActionExecFn {
 function buildDeclarativePhase(config: ILoginConfig): BasePhase {
   const phase = createLoginPhase(config);
   const exec = buildExecFn(phase);
-  return Reflect.construct(DeclarativeLogin, ['login', exec, phase]) as BasePhase;
+  return Reflect.construct(DeclarativeLogin, ['login', exec, phase]);
 }
 
 export default buildDeclarativePhase;

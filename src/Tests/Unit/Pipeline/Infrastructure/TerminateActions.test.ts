@@ -12,10 +12,7 @@ import {
   runAllCleanups,
 } from '../../../../Scrapers/Pipeline/Mediator/Terminate/TerminateActions.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type {
-  IBrowserState,
-  IPipelineContext,
-} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { IBrowserState } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
@@ -178,13 +175,13 @@ describe('Feature — AllCleanups helper', () => {
         return Promise.resolve(okVoid);
       },
     ];
-    const count = await runAllCleanups(cleanups, log as unknown as IPipelineContext['logger']);
+    const count = await runAllCleanups(cleanups, log);
     expect(count).toBe(2);
   });
 
   it('empty cleanups returns 0', async () => {
     const log = makeFlushableLogger();
-    const count = await runAllCleanups([], log as unknown as IPipelineContext['logger']);
+    const count = await runAllCleanups([], log);
     expect(count).toBe(0);
   });
 });

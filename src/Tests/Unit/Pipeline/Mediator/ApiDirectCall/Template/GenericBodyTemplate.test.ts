@@ -156,7 +156,7 @@ describe('GenericBodyTemplate.hydrate — arrays preserved + recursed', () => {
 describe('GenericBodyTemplate.hydrate — branch coverage', () => {
   it('hydrates a $literal: null node verbatim', (): void => {
     const scope = makeScope();
-    const result = hydrate({ $literal: null } as JsonValueTemplate, scope);
+    const result = hydrate({ $literal: null }, scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('null literal should hydrate');
     expect(result.value).toBeNull();
@@ -164,7 +164,7 @@ describe('GenericBodyTemplate.hydrate — branch coverage', () => {
 
   it('hydrates a nested object literal via coerceJson object branch', (): void => {
     const scope = makeScope();
-    const result = hydrate({ $literal: { a: 1, b: [2, 3] } } as JsonValueTemplate, scope);
+    const result = hydrate({ $literal: { a: 1, b: [2, 3] } }, scope);
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('object literal should hydrate');
     expect(result.value).toEqual({ a: 1, b: [2, 3] });

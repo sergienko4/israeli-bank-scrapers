@@ -49,7 +49,7 @@ describe('executeDashboardNavigationSealed — strategy branches', () => {
         diagnostics: {
           ...base.diagnostics,
           dashboardTarget: MOCK_TARGET,
-          apiStrategy: strategy as unknown as (typeof API_STRATEGY)[keyof typeof API_STRATEGY],
+          apiStrategy: strategy,
         },
       },
       makeMockActionExecutorResult11,

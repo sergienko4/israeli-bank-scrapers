@@ -28,20 +28,20 @@ describe('ScrapeAutoMapper — branch completion', () => {
 
   it('autoMapTransaction rejects record with empty date', () => {
     const raw = { amount: -10, description: 'x' };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     expect(result).toBe(false);
   });
 
   it('autoMapTransaction rejects NaN amount', () => {
     const raw = { date: '2026-01-15', amount: 'garbage', description: 'x' };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     // coerceNumber('garbage') is NaN → falsy via Number.isFinite — but resolveAmount may fall back.
     expect(result === false || typeof result === 'object').toBe(true);
   });
 
   it('autoMapTransaction coerces numeric date (number branch)', () => {
     const raw = { date: 20260115, amount: -10, description: 'x' };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     // Numeric date → String(20260115) — won't match KNOWN_DATE_FORMATS
     expect(result === false || typeof result === 'object').toBe(true);
   });
@@ -76,7 +76,7 @@ describe('ScrapeAutoMapper — branch completion', () => {
       description: 'Card Charge',
       dealSumType: '0',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     if (result !== false) {
       expect(result.chargedAmount).toBeLessThanOrEqual(0);
     }
@@ -89,7 +89,7 @@ describe('ScrapeAutoMapper — branch completion', () => {
       debitAmount: 100,
       creditAmount: 40,
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     if (result !== false) {
       // credit - debit = -60
       expect(typeof result.chargedAmount).toBe('number');
@@ -103,7 +103,7 @@ describe('ScrapeAutoMapper — branch completion', () => {
       description: 'x',
       currency: '₪',
     };
-    const result = autoMapTransaction(raw as Record<string, unknown>);
+    const result = autoMapTransaction(raw);
     if (result !== false) {
       expect(result.originalCurrency).toBe('ILS');
     }
@@ -188,7 +188,7 @@ describe('ScrapeAutoMapper — branch completion', () => {
     // `json.length <= BODY_PREVIEW_CHARS` condition is FALSE (line 648 branch 1).
     const filler = 'x'.repeat(5000);
     const body = { unrecognized: filler, nested: { moreFiller: filler } };
-    const records = extractAccountRecords(body as Record<string, unknown>);
+    const records = extractAccountRecords(body);
     expect(records).toEqual([]);
   });
 });

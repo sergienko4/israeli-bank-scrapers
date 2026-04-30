@@ -31,11 +31,11 @@ describe('PipelineResult branch gap', () => {
           { accountNumber: 'A1', txns: [] },
           { accountNumber: 'A2', txns: [] },
         ],
-      }) as unknown as IPipelineContext['scrape'],
+      }),
       login: some({
         activeFrame: {} as Page,
         persistentOtpToken: some('TOKEN-X' as const),
-      }) as unknown as IPipelineContext['login'],
+      }),
     };
     const succeedResult1 = succeed(withLogin);
     const result = toResult(succeedResult1);
@@ -53,7 +53,7 @@ describe('PipelineResult branch gap', () => {
       login: some({
         activeFrame: {} as Page,
         persistentOtpToken: none(),
-      }) as unknown as IPipelineContext['login'],
+      }),
     };
     const succeedResult2 = succeed(withLogin);
     const result = toResult(succeedResult2);

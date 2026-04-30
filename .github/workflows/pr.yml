@@ -102,9 +102,10 @@ jobs:
       - name: E2E factory tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
-      # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
-      - name: E2E smoke tests (invalid credentials)
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eSmoke' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
+      # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
+      # See `e2e-smoke` job below — runs invalid-credential checks for each
+      # bank in its own ubuntu-latest runner in parallel. Wall time drops
+      # from ~25min serial to ~3-5min matrix.
 
       # ── E2E Mocked Tests ──
       - name: E2E mocked tests
@@ -151,6 +152,61 @@ jobs:
           name: coverage-report
           path: src/coverage/
           retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Smoke Tests — matrix job, ONE bank per runner.
+  #
+  # Splits the previously-serial 17-bank smoke run into 17 parallel
+  # ubuntu-latest runners. Each runner installs deps + camoufox once,
+  # runs jest with --testNamePattern filtered to a single bank, and
+  # returns. Wall time: ~3-5min matrix vs ~25min serial.
+  #
+  # Per-test timeout is 90s (SMOKE_TIMEOUT) so any bank-specific hang
+  # cancels in 90s instead of the SCRAPE_TIMEOUT 15-min budget.
+  # ──────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E Smoke (${{ matrix.bank }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Leumi
+          - Mizrahi
+          - Max
+          - Isracard
+          - Amex
+          - VisaCal
+          - Discount
+          - Otsar Hahayal
+          - Beinleumi
+          - Mercantile
+          - Massad
+          - Yahav
+          - Beyahad Bishvilha
+          - Behatsdaa
+          - Pagi
+          - OneZero
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E smoke (${{ matrix.bank }})
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns='E2eSmoke' \
+            --testNamePattern='${{ matrix.bank }} \(invalid login\)' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
 
   dependency-review:
     name: Dependency Review

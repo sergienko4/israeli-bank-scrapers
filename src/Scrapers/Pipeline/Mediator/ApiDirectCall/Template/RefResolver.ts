@@ -71,7 +71,7 @@ function handleFingerprint(_token: RefToken, scope: ITemplateScope): Procedure<J
       'ref fingerprint requested but scope.fingerprint is absent',
     );
   }
-  return succeed(scope.fingerprint as unknown as JsonValue);
+  return succeed(scope.fingerprint);
 }
 
 /**

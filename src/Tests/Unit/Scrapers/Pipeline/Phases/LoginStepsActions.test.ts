@@ -4,8 +4,6 @@
  * preLogin and error-detection tests are in LoginSteps.test.ts.
  */
 
-import type { Page } from 'playwright-core';
-
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
@@ -40,7 +38,7 @@ const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig 
 const SUCCESS_FIELD_CTX: IFieldContext = {
   isResolved: true,
   selector: '#field',
-  context: makeMockFullPage() as unknown as Page,
+  context: makeMockFullPage(),
   resolvedVia: 'wellKnown',
   round: 'mainPage',
 };

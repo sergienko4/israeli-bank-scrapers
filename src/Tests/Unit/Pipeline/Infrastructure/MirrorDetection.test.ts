@@ -99,7 +99,7 @@ describe('detectMirroredAccounts', () => {
   it('canonicalizeTxn: missing description → empty fallback (L53:1:1)', () => {
     // Test with txn lacking description — triggers `txn.description ?? ''` right side.
     const txns: IFingerTxn[] = [
-      { date: '2026-01-01', originalAmount: 10 } as IFingerTxn, // no description
+      { date: '2026-01-01', originalAmount: 10 }, // no description
     ];
     const accounts: IFingerAccount[] = [
       { accountNumber: 'A1', txns },

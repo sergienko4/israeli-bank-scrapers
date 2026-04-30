@@ -194,10 +194,10 @@ function reflectChildProperty(
   entry: IDeferredChildEntry,
   prop: string | symbol,
 ): LoggerProperty {
-  if (entry.resolved) return Reflect.get(entry.resolved as object, prop) as LoggerProperty;
+  if (entry.resolved) return Reflect.get(entry.resolved, prop) as LoggerProperty;
   const child = getRootLogger().child({ module: name });
   if (rootLoggerCache) entry.resolved = child;
-  return Reflect.get(child as object, prop) as LoggerProperty;
+  return Reflect.get(child, prop) as LoggerProperty;
 }
 
 /**

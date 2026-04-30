@@ -393,7 +393,7 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   const fireBase: IFireArgs = {
     body: bodyValue as Record<string, unknown>,
     query: queryProc.value,
-    extraHeaders: headersProc.value as Record<string, string>,
+    extraHeaders: headersProc.value,
   };
   const fireWithSink = attachSink(fireBase, onSetCookieMaybe);
   const respProc = await firePost(args, fireWithSink);

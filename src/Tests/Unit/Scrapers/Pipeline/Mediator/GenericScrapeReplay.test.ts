@@ -42,7 +42,7 @@ describe('POST body template for VisaCal pattern', () => {
       transactionType: 'ALL',
     };
     const body = { ...capturedBody };
-    replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], '0067');
+    replaceField(body, ['cardUniqueId', 'accountId'], '0067');
     expect(body.cardUniqueId).toBe('0067');
     expect(body.fromDate).toBe('2026-01-01');
   });
@@ -55,7 +55,7 @@ describe('POST body template for VisaCal pattern', () => {
     const accountIds = ['4054', '0067', '3020', '3308'];
     const bodies = accountIds.map((id): Record<string, unknown> => {
       const body = { ...capturedBody };
-      replaceField(body as JsonRecord, ['cardUniqueId', 'accountId'], id);
+      replaceField(body, ['cardUniqueId', 'accountId'], id);
       return body;
     });
     expect(bodies[0].cardUniqueId).toBe('4054');

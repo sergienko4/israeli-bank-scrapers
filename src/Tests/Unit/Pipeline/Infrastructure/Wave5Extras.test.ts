@@ -195,7 +195,7 @@ describe('LoginPhaseActions — Wave 5 extras', () => {
     };
     const ctx = {
       ...ctxBase,
-      browser: some({ ...ctxBaseBrowser, page: pageWithResolve as unknown as Page }),
+      browser: some({ ...ctxBaseBrowser, page: pageWithResolve }),
       diagnostics: { ...ctxBase.diagnostics, loginUrl: 'https://bank.example.com/login' },
     };
     const result = await executeValidateLogin(baseConfig as unknown as ILoginConfig, mediator, ctx);

@@ -104,7 +104,7 @@ describe('OTP detection', () => {
     const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
-    const isAnyString: string = expect.any(String) as unknown as string;
+    const isAnyString = expect.any(String) as unknown as string;
     expect(retrieverSpy).toHaveBeenCalledWith(isAnyString);
   }, 30000);
 
@@ -221,7 +221,7 @@ describe('OTP detection', () => {
       makeLoginConfig(),
     );
 
-    const result = await scraper.scrape(CREDS_WRONG as ITestCredentials);
+    const result = await scraper.scrape(CREDS_WRONG);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(retrieverSpy).not.toHaveBeenCalled();

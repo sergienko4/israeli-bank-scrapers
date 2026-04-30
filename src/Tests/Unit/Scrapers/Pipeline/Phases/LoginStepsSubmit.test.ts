@@ -3,8 +3,6 @@
  * Covers the case where submit config is a single candidate, not an array.
  */
 
-import type { Page } from 'playwright-core';
-
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginSteps.js';
 import type { IFieldContext } from '../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js';
@@ -33,7 +31,7 @@ const MAKE_LOGIN_CONFIG = (overrides: Partial<ILoginConfig> = {}): ILoginConfig 
 const SUCCESS_FIELD_CTX: IFieldContext = {
   isResolved: true,
   selector: '#field',
-  context: makeMockFullPage() as unknown as Page,
+  context: makeMockFullPage(),
   resolvedVia: 'wellKnown',
   round: 'mainPage',
 };

@@ -43,7 +43,7 @@ const INIT_STUBS = {
  * @returns Full pipeline context ready for navigation.
  */
 function buildFullFromBootstrap(bootstrap: IBootstrapContext): IPipelineContext {
-  return { ...bootstrap, ...INIT_STUBS } as IPipelineContext;
+  return { ...bootstrap, ...INIT_STUBS };
 }
 
 /** INIT phase — BasePhase with PRE/ACTION/POST/FINAL. */

@@ -79,7 +79,7 @@ describe('SmsOtpFlow preHook OTP retrieval', () => {
     const result = await runSmsOtpFlow({
       config: makeHookedConfig(),
       bus,
-      creds: { otpCodeRetriever: 'not-a-fn' as unknown as () => Promise<string> },
+      creds: { otpCodeRetriever: 'not-a-fn' },
       companyId: HINT,
     });
     expect(result.success).toBe(false);
@@ -101,7 +101,7 @@ describe('SmsOtpFlow preHook OTP retrieval', () => {
     const result = await runSmsOtpFlow({
       config: makeHookedConfig(),
       bus,
-      creds: { otpCodeRetriever: badRetriever as unknown as () => Promise<string> },
+      creds: { otpCodeRetriever: badRetriever },
       companyId: HINT,
     });
     expect(result.success).toBe(false);

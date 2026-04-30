@@ -22,7 +22,7 @@ const MINIMAL_CONFIG: ILoginConfig = {
   fields: [],
   submit: [],
   possibleResults: { success: [] },
-} as unknown as ILoginConfig;
+};
 
 /**
  * Build a minimal builder state for tests.

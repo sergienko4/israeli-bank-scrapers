@@ -2,6 +2,9 @@
  * Unit tests for Types/Debug — child logger factory, runWithBankContext, re-exports.
  */
 
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { jest } from '@jest/globals';
 
 import {
@@ -11,6 +14,13 @@ import {
   MOCK_TIMEOUT_MS,
   runWithBankContext,
 } from '../../../../Scrapers/Pipeline/Types/Debug.js';
+
+/** Portable test-only RUNS_ROOT prefixes — avoids hard-coding a Windows
+ *  path so Linux CI runners do not create directories named `C:\tmp\...`. */
+const DEBUG_TEST_TMP_ROOT = os.tmpdir();
+const DEBUG_TEST_RUNS_ROOT_DEV = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-dev');
+const DEBUG_TEST_RUNS_ROOT_CI = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-ci');
+const DEBUG_TEST_RUNS_ROOT_CACHE = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-cache-invalidation');
 
 describe('getDebug', () => {
   it('returns a logger with info/debug/warn/error methods', () => {
@@ -164,7 +174,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'trace';
-    process.env.RUNS_ROOT = 'C:/tmp/test-runs-dev';
+    process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_DEV;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
@@ -179,7 +189,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.CI = '1';
     delete process.env.NODE_ENV;
     process.env.LOG_LEVEL = 'trace';
-    process.env.RUNS_ROOT = 'C:/tmp/test-runs-ci';
+    process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CI;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
@@ -231,7 +241,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'trace';
-    process.env.RUNS_ROOT = 'C:/tmp/test-runs-cache-invalidation';
+    process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CACHE;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');

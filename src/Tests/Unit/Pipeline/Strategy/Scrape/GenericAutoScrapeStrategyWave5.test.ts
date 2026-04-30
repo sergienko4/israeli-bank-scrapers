@@ -40,7 +40,7 @@ describe('GenericAutoScrapeStrategy — Wave 5 branches', () => {
       discoverTransactionsEndpoint: () => txnEp,
     });
     const fc = makeFc(api, network);
-    const result = buildLoadAllCtx(fc, network, rawAccounts as unknown as Record<string, unknown>);
+    const result = buildLoadAllCtx(fc, network, rawAccounts);
     const isArrayResult1 = Array.isArray(result.ids);
     expect(isArrayResult1).toBe(true);
   });
