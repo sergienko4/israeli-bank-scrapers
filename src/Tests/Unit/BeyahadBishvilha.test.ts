@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
@@ -83,7 +84,7 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { id: '123456789', password: 'pass123' };
+const CREDS = { id: 'fixt-m-byh-7a8b', password: 'fixt-m-byh-9c0d' };
 
 /**
  * Creates a mock page and attaches it to the mock context.

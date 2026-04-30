@@ -1,6 +1,10 @@
 src/Tests/E2eMocked/fixtures/
+src/Tests/Unit/Pipeline/Infrastructure/fixtures/
 
 # TypeDoc config and YAML workflows (no prettier-plugin-yaml installed)
 typedoc.json
 *.yml
 *.yaml
+
+# Shell scripts — not JS/TS
+*.sh

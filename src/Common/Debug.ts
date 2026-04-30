@@ -2,10 +2,18 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import pino, { type Logger } from 'pino';
 
-import { AMOUNT_KEYS, SENSITIVE_PATHS } from './Config/DebugConfig.js';
+import {
+  AMOUNT_KEYS,
+  PII_LABEL,
+  SENSITIVE_PATHS,
+  WL_SENSITIVE_KEYS,
+} from './Config/DebugConfig.js';
 
 /** Async-local store for per-request bank context injected into every log line. */
 const BANK_CONTEXT = new AsyncLocalStorage<{ bank: string }>();
+
+/** Maximum value length that bypasses PII masking (preserves last4Digits, displayId). */
+const MAX_DISPLAY_LENGTH = 4;
 
 /**
  * Redact sensitive values from log output based on the JSON path.
@@ -14,8 +22,11 @@ const BANK_CONTEXT = new AsyncLocalStorage<{ bank: string }>();
  * @returns A censored string replacement.
  */
 function censor(value: unknown, path: string[]): string {
-  const key = path[path.length - 1];
-  if (key === 'accountNumber') return '****' + String(value).slice(-4);
+  const key = path.at(-1) ?? '';
+  const strValue = String(value);
+  // Length exception: short display values (last4Digits, account suffixes) are safe
+  if (WL_SENSITIVE_KEYS.has(key) && strValue.length > MAX_DISPLAY_LENGTH) return PII_LABEL;
+  if (key === 'accountNumber') return '****' + strValue.slice(-4);
   if (AMOUNT_KEYS.has(key)) return (value as number) > 0 ? '+***' : '-***';
   return '[REDACTED]';
 }

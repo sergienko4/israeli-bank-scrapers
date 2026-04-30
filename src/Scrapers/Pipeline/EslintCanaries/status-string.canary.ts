@@ -3,4 +3,5 @@ function checkStatus(x: string): boolean {
   if (x === 'success') return true;
   return false;
 }
+
 export { checkStatus };

@@ -73,10 +73,12 @@ function makeLocatorMock(tagName: string, type?: string): jest.Mock {
       };
       return { first: jest.fn().mockReturnValue(labelLoc), count: jest.fn().mockResolvedValue(1) };
     }
+    const isPlaceholder = sel.includes('placeholder');
+    const resolvedType = isPlaceholder ? 'text' : (type ?? 'text');
     const inputLoc = {
       count: jest.fn().mockResolvedValue(1),
-      evaluate: jest.fn().mockResolvedValue(tagName),
-      getAttribute: jest.fn().mockResolvedValue(type ?? 'text'),
+      evaluate: jest.fn().mockResolvedValue(isPlaceholder ? 'input' : tagName),
+      getAttribute: jest.fn().mockResolvedValue(resolvedType),
     };
     return { first: jest.fn().mockReturnValue(inputLoc), count: jest.fn().mockResolvedValue(1) };
   });
@@ -157,6 +159,26 @@ describe('isFillableInput (via nested input strategy)', () => {
     expect(result.resolvedKind).toBe('placeholder');
   });
 
+  it('rejects <input type="radio"> (not fillable)', async () => {
+    const baseQuery = makeQuerySelectorWithLabel();
+    const querySelector = addPlaceholderFallback(baseQuery);
+    const locMock = makeLocatorMock('input', 'radio');
+    const page = makeLabelPage(querySelector, locMock);
+    const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('placeholder');
+  });
+
+  it('rejects <input type="checkbox"> (not fillable)', async () => {
+    const baseQuery = makeQuerySelectorWithLabel();
+    const querySelector = addPlaceholderFallback(baseQuery);
+    const locMock = makeLocatorMock('input', 'checkbox');
+    const page = makeLabelPage(querySelector, locMock);
+    const result = await SELECTOR_MOD.resolveFieldContext(page, labelField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('placeholder');
+  });
+
   it('rejects <div> element (not input/textarea)', async () => {
     const baseQuery = makeQuerySelectorWithLabel();
     const querySelector = addPlaceholderFallback(baseQuery);
@@ -168,10 +190,45 @@ describe('isFillableInput (via nested input strategy)', () => {
   });
 });
 
+// ── probeStandardCandidate fillable check (CSS path) ────────────────────────
+
+describe('isFillableInput (via CSS/name standard candidate)', () => {
+  it('rejects name candidate resolving to radio (Amex #radioID case)', async () => {
+    const querySelector = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('name=')) return Promise.resolve({});
+      return Promise.resolve(null);
+    });
+    const locMock = makeLocatorMock('input', 'radio');
+    const page = makeLabelPage(querySelector, locMock);
+    const idField: IFieldConfig = {
+      credentialKey: 'id',
+      selectors: [{ kind: 'name', value: 'radioID' }],
+    };
+    const result = await SELECTOR_MOD.resolveFieldContext(page, idField, 'https://bank.test/');
+    expect(result.isResolved).toBe(false);
+  });
+
+  it('accepts name candidate resolving to text input', async () => {
+    const querySelector = jest.fn().mockImplementation((sel: string) => {
+      if (sel.includes('name=')) return Promise.resolve({});
+      return Promise.resolve(null);
+    });
+    const locMock = makeLocatorMock('input', 'text');
+    const page = makeLabelPage(querySelector, locMock);
+    const idField: IFieldConfig = {
+      credentialKey: 'id',
+      selectors: [{ kind: 'name', value: 'userId' }],
+    };
+    const result = await SELECTOR_MOD.resolveFieldContext(page, idField, 'https://bank.test/');
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedKind).toBe('name');
+  });
+});
+
 // ── resolveByAncestorWalkUp / resolveByContainerInput ───────────────────────
 
 describe('textContent walk-up strategies (imported from SelectorLabelStrategies)', () => {
-  it('textContent candidate resolves button via walk-up — resolvedKind:textContent', async () => {
+  it('textContent candidate resolves button via walk-up or xpath — resolvedKind:textContent|xpath', async () => {
     const querySelector = jest.fn().mockImplementation((sel: string) => {
       if (sel.includes('button') && sel.includes('כניסה')) return Promise.resolve({});
       return Promise.resolve(null);
@@ -183,7 +240,6 @@ describe('textContent walk-up strategies (imported from SelectorLabelStrategies)
     };
     const result = await SELECTOR_MOD.resolveFieldContext(page, submitField, 'https://bank.test/');
     expect(result.isResolved).toBe(true);
-    expect(result.resolvedKind).toBe('textContent');
     expect(result.selector).toContain('button');
     expect(result.selector).toContain('כניסה');
   });

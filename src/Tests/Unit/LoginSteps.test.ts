@@ -197,10 +197,10 @@ describe('fillOneInput', () => {
       context: resolvedCtx,
     });
     const ctx = makeStepCtx();
-    const field = { selector: '#user', value: 'testuser', credentialKey: 'username' };
+    const field = { selector: '#user', value: 'fixt-u-7c2f3e9a', credentialKey: 'username' };
     const didFill = await FILL_ONE_INPUT(ctx, ctx.page, field);
     expect(didFill).toBe(true);
-    expect(MOCK_FILL_INPUT).toHaveBeenCalledWith(resolvedCtx, '#resolved-user', 'testuser');
+    expect(MOCK_FILL_INPUT).toHaveBeenCalledWith(resolvedCtx, '#resolved-user', 'fixt-u-7c2f3e9a');
     expect(ctx.activeLoginContext).toBe(resolvedCtx);
   });
 

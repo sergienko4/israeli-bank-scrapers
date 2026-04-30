@@ -3,7 +3,7 @@
  * Verifies that throwing mappers/buildRequest are caught as Procedure failures.
  */
 
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IScrapeConfig } from '../../../../../Scrapers/Pipeline/Types/ScrapeConfig.js';
 import {
@@ -31,7 +31,10 @@ describe('ScrapeExecutor/callback-safety', () => {
       ...base,
       accounts: {
         ...base.accounts,
-        /** Throws TypeError to simulate bad API response shape. */
+        /**
+         * Throws TypeError to simulate bad API response shape.
+         * @returns Result.
+         */
         mapper: () => {
           throw new TypeError('bad account shape');
         },
@@ -50,7 +53,10 @@ describe('ScrapeExecutor/callback-safety', () => {
       ...base,
       transactions: {
         ...base.transactions,
-        /** Throws TypeError to simulate bad API response shape. */
+        /**
+         * Throws TypeError to simulate bad API response shape.
+         * @returns Result.
+         */
         mapper: () => {
           throw new TypeError('bad txn shape');
         },
@@ -69,7 +75,10 @@ describe('ScrapeExecutor/callback-safety', () => {
       ...base,
       transactions: {
         ...base.transactions,
-        /** Throws TypeError to simulate bad request build. */
+        /**
+         * Throws TypeError to simulate bad request build.
+         * @returns Result.
+         */
         buildRequest: () => {
           throw new TypeError('bad request');
         },
@@ -86,7 +95,10 @@ describe('ScrapeExecutor/callback-safety', () => {
     const base = makeMockScrapeConfig();
     const config: IScrapeConfig<object, object> = {
       ...base,
-      /** Throws TypeError to simulate broken header factory. */
+      /**
+       * Throws TypeError to simulate broken header factory.
+       * @returns Result.
+       */
       extraHeaders: () => {
         throw new TypeError('header factory broke');
       },

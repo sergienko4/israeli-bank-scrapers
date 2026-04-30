@@ -102,9 +102,10 @@ jobs:
       - name: E2E factory tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
-      # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
-      - name: E2E smoke tests (invalid credentials)
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eSmoke' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
+      # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
+      # See `e2e-smoke` job below — runs invalid-credential checks for each
+      # bank in its own ubuntu-latest runner in parallel. Wall time drops
+      # from ~25min serial to ~3-5min matrix.
 
       # ── E2E Mocked Tests ──
       - name: E2E mocked tests
@@ -151,6 +152,132 @@ jobs:
           name: coverage-report
           path: src/coverage/
           retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Smoke Tests — matrix job, ONE bank per runner.
+  #
+  # Splits the previously-serial 17-bank smoke run into 17 parallel
+  # ubuntu-latest runners. Each runner installs deps + camoufox once,
+  # runs jest with --testNamePattern filtered to a single bank, and
+  # returns. Wall time: ~3-5min matrix vs ~25min serial.
+  #
+  # Per-test timeout is 90s (SMOKE_TIMEOUT) so any bank-specific hang
+  # cancels in 90s instead of the SCRAPE_TIMEOUT 15-min budget.
+  # ──────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E Smoke (${{ matrix.bank }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Leumi
+          - Mizrahi
+          - Max
+          - Isracard
+          - Amex
+          - VisaCal
+          - Discount
+          - Otsar Hahayal
+          - Beinleumi
+          - Mercantile
+          - Massad
+          - Yahav
+          - Beyahad Bishvilha
+          - Behatsdaa
+          - Pagi
+          - OneZero
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E smoke (${{ matrix.bank }})
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns='E2eSmoke' \
+            --testNamePattern='${{ matrix.bank }} \(invalid login\)' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Real (live banks, real credentials) — 2-group matrix.
+  #
+  # Banks are split into two groups that run on separate ubuntu-latest
+  # runners IN PARALLEL. Within each group banks run SEQUENTIALLY (a
+  # single bank's full happy-path scrape takes ~5 min, so 3 sequential
+  # banks ≈ 15 min). Project Rule #16 forbids Amex and Isracard from
+  # running concurrently — placing them in opposite groups satisfies
+  # the rule without further scheduling logic.
+  #
+  #   Group A: Isracard, VisaCal, Hapoalim   (~15 min sequential)
+  #   Group B: Amex,     Discount,  Max      (~15 min sequential)
+  #
+  # Wall time: max(GroupA, GroupB) ≈ 15 min vs ~25 min when run serial.
+  # Same-repo PRs and manual dispatch only — secrets are not exposed
+  # to forks (mirrors the legacy "E2E full bank tests" gating).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real:
+    name: E2E Real (${{ matrix.group }})
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: A
+            banks: 'Isracard VisaCal Hapoalim'
+          - group: B
+            banks: 'Amex Discount Max'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (group ${{ matrix.group }} → ${{ matrix.banks }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          AMEX_ID: ${{ secrets.AMEX_ID }}
+          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
+          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
+          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
+          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
+          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
+          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
+          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+        run: |
+          set -e
+          for bank in ${{ matrix.banks }}; do
+            echo "── E2E Real: ${bank} ──"
+            node --experimental-vm-modules node_modules/jest/bin/jest.js \
+              --ci \
+              --testPathPatterns="E2eReal/${bank}\\.e2e-real" \
+              --testPathIgnorePatterns='/node_modules/' \
+              --verbose \
+              --forceExit
+          done
 
   dependency-review:
     name: Dependency Review

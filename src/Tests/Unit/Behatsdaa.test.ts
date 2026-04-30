@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
@@ -99,7 +100,7 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { id: '123456789', password: 'pass123' };
+const CREDS = { id: 'fixt-m-bhd-3a4b', password: 'fixt-m-bhd-5c6d' };
 
 interface IBehatsdaaVariant {
   name: string;

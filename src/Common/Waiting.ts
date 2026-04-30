@@ -60,7 +60,7 @@ function makeWaitTick<T>(
   function wait(): boolean {
     asyncTest()
       .then(value => {
-        if (value) cbs.resolve(value as unknown as NonNullable<T>);
+        if (value) cbs.resolve(value);
         else globalThis.setTimeout(wait, interval);
       })
       .catch(() => {

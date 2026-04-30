@@ -113,8 +113,8 @@ function defaultLoginOptions(): ILoginOptions {
   return {
     loginUrl: 'https://bank.co.il/login',
     fields: [
-      { selector: '#user', value: 'testuser' },
-      { selector: '#pass', value: 'testpass' },
+      { selector: '#user', value: 'fixt-u-7c2f3e9a' },
+      { selector: '#pass', value: 'fixt-p-9b41ad2e' },
     ],
     submitButtonSelector: '#submit',
     possibleResults: {

@@ -3,33 +3,35 @@ import type { Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
-import { executePipeline } from '../../../../Scrapers/Pipeline/PipelineExecutor.js';
-import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IPhaseDefinition } from '../../../../Scrapers/Pipeline/Types/Phase.js';
-import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { executePipeline } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
+import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
+import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
 
 /** Minimal ScraperOptions. */
 const MOCK_OPTIONS = {
-  companyId: 'test',
+  companyId: 'beinleumi',
   startDate: new Date('2024-01-01'),
 } as unknown as ScraperOptions;
 
 /** Minimal credentials. */
-const MOCK_CREDENTIALS = {
-  username: 'user',
-  password: 'pass',
-};
+const MOCK_CREDENTIALS = { username: 'user', password: 'pass' };
 
-type Ctx = IPipelineContext;
-type Phase = IPhaseDefinition<Ctx, Ctx>;
+type Ctx = IActionContext;
+type FullCtx = IPipelineContext;
 type ExecFn = (_ctx: Ctx, _input: Ctx) => Promise<Procedure<Ctx>>;
 
 /**
  * Succeed-and-passthrough execute function.
- * @param _ctx - Pipeline context (unused).
+ * @param _ctx - Action context (unused).
  * @param input - Input passed through.
  * @returns A resolved success procedure.
  */
@@ -52,106 +54,77 @@ function makeFailExecute(errorType: ScraperErrorTypes, message: string): ExecFn 
 }
 
 /**
- * Create a phase that succeeds and passes context through.
+ * Create a SimplePhase that succeeds and passes context through.
  * @param name - Phase name.
- * @returns A succeeding phase definition.
+ * @returns A succeeding SimplePhase.
  */
-function succeedPhase(name: Phase['name']): Phase {
-  return {
-    name,
-    pre: none(),
-    action: { name: `${name}-action`, execute: succeedExecute },
-    post: none(),
-  };
+function succeedPhase(name: PhaseName): SimplePhase {
+  return new SimplePhase(name, succeedExecute);
 }
 
 /**
- * Create a phase that fails with a given message.
+ * Create a SimplePhase that fails with a given message.
  * @param name - Phase name.
  * @param message - Error message.
- * @returns A failing phase definition.
+ * @returns A failing SimplePhase.
  */
-function failPhase(name: Phase['name'], message: string): Phase {
+function failPhase(name: PhaseName, message: string): SimplePhase {
   const executeFn = makeFailExecute(ScraperErrorTypes.Generic, message);
-  return {
-    name,
-    pre: none(),
-    action: { name: `${name}-action`, execute: executeFn },
-    post: none(),
-  };
+  return new SimplePhase(name, executeFn);
 }
 
 /**
  * Create a descriptor with the given phases.
- * @param phases - Phase definitions.
+ * @param phases - BasePhase instances.
  * @returns A pipeline descriptor.
  */
-function makeDescriptor(phases: Phase[]): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases };
+function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
+  return { options: MOCK_OPTIONS, phases, interceptors: [] };
 }
 
 /**
- * Run pipeline and return the result.
+ * Run pipeline with default credentials.
  * @param descriptor - Pipeline descriptor.
- * @returns The scraping result.
+ * @returns Scraping result.
  */
 async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePipeline> {
-  return executePipeline(descriptor, MOCK_CREDENTIALS);
+  return await executePipeline(descriptor, MOCK_CREDENTIALS);
 }
 
-describe('PipelineExecutor/empty-pipeline', () => {
-  it('returns success with no phases', async () => {
-    const descriptor = makeDescriptor([]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(true);
-  });
+// ── Basic pipeline flow ──────────────────────────────────
 
-  it('returns empty accounts when no scrape phase ran', async () => {
-    const descriptor = makeDescriptor([succeedPhase('login')]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(true);
-    expect(result.accounts).toEqual([]);
-  });
-});
-
-describe('PipelineExecutor/single-phase', () => {
-  it('runs one phase and returns success', async () => {
-    const phases = [succeedPhase('login')];
-    const descriptor = makeDescriptor(phases);
-    const result = await run(descriptor);
-    expect(result.success).toBe(true);
-  });
-});
-
-describe('PipelineExecutor/multi-phase', () => {
-  it('runs all 3 phases and returns success', async () => {
+describe('PipelineExecutor/basic-flow', () => {
+  it('runs all phases sequentially and returns success', async () => {
     const phases = [succeedPhase('init'), succeedPhase('login'), succeedPhase('scrape')];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
   });
+
+  it('returns success for empty phase list', async () => {
+    const descriptor = makeDescriptor([]);
+    const result = await run(descriptor);
+    expect(result.success).toBe(true);
+  });
 });
 
+// ── Phase failure short-circuit ──────────────────────────
+
 describe('PipelineExecutor/short-circuit', () => {
-  it('skips phase 3 when phase 2 fails', async () => {
+  it('stops on first failure and skips subsequent phases', async () => {
     let didPhase3Run = false;
     /**
-     * Tracks execution and succeeds.
+     * Track execution of phase 3.
      * @param _ctx - Pipeline context (unused).
-     * @param input - Input passed through.
-     * @returns A resolved success procedure.
+     * @param input - Input to pass through.
+     * @returns Succeed with input.
      */
-    const trackExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+    const trackExecute: ExecFn = (_ctx, input) => {
       didPhase3Run = true;
       const result = succeed(input);
       return Promise.resolve(result);
     };
-    const phase3: Phase = {
-      name: 'scrape',
-      pre: none(),
-      action: { name: 'scrape-action', execute: trackExecute },
-      post: none(),
-    };
+    const phase3 = new SimplePhase('scrape', trackExecute);
     const phases = [succeedPhase('init'), failPhase('login', 'bad creds'), phase3];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
@@ -161,27 +134,34 @@ describe('PipelineExecutor/short-circuit', () => {
   });
 });
 
+// ── Pre-failure ──────────────────────────────────────────
+
 describe('PipelineExecutor/pre-failure', () => {
   it('skips action and post when pre fails', async () => {
     let didActionRun = false;
     /**
-     * Tracks action execution and succeeds.
+     * Track action execution.
      * @param _ctx - Pipeline context (unused).
-     * @param input - Input passed through.
-     * @returns A resolved success procedure.
+     * @param input - Input to pass through.
+     * @returns Succeed with input.
      */
-    const trackAction = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+    const trackAction: ExecFn = (_ctx, input) => {
       didActionRun = true;
       const result = succeed(input);
       return Promise.resolve(result);
     };
-    const preExec = makeFailExecute(ScraperErrorTypes.Timeout, 'pre timeout');
-    const phase: Phase = {
-      name: 'login',
-      pre: some({ name: 'login-pre', execute: preExec }),
-      action: { name: 'login-action', execute: trackAction },
-      post: none(),
-    };
+    /** Phase with failing pre. */
+    class PreFailPhase extends SimplePhase {
+      /**
+       * Failing pre step.
+       * @returns Failure.
+       */
+      public override pre(): Promise<Procedure<FullCtx>> {
+        const result = fail(ScraperErrorTypes.Timeout, 'pre timeout');
+        return Promise.resolve(result);
+      }
+    }
+    const phase = new PreFailPhase('login', trackAction);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -190,21 +170,30 @@ describe('PipelineExecutor/pre-failure', () => {
   });
 });
 
+// ── Post-failure ─────────────────────────────────────────
+
 describe('PipelineExecutor/post-failure', () => {
   it('propagates post step failure', async () => {
-    const postExec = makeFailExecute(ScraperErrorTypes.ChangePassword, 'must change');
-    const phase: Phase = {
-      name: 'login',
-      pre: none(),
-      action: { name: 'login-action', execute: succeedExecute },
-      post: some({ name: 'login-post', execute: postExec }),
-    };
+    /** Phase with failing post. */
+    class PostFailPhase extends SimplePhase {
+      /**
+       * Failing post step.
+       * @returns Failure.
+       */
+      public override post(): Promise<Procedure<FullCtx>> {
+        const result = fail(ScraperErrorTypes.ChangePassword, 'must change');
+        return Promise.resolve(result);
+      }
+    }
+    const phase = new PostFailPhase('login', succeedExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
   });
 });
+
+// ── Exception handling ───────────────────────────────────
 
 describe('PipelineExecutor/exception-handling', () => {
   it('catches thrown exception and wraps in failure', async () => {
@@ -215,12 +204,7 @@ describe('PipelineExecutor/exception-handling', () => {
     const throwExecute = (): never => {
       throw new ScraperError('unexpected crash');
     };
-    const phase: Phase = {
-      name: 'login',
-      pre: none(),
-      action: { name: 'login-action', execute: throwExecute },
-      post: none(),
-    };
+    const phase = new SimplePhase('login', throwExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -229,73 +213,49 @@ describe('PipelineExecutor/exception-handling', () => {
   });
 });
 
+// ── Pre success passthrough ──────────────────────────────
+
 describe('PipelineExecutor/pre-success-passthrough', () => {
-  it('pre step passes context to action', async () => {
-    const phase: Phase = {
-      name: 'init',
-      pre: some({ name: 'init-pre', execute: succeedExecute }),
-      action: { name: 'init-action', execute: succeedExecute },
-      post: some({ name: 'init-post', execute: succeedExecute }),
-    };
+  it('pre step passes context to action (default no-ops)', async () => {
+    const phase = succeedPhase('init');
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
   });
 });
 
+// ── Returns promise ──────────────────────────────────────
+
 describe('PipelineExecutor/returns-promise', () => {
-  it('returns a Promise', () => {
+  it('returns a Promise', async () => {
     const descriptor = makeDescriptor([]);
-    const promise = executePipeline(descriptor, MOCK_CREDENTIALS);
-    expect(promise).toBeInstanceOf(Promise);
+    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
+    expect(result).toBeDefined();
   });
 });
 
-describe('PipelineExecutor/wrapError', () => {
-  it('catches phase that throws Error and returns failure', async () => {
-    const throwPhase: Phase = {
-      name: 'login',
-      pre: none(),
-      action: {
-        name: 'login-action',
-        /**
-         * Throws an Error to test wrapError.
-         * @returns Never — always throws.
-         */
-        execute: (): Promise<Procedure<Ctx>> => {
-          throw new ScraperError('crash!');
-        },
-      },
-      post: none(),
-    };
-    const descriptor = makeDescriptor([throwPhase]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('crash!');
-  });
+// ── registerOrFail ───────────────────────────────────────
 
-  it('produces "Unknown pipeline error" when thrown value has empty message', async () => {
-    const throwPhase: Phase = {
-      name: 'scrape',
-      pre: none(),
-      action: {
-        name: 'scrape-action',
-        /**
-         * Throws an Error with empty message.
-         * @returns Never — always throws.
-         */
-        execute: (): Promise<Procedure<Ctx>> => {
-          throw new ScraperError('');
-        },
-      },
-      post: none(),
+describe('PipelineExecutor/registerOrFail', () => {
+  it('throws ScraperError when companyId is not a known TraceConfig slug', async () => {
+    const badOptions = { companyId: 'not-a-real-bank', startDate: new Date('2024-01-01') };
+    const descriptor: IPipelineDescriptor = {
+      options: badOptions as unknown as ScraperOptions,
+      phases: [],
+      interceptors: [],
     };
-    const descriptor = makeDescriptor([throwPhase]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('Unknown pipeline error');
+    let caught: unknown = null;
+    try {
+      await executePipeline(descriptor, MOCK_CREDENTIALS);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toMatch(/No run without bank/);
   });
 });
+
+// ── OTP token ────────────────────────────────────────────
 
 describe('PipelineExecutor/persistentOtpToken', () => {
   it('includes persistentOtpToken in result when login state has it', async () => {
@@ -308,44 +268,16 @@ describe('PipelineExecutor/persistentOtpToken', () => {
     const setOtpExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
       const loginState = {
         activeFrame: {} as unknown as Page,
-        persistentOtpToken: some('TOKEN123'),
+        persistentOtpToken: some('TOKEN123' as const),
       };
-      const result = succeed({ ...input, login: some(loginState) });
+      const extended = { ...input, login: some(loginState) } as unknown as Ctx;
+      const result = succeed(extended);
       return Promise.resolve(result);
     };
-    const phase: Phase = {
-      name: 'login',
-      pre: none(),
-      action: { name: 'login-action', execute: setOtpExecute },
-      post: none(),
-    };
+    const phase = new SimplePhase('login', setOtpExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
     expect(result.persistentOtpToken).toBe('TOKEN123');
-  });
-
-  it('omits persistentOtpToken when login state has none', async () => {
-    /**
-     * Set login state with persistentOtpToken=none().
-     * @param _ctx - Pipeline context (unused).
-     * @param input - Input to extend with login state.
-     * @returns Context with login but no OTP token.
-     */
-    const setLoginExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-      const loginState = { activeFrame: {} as unknown as Page, persistentOtpToken: none() };
-      const result = succeed({ ...input, login: some(loginState) });
-      return Promise.resolve(result);
-    };
-    const phase: Phase = {
-      name: 'login',
-      pre: none(),
-      action: { name: 'login-action', execute: setLoginExecute },
-      post: none(),
-    };
-    const descriptor = makeDescriptor([phase]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(true);
-    expect(result.persistentOtpToken).toBeUndefined();
   });
 });

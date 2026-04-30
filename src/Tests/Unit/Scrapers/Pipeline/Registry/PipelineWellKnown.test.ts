@@ -3,105 +3,167 @@
  * Validates structure: all required fields, zero CSS entries, required candidate kinds.
  */
 
+import { WK_DASHBOARD } from '../../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
 import {
-  PIPELINE_WELL_KNOWN_DASHBOARD,
-  PIPELINE_WELL_KNOWN_LOGIN,
-} from '../../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+  WK_LOGIN_ERROR,
+  WK_LOGIN_FORM,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
 
-// ── LOGIN dictionary ──────────────────────────────────────
+/** Whether a WK test predicate matches. */
+type WkMatch = boolean;
+/** Extracted WK candidate value for assertion. */
+type WkValue = string;
 
-describe('PIPELINE_WELL_KNOWN_LOGIN/structure', () => {
-  it('contains exactly the expected credential + control keys', () => {
-    const keys = Object.keys(PIPELINE_WELL_KNOWN_LOGIN).sort();
+// ── LOGIN FORM dictionary ────────────────────────────────
+
+describe('WK.LOGIN.ACTION.FORM/structure', () => {
+  it('contains exactly the expected semantic form slots', () => {
+    const keys = Object.keys(WK_LOGIN_FORM).sort();
     expect(keys).toEqual([
-      '__submit__',
-      'card6Digits',
-      'id',
-      'loginMethodTab',
-      'nationalID',
-      'num',
-      'otpCode',
+      'accountNum',
+      'cardDigits',
+      'mfa',
+      'nationalId',
+      'otpArea',
       'password',
-      'userCode',
+      'submit',
+      'submitStructural',
       'username',
     ]);
   });
 });
 
-describe('PIPELINE_WELL_KNOWN_LOGIN/zero-css', () => {
-  it('has NO kind:css entries anywhere in LOGIN selectors', () => {
-    const allCandidates = Object.values(PIPELINE_WELL_KNOWN_LOGIN).flat();
-    const cssEntries = allCandidates.filter(c => (c.kind as string) === 'css');
+describe('WK.LOGIN.ACTION.FORM/zero-css', () => {
+  it('has NO kind:css entries anywhere in LOGIN FORM selectors', () => {
+    const allCandidates = Object.values(WK_LOGIN_FORM).flat();
+    /**
+     * Check if a candidate uses CSS kind.
+     * @param c - Selector candidate.
+     * @returns True if kind is CSS.
+     */
+    const isCss = (c: (typeof allCandidates)[number]): WkMatch => (c.kind as string) === 'css';
+    const cssEntries = allCandidates.filter(isCss);
     expect(cssEntries).toHaveLength(0);
   });
 });
 
-describe('PIPELINE_WELL_KNOWN_LOGIN/text-candidates', () => {
-  it.each(['ariaLabel', 'xpath', 'textContent'] as const)(
+describe('WK.LOGIN.ACTION.FORM/text-candidates', () => {
+  it.each(['ariaLabel', 'textContent'] as const)(
     /**
-     * Verify __submit__ includes each expected candidate kind.
+     * Verify submit includes each expected candidate kind.
      * @param kind - The expected SelectorCandidate kind.
      */
-    '__submit__ has %s candidates',
+    'submit has %s candidates',
     kind => {
-      const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
-      const hasKind = submit.some(c => c.kind === kind);
+      const submit = WK_LOGIN_FORM.submit;
+      /**
+       * Check if a candidate matches the expected kind.
+       * @param c - Selector candidate.
+       * @returns True if candidate matches kind.
+       */
+      const matchesKind = (c: (typeof submit)[number]): WkMatch => c.kind === kind;
+      const hasKind = submit.some(matchesKind);
       expect(hasKind).toBe(true);
     },
   );
 
-  it('__submit__ has NO kind:css entry', () => {
-    const submit = PIPELINE_WELL_KNOWN_LOGIN.__submit__;
-    const cssSubmit = submit.filter(c => (c.kind as string) === 'css');
+  it('submit has NO kind:css entry', () => {
+    const submit = WK_LOGIN_FORM.submit;
+    /**
+     * Check if a candidate uses CSS kind.
+     * @param c - Selector candidate.
+     * @returns True if kind is CSS.
+     */
+    const isCss = (c: (typeof submit)[number]): WkMatch => (c.kind as string) === 'css';
+    const cssSubmit = submit.filter(isCss);
     expect(cssSubmit).toHaveLength(0);
   });
 
   it('each login field has at least one text-based candidate', () => {
     const textKinds = new Set(['labelText', 'textContent', 'placeholder', 'ariaLabel', 'name']);
-    for (const [key, candidates] of Object.entries(PIPELINE_WELL_KNOWN_LOGIN)) {
-      if (key === '__submit__') continue;
-      const hasText = candidates.some(c => textKinds.has(c.kind));
+    for (const [key, candidates] of Object.entries(WK_LOGIN_FORM)) {
+      if (key === 'submit' || key === 'submitStructural') continue;
+      /**
+       * Check if a candidate uses a text-based kind.
+       * @param c - Selector candidate with kind field.
+       * @param c.kind - The selector kind to check.
+       * @returns True if candidate uses a text-based kind.
+       */
+      const isText = (c: { kind: string }): WkMatch => textKinds.has(c.kind);
+      const hasText = candidates.some(isText);
       expect(hasText).toBe(true);
     }
   });
 });
 
-// ── DASHBOARD dictionary ──────────────────────────────────
+// ── DASHBOARD dictionary ─────────────────────────────────
 
-describe('PIPELINE_WELL_KNOWN_DASHBOARD/structure', () => {
+describe('WK.DASHBOARD/structure', () => {
   it('contains all expected dashboard keys', () => {
-    const keys = Object.keys(PIPELINE_WELL_KNOWN_DASHBOARD);
-    expect(keys).toContain('loginLink');
-    expect(keys).toContain('errorIndicator');
-    expect(keys).toContain('logoutLink');
-    expect(keys).toContain('dashboardIndicator');
-    expect(keys).toContain('changePasswordIndicator');
+    const keys = Object.keys(WK_DASHBOARD);
+    expect(keys).toContain('ACCOUNT');
+    expect(keys).toContain('CHANGE_PWD');
+    expect(keys).toContain('TRANSACTIONS');
+    expect(keys).toContain('SKIP');
+    expect(keys).toContain('BALANCE');
   });
 });
 
-describe('PIPELINE_WELL_KNOWN_DASHBOARD/zero-css', () => {
+describe('WK.DASHBOARD/zero-css', () => {
   it('has NO kind:css entries anywhere in DASHBOARD selectors', () => {
-    const allCandidates = Object.values(PIPELINE_WELL_KNOWN_DASHBOARD).flat();
-    const cssEntries = allCandidates.filter(c => (c.kind as string) === 'css');
+    const allValues = Object.values(WK_DASHBOARD).flat();
+    /**
+     * Filter to only selector candidates (objects with kind property).
+     * @param c - Candidate or plain string (VALIDATION_HINTS are strings).
+     * @returns True if c is a selector candidate object.
+     */
+    const isCandidate = (c: unknown): c is { kind: string } =>
+      typeof c === 'object' && c !== null && 'kind' in c;
+    const allCandidates = allValues.filter(isCandidate) as { kind: string }[];
+    const cssEntries = allCandidates.filter((c): WkMatch => c.kind === 'css');
     expect(cssEntries).toHaveLength(0);
   });
 });
 
-describe('PIPELINE_WELL_KNOWN_DASHBOARD/errorIndicator', () => {
-  it('errorIndicator contains VisaCal-specific error text', () => {
-    const texts = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator.map(c => c.value);
+describe('WK.LOGIN/ERROR', () => {
+  it('ERROR contains VisaCal-specific error text', () => {
+    /**
+     * Extract value from candidate.
+     * @param c - Selector candidate.
+     * @returns Candidate value string.
+     */
+    const toValue = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.value;
+    const texts = WK_LOGIN_ERROR.map(toValue);
     expect(texts).toContain('שם המשתמש או הסיסמה שהוזנו שגויים');
   });
 
-  it('errorIndicator contains generic Hebrew error texts', () => {
-    const texts = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator.map(c => c.value);
+  it('ERROR contains generic Hebrew error texts', () => {
+    /**
+     * Extract value from candidate.
+     * @param c - Selector candidate.
+     * @returns Candidate value string.
+     */
+    const toValue = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.value;
+    const texts = WK_LOGIN_ERROR.map(toValue);
     expect(texts).toContain('פרטים שגויים');
   });
 
-  it('all errorIndicator entries use text-based kinds (no CSS)', () => {
-    const kinds = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator.map(c => c.kind);
+  it('all ERROR entries use text-based kinds (no CSS)', () => {
+    /**
+     * Extract kind from candidate.
+     * @param c - Selector candidate.
+     * @returns Candidate kind string.
+     */
+    const toKind = (c: (typeof WK_LOGIN_ERROR)[number]): WkValue => c.kind;
+    const kinds = WK_LOGIN_ERROR.map(toKind);
     const allowedKinds = new Set(['textContent', 'ariaLabel', 'labelText']);
-    const hasOnlyTextKinds = kinds.every(k => allowedKinds.has(k));
+    /**
+     * Check if kind is in allowed set.
+     * @param k - Kind string.
+     * @returns True if kind is allowed.
+     */
+    const isAllowed = (k: string): WkMatch => allowedKinds.has(k);
+    const hasOnlyTextKinds = kinds.every(isAllowed);
     expect(hasOnlyTextKinds).toBe(true);
   });
 });

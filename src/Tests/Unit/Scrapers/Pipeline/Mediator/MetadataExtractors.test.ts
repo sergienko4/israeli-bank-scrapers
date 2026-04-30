@@ -6,23 +6,25 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+type MockStr = string;
+
 import {
   EMPTY_METADATA,
   extractMetadata,
-} from '../../../../../Scrapers/Pipeline/Mediator/MetadataExtractors.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/MetadataExtractors.js';
 
 // ── Helpers ────────────────────────────────────────────────
 
 /** Raw DOM props shape returned by evaluate. */
 interface IRawProps {
-  id: string;
-  className: string;
-  tagName: string;
-  type: string;
-  name: string;
-  formId: string;
-  ariaLabel: string;
-  placeholder: string;
+  id: MockStr;
+  className: MockStr;
+  tagName: MockStr;
+  type: MockStr;
+  name: MockStr;
+  formId: MockStr;
+  ariaLabel: MockStr;
+  placeholder: MockStr;
 }
 
 /** Full DOM props for a typical Angular Material input. */

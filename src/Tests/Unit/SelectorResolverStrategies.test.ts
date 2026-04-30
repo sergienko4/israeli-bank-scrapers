@@ -74,7 +74,11 @@ describe('resolveLabelText strategies', () => {
         return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
       }
       if (sel === '#pw') {
-        const loc = { count: jest.fn().mockResolvedValue(1) };
+        const loc = {
+          count: jest.fn().mockResolvedValue(1),
+          evaluate: jest.fn().mockResolvedValue('input'),
+          getAttribute: jest.fn().mockResolvedValue('password'),
+        };
         return { first: jest.fn().mockReturnValue(loc), count: jest.fn().mockResolvedValue(1) };
       }
       const loc = { count: jest.fn().mockResolvedValue(0) };

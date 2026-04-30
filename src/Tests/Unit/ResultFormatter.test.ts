@@ -31,19 +31,28 @@ function txn(overrides: Partial<ITransaction> = {}): ITransaction {
   };
 }
 
+/** Node Writable.write callback signature, derived from the library types. */
+type WriteFn = NonNullable<ConstructorParameters<typeof Writable>[0]>['write'];
+
 /**
  * Creates a writable stream that captures output to a string.
  * @returns stream and output accessor
  */
 function createCapture(): { stream: Writable; output: () => string } {
   const chunks: string[] = [];
-  const stream = new Writable({
-    write: jest.fn((chunk: Buffer, _enc: BufferEncoding, cb: () => string) => {
-      const text = chunk.toString();
-      chunks.push(text);
-      cb();
-    }),
-  });
+  /**
+   * Buffer the incoming chunk as a string and ack via the provided callback.
+   * @param chunk - raw Buffer written to the stream
+   * @param _enc - encoding (unused — Buffer already carries bytes)
+   * @param cb - Node stream ack callback
+   * @returns Result.
+   */
+  const write: WriteFn = (chunk, _enc, cb) => {
+    const text = (chunk as Buffer).toString();
+    chunks.push(text);
+    cb();
+  };
+  const stream = new Writable({ write: jest.fn(write) });
   /**
    * Accessor for captured output.
    * @returns captured output

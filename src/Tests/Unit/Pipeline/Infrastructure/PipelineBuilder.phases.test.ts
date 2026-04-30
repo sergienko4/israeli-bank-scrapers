@@ -3,14 +3,13 @@
  * Covers: phase ordering, init/terminate placement, optional phases insertion.
  */
 
-import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
+import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
   MOCK_DIRECT_LOGIN,
   MOCK_LOGIN_CONFIG,
   MOCK_NATIVE_LOGIN,
-  MOCK_OTP_CONFIG,
   MOCK_SCRAPE,
 } from './MockFactories.js';
 
@@ -41,25 +40,41 @@ describe('PipelineBuilder/phase-assembly', () => {
     expect(firstPhase.name).toBe('init');
   });
 
-  it('withOtp adds otp phase after login', () => {
+  it('withLoginAndOtpTrigger + withLoginAndOptCodeFill adds both OTP phases', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtp(MOCK_OTP_CONFIG)
+      .withLoginAndOtpTrigger()
+      .withLoginAndOptCodeFill()
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;
     const names = desc.phases.map(p => p.name);
     const loginIdx = names.indexOf('login');
-    const otpIdx = names.indexOf('otp');
-    expect(otpIdx).toBeGreaterThan(loginIdx);
+    const triggerIdx = names.indexOf('otp-trigger');
+    const fillIdx = names.indexOf('otp-fill');
+    expect(triggerIdx).toBeGreaterThan(loginIdx);
+    expect(fillIdx).toBeGreaterThan(triggerIdx);
   });
 
-  it('withDashboard adds dashboard phase', () => {
+  it('withLoginAndOptCodeFill alone adds only otp-fill (no trigger)', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withDashboard()
+      .withLoginAndOptCodeFill()
+      .build();
+    assertOk(descriptor);
+    const desc = descriptor.value;
+    const names = desc.phases.map(p => p.name);
+    expect(names).toContain('otp-fill');
+    expect(names).not.toContain('otp-trigger');
+  });
+
+  it('dashboard is mandatory for browser banks', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withBrowser()
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;
@@ -79,13 +94,13 @@ describe('PipelineBuilder/phase-assembly', () => {
     expect(names).toContain('scrape');
   });
 
-  it('phases are ordered: init → login → otp → dashboard → scrape', () => {
+  it('phases are ordered: init → login → otp-trigger → otp-fill → dashboard → scrape', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
+      .withLoginAndOtpTrigger()
+      .withLoginAndOptCodeFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -93,12 +108,14 @@ describe('PipelineBuilder/phase-assembly', () => {
     const names = desc.phases.map(p => p.name);
     const initIdx = names.indexOf('init');
     const loginIdx = names.indexOf('login');
-    const otpIdx = names.indexOf('otp');
+    const triggerIdx = names.indexOf('otp-trigger');
+    const fillIdx = names.indexOf('otp-fill');
     const dashIdx = names.indexOf('dashboard');
     const scrapeIdx = names.indexOf('scrape');
     expect(initIdx).toBeLessThan(loginIdx);
-    expect(loginIdx).toBeLessThan(otpIdx);
-    expect(otpIdx).toBeLessThan(dashIdx);
+    expect(loginIdx).toBeLessThan(triggerIdx);
+    expect(triggerIdx).toBeLessThan(fillIdx);
+    expect(fillIdx).toBeLessThan(dashIdx);
     expect(dashIdx).toBeLessThan(scrapeIdx);
   });
 
@@ -142,8 +159,8 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
+      .withLoginAndOtpTrigger()
+      .withLoginAndOptCodeFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -156,16 +173,17 @@ describe('PipelineBuilder/phase-assembly', () => {
 });
 
 describe('PipelineBuilder/behavioral', () => {
-  it('declarative login with ILoginConfig builds pre+action+post steps', () => {
+  it('declarative login with ILoginConfig builds a named login phase', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
-    const desc = descriptor.value;
-    const loginPhase = desc.phases[0];
-    expect(loginPhase.pre.has).toBe(true);
-    expect(loginPhase.action.name).toBe('login-action');
-    expect(loginPhase.post.has).toBe(true);
+    const loginPhase = descriptor.value.phases[0];
+    expect(loginPhase.name).toBe('login');
+    expect(typeof loginPhase.pre).toBe('function');
+    expect(typeof loginPhase.action).toBe('function');
+    expect(typeof loginPhase.post).toBe('function');
+    expect(typeof loginPhase.run).toBe('function');
   });
 });
