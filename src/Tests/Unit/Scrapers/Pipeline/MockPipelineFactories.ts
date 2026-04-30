@@ -169,6 +169,30 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns Empty array.
      */
     frames: (): Page[] => [],
+    /**
+     * Mock BrowserContext exposing a stub APIRequestContext.
+     * Used when BrowserFetchStrategy's resolveContext-fail fall-through
+     * routes a fetch through `page.context().request`. Returns rejected
+     * promises so tests that didn't set up explicit context.request
+     * mocks see a deterministic failure (which the strategy converts
+     * into a Procedure fail), not a TypeError from a missing method.
+     * @returns Stub context with a rejecting request.
+     */
+    context: (): { request: { post: () => Promise<never>; get: () => Promise<never> } } => ({
+      request: {
+        /**
+         * Stub APIRequestContext.post — rejects so the strategy fall-through
+         * yields a Procedure fail rather than a runtime TypeError.
+         * @returns Rejected promise.
+         */
+        post: (): Promise<never> => Promise.reject(new Error('mock: context.request.post unset')),
+        /**
+         * Stub APIRequestContext.get — rejects, same reason as post().
+         * @returns Rejected promise.
+         */
+        get: (): Promise<never> => Promise.reject(new Error('mock: context.request.get unset')),
+      },
+    }),
   } as unknown as Page;
 }
 

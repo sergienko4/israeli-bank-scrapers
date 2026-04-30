@@ -57,6 +57,27 @@ function makeScriptedPage(tuples: readonly EvalTuple[], urlValue = 'https://api.
       idx += 1;
       return Promise.resolve(current);
     },
+    /**
+     * Stub BrowserContext — required by the cross-origin fall-through
+     * path in BrowserFetchStrategy. Tests in this file cover the
+     * in-page fetch path; rejected stubs make any unintended fall-through
+     * fail as a Procedure rather than a TypeError.
+     * @returns Stub context with rejecting request methods.
+     */
+    context: (): { request: { post: () => Promise<never>; get: () => Promise<never> } } => ({
+      request: {
+        /**
+         * Stub APIRequestContext.post — rejects.
+         * @returns Rejected promise.
+         */
+        post: (): Promise<never> => Promise.reject(new Error('mock: context.request.post unset')),
+        /**
+         * Stub APIRequestContext.get — rejects.
+         * @returns Rejected promise.
+         */
+        get: (): Promise<never> => Promise.reject(new Error('mock: context.request.get unset')),
+      },
+    }),
   } as unknown as Page;
 }
 
@@ -76,6 +97,24 @@ function makePage(): Page {
      * @returns Empty frames.
      */
     frames: (): Page[] => [],
+    /**
+     * Stub BrowserContext — see makeScriptedPage above for rationale.
+     * @returns Stub context with rejecting request methods.
+     */
+    context: (): { request: { post: () => Promise<never>; get: () => Promise<never> } } => ({
+      request: {
+        /**
+         * Stub APIRequestContext.post — rejects.
+         * @returns Rejected promise.
+         */
+        post: (): Promise<never> => Promise.reject(new Error('mock: context.request.post unset')),
+        /**
+         * Stub APIRequestContext.get — rejects.
+         * @returns Rejected promise.
+         */
+        get: (): Promise<never> => Promise.reject(new Error('mock: context.request.get unset')),
+      },
+    }),
   } as unknown as Page;
 }
 

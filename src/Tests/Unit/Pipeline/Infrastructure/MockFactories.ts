@@ -80,6 +80,29 @@ function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
      * @returns Empty array.
      */
     frames: (): Page[] => [],
+    /**
+     * Mock BrowserContext exposing a stub APIRequestContext. The
+     * BrowserFetchStrategy cross-origin fall-through routes through
+     * `page.context().request`; rejected stubs make any unintended
+     * fall-through fail as a Procedure rather than a runtime TypeError.
+     * Callers that care about the fall-through path supply their own
+     * scripted page mock.
+     * @returns Stub context with rejecting request methods.
+     */
+    context: (): { request: { post: () => Promise<never>; get: () => Promise<never> } } => ({
+      request: {
+        /**
+         * Stub APIRequestContext.post — rejects.
+         * @returns Rejected promise.
+         */
+        post: (): Promise<never> => Promise.reject(new Error('mock: context.request.post unset')),
+        /**
+         * Stub APIRequestContext.get — rejects.
+         * @returns Rejected promise.
+         */
+        get: (): Promise<never> => Promise.reject(new Error('mock: context.request.get unset')),
+      },
+    }),
   } as unknown as Page;
 }
 

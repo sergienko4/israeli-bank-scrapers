@@ -259,7 +259,9 @@ jobs:
         bank:
           - Isracard
           - VisaCal
-          - Hapoalim
+          # Hapoalim — OTP not supported in CI yet (no retriever wired).
+          # Run via workflow_dispatch only. Smoke matrix still covers
+          # invalid-credentials on every PR.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -284,8 +286,6 @@ jobs:
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
         # and 'fails with invalid credentials' (already covered by smoke

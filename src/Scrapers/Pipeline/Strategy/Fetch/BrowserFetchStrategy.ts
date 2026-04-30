@@ -177,18 +177,148 @@ interface IFetchProxyArgs {
 }
 
 /**
- * Run a same-origin POST inside the page (or matching iframe). Wraps
- * `resolveContext` + `fetchPostWithinPage` + the falsy-result guard
- * into one Procedure so each activation step does not carry the
- * resolve-and-check pair inline. Failure modes: no matching context
- * (returns the resolveContext fail with origin diagnostic) or empty
- * fetch result (returns the supplied failMsg).
+ * Bundled args for cross-origin POST via `BrowserContext.request`.
+ * Same shape as IFetchProxyArgs plus optional extraHeaders so
+ * `BrowserFetchStrategy.fetchPost` can route through the same helper.
+ */
+interface IPostViaContextArgs {
+  readonly page: Page;
+  readonly url: string;
+  readonly body: Record<string, string>;
+  readonly extraHeaders?: Record<string, string>;
+  readonly failMsg: string;
+}
+
+/** Bundled args for cross-origin GET via `BrowserContext.request`. */
+interface IGetViaContextArgs {
+  readonly page: Page;
+  readonly url: string;
+  readonly extraHeaders?: Record<string, string>;
+  readonly failMsg: string;
+}
+
+/**
+ * Build the Origin/Referer header pair for a context.request call.
+ * Banks that validate these (CSRF) accept the request as if it came
+ * from the SPA itself when both point to the target origin.
+ * @param targetUrl - The URL being fetched.
+ * @returns Headers object with Origin + Referer.
+ */
+function buildOriginHeaders(targetUrl: string): Record<string, string> {
+  const targetOrigin = new URL(targetUrl).origin;
+  return {
+    Origin: targetOrigin,
+    Referer: `${targetOrigin}/`,
+  };
+}
+
+/** Lower bound of the HTTP success-status range (inclusive). */
+const HTTP_OK_MIN = 200;
+/** Upper bound of the HTTP success-status range (exclusive). */
+const HTTP_OK_MAX = 300;
+
+/** Bundled args for `parseApiResponseBody` — status, body text, and failMsg. */
+interface IParseApiArgs {
+  readonly status: number;
+  readonly text: string;
+  readonly failMsg: string;
+}
+
+/**
+ * Parse an APIResponse text body into Procedure<T>. Common to
+ * `postViaContext` / `getViaContext`. Treats non-2xx as failure with
+ * the raw status; treats parse-error as failure (the supplied failMsg
+ * gets a `(parse error)` suffix so the CI log shows where it died).
+ * @param args - Response status + text + failMsg bundle.
+ * @returns Procedure with parsed JSON or fail.
+ */
+function parseApiResponseBody<T>(args: IParseApiArgs): Procedure<T> {
+  if (args.status < HTTP_OK_MIN || args.status >= HTTP_OK_MAX) {
+    return fail(ScraperErrorTypes.Generic, `${args.failMsg} (status=${String(args.status)})`);
+  }
+  // JSON.parse can throw on malformed bodies (e.g. when the bank
+  // serves an HTML challenge page from a misrouted request); the
+  // try/catch mirrors the in-page parsePostResult contract that the
+  // rest of the pipeline already accepts.
+  try {
+    return succeed(JSON.parse(args.text) as T);
+  } catch {
+    return fail(ScraperErrorTypes.Generic, `${args.failMsg} (parse error)`);
+  }
+}
+
+/**
+ * Cross-origin POST via `BrowserContext.request` — used as fallback
+ * when the page is parked on a sibling origin and no iframe matches
+ * the target. APIRequestContext shares cookies with the BrowserContext,
+ * so the bank session cookies set during the browser run are sent.
+ * Origin/Referer are pinned to the target origin so banks that
+ * validate them (CSRF) accept the request.
+ * @param args - Bundled args (page, url, body, extraHeaders?, failMsg).
+ * @returns Procedure with parsed JSON or fail.
+ */
+async function postViaContext<T>(args: IPostViaContextArgs): Promise<Procedure<T>> {
+  const apiCtx = args.page.context().request;
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    ...buildOriginHeaders(args.url),
+    ...(args.extraHeaders ?? {}),
+  };
+  const response = await apiCtx
+    .post(args.url, { data: args.body, headers })
+    .catch((): false => false);
+  if (!response) return fail(ScraperErrorTypes.Generic, args.failMsg);
+  const text = await response.text();
+  return parseApiResponseBody<T>({
+    status: response.status(),
+    text,
+    failMsg: args.failMsg,
+  });
+}
+
+/**
+ * Sibling of `postViaContext` for read-only fetches.
+ * @param args - Bundled args (page, url, extraHeaders?, failMsg).
+ * @returns Procedure with parsed JSON or fail.
+ */
+async function getViaContext<T>(args: IGetViaContextArgs): Promise<Procedure<T>> {
+  const apiCtx = args.page.context().request;
+  const headers = {
+    Accept: 'application/json',
+    ...buildOriginHeaders(args.url),
+    ...(args.extraHeaders ?? {}),
+  };
+  const response = await apiCtx.get(args.url, { headers }).catch((): false => false);
+  if (!response) return fail(ScraperErrorTypes.Generic, args.failMsg);
+  const text = await response.text();
+  return parseApiResponseBody<T>({
+    status: response.status(),
+    text,
+    failMsg: args.failMsg,
+  });
+}
+
+/**
+ * Run a same-origin POST inside the page (or matching iframe), with
+ * `BrowserContext.request` as fallback when the page is parked on a
+ * sibling origin (the Isracard CI failure pattern: dashboard click
+ * navigates main page from `digital.*` to `marketing.*`, no iframe
+ * carries `digital.*` so the in-page fetch becomes cross-origin and
+ * cookieless). The fall-through fixes activation without per-bank
+ * logic and without changing phase order.
  * @param args - Bundled fetch arguments (page, url, body, failMsg).
  * @returns Procedure with parsed JSON or fail.
  */
 async function fetchProxyJson<T>(args: IFetchProxyArgs): Promise<Procedure<T>> {
   const ctxResult = resolveContext(args.page, args.url);
-  if (!ctxResult.success) return ctxResult;
+  if (!ctxResult.success) {
+    return postViaContext<T>({
+      page: args.page,
+      url: args.url,
+      body: args.body,
+      failMsg: args.failMsg,
+    });
+  }
   const result = await fetchPostWithinPage<T>(ctxResult.value, args.url, {
     data: args.body,
   }).catch((): false => false);
@@ -336,7 +466,15 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     const ctxResult = resolveContext(this._page, url);
-    if (!ctxResult.success) return ctxResult;
+    if (!ctxResult.success) {
+      return postViaContext<T>({
+        page: this._page,
+        url,
+        body: data,
+        extraHeaders: opts.extraHeaders,
+        failMsg: `POST via context failed: ${url.slice(-80)}`,
+      });
+    }
     const ctx = ctxResult.value;
     return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: opts.extraHeaders })
       .then((result): Procedure<T> => resultToProcedure(result, url))
@@ -352,7 +490,14 @@ class BrowserFetchStrategy implements IFetchStrategy {
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
     const ctxResult = resolveContext(this._page, url);
-    if (!ctxResult.success) return ctxResult;
+    if (!ctxResult.success) {
+      return getViaContext<T>({
+        page: this._page,
+        url,
+        extraHeaders: opts.extraHeaders,
+        failMsg: `GET via context failed: ${url.slice(-80)}`,
+      });
+    }
     const ctx = ctxResult.value;
     if (!hasHeaders) {
       return fetchGetWithinPage<T>(ctx, url, false)
@@ -409,7 +554,15 @@ class BrowserFetchStrategy implements IFetchStrategy {
     LOG.debug({
       message: `PROXY GET ${maskVisibleText(fullUrl)}`,
     });
-    return fetchGetWithinPage<T>(this._page, fullUrl, false)
+    const ctxResult = resolveContext(this._page, fullUrl);
+    if (!ctxResult.success) {
+      return getViaContext<T>({
+        page: this._page,
+        url: fullUrl,
+        failMsg: `proxyGet via context failed: ${fullUrl.slice(-80)}`,
+      });
+    }
+    return fetchGetWithinPage<T>(ctxResult.value, fullUrl, false)
       .then((result): Procedure<T> => resultToProcedure(result, fullUrl))
       .catch(catchError);
   }
