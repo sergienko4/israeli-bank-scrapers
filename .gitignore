@@ -83,3 +83,9 @@ capture/
 tasks/
 
 scripts/**
+
+# Pre-commit transient artefacts (never check in)
+.pre-commit-output.log
+.architecture-violations.log
+.canary-verify-tmp.json
+canary-verify*.json

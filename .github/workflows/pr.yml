@@ -49,12 +49,25 @@ concurrency:
   cancel-in-progress: true
 
 # ──────────────────────────────────────────────────────────────
-# Architecture: 2 parallel jobs
+# Job DAG (cheap-gates-first, fail-fast):
 #
-#   validate    — single job: npm ci once → lint → tsc → audit →
-#                 unit tests → e2e smoke (invalid creds) → e2e mocked →
-#                 e2e full (real creds) → build → upload artifacts
-#   dep-review  — no packages needed, PR-only
+#   validate           — lint → tsc → audit → unit tests →
+#                        e2e factory + e2e mocked → build →
+#                        upload artifacts.
+#                        MOCKED tests live here so failures are
+#                        caught BEFORE we burn real-bank capacity.
+#   e2e-smoke          — 17-bank matrix (invalid-creds, parallel).
+#   e2e-real-group-a   — `needs: validate`. Stage 1 of real-bank
+#                        scrapes; banks within run in parallel.
+#   e2e-real-group-b   — `needs: e2e-real-group-a`. Stage 2 (parallel
+#                        within); enforces Rule #16 (Amex never
+#                        co-runs with Isracard) by running strictly
+#                        after Group A completes.
+#   dependency-review  — PR-only, independent.
+#
+# Each gate runs ONCE per PR — no overlap between validate and the
+# real-bank matrices (the legacy E2eFull validate-step that
+# duplicated the matrix has been removed).
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -111,27 +124,13 @@ jobs:
       - name: E2E mocked tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
-      # ── E2E Full Bank Tests (real credentials — same-repo PRs and manual dispatch only) ──
-      - name: E2E full bank tests (real credentials)
-        if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eFull' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
-        env:
-          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
-          AMEX_ID: ${{ secrets.AMEX_ID }}
-          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
-          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
-          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
-          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
-          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
-          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
-          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
-          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
-          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
-          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
-          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+      # ── E2E Real Bank Tests (real credentials) ──
+      # Moved out of this job into the dedicated 2-group matrix below
+      # (`e2e-real-group-a` → `e2e-real-group-b`). This avoids running
+      # the same real-bank scrapes twice on every PR (was: also a
+      # legacy `E2eFull` step here that overlapped the matrix).
+      # `npm run test:e2e:full` remains available for manual runs of
+      # the residual Mercantile coverage that lives in src/Tests/E2eFull/.
 
       # ── Build ──
       - uses: ./.github/actions/build-package
@@ -209,37 +208,53 @@ jobs:
             --forceExit
 
   # ──────────────────────────────────────────────────────────────
-  # E2E Real (live banks, real credentials) — 2-group matrix.
+  # E2E Real (live banks, real credentials) — 2-stage / 2-group design.
   #
-  # Banks are split into two groups that run on separate ubuntu-latest
-  # runners IN PARALLEL. Within each group banks run SEQUENTIALLY (a
-  # single bank's full happy-path scrape takes ~5 min, so 3 sequential
-  # banks ≈ 15 min). Project Rule #16 forbids Amex and Isracard from
-  # running concurrently — placing them in opposite groups satisfies
-  # the rule without further scheduling logic.
+  # Gated on `needs: validate` so the cheap gates (lint, tsc, audit,
+  # unit tests, e2e-mocked, build) run FIRST. Real-bank runs hit
+  # actual bank websites with real credentials — running them only
+  # after the mocked suite passes saves both wall time and bank-side
+  # rate-limit budget when something is broken upstream.
   #
-  #   Group A: Isracard, VisaCal, Hapoalim   (~15 min sequential)
-  #   Group B: Amex,     Discount,  Max      (~15 min sequential)
+  # Within each group the banks run on SEPARATE matrix runners IN PARALLEL
+  # (one ubuntu-latest per bank). Between groups the stages run
+  # SEQUENTIALLY: Group B has `needs: e2e-real-group-a`, so Group B
+  # only starts after every bank in Group A has finished.
   #
-  # Wall time: max(GroupA, GroupB) ≈ 15 min vs ~25 min when run serial.
-  # Same-repo PRs and manual dispatch only — secrets are not exposed
-  # to forks (mirrors the legacy "E2E full bank tests" gating).
+  #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
+  #   Stage 1 — Group A (parallel runners): Isracard, VisaCal, Hapoalim
+  #   Stage 2 — Group B (parallel runners): Amex,     Discount, Max
+  #
+  # Why the strict between-group sequencing: project Rule #16 forbids
+  # Amex and Isracard from running concurrently. Placing Amex in Group B
+  # and Isracard in Group A — and gating Group B on Group A's completion
+  # — guarantees no temporal overlap, regardless of runner IPs or shared
+  # bank-side throttling.
+  #
+  # Wall time:
+  #   validate (Stage 0) ≈ 10–12 min
+  #   max(Group A banks) ≈ 12 min (Hapoalim slowest)
+  #   max(Group B banks) ≈  7 min
+  #   Total real-bank cost paid ONLY after Stage 0 is green.
+  #
+  # Same-repo PRs and manual dispatch only — secrets are not exposed to
+  # forks (mirrors the prior gating of the now-removed E2eFull step).
   # ──────────────────────────────────────────────────────────────
-  e2e-real:
-    name: E2E Real (${{ matrix.group }})
+  e2e-real-group-a:
+    name: E2E Real A (${{ matrix.bank }})
+    needs: validate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - group: A
-            banks: 'Isracard VisaCal Hapoalim'
-          - group: B
-            banks: 'Amex Discount Max'
+        bank:
+          - Isracard
+          - VisaCal
+          - Hapoalim
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -247,37 +262,64 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: E2E real (group ${{ matrix.group }} → ${{ matrix.banks }})
+      - name: E2E real (${{ matrix.bank }})
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
-          AMEX_ID: ${{ secrets.AMEX_ID }}
-          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
-          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
           ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
-          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+
+  e2e-real-group-b:
+    name: E2E Real B (${{ matrix.bank }})
+    needs: e2e-real-group-a
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Amex
+          - Discount
+          - Max
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          AMEX_ID: ${{ secrets.AMEX_ID }}
+          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
+          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
           DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
           DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
         run: |
-          set -e
-          for bank in ${{ matrix.banks }}; do
-            echo "── E2E Real: ${bank} ──"
-            node --experimental-vm-modules node_modules/jest/bin/jest.js \
-              --ci \
-              --testPathPatterns="E2eReal/${bank}\\.e2e-real" \
-              --testPathIgnorePatterns='/node_modules/' \
-              --verbose \
-              --forceExit
-          done
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
 
   dependency-review:
     name: Dependency Review
