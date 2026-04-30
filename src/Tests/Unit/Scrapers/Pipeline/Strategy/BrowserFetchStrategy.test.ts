@@ -33,7 +33,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
   it('returns succeed with data when fetchPostWithinPage returns data', async () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockResolvedValue({ result: 'ok' });
-    const page = MAKE_MOCK_FULL_PAGE();
+    const page = MAKE_MOCK_FULL_PAGE("https://api.test/");
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(true);
@@ -43,7 +43,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
   it('returns fail when fetchPostWithinPage returns null (empty response)', async () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockResolvedValue(null);
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('empty response');
@@ -52,7 +52,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
   it('returns fail when fetchPostWithinPage returns undefined', async () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockResolvedValue(undefined);
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
   });
@@ -60,7 +60,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
   it('returns fail with error message when fetchPostWithinPage throws', async () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockRejectedValue(new Error('network error'));
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('network error');
@@ -70,7 +70,7 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockResolvedValue(null);
     const longUrl = 'https://api.test/' + 'a'.repeat(100);
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchPost(longUrl, {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -85,7 +85,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   it('returns succeed with data when fetchGetWithinPage returns data', async () => {
     const getFn = FETCH_MOD.fetchGetWithinPage as jest.Mock;
     getFn.mockResolvedValue({ accounts: [] });
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(result.success).toBe(true);
     if (result.success) expect(result.value).toEqual({ accounts: [] });
@@ -94,7 +94,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   it('returns fail when fetchGetWithinPage returns null', async () => {
     const getFn = FETCH_MOD.fetchGetWithinPage as jest.Mock;
     getFn.mockResolvedValue(null);
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('empty response');
@@ -103,7 +103,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   it('returns fail with error message when fetchGetWithinPage throws', async () => {
     const getFn = FETCH_MOD.fetchGetWithinPage as jest.Mock;
     getFn.mockRejectedValue(new Error('get failed'));
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('get failed');
@@ -112,7 +112,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   it('uses fetchGetWithinPageWithHeaders when extraHeaders are present', async () => {
     const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
     getHeadersFn.mockResolvedValue({ data: 'ok' });
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     const result = await strategy.fetchGet('https://api.test/get', OPTS_WITH_HEADERS);
     expect(result.success).toBe(true);
     expect(getHeadersFn).toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
   it('calls fetchGetWithinPage with shouldIgnoreErrors=false when no extraHeaders', async () => {
     const getFn = FETCH_MOD.fetchGetWithinPage as jest.Mock;
     getFn.mockResolvedValue({ data: 'ok' });
-    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE("https://api.test/"));
     await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(getFn).toHaveBeenCalled();
     const lastCallArgs = getFn.mock.calls[0] as [unknown, string, boolean];

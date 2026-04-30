@@ -269,7 +269,16 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          # LOG_LEVEL=trace makes the pipeline write per-run artefacts
+          # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
+          # Free-form `message` strings in pipeline.log are PII-redacted
+          # by the changes in commit `fix(pipeline): redact PII from
+          # pipeline.log…` — so trace-level logs are safe to upload.
+          # Screenshots and network dumps still contain PII (visible
+          # text in PNGs, full response JSON) and are NOT uploaded; the
+          # `Upload diagnostics on failure` step takes pipeline.log only.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
           ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
@@ -290,6 +299,18 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # ONLY pipeline.log — message-level PII is redacted in code.
+          # /screenshots and /network are deliberately excluded: PNGs
+          # cannot be redacted reliably and network dumps carry full
+          # response bodies (account numbers, balances, names).
+          path: /tmp/runs/pipeline/**/pipeline.log
+          retention-days: 7
+          if-no-files-found: warn
 
   e2e-real-group-b:
     name: E2E Real B (${{ matrix.bank }})

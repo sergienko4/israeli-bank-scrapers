@@ -74,15 +74,19 @@ describe('BrowserFetchStrategy — resolveContext frame matching', () => {
     expect(isOkResult17).toBe(true);
   });
 
-  it('falls back to page when no frame matches different origin', async () => {
+  it('fails fast when no frame matches different origin', async () => {
+    // resolveContext used to silently fall back to the main page when no
+    // iframe matched, which produced a cookieless cross-origin fetch the
+    // bank rejected. New behaviour: fail with the real reason so CI logs
+    // surface the page/frames layout instead of a generic "fetch failed".
     const page = makeScriptedPage([['{}', 200]], 'https://page.example/');
     const strategy = createBrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.other.com/data', { extraHeaders: {} });
-    const isOkResult18 = isOk(result);
-    expect(isOkResult18).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('no fetch context for origin');
   });
 
-  it('skips frame with about:blank url and falls back', async () => {
+  it('skips frame with about:blank url and fails fast (no real match)', async () => {
     const blankFrame = {
       /**
        * Frame URL stub.
@@ -90,7 +94,7 @@ describe('BrowserFetchStrategy — resolveContext frame matching', () => {
        */
       url: (): string => 'about:blank',
       /**
-       * Evaluate stub.
+       * Evaluate stub — should never be called.
        * @returns Scripted tuple.
        */
       evaluate: (): Promise<EvalTuple> => Promise.resolve(['{}', 200] as EvalTuple),
@@ -98,11 +102,11 @@ describe('BrowserFetchStrategy — resolveContext frame matching', () => {
     const page = makeScriptedPage([['{}', 200]], 'https://page.example/', [blankFrame]);
     const strategy = createBrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.other.com/data', { extraHeaders: {} });
-    const isOkResult19 = isOk(result);
-    expect(isOkResult19).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('no fetch context for origin');
   });
 
-  it('skips frame with empty url', async () => {
+  it('skips frame with empty url and fails fast (no real match)', async () => {
     const emptyFrame = {
       /**
        * Frame URL stub.
@@ -110,7 +114,7 @@ describe('BrowserFetchStrategy — resolveContext frame matching', () => {
        */
       url: (): string => '',
       /**
-       * Evaluate stub.
+       * Evaluate stub — should never be called.
        * @returns Scripted tuple.
        */
       evaluate: (): Promise<EvalTuple> => Promise.resolve(['{}', 200] as EvalTuple),
@@ -118,8 +122,8 @@ describe('BrowserFetchStrategy — resolveContext frame matching', () => {
     const page = makeScriptedPage([['{}', 200]], 'https://page.example/', [emptyFrame]);
     const strategy = createBrowserFetchStrategy(page);
     const result = await strategy.fetchGet('https://api.other.com/data', { extraHeaders: {} });
-    const isOkResult20 = isOk(result);
-    expect(isOkResult20).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('no fetch context for origin');
   });
 
   it('uses matching frame when origin aligns', async () => {

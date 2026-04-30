@@ -142,6 +142,60 @@ function resolveAuthFields(auth: BankConfig['auth']): Record<string, string> {
   };
 }
 
+/** Sentinel for missing credential fields. */
+const ABSENT_CREDENTIAL = '(absent)';
+
+/** Resolved credential triple — id, card suffix, password. */
+interface IResolvedCreds {
+  readonly id: string;
+  readonly cardSuffix: string;
+  readonly password: string;
+}
+
+/**
+ * Resolve required credential fields with the (absent) sentinel for any
+ * missing value. Extracted so `activateViaProxy` does not carry three
+ * `value || sentinel` short-circuits inline (each one counts toward
+ * cyclomatic complexity at the call site).
+ * @param creds - Raw credentials record from the scraper API.
+ * @returns Resolved credential triple.
+ */
+function resolveCreds(creds: Record<string, string>): IResolvedCreds {
+  return {
+    id: creds.id || ABSENT_CREDENTIAL,
+    cardSuffix: creds.card6Digits || ABSENT_CREDENTIAL,
+    password: creds.password || ABSENT_CREDENTIAL,
+  };
+}
+
+/** Bundled args for `fetchProxyJson` — respects the 3-param ceiling. */
+interface IFetchProxyArgs {
+  readonly page: Page;
+  readonly url: string;
+  readonly body: Record<string, string>;
+  readonly failMsg: string;
+}
+
+/**
+ * Run a same-origin POST inside the page (or matching iframe). Wraps
+ * `resolveContext` + `fetchPostWithinPage` + the falsy-result guard
+ * into one Procedure so each activation step does not carry the
+ * resolve-and-check pair inline. Failure modes: no matching context
+ * (returns the resolveContext fail with origin diagnostic) or empty
+ * fetch result (returns the supplied failMsg).
+ * @param args - Bundled fetch arguments (page, url, body, failMsg).
+ * @returns Procedure with parsed JSON or fail.
+ */
+async function fetchProxyJson<T>(args: IFetchProxyArgs): Promise<Procedure<T>> {
+  const ctxResult = resolveContext(args.page, args.url);
+  if (!ctxResult.success) return ctxResult;
+  const result = await fetchPostWithinPage<T>(ctxResult.value, args.url, {
+    data: args.body,
+  }).catch((): false => false);
+  if (!result) return fail(ScraperErrorTypes.Generic, args.failMsg);
+  return succeed(result);
+}
+
 /**
  * Activate server-side session via .ashx proxy (ValidateIdData + performLogon).
  * @param args - Bundled activation arguments.
@@ -150,64 +204,48 @@ function resolveAuthFields(auth: BankConfig['auth']): Record<string, string> {
 async function activateViaProxy(args: IActivationArgs): Promise<Procedure<SessionActivated>> {
   const { page, servicesUrl, credentials, config } = args;
   const authFields = resolveAuthFields(config.auth);
-  const creds = credentials as Record<string, string>;
+  const resolved = resolveCreds(credentials as Record<string, string>);
   const validateUrl = `${servicesUrl}?reqName=ValidateIdData`;
-  const absentCredential = '(absent)';
-  const credId = creds.id || absentCredential;
-  const credCard = creds.card6Digits || absentCredential;
   const validateBody = {
-    id: credId,
-    cardSuffix: credCard,
+    id: resolved.id,
+    cardSuffix: resolved.cardSuffix,
     countryCode: authFields.countryCode,
     idType: authFields.idType,
     checkLevel: authFields.checkLevel,
     companyCode: authFields.companyCode,
   };
-  LOG.debug({
-    message: `ValidateIdData POST to ${maskVisibleText(validateUrl)}`,
+  LOG.debug({ message: `ValidateIdData POST to ${maskVisibleText(validateUrl)}` });
+  const validateProc = await fetchProxyJson<IValidateResponse>({
+    page,
+    url: validateUrl,
+    body: validateBody,
+    failMsg: 'ACTIVATION: ValidateIdData fetch failed',
   });
-  // Use resolveContext to land the fetch in the frame that matches the
-  // services URL origin. The page itself can be parked on a sibling
-  // origin (e.g. marketing.isracard.co.il) after dashboard navigation —
-  // running fetchPostWithinPage on the main page in that case means a
-  // cross-origin fetch with no cookies, which Isracard's API rejects
-  // with HTML/empty body. The same frame-pinning pattern is used by
-  // fetchPost and fetchGet on this strategy; activateViaProxy was the
-  // last call site missing it.
-  const validateCtx = resolveContext(page, validateUrl);
-  const validateResult = await fetchPostWithinPage<IValidateResponse>(validateCtx, validateUrl, {
-    data: validateBody,
-  }).catch((): IValidateResponse | false => false);
-  if (!validateResult)
-    return fail(ScraperErrorTypes.Generic, 'ACTIVATION: ValidateIdData fetch failed');
+  if (!validateProc.success) return validateProc;
+  const validateResult = validateProc.value;
   const headerStatus = validateResult.Header.Status;
-  LOG.debug({
-    message: `ValidateIdData Status=${headerStatus}`,
-  });
+  LOG.debug({ message: `ValidateIdData Status=${headerStatus}` });
   if (headerStatus !== '1')
     return fail(ScraperErrorTypes.Generic, `ACTIVATION: ValidateIdData rejected (${headerStatus})`);
   const bean = validateResult.ValidateIdDataBean;
-  const userName = bean?.userName ?? absentCredential;
-  // Step 2: performLogon (reqName from config — e.g., 'performLogonI')
+  const userName = bean?.userName ?? ABSENT_CREDENTIAL;
   const loginUrl = `${servicesUrl}?reqName=${authFields.loginReqName}`;
-  const credPassword = creds.password || absentCredential;
   const loginBody = {
     KodMishtamesh: userName,
-    MisparZihuy: credId,
-    Sisma: credPassword,
-    cardSuffix: credCard,
+    MisparZihuy: resolved.id,
+    Sisma: resolved.password,
+    cardSuffix: resolved.cardSuffix,
     countryCode: authFields.countryCode,
     idType: authFields.idType,
   };
-  LOG.debug({
-    message: `performLogon POST to ${maskVisibleText(loginUrl)}`,
+  LOG.debug({ message: `performLogon POST to ${maskVisibleText(loginUrl)}` });
+  const loginProc = await fetchProxyJson<Record<string, unknown>>({
+    page,
+    url: loginUrl,
+    body: loginBody,
+    failMsg: 'ACTIVATION: performLogon fetch failed',
   });
-  // Same frame-pinning rationale as the validate call above.
-  const loginCtx = resolveContext(page, loginUrl);
-  const loginResult = await fetchPostWithinPage<Record<string, unknown>>(loginCtx, loginUrl, {
-    data: loginBody,
-  }).catch((): false => false);
-  if (!loginResult) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: performLogon fetch failed');
+  if (!loginProc.success) return loginProc;
   LOG.debug({ message: 'performLogon completed' });
   return succeed(true);
 }
@@ -216,15 +254,44 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
 type OriginMatch = boolean;
 
 /**
- * Find a frame matching the target URL's origin.
+ * True when a frame URL is real (not empty, not about:blank).
+ * @param u - Frame URL.
+ * @returns Whether to keep this frame in the origins list.
+ */
+function isRealFrameUrl(u: string): boolean {
+  return u.length > 0 && u !== 'about:blank';
+}
+
+/**
+ * Collect distinct frame origins on the page (skipping about:blank). Used
+ * for the diagnostic message when no matching context is found, so the
+ * CI failure log shows the real-world frame layout instead of a generic
+ * "fetch failed".
+ * @param page - Playwright page with attached frames.
+ * @returns Comma-joined distinct frame origins (empty when none).
+ */
+function listFrameOrigins(page: Page): string {
+  const urls = page.frames().map((f): string => f.url());
+  const real = urls.filter(isRealFrameUrl);
+  const origins = real.map((u): string => new URL(u).origin);
+  return [...new Set(origins)].join(',');
+}
+
+/**
+ * Find a same-origin context (page or frame) for the target URL. Returns
+ * a Procedure so the caller can fail fast with a diagnostic when neither
+ * the main page nor any attached iframe matches the target origin —
+ * previously this fell back to the main page silently, which produced a
+ * cookieless cross-origin fetch the bank rejected with HTML/empty body
+ * (the Isracard CI activation failure pattern).
  * @param page - Playwright page with attached frames.
  * @param targetUrl - The API URL to fetch.
- * @returns Matching frame, or the page itself.
+ * @returns Succeed(page|frame) when an origin match exists, fail otherwise.
  */
-function resolveContext(page: Page, targetUrl: string): Page | Frame {
+function resolveContext(page: Page, targetUrl: string): Procedure<Page | Frame> {
   const targetOrigin = new URL(targetUrl).origin;
   const pageOrigin = new URL(page.url()).origin;
-  if (targetOrigin === pageOrigin) return page;
+  if (targetOrigin === pageOrigin) return succeed(page);
   const frame = page.frames().find((f): OriginMatch => {
     const frameUrl = f.url();
     if (!frameUrl || frameUrl === 'about:blank') return false;
@@ -235,9 +302,13 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
     LOG.trace({
       message: `using iframe context: ${frameUrl}`,
     });
-    return frame;
+    return succeed(frame);
   }
-  return page;
+  const frameOrigins = listFrameOrigins(page);
+  return fail(
+    ScraperErrorTypes.Generic,
+    `no fetch context for origin ${targetOrigin}: page on ${pageOrigin}, frames=[${frameOrigins}]`,
+  );
 }
 
 /** Browser fetch — delegates to fetchPostWithinPage/fetchGetWithinPage. */
@@ -264,7 +335,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
     data: Record<string, string>,
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
-    const ctx = resolveContext(this._page, url);
+    const ctxResult = resolveContext(this._page, url);
+    if (!ctxResult.success) return ctxResult;
+    const ctx = ctxResult.value;
     return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: opts.extraHeaders })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
@@ -278,7 +351,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
-    const ctx = resolveContext(this._page, url);
+    const ctxResult = resolveContext(this._page, url);
+    if (!ctxResult.success) return ctxResult;
+    const ctx = ctxResult.value;
     if (!hasHeaders) {
       return fetchGetWithinPage<T>(ctx, url, false)
         .then((result): Procedure<T> => resultToProcedure(result, url))
