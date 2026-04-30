@@ -7,17 +7,20 @@
 import { jest } from '@jest/globals';
 
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js',
   () => ({ resolveFieldPipeline: jest.fn() }),
 );
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js', () => ({
-  discoverFormErrors: jest.fn(),
-  checkFrameForErrors: jest.fn(),
-  NO_ERRORS: { hasErrors: false, errors: [], summary: '' },
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js',
+  () => ({
+    discoverFormErrors: jest.fn(),
+    checkFrameForErrors: jest.fn(),
+    NO_ERRORS: { hasErrors: false, errors: [], summary: '' },
+  }),
+);
 
-jest.unstable_mockModule('../../../../../Common/FormAnchor.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Form/FormAnchor.js', () => ({
   discoverFormAnchor: jest.fn(),
   /**
    * Mock scopeCandidates — returns candidates unchanged.
@@ -28,7 +31,7 @@ jest.unstable_mockModule('../../../../../Common/FormAnchor.js', () => ({
   scopeCandidates: jest.fn((_scope: string, candidates: unknown[]) => candidates),
 }));
 
-jest.unstable_mockModule('../../../../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Types/Debug.js', () => ({
   /**
    * Mock getDebug — returns a no-op logger.
    * @returns Logger with jest.fn() for all methods.
@@ -47,12 +50,27 @@ jest.unstable_mockModule('../../../../../Common/Debug.js', () => ({
    * @returns fn result.
    */
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+  /**
+   * Mock capTimeout — passthrough; no MOCK_MODE capping in unit tests.
+   * @param t - Requested timeout.
+   * @returns The timeout unchanged.
+   */
+  capTimeout: <T>(t: T): T => t,
+  /**
+   * Mock isMockTimingActive — always false for unit tests.
+   * @returns false literal.
+   */
+  isMockTimingActive: (): false => false,
+  MOCK_TIMEOUT_MS: 1000 as const,
 }));
 
-const PFR_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/PipelineFieldResolver.js');
-const FED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js');
-const FA_MOD = await import('../../../../../Common/FormAnchor.js');
-const MED_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js');
+const PFR_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js');
+const FED_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js');
+const FA_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Form/FormAnchor.js');
+const MED_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js');
 const FACTORY = await import('../MockPipelineFactories.js');
 
 /** Resolved IFieldContext returned by mock resolveFieldPipeline. */
@@ -134,7 +152,7 @@ describe('createElementMediator/resolveClickable', () => {
     const mediator = MED_MOD.createElementMediator(page);
     const result = await mediator.resolveClickable([]);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('Clickable not found');
+    if (!result.success) expect(result.errorMessage).toContain('Field not found');
   });
 
   it('returns fail when resolveFieldPipeline throws', async () => {
@@ -254,34 +272,37 @@ describe('createElementMediator/scopeToForm', () => {
 
 // ── waitForLoadingDone ───────────────────────────────────
 
+/** Predicate return — whether the mock loading indicator is still visible. */
+type IsStillLoading = boolean;
+
 describe('createElementMediator/waitForLoadingDone', () => {
-  it('returns immediately when no loading indicator is visible', async () => {
+  it('returns succeed(true) when no loading indicator is visible', async () => {
     const page = FACTORY.makeMockFullPage();
     const mediator = MED_MOD.createElementMediator(page);
-    const isDone = await mediator.waitForLoadingDone(page);
-    expect(isDone).toBe(true);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe(true);
   });
 
-  it.each([
-    { label: 'clears after retry', visibleUntil: 2, expected: true },
-    { label: 'returns false after max retries', visibleUntil: 999, expected: false },
-  ] as const)(
-    /**
-     * Parametrized: loading indicator visible until call N, then hidden.
-     * @param label - Test description.
-     * @param visibleUntil - Number of isVisible calls that return true.
-     * @param expected - Expected return value.
-     */
-    '$label',
-    async ({ visibleUntil, expected }) => {
-      let callCount = 0;
-      const page = FACTORY.makeMockLoadingPage(() => {
-        callCount++;
-        return callCount <= visibleUntil;
-      });
-      const mediator = MED_MOD.createElementMediator(page);
-      const isDone = await mediator.waitForLoadingDone(page);
-      expect(isDone).toBe(expected);
-    },
-  );
+  it('returns succeed(true) after retry clears loading', async () => {
+    let callCount = 0;
+    const page = FACTORY.makeMockLoadingPage((): IsStillLoading => {
+      callCount++;
+      return callCount <= 2;
+    });
+    const mediator = MED_MOD.createElementMediator(page);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+  });
+
+  it('returns succeed(true) even after max retries (best-effort)', async () => {
+    let callCount = 0;
+    const page = FACTORY.makeMockLoadingPage((): IsStillLoading => {
+      callCount++;
+      return callCount <= 999;
+    });
+    const mediator = MED_MOD.createElementMediator(page);
+    const result = await mediator.waitForLoadingDone(page);
+    expect(result.success).toBe(true);
+  });
 });

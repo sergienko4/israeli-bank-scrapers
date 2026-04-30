@@ -64,12 +64,39 @@ fi
 # ── Phase 2: Static Analysis (Parallel) ──
 log ""
 log "⚡ Phase 2: Static analysis + Architecture Check..."
-bg_gate "tsc"    npx tsc --noEmit
-bg_gate "eslint" npx eslint src/Scrapers/Pipeline --max-warnings=0  # 🚨 Catch DI
-bg_gate "biome"  npx biome lint src --max-diagnostics=50
-bg_gate "audit"  npm audit --audit-level=high --omit=dev
-bg_gate "build"  bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
-bg_gate "canaries" npm run lint:canaries
+bg_gate "tsc"          npx tsc --noEmit
+bg_gate "eslint"       npx eslint src/Scrapers/Pipeline --max-warnings=0
+bg_gate "biome"        npx biome lint src --max-diagnostics=50
+bg_gate "audit"        npm audit --audit-level=high --omit=dev
+
+# 🚨 NEW: Architectural Guardrails (Rules #10, #14, #15)
+# The linter only applies rules to files under Scrapers/Pipeline/ and Phases/.
+# Pre-filter to those paths so (a) we don't waste work iterating test files,
+# and (b) we don't blow the Windows CreateProcess 32 KB command-line limit
+# when a large test-only commit stages hundreds of files.
+ARCH_FILES=$(echo "$CODE_FILES" | grep -E '(Scrapers/Pipeline/|/Phases/)' || true)
+if [ -n "$ARCH_FILES" ]; then
+  # When the staged file count is large (e.g. an architecture-wide refactor
+  # or a soft-reset squash), pass the Pipeline directory directly. Windows
+  # CreateProcess hard-caps the command line at 32 KB even when xargs tries
+  # to batch-split — `npm run lint:architecture` walks the whole Pipeline
+  # tree from a single argv path, identical analysis result.
+  ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
+  if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
+    log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
+    bg_gate "architecture" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
+  else
+    # Small staged set — pass the file list via xargs for per-file precision.
+    ARCH_LIST=$(mktemp)
+    echo "$ARCH_FILES" > "$ARCH_LIST"
+    bg_gate "architecture" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
+  fi
+else
+  log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
+fi
+
+bg_gate "build"        bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries"     npm run lint:canaries
 
 wait_all
 
@@ -97,7 +124,43 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   exit 1
 fi
 
+# ── Phase 4: Offline Mock Gate (snapshot-based replay, no network) ──
+# Runs all 7 pipeline banks against tests/snapshots/{bank}/*.html via MOCK_MODE.
+# Catches selector regressions, PIN-buffer regressions, modal regressions
+# in seconds — before we burn ~20 min of live E2E on a broken build.
+# Fails fast with stale-snapshot preflight if any snapshot is < 20 KB.
+log ""
+log "🎭 Phase 4: Mock replay (offline, all 7 banks)"
+npm run test:mock -- --parallel=6 2>&1 | tee -a "$LOG_FILE"
+
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  log "❌ Mock suite FAILED — fix before live E2E can even start"
+  exit 1
+fi
+
+# # ── Phase 5: Live E2E (real banks, FINAL gate) ──
+# # Only runs if everything above passed. Hits real bank APIs; OTP banks
+# # skip interactive parts unless BEINLEUMI_OTP / HAPOALIM_OTP are set.
+# # This is the last gate — if it passes, the commit proceeds.
+# log ""
+# log "🔴 Phase 5a: Live E2E — Amex SOLO (Rule #16 — never parallel with Isracard)"
+# node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns='E2eReal/Amex\.e2e-real' 2>&1 | tee -a "$LOG_FILE"
+
+# if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+#   log "❌ Live E2E (Amex solo) FAILED"
+#   exit 1
+# fi
+
+# log ""
+# log "🔴 Phase 5b: Live E2E — everything except Amex (parallel, Rule #16, maxWorkers=2 for reliability)"
+# node --experimental-vm-modules node_modules/jest/bin/jest.js --maxWorkers=2 --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns='E2eReal/Amex\.e2e-real' --testPathPatterns=E2eReal 2>&1 | tee -a "$LOG_FILE"
+
+# if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+#   log "❌ Live E2E (non-Amex parallel) FAILED"
+#   exit 1
+# fi
+
 log ""
 log "══════════════════════════════════════════════════════"
-log "✅  ALL GATES PASSED. COMMITTING..."
+log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
 log ""

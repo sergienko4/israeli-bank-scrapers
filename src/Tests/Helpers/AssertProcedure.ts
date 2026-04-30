@@ -9,6 +9,7 @@ import type { Procedure } from '../../Scrapers/Pipeline/Types/Procedure.js';
 /**
  * Asserts Procedure succeeded and narrows to `{ success: true; value: T }`.
  * @param result - The Procedure to assert.
+ * @returns Result.
  */
 function assertOk<T>(
   result: Procedure<T>,
@@ -19,6 +20,7 @@ function assertOk<T>(
 /**
  * Asserts Option has a value and narrows to `{ has: true; value: T }`.
  * @param opt - The Option to assert.
+ * @returns Result.
  */
 function assertHas<T>(opt: Option<T>): asserts opt is { readonly has: true; readonly value: T } {
   expect(opt.has).toBe(true);

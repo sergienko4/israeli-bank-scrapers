@@ -5,7 +5,12 @@ import { type OtpConfig, type SelectorCandidate } from '../../Base/Config/LoginC
 /** Per-bank scraper configuration — URLs, API endpoints, auth, format, timing, selectors. */
 export interface IBankScraperConfig {
   /** Browser navigation URLs */
-  urls: { base: string | null; loginRoute: string | null; transactions: string | null };
+  urls: {
+    base: string | null;
+    loginRoute: string | null;
+    transactions: string | null;
+    portalUrl?: string | null;
+  };
   /** REST API endpoints */
   api: {
     base: string | null;
@@ -26,6 +31,8 @@ export interface IBankScraperConfig {
     idType: string | null;
     checkLevel: string | null;
     organizationId: string | null;
+    /** Proxy login reqName (e.g., 'performLogonI'). Null if no proxy auth needed. */
+    loginReqName: string | null;
   };
   /** Login flow capabilities — drives pre/post-login behavior. */
   loginSetup: {
@@ -74,6 +81,7 @@ export const NULL_AUTH: IBankScraperConfig['auth'] = {
   idType: null,
   checkLevel: null,
   organizationId: null,
+  loginReqName: null,
 };
 
 /** Default simple login setup — no OTP, not API-only. */
@@ -122,39 +130,4 @@ export const DOM_OTP: OtpConfig = {
     { kind: 'ariaLabel', value: 'אישור' },
   ],
   longTermTokenSupported: false,
-};
-
-// ---- Shared selector sets ----
-
-// Column class strings (used for td class matching in BaseBeinleumiGroupHelpers) are
-// intentionally NOT here — they are hardcoded in BaseBeinleumiGroupHelpers.ts.
-
-/** DOM selectors shared by all Beinleumi-group banks (Beinleumi, OtsarHahayal, Massad, Pagi). */
-export const BEINLEUMI_DOM_SELECTORS: Record<string, SelectorCandidate[]> = {
-  accountsNumber: [{ kind: 'css', value: 'div.fibi_account span.acc_num' }],
-  completedTransactionsTable: [{ kind: 'css', value: 'table#dataTable077' }],
-  pendingTransactionsTable: [{ kind: 'css', value: 'table#dataTable023' }],
-  nextPageLink: [{ kind: 'css', value: 'a#Npage.paging' }],
-  currentBalance: [{ kind: 'css', value: '.main_balance' }],
-  transactionsTab: [{ kind: 'css', value: 'a#tabHeader4' }],
-  datesContainer: [{ kind: 'css', value: 'div#fibi_dates' }],
-  fromDateInput: [{ kind: 'css', value: 'input#fromDate' }],
-  showButton: [{ kind: 'css', value: 'input[value=הצג]' }],
-  tableContainer: [{ kind: 'css', value: "div[id*='divTable']" }],
-  closeDatePickerBtn: [{ kind: 'css', value: 'button.ui-datepicker-close' }],
-};
-
-/** VisaCal API endpoint configuration. */
-export const VISACAL_API: IBankScraperConfig['api'] = {
-  base: null,
-  purchaseHistory: null,
-  card: null,
-  calTransactions:
-    'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
-  calFrames: 'https://api.cal-online.co.il/Frames/api/Frames/GetFrameStatus',
-  calPending: 'https://api.cal-online.co.il/Transactions/api/approvals/getClearanceRequests',
-  calInit: 'https://api.cal-online.co.il/Authentication/api/account/init',
-  calLoginResponse: '/col-rest/calconnect/authentication/login',
-  calOrigin: 'https://digital-web.cal-online.co.il',
-  calXSiteId: '09031987-273E-2311-906C-8AF85B17C8D9',
 };

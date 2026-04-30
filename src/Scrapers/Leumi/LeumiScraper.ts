@@ -1,5 +1,4 @@
-import { type Moment } from 'moment';
-import moment from 'moment';
+import moment, { type Moment } from 'moment';
 import { type Page } from 'playwright-core';
 
 import { getDebug } from '../../Common/Debug.js';
@@ -25,6 +24,11 @@ import {
 
 const LOG = getDebug('leumi-scraper');
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Leumi];
+
+/** String sanitized to keep only digits, slashes, and dashes. */
+type SanitizedAccountString = string;
+/** Account id with safe-identifier characters only. */
+type SanitizedAccountId = string;
 
 /** Resolve each bank selector entry to a Playwright-compatible string. */
 const SELECTOR_ENTRIES = Object.entries(CFG.selectors).map(
@@ -66,7 +70,7 @@ async function clickBySelector(page: Page, selector: string): Promise<boolean> {
  * @param str - The string to sanitize.
  * @returns The sanitized string.
  */
-function removeSpecialCharacters(str: string): string {
+function removeSpecialCharacters(str: string): SanitizedAccountString {
   return str.replace(/[^0-9/-]/g, '');
 }
 
@@ -116,8 +120,8 @@ async function interceptFilteredResponse(page: Page): Promise<ILeumiAccountRespo
  * @param accountId - The raw account ID string.
  * @returns The sanitized account ID.
  */
-function sanitizeAccountId(accountId: string): string {
-  return accountId.replace('/', '_').replace(/[^\d-_]/g, '');
+function sanitizeAccountId(accountId: string): SanitizedAccountId {
+  return accountId.replace('/', '_').replace(/[^\d\-_]/g, '');
 }
 
 /**

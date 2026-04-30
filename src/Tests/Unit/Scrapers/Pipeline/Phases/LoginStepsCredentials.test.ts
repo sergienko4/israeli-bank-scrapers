@@ -5,7 +5,7 @@
 
 import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
+import { createLoginPhase } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginSteps.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { makeContextWithLogin, makeMockMediator } from '../MockPipelineFactories.js';
 
@@ -43,7 +43,7 @@ describe('LoginSteps/credential-validation', () => {
 
   it('fails fast when credential value is empty string', async () => {
     const ctx = makeContextWithLogin();
-    const creds = { username: '', password: 'testpass' } as unknown as ScraperCredentials;
+    const creds = { username: '', password: 'fixt-p-9b41ad2e' } as unknown as ScraperCredentials;
     const withCreds = { ...ctx, credentials: creds };
     const mediator = makeMockMediator();
     const mediatorSome = some(mediator);

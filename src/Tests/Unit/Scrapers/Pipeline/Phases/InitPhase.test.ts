@@ -10,42 +10,51 @@ import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
-jest.unstable_mockModule('../../../../../Common/CamoufoxLauncher.js', () => ({
-  launchCamoufox: jest.fn(),
-}));
-
-jest.unstable_mockModule('../../../../../Common/Browser.js', () => ({
-  buildContextOptions: jest.fn().mockReturnValue({}),
-  ISRAEL_LOCALE: 'he-IL',
-  ISRAEL_TIMEZONE: 'Asia/Jerusalem',
-}));
-
 jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js',
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js',
   () => ({
-    createElementMediator: jest.fn().mockReturnValue({
-      resolveField: jest.fn(),
-      resolveClickable: jest.fn(),
-      discoverErrors: jest.fn(),
-      waitForLoadingDone: jest.fn(),
-      discoverForm: jest.fn(),
-      scopeToForm: jest.fn(),
-    }),
-    default: jest.fn().mockReturnValue({
-      resolveField: jest.fn(),
-      resolveClickable: jest.fn(),
-      discoverErrors: jest.fn(),
-      waitForLoadingDone: jest.fn(),
-      discoverForm: jest.fn(),
-      scopeToForm: jest.fn(),
-    }),
+    launchCamoufox: jest.fn(),
   }),
 );
 
-const CAMOUFOX_MOD = await import('../../../../../Common/CamoufoxLauncher.js');
-const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/InitPhase.js');
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserContextBuilder.js',
+  () => ({
+    buildContextOptions: jest.fn().mockReturnValue({}),
+    ISRAEL_LOCALE: 'he-IL',
+    ISRAEL_TIMEZONE: 'Asia/Jerusalem',
+  }),
+);
+
+/** Mock mediator shape for createElementMediator. */
+const MOCK_MEDIATOR = {
+  resolveField: jest.fn(),
+  resolveClickable: jest.fn(),
+  discoverErrors: jest.fn(),
+  waitForLoadingDone: jest.fn(),
+  discoverForm: jest.fn(),
+  scopeToForm: jest.fn(),
+  setActivePhase: jest.fn(),
+  setActiveStage: jest.fn(),
+};
+
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js',
+  () => ({
+    createElementMediator: jest.fn().mockReturnValue(MOCK_MEDIATOR),
+    extractActionMediator: jest.fn().mockReturnValue(MOCK_MEDIATOR),
+    default: jest.fn().mockReturnValue(MOCK_MEDIATOR),
+  }),
+);
+
+const CAMOUFOX_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
+const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhase.js');
 
 // ── Helpers ────────────────────────────────────────────────
+
+/** URL returned by mock page. */
+type MockUrl = string;
 
 /** Mock browser stack returned by MAKE_BROWSER_MOCK. */
 interface IMockBrowserStack {
@@ -72,7 +81,12 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
      * Mock URL getter.
      * @returns Test bank URL string.
      */
-    url: (): string => 'https://test.bank',
+    url: (): MockUrl => 'https://test.bank',
+    /**
+     * Mock title getter.
+     * @returns Test page title.
+     */
+    title: (): Promise<string> => Promise.resolve('Test Bank'),
     goto: jest.fn().mockResolvedValue(null),
     locator: jest.fn().mockReturnValue({ first: jest.fn().mockReturnValue({ click: jest.fn() }) }),
   };
@@ -203,13 +217,13 @@ describe('InitPhase/cleanups', () => {
     const cleanups = browserState.value.cleanups;
     expect(cleanups).toHaveLength(3);
     const didCloseBrowser = await cleanups[0]();
-    expect(didCloseBrowser).toBe(true);
+    expect(didCloseBrowser.success).toBe(true);
     expect(mockBrowser.close).toHaveBeenCalled();
     const didCloseContext = await cleanups[1]();
-    expect(didCloseContext).toBe(true);
+    expect(didCloseContext.success).toBe(true);
     expect(mockContext.close).toHaveBeenCalled();
     const didClosePage = await cleanups[2]();
-    expect(didClosePage).toBe(true);
+    expect(didClosePage.success).toBe(true);
     expect(mockPage.close).toHaveBeenCalled();
   });
 });
@@ -222,7 +236,7 @@ describe('InitPhase/error', () => {
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errorMessage).toContain('InitPhase failed');
+      expect(result.errorMessage).toContain('INIT PRE');
       expect(result.errorMessage).toContain('binary not found');
     }
   });
@@ -236,7 +250,31 @@ describe('InitPhase/error', () => {
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.errorMessage).toContain('InitPhase failed');
+      expect(result.errorMessage).toContain('INIT PRE');
     }
+  });
+});
+
+describe('InitPhase/browser-leak-prevention', () => {
+  it('closes browser when newContext throws', async () => {
+    const { mockBrowser } = MAKE_BROWSER_MOCK();
+    mockBrowser.newContext = jest.fn().mockRejectedValue(new Error('context create failed'));
+    const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+    launchFn.mockResolvedValue(mockBrowser);
+    const ctx = MAKE_MOCK_CONTEXT();
+    await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+    expect(mockBrowser.close).toHaveBeenCalled();
+  });
+
+  it('closes browser when preparePage throws', async () => {
+    const { mockBrowser } = MAKE_BROWSER_MOCK();
+    const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+    launchFn.mockResolvedValue(mockBrowser);
+    const throwingPrepPage = jest.fn().mockRejectedValue(new Error('preparePage crashed'));
+    const ctx = MAKE_MOCK_CONTEXT({
+      options: makeMockOptions({ preparePage: throwingPrepPage }),
+    });
+    await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+    expect(mockBrowser.close).toHaveBeenCalled();
   });
 });

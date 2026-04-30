@@ -6,12 +6,13 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
-import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Phases/LoginSteps.js';
-import { PIPELINE_WELL_KNOWN_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/PipelineWellKnown.js';
+import { checkFrameForErrors } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
+import { waitForSubmitToSettle } from '../../../../Scrapers/Pipeline/Mediator/Login/LoginSteps.js';
+import { WK_LOGIN_ERROR } from '../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
+import { makeMockMediator } from '../../../Unit/Scrapers/Pipeline/MockPipelineFactories.js';
 
 /** First WellKnown error text — used for test assertions. */
-const FIRST_ERROR_TEXT = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[0].value;
+const FIRST_ERROR_TEXT = WK_LOGIN_ERROR[0].value;
 
 // ── Mock helpers ───────────────────────────────────────────
 
@@ -72,35 +73,6 @@ function makeDetachedFrame(): Page | Frame {
   } as unknown as Page;
 }
 
-/**
- * Build a mock Page where waitForLoadState resolves immediately.
- * @returns Mock Page that settles instantly.
- */
-function makeFastSettlePage(): Page {
-  return {
-    /**
-     * Resolves immediately — page is idle.
-     * @returns Resolved promise.
-     */
-    waitForLoadState: (): Promise<boolean> => Promise.resolve(true),
-  } as unknown as Page;
-}
-
-/**
- * Build a mock Page where waitForLoadState always times out.
- * @returns Mock Page that never reaches networkidle.
- */
-function makeTimeoutPage(): Page {
-  return {
-    /**
-     * Always rejects to simulate network-idle timeout.
-     * @returns Rejected promise.
-     */
-    waitForLoadState: (): Promise<boolean> =>
-      Promise.reject(new Error('Timeout: networkidle not reached')),
-  } as unknown as Page;
-}
-
 // ── checkFrameForErrors ────────────────────────────────────
 // Returns IFormErrorScanResult { hasErrors, summary } (not IFrameErrorResult)
 
@@ -136,7 +108,7 @@ describe('checkFrameForErrors', () => {
 
   it('stops on first match and returns that candidate', async () => {
     // Both first and second WellKnown texts visible — order determines first match
-    const secondText = PIPELINE_WELL_KNOWN_DASHBOARD.errorIndicator[1].value;
+    const secondText = WK_LOGIN_ERROR[1].value;
     const frame = makeMockFrame([FIRST_ERROR_TEXT, secondText]);
     const errorResult = await checkFrameForErrors(frame);
     expect(errorResult.hasErrors).toBe(true);
@@ -147,15 +119,21 @@ describe('checkFrameForErrors', () => {
 // ── waitForSubmitToSettle ──────────────────────────────────
 
 describe('waitForSubmitToSettle', () => {
-  it('resolves true when page reaches networkidle quickly', async () => {
-    const page = makeFastSettlePage();
-    const hasSettled = await waitForSubmitToSettle(page);
-    expect(hasSettled).toBe(true);
+  it('returns succeed when mediator.waitForNetworkIdle succeeds', async () => {
+    const mediator = makeMockMediator();
+    const result = await waitForSubmitToSettle(mediator);
+    expect(result.success).toBe(true);
   });
 
-  it('resolves true even when networkidle times out (does not throw)', async () => {
-    const page = makeTimeoutPage();
-    const hasSettled = await waitForSubmitToSettle(page);
-    expect(hasSettled).toBe(true);
+  it('returns succeed even when networkidle times out (non-fatal)', async () => {
+    const mediator = makeMockMediator({
+      /**
+       * Mock network idle — always succeeds.
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => Promise.resolve({ success: true, value: undefined }),
+    });
+    const result = await waitForSubmitToSettle(mediator);
+    expect(result.success).toBe(true);
   });
 });

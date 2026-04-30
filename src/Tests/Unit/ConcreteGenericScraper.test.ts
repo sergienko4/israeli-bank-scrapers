@@ -113,7 +113,7 @@ function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   };
 }
 
-const CREDS: ScraperCredentials = { username: 'testuser', password: 'testpass' };
+const CREDS: ScraperCredentials = { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' };
 
 let mockBrowser: ReturnType<typeof MOCK_MODULE.createMockBrowser>;
 let mockContext: ReturnType<typeof MOCK_MODULE.createMockContext>;

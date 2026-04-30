@@ -274,7 +274,7 @@ describe('handleOtpCode — verifyOtpAccepted', () => {
   it('returns InvalidOtp with descriptive message when OTP rejected', async () => {
     const frame = makeMockFrame();
     const page = makeMockPageWithFrames([frame]);
-    const mockRetriever = jest.fn().mockResolvedValue('000000');
+    const mockRetriever = jest.fn().mockResolvedValue('fixt-otp-3b4a');
     MOCK_DETECT_OTP_SCREEN.mockResolvedValue(true);
     MOCK_RESOLVE_FIELD_CONTEXT.mockResolvedValue({ selector: '#otp', context: frame });
     MOCK_TRY_IN_CONTEXT.mockResolvedValue(null);

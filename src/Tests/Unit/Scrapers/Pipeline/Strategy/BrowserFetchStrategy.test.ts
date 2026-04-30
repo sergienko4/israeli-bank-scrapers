@@ -5,18 +5,19 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../../Common/Fetch.js', () => ({
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js', () => ({
   fetchPostWithinPage: jest.fn(),
   fetchGetWithinPage: jest.fn(),
+  fetchGetWithinPageWithHeaders: jest.fn(),
 }));
 
-const FETCH_MOD = await import('../../../../../Common/Fetch.js');
+const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js');
 const STRATEGY_MOD =
-  await import('../../../../../Scrapers/Pipeline/Strategy/BrowserFetchStrategy.js');
+  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js');
 const { makeMockFullPage: MAKE_MOCK_FULL_PAGE } = await import('../MockPipelineFactories.js');
 
 const { DEFAULT_FETCH_OPTS } =
-  await import('../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js');
+  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js');
 
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
@@ -108,11 +109,13 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     if (!result.success) expect(result.errorMessage).toBe('get failed');
   });
 
-  it('fails fast when extraHeaders are present (not yet supported)', async () => {
+  it('uses fetchGetWithinPageWithHeaders when extraHeaders are present', async () => {
+    const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
+    getHeadersFn.mockResolvedValue({ data: 'ok' });
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchGet('https://api.test/get', OPTS_WITH_HEADERS);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('not yet supported');
+    expect(result.success).toBe(true);
+    expect(getHeadersFn).toHaveBeenCalled();
   });
 
   it('calls fetchGetWithinPage with shouldIgnoreErrors=false when no extraHeaders', async () => {
@@ -121,11 +124,7 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     await strategy.fetchGet('https://api.test/get', OPTS_NO_HEADERS);
     expect(getFn).toHaveBeenCalled();
-    const lastCallArgs = (getFn as unknown as jest.Mock).mock.calls[0] as [
-      unknown,
-      string,
-      boolean,
-    ];
+    const lastCallArgs = getFn.mock.calls[0] as [unknown, string, boolean];
     expect(lastCallArgs[2]).toBe(false);
   });
 });

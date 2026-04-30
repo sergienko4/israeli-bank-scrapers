@@ -6,17 +6,34 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
+/** Whether a mock operation completed successfully. */
+type MockResult = boolean;
+/** Mock URL string. */
+type MockUrl = string;
+
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/ElementMediator.js';
-import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
-import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
+import type {
+  ICookieSnapshot,
+  IElementMediator,
+} from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
+import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
   ILoginState,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+
+/** Pre-built succeed(undefined) — reusable across test mocks. */
+const VOID_SUCCESS: Procedure<void> = succeed(undefined);
+
+/** Pre-built resolved promise — avoids nested call lint violations in mocks. */
+export const SUCCEED_VOID: Promise<Procedure<void>> = Promise.resolve(VOID_SUCCESS);
+
 import type {
   IRawAccount,
   IScrapeConfig,
@@ -36,7 +53,7 @@ export { makeMockContext, makeMockPage };
 const MOCK_LOCATOR = {
   /**
    * Return the first-element locator mock.
-   * @returns First locator with click/fill/isVisible/waitFor.
+   * @returns First locator with click/fill/isVisible/waitFor/evaluate.
    */
   first: (): object => ({
     /**
@@ -59,6 +76,11 @@ const MOCK_LOCATOR = {
      * @returns True.
      */
     waitFor: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * Evaluate mock — returns false (no hidden-control attribute).
+     * @returns False.
+     */
+    evaluate: (): Promise<boolean> => Promise.resolve(false),
   }),
   /**
    * Fill mock on locator.
@@ -110,7 +132,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * No-op timeout setter mock.
      * @returns True.
      */
-    setDefaultTimeout: (): boolean => true,
+    setDefaultTimeout: (): MockResult => true,
     /**
      * Resolves immediately for any load state.
      * @returns Resolved true.
@@ -131,6 +153,21 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns Resolved true.
      */
     fill: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * No-op event listener mock for network discovery.
+     * @returns Self for chaining.
+     */
+    on: (): Page => ({}) as unknown as Page,
+    /**
+     * Mock waitForResponse — resolves immediately with no match.
+     * @returns Never-resolving promise (interceptor fire-and-forget).
+     */
+    waitForResponse: (): Promise<false> => Promise.race([]),
+    /**
+     * Mock frames — returns empty array (no iframes in test).
+     * @returns Empty array.
+     */
+    frames: (): Page[] => [],
   } as unknown as Page;
 }
 
@@ -213,12 +250,12 @@ export function makeMockBrowser(context: BrowserContext = makeMockBrowserContext
 }
 
 /**
- * Default cleanups: two functions that resolve true.
- * @returns Two cleanup functions that resolve true.
+ * Default cleanups: two functions that resolve succeed(undefined).
+ * @returns Two cleanup functions that resolve with Procedure<void>.
  */
-const DEFAULT_CLEANUPS: readonly (() => Promise<boolean>)[] = [
-  (): Promise<boolean> => Promise.resolve(true),
-  (): Promise<boolean> => Promise.resolve(true),
+const DEFAULT_CLEANUPS: IBrowserState['cleanups'] = [
+  (): Promise<Procedure<void>> => SUCCEED_VOID,
+  (): Promise<Procedure<void>> => SUCCEED_VOID,
 ];
 
 /**
@@ -229,7 +266,7 @@ const DEFAULT_CLEANUPS: readonly (() => Promise<boolean>)[] = [
  */
 export function makeMockBrowserState(
   page: Page = makeMockFullPage(),
-  cleanups: readonly (() => Promise<boolean>)[] = DEFAULT_CLEANUPS,
+  cleanups: IBrowserState['cleanups'] = DEFAULT_CLEANUPS,
 ): IBrowserState {
   const context = makeMockBrowserContext(page);
   return { page, context, cleanups };
@@ -259,7 +296,7 @@ export function makeMockFetchStrategy(data: object = {}): IFetchStrategy {
      * Return succeed with mock data.
      * @returns Succeed procedure with data.
      */
-    fetchPost: <T>() => {
+    fetchPost: <T>(): Promise<Procedure<T>> => {
       const result = succeed(data as T);
       return Promise.resolve(result);
     },
@@ -267,11 +304,11 @@ export function makeMockFetchStrategy(data: object = {}): IFetchStrategy {
      * Return succeed with mock data.
      * @returns Succeed procedure with data.
      */
-    fetchGet: <T>() => {
+    fetchGet: <T>(): Promise<Procedure<T>> => {
       const result = succeed(data as T);
       return Promise.resolve(result);
     },
-  } as unknown as IFetchStrategy;
+  };
 }
 
 // ── Mediator mocks ────────────────────────────────────────
@@ -308,9 +345,12 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
     discoverErrors: (): Promise<IFormErrorScanResult> => Promise.resolve(MEDIATOR_NO_ERRORS),
     /**
      * Loading done immediately — no spinners in tests.
-     * @returns Resolved true.
+     * @returns Succeed(true) — loading complete.
      */
-    waitForLoadingDone: (): Promise<boolean> => Promise.resolve(true),
+    waitForLoadingDone: () => {
+      const done = succeed(true as const);
+      return Promise.resolve(done);
+    },
     /**
      * Return none option.
      * @returns Resolved none.
@@ -320,11 +360,208 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return Promise.resolve(result);
     },
     /**
+     * Best-effort click — returns succeed(NOT_FOUND_RESULT) by default. Override for success tests.
+     * @returns Succeed with NOT_FOUND_RESULT.
+     */
+    resolveAndClick: () => {
+      const notFound = succeed(NOT_FOUND_RESULT);
+      return Promise.resolve(notFound);
+    },
+    /**
+     * Not found by default. Override for success tests.
+     * @returns NOT_FOUND_RESULT race result.
+     */
+    resolveVisible: (): Promise<typeof NOT_FOUND_RESULT> => Promise.resolve(NOT_FOUND_RESULT),
+    /**
+     * Resolve all visible — empty array (mock).
+     * @returns Empty array.
+     */
+    resolveAllVisible: (): Promise<readonly never[]> => Promise.resolve([]),
+    /**
+     * Scoped resolve — returns NOT_FOUND in mock.
+     * @returns NOT_FOUND result.
+     */
+    resolveVisibleInContext: (): Promise<typeof NOT_FOUND_RESULT> =>
+      Promise.resolve(NOT_FOUND_RESULT),
+    /**
      * Return candidates unchanged.
      * @param candidates - Input candidates.
      * @returns Same array.
      */
     scopeToForm: candidates => candidates,
+    /**
+     * Navigation mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    navigateTo: (): Promise<Procedure<void>> => SUCCEED_VOID,
+    /**
+     * URL mock — returns about:blank.
+     * @returns Mock URL string.
+     */
+    getCurrentUrl: (): MockUrl => 'about:blank',
+    /**
+     * Network idle mock — always succeeds.
+     * @returns Succeed(undefined).
+     */
+    waitForNetworkIdle: (): Promise<Procedure<void>> => SUCCEED_VOID,
+    /**
+     * Count by text mock — returns 0 (no elements).
+     * @returns Zero.
+     */
+    countByText: (): Promise<number> => Promise.resolve(0),
+    /**
+     * No-op phase setter in mock.
+     * @returns True.
+     */
+    setActivePhase: (): true => true,
+    /**
+     * No-op stage setter in mock.
+     * @returns True.
+     */
+    setActiveStage: (): true => true,
+    /**
+     * No attribute in mock — always false.
+     * @returns Succeed(false).
+     */
+    /**
+     * No attribute value in mock.
+     * @returns Empty string.
+     */
+    getAttributeValue: () => Promise.resolve(''),
+    /**
+     * No attribute in mock.
+     * @returns Succeed(false).
+     */
+    checkAttribute: () => {
+      const noAttr = succeed(false);
+      return Promise.resolve(noAttr);
+    },
+    /**
+     * No navigation in mock — always false.
+     * @returns Succeed(false).
+     */
+    waitForURL: () => {
+      const noNav = succeed(false);
+      return Promise.resolve(noNav);
+    },
+    /**
+     * No DOM in mock — empty hrefs.
+     * @returns Empty array.
+     */
+    collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
+    /**
+     * No cookies in mock.
+     * @returns Empty array.
+     */
+    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve([]),
+    /**
+     * No-op cookie injection in mock.
+     * @returns Resolved.
+     */
+    addCookies: (): Promise<void> => Promise.resolve(),
+    network: {
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      findEndpoints: (): readonly [] => [],
+      /**
+       * No services URL in mock.
+       * @returns False.
+       */
+      getServicesUrl: (): false => false,
+      /**
+       * No endpoints in mock.
+       * @returns Empty array.
+       */
+      getAllEndpoints: (): readonly [] => [],
+      /**
+       * No patterns discovered in mock.
+       * @returns False.
+       */
+      discoverByPatterns: (): false => false,
+      /**
+       * No SPA URL in mock.
+       * @returns False.
+       */
+      discoverSpaUrl: (): false => false,
+      /**
+       * No accounts in mock.
+       * @returns False.
+       */
+      discoverAccountsEndpoint: (): false => false,
+      /**
+       * No transactions in mock.
+       * @returns False.
+       */
+      discoverTransactionsEndpoint: (): false => false,
+      /**
+       * No balance in mock.
+       * @returns False.
+       */
+      discoverBalanceEndpoint: (): false => false,
+      /**
+       * No auth token in mock.
+       * @returns False.
+       */
+      discoverAuthToken: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No origin in mock.
+       * @returns False.
+       */
+      discoverOrigin: (): false => false,
+      /**
+       * No site ID in mock.
+       * @returns False.
+       */
+      discoverSiteId: (): false => false,
+      /**
+       * Empty headers in mock.
+       * @returns Default empty opts.
+       */
+      buildDiscoveredHeaders: (): Promise<{ extraHeaders: Record<string, string> }> =>
+        Promise.resolve({ extraHeaders: {} }),
+      /**
+       * No transaction URL in mock.
+       * @returns False.
+       */
+      buildTransactionUrl: (): false => false,
+      /**
+       * No balance URL in mock.
+       * @returns False.
+       */
+      buildBalanceUrl: (): false => false,
+      /**
+       * No traffic in mock.
+       * @returns False.
+       */
+      waitForTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No txn traffic wait in mock.
+       * @returns False.
+       */
+      waitForTransactionsTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No auth cache in mock.
+       * @returns False.
+       */
+      cacheAuthToken: (): Promise<false> => Promise.resolve(false),
+      /**
+       * No API origin in mock.
+       * @returns False.
+       */
+      discoverApiOrigin: (): false => false,
+      /**
+       * No content match in mock.
+       * @returns False.
+       */
+      discoverEndpointByContent: (): false => false,
+      /**
+       * No proxy endpoint in mock.
+       * @returns False.
+       */
+      discoverProxyEndpoint: (): false => false,
+    },
   };
   return { ...base, ...overrides };
 }
@@ -421,7 +658,7 @@ export function makeContextWithLogin(frame: Page = makeMockFullPage()): IPipelin
   const base = makeContextWithBrowser(frame);
   const loginState = makeMockLoginState(frame);
   const loginSome = some(loginState);
-  return { ...base, login: loginSome };
+  return { ...base, login: loginSome, loginAreaReady: true };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { type Frame, type Page } from 'playwright-core';
+import { type Frame } from 'playwright-core';
 
 jest.unstable_mockModule(
   '../../Common/Waiting.js',
@@ -110,7 +110,7 @@ describe('clickButton — return value', () => {
 describe('clickLink — return value', () => {
   it('resolves to true after clicking link', async () => {
     const page = createMockPage();
-    const isClicked = await CLICK_LINK(page as unknown as Page, 'a.next');
+    const isClicked = await CLICK_LINK(page, 'a.next');
     expect(isClicked).toBe(true);
   });
 });
@@ -154,7 +154,7 @@ describe('pageEvalAll — readyState wait', () => {
 describe('dropdownSelect — return value', () => {
   it('resolves to true after selecting option', async () => {
     const page = createMockPage();
-    const isSelected = await DROPDOWN_SELECT(page as unknown as Page, '#sel', 'opt1');
+    const isSelected = await DROPDOWN_SELECT(page, '#sel', 'opt1');
     expect(isSelected).toBe(true);
   });
 });
@@ -163,7 +163,7 @@ describe('dropdownElements — empty dropdown', () => {
   it('returns empty array when no options exist', async () => {
     const page = createMockPage();
     page.evaluate.mockResolvedValue([]);
-    const options = await DROPDOWN_ELEMENTS(page as unknown as Page, '#empty-select');
+    const options = await DROPDOWN_ELEMENTS(page, '#empty-select');
     expect(options).toEqual([]);
   });
 });

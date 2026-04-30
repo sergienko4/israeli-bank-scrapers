@@ -6,4 +6,5 @@ function inner(): number {
   return 1;
 }
 const result = outer(inner());
+
 export { result };

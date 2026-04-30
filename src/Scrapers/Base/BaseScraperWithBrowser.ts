@@ -173,7 +173,11 @@ class BaseScraperWithBrowser<
   public async login(credentials: ScraperCredentials): Promise<IScraperScrapingResult> {
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
-    const { loginSetup } = SCRAPER_CONFIGURATION.banks[this.options.companyId];
+    // Legacy path — never reached for pipeline-only banks (see Registry/Factory.ts).
+    type LegacyBanks = typeof SCRAPER_CONFIGURATION.banks;
+    type LegacyBankKey = keyof LegacyBanks;
+    const bank = SCRAPER_CONFIGURATION.banks[this.options.companyId as LegacyBankKey];
+    const { loginSetup } = bank;
     const ctx: ILoginContext = {
       page: this.page,
       activeFrame: this.page,

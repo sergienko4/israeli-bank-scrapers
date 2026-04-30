@@ -5,8 +5,8 @@
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { executeScrape } from '../../../../../Scrapers/Pipeline/Phases/ScrapeExecutor.js';
-import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/FetchStrategy.js';
+import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import { executeScrape } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
@@ -16,6 +16,11 @@ import {
   makeMockScrapeConfig,
   MOCK_RAW_ACCOUNT,
 } from '../MockPipelineFactories.js';
+
+/** URL path for API requests. */
+type ApiPath = string;
+/** Monetary balance amount. */
+type BalanceAmount = number;
 
 /**
  * Create a context with the given fetch strategy.
@@ -59,7 +64,7 @@ describe('ScrapeExecutor/POST-transactions', () => {
          * @param accountId - Account identifier.
          * @returns Request with path and postData.
          */
-        buildRequest: (accountId: string): { path: string; postData: Record<string, string> } => ({
+        buildRequest: (accountId: string): { path: ApiPath; postData: Record<string, string> } => ({
           path: `/api/txns/${accountId}`,
           postData: { id: accountId },
         }),
@@ -128,7 +133,7 @@ describe('ScrapeExecutor/balanceExtractor', () => {
        * Extract balance from txn response.
        * @returns Fixed balance for testing.
        */
-      balanceExtractor: (): number => 9999,
+      balanceExtractor: (): BalanceAmount => 9999,
     };
     const ctx = MAKE_CTX(strategy);
     const result = await executeScrape(ctx, config);
@@ -146,7 +151,7 @@ describe('ScrapeExecutor/balanceExtractor', () => {
        * Extract balance — throws to test fallback path.
        * @returns Never — always throws.
        */
-      balanceExtractor: (): number => {
+      balanceExtractor: (): BalanceAmount => {
         throw new ScraperError('extractor crash');
       },
     };

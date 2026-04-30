@@ -1,4 +1,4 @@
-import { createElementMediator } from '../../../../Scrapers/Pipeline/Mediator/CreateElementMediator.js';
+import { createElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { makeMockPage } from './MockFactories.js';
 
 describe('createElementMediator', () => {

@@ -1,7 +1,13 @@
 import { jest } from '@jest/globals';
 
 import { CompanyTypes, createScraper } from '../../index.js';
-import { assertFailedLogin, BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import {
+  INVALID_CREDS_ID_PASSWORD,
+  INVALID_CREDS_ONEZERO,
+  INVALID_CREDS_USERNAME_PASSWORD,
+  INVALID_CREDS_YAHAV,
+} from '../TestConstants.js';
+import { assertFailedLogin, BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 
 beforeAll(() => {
   jest.setTimeout(SCRAPE_TIMEOUT);
@@ -11,15 +17,11 @@ describe('E2E: Yahav (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Yahav,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({
-      username: 'INVALID_USER',
-      nationalID: '000000000',
-      password: 'invalid123',
-    });
+    const result = await scraper.scrape(INVALID_CREDS_YAHAV);
     assertFailedLogin(result);
   });
 });
@@ -28,11 +30,11 @@ describe('E2E: Beyahad Bishvilha (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.BeyahadBishvilha,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ id: '000000000', password: 'invalid123' });
+    const result = await scraper.scrape(INVALID_CREDS_ID_PASSWORD);
     assertFailedLogin(result);
   });
 });
@@ -41,11 +43,11 @@ describe('E2E: Behatsdaa (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Behatsdaa,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ id: '000000000', password: 'invalid123' });
+    const result = await scraper.scrape(INVALID_CREDS_ID_PASSWORD);
     assertFailedLogin(result);
   });
 });
@@ -54,11 +56,11 @@ describe('E2E: Pagi (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Pagi,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
+    const result = await scraper.scrape(INVALID_CREDS_USERNAME_PASSWORD);
     assertFailedLogin(result);
   });
 });
@@ -67,15 +69,11 @@ describe('E2E: One Zero (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.OneZero,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({
-      email: 'invalid@example.com',
-      password: 'invalid123',
-      otpLongTermToken: 'invalid-token',
-    });
+    const result = await scraper.scrape(INVALID_CREDS_ONEZERO);
     assertFailedLogin(result);
   });
 });

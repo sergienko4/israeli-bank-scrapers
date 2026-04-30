@@ -7,7 +7,8 @@ import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { INVALID_CREDS_HAPOALIM } from '../TestConstants.js';
+import { BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 import {
   injectFormByInput,
   selectorErrorFor,
@@ -74,16 +75,13 @@ describe('E2E: Selector fallback — Hapoalim', () => {
     const result = await new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Hapoalim,
-        startDate: new Date(),
+        startDate: defaultStartDate(),
         shouldShowBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       BASE_CFG,
-    ).scrape({ userCode: 'INVALID_USER', password: 'FallbackTestHPO' } as {
-      userCode: string;
-      password: string;
-    });
+    ).scrape(INVALID_CREDS_HAPOALIM);
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     // result.success=true is also valid: stub fetchData returns success when login works.
     if (!result.success) {
@@ -117,16 +115,13 @@ describe('E2E: Selector fallback — Hapoalim', () => {
     const result = await new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Hapoalim,
-        startDate: new Date(),
+        startDate: defaultStartDate(),
         shouldShowBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       iframeCfg,
-    ).scrape({ userCode: 'INVALID_USER', password: 'IframeTestHPO' } as {
-      userCode: string;
-      password: string;
-    });
+    ).scrape(INVALID_CREDS_HAPOALIM);
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

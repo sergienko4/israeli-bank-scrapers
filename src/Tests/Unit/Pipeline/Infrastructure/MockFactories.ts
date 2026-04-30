@@ -5,17 +5,19 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../../../Common/Debug.js';
 import type { CompanyTypes } from '../../../../Definitions.js';
 import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/PipelineDescriptor.js';
+import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import type { IBankScraperConfig } from '../../../../Scrapers/Registry/Config/ScraperConfig.js';
 
 /** Default company ID for test mocks. */
 const TEST_COMPANY_ID = 'testBank';
@@ -38,7 +40,7 @@ function makeMockOptions(overrides: Partial<ScraperOptions> = {}): ScraperOption
  * @returns A ScraperCredentials object for testing.
  */
 function makeMockCredentials(): ScraperCredentials {
-  return { username: 'testuser', password: 'testpass' } as ScraperCredentials;
+  return { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' };
 }
 
 /**
@@ -63,6 +65,21 @@ function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
       currentUrl = newUrl;
       return Promise.resolve(currentUrl);
     },
+    /**
+     * No-op event listener for network discovery.
+     * @returns Self for chaining.
+     */
+    on: (): Page => ({}) as unknown as Page,
+    /**
+     * Mock waitForResponse — never resolves (fire-and-forget).
+     * @returns Never-resolving promise.
+     */
+    waitForResponse: (): Promise<false> => Promise.race([]),
+    /**
+     * Mock frames — no iframes in test.
+     * @returns Empty array.
+     */
+    frames: (): Page[] => [],
   } as unknown as Page;
 }
 
@@ -76,7 +93,33 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
     companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
-    logger: {} as unknown as ScraperLogger,
+    logger: {
+      /**
+       * No-op debug.
+       * @returns True.
+       */
+      debug: (): boolean => true,
+      /**
+       * No-op trace.
+       * @returns True.
+       */
+      trace: (): boolean => true,
+      /**
+       * No-op info.
+       * @returns True.
+       */
+      info: (): boolean => true,
+      /**
+       * No-op warn.
+       * @returns True.
+       */
+      warn: (): boolean => true,
+      /**
+       * No-op error.
+       * @returns True.
+       */
+      error: (): boolean => true,
+    } as unknown as ScraperLogger,
     diagnostics: {
       loginUrl: '',
       finalUrl: none(),
@@ -86,13 +129,21 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       pageTitle: none(),
       warnings: [],
     },
-    config: {} as unknown as IBankScraperConfig,
+    config: {
+      urls: { base: 'https://test.bank' },
+    },
     fetchStrategy: none(),
     mediator: none(),
+    apiMediator: none(),
     browser: none(),
     login: none(),
     dashboard: none(),
     scrape: none(),
+    api: none(),
+    loginAreaReady: false,
+    preLoginDiscovery: none(),
+    loginFieldDiscovery: none(),
+    scrapeDiscovery: none(),
   };
   return { ...defaults, ...overrides };
 }
@@ -105,7 +156,11 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
 function makeMockDescriptor(
   options: ScraperOptions = makeMockOptions(),
 ): Procedure<IPipelineDescriptor> {
-  const descriptor: IPipelineDescriptor = { options, phases: [] };
+  const descriptor: IPipelineDescriptor = {
+    options,
+    phases: [],
+    interceptors: [],
+  };
   return succeed(descriptor);
 }
 
@@ -141,11 +196,12 @@ const MOCK_NATIVE_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineCo
 
 /**
  * Stub scrape function.
- * @param ctx - Pipeline context.
+ * @param ctx - Action context.
  * @returns Resolved succeed procedure.
  */
-const MOCK_SCRAPE = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
+const MOCK_SCRAPE = (ctx: IActionContext): Promise<Procedure<IPipelineContext>> => {
+  const full = ctx as unknown as IPipelineContext;
+  const result = succeed(full);
   return Promise.resolve(result);
 };
 

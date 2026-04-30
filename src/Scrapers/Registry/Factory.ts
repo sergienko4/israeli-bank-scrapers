@@ -1,8 +1,8 @@
 import { type CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
-import { PIPELINE_REGISTRY } from '../Pipeline/PipelineRegistry.js';
-import { PipelineScraper } from '../Pipeline/PipelineScraper.js';
+import { PIPELINE_REGISTRY } from '../Pipeline/Core/PipelineRegistry.js';
+import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
 import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
   type ScraperFactory,
 } from './ScraperRegistryAmexToIsracard.js';
@@ -27,7 +27,8 @@ function tryPipeline(options: ScraperOptions): IScraper<ScraperCredentials> | fa
 
 /**
  * Create a scraper instance for the given company.
- * Routes to Pipeline if usePipeline is true and bank is migrated.
+ * Pipeline-first: if the bank is in PIPELINE_REGISTRY, returns a PipelineScraper
+ * regardless of the usePipeline flag. Falls back to the legacy registry otherwise.
  * @param options - Scraper configuration including company ID and credentials.
  * @returns A scraper instance ready to scrape transactions.
  */

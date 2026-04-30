@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
@@ -82,7 +83,7 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { username: 'testuser', password: 'testpass' };
+const CREDS = { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' };
 
 /**
  * Creates a mock Leumi API response with optional data overrides.

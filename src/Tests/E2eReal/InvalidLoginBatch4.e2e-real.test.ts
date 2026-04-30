@@ -1,7 +1,12 @@
 import { jest } from '@jest/globals';
 
 import { CompanyTypes, createScraper } from '../../index.js';
-import { assertFailedLogin, BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import {
+  INVALID_CREDS_DISCOUNT,
+  INVALID_CREDS_ISRACARD_AMEX,
+  INVALID_CREDS_USERNAME_PASSWORD,
+} from '../TestConstants.js';
+import { assertFailedLogin, BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 
 beforeAll(() => {
   jest.setTimeout(SCRAPE_TIMEOUT);
@@ -11,16 +16,12 @@ describe('E2E: Amex (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
       defaultTimeout: 60000,
     });
-    const result = await scraper.scrape({
-      id: '000000000',
-      card6Digits: '000000',
-      password: 'InvalidPass1',
-    });
+    const result = await scraper.scrape(INVALID_CREDS_ISRACARD_AMEX);
     assertFailedLogin(result);
   });
 });
@@ -29,11 +30,11 @@ describe('E2E: VisaCal (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.VisaCal,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
+    const result = await scraper.scrape(INVALID_CREDS_USERNAME_PASSWORD);
     assertFailedLogin(result);
   });
 });
@@ -42,11 +43,11 @@ describe('E2E: Discount (invalid login)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ id: '000000000', password: 'invalid123', num: '000000' });
+    const result = await scraper.scrape(INVALID_CREDS_DISCOUNT);
     assertFailedLogin(result);
   });
 });

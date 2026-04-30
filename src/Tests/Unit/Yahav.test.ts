@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+
 jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
@@ -100,7 +101,11 @@ const MOCK_BROWSER = {
   close: jest.fn().mockResolvedValue(undefined),
 };
 
-const CREDS = { username: 'testuser', password: 'testpass', nationalID: '123456789' };
+const CREDS = {
+  username: 'fixt-m-yhv-3e4f',
+  password: 'fixt-m-yhv-7c8d',
+  nationalID: 'fixt-m-yhv-1a2b',
+};
 
 /**
  * Build the first-element stub for a Yahav locator.

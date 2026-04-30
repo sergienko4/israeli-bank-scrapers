@@ -2,4 +2,5 @@
 function crasher(): boolean {
   throw new Error('should use fail()');
 }
+
 export { crasher };
