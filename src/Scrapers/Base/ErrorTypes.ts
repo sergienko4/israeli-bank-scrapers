@@ -5,6 +5,7 @@ enum ScraperErrorTypes {
   InvalidPassword = 'INVALID_PASSWORD',
   ChangePassword = 'CHANGE_PASSWORD',
   Timeout = 'TIMEOUT',
+  NetworkError = 'NETWORK_ERROR',
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
   /**

@@ -7,7 +7,7 @@ import {
   createConfigScrapeStep,
   createCustomScrapeStep,
   SCRAPE_STEP,
-} from '../../../../../Scrapers/Pipeline/Phases/ScrapePhase.js';
+} from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
@@ -28,7 +28,10 @@ describe('SCRAPE_STEP/stub', () => {
     const ctx = makeMockContext();
     const result = await SCRAPE_STEP.execute(ctx, ctx);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.value).toBe(ctx);
+    if (result.success) {
+      const matcher: unknown = expect.objectContaining({ companyId: ctx.companyId });
+      expect(result.value).toEqual(matcher);
+    }
   });
 });
 

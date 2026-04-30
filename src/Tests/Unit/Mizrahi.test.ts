@@ -69,7 +69,7 @@ const MOCK_BROWSER = {
   newContext: jest.fn().mockResolvedValue(MOCK_CTX),
   close: jest.fn().mockResolvedValue(undefined),
 };
-const CREDS = { username: 'testuser', password: 'testpass' };
+const CREDS = { username: 'fixt-u-7c2f3e9a', password: 'fixt-p-9b41ad2e' };
 
 /**
  * Creates a Mizrahi mock page using the shared fixture.

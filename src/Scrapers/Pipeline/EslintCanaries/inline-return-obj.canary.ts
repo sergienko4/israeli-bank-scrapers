@@ -2,4 +2,5 @@
 function badReturn(): { success: boolean } {
   return { success: true };
 }
+
 export { badReturn };

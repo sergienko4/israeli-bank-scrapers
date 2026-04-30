@@ -8,7 +8,7 @@
 
 import type { Page } from 'playwright-core';
 
-import { discoverFormErrors } from '../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
+import { discoverFormErrors } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
 // ── DOM item shapes ────────────────────────────────────────
 

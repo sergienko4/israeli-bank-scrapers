@@ -1,5 +1,14 @@
 import { CompanyTypes } from '../../Definitions.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import {
+  INVALID_CREDS_DISCOUNT,
+  INVALID_CREDS_HAPOALIM,
+  INVALID_CREDS_ID_PASSWORD,
+  INVALID_CREDS_ISRACARD_AMEX,
+  INVALID_CREDS_ONEZERO,
+  INVALID_CREDS_USERNAME_PASSWORD,
+  INVALID_CREDS_YAHAV,
+} from '../TestConstants.js';
 
 /** Per-bank invalid credential configuration for smoke tests. */
 export interface IBankSmokeConfig {
@@ -9,18 +18,10 @@ export interface IBankSmokeConfig {
   readonly defaultTimeout?: number;
 }
 
-/** Invalid credentials for username+password banks. */
-const USER_PASS: ScraperCredentials = { username: 'INVALID_USER', password: 'invalid123' };
-
-/** Invalid credentials for ID+password+num banks. */
-const ID_PASS_NUM: ScraperCredentials = { id: '000000000', password: 'invalid123', num: '000000' };
-
-/** Invalid credentials for ID+card6+password banks (Isracard/Amex). */
-const ID_CARD_PASS: ScraperCredentials = {
-  id: '000000000',
-  card6Digits: '000000',
-  password: 'InvalidPass1',
-};
+/** Local re-export for clarity in the SMOKE_BANKS list. */
+const USER_PASS: ScraperCredentials = INVALID_CREDS_USERNAME_PASSWORD;
+const ID_PASS_NUM: ScraperCredentials = INVALID_CREDS_DISCOUNT;
+const ID_CARD_PASS: ScraperCredentials = INVALID_CREDS_ISRACARD_AMEX;
 
 /**
  * All banks with invalid credentials for smoke testing.
@@ -30,7 +31,7 @@ export const SMOKE_BANKS: readonly IBankSmokeConfig[] = [
   {
     companyId: CompanyTypes.Hapoalim,
     displayName: 'Hapoalim',
-    credentials: { userCode: 'INVALID_USER', password: 'invalid123' },
+    credentials: INVALID_CREDS_HAPOALIM,
   },
   { companyId: CompanyTypes.Leumi, displayName: 'Leumi', credentials: USER_PASS },
   { companyId: CompanyTypes.Mizrahi, displayName: 'Mizrahi', credentials: USER_PASS },
@@ -51,26 +52,22 @@ export const SMOKE_BANKS: readonly IBankSmokeConfig[] = [
   {
     companyId: CompanyTypes.Yahav,
     displayName: 'Yahav',
-    credentials: { username: 'INVALID_USER', nationalID: '000000000', password: 'invalid123' },
+    credentials: INVALID_CREDS_YAHAV,
   },
   {
     companyId: CompanyTypes.BeyahadBishvilha,
     displayName: 'Beyahad Bishvilha',
-    credentials: { id: '000000000', password: 'invalid123' },
+    credentials: INVALID_CREDS_ID_PASSWORD,
   },
   {
     companyId: CompanyTypes.Behatsdaa,
     displayName: 'Behatsdaa',
-    credentials: { id: '000000000', password: 'invalid123' },
+    credentials: INVALID_CREDS_ID_PASSWORD,
   },
   { companyId: CompanyTypes.Pagi, displayName: 'Pagi', credentials: USER_PASS },
   {
     companyId: CompanyTypes.OneZero,
     displayName: 'OneZero',
-    credentials: {
-      email: 'invalid@example.com',
-      password: 'invalid123',
-      otpLongTermToken: 'invalid-token',
-    },
+    credentials: INVALID_CREDS_ONEZERO,
   },
 ] as const;

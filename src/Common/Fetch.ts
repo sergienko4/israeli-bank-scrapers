@@ -192,12 +192,13 @@ export async function fetchGraphql<TResult>(
   return result.data;
 }
 
-// ── Within-page fetch (runs inside Playwright page.evaluate) ──
+// ── Within-page fetch (via page.evaluate — SPA pivot ensures correct origin) ──
 
 /**
- * Evaluate a GET request inside the page context.
+ * GET request inside the browser context (cookies + CORS handled by browser).
+ * The SPA pivot in ScrapePhase.PRE ensures the page is on the correct origin.
  * @param page - The Playwright page with an active session.
- * @param url - The URL to fetch within the page.
+ * @param url - The URL to fetch.
  * @returns A tuple of [responseBody, httpStatus].
  */
 async function evaluateGet(page: Page, url: string): Promise<readonly [string, number]> {
@@ -206,6 +207,28 @@ async function evaluateGet(page: Page, url: string): Promise<readonly [string, n
     if (response.status === 204) return ['', response.status] as const;
     return [await response.text(), response.status] as const;
   }, url);
+}
+
+/**
+ * GET request with custom headers inside the browser context.
+ * @param page - The Playwright page.
+ * @param url - The URL to fetch.
+ * @param headers - Extra headers to include.
+ * @returns [responseText, statusCode].
+ */
+async function evaluateGetWithHeaders(
+  page: Page,
+  url: string,
+  headers: Record<string, string>,
+): Promise<readonly [string, number]> {
+  return page.evaluate(
+    async (args: { url: string; headers: Record<string, string> }) => {
+      const response = await fetch(args.url, { credentials: 'include', headers: args.headers });
+      if (response.status === 204) return ['', response.status] as const;
+      return [await response.text(), response.status] as const;
+    },
+    { url, headers },
+  );
 }
 
 /** Options for parsing a GET-within-page response. */
@@ -258,6 +281,26 @@ export async function fetchGetWithinPage<TResult>(
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult;
 }
 
+/**
+ * GET via browser page session with custom headers.
+ * @param page - Playwright page.
+ * @param url - Target URL.
+ * @param extraHeaders - Custom headers to include.
+ * @returns Parsed JSON result or null.
+ */
+export async function fetchGetWithinPageWithHeaders<TResult>(
+  page: Page,
+  url: string,
+  extraHeaders: Record<string, string>,
+): Promise<Nullable<TResult>> {
+  const startMs = Date.now();
+  const [result, status] = await evaluateGetWithHeaders(page, url, extraHeaders);
+  const elapsed = Date.now() - startMs;
+  logApiCall(`GET(page) ${url.slice(-100)}`, status, elapsed);
+  logResponseIssues(status, result, url);
+  return parseGetResult({ result, status, url, shouldIgnoreErrors: false }) as TResult;
+}
+
 /** Options for fetchPostWithinPage. */
 export interface IFetchPostOptions {
   data: Record<string, JsonValue> | readonly JsonValue[];
@@ -265,7 +308,7 @@ export interface IFetchPostOptions {
   shouldIgnoreErrors?: boolean;
 }
 
-/** Arguments passed into page.evaluate for POST requests. */
+/** Arguments for POST requests via Playwright's API client. */
 interface IPostEvaluateArgs {
   innerUrl: string;
   innerDataJson: string;
@@ -273,19 +316,18 @@ interface IPostEvaluateArgs {
 }
 
 /**
- * Execute the POST fetch call inside the browser context.
- * @param args - The URL, data, and extra headers for the POST request.
- * @returns A tuple of [responseBody, httpStatus].
+ * POST fetch inside the browser context (cookies + CORS handled by browser).
+ * @param args - The URL, data, and extra headers.
+ * @returns [responseText, statusCode].
  */
 async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, number]> {
-  const { innerUrl, innerDataJson, innerExtraHeaders } = args;
-  const response = await fetch(innerUrl, {
+  const response = await fetch(args.innerUrl, {
     method: 'POST',
-    body: innerDataJson,
+    body: args.innerDataJson,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      ...innerExtraHeaders,
+      ...args.innerExtraHeaders,
     },
   });
   if (response.status === 204) return ['', 204] as const;
@@ -293,7 +335,8 @@ async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, n
 }
 
 /**
- * Run the POST evaluate call on the page.
+ * POST request via page.evaluate — runs inside the browser context.
+ * The SPA pivot in ScrapePhase.PRE ensures the page is on the correct origin.
  * @param page - The Playwright page to execute the fetch in.
  * @param args - The URL, data, and extra headers.
  * @returns A tuple of [responseBody, httpStatus].

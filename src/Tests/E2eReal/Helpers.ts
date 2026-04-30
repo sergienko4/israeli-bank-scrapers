@@ -53,14 +53,19 @@ export function assertFailedLogin(result: IScraperScrapingResult): boolean {
 }
 
 /**
- * Returns a Date representing the start of last month.
- * @returns Date for the first day of the previous month
+ * Default look-back window for E2E happy-path scrapes.
+ * 180 days covers most card billing cycles and gives enough history
+ * to validate transactions even when the current cycle is still open.
  */
-export function lastMonthStartDate(): Date {
-  const startDate = new Date();
-  startDate.setDate(1);
-  startDate.setMonth(startDate.getMonth() - 1);
-  return startDate;
+const DEFAULT_HAPPY_PATH_DAYS = 180;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Returns the default start date for happy-path E2E scrapes (180 days back).
+ * @returns Date 180 days before now
+ */
+export function defaultStartDate(): Date {
+  return new Date(Date.now() - DEFAULT_HAPPY_PATH_DAYS * MS_PER_DAY);
 }
 
 /**

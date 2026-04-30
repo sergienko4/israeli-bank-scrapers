@@ -1,11 +1,10 @@
-import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
+import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
   MOCK_DIRECT_LOGIN,
   MOCK_LOGIN_CONFIG,
   MOCK_NATIVE_LOGIN,
-  MOCK_OTP_CONFIG,
   MOCK_SCRAPE,
 } from './MockFactories.js';
 
@@ -128,15 +127,15 @@ describe('PipelineBuilder/mutual-exclusion', () => {
 });
 
 describe('PipelineBuilder/optional-phases', () => {
-  it('withOtp returns this', () => {
+  it('withLoginAndOptCodeFill returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withOtp(MOCK_OTP_CONFIG);
+    const returned = builder.withLoginAndOptCodeFill();
     expect(returned).toBe(builder);
   });
 
-  it('withDashboard returns this', () => {
+  it('withLoginAndOtpTrigger returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withDashboard();
+    const returned = builder.withLoginAndOtpTrigger();
     expect(returned).toBe(builder);
   });
 
@@ -153,8 +152,8 @@ describe('PipelineBuilder/full-config', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
+      .withLoginAndOtpTrigger()
+      .withLoginAndOptCodeFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -167,8 +166,8 @@ describe('PipelineBuilder/full-config', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
+      .withLoginAndOtpTrigger()
+      .withLoginAndOptCodeFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);

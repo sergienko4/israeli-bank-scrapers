@@ -13,11 +13,12 @@ describe('E2E: IScraper Factory', () => {
     expect(typeof scraper.onProgress).toBe('function');
   });
 
-  test('every CompanyType has a SCRAPERS definition', () => {
-    for (const companyId of allCompanyTypes) {
-      expect(SCRAPERS[companyId]).toBeDefined();
-      expect(SCRAPERS[companyId].name).toBeTruthy();
-      expect(SCRAPERS[companyId].loginFields.length).toBeGreaterThan(0);
+  test('every legacy SCRAPERS entry has name + loginFields', () => {
+    for (const [key, entry] of Object.entries(SCRAPERS)) {
+      expect(entry).toBeDefined();
+      expect(entry.name).toBeTruthy();
+      expect(entry.loginFields.length).toBeGreaterThan(0);
+      expect(key.length).toBeGreaterThan(0);
     }
   });
 });

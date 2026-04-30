@@ -29,15 +29,21 @@
     "clean": "rimraf lib",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eSmoke --testPathIgnorePatterns=E2eFull",
-    "test:pipeline": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --collectCoverageFrom='Scrapers/Pipeline/**/*.ts' --testPathIgnorePatterns='E2eReal/' --testPathIgnorePatterns='E2eMocked/' --testPathIgnorePatterns='E2eSmoke/' --testPathIgnorePatterns='E2eFull/'",
+    "test:pipeline": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --ci --coverage --testPathIgnorePatterns=E2eReal/ --testPathIgnorePatterns=E2eMocked/ --testPathIgnorePatterns=E2eSmoke/ --testPathIgnorePatterns=E2eFull/ --testPathIgnorePatterns=E2e.test",
     "test:e2e:mock": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked",
     "test:e2e:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eSmoke --forceExit",
     "test:e2e:full": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eFull --forceExit",
     "test:e2e:real": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
+    "test:snapshot": "cross-env DUMP_SNAPSHOTS=1 npx tsx scripts/run-mock-suite.ts",
+    "test:mock": "cross-env MOCK_MODE=1 npx tsx scripts/run-mock-suite.ts",
+    "test:full": "npm run test:mock && npm run test:unit",
+    "capture:invalid-login": "npx tsx src/Tests/E2eReal/tools/CaptureInvalidLogin.ts",
+    "test:gate": "npm run test:mock && npm run test:unit",
+    "log:view": "npx tsx scripts/log-view.ts",
     "test:ci": "ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs && node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage",
     "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "check-exports": "publint",
-    "lint": "eslint src --max-warnings 0 && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
+    "lint": "eslint src --max-warnings 0 && npm run lint:architecture src/Scrapers/Pipeline && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
     "lint:biome": "biome lint src --max-diagnostics=50",
     "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
@@ -50,7 +56,8 @@
     "prepare:default": "git reset --hard && npm ci && npm run build",
     "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
     "reset": "git reset --hard && npm ci",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts"
   },
   "repository": {
     "type": "git",
@@ -92,6 +99,7 @@
     "eslint-plugin-check-file": "^3.3.1",
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-jsdoc": "^62.7.1",
+    "eslint-plugin-regexp": "^3.1.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
     "fast-check": "^4.5.3",
@@ -111,6 +119,7 @@
     "source-map-support": "^0.5.21",
     "ts-jest": "^29.4.6",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typedoc": "^0.28.17",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1"
@@ -134,6 +143,11 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "src/Scrapers/Pipeline/**/*.{ts,tsx}": [
+      "npx tsx src/Tests/Tools/lint-and-validate.ts",
       "eslint --fix --max-warnings 0",
       "prettier --write"
     ],

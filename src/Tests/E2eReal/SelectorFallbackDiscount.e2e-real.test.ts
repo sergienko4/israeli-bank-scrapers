@@ -8,7 +8,8 @@ import { waitForNavigation } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { INVALID_CREDS_DISCOUNT } from '../TestConstants.js';
+import { BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 import {
   injectFormByInput,
   selectorErrorFor,
@@ -99,13 +100,13 @@ DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
     const result = await new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
-        startDate: new Date(),
+        startDate: defaultStartDate(),
         shouldShowBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       BASE_CFG,
-    ).scrape({ id: '000000000', password: 'FallbackTest123', num: '000000' });
+    ).scrape(INVALID_CREDS_DISCOUNT);
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });
@@ -138,13 +139,13 @@ DESCRIBE_IF('E2E: Selector fallback — Discount', () => {
     const result = await new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Discount,
-        startDate: new Date(),
+        startDate: defaultStartDate(),
         shouldShowBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       iframeCfg,
-    ).scrape({ id: '000000000', password: 'IframeRound4Test', num: '000000' });
+    ).scrape(INVALID_CREDS_DISCOUNT);
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

@@ -5,7 +5,8 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
-import { BROWSER_ARGS, SCRAPE_TIMEOUT } from './Helpers.js';
+import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
+import { BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';
 
 const ERR = selectorErrorFor('username', 'password');
@@ -69,16 +70,13 @@ describe('E2E: Selector fallback — Massad (FIBI MATAF portal)', () => {
     const result = await new ConcreteGenericScraper(
       {
         companyId: CompanyTypes.Massad,
-        startDate: new Date(),
+        startDate: defaultStartDate(),
         shouldShowBrowser: false,
         args: BROWSER_ARGS,
         defaultTimeout: 60000,
       },
       BASE_CFG,
-    ).scrape({ username: 'INVALID_USER', password: 'FallbackTestMSD' } as {
-      username: string;
-      password: string;
-    });
+    ).scrape(INVALID_CREDS_USERNAME_PASSWORD);
     expect(result.errorMessage ?? '').not.toMatch(ERR);
     expect(VALID_REACHED_BANK).toContain(result.errorType);
   });

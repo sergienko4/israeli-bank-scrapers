@@ -2,4 +2,5 @@
 function doNothing(): void {
   console.log('side effect');
 }
+
 export { doNothing };

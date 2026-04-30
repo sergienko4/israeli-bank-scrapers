@@ -2,11 +2,12 @@ import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
+import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
   BROWSER_ARGS,
-  lastMonthStartDate,
+  defaultStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
@@ -24,7 +25,7 @@ DESCRIBE_IF('E2E: Max (real credentials)', () => {
   it('scrapes transactions successfully', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Max,
-      startDate: lastMonthStartDate(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
@@ -43,11 +44,11 @@ DESCRIBE_IF('E2E: Max (real credentials)', () => {
   it('fails with invalid credentials', async () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Max,
-      startDate: new Date(),
+      startDate: defaultStartDate(),
       shouldShowBrowser: false,
       args: BROWSER_ARGS,
     });
-    const result = await scraper.scrape({ username: 'INVALID_USER', password: 'invalid123' });
+    const result = await scraper.scrape(INVALID_CREDS_USERNAME_PASSWORD);
     assertFailedLogin(result);
   });
 });

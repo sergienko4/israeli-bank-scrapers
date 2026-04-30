@@ -10,20 +10,81 @@ const LABEL_TAGS = 'self::label or self::div or self::span';
 /** A function that checks element existence with a timeout. */
 export type QueryFn = (context: Page | Frame, css: string) => Promise<boolean>;
 
+/** Input types that accept text via Playwright .fill(). */
+const FILLABLE_INPUT_TYPES = new Set([
+  'text',
+  'password',
+  'email',
+  'tel',
+  'number',
+  'search',
+  'url',
+  '',
+]);
+
+/** Tags that are inherently clickable interactive elements. */
+const CLICKABLE_TAGS = new Set(['button', 'a', 'select']);
+
+/** Input types that are click targets, not fill targets. */
+const CLICKABLE_INPUT_TYPES = new Set(['submit', 'button', 'radio', 'checkbox']);
+
+/** ARIA roles that indicate a clickable interactive element. */
+const CLICKABLE_ROLES = new Set(['button', 'link', 'tab', 'menuitem']);
+
+/** Extracted element metadata — shared by fillable and clickable checks. */
+interface IElementMeta {
+  readonly tag: string;
+  readonly type: string;
+  readonly role: string;
+  readonly tabindex: string;
+}
+
 /**
- * Check whether a resolved element is a fillable input (not hidden/submit/button).
- * @param ctx - The Playwright Page or Frame containing the element.
- * @param selector - CSS or XPath selector for the element to check.
- * @returns True if the element is a fillable input or textarea.
+ * Extract metadata from a DOM element for classification.
+ * @param ctx - Playwright Page or Frame.
+ * @param selector - CSS or XPath selector.
+ * @returns Element metadata or false if not found.
  */
-export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
+async function extractElementMeta(
+  ctx: Page | Frame,
+  selector: string,
+): Promise<IElementMeta | false> {
   const loc = ctx.locator(selector).first();
   if ((await loc.count()) === 0) return false;
-  const tagName = await loc.evaluate((el: Element) => el.tagName.toLowerCase());
-  if (tagName === 'textarea') return true;
-  if (tagName !== 'input') return false;
-  const type = (await loc.getAttribute('type')) ?? 'text';
-  return type !== 'hidden' && type !== 'submit' && type !== 'button';
+  const tag = await loc.evaluate((el: Element) => el.tagName.toLowerCase());
+  const type = (await loc.getAttribute('type')) ?? '';
+  const role = (await loc.getAttribute('role')) ?? '';
+  const tabindex = (await loc.getAttribute('tabindex')) ?? '';
+  return { tag, type, role, tabindex };
+}
+
+/**
+ * Check whether a resolved element is a fillable input (text, password, etc.).
+ * @param ctx - The Playwright Page or Frame containing the element.
+ * @param selector - CSS or XPath selector for the element to check.
+ * @returns True if the element accepts text input via .fill().
+ */
+export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
+  const meta = await extractElementMeta(ctx, selector);
+  if (!meta) return false;
+  if (meta.tag === 'textarea') return true;
+  if (meta.tag === 'input') return FILLABLE_INPUT_TYPES.has(meta.type);
+  return false;
+}
+
+/**
+ * Check whether a resolved element is a clickable interactive element.
+ * @param ctx - The Playwright Page or Frame containing the element.
+ * @param selector - CSS or XPath selector for the element to check.
+ * @returns True if the element is clickable (button, link, tab, etc.).
+ */
+export async function isClickableElement(ctx: Page | Frame, selector: string): Promise<boolean> {
+  const meta = await extractElementMeta(ctx, selector);
+  if (!meta) return false;
+  if (CLICKABLE_TAGS.has(meta.tag)) return true;
+  if (meta.tag === 'input') return CLICKABLE_INPUT_TYPES.has(meta.type);
+  if (CLICKABLE_ROLES.has(meta.role)) return true;
+  return meta.tabindex !== '';
 }
 
 /**
@@ -41,6 +102,11 @@ export async function findInputByForAttr(
   const inputSelector = `#${forAttr}`;
   if ((await ctx.locator(inputSelector).count()) === 0) {
     LOG.debug('labelText "%s" for="%s" but #%s not found', labelValue, forAttr, forAttr);
+    return '';
+  }
+  const isFillable = await isFillableInput(ctx, inputSelector);
+  if (!isFillable) {
+    LOG.debug('labelText "%s" for="%s" → #%s NOT FILLABLE', labelValue, forAttr, forAttr);
     return '';
   }
   LOG.debug('resolved labelText "%s" → for="%s" → %s', labelValue, forAttr, inputSelector);
@@ -61,7 +127,7 @@ interface IXpathStrategyOpts {
  */
 export async function resolveByNestedInput(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}//input[1]`;
+  const xpath = `${baseXpath}//input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
@@ -110,7 +176,7 @@ export async function resolveByAriaRef(opts: IAriaRefOpts): Promise<string> {
  */
 export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}/following-sibling::input[1]`;
+  const xpath = `${baseXpath}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
@@ -126,7 +192,7 @@ export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string
  */
 export async function resolveByProximity(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
-  const xpath = `${baseXpath}/..//input[1]`;
+  const xpath = `${baseXpath}/..//input[${NON_FILLABLE_FILTER}][1]`;
   const isFound = await queryFn(ctx, xpath);
   if (!isFound) return '';
   const isFillable = await isFillableInput(ctx, xpath);
@@ -162,8 +228,9 @@ export async function resolveLabelStrategies(opts: ILabelStrategyOpts): Promise<
   return resolveByProximity({ ctx, baseXpath, queryFn });
 }
 
-/** XPath filter to exclude hidden, submit, and button inputs. */
-const NON_FILLABLE_FILTER = 'not(@type="hidden") and not(@type="submit") and not(@type="button")';
+/** XPath filter to exclude non-fillable input types (hidden, submit, button, radio, checkbox). */
+const NON_FILLABLE_FILTER =
+  'not(@type="hidden") and not(@type="submit") and not(@type="button") and not(@type="radio") and not(@type="checkbox")';
 
 /** Interactive ancestor tags that a text node can walk up to. */
 const INTERACTIVE_ANCESTORS = ['button', 'a', 'select'] as const;

@@ -2,11 +2,11 @@ import { jest } from '@jest/globals';
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import { PipelineScraper } from '../../../../Scrapers/Pipeline/PipelineScraper.js';
+import { PipelineScraper } from '../../../../Scrapers/Pipeline/Core/PipelineScraper.js';
 import { fail } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 
-const MOCK_OPTIONS = makeMockOptions({ companyId: 'testBank' as unknown as CompanyTypes });
+const MOCK_OPTIONS = makeMockOptions({ companyId: 'beinleumi' as CompanyTypes });
 const MOCK_CREDENTIALS = makeMockCredentials();
 
 /**
@@ -57,14 +57,14 @@ describe('PipelineScraper/onProgress', () => {
 describe('PipelineScraper/triggerTwoFactorAuth', () => {
   it('rejects with masked phone number', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.triggerTwoFactorAuth('0501234567');
-    await expect(promise).rejects.toThrow('***4567');
+    const promise = scraper.triggerTwoFactorAuth('0507164829');
+    await expect(promise).rejects.toThrow('***4829');
   });
 
   it('includes bank name in rejection', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.triggerTwoFactorAuth('0501234567');
-    await expect(promise).rejects.toThrow('testBank');
+    const promise = scraper.triggerTwoFactorAuth('0507164829');
+    await expect(promise).rejects.toThrow('beinleumi');
   });
 });
 
@@ -78,6 +78,6 @@ describe('PipelineScraper/getLongTermTwoFactorToken', () => {
   it('includes bank name in rejection', async () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
     const promise = scraper.getLongTermTwoFactorToken('1234');
-    await expect(promise).rejects.toThrow('testBank');
+    await expect(promise).rejects.toThrow('beinleumi');
   });
 });

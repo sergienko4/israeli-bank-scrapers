@@ -200,7 +200,7 @@ export function createMockBrowser(context?: IMockContext): IMockBrowser {
  */
 export function createMockScraperOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
-    companyId: CompanyTypes.Hapoalim,
+    companyId: CompanyTypes.Leumi,
     startDate: new Date('2024-01-01'),
     ...overrides,
   } as ScraperOptions;
