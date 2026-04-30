@@ -5,12 +5,7 @@ import ScraperError from '../../../Base/ScraperError.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import {
-  BODY_PREVIEW_LIMIT,
-  JSON_CONTENT_TYPE,
-  WAF_BLOCK_PATTERNS,
-  WAF_STATUS_CODES,
-} from './FetchConfig.js';
+import { JSON_CONTENT_TYPE, WAF_BLOCK_PATTERNS, WAF_STATUS_CODES } from './FetchConfig.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -80,10 +75,15 @@ function logApiCall(tag: HeaderVal, status: StatusCode, durationMs: StatusCode):
  * @returns True after logging completes.
  */
 function logResponseIssues(status: StatusCode, text: BodyStr, url: UrlStr): CheckResult {
+  // Log only the body LENGTH, not its content. Bank responses include
+  // user names, balances, account numbers, and other PII; emitting even
+  // a 100-char preview leaks `firstName` (Isracard performLogon) and
+  // similar fields. Length + status is enough to diagnose
+  // empty / truncated / WAF-redirect responses, which is all the log
+  // line is for. Same rationale in parseFetchGetResponse and fetchPost.
   if (text !== '') {
-    const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
     LOG.debug({
-      message: `response body: ${maskVisibleText(bodyPreview)}`,
+      message: `response length=${String(text.length)} status=${String(status)}`,
     });
   }
   if (status !== 200 && status !== 204) {
@@ -116,9 +116,9 @@ async function parseFetchGetResponse<TResult>(
   const urlTail = url.slice(-100);
   logApiCall(`GET ${urlTail}`, fetchResult.status, elapsed);
   const text = await fetchResult.text();
-  const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
+  // Length-only — see logResponseIssues for the PII rationale.
   LOG.debug({
-    message: `response body: ${maskVisibleText(bodyPreview)}`,
+    message: `response length=${String(text.length)} status=${String(fetchResult.status)}`,
   });
   if (fetchResult.status !== 200) {
     const statusStr = String(fetchResult.status);
@@ -177,9 +177,9 @@ export async function fetchPost<TResult>(
   const result = await fetch(url, request);
   logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
   const text = await result.text();
-  const preview = text.substring(0, BODY_PREVIEW_LIMIT);
+  // Length-only — see logResponseIssues for the PII rationale.
   LOG.debug({
-    message: `response body: ${maskVisibleText(preview)}`,
+    message: `response length=${String(text.length)} status=${String(result.status)}`,
   });
   return JSON.parse(text) as TResult;
 }

@@ -286,7 +286,14 @@ async function dumpFrameKeys(frame: Frame): Promise<string> {
     .catch((): StorageValue => 'CROSS-ORIGIN');
   const url = frame.url().slice(0, 50);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
-    LOG.trace({ url: maskVisibleText(url), keys: keys.split(', ') });
+    // Log key COUNT only, not the names. Bank apps embed account numbers
+    // and balances in key names (Hapoalim:
+    // `App_homepage_income-expend12-170-536347` carries the account in
+    // the suffix). The exact key set has zero diagnostic value here —
+    // we only care that some auth-bearing storage exists. Return value
+    // (the joined string) is consumed internally and never logged.
+    const keyCount = keys.split(', ').length;
+    LOG.trace({ url: maskVisibleText(url), keyCount });
   }
   return keys;
 }

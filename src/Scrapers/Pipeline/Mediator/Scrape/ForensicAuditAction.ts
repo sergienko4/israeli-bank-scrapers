@@ -24,8 +24,6 @@ type CurrencyCode = string;
 type TxnDescStr = string;
 /** Show last N digits of account number for identification. */
 const ACCOUNT_VISIBLE_DIGITS = 5;
-/** Max description chars in preview. */
-const DESC_PREVIEW_LENGTH = 25;
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
   readonly accountNumber: AccountNum;
@@ -57,20 +55,19 @@ function showLastDigits(acctNum: string): AccountNum {
   return `***${visible}`;
 }
 
-/**
- * Truncate description for preview.
- * @param desc - Full description.
- * @returns Truncated string.
- */
-function truncateDesc(desc: TxnDescStr): TxnDescStr {
-  if (desc.length <= DESC_PREVIEW_LENGTH) return desc;
-  return `${desc.slice(0, DESC_PREVIEW_LENGTH)}..`;
-}
+/** Sign-only mask map for monetary amounts — preserves sign without value. */
+const SIGN_MASK: Readonly<Record<string, string>> = { true: '+***', false: '-***' };
 
 /**
- * Format one transaction line for debug preview.
+ * Format one transaction line for debug preview. Amount and description
+ * are deliberately scrubbed: pino's redact only acts on JSON paths, not
+ * on string interpolation, so emitting `${amount}` or `${description}`
+ * here would leak raw monetary values and Hebrew descriptions
+ * (e.g. "משכורת" — salary) into pipeline.log. Diagnostic value of the
+ * line is the date + currency + sign — confirming the scrape returned
+ * realistic shapes without leaking the user's account activity.
  * @param txn - Transaction record.
- * @returns Formatted string: date | amount currency | description.
+ * @returns Formatted string: date | sign currency.
  */
 function formatTxnLine(txn: IAuditAccount['txns'][number]): TxnDescStr {
   const parsed = new Date(txn.date);
@@ -79,10 +76,10 @@ function formatTxnLine(txn: IAuditAccount['txns'][number]): TxnDescStr {
   const hasDate = Boolean(txn.date);
   const date = dateMap[String(hasDate)];
   const rawAmt = txn.chargedAmount ?? txn.originalAmount ?? 0;
-  const amt = String(rawAmt);
+  const isPositive = rawAmt > 0;
+  const sign = SIGN_MASK[String(isPositive)];
   const cur = txn.originalCurrency ?? 'ILS';
-  const desc = truncateDesc(txn.description ?? '');
-  return `  ${date.padEnd(12)} ${amt.padStart(10)} ${cur.padEnd(4)} ${desc}`;
+  return `  ${date.padEnd(12)} ${sign.padStart(10)} ${cur.padEnd(4)} ***`;
 }
 
 /**

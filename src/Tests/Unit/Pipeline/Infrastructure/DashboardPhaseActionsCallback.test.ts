@@ -106,6 +106,48 @@ describe('DashboardPhaseActions — $$eval callback branches', () => {
     expect(isOkResult2).toBe(false);
   });
 
+  it('redactDumpText: digit-run ≥4 in clickable text masked to ***', async () => {
+    // Account/card numbers embedded in dashboard nav labels (e.g.
+    // 'Account 12345678') must be replaced with *** so pipeline.log is
+    // safe to upload as a CI artefact. Short labels without digits pass
+    // through untouched.
+    const texts = ['Account 12345678', 'Settings', 'Card 4111-2222'];
+    const page = makeDumpPage({ texts });
+    const base = makeContextWithBrowser(page);
+    const mediator = makeMockMediator({
+      /**
+       * No nav target — trips dumpDashboardText path.
+       * @returns NOT_FOUND_RESULT.
+       */
+      resolveVisible: () => Promise.resolve(NOT_FOUND_RESULT),
+    });
+    const ctx = { ...base, mediator: some(mediator) };
+    const result = await executePreLocateNav(ctx);
+    const isOkResult6 = isOk(result);
+    expect(isOkResult6).toBe(false);
+  });
+
+  it('redactDumpText: text longer than 30 chars truncated to ..', async () => {
+    // Long labels (e.g. customer name embedded in a button) must be
+    // length-capped before landing in the log line. Generic — no per-bank
+    // vocabulary needed for this branch to fire.
+    const longText = 'A'.repeat(40);
+    const texts = [longText, 'OK'];
+    const page = makeDumpPage({ texts });
+    const base = makeContextWithBrowser(page);
+    const mediator = makeMockMediator({
+      /**
+       * No nav target — trips dumpDashboardText path.
+       * @returns NOT_FOUND_RESULT.
+       */
+      resolveVisible: () => Promise.resolve(NOT_FOUND_RESULT),
+    });
+    const ctx = { ...base, mediator: some(mediator) };
+    const result = await executePreLocateNav(ctx);
+    const isOkResult7 = isOk(result);
+    expect(isOkResult7).toBe(false);
+  });
+
   it('dumpDashboardText: no browser → early return true (line 189)', async () => {
     // Build a context with NO browser — forces early return branch
     const makeScreenshotPageResult3 = makeScreenshotPage();

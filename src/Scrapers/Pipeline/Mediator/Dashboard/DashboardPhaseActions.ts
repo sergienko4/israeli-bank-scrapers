@@ -238,9 +238,32 @@ async function buildApiIfAvailable(
   return buildApiContext(network, input.fetchStrategy.value, override).catch((): false => false);
 }
 
+/** Visible-text length cap before truncation in the WK-discovery dump. */
+const DUMP_TEXT_MAX = 30;
+/** Pattern for digit sequences considered identifiers (account/card numbers). */
+const DUMP_DIGIT_RUN = /\d{4,}/g;
+
+/**
+ * Redact one visible-text entry for the WK-discovery dump. Replaces digit
+ * runs of 4+ with `***` (catches account/card numbers visible on a
+ * dashboard tile) and truncates to DUMP_TEXT_MAX so a long button label
+ * carrying a customer name cannot leak in full. Generic — no per-bank
+ * vocabulary.
+ * @param raw - Raw text contents of one clickable element.
+ * @returns Redacted, length-capped string.
+ */
+function redactDumpText(raw: string): string {
+  const stripped = raw.replace(DUMP_DIGIT_RUN, '***');
+  if (stripped.length <= DUMP_TEXT_MAX) return stripped;
+  return `${stripped.slice(0, DUMP_TEXT_MAX)}..`;
+}
+
 /**
  * Dump all visible clickable text on the page for WK forensic discovery.
  * Used when no target found -- logs text so we can add correct WK candidates.
+ * Each entry is redacted via redactDumpText so digit-run identifiers and
+ * over-long labels (which may carry customer names or account info) do
+ * not land in pipeline.log.
  * @param input - Pipeline context with browser.
  * @returns True after logging.
  */
@@ -254,8 +277,9 @@ async function dumpDashboardText(input: IPipelineContext): Promise<true> {
         els.map(el => (el.textContent || '').trim()).filter(t => t.length > 1 && t.length < 60),
       ),
     ]);
+    const safeTexts = texts.map((t): string => redactDumpText(t));
     input.logger.debug({
-      message: `VISIBLE CLICKABLE TEXT: [${texts.join(' | ')}]`,
+      message: `VISIBLE CLICKABLE TEXT: [${safeTexts.join(' | ')}]`,
     });
   } catch {
     /* test mock or closed page */
