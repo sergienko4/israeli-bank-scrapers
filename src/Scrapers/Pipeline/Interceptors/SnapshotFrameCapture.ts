@@ -44,7 +44,13 @@ const HASH_LEN = 12;
  * @returns Filename like 'a1b2c3d4e5f6.html'.
  */
 export function frameFilenameForUrl(url: FrameUrl): FrameFilename {
-  const hash = crypto.createHash('sha1').update(url).digest('hex').slice(0, HASH_LEN);
+  // SHA-256 instead of SHA-1 (SonarCloud rule typescript:S4790). Output
+  // is still truncated to HASH_LEN hex chars; the filename remains
+  // deterministic and the recorder/mock pair stays in sync because both
+  // sides call this function. Existing on-disk SHA-1 names become
+  // orphans — acceptable for cache-style fixture files; they are
+  // regenerated on next capture run (PR-206-FOLLOWUP).
+  const hash = crypto.createHash('sha256').update(url).digest('hex').slice(0, HASH_LEN);
   return `${hash}.html`;
 }
 

@@ -166,7 +166,16 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
   LOG.debug({
     message: `ValidateIdData POST to ${maskVisibleText(validateUrl)}`,
   });
-  const validateResult = await fetchPostWithinPage<IValidateResponse>(page, validateUrl, {
+  // Use resolveContext to land the fetch in the frame that matches the
+  // services URL origin. The page itself can be parked on a sibling
+  // origin (e.g. marketing.isracard.co.il) after dashboard navigation —
+  // running fetchPostWithinPage on the main page in that case means a
+  // cross-origin fetch with no cookies, which Isracard's API rejects
+  // with HTML/empty body. The same frame-pinning pattern is used by
+  // fetchPost and fetchGet on this strategy; activateViaProxy was the
+  // last call site missing it.
+  const validateCtx = resolveContext(page, validateUrl);
+  const validateResult = await fetchPostWithinPage<IValidateResponse>(validateCtx, validateUrl, {
     data: validateBody,
   }).catch((): IValidateResponse | false => false);
   if (!validateResult)
@@ -193,7 +202,9 @@ async function activateViaProxy(args: IActivationArgs): Promise<Procedure<Sessio
   LOG.debug({
     message: `performLogon POST to ${maskVisibleText(loginUrl)}`,
   });
-  const loginResult = await fetchPostWithinPage<Record<string, unknown>>(page, loginUrl, {
+  // Same frame-pinning rationale as the validate call above.
+  const loginCtx = resolveContext(page, loginUrl);
+  const loginResult = await fetchPostWithinPage<Record<string, unknown>>(loginCtx, loginUrl, {
     data: loginBody,
   }).catch((): false => false);
   if (!loginResult) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: performLogon fetch failed');

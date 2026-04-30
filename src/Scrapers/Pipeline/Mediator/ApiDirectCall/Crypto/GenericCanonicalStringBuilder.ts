@@ -25,6 +25,9 @@ type CanonicalFragment = string;
 /** Path + optional query (as both input and output of sortQuery). */
 type PathAndQueryStr = string;
 
+/** Three-way comparator return value (negative / zero / positive). */
+type SortOrder = number;
+
 /** Canonical part resolver — returns the raw (pre-escape) string. */
 type PartResolver = (args: IBuildCanonicalArgs) => CanonicalFragment;
 
@@ -40,7 +43,10 @@ function sortQuery(pathAndQuery: string): PathAndQueryStr {
   const path = pathAndQuery.slice(0, qi);
   const query = pathAndQuery.slice(qi + 1);
   const params = query.split('&');
-  const sorted = [...params].sort();
+  // Explicit comparator (per SonarCloud rule typescript:S2871) — `.sort()`
+  // without a comparator coerces values via Unicode code points, which
+  // is not stable across locales for non-ASCII query keys.
+  const sorted = [...params].sort((a, b): SortOrder => a.localeCompare(b));
   const joined = sorted.join('&');
   return `${path}?${joined}`;
 }

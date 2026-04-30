@@ -60,7 +60,14 @@ function isSecurityHeader(key: string): IHeaderDecision {
     if (acc.shouldKeep) return acc;
     return { shouldKeep: key.startsWith(p) };
   };
-  return SECURITY_PREFIXES.reduce<IHeaderDecision>(checkPrefix, { shouldKeep: false });
+  // Explicit reducer arrow (per SonarCloud rule typescript:S7727) — passing
+  // checkPrefix directly leaks the implicit (acc, item, idx, array) signature
+  // and lets typos in the reducer slip past the type checker. The arrow makes
+  // the (acc, p) shape explicit.
+  return SECURITY_PREFIXES.reduce<IHeaderDecision>(
+    (acc, prefix): IHeaderDecision => checkPrefix(acc, prefix),
+    { shouldKeep: false },
+  );
 }
 
 /**
@@ -80,7 +87,11 @@ function isNoiseHeader(key: string): IHeaderDecision {
     if (acc.shouldKeep) return acc;
     return { shouldKeep: key.startsWith(p) };
   };
-  return NOISE_PREFIXES.reduce<IHeaderDecision>(checkNoise, { shouldKeep: false });
+  // Explicit reducer arrow (per SonarCloud rule typescript:S7727).
+  return NOISE_PREFIXES.reduce<IHeaderDecision>(
+    (acc, prefix): IHeaderDecision => checkNoise(acc, prefix),
+    { shouldKeep: false },
+  );
 }
 
 /**
@@ -111,7 +122,11 @@ function distillHeaders(headers: Record<string, string>): Procedure<DistilledHea
     if (!shouldKeepHeader(lowerKey).shouldKeep) return acc;
     return { ...acc, [entry[0]]: entry[1] };
   };
-  const kept = Object.entries(headers).reduce<DistilledHeaders>(buildKept, {});
+  // Explicit reducer arrow (per SonarCloud rule typescript:S7727).
+  const kept = Object.entries(headers).reduce<DistilledHeaders>(
+    (acc, entry): DistilledHeaders => buildKept(acc, entry),
+    {},
+  );
   return succeed(kept);
 }
 

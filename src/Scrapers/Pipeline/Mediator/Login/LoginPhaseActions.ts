@@ -794,10 +794,28 @@ function safeParse(url: string): URL | false {
  * @param url - URL string.
  * @returns Pathname (no trailing slash unless root).
  */
+/**
+ * Maximum number of trailing slashes the pathname-trim regex will match.
+ * URL paths above this length are unrealistic; bounding the quantifier
+ * defeats SonarCloud's ReDoS warning (rule typescript:S5852) by giving
+ * the regex engine a static upper bound on backtracking work.
+ */
+const PATHNAME_TRIM_MAX_SLASHES = 256;
+
+/**
+ * Extract the pathname of a URL with trailing slashes stripped.
+ * Falls back to the raw input when the URL cannot be parsed.
+ * @param url - URL string.
+ * @returns Pathname (no trailing slash unless root).
+ */
 function loginPathOf(url: string): LoginPathname {
   const parsed = safeParse(url);
   if (parsed === false) return url;
-  const stripped = parsed.pathname.replace(/\/+$/, '');
+  // Bounded `\/{1,N}$` instead of unbounded `\/+$` (SonarCloud S5852 fix).
+  // Semantically identical for any URL pathname under N trailing slashes
+  // (i.e. every real-world URL).
+  const trimRegex = new RegExp(`/{1,${String(PATHNAME_TRIM_MAX_SLASHES)}}$`);
+  const stripped = parsed.pathname.replace(trimRegex, '');
   if (stripped.length > 0) return stripped;
   return '/';
 }

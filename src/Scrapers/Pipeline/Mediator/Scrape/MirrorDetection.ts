@@ -22,6 +22,8 @@ type TxnAmount = number;
 type TxnDescStr = string;
 /** Diagnostic message string. */
 type DiagMessage = string;
+/** Three-way comparator return value (negative / zero / positive). */
+type SortOrder = number;
 
 /** Minimal account shape for mirror detection. */
 interface IMirrorAccount {
@@ -60,7 +62,10 @@ function canonicalizeTxn(txn: ITxnFingerFields): TxnFingerprint {
  */
 function computeFingerprint(account: IMirrorAccount): TxnFingerprint {
   const canonicals = account.txns.map(canonicalizeTxn);
-  const sorted = [...canonicals].sort();
+  // Explicit comparator (per SonarCloud rule typescript:S2871) — fingerprint
+  // must be locale-stable so two mirrored accounts with the same txns
+  // produce the same fingerprint regardless of process default collation.
+  const sorted = [...canonicals].sort((a, b): SortOrder => a.localeCompare(b));
   return sorted.join('\n');
 }
 
