@@ -61,7 +61,7 @@ function buildDashPhase(state: IBuilderState): readonly BasePhase[] {
  * @returns Scrape phase array (0 or 1 element).
  */
 function buildScrapePhaseArr(state: IBuilderState): readonly BasePhase[] {
-  const hasScraper = state.scrapeFn || state.scrapeConfig || state.hasBrowser;
+  const hasScraper = state.scrapeFn || state.hasBrowser;
   if (!hasScraper) return [];
   const scrapeExec = resolveScrapeExec(state);
   return [createScrapePhase(scrapeExec)];

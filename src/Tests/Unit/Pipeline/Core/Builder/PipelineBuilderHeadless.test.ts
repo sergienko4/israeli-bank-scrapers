@@ -15,17 +15,11 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
-import { makeMockOptions } from '../../Infrastructure/MockFactories.js';
-
-/**
- * Stub native-login function — succeeds without mutation.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-function stubLogin(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const ok = succeed(ctx);
-  return Promise.resolve(ok);
-}
+import {
+  makeMockOptions,
+  MOCK_API_DIRECT,
+  MOCK_LOGIN_CONFIG,
+} from '../../Infrastructure/MockFactories.js';
 
 /**
  * Stub scrape function — succeeds without mutation (sealed-action signature).
@@ -39,7 +33,7 @@ function stubScrape(ctx: IActionContext): Promise<Procedure<IPipelineContext>> {
 }
 
 /**
- * Build a headless descriptor with native login + scraper.
+ * Build a headless descriptor with api-direct login + scraper.
  * @param opts - Scraper options to seed the builder.
  * @returns Pipeline descriptor Procedure.
  */
@@ -47,7 +41,7 @@ function buildHeadlessDescriptor(opts: ScraperOptions): Procedure<IPipelineDescr
   const builder = createPipelineBuilder();
   const seeded = builder.withOptions(opts);
   const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withNativeLogin(stubLogin);
+  const withLogin = headless.withApiDirect(MOCK_API_DIRECT);
   const withScrape = withLogin.withScraper(stubScrape);
   return withScrape.build();
 }
@@ -61,7 +55,7 @@ function buildHeadlessOtpDescriptor(opts: ScraperOptions): Procedure<IPipelineDe
   const builder = createPipelineBuilder();
   const seeded = builder.withOptions(opts);
   const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withNativeLogin(stubLogin);
+  const withLogin = headless.withApiDirect(MOCK_API_DIRECT);
   const withTrigger = withLogin.withOtpTrigger();
   const withFill = withTrigger.withOtpFill();
   const withScrape = withFill.withScraper(stubScrape);
@@ -77,7 +71,7 @@ function buildBrowserDescriptor(opts: ScraperOptions): Procedure<IPipelineDescri
   const builder = createPipelineBuilder();
   const seeded = builder.withOptions(opts);
   const withBrowser = seeded.withBrowser();
-  const withLogin = withBrowser.withNativeLogin(stubLogin);
+  const withLogin = withBrowser.withDeclarativeLogin(MOCK_LOGIN_CONFIG);
   const withScrape = withLogin.withScraper(stubScrape);
   return withScrape.build();
 }
@@ -108,12 +102,12 @@ describe('PipelineBuilder — withHeadlessMediator', () => {
     expect(names).not.toContain('terminate');
   });
 
-  it('phase list INCLUDES login + scrape (native + scraper wired)', () => {
+  it('phase list INCLUDES api-direct-call + scrape (apiDirect + scraper wired)', () => {
     const opts = makeMockOptions();
     const result = buildHeadlessDescriptor(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
-    expect(names).toContain('login');
+    expect(names).toContain('api-direct-call');
     expect(names).toContain('scrape');
   });
 

@@ -8,11 +8,11 @@ import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDire
 import { executeMatrixLoop } from '../../Mediator/Scrape/ScrapePhaseActions.js';
 import { createApiDirectCallPhase } from '../../Phases/ApiDirectCall/ApiDirectCallPhase.js';
 import { createLoginPhaseFromConfig } from '../../Phases/Login/LoginPhase.js';
-import { createConfigScrapeStep, createCustomScrapeStep } from '../../Phases/Scrape/ScrapePhase.js';
+import { createCustomScrapeStep } from '../../Phases/Scrape/ScrapePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import type { CustomScrapeFn, IScrapeConfigBase } from '../../Types/ScrapeConfig.js';
+import type { CustomScrapeFn } from '../../Types/ScrapeConfig.js';
 import type { ActionExecFn } from '../../Types/SimplePhase.js';
 import { SimplePhase } from '../../Types/SimplePhase.js';
 import { DECLARATIVE_LOGIN_STEP } from '../LoginSteps/DeclarativeLoginStep.js';
@@ -85,8 +85,6 @@ interface IBuilderState {
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
   readonly scrapeFn: ((ctx: Ctx) => StepResult) | false;
-  readonly scrapeConfig: IScrapeConfigBase | false;
-  readonly proxyAuth: { readonly companyCode: string } | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }
 
@@ -123,10 +121,6 @@ function buildCustomScrapeExec(scrapeFn: (ctx: Ctx) => StepResult): StepExecFn {
  * @returns Scrape StepExecFn.
  */
 function resolveScrapeExec(state: IBuilderState): StepExecFn {
-  if (state.scrapeConfig) {
-    const step = createConfigScrapeStep(state.scrapeConfig);
-    return wrapStep(step);
-  }
   if (state.scrapeFn) return buildCustomScrapeExec(state.scrapeFn);
   return (_ctx: Ctx, input: Ctx): Promise<Procedure<IActionContext>> => executeMatrixLoop(input);
 }

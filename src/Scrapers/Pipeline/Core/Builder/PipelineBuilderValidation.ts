@@ -7,11 +7,9 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { IProxyAuth } from '../../Registry/Config/PipelineBankConfig.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import type { IScrapeConfigBase } from '../../Types/ScrapeConfig.js';
 import type { IBuilderState, LoginFn } from './PipelineAssembly.js';
 
 type IsErrCheck = boolean;
@@ -39,8 +37,6 @@ interface IBuilderFields {
   readonly otpFillRequired: HasCapability;
   readonly hasOtpTrigger: HasCapability;
   readonly scrapeFn: ScrapeFn | false;
-  readonly scrapeConfig: IScrapeConfigBase | false;
-  readonly proxyAuth: IProxyAuth | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }
 

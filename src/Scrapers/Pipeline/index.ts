@@ -3,7 +3,7 @@
  */
 
 // Pipeline
-export type { DirectPostLoginFn, NativeLoginFn, ScrapeFn } from './Core/Builder/PipelineBuilder.js';
+export type { LoginFn, ScrapeFn } from './Core/Builder/PipelineBuilder.js';
 export { PipelineBuilder } from './Core/Builder/PipelineBuilder.js';
 export { executePipeline } from './Core/Executor/PipelineExecutor.js';
 export type { IPipelineDescriptor } from './Core/PipelineDescriptor.js';

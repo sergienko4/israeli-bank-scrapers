@@ -10,6 +10,7 @@ import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigType
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -208,12 +209,16 @@ const MOCK_SCRAPE = (ctx: IActionContext): Promise<Procedure<IPipelineContext>> 
 /** Minimal OTP config for builder tests. */
 const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
 
+/** Minimal IApiDirectCallConfig for builder tests. */
+const MOCK_API_DIRECT = {} as unknown as IApiDirectCallConfig;
+
 export {
   makeMockContext,
   makeMockCredentials,
   makeMockDescriptor,
   makeMockOptions,
   makeMockPage,
+  MOCK_API_DIRECT,
   MOCK_DIRECT_LOGIN,
   MOCK_LOGIN_CONFIG,
   MOCK_NATIVE_LOGIN,

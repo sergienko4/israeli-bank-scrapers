@@ -6,12 +6,10 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { IProxyAuth } from '../../Registry/Config/PipelineBankConfig.js';
-import type { IScrapeConfig, IScrapeConfigBase } from '../../Types/ScrapeConfig.js';
 import type { LoginFn } from './PipelineAssembly.js';
 import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
 
-type LoginMode = 'none' | 'declarative' | 'directPost' | 'native' | 'apiDirectConfig';
+type LoginMode = 'none' | 'declarative' | 'apiDirectConfig';
 /** Whether a builder capability flag is set. */
 type HasCapability = boolean;
 /** Whether a builder setter completed without conflict. */
@@ -33,8 +31,6 @@ interface IBuilderState {
   otpFillRequired: HasCapability;
   hasOtpTrigger: HasCapability;
   scrapeFn: ScrapeFn | false;
-  scrapeConfig: IScrapeConfigBase | false;
-  proxyAuth: IProxyAuth | false;
   apiDirectConfig: IApiDirectCallConfig | false;
 }
 
@@ -49,8 +45,6 @@ const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error
   otpFillRequired: true,
   hasOtpTrigger: false,
   scrapeFn: false,
-  scrapeConfig: false,
-  proxyAuth: false,
   apiDirectConfig: false,
 };
 
@@ -93,34 +87,6 @@ function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | Lo
 }
 
 /**
- * Set function-based login mode.
- * @param state - Mutable builder state.
- * @param mode - Login mode name.
- * @param fn - Login function.
- * @returns True after setting.
- */
-function setFnLogin(state: IBuilderState, mode: LoginMode, fn: LoginFn): DidSet {
-  assertNoLoginMode(state);
-  state.loginMode = mode;
-  state.loginFn = fn;
-  return true;
-}
-
-/**
- * Set scrape config on builder state.
- * @param state - Mutable builder state.
- * @param config - Bank scrape config.
- * @returns True after setting.
- */
-function setScrapeConfig<TA extends object, TT extends object>(
-  state: IBuilderState,
-  config: IScrapeConfig<TA, TT>,
-): DidSet {
-  state.scrapeConfig = config as IScrapeConfigBase;
-  return true;
-}
-
-/**
  * Set the API-DIRECT-CALL config literal on builder state. Banks
  * declare their login as data via withApiDirect; this setter
  * is the only path into api-direct-call mode after the plugin port
@@ -146,11 +112,4 @@ function snapshotFields(state: IBuilderState): IBuilderFields {
 }
 
 export type { IBuilderState };
-export {
-  createEmptyState,
-  setApiDirectConfig,
-  setDeclarativeLogin,
-  setFnLogin,
-  setScrapeConfig,
-  snapshotFields,
-};
+export { createEmptyState, setApiDirectConfig, setDeclarativeLogin, snapshotFields };

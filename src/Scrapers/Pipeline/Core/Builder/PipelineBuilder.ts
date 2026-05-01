@@ -3,9 +3,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { IProxyAuth } from '../../Registry/Config/PipelineBankConfig.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import type { IScrapeConfig } from '../../Types/ScrapeConfig.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import type { LoginFn } from './PipelineAssembly.js';
 import { buildDescriptor, type ScrapeFn } from './PipelineBuilderHelpers.js';
@@ -14,8 +12,6 @@ import {
   type IBuilderState,
   setApiDirectConfig,
   setDeclarativeLogin,
-  setFnLogin,
-  setScrapeConfig,
   snapshotFields,
 } from './PipelineBuilderSetters.js';
 
@@ -58,26 +54,6 @@ class PipelineBuilder {
    */
   public withDeclarativeLogin(configOrFn: ILoginConfig | LoginFn): this {
     setDeclarativeLogin(this._s, configOrFn);
-    return this;
-  }
-
-  /**
-   * Use direct POST login.
-   * @param fn - Login function.
-   * @returns This builder.
-   */
-  public withDirectPostLogin(fn: LoginFn): this {
-    setFnLogin(this._s, 'directPost', fn);
-    return this;
-  }
-
-  /**
-   * Use native login.
-   * @param fn - Login function.
-   * @returns This builder.
-   */
-  public withNativeLogin(fn: LoginFn): this {
-    setFnLogin(this._s, 'native', fn);
     return this;
   }
 
@@ -132,28 +108,6 @@ class PipelineBuilder {
   }
 
   /**
-   * Set generic scrape config for bank-specific mapping.
-   * @param config - The bank's IScrapeConfig with typed mappers.
-   * @returns This builder.
-   */
-  public withScrapeConfig<TA extends object, TT extends object>(
-    config: IScrapeConfig<TA, TT>,
-  ): this {
-    setScrapeConfig(this._s, config);
-    return this;
-  }
-
-  /**
-   * Set proxy auth params for proxy-based banks (Amex, Isracard).
-   * @param auth - Proxy auth config with companyCode.
-   * @returns This builder.
-   */
-  public withProxyAuth(auth: IProxyAuth): this {
-    this._s.proxyAuth = auth;
-    return this;
-  }
-
-  /**
    * Build the pipeline descriptor.
    * @returns The assembled descriptor.
    */
@@ -164,6 +118,6 @@ class PipelineBuilder {
   }
 }
 
-export type { LoginFn as DirectPostLoginFn, LoginFn as NativeLoginFn, ScrapeFn };
+export type { LoginFn, ScrapeFn };
 export { PipelineBuilder };
 export { createPipelineBuilder } from './PipelineBuilderFactory.js';

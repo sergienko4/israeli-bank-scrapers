@@ -41,8 +41,6 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
     loginConfig: false,
     loginFn: false,
     scrapeFn: false,
-    scrapeConfig: false,
-    proxyAuth: false,
     apiDirectConfig: false,
   };
   return { ...base, ...overrides };
@@ -96,21 +94,6 @@ describe('buildLoginPhase', () => {
 });
 
 describe('resolveScrapeExec', () => {
-  it('returns an exec fn from scrapeConfig when present', () => {
-    const cfg = {
-      endpoints: [],
-      accounts: {
-        accountsUrl: '',
-        transactionsUrl: '',
-        balanceUrl: '',
-        pendingUrl: '',
-      },
-    } as unknown as IBuilderState['scrapeConfig'];
-    const state = makeState({ scrapeConfig: cfg });
-    const exec = resolveScrapeExec(state);
-    expect(typeof exec).toBe('function');
-  });
-
   it('returns a wrapped custom scrape fn when scrapeFn is present', async () => {
     let wasCalled = false;
     /**

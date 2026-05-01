@@ -5,13 +5,7 @@
 
 import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
-import {
-  makeMockOptions,
-  MOCK_DIRECT_LOGIN,
-  MOCK_LOGIN_CONFIG,
-  MOCK_NATIVE_LOGIN,
-  MOCK_SCRAPE,
-} from './MockFactories.js';
+import { makeMockOptions, MOCK_LOGIN_CONFIG, MOCK_SCRAPE } from './MockFactories.js';
 
 /** Shared test options. */
 const MOCK_OPTIONS = makeMockOptions();
@@ -122,7 +116,7 @@ describe('PipelineBuilder/phase-assembly', () => {
   it('without browser, no init phase', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withNativeLogin(MOCK_NATIVE_LOGIN)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;
@@ -133,7 +127,7 @@ describe('PipelineBuilder/phase-assembly', () => {
   it('login-only produces exactly 1 phase', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;
