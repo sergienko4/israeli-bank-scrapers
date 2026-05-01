@@ -25,7 +25,7 @@ function buildOneZeroPipeline(options: ScraperOptions): Procedure<IPipelineDescr
   return createPipelineBuilder()
     .withOptions(options)
     .withHeadlessMediator()
-    .withConfigDrivenLogin(ONEZERO_API_DIRECT_CALL)
+    .withApiDirect(ONEZERO_API_DIRECT_CALL)
     .withScraper(oneZeroApiScrape)
     .build();
 }

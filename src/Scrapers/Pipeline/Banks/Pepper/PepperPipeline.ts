@@ -25,7 +25,7 @@ function buildPepperPipeline(options: ScraperOptions): Procedure<IPipelineDescri
   return createPipelineBuilder()
     .withOptions(options)
     .withHeadlessMediator()
-    .withConfigDrivenLogin(PEPPER_API_DIRECT_CALL)
+    .withApiDirect(PEPPER_API_DIRECT_CALL)
     .withScraper(pepperApiScrape)
     .build();
 }

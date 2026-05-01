@@ -122,7 +122,7 @@ function setScrapeConfig<TA extends object, TT extends object>(
 
 /**
  * Set the API-DIRECT-CALL config literal on builder state. Banks
- * declare their login as data via withConfigDrivenLogin; this setter
+ * declare their login as data via withApiDirect; this setter
  * is the only path into api-direct-call mode after the plugin port
  * was deleted (Phase 3D).
  * @param state - Mutable builder state.

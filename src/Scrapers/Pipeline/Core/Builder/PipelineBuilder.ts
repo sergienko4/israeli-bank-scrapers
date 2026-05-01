@@ -86,7 +86,7 @@ class PipelineBuilder {
    * @param config - Bank IApiDirectCallConfig literal.
    * @returns This builder.
    */
-  public withConfigDrivenLogin(config: IApiDirectCallConfig): this {
+  public withApiDirect(config: IApiDirectCallConfig): this {
     setApiDirectConfig(this._s, config);
     return this;
   }
