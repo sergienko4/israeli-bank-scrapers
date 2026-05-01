@@ -31,6 +31,7 @@ function buildIsracardPipeline(options: ScraperOptions): Procedure<IPipelineDesc
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(ISRACARD_LOGIN)
+    .withPreLogin()
     .build();
 }
 

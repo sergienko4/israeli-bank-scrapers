@@ -148,14 +148,14 @@ describe('PipelineBuilder — back-compat (no withHeadlessMediator)', () => {
     expect(result.value.isHeadless).toBe(false);
   });
 
-  it('browser-driven phase list INCLUDES init/home/pre-login/terminate', () => {
+  it('browser-driven phase list INCLUDES init/home/terminate (pre-login is opt-in)', () => {
     const opts = makeMockOptions();
     const result = buildBrowserDescriptor(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).toContain('init');
     expect(names).toContain('home');
-    expect(names).toContain('pre-login');
+    expect(names).not.toContain('pre-login');
     expect(names).toContain('terminate');
   });
 

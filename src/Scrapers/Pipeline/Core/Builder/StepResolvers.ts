@@ -77,6 +77,7 @@ const LOGIN_STEPS: Record<string, StepExecFn> = {
 interface IBuilderState {
   readonly hasBrowser: HasBrowser;
   readonly isHeadless: HasBrowser;
+  readonly hasPreLogin: HasOtp;
   readonly hasOtp: HasOtp;
   readonly hasOtpTrigger: HasOtp;
   readonly loginMode: LoginModeId;

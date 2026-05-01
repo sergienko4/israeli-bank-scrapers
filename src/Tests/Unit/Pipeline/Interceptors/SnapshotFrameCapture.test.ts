@@ -27,6 +27,17 @@ describe('frameFilenameForUrl', () => {
     const b = frameFilenameForUrl('https://a.example/2');
     expect(a).not.toBe(b);
   });
+
+  it('drops query params — same path + different params produce same hash', () => {
+    const a = frameFilenameForUrl('https://x/y?session=abc&ts=1');
+    const b = frameFilenameForUrl('https://x/y?session=def&ts=2');
+    expect(a).toBe(b);
+  });
+
+  it('falls back to raw url when not parseable as URL', () => {
+    const name = frameFilenameForUrl('not-a-url');
+    expect(name).toMatch(/^[a-f0-9]{12}\.html$/);
+  });
 });
 
 describe('frameFilePath', () => {

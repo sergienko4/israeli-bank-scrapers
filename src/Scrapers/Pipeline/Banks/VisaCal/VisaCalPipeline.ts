@@ -32,6 +32,7 @@ function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescr
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(VISACAL_LOGIN)
+    .withPreLogin()
     .build();
 }
 

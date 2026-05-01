@@ -34,6 +34,7 @@ interface IBuilderFields {
   readonly error: BuilderError;
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
+  readonly hasPreLogin: HasCapability;
   readonly hasOtp: HasCapability;
   readonly hasOtpTrigger: HasCapability;
   readonly scrapeFn: ScrapeFn | false;
@@ -64,19 +65,7 @@ function assertRequiredFields(fields: IBuilderFields): Procedure<true> {
  * @returns Builder state snapshot.
  */
 function toBuilderState(fields: IBuilderFields): IBuilderState {
-  return {
-    hasBrowser: fields.hasBrowser,
-    isHeadless: fields.isHeadless,
-    hasOtp: fields.hasOtp,
-    hasOtpTrigger: fields.hasOtpTrigger,
-    loginMode: fields.loginMode,
-    loginConfig: fields.loginConfig,
-    loginFn: fields.loginFn,
-    scrapeFn: fields.scrapeFn,
-    scrapeConfig: fields.scrapeConfig,
-    proxyAuth: fields.proxyAuth,
-    apiDirectConfig: fields.apiDirectConfig,
-  };
+  return { ...fields };
 }
 
 export type { IBuilderFields, ScrapeFn };

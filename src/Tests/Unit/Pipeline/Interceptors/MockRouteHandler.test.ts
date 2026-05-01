@@ -41,19 +41,34 @@ function makeRoute(capture: IFulfillCapture): Route {
 }
 
 /**
- * Build a Request returning the given URL.
+ * Build a Request returning the given URL. Defaults to a main-frame
+ * request (no parent). Pass isSubframe=true to stub a sub-frame request.
  * @param url - URL to return from .url().
+ * @param isSubframe - Whether request comes from a child frame.
  * @returns Stub Request.
  */
-function makeRequest(url: string): Request {
-  return {
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
-    url: (): string => url,
-  } as unknown as Request;
+function makeRequest(url: string, isSubframe = false): Request {
+  /** Sub-frames return an empty parent; main frame returns the false sentinel. */
+  const parentMap: Record<string, object | false> = { true: {}, false: false };
+  /**
+   * Test helper. Production code checks falsiness only; matches Playwright's
+   * `parentFrame()` shape via the false sentinel (Result Pattern, no null).
+   * @returns Empty parent stub or false.
+   */
+  const stubParentFrame = (): object | false => parentMap[String(isSubframe)];
+  /**
+   * Test helper.
+   * @returns Stub frame with parentFrame lookup.
+   */
+  const stubFrame = (): { parentFrame: () => object | false } => ({
+    parentFrame: stubParentFrame,
+  });
+  /**
+   * Test helper.
+   * @returns Stub URL.
+   */
+  const stubUrl = (): string => url;
+  return { url: stubUrl, frame: stubFrame } as unknown as Request;
 }
 
 describe('buildHandler', () => {
@@ -87,6 +102,17 @@ describe('buildHandler', () => {
     const makeRouteResult5 = makeRoute(capture);
     const didServe = await handler(makeRouteResult5, makeRequestResult6);
     expect(didServe).toBe(true);
+  });
+
+  it('returns empty body for sub-frame request with no captured snapshot', async () => {
+    const state = getMockState('mock-handler-subframe-miss');
+    const handler = buildHandler('mock-handler-subframe-miss', state);
+    const capture: IFulfillCapture = { body: '', contentType: '' };
+    const subframeRequest = makeRequest('https://3rd-party.example/telemetry', true);
+    const route = makeRoute(capture);
+    const didServe = await handler(route, subframeRequest);
+    expect(didServe).toBe(true);
+    expect(capture.body).toBe('');
   });
 
   it('serves saved frame HTML when a per-frame snapshot exists (line 120 truthy)', async () => {

@@ -37,14 +37,18 @@ const FRAMES_DIR = 'frames';
 const HASH_LEN = 12;
 
 /**
- * Short, filesystem-safe filename for a given frame URL. Same function is
- * used by both the recorder (write side) and the mock (read side) so the
- * hashes match.
+ * Short, filesystem-safe filename for a given frame URL. Hashes a stable
+ * origin+pathname key (drops query string) so 3rd-party telemetry URLs
+ * with per-session params (msid, session_id, ts) resolve to the same
+ * captured snapshot. Same function is used by both recorder (write side)
+ * and mock (read side) so the hashes match.
  * @param url - Frame URL.
  * @returns Filename like 'a1b2c3d4e5f6.html'.
  */
 export function frameFilenameForUrl(url: FrameUrl): FrameFilename {
-  const hash = crypto.createHash('sha1').update(url).digest('hex').slice(0, HASH_LEN);
+  const parsed = URL.canParse(url) && new URL(url);
+  const key = (parsed && `${parsed.origin}${parsed.pathname}`) || url;
+  const hash = crypto.createHash('sha1').update(key).digest('hex').slice(0, HASH_LEN);
   return `${hash}.html`;
 }
 

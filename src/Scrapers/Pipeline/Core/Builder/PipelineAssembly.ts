@@ -21,14 +21,16 @@ import {
 } from './StepResolvers.js';
 
 /**
- * Build browser init phases.
- * @returns Init, home, FLA phases.
+ * Build browser init phases — Init + Home are always-on for browser
+ * banks. PRE-LOGIN is opt-in via `.withPreLogin()` on the builder.
+ * @param state - Builder state (for hasPreLogin flag).
+ * @returns Init, Home, [PreLogin?] phases.
  */
-function browserInitPhases(): readonly BasePhase[] {
+function browserInitPhases(state: IBuilderState): readonly BasePhase[] {
   const initPhase = createInitPhase();
   const homePhase = createHomePhase();
-  const flaPhase = createPreLoginPhase();
-  return [initPhase, homePhase, flaPhase];
+  const preLoginPhases = state.hasPreLogin && [createPreLoginPhase()];
+  return [initPhase, homePhase, ...(preLoginPhases || [])];
 }
 
 /**
@@ -81,7 +83,7 @@ function optionalPhases(state: IBuilderState): readonly BasePhase[] {
  */
 function assemblePhases(state: IBuilderState): BasePhase[] {
   const phases: BasePhase[] = [];
-  if (state.hasBrowser) phases.push(...browserInitPhases());
+  if (state.hasBrowser) phases.push(...browserInitPhases(state));
   const loginPhase = buildLoginPhase(state);
   phases.push(loginPhase);
   phases.push(...optionalPhases(state));

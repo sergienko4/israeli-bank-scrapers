@@ -31,6 +31,7 @@ function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescript
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(AMEX_LOGIN)
+    .withPreLogin()
     .build();
 }
 

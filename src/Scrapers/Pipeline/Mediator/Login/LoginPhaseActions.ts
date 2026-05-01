@@ -543,7 +543,6 @@ async function executeFillAndSubmitFromDiscovery(
   config: ILoginConfig,
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
-  if (!input.loginAreaReady) return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: not ready');
   if (!input.loginFieldDiscovery.has) {
     return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: no field discovery');
   }

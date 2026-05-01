@@ -42,7 +42,6 @@ async function executeLoginAction(
   config: ILoginConfig,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  if (!input.loginAreaReady) return fail(ScraperErrorTypes.Generic, 'gate: loginAreaReady=false');
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'no login state');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'No mediator');
   return runFillAndSubmit(config, input.mediator.value, input);

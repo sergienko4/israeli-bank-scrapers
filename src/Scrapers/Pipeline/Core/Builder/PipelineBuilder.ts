@@ -82,15 +82,21 @@ class PipelineBuilder {
   }
 
   /**
-   * Replace LOGIN + OTP-TRIGGER + OTP-FILL with a config-driven
-   * API-DIRECT-CALL phase. Banks supply an IApiDirectCallConfig
-   * literal — zero bank-side code beyond the literal + graphql
-   * queries file (Rule #11, spec rev18 §B).
+   * Replace LOGIN+OTP with a config-driven API-DIRECT-CALL phase.
    * @param config - Bank IApiDirectCallConfig literal.
    * @returns This builder.
    */
   public withConfigDrivenLogin(config: IApiDirectCallConfig): this {
     setApiDirectConfig(this._s, config);
+    return this;
+  }
+
+  /**
+   * Enable PRE-LOGIN phase (form-reveal click before LOGIN).
+   * @returns This builder.
+   */
+  public withPreLogin(): this {
+    this._s.hasPreLogin = true;
     return this;
   }
 

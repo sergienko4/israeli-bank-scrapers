@@ -30,6 +30,7 @@ function buildMaxPipeline(options: ScraperOptions): Procedure<IPipelineDescripto
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(MAX_LOGIN)
+    .withPreLogin()
     .build();
 }
 

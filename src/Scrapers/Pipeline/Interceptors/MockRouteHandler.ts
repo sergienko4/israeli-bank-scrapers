@@ -105,19 +105,26 @@ function injectNormalizer(html: ResponseHtml): ResponseHtml {
 
 /**
  * Pick the best HTML body for this request. Updates state.lastServed on
- * phase-snapshot hits so subsequent requests get the same body.
+ * phase-snapshot hits so subsequent requests get the same body. For
+ * sub-frame requests with no captured snapshot we return empty — falling
+ * through to phase HTML pollutes 3rd-party telemetry iframes (Wix,
+ * doubleclick, panorama) with a 3.7MB copy of home.html and breaks
+ * hydration of the parent page.
  * @param companyId - Bank identifier.
  * @param state - Mutable state tracking the active phase.
- * @param url - Requested URL.
+ * @param request - Incoming Playwright request (used for frame detection).
  * @returns HTML to fulfil with (normalizer injected).
  */
 function pickHtmlForRequest(
   companyId: CompanyId,
   state: IMockState,
-  url: RequestUrl,
+  request: Request,
 ): ResponseHtml {
+  const url = request.url();
   const frameHtml = tryServeFrameHtml(companyId, url);
   if (frameHtml) return injectNormalizer(frameHtml);
+  const isMainFrame = !request.frame().parentFrame();
+  if (!isMainFrame) return '';
   const phaseHtml = resolveMockHtml(companyId, state.currentPhase, state.lastServed);
   state.lastServed = phaseHtml;
   return injectNormalizer(phaseHtml);
@@ -135,8 +142,7 @@ export function buildHandler(
   state: IMockState,
 ): (route: Route, request: Request) => Promise<RouteResult> {
   return async (route: Route, request: Request): Promise<RouteResult> => {
-    const url = request.url();
-    const body = pickHtmlForRequest(companyId, state, url);
+    const body = pickHtmlForRequest(companyId, state, request);
     await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body });
     return true;
   };
