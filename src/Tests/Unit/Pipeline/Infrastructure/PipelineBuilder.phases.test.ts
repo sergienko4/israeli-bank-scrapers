@@ -40,11 +40,11 @@ describe('PipelineBuilder/phase-assembly', () => {
     expect(firstPhase.name).toBe('init');
   });
 
-  it('withLoginAndOtpTrigger + withOtpFill adds both OTP phases', () => {
+  it('withOtpTrigger + withOtpFill adds both OTP phases', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withLoginAndOtpTrigger()
+      .withOtpTrigger()
       .withOtpFill()
       .build();
     assertOk(descriptor);
@@ -99,7 +99,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withLoginAndOtpTrigger()
+      .withOtpTrigger()
       .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();
@@ -159,7 +159,7 @@ describe('PipelineBuilder/phase-assembly', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withLoginAndOtpTrigger()
+      .withOtpTrigger()
       .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();

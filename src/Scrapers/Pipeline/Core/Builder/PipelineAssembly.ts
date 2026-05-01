@@ -35,7 +35,7 @@ function browserInitPhases(state: IBuilderState): readonly BasePhase[] {
 
 /**
  * Build OTP phases — trigger (optional) + fill.
- * Trigger phase only added when builder chain includes withLoginAndOtpTrigger().
+ * Trigger phase only added when builder chain includes withOtpTrigger().
  * @param state - Builder state.
  * @returns OTP phase array (0, 1, or 2 elements).
  */

@@ -133,9 +133,9 @@ describe('PipelineBuilder/optional-phases', () => {
     expect(returned).toBe(builder);
   });
 
-  it('withLoginAndOtpTrigger returns this', () => {
+  it('withOtpTrigger returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withLoginAndOtpTrigger();
+    const returned = builder.withOtpTrigger();
     expect(returned).toBe(builder);
   });
 
@@ -152,7 +152,7 @@ describe('PipelineBuilder/full-config', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withLoginAndOtpTrigger()
+      .withOtpTrigger()
       .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();
@@ -166,7 +166,7 @@ describe('PipelineBuilder/full-config', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .withLoginAndOtpTrigger()
+      .withOtpTrigger()
       .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();

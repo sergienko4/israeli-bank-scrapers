@@ -104,7 +104,7 @@ class PipelineBuilder {
    * Enable OTP trigger phase (clicks "Send SMS").
    * @returns This builder.
    */
-  public withLoginAndOtpTrigger(): this {
+  public withOtpTrigger(): this {
     this._s.hasOtpTrigger = true;
     return this;
   }

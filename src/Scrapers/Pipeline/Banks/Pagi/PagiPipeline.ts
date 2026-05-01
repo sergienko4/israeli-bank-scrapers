@@ -30,7 +30,7 @@ function buildPagiPipeline(options: ScraperOptions): Procedure<IPipelineDescript
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(PAGI_LOGIN)
-    .withLoginAndOtpTrigger()
+    .withOtpTrigger()
     .withOtpFill()
     .build();
 }

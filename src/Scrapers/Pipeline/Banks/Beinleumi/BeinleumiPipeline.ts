@@ -30,7 +30,7 @@ function buildBeinleumiPipeline(options: ScraperOptions): Procedure<IPipelineDes
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(BEINLEUMI_LOGIN)
-    .withLoginAndOtpTrigger()
+    .withOtpTrigger()
     .withOtpFill()
     .build();
 }

@@ -30,7 +30,7 @@ function buildOtsarHahayalPipeline(options: ScraperOptions): Procedure<IPipeline
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(OTSAR_HAHAYAL_LOGIN)
-    .withLoginAndOtpTrigger()
+    .withOtpTrigger()
     .withOtpFill()
     .build();
 }
