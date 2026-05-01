@@ -30,7 +30,7 @@ function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDesc
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(HAPOALIM_LOGIN)
-    .withLoginAndOptCodeFill()
+    .withOtpFill(false)
     .build();
 }
 

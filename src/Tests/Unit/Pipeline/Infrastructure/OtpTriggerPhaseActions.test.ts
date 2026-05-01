@@ -41,12 +41,29 @@ describe('executeTriggerPre', () => {
     expect(isOkResult2).toBe(true);
   });
 
-  it('succeeds passively when OTP trigger not detected and OTP not required', async () => {
+  it('skips fail in MOCK_MODE even when trigger not detected', async () => {
+    process.env.MOCK_MODE = '1';
+    try {
+      const page = makeScreenshotPage();
+      const ctx = makeContextWithBrowser(page);
+      const result = await executeTriggerPre(ctx);
+      const isOkResult = isOk(result);
+      expect(isOkResult).toBe(true);
+    } finally {
+      delete process.env.MOCK_MODE;
+    }
+  });
+
+  it('hard-fails when OTP trigger not detected (non-mock mode)', async () => {
+    // After the .withOtpTrigger() opt-in refactor, the trigger phase only
+    // runs for banks that explicitly enabled it. A missing trigger element
+    // therefore signals a real bank-UI break and must hard-fail (the prior
+    // soft-skip-on-disabled-OTP path was a config gate, now removed).
     const makeScreenshotPageResult3 = makeScreenshotPage();
     const ctx = makeContextWithBrowser(makeScreenshotPageResult3);
     const result = await executeTriggerPre(ctx);
     const isOkResult4 = isOk(result);
-    expect(isOkResult4).toBe(true);
+    expect(isOkResult4).toBe(false);
   });
 });
 
@@ -146,23 +163,18 @@ describe('executeTriggerFinal', () => {
 
 // ── Phone-hint extraction branches (PRE) ────────────────────────────
 describe('executeTriggerPre — phone hint extraction', () => {
-  it('extracts last digits from page body text with masked phone', async () => {
-    /** Page exposing body text with phone pattern. */
+  it('extracts phone hint from body text (covered before missing-trigger fail)', async () => {
+    // The phone-hint extractor runs BEFORE the missing-trigger check.
+    // With no trigger detected, the action hard-fails (post-refactor),
+    // but the phone-hint extraction code path still executes for coverage.
     const pageWithHint = makeScreenshotPage('Code sent to *****4321');
-    const base = makeContextWithBrowser(pageWithHint);
-    const ctx = {
-      ...base,
-      /**
-       * OTP NOT enabled so missing trigger is OK.
-       */
-      config: { ...base.config, otp: { enabled: false } },
-    };
+    const ctx = makeContextWithBrowser(pageWithHint);
     const result = await executeTriggerPre(ctx);
     const isOkResult20 = isOk(result);
-    expect(isOkResult20).toBe(true);
+    expect(isOkResult20).toBe(false);
   });
 
-  it('handles rejected page.evaluate gracefully', async () => {
+  it('handles rejected page.evaluate gracefully (covered before missing-trigger fail)', async () => {
     const page = makeScreenshotPage();
     const rejectingPage = {
       ...page,
@@ -172,14 +184,10 @@ describe('executeTriggerPre — phone hint extraction', () => {
        */
       evaluate: (): Promise<string> => Promise.reject(new Error('eval fail')),
     };
-    const base = makeContextWithBrowser(rejectingPage);
-    const ctx = {
-      ...base,
-      config: { ...base.config, otp: { enabled: false } },
-    };
+    const ctx = makeContextWithBrowser(rejectingPage);
     const result = await executeTriggerPre(ctx);
     const isOkResult21 = isOk(result);
-    expect(isOkResult21).toBe(true);
+    expect(isOkResult21).toBe(false);
   });
 
   it('fails when OTP enabled + no trigger detected (not mock mode)', async () => {

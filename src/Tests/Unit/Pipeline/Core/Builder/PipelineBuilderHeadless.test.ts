@@ -63,7 +63,7 @@ function buildHeadlessOtpDescriptor(opts: ScraperOptions): Procedure<IPipelineDe
   const headless = seeded.withHeadlessMediator();
   const withLogin = headless.withNativeLogin(stubLogin);
   const withTrigger = withLogin.withLoginAndOtpTrigger();
-  const withFill = withTrigger.withLoginAndOptCodeFill();
+  const withFill = withTrigger.withOtpFill();
   const withScrape = withFill.withScraper(stubScrape);
   return withScrape.build();
 }

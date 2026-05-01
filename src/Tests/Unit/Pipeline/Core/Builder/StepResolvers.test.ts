@@ -34,7 +34,8 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
     hasBrowser: false,
     isHeadless: false,
     hasPreLogin: false,
-    hasOtp: false,
+    hasOtpFill: false,
+    otpFillRequired: true,
     hasOtpTrigger: false,
     loginMode: 'declarative',
     loginConfig: false,
@@ -78,8 +79,8 @@ describe('buildLoginPhase', () => {
     expect(wasCalled).toBe(true);
   });
 
-  it('builds SimplePhase using LOGIN_STEPS map when hasOtp=true (declarative step)', () => {
-    const state = makeState({ hasOtp: true, loginMode: 'native' });
+  it('builds SimplePhase using DECLARATIVE_LOGIN_STEP when hasOtpFill=true', () => {
+    const state = makeState({ hasOtpFill: true, loginMode: 'native' });
     const phase = buildLoginPhase(state);
     expect(phase.name).toBe('login');
   });

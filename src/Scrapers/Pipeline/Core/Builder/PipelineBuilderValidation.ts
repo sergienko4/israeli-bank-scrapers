@@ -35,7 +35,8 @@ interface IBuilderFields {
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
   readonly hasPreLogin: HasCapability;
-  readonly hasOtp: HasCapability;
+  readonly hasOtpFill: HasCapability;
+  readonly otpFillRequired: HasCapability;
   readonly hasOtpTrigger: HasCapability;
   readonly scrapeFn: ScrapeFn | false;
   readonly scrapeConfig: IScrapeConfigBase | false;

@@ -73,7 +73,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withLoginAndOtpTrigger()
-      .withLoginAndOptCodeFill()
+      .withOtpFill()
       .build();
     assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);
@@ -107,7 +107,7 @@ describe('PipelineBuilder/resolveLoginStep-branches', () => {
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_DIRECT_LOGIN)
       .withLoginAndOtpTrigger()
-      .withLoginAndOptCodeFill()
+      .withOtpFill()
       .build();
     assertOk(descriptor);
     const names = descriptor.value.phases.map(p => p.name);

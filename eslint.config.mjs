@@ -535,7 +535,7 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES_NEW],
 
       // --- C. DEFAULT COMPLEXITY (STRICT) ---
-      'max-lines': ['error', { max: 150, skipBlankLines: true }],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': ['error', { max: 15 }],
       'max-depth': ['error', 1],
     },

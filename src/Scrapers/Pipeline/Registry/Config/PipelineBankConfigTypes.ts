@@ -6,8 +6,6 @@
 
 /** Bank website URL string. */
 type BankUrl = string;
-/** Whether a bank capability is active. */
-type IsEnabled = boolean;
 /** Company-specific code for proxy auth. */
 type CompanyCode = string;
 
@@ -25,19 +23,6 @@ export interface IProxyAuth {
   readonly companyCode: CompanyCode;
   /** Parametric query params for proxy API calls — date tokens resolved at runtime. */
   readonly params?: IProxyParams;
-}
-
-/** OTP config — per-bank runtime flag. Trigger/fill controlled by builder chain. */
-export interface IOtpBankConfig {
-  /** Whether this bank requires OTP after login. */
-  readonly enabled: IsEnabled;
-  /**
-   * Whether OTP is MANDATORY for every login.
-   *   true  — always prompts (Beinleumi/Massad/OtsarHahayal/Pagi).
-   *   false — may skip for remembered devices (Hapoalim).
-   * Default when omitted: true.
-   */
-  readonly required?: IsEnabled;
 }
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
@@ -71,8 +56,6 @@ export interface IPipelineBankConfig {
   readonly auth?: IProxyAuth;
   /** Fallback transaction API path — used when network discovery finds nothing. */
   readonly transactionsPath?: BankUrl;
-  /** OTP config — per-bank control over trigger + fill behavior. */
-  readonly otp?: IOtpBankConfig;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */
   readonly headless?: IHeadlessUrlsConfig;
 }

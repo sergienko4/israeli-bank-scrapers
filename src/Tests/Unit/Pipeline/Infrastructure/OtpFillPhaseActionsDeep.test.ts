@@ -229,12 +229,8 @@ describe('executeFillPre — fast-path success branch', () => {
     });
     const makeScreenshotPageResult30 = makeScreenshotPage();
     const base = makeContextWithBrowser(makeScreenshotPageResult30);
-    const ctx = {
-      ...base,
-      mediator: some(mediator),
-      config: { ...base.config, otp: { enabled: true, required: false } },
-    };
-    const result = await executeFillPre(ctx);
+    const ctx = { ...base, mediator: some(mediator) };
+    const result = await executeFillPre(ctx, false);
     const isOkResult31 = isOk(result);
     expect(isOkResult31).toBe(true);
   });

@@ -22,33 +22,35 @@ import {
 import { makeScreenshotPage } from './TestHelpers.js';
 
 describe('OtpFillPhaseActions — branch recovery #3', () => {
-  it('executeFillPre: otp.required=false + no OTP input + no dashboard → soft-skip success', async () => {
-    // otp.required=false (Hapoalim-style optional OTP), mediator+browser
-    // present, OTP input NOT found, dashboard NOT visible. The optional-OTP
-    // safety valve in handleMissingOtpInput must succeed so downstream phases
-    // can return zero accounts gracefully instead of hard-failing the run.
+  it('executeFillPre: required=false + no OTP input + no dashboard → soft-skip success', async () => {
+    // required=false (Hapoalim-style optional OTP via .withOtpFill(false)),
+    // mediator+browser present, OTP input NOT found, dashboard NOT visible.
+    // The optional-OTP safety valve in handleMissingOtpInput must succeed so
+    // downstream phases can return zero accounts gracefully instead of
+    // hard-failing the run.
     const page = makeScreenshotPage();
-    const base = makeContextWithBrowser(page);
-    const ctx = {
-      ...base,
-      config: { ...base.config, otp: { enabled: true, required: false } },
-    };
-    const result = await executeFillPre(ctx);
+    const ctx = makeContextWithBrowser(page);
+    const result = await executeFillPre(ctx, false);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
   });
 
-  it('executeFillPre: otp.required=true + no OTP input → hard fail', async () => {
-    // otp.required=true (Beinleumi-style mandatory OTP), input not found
-    // means we genuinely cannot proceed — must hard-fail so the operator
-    // sees the failure rather than silently scraping nothing.
+  it('executeFillPre: default-arg (required=true) + no OTP input → hard fail', async () => {
+    // Exercises the default-parameter branch — caller omits `required`.
     const page = makeScreenshotPage();
-    const base = makeContextWithBrowser(page);
-    const ctx = {
-      ...base,
-      config: { ...base.config, otp: { enabled: true, required: true } },
-    };
+    const ctx = makeContextWithBrowser(page);
     const result = await executeFillPre(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+  });
+
+  it('executeFillPre: required=true + no OTP input → hard fail', async () => {
+    // required=true (Beinleumi-style mandatory OTP via .withOtpFill()),
+    // input not found means we genuinely cannot proceed — must hard-fail
+    // so the operator sees the failure rather than silently scraping nothing.
+    const page = makeScreenshotPage();
+    const ctx = makeContextWithBrowser(page);
+    const result = await executeFillPre(ctx, true);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
   });

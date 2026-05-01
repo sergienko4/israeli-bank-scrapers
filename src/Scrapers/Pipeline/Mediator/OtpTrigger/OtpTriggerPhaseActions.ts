@@ -77,9 +77,8 @@ async function executeTriggerPre(input: IPipelineContext): Promise<Procedure<IPi
     message: `phone-hint: ${maskVisibleText(phoneHint)}`,
   });
   const hasTrigger: OtpDetected = triggerResult.found;
-  const hasOtpEnabled = Boolean(input.config.otp?.enabled);
   const isMockMode = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-  if (hasOtpEnabled && !hasTrigger && !isMockMode) {
+  if (!hasTrigger && !isMockMode) {
     return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
   }
   const diag = {

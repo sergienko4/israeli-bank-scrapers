@@ -78,7 +78,8 @@ interface IBuilderState {
   readonly hasBrowser: HasBrowser;
   readonly isHeadless: HasBrowser;
   readonly hasPreLogin: HasOtp;
-  readonly hasOtp: HasOtp;
+  readonly hasOtpFill: HasOtp;
+  readonly otpFillRequired: HasOtp;
   readonly hasOtpTrigger: HasOtp;
   readonly loginMode: LoginModeId;
   readonly loginConfig: ILoginConfig | false;
@@ -96,7 +97,7 @@ interface IBuilderState {
  */
 function resolveLoginExec(state: IBuilderState): StepExecFn {
   if (state.loginFn) return adaptLoginFn(state.loginFn);
-  if (state.hasOtp) return wrapStep(DECLARATIVE_LOGIN_STEP);
+  if (state.hasOtpFill || state.hasOtpTrigger) return wrapStep(DECLARATIVE_LOGIN_STEP);
   return LOGIN_STEPS[state.loginMode];
 }
 

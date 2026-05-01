@@ -117,17 +117,18 @@ async function isDashboardAlreadyVisible(mediator: IElementMediator): Promise<Ot
 }
 
 /**
- * Apply the fast-path when OTP input is missing but the bank's otpConfig
- * says OTP is optional. Check the dashboard marker — if it's visible, the
- * bank remembered this device and skipped the OTP challenge entirely.
+ * Apply the fast-path when OTP input is missing but `required=false`.
+ * Check the dashboard marker — if it's visible, the bank remembered this
+ * device and skipped the OTP challenge entirely.
  * @param input - Pipeline context.
- * @returns Success with fast-path diagnostic, or a fail preserved for the caller.
+ * @param required - Whether OTP is mandatory (false enables fast-path).
+ * @returns Success with fast-path diagnostic, or false to preserve fail.
  */
 async function maybeFastPathSuccess(
   input: IPipelineContext,
+  required: boolean,
 ): Promise<Procedure<IPipelineContext> | false> {
-  const isOtpRequired = input.config.otp?.required ?? true;
-  if (isOtpRequired) return false;
+  if (required) return false;
   if (!input.mediator.has) return false;
   const isVisible = await isDashboardAlreadyVisible(input.mediator.value);
   if (!isVisible) return false;
@@ -151,12 +152,14 @@ const isMockModeOtpActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MO
  * Handle the "OTP input not found" case — route through the fast-path
  * check first; fall back to MOCK_MODE safety valve or hard fail.
  * @param input - Pipeline context at PRE time.
+ * @param required - Whether OTP is mandatory (false soft-skips on miss).
  * @returns Procedure with input carrying a mock-bypass marker.
  */
 async function handleMissingOtpInput(
   input: IPipelineContext,
+  required: boolean,
 ): Promise<Procedure<IPipelineContext>> {
-  const fastPath = await maybeFastPathSuccess(input);
+  const fastPath = await maybeFastPathSuccess(input, required);
   if (fastPath) return fastPath;
   // MOCK_MODE safety valve — the selectors are proven in live E2E; mock
   // only validates pipeline flow. Let OTP-FILL PRE succeed when running
@@ -167,13 +170,12 @@ async function handleMissingOtpInput(
     return succeed({ ...input, diagnostics: diag });
   }
   // Optional-OTP safety valve — banks like Hapoalim flag OTP as optional
-  // (config.otp.required === false). When the OTP input cannot be found,
-  // proceed to DASHBOARD/SCRAPE rather than hard-failing the run; if the
-  // bank truly blocked us, the downstream phases will return zero accounts.
-  const isOtpRequired = input.config.otp?.required ?? true;
-  if (!isOtpRequired) {
+  // (.withOtpFill(false)). When the OTP input cannot be found, proceed to
+  // DASHBOARD/SCRAPE rather than hard-failing the run; if the bank truly
+  // blocked us, the downstream phases will return zero accounts.
+  if (!required) {
     input.logger.info({
-      message: '>>> OTP input missing — config.otp.required=false, soft-skipping OTP-FILL',
+      message: '>>> OTP input missing — withOtpFill(required=false), soft-skipping OTP-FILL',
     });
     const diag = { ...input.diagnostics, lastAction: 'otp-fill-pre (optional-skip)' };
     return succeed({ ...input, diagnostics: diag });
@@ -185,9 +187,13 @@ async function handleMissingOtpInput(
  * PRE: Discover OTP code input + submit button — 100% passive.
  * Uses full mediator resolveVisible for post-transition DOM.
  * @param input - Pipeline context.
+ * @param required - Whether OTP is mandatory (default true).
  * @returns Updated context with input+submit targets in diagnostics.
  */
-async function executeFillPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+async function executeFillPre(
+  input: IPipelineContext,
+  required = true,
+): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   if (!input.browser.has) return succeed(input);
   await otpScreenshot(input, 'otp-fill-pre');
@@ -203,7 +209,7 @@ async function executeFillPre(input: IPipelineContext): Promise<Procedure<IPipel
   const submitTarget = raceResultToTarget(submitResult, page);
   const hasInput: OtpDetected = inputResult.found;
   const hasSubmit: OtpDetected = submitResult.found;
-  if (!hasInput) return handleMissingOtpInput(input);
+  if (!hasInput) return handleMissingOtpInput(input, required);
   const phoneHint = await extractDeepPhoneHint(input);
   const hintLabel = maskVisibleText(phoneHint);
   input.logger.debug({

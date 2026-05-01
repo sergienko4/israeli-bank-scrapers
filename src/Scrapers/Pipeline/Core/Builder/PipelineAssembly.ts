@@ -40,9 +40,9 @@ function browserInitPhases(state: IBuilderState): readonly BasePhase[] {
  * @returns OTP phase array (0, 1, or 2 elements).
  */
 function buildOtpPhases(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasOtp) return [];
+  if (!state.hasOtpFill) return [];
   const trigger = state.hasOtpTrigger && [createOtpTriggerPhase()];
-  return [...(trigger || []), createOtpFillPhase()];
+  return [...(trigger || []), createOtpFillPhase(state.otpFillRequired)];
 }
 
 /**

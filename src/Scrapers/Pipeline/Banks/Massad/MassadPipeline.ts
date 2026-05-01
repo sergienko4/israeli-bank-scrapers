@@ -31,7 +31,7 @@ function buildMassadPipeline(options: ScraperOptions): Procedure<IPipelineDescri
     .withBrowser()
     .withDeclarativeLogin(MASSAD_LOGIN)
     .withLoginAndOtpTrigger()
-    .withLoginAndOptCodeFill()
+    .withOtpFill()
     .build();
 }
 

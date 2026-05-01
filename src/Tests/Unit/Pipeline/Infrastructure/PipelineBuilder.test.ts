@@ -127,9 +127,9 @@ describe('PipelineBuilder/mutual-exclusion', () => {
 });
 
 describe('PipelineBuilder/optional-phases', () => {
-  it('withLoginAndOptCodeFill returns this', () => {
+  it('withOtpFill returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withLoginAndOptCodeFill();
+    const returned = builder.withOtpFill();
     expect(returned).toBe(builder);
   });
 
@@ -153,7 +153,7 @@ describe('PipelineBuilder/full-config', () => {
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .withLoginAndOtpTrigger()
-      .withLoginAndOptCodeFill()
+      .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -167,7 +167,7 @@ describe('PipelineBuilder/full-config', () => {
       .withBrowser()
       .withDirectPostLogin(MOCK_DIRECT_LOGIN)
       .withLoginAndOtpTrigger()
-      .withLoginAndOptCodeFill()
+      .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);

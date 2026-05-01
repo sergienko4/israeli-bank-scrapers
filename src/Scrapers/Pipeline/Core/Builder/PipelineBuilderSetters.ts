@@ -29,7 +29,8 @@ interface IBuilderState {
   loginConfig: ILoginConfig | false;
   loginFn: LoginFn | false;
   hasPreLogin: HasCapability;
-  hasOtp: HasCapability;
+  hasOtpFill: HasCapability;
+  otpFillRequired: HasCapability;
   hasOtpTrigger: HasCapability;
   scrapeFn: ScrapeFn | false;
   scrapeConfig: IScrapeConfigBase | false;
@@ -44,7 +45,8 @@ const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error
   loginConfig: false,
   loginFn: false,
   hasPreLogin: false,
-  hasOtp: false,
+  hasOtpFill: false,
+  otpFillRequired: true,
   hasOtpTrigger: false,
   scrapeFn: false,
   scrapeConfig: false,

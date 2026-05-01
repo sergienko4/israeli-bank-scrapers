@@ -12,7 +12,6 @@ import type { IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 export type {
   AuthPathKey,
   IHeadlessUrlsConfig,
-  IOtpBankConfig,
   IPipelineBankConfig,
   IProxyAuth,
   IProxyParams,
@@ -22,26 +21,21 @@ export type {
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: {
     urls: { base: 'https://www.fibi.co.il' },
-    otp: { enabled: true, required: true },
   },
   [CompanyTypes.Discount]: {
     urls: { base: 'https://www.discountbank.co.il' },
   },
   [CompanyTypes.Hapoalim]: {
     urls: { base: 'https://www.bankhapoalim.co.il' },
-    otp: { enabled: true, required: false },
   },
   [CompanyTypes.Massad]: {
     urls: { base: 'https://www.bankmassad.co.il' },
-    otp: { enabled: true, required: true },
   },
   [CompanyTypes.OtsarHahayal]: {
     urls: { base: 'https://www.bankotsar.co.il' },
-    otp: { enabled: true, required: true },
   },
   [CompanyTypes.Pagi]: {
     urls: { base: 'https://www.pagi.co.il' },
-    otp: { enabled: true, required: true },
   },
   [CompanyTypes.VisaCal]: {
     urls: { base: 'https://www.cal-online.co.il/' },

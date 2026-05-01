@@ -105,17 +105,19 @@ class PipelineBuilder {
    * @returns This builder.
    */
   public withLoginAndOtpTrigger(): this {
-    this._s.hasOtp = true;
     this._s.hasOtpTrigger = true;
     return this;
   }
 
   /**
-   * Enable OTP fill phase (fills code).
+   * Enable OTP fill phase. Pass `required=false` for banks that may skip
+   * OTP entirely (e.g. Hapoalim — device-remembered sessions).
+   * @param required - Whether OTP fill is mandatory (default true).
    * @returns This builder.
    */
-  public withLoginAndOptCodeFill(): this {
-    this._s.hasOtp = true;
+  public withOtpFill(required = true): this {
+    this._s.hasOtpFill = true;
+    this._s.otpFillRequired = required;
     return this;
   }
 

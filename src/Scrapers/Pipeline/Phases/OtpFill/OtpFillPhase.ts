@@ -41,13 +41,16 @@ const OTP_FILL_STEP = {
 class OtpFillPhase extends BasePhase {
   public readonly name = 'otp-fill' as const;
 
+  /** Whether OTP is mandatory; false enables soft-skip on missing input. */
+  public required = true;
+
   /** @inheritdoc */
   public async pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     void this.name;
-    return executeFillPre(input);
+    return executeFillPre(input, this.required);
   }
 
   /** @inheritdoc */
@@ -80,10 +83,13 @@ class OtpFillPhase extends BasePhase {
 
 /**
  * Create the OTP Fill phase instance.
+ * @param required - Whether OTP is mandatory (default true).
  * @returns OtpFillPhase.
  */
-function createOtpFillPhase(): OtpFillPhase {
-  return Reflect.construct(OtpFillPhase, []);
+function createOtpFillPhase(required = true): OtpFillPhase {
+  const phase = Reflect.construct(OtpFillPhase, []);
+  phase.required = required;
+  return phase;
 }
 
 export { createOtpFillPhase, OTP_FILL_STEP, OtpFillPhase };
