@@ -18,6 +18,7 @@ import type { PhaseName } from './Phase.js';
 import type { IActionContext, IBootstrapContext, IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 import { fail, succeed } from './Procedure.js';
+import { screenshotPath } from './RunLabel.js';
 
 /** Whether PRE produced a valid discovery payload for ACTION. */
 type IsPrePayloadValid = boolean;
@@ -179,6 +180,23 @@ const PHASE_KEY_MAP: Record<string, string> = {
 };
 
 /**
+ * Pick which context the post-phase screenshot should use. On success
+ * we want the merged result context (state advances per phase); on
+ * failure the original entry context is the only safe reference.
+ * Replaces a ternary in run() to satisfy logical-lookup style rule.
+ * @param result - Final stage result.
+ * @param fallback - Original context at phase entry.
+ * @returns Pipeline context to attach the post screenshot to.
+ */
+function pickFinalCtx(
+  result: Procedure<IPipelineContext>,
+  fallback: IPipelineContext,
+): IPipelineContext {
+  if (result.success) return result.value;
+  return fallback;
+}
+
+/**
  * Phase-scoped HANDOFF log — only logs discoveries for the current phase.
  * @param phaseName - Current phase name.
  * @param ctx - Context after PRE completed.
@@ -224,22 +242,19 @@ abstract class BasePhase {
    * Template Method — the ONLY way to execute a phase.
    * Enforces PRE -> ACTION -> POST -> FINAL with Guard Clauses.
    * ACTION receives sealed IActionContext (no discovery).
+   * Bookended by automatic phase-level diagnostic screenshots
+   * (`<bank>-<phase>-pre-<ts>.png` before PRE, `<bank>-<phase>-post-<ts>.png`
+   * after FINAL). Both no-op outside trace mode (gated by RunLabel).
    * @param ctx - Pipeline context at phase entry.
    * @returns Final context after all 4 stages, or first failure.
    */
   public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-    const log = ctx.logger;
     setActivePhase(this.name);
-    setActiveStage('PRE');
-    const preResult = await this.runPre(ctx, log);
-    if (!preResult.success) return preResult;
-    const isPayloadValid = this.validatePrePayload(preResult.value);
-    if (!isPayloadValid) return this.contractViolation();
-    const actionResult = await this.runAction(preResult.value, log);
-    if (!actionResult.success) return actionResult;
-    const postResult = await this.runPost(ctx, actionResult.value, log);
-    if (!postResult.success) return postResult;
-    return this.runFinal(ctx, postResult.value, log);
+    await this.takePhaseScreenshot(ctx, 'pre');
+    const result = await this.runStages(ctx, ctx.logger);
+    const finalCtx = pickFinalCtx(result, ctx);
+    await this.takePhaseScreenshot(finalCtx, 'post');
+    return result;
   }
 
   /**
@@ -296,6 +311,50 @@ abstract class BasePhase {
   protected validatePrePayload(_ctx: IPipelineContext): IsPrePayloadValid {
     void _ctx;
     void this.name;
+    return true;
+  }
+
+  /**
+   * Drive the 4-stage protocol — split out so run() can bookend
+   * screenshots without losing readability.
+   * @param ctx - Pipeline context at phase entry.
+   * @param log - Logger instance.
+   * @returns Final context after all 4 stages, or first failure.
+   */
+  private async runStages(
+    ctx: IPipelineContext,
+    log: IPipelineContext['logger'],
+  ): Promise<Procedure<IPipelineContext>> {
+    setActiveStage('PRE');
+    const preResult = await this.runPre(ctx, log);
+    if (!preResult.success) return preResult;
+    const isPayloadValid = this.validatePrePayload(preResult.value);
+    if (!isPayloadValid) return this.contractViolation();
+    const actionResult = await this.runAction(preResult.value, log);
+    if (!actionResult.success) return actionResult;
+    const postResult = await this.runPost(ctx, actionResult.value, log);
+    if (!postResult.success) return postResult;
+    return this.runFinal(ctx, postResult.value, log);
+  }
+
+  /**
+   * Capture a diagnostic screenshot for this phase. No-op when
+   * (a) not in trace mode (`screenshotPath` returns empty), or
+   * (b) the phase has no browser attached (INIT before launch /
+   * TERMINATE after teardown / headless api-direct phases).
+   * Called automatically by run() — phases never invoke this directly.
+   * @param ctx - Pipeline context at the bookend.
+   * @param suffix - 'pre' (before PRE) or 'post' (after FINAL).
+   * @returns True after the screenshot attempt.
+   */
+  private async takePhaseScreenshot(ctx: IPipelineContext, suffix: 'pre' | 'post'): Promise<true> {
+    if (!ctx.browser.has) return true;
+    const label = `${this.name}-${suffix}`;
+    const target = screenshotPath(ctx.companyId, label);
+    if (!target) return true;
+    const page = ctx.browser.value.page;
+    await page.screenshot({ path: target }).catch((): false => false);
+    ctx.logger.debug({ message: `screenshot: ${target}` });
     return true;
   }
 

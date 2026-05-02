@@ -4,6 +4,12 @@
  * Split off from BasePhase.test.ts to honor max-lines (300).
  */
 
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import type { Page } from 'playwright-core';
+
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
@@ -12,8 +18,16 @@ import type {
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockContext } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  resetTraceConfigCache,
+  setActiveBank,
+} from '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
+import {
+  makeContextWithBrowser,
+  makeMockContext,
+} from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+import { makeScreenshotPage } from '../Infrastructure/TestHelpers.js';
 
 describe('BasePhase MOCK_MODE short-circuit branches', () => {
   /** Track whether an action stage ran. */
@@ -229,5 +243,99 @@ describe('BasePhase HANDOFF — early-return branches', () => {
     const result = await phase.run(ctx);
     const isOkResult18 = isOk(result);
     expect(isOkResult18).toBe(true);
+  });
+});
+
+// ── Phase-level screenshot bookend (BasePhase.takePhaseScreenshot + pickFinalCtx) ──
+
+describe('BasePhase phase-level screenshot bookend', () => {
+  /** Phase with a browser-attached context — exercises takePhaseScreenshot's
+   *  on-trace path through the off-trace early return (target = ''). */
+  class BrowserPhase extends BasePhase {
+    public readonly name: PhaseName = 'home';
+    /**
+     * Test helper.
+     * @param _ctx - Parameter.
+     * @param input - Parameter.
+     * @returns Result.
+     */
+    public async action(
+      _ctx: IActionContext,
+      input: IActionContext,
+    ): Promise<Procedure<IActionContext>> {
+      await Promise.resolve();
+      return succeed(input);
+    }
+  }
+
+  /** Phase whose action fails — exercises pickFinalCtx fallback branch. */
+  class FailingActionPhase extends BasePhase {
+    public readonly name: PhaseName = 'home';
+    /**
+     * Test helper — fails unconditionally.
+     * @param ctx - Action context (unused).
+     * @param input - Action context (unused).
+     * @returns Failed Procedure.
+     */
+    public async action(
+      ctx: IActionContext,
+      input: IActionContext,
+    ): Promise<Procedure<IActionContext>> {
+      void ctx;
+      void input;
+      await Promise.resolve();
+      return fail(ScraperErrorTypes.Generic, 'forced for test');
+    }
+  }
+
+  it('takePhaseScreenshot: browser attached but off-trace → no-op (returns success path)', async () => {
+    const page = makeScreenshotPage();
+    const ctx = makeContextWithBrowser(page);
+    const phase = new BrowserPhase();
+    const result = await phase.run(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+  });
+
+  it('pickFinalCtx fallback branch: action failure routes post screenshot to entry ctx', async () => {
+    const phase = new FailingActionPhase();
+    const ctx = makeMockContext();
+    const result = await phase.run(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+  });
+
+  it('takePhaseScreenshot: trace mode + bank registered → calls page.screenshot', async () => {
+    const tmpDir = os.tmpdir();
+    const nowMs = Date.now();
+    const stamp = String(nowMs);
+    const tempRoot = path.join(tmpDir, `bp-screenshot-${stamp}`);
+    process.env.LOG_LEVEL = 'trace';
+    process.env.RUNS_ROOT = tempRoot;
+    resetTraceConfigCache();
+    setActiveBank('amex');
+    let screenshotCalls = 0;
+    const base = makeScreenshotPage();
+    const emptyBuffer = Buffer.from('');
+    const counted: Page = {
+      ...base,
+      /**
+       * Counting screenshot stub.
+       * @returns Empty buffer.
+       */
+      screenshot: (): Promise<Buffer> => {
+        screenshotCalls = screenshotCalls + 1;
+        return Promise.resolve(emptyBuffer);
+      },
+    };
+    const ctx = makeContextWithBrowser(counted);
+    const phase = new BrowserPhase();
+    const result = await phase.run(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    expect(screenshotCalls).toBeGreaterThan(0);
+    delete process.env.LOG_LEVEL;
+    delete process.env.RUNS_ROOT;
+    resetTraceConfigCache();
   });
 });
