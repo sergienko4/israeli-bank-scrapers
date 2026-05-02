@@ -21,6 +21,7 @@ import type {
   IPipelineContext,
   IPreLoginDiscovery,
   IResolvedTarget,
+  RevealStatus,
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -76,8 +77,50 @@ async function resolveRevealFromBrowser(
 }
 
 /**
- * PRE: Locate reveal target. If form already visible → revealAction='NONE'.
- * If reveal found → resolve to IResolvedTarget, revealAction='CLICK'.
+ * Resolve a reveal target only when at least one probe matched.
+ * Avoids the resolve call when probes returned NOT_FOUND.
+ * @param mediator - Element mediator.
+ * @param input - Pipeline context.
+ * @param hasReveal - Whether either probe returned non-NOT_FOUND.
+ * @returns IResolvedTarget or false.
+ */
+async function resolveTargetWhenSeen(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+  hasReveal: boolean,
+): Promise<IResolvedTarget | false> {
+  if (!hasReveal) return false;
+  return resolveRevealFromBrowser(mediator, input);
+}
+
+/**
+ * Build the PRE-LOGIN discovery payload.
+ * @param privateCustomers - First probe result.
+ * @param credentialArea - Second probe result.
+ * @param revealTarget - Resolved click target or false.
+ * @returns IPreLoginDiscovery — CLICK if target resolved, else NONE.
+ */
+function buildPreLoginDiscovery(
+  privateCustomers: RevealStatus,
+  credentialArea: RevealStatus,
+  revealTarget: IResolvedTarget | false,
+): IPreLoginDiscovery {
+  if (revealTarget) {
+    return { privateCustomers, credentialArea, revealAction: 'CLICK', revealTarget };
+  }
+  return { privateCustomers, credentialArea, revealAction: 'NONE' };
+}
+
+/**
+ * PRE: Probe REVEAL first; resolve target if any probe matched.
+ * Reveal-first (no form-visible short-circuit) is required for 2-form
+ * modal banks (Amex/Isracard flip cards) where the back-panel password
+ * input is treated by Playwright as "visible" via CSS 3D transforms —
+ * the previous form-visible check fired falsely and skipped the flip
+ * click. The fix keeps the change generic (uses WK_PRELOGIN.REVEAL,
+ * zero per-bank code) and surgically only affects the buggy case;
+ * Max + VisaCal already used the probe path at baseline (hasPwd:false)
+ * so behaviour is unchanged for them.
  * @param mediator - Element mediator.
  * @param input - Pipeline context.
  * @returns Updated context with preLoginDiscovery.
@@ -88,52 +131,18 @@ async function executePreLocateReveal(
 ): Promise<Procedure<IPipelineContext>> {
   const logger = input.logger;
   const rawUrl = mediator.getCurrentUrl();
-  logger.trace({
-    message: maskVisibleText(rawUrl),
-  });
-
-  if (await isFormAlreadyVisible(mediator, logger)) {
-    logger.debug({ hasPwd: true, iframes: 0 });
-    const disc: IPreLoginDiscovery = {
-      privateCustomers: 'NOT_FOUND',
-      credentialArea: 'NOT_FOUND',
-      revealAction: 'NONE',
-    };
-    return succeed({ ...input, preLoginDiscovery: some(disc) });
-  }
-
-  logger.debug({
-    message: 'probing reveal',
-  });
+  logger.trace({ message: maskVisibleText(rawUrl) });
+  logger.debug({ message: 'probing reveal' });
   const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
   const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
-
   const hasReveal = privateCustomers !== 'NOT_FOUND' || credentialArea !== 'NOT_FOUND';
-  if (!hasReveal) {
-    const disc: IPreLoginDiscovery = {
-      privateCustomers,
-      credentialArea,
-      revealAction: 'NONE',
-    };
-    return succeed({ ...input, preLoginDiscovery: some(disc) });
-  }
-
-  const revealTarget = await resolveRevealFromBrowser(mediator, input);
+  const revealTarget = await resolveTargetWhenSeen(mediator, input, hasReveal);
   const hasFoundTarget = Boolean(revealTarget);
   const targetInfo = revealTarget && ` → ${revealTarget.contextId} > ${revealTarget.selector}`;
   logger.debug({
     message: `reveal target: ${String(hasFoundTarget)}${targetInfo || ''}`,
   });
-
-  const actionMap: Record<string, 'CLICK' | 'NONE'> = { true: 'CLICK', false: 'NONE' };
-  const hasTarget = Boolean(revealTarget);
-  const revealAction = actionMap[String(hasTarget)];
-  const disc: IPreLoginDiscovery = {
-    privateCustomers,
-    credentialArea,
-    revealAction,
-    revealTarget: revealTarget || undefined,
-  };
+  const disc = buildPreLoginDiscovery(privateCustomers, credentialArea, revealTarget);
   return succeed({ ...input, preLoginDiscovery: some(disc) });
 }
 

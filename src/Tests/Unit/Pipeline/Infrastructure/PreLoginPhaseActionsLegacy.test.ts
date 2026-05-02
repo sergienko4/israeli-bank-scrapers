@@ -74,16 +74,12 @@ describe('executePreLocateReveal — reveal target resolved', () => {
     const makeScreenshotPageResult29 = makeScreenshotPage();
     const base = makeContextWithBrowser(makeScreenshotPageResult29);
     const page = assertSomeBrowser(base.browser).value.page;
-    let callIdx = 0;
     const mediator = makeMockMediator({
       /**
-       * Form gate (first 2 calls) → not found.
-       * Reveal status (3rd+) → found.
+       * All probes find target — reveal-first flow proceeds straight to resolve.
        * @returns Race.
        */
       resolveVisible: () => {
-        callIdx += 1;
-        if (callIdx <= 2) return Promise.resolve(notFoundResult);
         const race = {
           ...notFoundResult,
           found: true as const,
@@ -94,7 +90,7 @@ describe('executePreLocateReveal — reveal target resolved', () => {
         return Promise.resolve(race);
       },
       /**
-       * Never visible via getCurrentUrl logging.
+       * URL getter.
        * @returns URL.
        */
       getCurrentUrl: () => 'https://bank.example.com/home',

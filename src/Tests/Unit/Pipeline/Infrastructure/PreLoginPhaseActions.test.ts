@@ -41,10 +41,23 @@ const MOCK_TARGET: IResolvedTarget = {
 };
 
 describe('executePreLocateReveal', () => {
-  it('returns discovery with revealAction=NONE when form already visible', async () => {
+  it('returns revealAction=NONE when no reveal probes match anything', async () => {
+    const mediator = makeMockMediator();
+    const ctx = makeMockContext();
+    const result = await executePreLocateReveal(mediator, ctx);
+    const isOkResult2 = isOk(result);
+    expect(isOkResult2).toBe(true);
+    if (isOk(result) && result.value.preLoginDiscovery.has) {
+      expect(result.value.preLoginDiscovery.value.revealAction).toBe('NONE');
+    }
+  });
+
+  it('returns revealAction=NONE when probes match but no browser to resolve target', async () => {
+    // Probe sees reveal candidate but resolveRevealFromBrowser returns false
+    // because mock context has no browser attached.
     const mediator = makeMockMediator({
       /**
-       * Always visible.
+       * Always returns a found race result (probe sees reveal).
        * @returns Found result.
        */
       resolveVisible: () => Promise.resolve(FOUND),
@@ -53,17 +66,6 @@ describe('executePreLocateReveal', () => {
     const result = await executePreLocateReveal(mediator, ctx);
     const isOkResult1 = isOk(result);
     expect(isOkResult1).toBe(true);
-    if (isOk(result) && result.value.preLoginDiscovery.has) {
-      expect(result.value.preLoginDiscovery.value.revealAction).toBe('NONE');
-    }
-  });
-
-  it('returns revealAction=NONE when no reveal probes match anything', async () => {
-    const mediator = makeMockMediator();
-    const ctx = makeMockContext();
-    const result = await executePreLocateReveal(mediator, ctx);
-    const isOkResult2 = isOk(result);
-    expect(isOkResult2).toBe(true);
     if (isOk(result) && result.value.preLoginDiscovery.has) {
       expect(result.value.preLoginDiscovery.value.revealAction).toBe('NONE');
     }

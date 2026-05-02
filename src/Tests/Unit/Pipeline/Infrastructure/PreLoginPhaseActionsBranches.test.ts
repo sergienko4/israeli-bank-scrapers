@@ -33,23 +33,19 @@ describe('PreLoginPhaseActions — branch completion', () => {
   it('resolveRevealFromBrowser: no browser → returns false', async () => {
     const { NOT_FOUND_RESULT: notFoundResult } =
       await import('../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js');
-    let count = 0;
     const mediator = makeMockMediator({
       /**
-       * Visible form check (first 2) → not found, reveal → found.
-       * @returns Varied.
+       * All probes find a target — reveal-first flow proceeds straight to resolve.
+       * @returns Found.
        */
-      resolveVisible: () => {
-        count += 1;
-        if (count <= 2) return Promise.resolve(notFoundResult);
-        return Promise.resolve({
+      resolveVisible: () =>
+        Promise.resolve({
           ...notFoundResult,
           found: true as const,
           candidate: { kind: 'textContent', value: 'Reveal' },
           context: null as unknown as Page,
           value: 'Reveal',
-        } as unknown as IRaceResult);
-      },
+        } as unknown as IRaceResult),
       /**
        * URL getter.
        * @returns URL.
@@ -69,15 +65,23 @@ describe('PreLoginPhaseActions — branch completion', () => {
     let count = 0;
     const mediator = makeMockMediator({
       /**
-       * Form gate not found, reveal probe found (via READY state), then resolve rejects.
+       * Probe #1 finds reveal, probe #2 not found, resolveRevealFromBrowser rejects.
        * @returns Varied.
        */
       resolveVisible: () => {
         count += 1;
-        if (count <= 2) return Promise.resolve(notFoundResult);
-        // Third call is resolveRevealTarget → reject
-        if (count === 3) return Promise.reject(new Error('resolve failed'));
-        return Promise.resolve(notFoundResult);
+        if (count === 1) {
+          return Promise.resolve({
+            ...notFoundResult,
+            found: true as const,
+            candidate: { kind: 'textContent', value: 'P' },
+            context: null as unknown as Page,
+            value: 'P',
+          } as unknown as IRaceResult);
+        }
+        if (count === 2) return Promise.resolve(notFoundResult);
+        // call 3: resolveRevealTarget — reject
+        return Promise.reject(new Error('resolve failed'));
       },
       /**
        * URL getter.
@@ -107,23 +111,18 @@ describe('PreLoginPhaseActions — branch completion', () => {
     expect(isOkResult4).toBe(true);
   });
 
-  it('resolveRevealTarget: resolveVisible rejects inside reveal flow (L59 true)', async () => {
+  it('resolveRevealTarget: resolveVisible rejects inside reveal flow', async () => {
     const { NOT_FOUND_RESULT: notFoundResult } =
       await import('../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js');
     let count = 0;
     const mediator = makeMockMediator({
       /**
-       * Test helper.
-       *
+       * Probe #1 finds reveal; probe #2 NOT_FOUND; resolveRevealTarget rejects.
        * @returns Result.
        */
       resolveVisible: () => {
         count += 1;
-        // Calls 1-2: isFormAlreadyVisible + probeRevealStatus → return READY-ish
-        // so hasReveal=true and we reach resolveRevealFromBrowser.
-        if (count === 1) return Promise.resolve(notFoundResult); // form not visible
-        if (count === 2) {
-          // privateCustomers probe → return found so status !== NOT_FOUND
+        if (count === 1) {
           return Promise.resolve({
             ...notFoundResult,
             found: true as const,
@@ -132,14 +131,13 @@ describe('PreLoginPhaseActions — branch completion', () => {
             value: 'P',
           } as unknown as IRaceResult);
         }
-        if (count === 3) return Promise.resolve(notFoundResult);
-        // call 4: resolveRevealTarget — reject
+        if (count === 2) return Promise.resolve(notFoundResult);
+        // call 3: resolveRevealTarget — reject
         return Promise.reject(new Error('resolve-fail'));
       },
       /**
-       * Test helper.
-       *
-       * @returns Result.
+       * URL getter.
+       * @returns URL.
        */
       getCurrentUrl: () => 'https://bank.example.com/home',
     });
@@ -150,20 +148,18 @@ describe('PreLoginPhaseActions — branch completion', () => {
     expect(isOkResult6).toBe(true);
   });
 
-  it('resolveRevealTarget: resolveVisible returns not-found (L60 true)', async () => {
+  it('resolveRevealTarget: resolveVisible returns not-found', async () => {
     const { NOT_FOUND_RESULT: notFoundResult } =
       await import('../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js');
     let count = 0;
     const mediator = makeMockMediator({
       /**
-       * Test helper.
-       *
+       * Probe #1 finds reveal; probe #2 + resolveRevealTarget return NOT_FOUND.
        * @returns Result.
        */
       resolveVisible: () => {
         count += 1;
-        if (count === 1) return Promise.resolve(notFoundResult);
-        if (count === 2) {
+        if (count === 1) {
           return Promise.resolve({
             ...notFoundResult,
             found: true as const,
@@ -172,13 +168,12 @@ describe('PreLoginPhaseActions — branch completion', () => {
             value: 'P',
           } as unknown as IRaceResult);
         }
-        // resolveRevealTarget: returns valid result but not-found
+        // probe #2 + resolveRevealTarget — both not found
         return Promise.resolve(notFoundResult);
       },
       /**
-       * Test helper.
-       *
-       * @returns Result.
+       * URL getter.
+       * @returns URL.
        */
       getCurrentUrl: () => 'https://bank.example.com/home',
     });
