@@ -33,7 +33,15 @@ export const PIPELINE_WELL_KNOWN_API = {
   ],
   transactions: [
     /TransactionsAndGraphs/i,
-    /transactions?Details/i,
+    // PLURAL only: a list/collection endpoint. The earlier optional-`s`
+    // form (`transactions?Details`) also matched single-record action /
+    // popup endpoints (e.g. Max `GetTransactionDetailsActions`,
+    // `transactionDetails/getDapapRegistrationPopup`) that do NOT serve
+    // transaction data — picking one of those over the real fetcher led
+    // to 0-txn Max scrapes. The plural-vs-singular split is the bank-
+    // agnostic naming convention list endpoints follow (verified across
+    // all 7 captured-trace banks).
+    /transactionsDetails/i,
     /filteredTransactions/i,
     /lastTransactions/i,
     /transactions\/list/i,

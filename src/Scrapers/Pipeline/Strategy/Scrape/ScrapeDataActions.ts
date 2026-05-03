@@ -199,17 +199,30 @@ const FILTER_DATA_TEMPLATE = {
 };
 
 /**
- * Build a full config-fallback URL with filterData for a specific month.
- * @param baseUrl - Config transaction URL (e.g. https://...getTransactionsAndGraphs).
- * @param yyyy - Year.
- * @param m - Month (1-based, no zero-pad).
- * @returns Full URL with encoded filterData + firstCallCardIndex.
+ * Builds a per-month transaction URL by setting `filterData` and
+ * `firstCallCardIndex` on the captured base URL. Uses URL.searchParams
+ * so existing query params (e.g. version, stale filterData) merge
+ * correctly — concatenating with `?` produced a double-`?` URL when
+ * the captured base already carried a query string, which Max's API
+ * rejected with `result: null, returnCode: 10`.
+ * @param baseUrl - captured transaction URL.
+ * @param yyyy - calendar year.
+ * @param m - calendar month (1-based, no zero-pad).
+ * @returns full URL with encoded filterData + firstCallCardIndex.
  */
 function buildFilterDataUrl(baseUrl: TxnUrlStr, yyyy: number, m: number): TxnUrlStr {
   const dateStr = `${String(yyyy)}-${String(m)}-01`;
   const json = JSON.stringify(FILTER_DATA_TEMPLATE).replace('{date}', dateStr);
-  const encoded = encodeURIComponent(json);
-  return `${baseUrl}?filterData=${encoded}&firstCallCardIndex=-1`;
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    const encoded = encodeURIComponent(json);
+    return `${baseUrl}?filterData=${encoded}&firstCallCardIndex=-1`;
+  }
+  url.searchParams.set('filterData', json);
+  url.searchParams.set('firstCallCardIndex', '-1');
+  return url.toString();
 }
 
 /**

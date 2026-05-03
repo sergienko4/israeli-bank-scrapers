@@ -111,6 +111,31 @@ describe('buildFilterDataUrl', () => {
     const decoded = decodeURIComponent(url);
     expect(decoded).toContain('2026-6-01');
   });
+
+  it('merges into an existing query string without producing a double "?"', () => {
+    const captured = 'https://acc.bank.example/api/transactions?filterData=&v=V4.211';
+    const url = buildFilterDataUrl(captured, 2026, 4);
+    const questionMatches = url.match(/\?/g) ?? [];
+    const questionCount = questionMatches.length;
+    expect(questionCount).toBe(1);
+    expect(url).toContain('v=V4.211');
+    expect(url).toContain('firstCallCardIndex=-1');
+  });
+
+  it('overwrites a stale filterData value rather than appending a duplicate', () => {
+    const captured = 'https://acc.bank.example/api/transactions?filterData=stale';
+    const url = buildFilterDataUrl(captured, 2026, 4);
+    const occurrences = url.match(/filterData=/g) ?? [];
+    expect(occurrences).toHaveLength(1);
+    expect(url).not.toContain('filterData=stale');
+  });
+
+  it('falls back to plain concatenation when baseUrl is not a parseable URL', () => {
+    const url = buildFilterDataUrl('not-a-url', 2026, 4);
+    const hasRawPrefix = url.startsWith('not-a-url?filterData=');
+    expect(hasRawPrefix).toBe(true);
+    expect(url).toContain('firstCallCardIndex=-1');
+  });
 });
 
 describe('templatePostBody', () => {
