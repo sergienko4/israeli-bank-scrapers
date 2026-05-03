@@ -127,6 +127,72 @@ describe('discoverAndLoadAccounts', () => {
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);
   });
+
+  it('uses URL-matched endpoint when its body has an account container', async () => {
+    const api = makeApi();
+    // Body has cardsList[] with cardSuffix → passes WK.accountContainers
+    // gate (looksLikeAccountRecord finds cardSuffix in WK.accountId).
+    const ep = makeEndpoint({
+      responseBody: { data: { cardsList: [{ cardSuffix: '8912' }] } },
+    });
+    const network = makeNetwork({
+      /**
+       * URL match returns the GetCardList endpoint (body has container).
+       * @returns Endpoint.
+       */
+      discoverAccountsEndpoint: () => ep,
+    });
+    const result = await discoverAndLoadAccounts(api, network);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+  });
+
+  it('falls through to container scan when URL-matched body has no container (Beinleumi shape)', async () => {
+    const api = makeApi();
+    // accountSummary has only auxiliary fields — no WK.accountContainers
+    // record (creditCards.cards entries lack any WK.accountId field).
+    const accountSummary = makeEndpoint({
+      url: 'https://bank/api/v1/accountSummary?uid=abc',
+      responseBody: {
+        creditCards: { cards: [{ resourceId: 'r1', maskedPan: 'xxxx' }] },
+        recentTransactions: { transactions: [] },
+      },
+    });
+    // Endpoint with no captured body — exercises the
+    // findEndpointWithAccountContainer skip path.
+    const noBodyEp = makeEndpoint({
+      url: 'https://bank/api/utils/empty',
+      responseBody: undefined,
+    });
+    // userData carries the real accounts[].
+    const userData = makeEndpoint({
+      url: 'https://bank/api/utils/userData?uid=def',
+      responseBody: {
+        accounts: [{ bank: '031', branch: '093', account: '190691', name: 'Eugene' }],
+      },
+    });
+    const network = makeNetwork({
+      /**
+       * URL match returns the accountSummary endpoint (no container).
+       * @returns Endpoint.
+       */
+      discoverAccountsEndpoint: () => accountSummary,
+      /**
+       * getAllEndpoints exposes the body-less + body-bearing captures
+       * so the container scan skips the empty one and finds userData.
+       * @returns Endpoints.
+       */
+      getAllEndpoints: () => [accountSummary, noBodyEp, userData],
+    });
+    const result = await discoverAndLoadAccounts(api, network);
+    const isOkResultB = isOk(result);
+    expect(isOkResultB).toBe(true);
+    if (result.success) {
+      const body = result.value as { readonly accounts?: readonly unknown[] };
+      const acctCount = body.accounts?.length ?? 0;
+      expect(acctCount).toBe(1);
+    }
+  });
 });
 
 describe('buildLoadAllCtx', () => {

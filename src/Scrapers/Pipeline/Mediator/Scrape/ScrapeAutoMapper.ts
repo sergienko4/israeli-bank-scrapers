@@ -697,8 +697,11 @@ function looksLikeAccountRecord(v: UntypedValue): Predicate {
 }
 
 /**
- * Returns the array of objects held under the first matching key in
- * `containerKeys`, or empty when no key has a usable array.
+ * Returns the array of account-shaped objects held under the first
+ * matching key in `containerKeys`, or empty. Items must pass
+ * `looksLikeAccountRecord` so auxiliary lists (e.g. the linked-credit-
+ * cards array on a Beinleumi account-summary response) don't shadow
+ * the primary account.
  * @param record - record to inspect.
  * @param containerKeys - candidate container key names.
  * @returns object array under the first matching key, or empty.
@@ -710,7 +713,7 @@ function tryContainerInRecord(
   const hits = containerKeys.map((key): readonly ApiRecord[] => {
     const value = record[key];
     if (!Array.isArray(value) || value.length === 0) return [];
-    const objects = value.filter(isSearchableObject);
+    const objects = value.filter(looksLikeAccountRecord);
     return objects.map((v): ApiRecord => v as ApiRecord);
   });
   return hits.find((arr): Predicate => arr.length > 0) ?? [];
@@ -1002,6 +1005,7 @@ export {
   extractAccountRecords,
   extractTransactions,
   extractTransactionsForCard,
+  findContainerArray,
   findFieldValue,
   findFirstArray,
   matchField,

@@ -14,6 +14,7 @@ import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstr
 import {
   extractAccountIds,
   extractAccountRecords,
+  findContainerArray,
   findFieldValue,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
@@ -67,17 +68,68 @@ async function loadDiscovered<T>(
   return api.fetchGet<T>(endpoint.url);
 }
 
+/** Whether a captured response carries an account container. */
+type HasAccountContainer = boolean;
+
 /**
- * Discover accounts endpoint and load raw data.
- * @param api - Unwrapped API fetch context.
- * @param network - Unwrapped network discovery.
- * @returns Raw accounts Procedure or failure.
+ * Returns the captured endpoint whose responseBody carries a non-empty
+ * named-container of account-shaped records (cardsList / cards /
+ * accounts / bankAccounts), or false. Used as a fallback when the
+ * URL-pattern match (e.g. accountSummary) returns a body that lacks the
+ * primary account list — Beinleumi's accountSummary holds linked credit
+ * cards and a recent-txn preview, while the real account list lives on
+ * a separate userData endpoint.
+ * @param network - frozen or live network discovery.
+ * @returns endpoint with a usable account container, or false.
+ */
+function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscoveredEndpoint | false {
+  const endpoints = network.getAllEndpoints();
+  const hit = endpoints.find((ep): HasAccountContainer => {
+    if (!ep.responseBody) return false;
+    const body = ep.responseBody as ApiPayload;
+    const records = findContainerArray(body, [...WK.accountContainers]);
+    return records.length > 0;
+  });
+  return hit ?? false;
+}
+
+/**
+ * Returns true when a captured response body holds a non-empty
+ * `WK.accountContainers` array of account-shaped records.
+ * @param body - parsed response body.
+ * @returns true when an account container is present.
+ */
+function bodyHasAccountContainer(body: ApiPayload): HasAccountContainer {
+  const records = findContainerArray(body, [...WK.accountContainers]);
+  return records.length > 0;
+}
+
+/**
+ * Resolves the captured accounts response, preferring (in order): a
+ * URL-matched endpoint whose body actually carries an account
+ * container; any captured endpoint with an account container; the
+ * URL-matched endpoint as a last resort; content discovery.
+ * @param api - api fetch context.
+ * @param network - network discovery.
+ * @returns Procedure with the parsed accounts body.
  */
 async function discoverAndLoadAccounts(
   api: IApiFetchContext,
   network: INetworkDiscovery,
 ): Promise<Procedure<ApiPayload>> {
   const byUrl = network.discoverAccountsEndpoint();
+  // URL match wins ONLY when its body actually carries account records.
+  // Otherwise fall through to content-based container discovery.
+  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) {
+    return loadDiscovered<ApiPayload>(api, byUrl);
+  }
+  const byContainer = findEndpointWithAccountContainer(network);
+  if (byContainer) {
+    LOG.debug({
+      message: `Container discovery: ${maskVisibleText(byContainer.url)}`,
+    });
+    return loadDiscovered<ApiPayload>(api, byContainer);
+  }
   if (byUrl) return loadDiscovered<ApiPayload>(api, byUrl);
   const byContent = network.discoverEndpointByContent([...WK.accountId]);
   if (byContent) {
