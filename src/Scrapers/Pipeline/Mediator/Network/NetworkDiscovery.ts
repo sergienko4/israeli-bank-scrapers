@@ -104,7 +104,7 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
     const text = await response.text();
     const responseBody = JSON.parse(text) as unknown;
     const responseHeaders = response.headers();
-    dumpResponseBody(meta.url, meta.method, text);
+    dumpResponseBody({ url: meta.url, method: meta.method, postData: meta.postData, text });
     return { ...meta, responseHeaders, responseBody, timestamp: Date.now() };
   } catch {
     return false;
@@ -122,25 +122,38 @@ let dumpCounter = 0;
 /** Named alias for the monotonically increasing dump-file counter (Rule #15). */
 type DumpCount = number;
 
+/** Bundled args for `dumpResponseBody` — keeps the helper inside the
+ *  3-param ceiling while exposing both the request body (POST payload)
+ *  and the response body to the trace-mode dump file. */
+interface IDumpArgs {
+  readonly url: EndpointUrl;
+  readonly method: string;
+  readonly postData: string;
+  readonly text: string;
+}
+
 /**
  * Debug hook: write each parsed response body to the trace-mode network
- * dump folder. Returns immediately when not in trace mode (TraceConfig's
- * `getNetworkDumpDir` returns empty string off-trace). Silent failures to
- * avoid impacting the pipeline when the debug target is bad.
- * @param url - Response URL.
- * @param method - HTTP method label.
- * @param text - Raw response body text.
+ * dump folder, alongside the captured POST request body so future audits
+ * can replay the exact request shape (needed for `.ashx`-removal work
+ * where we replace legacy reqName=… GETs with modern POST endpoints).
+ * Returns immediately when not in trace mode (TraceConfig's
+ * `getNetworkDumpDir` returns empty string off-trace). Silent failures
+ * to avoid impacting the pipeline when the debug target is bad.
+ * @param args - Bundled url/method/postData/responseText.
  * @returns Count of dumps so far.
  */
-function dumpResponseBody(url: EndpointUrl, method: string, text: string): DumpCount {
+function dumpResponseBody(args: IDumpArgs): DumpCount {
   const dir = getNetworkDumpDir();
   if (!dir) return dumpCounter;
   try {
     dumpCounter += 1;
-    const safe = url.replaceAll(/[^\w.-]/g, '_').slice(-80);
-    const name = `${String(dumpCounter).padStart(4, '0')}-${method}-${safe}.json`;
+    const safe = args.url.replaceAll(/[^\w.-]/g, '_').slice(-80);
+    const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safe}.json`;
     const filePath = path.join(dir, name);
-    fs.writeFileSync(filePath, `// ${method} ${url}\n${text}`);
+    const postSuffix = { true: '', false: `\n// POST_BODY: ${args.postData}` };
+    const postLine = postSuffix[String(args.postData.length === 0) as 'true' | 'false'];
+    fs.writeFileSync(filePath, `// ${args.method} ${args.url}${postLine}\n${args.text}`);
     return dumpCounter;
   } catch {
     return dumpCounter;
@@ -204,15 +217,28 @@ function handleResponse(captured: IDiscoveredEndpoint[], response: Response): Ca
   return true;
 }
 
+/** Endpoint is a POST with a non-empty body — replayable as a template. */
+type IsReplayablePost = boolean;
+
 /**
- * Shape-preferring variant of discoverByWellKnown. Prefers endpoints
- * whose responseBody passes hasTxnArray (non-empty WK.txnContainers
- * array), falling back to the first URL match when no body satisfies
- * the shape gate. Generic — prevents summary endpoints whose URL
- * matches the txn regex from shadowing the real detail response.
- * @param captured - All captured endpoints.
+ * Returns true when the endpoint is a non-empty-body POST — the body
+ * template is what MatrixLoop replays per-card / per-month.
+ * @param ep - captured endpoint.
+ * @returns true when method=POST and postData is non-empty.
+ */
+function isReplayablePost(ep: IDiscoveredEndpoint): IsReplayablePost {
+  if (ep.method !== 'POST') return false;
+  return ep.postData.length > 0;
+}
+
+/**
+ * Picks the best endpoint among URL matches, preferring a replayable
+ * POST template (so MatrixLoop has data to iterate) over a preview GET
+ * even when the captured POST body was empty (e.g. current cycle not
+ * yet charged).
+ * @param captured - all captured endpoints.
  * @param patterns - WellKnown regex patterns.
- * @returns Best endpoint or false.
+ * @returns best endpoint, or false when no URL matches.
  */
 function discoverShapeAware(
   captured: readonly IDiscoveredEndpoint[],
@@ -222,8 +248,15 @@ function discoverShapeAware(
     (ep): PatternTest => patterns.some((p): PatternTest => p.test(ep.url)),
   );
   if (urlMatches.length === 0) return false;
-  const shapePass = urlMatches.find((ep): PatternTest => hasTxnArray(ep.responseBody));
-  if (shapePass) return shapePass;
+  const shapePassing = urlMatches.filter((ep): PatternTest => hasTxnArray(ep.responseBody));
+  const postWithShape = shapePassing.find(isReplayablePost);
+  if (postWithShape) return postWithShape;
+  // Replayable POST without shape — its response was empty for the
+  // captured card+month (e.g. current billing cycle not yet charged),
+  // but the body template still drives MatrixLoop replay.
+  const anyReplayablePost = urlMatches.find(isReplayablePost);
+  if (anyReplayablePost) return anyReplayablePost;
+  if (shapePassing.length > 0) return shapePassing[0];
   return urlMatches[0] ?? false;
 }
 
@@ -255,19 +288,6 @@ function discoverByWellKnown(
   if (!match) return false;
   const hit = captured.find((ep): PatternTest => match.test(ep.url));
   return hit ?? false;
-}
-
-/**
- * Discover proxy/gateway base URL from captured traffic.
- * Matches WK proxy patterns (ProxyRequestHandler, ServiceEndpoint).
- * Returns the base URL (path without query params).
- * @param captured - All captured endpoints.
- * @returns Proxy base URL or false.
- */
-function discoverProxyUrl(captured: readonly IDiscoveredEndpoint[]): EndpointUrl | false {
-  const hit = discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.proxy);
-  if (!hit) return false;
-  return extractBaseUrl(hit.url);
 }
 
 /**
@@ -331,10 +351,7 @@ function buildCoreMethods(
 /** Type alias for endpoint discovery methods. */
 type EndpointMethods = Pick<
   INetworkDiscovery,
-  | 'discoverAccountsEndpoint'
-  | 'discoverTransactionsEndpoint'
-  | 'discoverBalanceEndpoint'
-  | 'discoverProxyEndpoint'
+  'discoverAccountsEndpoint' | 'discoverTransactionsEndpoint' | 'discoverBalanceEndpoint'
 >;
 
 /** Type alias for header discovery methods. */
@@ -359,8 +376,6 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
     /** @inheritdoc */
     discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
-    /** @inheritdoc */
-    discoverProxyEndpoint: (): string | false => discoverProxyUrl(captured),
   };
 }
 

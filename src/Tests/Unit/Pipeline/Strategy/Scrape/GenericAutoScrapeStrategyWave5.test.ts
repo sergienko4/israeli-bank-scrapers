@@ -13,10 +13,9 @@ import {
   genericAutoScrape,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import {
-  API_STRATEGY,
-  type IBrowserState,
-  type IPipelineContext,
+import type {
+  IBrowserState,
+  IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
@@ -120,17 +119,6 @@ describe('GenericAutoScrapeStrategy — Wave 5 branches', () => {
     const ctx = makeMockContext({ credentials: {} as unknown as IPipelineContext['credentials'] });
     const result = applyCredentialFallback(loadCtx, ctx);
     expect(result.ids).toEqual(['default']);
-  });
-
-  it('genericAutoScrape PROXY path with activateSession returning fail', async () => {
-    const pipeline = makeMockContext();
-    const ctx: IPipelineContext = {
-      ...pipeline,
-      diagnostics: { ...pipeline.diagnostics, apiStrategy: API_STRATEGY.PROXY },
-    };
-    const result = await genericAutoScrape(ctx);
-    // Without full proxy setup, it fails — exercises the fail passthrough
-    expect(typeof result.success).toBe('boolean');
   });
 
   it('genericAutoScrape: !api.has short-circuits (line 334)', async () => {
@@ -266,17 +254,6 @@ describe('GenericAutoScrapeStrategy — Wave 5 branches', () => {
     const result = await genericAutoScrape(ctx);
     const isOkResult6 = isOk(result);
     expect(isOkResult6).toBe(true);
-  });
-
-  it('executeProxyPath: proxy fail propagates (L323)', async () => {
-    const pipeline = makeMockContext();
-    // Set apiStrategy=PROXY plus fetchStrategy that lacks proxy — triggers proxy call which fails.
-    const ctx: IPipelineContext = {
-      ...pipeline,
-      diagnostics: { ...pipeline.diagnostics, apiStrategy: API_STRATEGY.PROXY },
-    };
-    const result = await genericAutoScrape(ctx);
-    expect(result.success || !result.success).toBe(true);
   });
 
   it('genericAutoScrape: discoverAndLoadAccounts rejects → fails (L341)', async () => {

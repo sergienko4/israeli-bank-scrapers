@@ -58,6 +58,80 @@ describe('extractAccountRecords', () => {
     const records = extractAccountRecords([1, 2, 3] as unknown as Record<string, unknown>);
     expect(records).toEqual([]);
   });
+
+  describe('named WK.accountContainers (cardsList / accounts / bankAccounts / cards)', () => {
+    it('finds nested cardsList array (Amex-style GetCardList shape)', () => {
+      const body = {
+        data: {
+          summaryNextBillingDateInOut: [{ nextBillingDateInOut: '01/06/2026' }],
+          cardsList: [
+            { cardSuffix: '8912', companyCode: '77' },
+            { cardSuffix: '4838', companyCode: '77' },
+          ],
+        },
+      };
+      const records = extractAccountRecords(body);
+      expect(records.length).toBe(2);
+      expect(records[0].cardSuffix).toBe('8912');
+      expect(records[1].cardSuffix).toBe('4838');
+    });
+
+    it('finds nested accounts array (named WK container)', () => {
+      const body = { result: { accounts: [{ accountNumber: '12345' }] } };
+      const records = extractAccountRecords(body);
+      expect(records.length).toBe(1);
+    });
+
+    it('finds nested bankAccounts array (named WK container)', () => {
+      const body = { result: { bankAccounts: [{ bankAccountUniqueId: '99' }] } };
+      const records = extractAccountRecords(body);
+      expect(records.length).toBe(1);
+    });
+
+    it('skips empty container arrays and falls through to existing logic', () => {
+      const body = { data: { cardsList: [] } };
+      const records = extractAccountRecords(body);
+      expect(records).toEqual([]);
+    });
+
+    it('skips containers whose array items are not objects', () => {
+      const body = { data: { cardsList: [1, 2, 3] } };
+      const records = extractAccountRecords(body);
+      expect(records).toEqual([]);
+    });
+
+    it('prefers named container over generic findFirstArray fallback', () => {
+      // findFirstArray would otherwise hit summaryNextBillingDateInOut first.
+      const body = {
+        data: {
+          summaryNextBillingDateInOut: [
+            { nextBillingDateInOut: '01/06/2026', billingSumSekelInOut: '83.66' },
+          ],
+          cardsList: [{ cardSuffix: '8912' }],
+        },
+      };
+      const records = extractAccountRecords(body);
+      expect(records.length).toBe(1);
+      expect(records[0].cardSuffix).toBe('8912');
+    });
+
+    it('prefers `cards` over `bankAccounts` when both are present (VisaCal shape)', () => {
+      // VisaCal's account/init carries both: cards[] are card-level
+      // (last4Digits like 3020/3308) and bankAccounts[] are bank-level
+      // (bankAccountNum like 190691). Iteration must target the cards
+      // because per-card POST replays use card identifiers, not the
+      // bank account UID — otherwise replays return 0 txns.
+      const body = {
+        result: {
+          cards: [{ cardUniqueId: '11733...', last4Digits: '3308' }],
+          bankAccounts: [{ bankAccountUniqueId: '31190691003093' }],
+        },
+      };
+      const records = extractAccountRecords(body);
+      expect(records.length).toBe(1);
+      expect(records[0].last4Digits).toBe('3308');
+    });
+  });
 });
 
 describe('extractAccountIds', () => {

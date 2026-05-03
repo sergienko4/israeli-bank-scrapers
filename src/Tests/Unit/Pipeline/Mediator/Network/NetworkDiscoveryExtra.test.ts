@@ -65,13 +65,6 @@ describe('NetworkDiscovery — content + auth + headers', () => {
     expect(discoverSiteIdResult3).toBe(false);
   });
 
-  it('discoverProxyEndpoint returns false with no proxy traffic', () => {
-    const page = makeMockPage();
-    const discovery = createNetworkDiscovery(page);
-    const discoverProxyEndpointResult4 = discovery.discoverProxyEndpoint();
-    expect(discoverProxyEndpointResult4).toBe(false);
-  });
-
   it('discoverAccountsEndpoint returns false when no accounts endpoint captured', () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);

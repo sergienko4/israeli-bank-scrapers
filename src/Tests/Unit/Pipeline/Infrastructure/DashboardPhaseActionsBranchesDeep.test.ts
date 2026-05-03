@@ -39,7 +39,7 @@ const MOCK_TARGET: IResolvedTarget = {
 describe('executeDashboardNavigationSealed — strategy branches', () => {
   it.each([
     ['DIRECT (default)', undefined],
-    ['PROXY', API_STRATEGY.PROXY],
+    ['DIRECT (explicit)', API_STRATEGY.DIRECT],
   ])('apiStrategy=%s with clickTarget', async (_label, strategy) => {
     const base = makeMockContext();
     const makeMockActionExecutorResult11 = makeMockActionExecutor();

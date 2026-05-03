@@ -6,24 +6,6 @@
 
 /** Bank website URL string. */
 type BankUrl = string;
-/** Company-specific code for proxy auth. */
-type CompanyCode = string;
-
-/** Parametric proxy query params — date tokens resolved at runtime. */
-export interface IProxyParams {
-  /** Dashboard query params (e.g. { billingDate: 'YYYY-MM-01' }). */
-  readonly dashboard?: Readonly<Record<string, string>>;
-  /** Transaction query params (e.g. { month: 'MM', year: 'YYYY' }). */
-  readonly transactions?: Readonly<Record<string, string>>;
-}
-
-/** Proxy auth params — injected via .withProxyAuth() for proxy-based banks. */
-export interface IProxyAuth {
-  /** Bank-specific company code (e.g. '77' for Amex, '11' for Isracard). */
-  readonly companyCode: CompanyCode;
-  /** Parametric query params for proxy API calls — date tokens resolved at runtime. */
-  readonly params?: IProxyParams;
-}
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
@@ -46,14 +28,12 @@ export interface IHeadlessUrlsConfig {
   readonly staticAuth?: BankUrl;
 }
 
-/** Pipeline bank config — HOME phase URL + optional proxy auth. */
+/** Pipeline bank config — HOME phase URL + optional headless URLs. */
 export interface IPipelineBankConfig {
   /** Official website URL — HOME phase navigates here. */
   readonly urls: {
     readonly base: BankUrl;
   };
-  /** Proxy auth params — for banks using ProxyRequestHandler login. */
-  readonly auth?: IProxyAuth;
   /** Fallback transaction API path — used when network discovery finds nothing. */
   readonly transactionsPath?: BankUrl;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */

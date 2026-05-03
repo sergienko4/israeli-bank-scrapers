@@ -4,8 +4,6 @@
 
 import {
   createScrapePhase,
-  findProxyAccountTemplate,
-  findProxyTxnTemplate,
   SCRAPE_STEP,
   ScrapePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
@@ -31,18 +29,6 @@ describe('ScrapePhase', () => {
 describe('SCRAPE_STEP', () => {
   it('has name "scrape"', () => {
     expect(SCRAPE_STEP.name).toBe('scrape');
-  });
-});
-
-describe('Re-exported template finders', () => {
-  it('findProxyAccountTemplate returns false for empty list', () => {
-    const findProxyAccountTemplateResult1 = findProxyAccountTemplate([]);
-    expect(findProxyAccountTemplateResult1).toBe(false);
-  });
-
-  it('findProxyTxnTemplate returns false for empty list', () => {
-    const findProxyTxnTemplateResult2 = findProxyTxnTemplate([]);
-    expect(findProxyTxnTemplateResult2).toBe(false);
   });
 });
 

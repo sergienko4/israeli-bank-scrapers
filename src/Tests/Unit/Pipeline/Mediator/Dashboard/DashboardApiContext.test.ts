@@ -53,7 +53,6 @@ describe('buildApiContext', () => {
     expect(ctx.transactionsUrl).toBe(false);
     expect(ctx.balanceUrl).toBe(false);
     expect(ctx.pendingUrl).toBe(false);
-    expect(ctx.proxyUrl).toBe(false);
     expect(ctx.configTransactionsUrl).toBe(false);
   });
 
@@ -83,12 +82,6 @@ describe('buildApiContext', () => {
        * @returns Result.
        */
       discoverByPatterns: () => makeEndpoint({ url: 'https://a.example/pend' }),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      discoverProxyEndpoint: () => 'https://a.example/proxy',
     });
     const counters: ICallCounters = { posts: 0, gets: 0 };
     const makeStrategyResult1 = makeStrategy(counters);
@@ -97,7 +90,6 @@ describe('buildApiContext', () => {
     expect(ctx.transactionsUrl).toBe('https://a.example/txn');
     expect(ctx.balanceUrl).toBe('https://a.example/bal');
     expect(ctx.pendingUrl).toBe('https://a.example/pend');
-    expect(ctx.proxyUrl).toBe('https://a.example/proxy');
   });
 
   it('falls back to config transactionsPath as an absolute URL', async () => {

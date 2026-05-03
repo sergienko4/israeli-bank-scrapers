@@ -13,8 +13,6 @@ export type {
   AuthPathKey,
   IHeadlessUrlsConfig,
   IPipelineBankConfig,
-  IProxyAuth,
-  IProxyParams,
 } from './PipelineBankConfigTypes.js';
 
 /** Pipeline bank registry — migrated banks only. */
@@ -42,13 +40,6 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
-    auth: {
-      companyCode: '77',
-      params: {
-        dashboard: { billingDate: 'YYYY-MM-01' },
-        transactions: { month: 'MM', year: 'YYYY', requiredDate: 'N' },
-      },
-    },
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
@@ -58,13 +49,6 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
-    auth: {
-      companyCode: '11',
-      params: {
-        dashboard: { billingDate: 'YYYY-MM-01' },
-        transactions: { month: 'MM', year: 'YYYY', requiredDate: 'N' },
-      },
-    },
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },

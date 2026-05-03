@@ -35,12 +35,21 @@ type DisplayLabel = string;
 type EndpointUrl = string;
 /** Raw POST body template string. */
 type BodyTemplate = string;
+/** Account record passed through for shape-aware body substitution. */
+type AccountRecord = Readonly<Record<string, unknown>>;
 
 /** Bundled args for the Matrix Loop. */
 interface IMatrixLoopArgs {
   readonly fc: IAccountFetchCtx;
   readonly accountId: AccountNum;
   readonly displayId: DisplayLabel;
+  /**
+   * Per-card raw record from the discovered accounts endpoint. When
+   * provided, buildMonthBody applies shape-aware substitution so per-card
+   * scalar fields (companyCode, cardStatus, isPartner, …) reflect the
+   * iterated card. Optional — banks with no per-card extras can omit it.
+   */
+  readonly accountRecord?: AccountRecord;
 }
 
 /** Bundled args for fetching one month chunk. */
@@ -74,6 +83,7 @@ async function fetchMatrixChunk(
       accountId: ctx.args.accountId,
       month: monthNum,
       year: yearNum,
+      accountRecord: ctx.args.accountRecord,
     };
     const body = buildMonthBody(opts) as Record<string, string | object>;
     const monthEnd = new Date(yearNum, monthNum, 0);
@@ -86,11 +96,13 @@ async function fetchMatrixChunk(
 }
 
 /**
- * Try Matrix Loop — iterate discovered monthly endpoint × month chunks.
- * Triggers ONLY if the discovered txn endpoint has monthly WK fields.
- * Returns false if not applicable — caller falls through to legacy billing.
- * @param args - Bundled matrix loop arguments.
- * @returns Account with transactions, or false if not a monthly endpoint.
+ * Iterates the discovered monthly endpoint across `card × month`
+ * chunks. Returns false only when no monthly endpoint applies — an
+ * iterated empty card resolves to an account with 0 txns so the caller
+ * does NOT fall through to scrapePostDirect (whose un-templated body
+ * would echo the captured leading card's txns onto every sibling).
+ * @param args - bundled matrix-loop arguments.
+ * @returns account Procedure, or false when not applicable.
  */
 async function tryMatrixLoop(
   args: IMatrixLoopArgs,
@@ -124,7 +136,6 @@ async function tryMatrixLoop(
   );
   await chain;
   LOG.debug({ accounts: 1, txns: allTxns.length });
-  if (allTxns.length === 0) return false;
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,
     accountId: args.accountId,

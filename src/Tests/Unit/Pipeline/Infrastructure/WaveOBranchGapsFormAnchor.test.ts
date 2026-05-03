@@ -144,7 +144,7 @@ describe('InitActions coldStartIfDumping (exercised via PRE.launchBrowser)', () 
 // ── MatrixLoopStrategy — 0-txn branch ────────────────────
 
 describe('MatrixLoopStrategy 0-txn branch', () => {
-  it('returns false when all months produce 0 txns', async () => {
+  it('resolves to a 0-txn account when iterated months are all empty', async () => {
     const { tryMatrixLoop } =
       await import('../../../../Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.js');
     // Build a monthly endpoint that succeeds but returns empty
@@ -173,10 +173,27 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
          * @returns ep.
          */
         discoverTransactionsEndpoint: (): unknown => ep,
+        /**
+         * Empty endpoint list — exercises the 0-balance path.
+         * @returns Empty array.
+         */
+        getAllEndpoints: (): readonly unknown[] => [],
+        /**
+         * No balance URL discoverable.
+         * @returns False.
+         */
+        buildBalanceUrl: (): false => false,
       },
       startDate: '20260101',
     } as unknown as Parameters<typeof tryMatrixLoop>[0]['fc'];
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    expect(result).toBe(false);
+    // Matrix applied → returns Procedure with 0-txn account, NOT false.
+    // False would let the caller fall through to scrapePostDirect whose
+    // un-templated body would echo the captured leading card across
+    // every empty sibling card (Amex/Isracard regression vector).
+    expect(result).not.toBe(false);
+    if (result !== false && result.success) {
+      expect(result.value.txns.length).toBe(0);
+    }
   });
 });

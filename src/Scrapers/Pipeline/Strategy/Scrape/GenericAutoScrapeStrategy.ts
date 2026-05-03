@@ -21,15 +21,10 @@ import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
-import type {
-  IActionContext,
-  IApiFetchContext,
-  IPipelineContext,
-} from '../../Types/PipelineContext.js';
+import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
-import { hasProxyStrategy, proxyScrape } from './Proxy/ProxyScrapeReplayStrategy.js';
 import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
 import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
@@ -315,24 +310,13 @@ async function applyStorageHarvest(
 }
 
 /**
- * Execute proxy scrape path — early return for proxy-based banks.
- * @param ctx - Pipeline context with proxy strategy.
- * @returns Scrape result or fail.
- */
-async function executeProxyPath(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const sealed = ctx as unknown as IActionContext;
-  const proxyResult = await proxyScrape(sealed);
-  if (!proxyResult.success) return fail(proxyResult.errorType, proxyResult.errorMessage);
-  return succeed(ctx);
-}
-
-/**
- * Generic auto-scrape — routes to proxy or legacy path.
+ * Generic auto-scrape — DIRECT path. After .ashx removal there is no
+ * PROXY branch; every bank flows through endpoint discovery + matrix
+ * loop replay.
  * @param ctx - Pipeline context.
  * @returns Updated context with scraped accounts.
  */
 async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (hasProxyStrategy(ctx)) return executeProxyPath(ctx);
   if (!ctx.api.has) return succeed(ctx);
   if (!ctx.mediator.has) return succeed(ctx);
   if (!ctx.browser.has) return succeed(ctx);

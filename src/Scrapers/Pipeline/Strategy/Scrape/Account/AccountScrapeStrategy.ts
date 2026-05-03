@@ -6,9 +6,18 @@
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { IDiscoveredEndpoint } from '../../../Mediator/Network/NetworkDiscovery.js';
-import { extractTransactions, isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
+import {
+  extractTransactions,
+  findFieldValue,
+  isMonthlyEndpoint,
+  isRangeIterable,
+} from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeToUrlWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
+import {
+  PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+} from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
@@ -137,11 +146,40 @@ interface IBufferedAttemptCtx {
   readonly rawRecord?: Record<string, unknown>;
 }
 
+/** WK field names that identify a per-card / per-account body parameter. */
+const ACCOUNT_BODY_KEYS: readonly string[] = [...WK.accountId, ...MF.accountId];
+
+/** Whether the captured buffer is reusable for the current iteration target. */
+type BufferReusable = boolean;
+
 /**
- * Try buffered response from NetworkStore — zero network cost.
- * @param fc - Fetch context.
- * @param attempt - Endpoint + POST params + optional captured record.
- * @returns Account Procedure, or false if no usable buffer.
+ * Returns true when the captured POST body identifies `accountId`, or
+ * when the body carries no account identifier at all (single-account
+ * banks share one buffer across the run).
+ * @param endpoint - captured endpoint with optional postData.
+ * @param accountId - iterating account identifier.
+ * @returns true when the buffer is safe to reuse for this account.
+ */
+function bufferedMatchesAccount(endpoint: IDiscoveredEndpoint, accountId: string): BufferReusable {
+  if (!endpoint.postData) return true;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(endpoint.postData) as Record<string, unknown>;
+  } catch {
+    return true;
+  }
+  const id = findFieldValue(parsed, ACCOUNT_BODY_KEYS);
+  if (id === false) return true;
+  return String(id) === accountId;
+}
+
+/**
+ * Resolves the captured response into an account when reuse is safe,
+ * else returns false so the caller can fall through to MatrixLoop or
+ * the billing / direct strategies.
+ * @param fc - fetch context.
+ * @param attempt - endpoint + POST params + optional captured record.
+ * @returns account Procedure, or false when the buffer is unsuitable.
  */
 async function tryBufferedResponse(
   fc: IAccountFetchCtx,
@@ -149,6 +187,13 @@ async function tryBufferedResponse(
 ): Promise<Procedure<ITransactionsAccount> | false> {
   const { endpoint, postCtx, rawRecord } = attempt;
   if (!endpoint.responseBody) return false;
+  // Monthly endpoints: MatrixLoop iterates all chunks and strictly
+  // subsumes the buffer (one captured (card,month) row).
+  if (isMonthlyEndpoint(endpoint.postData)) return false;
+  // Multi-card families (Amex/Isracard) capture only the leading card's
+  // POST during dashboard load — reusing it for siblings mirrors the
+  // same txns across every card.
+  if (!bufferedMatchesAccount(endpoint, postCtx.accountId)) return false;
   LOG.debug({
     message: 'Using buffered response (0ms network cost)',
   });
@@ -185,7 +230,12 @@ async function scrapeOneAccountPost(
     rawRecord: accountRecord,
   });
   if (buffered !== false) return buffered;
-  const matrix = await tryMatrixLoop({ fc, accountId: post.accountId, displayId: post.displayId });
+  const matrix = await tryMatrixLoop({
+    fc,
+    accountId: post.accountId,
+    displayId: post.displayId,
+    accountRecord,
+  });
   if (matrix !== false) return matrix;
   const billing = await tryBillingFallback(fc, post);
   if (isOk(billing) && billing.value.txns.length > 0) return billing;

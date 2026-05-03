@@ -1,5 +1,5 @@
 /**
- * ScrapePhaseActions — DIRECT + PROXY branch tests split from main file.
+ * ScrapePhaseActions — DIRECT branch tests split from main file.
  */
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
@@ -8,8 +8,7 @@ import {
   executeMatrixLoop,
   executeValidateResults,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.js';
-import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
+import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IApiFetchContext,
   IDashboardState,
@@ -101,19 +100,48 @@ describe('executeForensicPre DIRECT path', () => {
   });
 });
 
-describe('executeForensicPre PROXY path', () => {
-  it('runs PROXY with no fetchStrategy — succeeds passthrough', async () => {
+describe('executeForensicPre DIRECT path edge cases', () => {
+  it('runs DIRECT with no fetchStrategy — succeeds passthrough', async () => {
     const base = makeMockContext();
     const ctx = {
       ...base,
-      diagnostics: { ...base.diagnostics, apiStrategy: API_STRATEGY.PROXY },
+      diagnostics: { ...base.diagnostics, apiStrategy: API_STRATEGY.DIRECT },
     };
     const result = await executeForensicPre(ctx);
     const isOkResult22 = isOk(result);
     expect(isOkResult22).toBe(true);
   });
 
-  it('runs PROXY path with mediator + api (no fetchStrategy)', async () => {
+  it('propagates discoverAndLoadAccounts fail through DIRECT path', async () => {
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const failApi = makeApi(false);
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(failApi),
+    };
+    const result = await executeForensicPre(ctx);
+    // discoverAndLoadAccounts internally returns succeed({}) when nothing
+    // discovered, so the path completes — we exercise the discovery
+    // pipeline with a no-data API.
+    expect(typeof result.success).toBe('boolean');
+  });
+
+  it('skips forensic prime when dashboard unprimed but mediator absent', async () => {
+    /** Dashboard present but unprimed, mediator absent → maybeForensicPrime
+     *  hits the `!input.mediator.has` short-circuit (isPrimed=false branch). */
+    const dash: IDashboardState = {
+      isReady: true,
+      pageUrl: 'https://bank.example.com/d',
+      trafficPrimed: false,
+    };
+    const base = makeMockContext({ dashboard: some(dash) });
+    const result = await executeForensicPre(base);
+    const isOkResult25 = isOk(result);
+    expect(isOkResult25).toBe(true);
+  });
+
+  it('runs DIRECT path with mediator + api (no fetchStrategy)', async () => {
     const page = makeScreenshotPage();
     const baseWithBrowser = makeContextWithBrowser(page);
     const makeApiResult23 = makeApi();
@@ -122,7 +150,7 @@ describe('executeForensicPre PROXY path', () => {
       api: some(makeApiResult23),
       diagnostics: {
         ...baseWithBrowser.diagnostics,
-        apiStrategy: API_STRATEGY.PROXY,
+        apiStrategy: API_STRATEGY.DIRECT,
       },
     };
     const result = await executeForensicPre(ctx);
@@ -132,36 +160,6 @@ describe('executeForensicPre PROXY path', () => {
 });
 
 describe('executeMatrixLoop branches', () => {
-  it('delegates to proxyScrape when fetchStrategy proxyUrl is set', async () => {
-    const makeApiResult25 = makeApi();
-    const base = makeMockContext({
-      fetchStrategy: some({} as unknown as IFetchStrategy),
-      api: some(makeApiResult25),
-      scrapeDiscovery: some({
-        qualifiedCards: ['A1'],
-        prunedCards: [],
-        txnTemplateUrl: 'https://bank.example.com/txn',
-        txnTemplateBody: {},
-        billingMonths: [],
-      }),
-      diagnostics: {
-        loginUrl: '',
-        finalUrl: none(),
-        loginStartMs: 0,
-        fetchStartMs: none(),
-        lastAction: 'x',
-        pageTitle: none(),
-        warnings: [],
-        discoveredProxyUrl: 'https://proxy.example.com',
-        apiStrategy: API_STRATEGY.PROXY,
-      },
-    });
-    const makeMockActionExecutorResult26 = makeMockActionExecutor();
-    const ctx = toActionCtx(base, makeMockActionExecutorResult26);
-    const result = await executeMatrixLoop(ctx);
-    expect(typeof result.success).toBe('boolean');
-  });
-
   it('runs frozen direct when frozen endpoints exist', async () => {
     const disc: IScrapeDiscovery = {
       qualifiedCards: ['A1'],

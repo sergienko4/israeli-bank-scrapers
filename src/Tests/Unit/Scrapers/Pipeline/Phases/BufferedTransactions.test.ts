@@ -69,7 +69,6 @@ function mockApi(): IApiFetchContext & { readonly calls: string[] } {
     transactionsUrl: false,
     balanceUrl: false,
     pendingUrl: false,
-    proxyUrl: false,
   };
 }
 
@@ -177,11 +176,6 @@ function mockFetchCtx(): IAccountFetchCtx {
        * @returns False.
        */
       discoverEndpointByContent: (): false => false,
-      /**
-       * No proxy endpoint in mock.
-       * @returns False.
-       */
-      discoverProxyEndpoint: (): false => false,
       authFailureWatcher: createFrozenAuthFailureWatcher(),
     },
     startDate: '20260101',

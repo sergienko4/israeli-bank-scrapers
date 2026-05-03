@@ -5,7 +5,7 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import type { ApiStrategyKind, IPipelineContext } from '../../Types/PipelineContext.js';
+import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { API_STRATEGY } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -42,7 +42,8 @@ async function auditCookies(
 }
 
 /**
- * Execute LOGIN.SIGNAL: cookie audit + REVEAL probe.
+ * Execute LOGIN.SIGNAL: cookie audit + REVEAL probe. After the .ashx
+ * removal, every bank flows through the DIRECT path — no PROXY branch.
  * @param input - Pipeline context.
  * @returns Succeed with diagnostics or fail if no session.
  */
@@ -59,14 +60,7 @@ export default async function executeLoginSignal(
   const revealInfo = await probeDashboardReveal(mediator);
   const authToken = await mediator.network.discoverAuthToken();
   const hasAuth = Boolean(authToken);
-  const proxyUrl = mediator.network.discoverProxyEndpoint();
-  /** Strategy lookup: proxy found → PROXY, else → DIRECT. */
-  const strategyMap: Record<string, ApiStrategyKind> = {
-    true: API_STRATEGY.PROXY,
-    false: API_STRATEGY.DIRECT,
-  };
-  const hasProxy = Boolean(proxyUrl);
-  const apiStrategy = strategyMap[String(hasProxy)];
+  const apiStrategy = API_STRATEGY.DIRECT;
   input.logger.debug({
     strategy: apiStrategy,
     authToken: hasAuth,
@@ -80,7 +74,6 @@ export default async function executeLoginSignal(
     ...input.diagnostics,
     lastAction: `login-signal (${revealInfo})`,
     apiStrategy,
-    discoveredProxyUrl: proxyUrl || undefined,
   };
   return succeed({ ...input, diagnostics: diag });
 }

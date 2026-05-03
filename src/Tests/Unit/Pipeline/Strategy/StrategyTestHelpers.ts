@@ -147,12 +147,6 @@ export function makeNetwork(overrides: Partial<INetworkDiscovery> = {}): INetwor
      * @returns Result.
      */
     cacheAuthToken: (): Promise<false> => Promise.resolve(false),
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
-    discoverProxyEndpoint: (): false => false,
   };
   return { ...base, ...overrides } as INetworkDiscovery;
 }

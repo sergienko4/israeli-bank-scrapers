@@ -61,8 +61,8 @@ describe('tryMatrixLoop', () => {
     expect(result).toBe(false);
   });
 
-  it('returns false when monthly endpoint yields 0 txns', async () => {
-    // Include monthly WK keys so isMonthlyEndpoint returns true
+  it('resolves to a 0-txn account when the monthly endpoint yields no rows', async () => {
+    // Include monthly WK keys so isMonthlyEndpoint returns true.
     const body = { month: 1, year: 2026, accountId: 'a' };
     const ep = {
       url: 'https://bank.example/api/txn',
@@ -91,11 +91,26 @@ describe('tryMatrixLoop', () => {
          * @returns Result.
          */
         discoverTransactionsEndpoint: (): IDiscoveredEndpoint => ep,
+        /**
+         * Empty endpoint list — exercises the 0-balance path.
+         * @returns Empty array.
+         */
+        getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [],
+        /**
+         * No balance URL discoverable.
+         * @returns False.
+         */
+        buildBalanceUrl: (): false => false,
       },
       startDate: '20260101',
     } as unknown as IAccountFetchCtx;
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    // 0 txns returned → false
-    expect(result).toBe(false);
+    // Matrix applied + iterated → returns Procedure with 0-txn account
+    // (do NOT fall through to scrapePostDirect — its un-templated body
+    // would echo the captured leading card onto every empty sibling).
+    expect(result).not.toBe(false);
+    if (result !== false && result.success) {
+      expect(result.value.txns.length).toBe(0);
+    }
   });
 });

@@ -159,24 +159,6 @@ describe('NetworkDiscovery — frozen extra coverage', () => {
     expect(discoverApiOriginResult35).toBe('https://data.bank.co.il');
   });
 
-  it('frozen discoverProxyEndpoint matches WK proxy pattern', () => {
-    const endpoints: IDiscoveredEndpoint[] = [
-      {
-        url: 'https://api.bank.co.il/ServiceEndpoint/anything',
-        method: 'GET',
-        postData: '',
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        responseBody: {},
-        timestamp: 0,
-      },
-    ];
-    const frozen = createFrozenNetwork(endpoints, false);
-    const r = frozen.discoverProxyEndpoint();
-    expect(r === false || typeof r === 'string').toBe(true);
-  });
-
   it('frozen buildDiscoveredHeaders omits authorization when cachedAuth is false', async () => {
     const endpoints: IDiscoveredEndpoint[] = [
       {

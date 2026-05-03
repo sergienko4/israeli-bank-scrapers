@@ -10,10 +10,9 @@ import {
   genericAutoScrape,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import {
-  API_STRATEGY,
-  type IBrowserState,
-  type IPipelineContext,
+import type {
+  IBrowserState,
+  IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
@@ -157,15 +156,5 @@ describe('GenericAutoScrapeStrategy — branch extensions', () => {
     const result = await genericAutoScrape(ctx);
     const isOkResult1 = isOk(result);
     expect(isOkResult1).toBe(true);
-  });
-
-  it('routes to proxy path when PROXY strategy is set (fail passthrough)', async () => {
-    const pipeline = makeMockContext();
-    const ctx: IPipelineContext = {
-      ...pipeline,
-      diagnostics: { ...pipeline.diagnostics, apiStrategy: API_STRATEGY.PROXY },
-    };
-    const result = await genericAutoScrape(ctx);
-    expect(typeof result.success).toBe('boolean');
   });
 });

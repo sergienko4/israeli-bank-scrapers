@@ -58,6 +58,119 @@ describe('buildMonthBody', () => {
     const result = buildMonthBody({ template, accountId: 'A1', month: 3, year: 2026 });
     expect(result.billingDate).toBe('01/03/2026');
   });
+
+  describe('shape-aware substitution from accountRecord', () => {
+    it('substitutes scalar field whose name matches a body key', () => {
+      const template = JSON.stringify({
+        card4Number: '0000',
+        companyCode: 0,
+        billingMonth: '01/01/2024',
+      });
+      const accountRecord = { cardSuffix: '8912', companyCode: '77' };
+      const result = buildMonthBody({
+        template,
+        accountId: '8912',
+        month: 6,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.card4Number).toBe('8912');
+      expect(result.companyCode).toBe(77);
+      expect(result.billingMonth).toBe('01/06/2026');
+    });
+
+    it('coerces string→number, number→string, number→boolean per body type', () => {
+      const template = JSON.stringify({
+        a: 0,
+        b: '',
+        c: false,
+        billingMonth: '01/01/2024',
+      });
+      const accountRecord = { a: '42', b: 7, c: 1 };
+      const result = buildMonthBody({
+        template,
+        accountId: 'X',
+        month: 1,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.a).toBe(42);
+      expect(result.b).toBe('7');
+      expect(result.c).toBe(true);
+    });
+
+    it('skips reserved monthly keys so it does not fight the WK substitution', () => {
+      const template = JSON.stringify({ accountId: 'X', month: '1', year: '2025' });
+      const accountRecord = { accountId: 'shouldNotOverride', month: '99', year: '9999' };
+      const result = buildMonthBody({
+        template,
+        accountId: 'A1',
+        month: 6,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.accountId).toBe('A1');
+      expect(result.month).toBe('6');
+      expect(result.year).toBe('2026');
+    });
+
+    it('ignores nested-object record values (only scalar fields substitute)', () => {
+      const template = JSON.stringify({
+        someField: 'keep',
+        billingMonth: '01/01/2024',
+      });
+      const accountRecord = { someField: { nested: 'x' } } as unknown as Readonly<
+        Record<string, unknown>
+      >;
+      const result = buildMonthBody({
+        template,
+        accountId: 'X',
+        month: 1,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.someField).toBe('keep');
+    });
+
+    it('matches body key case-insensitively', () => {
+      const template = JSON.stringify({ CompanyCode: 0, billingMonth: '01/01/2024' });
+      const accountRecord = { companyCode: '11' };
+      const result = buildMonthBody({
+        template,
+        accountId: 'X',
+        month: 1,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.CompanyCode).toBe(11);
+    });
+
+    it('preserves body boolean type when record value is also boolean (no coercion)', () => {
+      const template = JSON.stringify({ isPartner: false, billingMonth: '01/01/2024' });
+      const accountRecord = { isPartner: true };
+      const result = buildMonthBody({
+        template,
+        accountId: 'X',
+        month: 1,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.isPartner).toBe(true);
+    });
+
+    it('skips body keys with no matching record key', () => {
+      const template = JSON.stringify({ unrelatedField: 'keep', billingMonth: '01/01/2024' });
+      const accountRecord = { totallyDifferentKey: 'ignored' };
+      const result = buildMonthBody({
+        template,
+        accountId: 'X',
+        month: 1,
+        year: 2026,
+        accountRecord,
+      });
+      expect(result.unrelatedField).toBe('keep');
+    });
+  });
 });
 
 describe('isMonthlyEndpoint', () => {

@@ -2,12 +2,14 @@
  * Browser-based fetch strategy — runs through Playwright page session.
  * Wraps fetchPostWithinPage/fetchGetWithinPage from Common/Fetch.ts.
  * Returns Procedure<T> — never throws.
+ *
+ * After the .ashx removal there is no proxy session activation; every
+ * bank uses fetchPost / fetchGet directly through the browser context.
  */
 
 import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { ScraperCredentials } from '../../../Base/Interface.js';
 import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
@@ -15,35 +17,9 @@ import {
 } from '../../Mediator/Network/Fetch.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
-import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-
-/** URL endpoint string. */
-type UrlStr = string;
-/** Auth identifier string. */
-type AuthId = string;
-
-/** Bank config — extends pipeline config with optional proxy fields for Strategy. */
-interface IBankConfig {
-  readonly urls: { readonly base: UrlStr };
-  readonly api?: { readonly base?: UrlStr };
-  readonly auth?: {
-    readonly loginReqName?: AuthId;
-    readonly companyCode?: AuthId;
-    readonly countryCode?: AuthId;
-    readonly idType?: AuthId;
-    readonly checkLevel?: AuthId;
-  };
-}
-type BankConfig = IBankConfig;
-
-import type {
-  IFetchOpts,
-  IFetchStrategy,
-  ProxyReqName,
-  SessionActivated,
-} from './FetchStrategy.js';
+import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -57,12 +33,6 @@ function emptyResponseError(url: string): Procedure<never> {
   return fail(ScraperErrorTypes.Generic, `Fetch returned empty response: ${truncated}`);
 }
 
-/**
- * Convert a nullable fetch result to a Procedure.
- * @param result - The fetch result (falsy if empty).
- * @param url - The URL for error reporting.
- * @returns Succeed with data, or empty-response failure.
- */
 /** Nullable fetch result — truthy means data was returned. */
 type NullableFetchResult<T> = T | null | false | undefined;
 
@@ -85,120 +55,6 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
 function catchError(error: Error): Procedure<never> {
   const message = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, message);
-}
-
-/** Server response status code from .ashx proxy ('1' = success). */
-type AshxStatus = string;
-/** Resolved user name from ValidateIdData (may be empty). */
-type AshxUserName = string;
-/** Full URL to ProxyRequestHandler.ashx endpoint. */
-type ProxyEndpointUrl = string;
-
-/** Validation response shape from ProxyRequestHandler.ashx. */
-interface IValidateResponse {
-  readonly Header: { readonly Status: AshxStatus };
-  readonly ValidateIdDataBean?: { readonly userName?: AshxUserName };
-}
-
-/** Bundled args for session activation via .ashx proxy. */
-interface IActivationArgs {
-  readonly page: Page;
-  readonly servicesUrl: ProxyEndpointUrl;
-  readonly credentials: ScraperCredentials;
-  readonly config: BankConfig;
-}
-
-/**
- * Activate server-side session via .ashx proxy (ValidateIdData + performLogon).
- * @param args - Bundled activation arguments (page, servicesUrl, credentials, config).
- * @returns Succeed(true) if activated, fail if rejected.
- */
-/**
- * Resolve auth fields with defaults for proxy activation.
- * @param auth - Auth config (optional fields).
- * @returns Resolved auth fields as strings.
- */
-/** Default auth fields for Isracard-family proxy banks. */
-const PROXY_AUTH_DEFAULTS = {
-  countryCode: '212',
-  idType: '1',
-  checkLevel: '1',
-  loginReqName: 'performLogonI',
-} as const;
-
-/**
- * Resolve auth fields with WK defaults for proxy activation.
- * @param auth - Auth config (may have only companyCode).
- * @returns Resolved auth fields as strings.
- */
-function resolveAuthFields(auth: BankConfig['auth']): Record<string, string> {
-  if (!auth) return { ...PROXY_AUTH_DEFAULTS, companyCode: '' };
-  return {
-    countryCode: auth.countryCode ?? PROXY_AUTH_DEFAULTS.countryCode,
-    idType: auth.idType ?? PROXY_AUTH_DEFAULTS.idType,
-    checkLevel: auth.checkLevel ?? PROXY_AUTH_DEFAULTS.checkLevel,
-    companyCode: auth.companyCode ?? '',
-    loginReqName: auth.loginReqName ?? PROXY_AUTH_DEFAULTS.loginReqName,
-  };
-}
-
-/**
- * Activate server-side session via .ashx proxy (ValidateIdData + performLogon).
- * @param args - Bundled activation arguments.
- * @returns Succeed(true) if activated, fail if rejected.
- */
-async function activateViaProxy(args: IActivationArgs): Promise<Procedure<SessionActivated>> {
-  const { page, servicesUrl, credentials, config } = args;
-  const authFields = resolveAuthFields(config.auth);
-  const creds = credentials as Record<string, string>;
-  const validateUrl = `${servicesUrl}?reqName=ValidateIdData`;
-  const absentCredential = '(absent)';
-  const credId = creds.id || absentCredential;
-  const credCard = creds.card6Digits || absentCredential;
-  const validateBody = {
-    id: credId,
-    cardSuffix: credCard,
-    countryCode: authFields.countryCode,
-    idType: authFields.idType,
-    checkLevel: authFields.checkLevel,
-    companyCode: authFields.companyCode,
-  };
-  LOG.debug({
-    message: `ValidateIdData POST to ${maskVisibleText(validateUrl)}`,
-  });
-  const validateResult = await fetchPostWithinPage<IValidateResponse>(page, validateUrl, {
-    data: validateBody,
-  }).catch((): IValidateResponse | false => false);
-  if (!validateResult)
-    return fail(ScraperErrorTypes.Generic, 'ACTIVATION: ValidateIdData fetch failed');
-  const headerStatus = validateResult.Header.Status;
-  LOG.debug({
-    message: `ValidateIdData Status=${headerStatus}`,
-  });
-  if (headerStatus !== '1')
-    return fail(ScraperErrorTypes.Generic, `ACTIVATION: ValidateIdData rejected (${headerStatus})`);
-  const bean = validateResult.ValidateIdDataBean;
-  const userName = bean?.userName ?? absentCredential;
-  // Step 2: performLogon (reqName from config — e.g., 'performLogonI')
-  const loginUrl = `${servicesUrl}?reqName=${authFields.loginReqName}`;
-  const credPassword = creds.password || absentCredential;
-  const loginBody = {
-    KodMishtamesh: userName,
-    MisparZihuy: credId,
-    Sisma: credPassword,
-    cardSuffix: credCard,
-    countryCode: authFields.countryCode,
-    idType: authFields.idType,
-  };
-  LOG.debug({
-    message: `performLogon POST to ${maskVisibleText(loginUrl)}`,
-  });
-  const loginResult = await fetchPostWithinPage<Record<string, unknown>>(page, loginUrl, {
-    data: loginBody,
-  }).catch((): false => false);
-  if (!loginResult) return fail(ScraperErrorTypes.Generic, 'ACTIVATION: performLogon fetch failed');
-  LOG.debug({ message: 'performLogon completed' });
-  return succeed(true);
 }
 
 /** Whether target origin matches frame. */
@@ -275,56 +131,6 @@ class BrowserFetchStrategy implements IFetchStrategy {
     }
     return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
       .then((result): Procedure<T> => resultToProcedure(result, url))
-      .catch(catchError);
-  }
-
-  /**
-   * Session activation via .ashx proxy — establishes server-side session.
-   * Uses config.auth for companyCode/countryCode/idType/checkLevel (generic, not hardcoded).
-   * @param credentials - User credentials (id, password, card6Digits).
-   * @param config - Bank config with auth params and api.base URL.
-   * @param discoveredServicesUrl - Proxy URL from network discovery (overrides config.api.base).
-   * @returns Succeed(true) if session activated, fail if auth rejected.
-   */
-  public async activateSession(
-    credentials: ScraperCredentials,
-    config: BankConfig,
-    discoveredServicesUrl?: string,
-  ): Promise<Procedure<SessionActivated>> {
-    const servicesUrl =
-      discoveredServicesUrl ?? `${config.api?.base ?? ''}/services/ProxyRequestHandler.ashx`;
-    if (!servicesUrl || servicesUrl.startsWith('/')) {
-      return fail(ScraperErrorTypes.Generic, 'ACTIVATION: no servicesUrl');
-    }
-    return activateViaProxy({ page: this._page, servicesUrl, credentials, config });
-  }
-
-  /**
-   * Proxy GET — fetch data via .ashx proxy handler on the api.base domain.
-   * Constructs URL: config.api?.base/services/ProxyRequestHandler.ashx?reqName=...&params
-   * @param config - Bank config with api.base URL.
-   * @param reqName - The proxy request name (discovered from traffic).
-   * @param params - Additional query parameters.
-   * @returns Procedure with parsed JSON response.
-   */
-  public async proxyGet<T>(
-    config: BankConfig,
-    reqName: ProxyReqName,
-    params: Record<string, string>,
-  ): Promise<Procedure<T>> {
-    const baseUrl = config.api?.base;
-    if (!baseUrl) return fail(ScraperErrorTypes.Generic, 'proxyGet: no api.base in config');
-    const url = new URL(`${baseUrl}/services/ProxyRequestHandler.ashx`);
-    url.searchParams.set('reqName', reqName);
-    for (const [key, val] of Object.entries(params)) {
-      url.searchParams.set(key, val);
-    }
-    const fullUrl = url.toString();
-    LOG.debug({
-      message: `PROXY GET ${maskVisibleText(fullUrl)}`,
-    });
-    return fetchGetWithinPage<T>(this._page, fullUrl, false)
-      .then((result): Procedure<T> => resultToProcedure(result, fullUrl))
       .catch(catchError);
   }
 }

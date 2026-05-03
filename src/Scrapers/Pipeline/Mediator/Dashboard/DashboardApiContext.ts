@@ -27,7 +27,7 @@ function urlOrFalse(hit: { url: string } | false): string | false {
 /** Discovered URL fields in API context. */
 type DiscoveredUrls = Pick<
   IApiFetchContext,
-  'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl' | 'proxyUrl'
+  'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'
 >;
 
 /**
@@ -40,13 +40,11 @@ function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
   const txnHit = network.discoverTransactionsEndpoint();
   const balHit = network.discoverBalanceEndpoint();
   const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
-  const proxyUrl = network.discoverProxyEndpoint();
   return {
     accountsUrl: urlOrFalse(acctHit),
     transactionsUrl: urlOrFalse(txnHit),
     balanceUrl: urlOrFalse(balHit),
     pendingUrl: urlOrFalse(pendHit),
-    proxyUrl,
   };
 }
 

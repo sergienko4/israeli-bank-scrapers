@@ -1,7 +1,7 @@
 /**
  * SCRAPE phase — thin orchestration, all logic in Mediator/Scrape.
- * PRE:    forensic priming + proxy qualification + diagnostics
- * ACTION: dispatch to genericAutoScrape (proxy or SPA path)
+ * PRE:    forensic priming + DIRECT discovery + diagnostics
+ * ACTION: dispatch to executeFrozenDirectScrape (sealed)
  * POST:   audit diagnostics (forensic audit table)
  * FINAL:  stamp account count for audit trail
  */
@@ -17,10 +17,6 @@ import {
   genericAutoScrape,
   loadDiscovered,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
-import {
-  findProxyAccountTemplate,
-  findProxyTxnTemplate,
-} from '../../Strategy/Scrape/Proxy/ProxyScrapeReplayStrategy.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -124,8 +120,6 @@ export {
   createCustomScrapeStep,
   createScrapePhase,
   loadDiscovered as fetchDiscovered,
-  findProxyAccountTemplate,
-  findProxyTxnTemplate,
   genericAutoScrape,
   SCRAPE_POST_STEP,
   SCRAPE_STEP,

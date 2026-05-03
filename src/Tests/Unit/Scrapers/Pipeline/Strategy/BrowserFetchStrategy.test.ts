@@ -128,3 +128,118 @@ describe('BrowserFetchStrategy/fetchGet', () => {
     expect(lastCallArgs[2]).toBe(false);
   });
 });
+
+// ── resolveContext (cross-origin frame resolution) ────────
+
+/** Page or frame URL string. */
+type FrameUrl = string;
+
+/** Frame fixture passed to makePageWithFrames. */
+interface IFrameFixture {
+  readonly url: FrameUrl;
+}
+
+/** Frame stub exposing only .url() (used by resolveContext). */
+interface IFrameStub {
+  url: () => FrameUrl;
+}
+
+/** Page mock type — re-exports playwright Page from MAKE_MOCK_FULL_PAGE. */
+type MockPage = ReturnType<typeof MAKE_MOCK_FULL_PAGE>;
+
+/**
+ * Build a Page mock with controlled .url() and .frames() so we can
+ * exercise BrowserFetchStrategy.resolveContext branches.
+ * @param pageUrl - Page-level URL the mock returns from .url().
+ * @param frames - Frame URLs returned from .frames() — one stub per entry.
+ * @returns Mock Page bound to those overrides.
+ */
+function makePageWithFrames(pageUrl: string, frames: readonly IFrameFixture[]): MockPage {
+  const base = MAKE_MOCK_FULL_PAGE(pageUrl);
+  /**
+   * Stub url() — returns the captured fixture url.
+   * @param fxUrl - Fixture URL.
+   * @returns URL getter that returns the captured fixture URL.
+   */
+  const stubUrlGetter = (fxUrl: FrameUrl): (() => FrameUrl) => {
+    /**
+     * Frame URL getter — captures the fixture URL.
+     * @returns The captured fixture URL.
+     */
+    const getter = (): FrameUrl => fxUrl;
+    return getter;
+  };
+  /**
+   * Convert a fixture to a frame stub returning its url().
+   * @param f - Fixture record.
+   * @returns Frame stub.
+   */
+  const toStub = (f: IFrameFixture): IFrameStub => ({ url: stubUrlGetter(f.url) });
+  /**
+   * Return a fresh array of frame stubs each call.
+   * @returns Frame stubs.
+   */
+  const framesFn = (): IFrameStub[] => frames.map(toStub);
+  /**
+   * Page URL getter override.
+   * @returns Configured pageUrl.
+   */
+  const urlFn = (): FrameUrl => pageUrl;
+  return { ...base, url: urlFn, frames: framesFn } as MockPage;
+}
+
+describe('BrowserFetchStrategy/resolveContext via fetchPost', () => {
+  it('uses page when target origin matches page origin (same-origin shortcut)', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockResolvedValue({ ok: true });
+    const page = makePageWithFrames('https://bank.example.com', []);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost(
+      'https://bank.example.com/api/get',
+      {},
+      OPTS_NO_HEADERS,
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('uses page when no frame matches target origin (no-frame fallback)', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockResolvedValue({ ok: true });
+    const page = makePageWithFrames('https://bank.example.com', [
+      { url: 'https://other.example.com/page' },
+    ]);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(true);
+  });
+
+  it('skips empty-url frames in cross-origin lookup', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockResolvedValue({ ok: true });
+    const page = makePageWithFrames('https://bank.example.com', [{ url: '' }]);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(true);
+  });
+
+  it('skips about:blank frames in cross-origin lookup', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockResolvedValue({ ok: true });
+    const page = makePageWithFrames('https://bank.example.com', [{ url: 'about:blank' }]);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(true);
+  });
+
+  it('uses matching iframe when its origin matches target origin', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockResolvedValue({ ok: true });
+    const page = makePageWithFrames('https://bank.example.com', [
+      { url: 'https://api.test/iframe' },
+    ]);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(true);
+    expect(postFn).toHaveBeenCalled();
+  });
+});

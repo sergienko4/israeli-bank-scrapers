@@ -59,15 +59,7 @@ describe('NetworkDiscovery cache auth hit path', () => {
   });
 });
 
-describe('NetworkDiscovery proxy endpoints', () => {
-  it('discoverProxyEndpoint matches ProxyRequestHandler URL', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({ url: 'https://api.bank.co.il/ProxyRequestHandler', body: { ok: true } });
-    const proxy = discovery.discoverProxyEndpoint();
-    expect(proxy === false || typeof proxy === 'string').toBe(true);
-  });
-
+describe('NetworkDiscovery account/txn endpoints', () => {
   it('discoverAccountsEndpoint matches accounts URL pattern', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
@@ -76,12 +68,75 @@ describe('NetworkDiscovery proxy endpoints', () => {
     expect(ep === false || typeof ep === 'object').toBe(true);
   });
 
+  it('discoverAccountsEndpoint matches GetCardList URL (Amex/Isracard family)', async () => {
+    const page = makePage();
+    const discovery = createNetworkDiscovery(page);
+    await simulate({
+      url: 'https://web.americanexpress.co.il/ocp/transactions/DigitalV3.Transactions/GetCardList',
+      method: 'POST',
+      body: { data: { cardsList: [{ cardSuffix: '8912' }] } },
+    });
+    const ep = discovery.discoverAccountsEndpoint();
+    expect(ep).not.toBe(false);
+    if (ep) expect(ep.url).toContain('GetCardList');
+  });
+
   it('discoverBalanceEndpoint matches balance URL pattern', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
     await simulate({ url: 'https://api.bank.co.il/account/balance', body: { balance: 100 } });
     const ep = discovery.discoverBalanceEndpoint();
     expect(ep === false || typeof ep === 'object').toBe(true);
+  });
+
+  it('discoverTransactionsEndpoint prefers POST over GET when both pass shape gate', async () => {
+    const page = makePage();
+    const discovery = createNetworkDiscovery(page);
+    // GET preview captured first, POST template captured second; both
+    // match /getTransactions/i and both pass shape gate.
+    await simulate({
+      url: 'https://web.bank.co.il/ocp/StatusPage/GetTransactionsContent',
+      method: 'GET',
+      body: { transactions: [{ purchaseDate: '01/05/2026', ilsAmount: 10 }] },
+    });
+    await simulate({
+      url: 'https://web.bank.co.il/ocp/Transactions/GetTransactionsList',
+      method: 'POST',
+      postData: '{"card4Number":"8912","billingMonth":"01/06/2026"}',
+      body: {
+        data: {
+          israelAbroadVouchers: {
+            vouchers: {
+              israelAbroadVouchersList: [{ purchaseDate: '01/05/2026', ilsAmount: 20 }],
+            },
+          },
+        },
+      },
+    });
+    const ep = discovery.discoverTransactionsEndpoint();
+    expect(ep).not.toBe(false);
+    if (ep) expect(ep.method).toBe('POST');
+  });
+
+  it('discoverTransactionsEndpoint accepts replayable POST even with empty body', async () => {
+    const page = makePage();
+    const discovery = createNetworkDiscovery(page);
+    // GET preview is the only thing passing shape gate; POST returned
+    // empty (current cycle not yet charged) but is still replayable.
+    await simulate({
+      url: 'https://web.bank.co.il/ocp/StatusPage/GetTransactionsContent',
+      method: 'GET',
+      body: { transactions: [{ purchaseDate: '01/05/2026', ilsAmount: 10 }] },
+    });
+    await simulate({
+      url: 'https://web.bank.co.il/ocp/Transactions/GetTransactionsList',
+      method: 'POST',
+      postData: '{"card4Number":"8912","billingMonth":"01/06/2026"}',
+      body: { data: { israelAbroadVouchers: null } },
+    });
+    const ep = discovery.discoverTransactionsEndpoint();
+    expect(ep).not.toBe(false);
+    if (ep) expect(ep.method).toBe('POST');
   });
 });
 

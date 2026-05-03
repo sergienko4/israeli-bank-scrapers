@@ -182,4 +182,77 @@ describe('AccountScrapeStrategy — branch extensions', () => {
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);
   });
+
+  it('tryBufferedResponse skips on monthly endpoint (MatrixLoop subsumes)', async () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    // Monthly endpoint: postData carries WK month/year fields →
+    // isMonthlyEndpoint returns true → buffered must skip.
+    const endpoint = makeEndpoint({
+      method: 'POST',
+      postData: JSON.stringify({ month: 6, year: 2026, accountId: 'A1' }),
+      responseBody: TXN_BODY,
+    });
+    const postCtx: IPostFetchCtx = { baseBody: {}, url: 'u', displayId: 'D1', accountId: 'A1' };
+    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
+    expect(result).toBe(false);
+  });
+
+  it('tryBufferedResponse skips when captured body identifies a different account', async () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    // Captured body identifies card "8912" but iteration target is "5290"
+    // → buffer belongs to a different card → must skip to avoid mirroring
+    // the leading card's txns onto every sibling.
+    const endpoint = makeEndpoint({
+      method: 'POST',
+      postData: JSON.stringify({ card4Number: '8912', cardStatus: 0 }),
+      responseBody: TXN_BODY,
+    });
+    const postCtx: IPostFetchCtx = {
+      baseBody: {},
+      url: 'u',
+      displayId: 'D5290',
+      accountId: '5290',
+    };
+    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
+    expect(result).toBe(false);
+  });
+
+  it('tryBufferedResponse reuses buffer when captured body identifies the same account', async () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    const endpoint = makeEndpoint({
+      method: 'POST',
+      postData: JSON.stringify({ card4Number: '8912', cardStatus: 0 }),
+      responseBody: TXN_BODY,
+    });
+    const postCtx: IPostFetchCtx = {
+      baseBody: {},
+      url: 'u',
+      displayId: 'D8912',
+      accountId: '8912',
+    };
+    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
+    expect(result).not.toBe(false);
+  });
+
+  it('tryBufferedResponse handles unparsable postData by falling through to reuse', async () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    // Garbage postData — bufferedMatchesAccount returns true (cannot
+    // identify a different account, so reuse is safe).
+    const endpoint = makeEndpoint({
+      method: 'POST',
+      postData: '{not valid json',
+      responseBody: TXN_BODY,
+    });
+    const postCtx: IPostFetchCtx = { baseBody: {}, url: 'u', displayId: 'D1', accountId: 'A1' };
+    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
+    expect(result).not.toBe(false);
+  });
 });

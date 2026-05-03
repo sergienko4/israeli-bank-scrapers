@@ -38,11 +38,11 @@ describe('executeForensicPre', () => {
     expect(isOkResult1).toBe(true);
   });
 
-  it('runs PROXY path when strategy=PROXY', async () => {
+  it('runs DIRECT path when strategy=DIRECT explicitly set', async () => {
     const base = makeMockContext();
     const ctx = {
       ...base,
-      diagnostics: { ...base.diagnostics, apiStrategy: API_STRATEGY.PROXY },
+      diagnostics: { ...base.diagnostics, apiStrategy: API_STRATEGY.DIRECT },
     };
     const result = await executeForensicPre(ctx);
     const isOkResult2 = isOk(result);

@@ -188,7 +188,7 @@ describe('executeDashboardNavigationSealed — deeper paths', () => {
         diagnostics: {
           ...base.diagnostics,
           dashboardTarget: MOCK_TARGET,
-          apiStrategy: apiStrategyEnum.PROXY,
+          apiStrategy: apiStrategyEnum.DIRECT,
         },
       },
       makeMockActionExecutorResult21,

@@ -1,19 +1,13 @@
 /**
- * Unit tests for DashboardTrigger — UI + Proxy triggers.
+ * Unit tests for DashboardTrigger — best-effort UI click trigger.
  */
 
-import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  buildProxyDashboardUrl,
-  triggerDashboardUi,
-  triggerProxyDashboard,
-} from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardTrigger.js';
+import { triggerDashboardUi } from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardTrigger.js';
 import type {
   IElementMediator,
   IRaceResult,
 } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { fail as failFn, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeFlushableLogger } from './TestHelpers.js';
 
@@ -27,58 +21,6 @@ const FOUND: IRaceResult = {
   value: 'Transactions',
   identity: false,
 };
-
-/**
- * Build a mock fetch strategy that returns a canned result.
- * @param success - Whether the fetch should succeed.
- * @returns Mock fetch strategy.
- */
-function makeFetchStrategy(success: boolean): IFetchStrategy {
-  return {
-    /**
-     * GET returns success or failure based on flag.
-     * @returns Succeed or fail procedure.
-     */
-    fetchGet: () => {
-      const succeedResult1 = succeed({});
-      if (success) return Promise.resolve(succeedResult1);
-      const failFnResult2 = failFn(ScraperErrorTypes.Generic, 'fetch failed');
-      return Promise.resolve(failFnResult2);
-    },
-    /**
-     * POST — mirrors GET behavior.
-     * @returns Succeed or fail procedure.
-     */
-    fetchPost: () => {
-      const succeedResult3 = succeed({});
-      if (success) return Promise.resolve(succeedResult3);
-      const failFnResult4 = failFn(ScraperErrorTypes.Generic, 'fetch failed');
-      return Promise.resolve(failFnResult4);
-    },
-  } as unknown as IFetchStrategy;
-}
-
-describe('buildProxyDashboardUrl', () => {
-  it('builds URL with reqName + query defaults', () => {
-    const url = buildProxyDashboardUrl('https://proxy.example.com/api', {});
-    expect(url).toContain('reqName=');
-    expect(url).toContain('?');
-  });
-
-  it('encodes extra params', () => {
-    const url = buildProxyDashboardUrl('https://proxy.example.com/api', {
-      billingDate: '2026-04-01',
-    });
-    expect(url).toContain('billingDate=2026-04-01');
-  });
-
-  it('URL-encodes special chars in values', () => {
-    const url = buildProxyDashboardUrl('https://proxy.example.com/api', {
-      x: 'a/b',
-    });
-    expect(url).toContain('x=a%2Fb');
-  });
-});
 
 describe('triggerDashboardUi', () => {
   it('returns succeed(false) when no UI elements match', async () => {
@@ -160,63 +102,5 @@ describe('triggerDashboardUi', () => {
     const result = await triggerDashboardUi(mediator, logger);
     const isOkResult12 = isOk(result);
     expect(isOkResult12).toBe(true);
-  });
-});
-
-describe('triggerProxyDashboard', () => {
-  it('returns succeed(false) when fetchGet fails', async () => {
-    const mediator = makeMockMediator();
-    const strategy = makeFetchStrategy(false);
-    const logger = makeFlushableLogger();
-    const result = await triggerProxyDashboard({
-      mediator,
-      strategy,
-      proxyUrl: 'https://proxy.example.com',
-      proxyParams: { dashboard: { billingDate: 'YYYY-MM-01' } },
-      logger,
-    });
-    const isOkResult13 = isOk(result);
-    expect(isOkResult13).toBe(true);
-    if (isOk(result)) expect(result.value).toBe(false);
-  });
-
-  it('returns succeed(true) when fetchGet succeeds', async () => {
-    const mediator = makeMockMediator();
-    const strategy = makeFetchStrategy(true);
-    const logger = makeFlushableLogger();
-    const result = await triggerProxyDashboard({
-      mediator,
-      strategy,
-      proxyUrl: 'https://proxy.example.com',
-      logger,
-    });
-    const isOkResult14 = isOk(result);
-    expect(isOkResult14).toBe(true);
-    if (isOk(result)) expect(result.value).toBe(true);
-  });
-
-  it('logs traffic hit when network.waitForTraffic returns in proxy flow', async () => {
-    const mediator = makeMockMediator();
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
-    (
-      mediator.network as unknown as {
-        waitForTraffic: () => Promise<{ method: string; url: string }>;
-      }
-    ).waitForTraffic = (): Promise<{ method: string; url: string }> =>
-      Promise.resolve({ method: 'GET', url: 'https://api/txns?x=1' });
-    const strategy = makeFetchStrategy(true);
-    const logger = makeFlushableLogger();
-    const result = await triggerProxyDashboard({
-      mediator,
-      strategy,
-      proxyUrl: 'https://proxy.example.com',
-      logger,
-    });
-    const isOkResult15 = isOk(result);
-    expect(isOkResult15).toBe(true);
   });
 });

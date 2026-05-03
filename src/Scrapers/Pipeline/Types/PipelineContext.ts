@@ -56,10 +56,12 @@ interface IScrapeState {
   readonly accounts: readonly ITransactionsAccount[];
 }
 
-/** API strategy kind — DIRECT (SPA traffic) or PROXY (gateway). */
+/** API strategy kind — DIRECT (SPA traffic). After .ashx removal there
+ *  is one strategy; the enum is retained as a single-value frozen
+ *  constant so existing callers (`apiStrategy: API_STRATEGY.DIRECT`)
+ *  keep compiling without surprises. */
 const API_STRATEGY = {
   DIRECT: 'DIRECT',
-  PROXY: 'PROXY',
 } as const;
 
 /** Union type for API strategy. */
@@ -99,10 +101,8 @@ interface IDiagnosticsState {
   readonly discoveredAuth?: string | false;
   /** How the login form was submitted — used by POST to decide validation. */
   readonly submitMethod?: 'enter' | 'click' | 'both';
-  /** API strategy discovered in LOGIN.FINAL — DIRECT (SPA) or PROXY (gateway). */
+  /** API strategy discovered in LOGIN.FINAL — single value (DIRECT) post .ashx removal. */
   readonly apiStrategy?: ApiStrategyKind;
-  /** Proxy/gateway base URL discovered in LOGIN.FINAL for PROXY strategy. */
-  readonly discoveredProxyUrl?: PageUrlStr;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */
@@ -119,8 +119,6 @@ interface IApiFetchContext {
   readonly balanceUrl: string | false;
   /** Discovered pending endpoint URL (or false). */
   readonly pendingUrl: string | false;
-  /** Discovered proxy/gateway base URL for API calls (e.g. ProxyRequestHandler). */
-  readonly proxyUrl: string | false;
   /** Config-fallback transaction URL — used when discovery finds no txn endpoint. */
   readonly configTransactionsUrl?: string | false;
 }

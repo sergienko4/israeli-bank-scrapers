@@ -166,14 +166,6 @@ interface INetworkDiscovery {
   cacheAuthToken(): Promise<string | false>;
 
   /**
-   * Discover proxy/gateway base URL from captured traffic.
-   * Matches WK proxy patterns (ProxyRequestHandler, ServiceEndpoint).
-   * Returns the base URL (path without query params) for constructing API requests.
-   * @returns Proxy base URL or false if no proxy traffic captured.
-   */
-  discoverProxyEndpoint(): string | false;
-
-  /**
    * Generic auth-failure watcher attached to the live page. Fires when a
    * WK auth endpoint returns 4xx (Layer 1) or 200 with a body matching
    * any AUTH_BODY_FAILURE_PATTERNS row (Layer 2). Phase-bounded — the

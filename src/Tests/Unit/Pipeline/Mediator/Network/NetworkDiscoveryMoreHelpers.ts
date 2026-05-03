@@ -56,6 +56,8 @@ export interface ISimOpts {
   readonly reqHeaders?: Record<string, string>;
   readonly resHeaders?: Record<string, string>;
   readonly method?: string;
+  /** Captured request postData. Defaults to empty (mirrors GETs). */
+  readonly postData?: string;
 }
 
 /**
@@ -91,9 +93,9 @@ export async function simulate(opts: ISimOpts): Promise<boolean> {
       method: (): string => method,
       /**
        * postData.
-       * @returns Empty.
+       * @returns Captured postData (empty by default).
        */
-      postData: (): string => '',
+      postData: (): string => opts.postData ?? '',
       /**
        * Headers.
        * @returns Request headers.

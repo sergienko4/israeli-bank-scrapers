@@ -697,6 +697,44 @@ function looksLikeAccountRecord(v: UntypedValue): Predicate {
 }
 
 /**
+ * Returns the array of objects held under the first matching key in
+ * `containerKeys`, or empty when no key has a usable array.
+ * @param record - record to inspect.
+ * @param containerKeys - candidate container key names.
+ * @returns object array under the first matching key, or empty.
+ */
+function tryContainerInRecord(
+  record: ApiRecord,
+  containerKeys: readonly string[],
+): readonly ApiRecord[] {
+  const hits = containerKeys.map((key): readonly ApiRecord[] => {
+    const value = record[key];
+    if (!Array.isArray(value) || value.length === 0) return [];
+    const objects = value.filter(isSearchableObject);
+    return objects.map((v): ApiRecord => v as ApiRecord);
+  });
+  return hits.find((arr): Predicate => arr.length > 0) ?? [];
+}
+
+/**
+ * Returns the first non-empty object array reachable from `responseBody`
+ * under any of `containerKeys`. Used for named account containers
+ * (cardsList, accounts, bankAccounts) so the extractor doesn't have to
+ * score txn signatures on records that carry none.
+ * @param responseBody - parsed JSON response body.
+ * @param containerKeys - WK container key names.
+ * @returns object array under the first matching container, or empty.
+ */
+function findContainerArray(
+  responseBody: ApiRecord,
+  containerKeys: readonly string[],
+): readonly ApiRecord[] {
+  const allRecords = flattenObjectTree(responseBody);
+  const hits = allRecords.map((r): readonly ApiRecord[] => tryContainerInRecord(r, containerKeys));
+  return hits.find((arr): Predicate => arr.length > 0) ?? [];
+}
+
+/**
  * Root-array fallback: if the response body is already an array of
  * account-shaped records, return it directly. Covers responses like
  * Hapoalim's /general/accounts which is [{bankNumber,accountNumber,…}]
@@ -715,15 +753,25 @@ function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
 /**
  * Extract account records from API response. Logs the response shape at
  * trace level when zero items are found — exposes per-bank mapper gaps.
- * Tries two extractors in order:
- *   1. findFirstArray (txn-signature BFS — covers banks whose account
+ * Tries three extractors in order:
+ *   1. findContainerArray (named WK.accountContainers — cardsList,
+ *      accounts, bankAccounts; covers card-family banks where the cards
+ *      array carries no txn-signature fields)
+ *   2. findFirstArray (txn-signature BFS — covers banks whose account
  *      response has txn preview arrays)
- *   2. rootAccountArray (root-level array of account-shaped records —
+ *   3. rootAccountArray (root-level array of account-shaped records —
  *      covers Hapoalim's /general/accounts)
  * @param responseBody - Parsed JSON response body.
  * @returns Account records with all original fields.
  */
 function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
+  const named = findContainerArray(responseBody, WK.accountContainers);
+  if (named.length > 0) {
+    LOG.debug({
+      message: `extractAccountRecords: ${String(named.length)} items (named container)`,
+    });
+    return named;
+  }
   const items = findFirstArray(responseBody);
   if (items.length > 0) {
     LOG.debug({ message: `extractAccountRecords: ${String(items.length)} items` });

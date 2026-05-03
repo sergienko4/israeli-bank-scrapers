@@ -2,7 +2,7 @@
  * SCRAPE phase Mediator actions — PRE/ACTION/POST/FINAL.
  * Phase orchestrates ONLY. All logic here.
  *
- * PRE:    forensic priming + endpoint discovery + freeze
+ * PRE:    forensic priming + endpoint discovery + freeze (DIRECT)
  * ACTION: frozen matrix loop (no browser, no network — sealed)
  * POST:   audit diagnostics (forensic audit table)
  * FINAL:  stamp account count for audit trail
@@ -17,25 +17,13 @@ import {
   discoverAndLoadAccounts,
   pivotToSpaIfNeeded,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
-import {
-  hasProxyStrategy,
-  proxyScrape,
-} from '../../Strategy/Scrape/Proxy/ProxyScrapeReplayStrategy.js';
-import {
-  type IProxyQualCtx,
-  runProxyQualification,
-} from '../../Strategy/Scrape/Proxy/ScrapeProxyQualification.js';
 import type { IAccountFetchCtx, IFetchAllAccountsCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
-import {
-  API_STRATEGY,
-  type IActionContext,
-  type IPipelineContext,
-} from '../../Types/PipelineContext.js';
+import { type IActionContext, type IPipelineContext } from '../../Types/PipelineContext.js';
 import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
-import { triggerDashboardUi, triggerProxyDashboard } from '../Dashboard/DashboardTrigger.js';
+import { triggerDashboardUi } from '../Dashboard/DashboardTrigger.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
 import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
 
@@ -67,24 +55,6 @@ async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<Di
     message: 'trafficPrimed=false -> Forensic via Mediator',
   });
   return triggerDashboardUi(input.mediator.value, input.logger);
-}
-
-/**
- * Run proxy qualification — called only from PROXY path.
- * @param input - Pipeline context.
- * @param diag - Updated diagnostics.
- * @returns Updated context with scrapeDiscovery, or unchanged.
- */
-async function qualifyProxyCards(
-  input: IPipelineContext,
-  diag: IPipelineContext['diagnostics'],
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has || !input.api.has) {
-    return succeed({ ...input, diagnostics: diag });
-  }
-  const network = input.mediator.value.network;
-  const pq: IProxyQualCtx = { input, diag, network, api: input.api.value };
-  return runProxyQualification(pq);
 }
 
 /**
@@ -181,99 +151,23 @@ async function collectStorageSafe(ctx: IPipelineContext): Promise<Record<string,
 }
 
 /**
- * Activate proxy session — called only from PROXY path.
- * Moved from DASHBOARD — SCRAPE owns strategy resolution.
- * @param input - Pipeline context.
- * @returns Succeed or fail from session activation.
- */
-async function activateProxySession(input: IPipelineContext): Promise<Procedure<boolean>> {
-  if (!input.fetchStrategy.has) return succeed(false);
-  const strategy = input.fetchStrategy.value;
-  if (!strategy.activateSession) return succeed(true);
-  const proxyUrl = input.diagnostics.discoveredProxyUrl;
-  input.logger.debug({ step: 'proxy-session-init' });
-  const result = await strategy.activateSession(input.credentials, input.config, proxyUrl);
-  const tagMap: Record<string, string> = {
-    true: 'OK',
-    false: 'FAIL',
-  };
-  const tag = tagMap[String(result.success)];
-  input.logger.debug({ step: 'proxy-session-result', result: tag });
-  return result;
-}
-
-/**
- * Fire DashboardMonth via proxy — called only from PROXY path.
- * Safety net: browser may have fired it during DASHBOARD navigation.
- * @param input - Pipeline context.
- * @returns True if fired successfully.
- */
-async function fireProxyDashboard(input: IPipelineContext): Promise<boolean> {
-  if (!input.fetchStrategy.has || !input.mediator.has) return false;
-  const proxyUrl = input.diagnostics.discoveredProxyUrl;
-  if (!proxyUrl) return false;
-  const result = await triggerProxyDashboard({
-    mediator: input.mediator.value,
-    strategy: input.fetchStrategy.value,
-    proxyUrl,
-    proxyParams: input.config.auth?.params,
-    logger: input.logger,
-  });
-  return result.success && result.value;
-}
-
-/** PRE handler — strategy-specific discovery path. */
-type PreHandler = (
-  input: IPipelineContext,
-  diag: IPipelineContext['diagnostics'],
-) => Promise<Procedure<IPipelineContext>>;
-
-/**
- * PROXY path: activate session + fire DashboardMonth + qualify.
- * @param input - Pipeline context.
- * @param diag - Updated diagnostics.
- * @returns Updated context with scrapeDiscovery.
- */
-async function executeProxyPath(
-  input: IPipelineContext,
-  diag: IPipelineContext['diagnostics'],
-): Promise<Procedure<IPipelineContext>> {
-  const sessionResult = await activateProxySession(input);
-  if (!sessionResult.success) {
-    return fail(sessionResult.errorType, sessionResult.errorMessage);
-  }
-  await fireProxyDashboard(input);
-  return qualifyProxyCards(input, diag);
-}
-
-/** Strategy dispatch map — OCP: add entry for new strategy. */
-const PRE_STRATEGY_MAP: Record<string, PreHandler> = {
-  [API_STRATEGY.PROXY]: executeProxyPath,
-  [API_STRATEGY.DIRECT]: executeDirectDiscovery,
-};
-
-/**
- * PRE: Forensic priming + strategy dispatch (OCP map).
+ * PRE: Forensic priming + DIRECT discovery. After .ashx removal there is
+ * exactly one strategy — DIRECT.
  * @param input - Pipeline context.
  * @returns Updated context with diagnostics + scrapeDiscovery.
  */
 async function executeForensicPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   await maybeForensicPrime(input);
   const diag = buildPreDiag(input);
-  const strategy = input.diagnostics.apiStrategy ?? API_STRATEGY.DIRECT;
-  const handler = PRE_STRATEGY_MAP[strategy];
-  return handler(input, diag);
+  return executeDirectDiscovery(input, diag);
 }
 
 /**
  * ACTION (sealed): Frozen matrix loop — uses scrapeDiscovery + api only.
- * PROXY: proxyScrape (already sealed).
- * DIRECT: build frozen network from scrapeDiscovery, call scrapeAllAccounts.
  * @param input - Sealed action context.
  * @returns Updated context with scraped accounts.
  */
 async function executeMatrixLoop(input: IActionContext): Promise<Procedure<IActionContext>> {
-  if (hasProxyStrategy(input)) return proxyScrape(input);
   return executeFrozenDirectScrape(input);
 }
 

@@ -3,16 +3,26 @@
  * Extracted from ScrapeWK.ts — SOLID single-responsibility for field dictionaries.
  */
 
+/**
+ * Display-id field ordering matters: card-suffix-like fields (4-digit
+ * card identifiers used as POST body params on the card-family banks)
+ * come BEFORE bank-account-number fields. Otherwise findFieldValue
+ * matches `accountNumber` (e.g. "228812") on a card record that ALSO
+ * carries `cardSuffix` ("8912"), and per-card POST replays would build
+ * `card4Number=228812` — too long for the card-family API. Generic
+ * ordering rule: short, 4-digit card identifiers first; long bank
+ * account identifiers second.
+ */
 const DISPLAY_ID_FIELDS = [
   'last4Digits',
+  'cardSuffix',
+  'cardLast4',
+  'shortCardNumber',
   'AccountID',
   'accountNumber',
   'cardNumber',
   'bankAccountNum',
-  'cardSuffix',
-  'shortCardNumber',
   'displayId',
-  'cardLast4',
   'account',
 ] as const;
 
@@ -134,7 +144,14 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'txns',
     'movements',
     'pendingTransactions',
+    'israelAbroadVouchersList',
   ],
+  // Order matters: card-level containers come first because the
+  // pipeline iterates per-card (POST replays carry card4Number, not
+  // bankAccountUniqueId). VisaCal regressed when `bankAccounts` was
+  // matched before `cards` — replays then targeted bank accounts and
+  // returned 0 txns. Bank-account-level containers stay last.
+  accountContainers: ['cardsList', 'cards', 'accounts', 'bankAccounts'],
   direction: ['creditDebit', 'direction', 'debitCreditIndicator'],
   voidIndicators: ['dealSumType'],
   voucherFields: ['voucherNumberRatz', 'voucherNumberRatzOutbound'],

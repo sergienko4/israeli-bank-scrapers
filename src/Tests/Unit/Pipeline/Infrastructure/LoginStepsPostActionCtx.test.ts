@@ -270,11 +270,6 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverEndpointByContent: (): false => false,
-      /**
-       * No proxy endpoint in mock.
-       * @returns False.
-       */
-      discoverProxyEndpoint: (): false => false,
       // Frozen-network mock — watcher is a no-op stub (always reports
       // "not failed" / "timeout"). LoginPhase POST observes false here
       // and falls through to existing detectors unchanged.

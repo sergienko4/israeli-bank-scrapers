@@ -29,6 +29,7 @@ export const PIPELINE_WELL_KNOWN_API = {
     /\/Init$/i,
     /GetCOLMetadata/i,
     /accountSummary/i,
+    /GetCardList/i,
   ],
   transactions: [
     /TransactionsAndGraphs/i,
@@ -62,18 +63,7 @@ export const PIPELINE_WELL_KNOWN_API = {
     /\/login\/login/i,
   ],
   pending: [/approvals/i, /getClearanceRequests/i, /FutureTransaction/i],
-  proxy: [/ProxyRequestHandler/i, /ServiceEndpoint/i],
-  /** Proxy dashboard request names — fired via proxy to discover accounts. */
-  proxyDashboard: [/DashboardMonth/i, /CardsList/i, /AccountsList/i],
-  /** Proxy transaction request names — fired via proxy to fetch transactions. */
-  proxyTransactions: [/CardsTransactionsList/i, /TransactionsList/i],
 } satisfies Record<string, RegExp[]>;
-
-/** WellKnown proxy query parameter defaults — common across proxy-based banks. */
-export const PIPELINE_WELL_KNOWN_PROXY = {
-  /** Default query params appended to proxy requests. */
-  queryDefaults: 'actionCode=0&format=Json',
-} as const;
 
 /** WellKnown SPA query-param keys — URL shape hints (not bank-specific). */
 export const PIPELINE_WELL_KNOWN_QUERY_KEYS = {

@@ -197,13 +197,145 @@ function replaceFieldInBase64Context(
   return true;
 }
 
+/**
+ * Account record passed through buildMonthBody for shape-aware
+ * substitution. Values are `unknown` because the record originates from
+ * `JSON.parse` (or a captured-traffic body); applyRecordShape only acts
+ * on scalar values, so the wider type is safe and accommodates banks
+ * whose responses include nested objects/arrays under non-scalar keys.
+ */
+type AccountRecordShape = Readonly<Record<string, unknown>>;
+
 /** Options for building a monthly POST body. */
 interface IMonthBodyOpts {
   readonly template: PostTemplate;
   readonly accountId: AccountIdStr;
   readonly month: MonthNum;
   readonly year: YearNum;
+  /**
+   * Per-card account record used for shape-aware substitution. Any
+   * scalar field whose name matches a body key (case-insensitive) is
+   * copied into the body, preserving the body value's primitive type.
+   * Generic — handles per-card fields like companyCode, cardStatus,
+   * isPartner without bank-specific code.
+   */
+  readonly accountRecord?: AccountRecordShape;
 }
+
+/** Scalar value safely substitutable into a JSON body. */
+type ScalarValue = string | number | boolean;
+
+/**
+ * Returns `recVal` cast to the same primitive type as `bodyVal`, so the
+ * substitution preserves the wire format the bank originally received
+ * (a number stays numeric, a boolean stays boolean, etc.).
+ * @param bodyVal - original value in the body (sets the target type).
+ * @param recVal - scalar value from the account record.
+ * @returns coerced JsonNode of the same primitive shape as bodyVal.
+ */
+function coerceToBodyType(bodyVal: JsonNode, recVal: ScalarValue): JsonNode {
+  if (typeof bodyVal === 'number' && typeof recVal === 'string') return Number(recVal);
+  if (typeof bodyVal === 'string' && typeof recVal === 'number') return String(recVal);
+  if (typeof bodyVal === 'boolean' && typeof recVal !== 'boolean') return Boolean(recVal);
+  return recVal;
+}
+
+/**
+ * Type guard for values that are safe to inline into a JSON body.
+ * @param v - candidate value from an AccountRecordShape entry.
+ * @returns true when v is string, number, or boolean.
+ */
+function isScalar(v: AccountRecordShape[string]): v is ScalarValue {
+  if (typeof v === 'string') return true;
+  if (typeof v === 'number') return true;
+  return typeof v === 'boolean';
+}
+
+/** Matched body key paired with the scalar value to substitute. */
+interface IShapeHit {
+  readonly bodyKey: BodyKey;
+  readonly recVal: ScalarValue;
+}
+
+/**
+ * Returns the scalar value for `bodyKey` from `record` (case-insensitive
+ * key match), or false when no key matches or the value is non-scalar.
+ * Non-scalar values are skipped so existing nested objects in the body
+ * survive untouched.
+ * @param record - account record.
+ * @param recordKeys - pre-computed record keys.
+ * @param bodyKey - target body key.
+ * @returns scalar hit, or false.
+ */
+function findScalarShapeHit(
+  record: AccountRecordShape,
+  recordKeys: readonly string[],
+  bodyKey: BodyKey,
+): IShapeHit | false {
+  const lowerBody = bodyKey.toLowerCase();
+  const rk = recordKeys.find((k): DidReplace => k.toLowerCase() === lowerBody);
+  if (!rk) return false;
+  const recVal = record[rk];
+  if (!isScalar(recVal)) return false;
+  return { bodyKey, recVal };
+}
+
+/** Bundled context for one shape-substitution attempt. */
+interface IShapeStepCtx {
+  readonly body: JsonRecord;
+  readonly record: AccountRecordShape;
+  readonly recordKeys: readonly string[];
+  readonly skipKeys: ReadonlySet<string>;
+}
+
+/**
+ * Substitutes `body[bk]` with the matching scalar from `ctx.record`,
+ * unless `bk` is reserved for WK monthly substitution.
+ * @param ctx - bundled shape context.
+ * @param bk - body key under consideration.
+ * @returns true (sentinel — Rule #15 forbids void).
+ */
+function applyShapeForKey(ctx: IShapeStepCtx, bk: BodyKey): true {
+  const lowerBk = bk.toLowerCase();
+  if (ctx.skipKeys.has(lowerBk)) return true;
+  const hit = findScalarShapeHit(ctx.record, ctx.recordKeys, bk);
+  if (!hit) return true;
+  const before = ctx.body[bk];
+  ctx.body[bk] = coerceToBodyType(before, hit.recVal);
+  return true;
+}
+
+/**
+ * Shape-aware substitution: copy any scalar field from accountRecord
+ * into body where keys match (case-insensitive). Fills per-card body
+ * fields (companyCode, cardStatus, isPartner) without bank-specific
+ * knowledge. Mutates `body` in place. Skips composite-date and
+ * WK-monthly fields — those are handled by buildMonthBody.
+ * @param body - Body to mutate.
+ * @param record - Account record (values may be any JSON shape).
+ * @param skipKeys - Body keys reserved for WK substitution.
+ * @returns True after applying.
+ */
+function applyRecordShape(
+  body: JsonRecord,
+  record: AccountRecordShape,
+  skipKeys: ReadonlySet<string>,
+): true {
+  const recordKeys = Object.keys(record);
+  const ctx: IShapeStepCtx = { body, record, recordKeys, skipKeys };
+  for (const bk of Object.keys(body)) applyShapeForKey(ctx, bk);
+  return true;
+}
+
+/**
+ * Lowercase set of WK keys reserved for monthly substitution. Lets
+ * applyRecordShape skip them so it doesn't fight buildMonthBody.
+ */
+const RESERVED_WK_KEYS: ReadonlySet<string> = new Set(
+  [...MF.accountId, ...MF.month, ...MF.year, ...MF.compositeDate].map(
+    (k): BodyKey => k.toLowerCase(),
+  ),
+);
 
 /**
  * Check if the body has a composite date field (DD/MM/YYYY format).
@@ -224,26 +356,45 @@ function findCompositeField(body: JsonRecord): string | false {
 }
 
 /**
+ * Apply month/year substitution — composite (DD/MM/YYYY) when the body
+ * carries one of WK.compositeDate; otherwise individual month/year keys.
+ * @param body - Body to mutate.
+ * @param month - Calendar month (1-indexed).
+ * @param year - Calendar year.
+ * @returns True after apply.
+ */
+function applyMonthYear(body: JsonRecord, month: MonthNum, year: YearNum): true {
+  const compositeKey = findCompositeField(body);
+  if (compositeKey) {
+    const mm = String(month).padStart(2, '0');
+    const yr = String(year);
+    body[compositeKey] = `01/${mm}/${yr}`;
+    return true;
+  }
+  const monthStr = String(month);
+  const yearStr = String(year);
+  replaceField(body, MF.month, monthStr);
+  replaceField(body, MF.year, yearStr);
+  return true;
+}
+
+/**
  * Build a POST body for one month from a template.
  * Uses WK MONTHLY_FIELDS to replace account, month, and year fields.
  * Handles composite date fields (DD/MM/YYYY) via WK.compositeDate detection.
+ * Optionally applies shape-aware substitution from `accountRecord` so
+ * per-card fields (companyCode, cardStatus, isPartner, …) reflect the
+ * iterated card rather than carrying through from the captured template.
  * @param opts - Month body options with template + values.
  * @returns New POST body as Record.
  */
 function buildMonthBody(opts: IMonthBodyOpts): JsonRecord {
   const body = JSON.parse(opts.template) as JsonRecord;
   replaceField(body, MF.accountId, opts.accountId);
-  const compositeKey = findCompositeField(body);
-  if (compositeKey) {
-    const mm = String(opts.month).padStart(2, '0');
-    const yr = String(opts.year);
-    body[compositeKey] = `01/${mm}/${yr}`;
-    return body;
+  applyMonthYear(body, opts.month, opts.year);
+  if (opts.accountRecord) {
+    applyRecordShape(body, opts.accountRecord, RESERVED_WK_KEYS);
   }
-  const monthStr = String(opts.month);
-  const yearStr = String(opts.year);
-  replaceField(body, MF.month, monthStr);
-  replaceField(body, MF.year, yearStr);
   return body;
 }
 
