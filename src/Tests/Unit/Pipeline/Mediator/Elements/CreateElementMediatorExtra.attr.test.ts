@@ -32,6 +32,20 @@ describe('CreateElementMediator — resolveAndClick direct visible success path'
       },
       /**
        * Test helper.
+       * @returns Single match — same shape as `.first()` for stubs.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper.
+       * @returns Self — mirrors `.first()` for single-match stubs.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper.
        *
        * @returns Result.
        */
@@ -104,6 +118,20 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
       },
       /**
        * Test helper.
+       * @returns Single match — same shape as `.first()` for stubs.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper.
+       * @returns Self — mirrors `.first()` for single-match stubs.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper.
        *
        * @param val - Parameter.
        * @returns Result.
@@ -167,14 +195,6 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
        */
       elementHandle(): Promise<unknown> {
         return Promise.resolve(false);
-      },
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      count(): Promise<number> {
-        return Promise.resolve(1);
       },
       /**
        * Test helper.

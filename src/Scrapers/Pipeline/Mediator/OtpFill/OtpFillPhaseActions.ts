@@ -21,7 +21,6 @@ import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe
 import {
   type DiagnosticLabel,
   OTP_FALLBACK,
-  otpScreenshot,
   type PhoneHint,
   readDiagString,
   readDiagTarget,
@@ -196,7 +195,6 @@ async function executeFillPre(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   if (!input.browser.has) return succeed(input);
-  await otpScreenshot(input, 'otp-fill-pre');
   const mediator = input.mediator.value;
   const page = input.browser.value.page;
   const inputResult = unwrapProbe(await detectOtpForm(mediator).catch(OTP_FALLBACK));
@@ -333,7 +331,6 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
  */
 async function executeFillPost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
-  await otpScreenshot(input, 'otp-fill-post');
   const mediator = input.mediator.value;
   const errorResult = await detectOtpError(mediator);
   if (errorResult.found) {
@@ -358,7 +355,6 @@ async function executeFillPost(input: IPipelineContext): Promise<Procedure<IPipe
  * @returns Updated context with diagnostics.
  */
 async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  await otpScreenshot(input, 'otp-fill-final');
   if (!input.mediator.has) {
     return succeedWithDiag(input, 'otp-fill-final (no mediator)');
   }

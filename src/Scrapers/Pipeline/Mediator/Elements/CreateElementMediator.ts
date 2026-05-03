@@ -309,18 +309,74 @@ const CLICK_ANCESTORS = ['button', 'a', 'select', 'div', 'span'] as const;
 /** Timeout for parallel resolveAndClick race. */
 const CLICK_RACE_TIMEOUT = 3000;
 
+/** Sentinel for "no form anchor" — empty selector means unscoped global search. */
+const NO_FORM_ANCHOR = '';
+
+/** XPath prefix lookup keyed by scoping: scoped = descendant-relative, unscoped = absolute. */
+const XPATH_PREFIX_BY_SCOPE: Readonly<Record<string, string>> = {
+  true: './/',
+  false: '//',
+};
+
+/**
+ * Page, Frame, or Locator — all expose `.locator()` / `.getBy*()` so any
+ * of the three can serve as a child-locator context. Used to apply form
+ * scoping uniformly to ALL candidate kinds via Playwright Locator chaining.
+ */
+type LocatorContext = Page | Frame | Locator;
+
+/**
+ * Apply form-anchor scoping to a context. When formAnchor is non-empty,
+ * returns `ctx.locator(formAnchor)` so subsequent child-locator calls
+ * (`.locator`, `.getByText`, `.getByLabel`, `.getByRole`, `.getByPlaceholder`)
+ * are scoped to descendants of the matched form. When empty, returns ctx
+ * unchanged. This is the single point where form-membership becomes a
+ * deterministic DOM-tree filter — regardless of candidate kind.
+ * @param ctx - Page or Frame.
+ * @param formAnchor - CSS form selector, or empty for global scope.
+ * @returns Scoped Locator or original ctx.
+ */
+function applyFormScope(ctx: Page | Frame, formAnchor: string): LocatorContext {
+  if (formAnchor.length === 0) return ctx;
+  return ctx.locator(formAnchor);
+}
+
+/** XPath expression body (no `xpath=` prefix). */
+type XpathValue = string;
+
+/**
+ * Convert absolute "//pattern" XPath to descendant-relative ".//pattern"
+ * when scoped under a form Locator. Playwright's chained `Locator.locator()`
+ * treats "//..." as document-absolute (NOT relative to the locator), which
+ * would silently defeat form scoping. Prepending "." makes it descendant-only.
+ * @param value - XPath value (already with `xpath=` prefix stripped).
+ * @param isScoped - True when chained under a form Locator.
+ * @returns Adjusted XPath string.
+ */
+function relativizeXpath(value: string, isScoped: boolean): XpathValue {
+  if (!isScoped) return value;
+  if (value.startsWith('//')) return '.' + value;
+  return value;
+}
+
 /**
  * Build xpath BASE locators (no `.first()`) for a textContent candidate.
  * Walk-up to each interactive ancestor — same logic as resolveByAncestorWalkUp.
  * Callers that want first-match-only wrap with `.first()`; callers that
  * want all matches enumerate via `.nth(i)`.
- * @param ctx - Playwright Page or Frame context.
+ * @param scope - Page, Frame, or form Locator (Locator under form scoping).
  * @param text - Visible text to find.
+ * @param isScoped - True when scope is a form Locator (relativize xpath).
  * @returns Array of Playwright base locators targeting interactive ancestors.
  */
-function buildWalkUpLocatorsBase(ctx: Page | Frame, text: string): Locator[] {
+function buildWalkUpLocatorsBase(
+  scope: LocatorContext,
+  text: string,
+  isScoped: boolean,
+): Locator[] {
+  const prefix = XPATH_PREFIX_BY_SCOPE[String(isScoped)];
   return CLICK_ANCESTORS.map(
-    (tag): Locator => ctx.locator(`xpath=//${tag}[.//text()[contains(., "${text}")]]`),
+    (tag): Locator => scope.locator(`xpath=${prefix}${tag}[.//text()[contains(., "${text}")]]`),
   );
 }
 
@@ -328,13 +384,19 @@ function buildWalkUpLocatorsBase(ctx: Page | Frame, text: string): Locator[] {
  * Build BASE locators (no `.first()`) for a clickableText candidate —
  * innermost element with text. Excludes elements that have children also
  * containing the text.
- * @param ctx - Playwright Page or Frame context.
+ * @param scope - Page, Frame, or form Locator.
  * @param text - Visible text to find.
+ * @param isScoped - True when scope is a form Locator (relativize xpath).
  * @returns Array of Playwright base locators.
  */
-function buildClickableTextLocatorsBase(ctx: Page | Frame, text: string): Locator[] {
-  const innermost = `//*[contains(., "${text}") and not(.//*[contains(., "${text}")])]`;
-  return [ctx.locator(`xpath=${innermost}`)];
+function buildClickableTextLocatorsBase(
+  scope: LocatorContext,
+  text: string,
+  isScoped: boolean,
+): Locator[] {
+  const prefix = XPATH_PREFIX_BY_SCOPE[String(isScoped)];
+  const innermost = `${prefix}*[contains(., "${text}") and not(.//*[contains(., "${text}")])]`;
+  return [scope.locator(`xpath=${innermost}`)];
 }
 
 /**
@@ -345,28 +407,44 @@ function buildClickableTextLocatorsBase(ctx: Page | Frame, text: string): Locato
  *   - `buildLocatorEntriesAll`: enumerates `.nth(0..N-1)` per base locator
  *     so multi-match elements (legacy + modern nav buttons) both surface
  *     in the candidate list.
+ * When formAnchor is non-empty, builds child locators chained off the form
+ * (Locator chaining) so ALL candidate kinds are uniformly form-scoped.
  * @param ctx - Playwright Page or Frame.
  * @param candidate - The selector candidate.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
  * @returns Array of base locators (race targets — no `.first()` applied).
  */
-function buildCandidateLocatorsBase(ctx: Page | Frame, candidate: SelectorCandidate): Locator[] {
-  if (candidate.kind === 'textContent') return buildWalkUpLocatorsBase(ctx, candidate.value);
+function buildCandidateLocatorsBase(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor = NO_FORM_ANCHOR,
+): Locator[] {
+  const scope = applyFormScope(ctx, formAnchor);
+  const isScoped = formAnchor.length > 0;
+  if (candidate.kind === 'textContent')
+    return buildWalkUpLocatorsBase(scope, candidate.value, isScoped);
   if (candidate.kind === 'clickableText') {
-    return buildClickableTextLocatorsBase(ctx, candidate.value);
+    return buildClickableTextLocatorsBase(scope, candidate.value, isScoped);
   }
   if (candidate.kind === 'ariaLabel')
     return [
-      ctx.getByLabel(candidate.value), // form inputs
-      ctx.getByRole('button', { name: candidate.value, exact: false }),
-      ctx.getByRole('link', { name: candidate.value, exact: false }),
-      ctx.getByRole('tab', { name: candidate.value, exact: false }),
+      scope.getByLabel(candidate.value), // form inputs
+      scope.getByRole('button', { name: candidate.value, exact: false }),
+      scope.getByRole('link', { name: candidate.value, exact: false }),
+      scope.getByRole('tab', { name: candidate.value, exact: false }),
     ];
-  if (candidate.kind === 'placeholder') return [ctx.getByPlaceholder(candidate.value)];
-  if (candidate.kind === 'xpath') return [ctx.locator(candidate.value)];
-  if (candidate.kind === 'name') return [ctx.locator(`[name="${candidate.value}"]`)];
-  if (candidate.kind === 'regex') return [ctx.getByText(new RegExp(candidate.value))];
-  if (candidate.kind === 'exactText') return [ctx.getByText(candidate.value, { exact: true })];
-  return [ctx.getByText(candidate.value)];
+  if (candidate.kind === 'placeholder') return [scope.getByPlaceholder(candidate.value)];
+  if (candidate.kind === 'xpath') {
+    // Explicit "xpath=" prefix: Playwright auto-detects xpath only when
+    // selector starts with "//", but the descendant-relative form ".//"
+    // starts with "." — without prefix Playwright would parse as CSS.
+    const xpathValue = relativizeXpath(candidate.value, isScoped);
+    return [scope.locator(`xpath=${xpathValue}`)];
+  }
+  if (candidate.kind === 'name') return [scope.locator(`[name="${candidate.value}"]`)];
+  if (candidate.kind === 'regex') return [scope.getByText(new RegExp(candidate.value))];
+  if (candidate.kind === 'exactText') return [scope.getByText(candidate.value, { exact: true })];
+  return [scope.getByText(candidate.value)];
 }
 
 /**
@@ -376,10 +454,15 @@ function buildCandidateLocatorsBase(ctx: Page | Frame, candidate: SelectorCandid
  * nth-enumeration split.
  * @param ctx - Playwright Page or Frame.
  * @param candidate - The selector candidate.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
  * @returns Array of `.first()`-wrapped locators ready to race.
  */
-function buildCandidateLocators(ctx: Page | Frame, candidate: SelectorCandidate): Locator[] {
-  return buildCandidateLocatorsBase(ctx, candidate).map((loc): Locator => loc.first());
+function buildCandidateLocators(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor = NO_FORM_ANCHOR,
+): Locator[] {
+  return buildCandidateLocatorsBase(ctx, candidate, formAnchor).map((loc): Locator => loc.first());
 }
 
 /**
@@ -540,16 +623,19 @@ interface ILocatorEntry {
  * Preserves which candidate and context produced each locator.
  * @param page - The Playwright page.
  * @param candidates - WellKnown selector candidates.
+ * @param formAnchor - Optional CSS form selector for descendant scoping
+ *   applied uniformly to every candidate kind via Locator chaining.
  * @returns Array of locator entries with metadata.
  */
 function buildLocatorEntries(
   page: Page,
   candidates: readonly SelectorCandidate[],
+  formAnchor = NO_FORM_ANCHOR,
 ): ILocatorEntry[] {
   const contexts = getAllContexts(page);
   return contexts.flatMap((ctx): ILocatorEntry[] =>
     candidates.flatMap((c): ILocatorEntry[] =>
-      buildCandidateLocators(ctx, c).map(
+      buildCandidateLocators(ctx, c, formAnchor).map(
         (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
       ),
     ),
@@ -592,6 +678,7 @@ interface IExpandEntryArgs {
   readonly ctx: Page | Frame;
   readonly candidate: SelectorCandidate;
   readonly maxPerLocator: number;
+  readonly formAnchor: string;
 }
 
 /**
@@ -599,11 +686,11 @@ interface IExpandEntryArgs {
  * enumerated entries. Drops `.first()` semantics by reusing the same
  * builder output (`.nth(i)` chains compose with `.first()` such that
  * `.first()` is `.nth(0)` — Playwright treats them identically).
- * @param args - Bundled context + candidate + per-locator cap.
+ * @param args - Bundled context + candidate + per-locator cap + formAnchor.
  * @returns Locator entries (one per nth-match per base locator).
  */
 async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
-  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate);
+  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
   const maxPerLocator = args.maxPerLocator;
   const expansionPromises = bases.map(
     (b): Promise<readonly Locator[]> => expandLocatorToNth(b, maxPerLocator),
@@ -623,15 +710,18 @@ async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly 
  * zero behavioural change for banks that already pass on attempt 0.
  * @param page - Playwright page.
  * @param candidates - WK selector candidates.
+ * @param formAnchor - Optional CSS form selector — when set, all candidate
+ *   kinds are scoped to descendants of the form via Locator chaining.
  * @returns Locator entries (contexts × candidates × nth-matches).
  */
 async function buildLocatorEntriesAll(
   page: Page,
   candidates: readonly SelectorCandidate[],
+  formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]> {
   const contexts = getAllContexts(page);
   const expansionPromises = contexts.flatMap((ctx): Promise<readonly ILocatorEntry[]>[] =>
-    mapCandidatesToExpansions(ctx, candidates),
+    mapCandidatesToExpansions(ctx, candidates, formAnchor),
   );
   const groups = await Promise.all(expansionPromises);
   return groups.flat();
@@ -643,15 +733,22 @@ async function buildLocatorEntriesAll(
  * the depth-1 ceiling.
  * @param ctx - Playwright context (Page or Frame).
  * @param candidates - WK selector candidates to enumerate per locator.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
  * @returns One promise of locator entries per candidate, in input order.
  */
 function mapCandidatesToExpansions(
   ctx: Page | Frame,
   candidates: readonly SelectorCandidate[],
+  formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]>[] {
   return candidates.map(
     (c): Promise<readonly ILocatorEntry[]> =>
-      expandCandidateEntries({ ctx, candidate: c, maxPerLocator: MAX_NTH_PER_LOCATOR }),
+      expandCandidateEntries({
+        ctx,
+        candidate: c,
+        maxPerLocator: MAX_NTH_PER_LOCATOR,
+        formAnchor,
+      }),
   );
 }
 
@@ -801,7 +898,13 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
     tag: identity.tag,
     id: identity.id,
     classes: identity.classes,
-    attrs: { name: identity.name, type: identity.type },
+    attrs: {
+      name: identity.name,
+      type: identity.type,
+      ariaLabel: identity.ariaLabel,
+      title: identity.title,
+      href: identity.href,
+    },
     visibility: 'visible',
   });
   return identity;
@@ -831,41 +934,106 @@ function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagn
 }
 
 /**
- * Resolve the first visible element — parallel race across page + iframes.
- * @param page - The Playwright page.
- * @param candidates - WellKnown selector candidates.
- * @param timeout - Race timeout in ms.
- * @returns IRaceResult with locator, candidate, context, and snapshot.
+ * Run the hit-test race against an entry list, log diagnostics.
+ * Extracted so resolveVisibleImpl + resolveVisibleNthAware share one path.
+ * @param entries - Locator entries (single-match `.first()` OR nth-enumerated).
+ * @param timeout - Race timeout (already capped by caller).
+ * @param label - Log prefix identifying the resolver (for diagnostic trace).
+ * @returns Race diagnostic with winner + fulfilled detail.
  */
-/**
- * Resolve the first visible element — parallel race across candidates.
- * Uses the SAME resolveVisible + hit-test logic in both LIVE and MOCK modes
- * (Rule #20: passive discovery is identical). If an element isn't visible
- * in the rendered snapshot, the mock MUST fail — that's the whole point.
- * @param page - Playwright Page.
- * @param candidates - WellKnown selector candidates.
- * @param timeout - Race timeout (capped under MOCK_MODE by capTimeout).
- * @returns Race result with locator + metadata, or NOT_FOUND.
- */
-async function resolveVisibleImpl(
-  page: Page,
-  candidates: readonly SelectorCandidate[],
+async function runHitTestRace(
+  entries: readonly ILocatorEntry[],
   timeout: number,
-): Promise<IRaceResult> {
-  const entries = buildLocatorEntries(page, candidates);
-  if (entries.length === 0) return NOT_FOUND_RESULT;
+  label: string,
+): Promise<IRaceDiagnostic> {
   const locators = entries.map((e): Locator => e.locator);
-  const effectiveTimeout = capTimeout(timeout);
   const countStr = String(locators.length);
-  const timeoutStr = String(effectiveTimeout);
-  LOG.debug({ message: `resolveVisible: ${countStr} locators, timeout=${timeoutStr}ms` });
-  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
+  const timeoutStr = String(timeout);
+  LOG.debug({ message: `${label}: ${countStr} locators, timeout=${timeoutStr}ms` });
+  const diag = await raceLocatorsWithHitTest(locators, timeout);
   traceRaceDiagnostic(entries, diag);
-  if (diag.winner < 0) return NOT_FOUND_RESULT;
-  const winner = entries[diag.winner];
+  return diag;
+}
+
+/**
+ * Capture identity + value from the winning entry and wrap as IRaceResult.
+ * @param winner - Winning locator entry.
+ * @param index - Winner's index within the entries array.
+ * @returns Found IRaceResult ready for the caller.
+ */
+async function finalizeWinner(winner: ILocatorEntry, index: WinnerIndex): Promise<IRaceResult> {
   const identity = await extractAndTraceIdentity(winner);
   const value = await snapshotValue(winner);
-  return buildFoundResult(winner, { index: diag.winner, value, identity });
+  return buildFoundResult(winner, { index, value, identity });
+}
+
+/**
+ * Race entries through hit-test, return found-result or NOT_FOUND.
+ * Shared body for resolveVisibleImpl (`.first()` per candidate) and
+ * resolveVisibleNthAware (nth-enumerated). Caller picks the entry-builder.
+ * @param entries - Locator entries to race.
+ * @param timeout - Race timeout (already capped).
+ * @param label - Diagnostic label for log output.
+ * @returns Found-result on hit-test winner, NOT_FOUND_RESULT otherwise.
+ */
+async function raceEntriesToResult(
+  entries: readonly ILocatorEntry[],
+  timeout: number,
+  label: string,
+): Promise<IRaceResult> {
+  if (entries.length === 0) return NOT_FOUND_RESULT;
+  const diag = await runHitTestRace(entries, timeout, label);
+  if (diag.winner < 0) return NOT_FOUND_RESULT;
+  return finalizeWinner(entries[diag.winner], diag.winner);
+}
+
+/**
+ * Resolve the first visible element — parallel race across candidates with
+ * `.first()` per locator. Uses the SAME resolveVisible + hit-test logic in
+ * both LIVE and MOCK modes (Rule #20: passive discovery is identical). If
+ * an element isn't visible in the rendered snapshot, the mock MUST fail —
+ * that's the whole point. When `args.formAnchor` is set, ALL candidate kinds
+ * are scoped to descendants of the form via Playwright Locator chaining.
+ * @param args - Bundled page + candidates + timeout + formAnchor.
+ * @returns Race result with locator + metadata, or NOT_FOUND.
+ */
+async function resolveVisibleImpl(args: IClickResolveArgs): Promise<IRaceResult> {
+  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
+  const effectiveTimeout = capTimeout(args.timeout);
+  return raceEntriesToResult(entries, effectiveTimeout, 'resolveVisible');
+}
+
+/**
+ * Bundled args for the click-resolution pipeline (resolveVisibleNthAware
+ * and resolveAndClickImpl). Keeps both functions inside the 3-param
+ * ceiling while threading formAnchor for form-membership scoping.
+ */
+interface IClickResolveArgs {
+  readonly page: Page;
+  readonly candidates: readonly SelectorCandidate[];
+  readonly timeout: number;
+  readonly formAnchor: string;
+}
+
+/**
+ * Resolve the first visible element — like resolveVisibleImpl but enumerates
+ * `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base locator so multi-match elements
+ * (e.g. several `<button type="submit">` across login + SMS forms) all enter
+ * the race. Hit-test picks the truly visible+enabled winner.
+ *
+ * When `args.formAnchor` is set, ALL candidate kinds are scoped to descendants
+ * of the form via Playwright Locator chaining — `ctx.locator(formAnchor)`
+ * becomes the parent context for `.locator/.getByText/.getByLabel/...`,
+ * and absolute "//xpath" is relativized to ".//xpath". Form-membership is
+ * a deterministic DOM-tree filter, independent of CSS visibility timing.
+ *
+ * @param args - Bundled page + candidates + timeout + formAnchor.
+ * @returns Race result with locator + metadata, or NOT_FOUND.
+ */
+async function resolveVisibleNthAware(args: IClickResolveArgs): Promise<IRaceResult> {
+  const entries = await buildLocatorEntriesAll(args.page, args.candidates, args.formAnchor);
+  const effectiveTimeout = capTimeout(args.timeout);
+  return raceEntriesToResult(entries, effectiveTimeout, 'resolveVisibleNthAware');
 }
 
 /**
@@ -1139,24 +1307,26 @@ async function resolveVisibleInContextImpl(
  * Resolve and click — tries visible elements first; falls back to attached (force click).
  * Fallback handles elements hidden by accessibility overlays (e.g. UserWay) that are
  * in the DOM but have zero bounding box or are offset off-screen.
- * @param page - The Playwright page.
- * @param candidates - WellKnown selector candidates.
- * @param timeout - Race timeout in ms.
+ * When `args.formAnchor` is set, ALL candidate kinds are scoped to descendants of
+ * the form via Playwright Locator chaining (uniform, deterministic filter).
+ * @param args - Bundled page + candidates + timeout + formAnchor.
  * @returns Procedure with IRaceResult — found=true if clicked, NOT_FOUND_RESULT if not found.
  */
-async function resolveAndClickImpl(
-  page: Page,
-  candidates: readonly SelectorCandidate[],
-  timeout: number,
-): Promise<Procedure<IRaceResult>> {
-  const effectiveTimeout = capTimeout(timeout);
-  const result = await resolveVisibleImpl(page, candidates, effectiveTimeout);
+async function resolveAndClickImpl(args: IClickResolveArgs): Promise<Procedure<IRaceResult>> {
+  const effectiveTimeout = capTimeout(args.timeout);
+  const raceArgs: IClickResolveArgs = {
+    page: args.page,
+    candidates: args.candidates,
+    timeout: effectiveTimeout,
+    formAnchor: args.formAnchor,
+  };
+  const result = await resolveVisibleNthAware(raceArgs);
   if (result.found && result.locator) {
     await result.locator.click({ timeout: effectiveTimeout }).catch((): false => false);
     return succeed(result);
   }
   // Fallback: attached state — element is in DOM but not visually visible
-  const entries = buildLocatorEntries(page, candidates);
+  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
   const locators = entries.map((e): Locator => e.locator);
   const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
   if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
@@ -1178,10 +1348,11 @@ async function resolveAndClickImpl(
  * @returns Mediator resolveVisible function.
  */
 function buildResolveVisible(page: Page): IElementMediator['resolveVisible'] {
-  return (candidates, timeoutMs?): Promise<IRaceResult> => {
+  return (candidates, timeoutMs?, formAnchor?): Promise<IRaceResult> => {
     if (candidates.length === 0) return Promise.resolve(NOT_FOUND_RESULT);
     const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
-    return resolveVisibleImpl(page, candidates, timeout);
+    const anchor = formAnchor ?? NO_FORM_ANCHOR;
+    return resolveVisibleImpl({ page, candidates, timeout, formAnchor: anchor });
   };
 }
 
@@ -1216,12 +1387,48 @@ function buildResolveVisibleInContext(): IElementMediator['resolveVisibleInConte
  * @param page - The Playwright page.
  * @returns Mediator resolveAndClick function.
  */
-function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
-  return (candidates, timeoutMs?): Promise<Procedure<IRaceResult>> => {
-    if (candidates.length === 0)
-      return resolveAndClickImpl(page, WK_LOGIN_FORM.submit, timeoutMs ?? CLICK_RACE_TIMEOUT);
-    return resolveAndClickImpl(page, candidates, timeoutMs ?? CLICK_RACE_TIMEOUT);
+/**
+ * Pick the WK_LOGIN_FORM.submit fallback when caller passes empty candidates.
+ * Keys: 'true' = empty array (fallback to WK), 'false' = caller's candidates.
+ * @param callerCandidates - Candidates passed by the caller (possibly empty).
+ * @returns Effective candidates for the click race.
+ */
+function pickClickCandidates(
+  callerCandidates: readonly SelectorCandidate[],
+): readonly SelectorCandidate[] {
+  const sourceByEmpty: Readonly<Record<string, readonly SelectorCandidate[]>> = {
+    true: WK_LOGIN_FORM.submit,
+    false: callerCandidates,
   };
+  return sourceByEmpty[String(callerCandidates.length === 0)];
+}
+
+/**
+ * Build resolveAndClick method bound to a page.
+ * Reads optional formAnchor from caller; passes through to the impl which
+ * scopes ALL candidate kinds via Playwright Locator chaining.
+ * @param page - The Playwright page.
+ * @returns Mediator resolveAndClick function.
+ */
+function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
+  return (candidates, timeoutMs?, formAnchor?): Promise<Procedure<IRaceResult>> => {
+    const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
+    const anchor = formAnchor ?? NO_FORM_ANCHOR;
+    const useCandidates = pickClickCandidates(candidates);
+    return resolveAndClickImpl({ page, candidates: useCandidates, timeout, formAnchor: anchor });
+  };
+}
+
+/**
+ * Build getFormAnchor method bound to the per-instance form cache.
+ * Returns the cached form selector populated by `discoverForm`, or '' when
+ * none discovered yet. Caller passes this to `resolveAndClick` so click
+ * resolution is form-scoped.
+ * @param cache - Per-instance form cache.
+ * @returns Mediator getFormAnchor function.
+ */
+function buildGetFormAnchor(cache: IFormCache): IElementMediator['getFormAnchor'] {
+  return (): FormAnchorStr => cache.selector;
 }
 
 /** Default timeout for network idle wait (matches POST_LOGIN_SETTLE_TIMEOUT). */
@@ -1424,6 +1631,7 @@ function createElementMediator(page: Page): IElementMediator {
     waitForLoadingDone: buildWaitForLoadingDone(),
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
+    getFormAnchor: buildGetFormAnchor(cache),
     network,
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),

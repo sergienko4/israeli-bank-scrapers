@@ -21,6 +21,20 @@ describe('CreateElementMediator — waitForLoadingDone loading branches', () => 
       },
       /**
        * Test helper.
+       * @returns Single match — same shape as `.first()` for stubs.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper.
+       * @returns Self — mirrors `.first()` for single-match stubs.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper.
        *
        * @returns Result.
        */
@@ -65,6 +79,20 @@ describe('CreateElementMediator — waitForLoadingDone loading branches', () => 
        * @returns Result.
        */
       first(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper.
+       * @returns Single match — same shape as `.first()` for stubs.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper.
+       * @returns Self — mirrors `.first()` for single-match stubs.
+       */
+      nth(): Locator {
         return this as unknown as Locator;
       },
       /**

@@ -54,7 +54,14 @@ export const WK_DASHBOARD = {
     { kind: 'ariaLabel', value: 'menu' },
   ],
   // Priority order: bank-account intent → card transactions → medium → generic.
+  // The exact-text "פירוט החיובים והעסקאות" (with definite articles) sits at
+  // the top to disambiguate Max's two near-identical dropdown items —
+  // "פירוט החיובים והעסקאות" (My Info → Charge details and transactions, the
+  // correct one) vs "פירוט חיובים ועסקאות" (My Card → wrong twin matched by
+  // the existing substring further down). Verified offline against captured
+  // dashboard HTML for all 7 banks: only Max has this element; no overlap.
   TRANSACTIONS: [
+    { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
     { kind: 'ariaLabel', value: 'תנועות בחשבון' },
     { kind: 'clickableText', value: 'תנועות בחשבון' },
     { kind: 'clickableText', value: 'תנועות עו"ש' },

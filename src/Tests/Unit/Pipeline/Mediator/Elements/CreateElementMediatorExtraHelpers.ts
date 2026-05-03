@@ -127,6 +127,13 @@ export function makeRichLocator(script: ILocatorScript): Locator {
      */
     count: (): Promise<number> => Promise.resolve(1),
     /**
+     * nth — returns self for any index, mirroring `.first()` semantics for
+     * single-match stubs. resolveVisibleNthAware enumerates `.nth(i)` after
+     * inspecting `.count()`, so the stub honours both APIs.
+     * @returns Self locator.
+     */
+    nth: (): Locator => self as unknown as Locator,
+    /**
      * isVisible.
      * @returns Scripted.
      */

@@ -77,6 +77,20 @@ describe('CreateElementMediator resolveAndClick — with empty candidates uses s
         return this as unknown as Locator;
       },
       /**
+       * Test helper.
+       * @returns Single match — same shape as `.first()` for stubs.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper.
+       * @returns Self — mirrors `.first()` for single-match stubs.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
        * waitFor — succeeds on attached, fails on visible.
        * @param opts - Wait options.
        * @param opts.state - Requested wait state.

@@ -11,12 +11,12 @@ import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 import {
-  collectIframeSnapshots,
   detectAsyncLoginErrors,
   discoverErrorsAllFrames,
   hasStayedOnLoginUrl,
   safeScanFrame,
 } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
+import { collectIframeSnapshots } from '../../../../../Scrapers/Pipeline/Types/FixtureCapture.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /**

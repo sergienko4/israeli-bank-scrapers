@@ -215,4 +215,55 @@ describe('GenericBodyTemplate.hydrate — failures', () => {
     if (!result.success) throw new ScraperError('hydrate should succeed');
     expect(result.value).toEqual({});
   });
+
+  it('classify treats a primitive number root template as a record (branch coverage)', (): void => {
+    // typeof node !== 'object' branch in classify — a primitive number flows
+    // through as a record-shaped template; Object.entries(42) returns an empty
+    // entry list, so hydrateRecord yields an empty object.
+    const tmpl = 42 as unknown as JsonValueTemplate;
+    const scope = makeScope();
+    const result = hydrate(tmpl, scope);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('primitive root should hydrate');
+    expect(result.value).toEqual({});
+  });
+
+  it('coerceJson rejects non-JSON-serialisable literal types (function)', (): void => {
+    /**
+     * Sentinel function value used as an invalid literal payload.
+     * @returns Always 1 — value is irrelevant because typeof is what fails.
+     */
+    const fn = (): number => 1;
+    const tmpl = { $literal: fn } as unknown as JsonValueTemplate;
+    const scope = makeScope();
+    const result = hydrate(tmpl, scope);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('not JSON-serialisable');
+  });
+
+  it('absorbEntry short-circuits on the 3rd record entry once acc has failed', (): void => {
+    // Three-entry record where the SECOND entry fails — the third entry
+    // re-enters absorbEntry with a non-OK accumulator and must early-return.
+    const scope = makeScope();
+    const tmpl: JsonValueTemplate = {
+      one: { $literal: 'first' },
+      two: { $ref: 'carry.absent' },
+      three: { $literal: 'third' },
+    };
+    const result = hydrate(tmpl, scope);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('carry.absent');
+  });
+
+  it('absorbArrayItem short-circuits on the 3rd array element once acc has failed', (): void => {
+    const scope = makeScope();
+    const tmpl = [
+      { $literal: 'first' },
+      { $ref: 'carry.absent' },
+      { $literal: 'third' },
+    ] as unknown as JsonValueTemplate;
+    const result = hydrate(tmpl, scope);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('carry.absent');
+  });
 });

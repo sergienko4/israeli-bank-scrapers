@@ -107,8 +107,12 @@ async function tryClickSubmit(
   logger: ScraperLogger,
 ): Promise<Procedure<boolean>> {
   const candidates = normalizeSubmit(config.submit);
-  const scoped = mediator.scopeToForm(candidates);
-  const result = await mediator.resolveAndClick(scoped);
+  // Form-membership scoping via Locator chaining: ALL candidate kinds
+  // (xpath, textContent, regex, ariaLabel, ...) are scoped to descendants
+  // of the discovered form. Discriminates co-resident submit buttons on
+  // flip-card pages (e.g. Amex/Isracard SMS-form vs password-form).
+  const formAnchor = mediator.getFormAnchor();
+  const result = await mediator.resolveAndClick(candidates, undefined, formAnchor);
   if (!result.success) return result;
   if (!result.value.found) return succeed(false);
   const masked = maskVisibleText(result.value.value);

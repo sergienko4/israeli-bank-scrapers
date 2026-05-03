@@ -30,19 +30,30 @@ function installFetchMock(impl: MockFetchImpl): MockFetch {
 }
 
 /**
- * Build a fake Response object with the given status + body text.
+ * Build a fake Response object with the given status + body text + Set-Cookie list.
  * @param status - HTTP status code to report.
  * @param bodyText - Raw body text returned by response.text().
+ * @param setCookies - Set-Cookie header lines (default: empty).
  * @returns A Response-shaped object suitable for the mock fetch.
  */
-function buildResponse(status: number, bodyText: string): Response {
+function buildResponse(
+  status: number,
+  bodyText: string,
+  setCookies: readonly string[] = [],
+): Response {
   const isOkStatus = status >= 200 && status < 300;
   /**
    * Return the canned body text when fetch callers invoke response.text().
    * @returns Promise resolving to the canned body text.
    */
   const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  const responseLike = { ok: isOkStatus, status, text: textFn };
+  /**
+   * Stub for Headers.getSetCookie() — returns the configured cookie list.
+   * @returns Set-Cookie line array.
+   */
+  const getSetCookieFn = (): readonly string[] => setCookies;
+  const headers = { getSetCookie: getSetCookieFn };
+  const responseLike = { ok: isOkStatus, status, text: textFn, headers };
   return responseLike as unknown as Response;
 }
 
@@ -50,10 +61,15 @@ function buildResponse(status: number, bodyText: string): Response {
  * Build an impl that resolves with a prefabricated Response.
  * @param status - HTTP status code for the response.
  * @param bodyText - Body text to serve from the response.
+ * @param setCookies - Optional Set-Cookie lines to expose via headers.getSetCookie.
  * @returns A MockFetchImpl that always resolves with the response.
  */
-function respondWith(status: number, bodyText: string): MockFetchImpl {
-  const response = buildResponse(status, bodyText);
+function respondWith(
+  status: number,
+  bodyText: string,
+  setCookies: readonly string[] = [],
+): MockFetchImpl {
+  const response = buildResponse(status, bodyText, setCookies);
   const promised = Promise.resolve(response);
   /**
    * Mock impl closure — ignores args and returns the canned response.
@@ -264,5 +280,73 @@ describe('NativeFetchStrategy — failure paths', () => {
       expect(result.errorMessage).toContain('network error');
       expect(result.errorMessage).toContain('connection refused');
     }
+  });
+});
+
+describe('NativeFetchStrategy — onSetCookie hook + relative URL resolution', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('invokes onSetCookie hook with non-empty Set-Cookie lines from the response', async () => {
+    const cookieLines = ['SESSION=abc; Path=/; HttpOnly', 'CSRF=xyz; Path=/'];
+    const impl = respondWith(200, '{"ok":true}', cookieLines);
+    installFetchMock(impl);
+    const captured: string[][] = [];
+    /**
+     * Cookie-emit spy that records the hook payload.
+     * @param lines - Raw Set-Cookie lines.
+     * @returns Number of lines absorbed.
+     */
+    const onSetCookie = (lines: readonly string[]): number => {
+      captured.push([...lines]);
+      return lines.length;
+    };
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('https://api.example/auth', {
+      extraHeaders: {},
+      onSetCookie,
+    });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toEqual(cookieLines);
+  });
+
+  it('skips the onSetCookie hook when the response carries no Set-Cookie lines', async () => {
+    const impl = respondWith(200, '{"ok":true}', []);
+    installFetchMock(impl);
+    let calledTimes = 0;
+    /**
+     * Cookie-emit spy that increments a call counter.
+     * @returns Always 0 — no cookies absorbed.
+     */
+    const onSetCookie = (): number => {
+      calledTimes = calledTimes + 1;
+      return 0;
+    };
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('https://api.example/auth', {
+      extraHeaders: {},
+      onSetCookie,
+    });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    expect(calledTimes).toBe(0);
+  });
+
+  it('prepends baseUrl when the caller passes a relative URL', async () => {
+    const impl = respondWith(200, '{"ok":true}');
+    const fetchMock = installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('/relative/path', { extraHeaders: {} });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    const capturedCall = firstCall(fetchMock);
+    expect(capturedCall.url).toBe('https://api.example/relative/path');
   });
 });

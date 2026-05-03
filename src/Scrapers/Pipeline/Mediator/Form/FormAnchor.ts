@@ -96,7 +96,14 @@ async function evaluateFormWalk(
   const loc = ctx.locator(resolvedSelector).first();
   if ((await loc.count()) === 0) return '';
   const ancestors = await collectAncestorMeta(ctx, resolvedSelector);
-  const formAncestor = ancestors.find(isFormLikeAncestor);
+  // Prefer the actual `<form>` element over wrapper divs that happen to contain
+  // 2+ inputs. The wrapper-DIV scope often includes header nav elements that
+  // share aria-labels with form controls (e.g. Max's `<a aria-label="כניסה">`
+  // sibling to the form's submit button) — scoping to the form itself excludes
+  // those and produces unambiguous click resolution.
+  const formTag = ancestors.find((m): DomCheck => m.isForm);
+  const fallback = ancestors.find((m): DomCheck => m.fillCount >= MIN_FILLABLE_INPUTS);
+  const formAncestor = formTag ?? fallback;
   if (!formAncestor) return '';
   return buildSelectorFromMeta(formAncestor);
 }
@@ -109,14 +116,16 @@ interface IAncestorMeta {
   readonly fillCount: DomCount;
   readonly sibIndex: SiblingIndex;
   readonly sibCount: DomCount;
+  readonly name: string;
+  readonly stableClass: string;
 }
 
-/** Ancestor tuple: [tag, id, isForm, fillCount, sibIndex, sibCount]. */
-type AncestorTuple = [string, string, boolean, number, number, number];
+/** Ancestor tuple: [tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass]. */
+type AncestorTuple = [string, string, boolean, number, number, number, string, string];
 
 /**
  * Convert a raw ancestor tuple from browser evaluate into typed metadata.
- * @param t - The raw tuple: [tag, id, isForm, fillCount, sibIndex, sibCount].
+ * @param t - The raw tuple.
  * @returns Typed ancestor metadata.
  */
 function tupleToMeta(t: AncestorTuple): IAncestorMeta {
@@ -127,6 +136,8 @@ function tupleToMeta(t: AncestorTuple): IAncestorMeta {
     fillCount: t[3],
     sibIndex: t[4],
     sibCount: t[5],
+    name: t[6],
+    stableClass: t[7],
   };
 }
 
@@ -165,6 +176,17 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
     const sibs = children?.filter((c): DomCheck => c.tagName === el.tagName);
     const idx = sibs?.indexOf(el) ?? 0;
     const cnt = sibs?.length ?? 1;
+    // First non-Angular class (Angular adds dynamic ng-* classes that are
+    // unstable across renders — skip them and keep the first stable one).
+    // This function is serialized to the BROWSER context via Playwright
+    // `evaluateAll` — Node-side constants are not in scope. `String()`
+    // returns the empty-string sentinel for "absent" attributes; downstream
+    // `extractFormAnchorSelector` treats zero-length values as "not present".
+    const absent = String();
+    const allClasses = el.className.split(/\s+/).filter((c): DomCheck => c.length > 0);
+    const foundClass = allClasses.find((c): DomCheck => !c.startsWith('ng-'));
+    const stableClass = foundClass ?? absent;
+    const nameAttr = el.getAttribute('name') ?? absent;
     return [
       el.tagName,
       el.id,
@@ -172,6 +194,8 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
       el.querySelectorAll('input').length,
       idx,
       cnt,
+      nameAttr,
+      stableClass,
     ];
   });
 }
@@ -180,23 +204,26 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
 const MIN_FILLABLE_INPUTS = 2;
 
 /**
- * Determine if an ancestor is a form-like container based on its metadata.
+ * Build a CSS selector from ancestor metadata. Preference order (most to
+ * least stable):
+ *   1. `#id`             — explicit id
+ *   2. `tag[name="X"]`   — name attribute (form/input common)
+ *   3. `tag.classX`      — first non-Angular class (e.g. Max's `.user-login-form`)
+ *   4. `tag:nth-of-type` — positional fallback (Discount-style; intentionally
+ *      LAST because it is fragile and historically caused regressions)
+ *   5. `tag` alone — only when single sibling and no other identifier
+ * The downstream `extractFormAnchorSelector` guard accepts options 1–3 only;
+ * positional/tag-only selectors are rejected to avoid the "div:nth-of-type(0)"
+ * trap. This function emits the BEST AVAILABLE selector regardless of trust;
+ * the trust filter happens at the caller.
  * @param meta - The ancestor metadata.
- * @returns True if the ancestor is a form tag or has 2+ inputs.
- */
-function isFormLikeAncestor(meta: IAncestorMeta): DomCheck {
-  if (meta.isForm) return true;
-  return meta.fillCount >= MIN_FILLABLE_INPUTS;
-}
-
-/**
- * Build a CSS selector from ancestor metadata.
- * @param meta - The ancestor metadata.
- * @returns A CSS selector string (#id, tag, or tag:nth-of-type).
+ * @returns A CSS selector string.
  */
 function buildSelectorFromMeta(meta: IAncestorMeta): CssSelectorStr {
   if (meta.id) return '#' + meta.id;
   const tag = meta.tag.toLowerCase();
+  if (meta.name.length > 0) return tag + '[name="' + meta.name + '"]';
+  if (meta.stableClass.length > 0) return tag + '.' + meta.stableClass;
   if (meta.sibCount <= 1) return tag;
   return tag + ':nth-of-type(' + String(meta.sibIndex) + ')';
 }

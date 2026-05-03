@@ -111,12 +111,15 @@ function buildScopeOverrides(
 describe('fillAndSubmit/scopeToForm', () => {
   beforeEach(() => setupFillSuccess());
 
-  it('calls scopeToForm on submit candidates before clicking', async () => {
-    /** Passthrough scope spy that records calls. */
-    const scopeSpy = jest.fn((c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c);
+  it('passes submit candidates + formAnchor to resolveAndClick', async () => {
     /** Click spy that returns found result. */
     const clickSpy = jest.fn((): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND);
-    const overrides = buildScopeOverrides(scopeSpy, clickSpy);
+    /** Form anchor spy returning a stable selector. */
+    const anchorSpy: IElementMediator['getFormAnchor'] = jest.fn(() => 'form#login');
+    const overrides: Partial<IElementMediator> = {
+      resolveAndClick: clickSpy,
+      getFormAnchor: anchorSpy,
+    };
     const mediator = FACTORY.makeMockMediator(overrides);
     const config = makeLoginConfig();
     await LFA_MOD.fillAndSubmit({
@@ -125,19 +128,22 @@ describe('fillAndSubmit/scopeToForm', () => {
       creds: { password: 'test123' },
       logger: MOCK_LOGGER,
     });
-    expect(scopeSpy).toHaveBeenCalledWith(config.submit);
+    expect(anchorSpy).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalledWith(config.submit, undefined, 'form#login');
   });
 
-  it('passes scoped candidates to resolveAndClick', async () => {
-    /** Scoped candidates returned by scopeToForm. */
-    const scoped: readonly SelectorCandidate[] = [
-      { kind: 'css' as const, value: 'form#login button' },
-    ];
-    /** Scope spy that returns scoped candidates. */
-    const scopeSpy = jest.fn((): readonly SelectorCandidate[] => scoped);
+  it('forwards an empty formAnchor when no form is discovered', async () => {
     /** Click spy that returns found result. */
     const clickSpy = jest.fn((): Promise<Procedure<IRaceResult>> => RESOLVED_FOUND);
-    const overrides = buildScopeOverrides(scopeSpy, clickSpy);
+    /**
+     * Anchor spy — no form discovered.
+     * @returns Empty string.
+     */
+    const anchorSpy: IElementMediator['getFormAnchor'] = () => '';
+    const overrides: Partial<IElementMediator> = {
+      resolveAndClick: clickSpy,
+      getFormAnchor: anchorSpy,
+    };
     const mediator = FACTORY.makeMockMediator(overrides);
     const config2 = makeLoginConfig();
     await LFA_MOD.fillAndSubmit({
@@ -146,7 +152,7 @@ describe('fillAndSubmit/scopeToForm', () => {
       creds: { password: 'x' },
       logger: MOCK_LOGGER,
     });
-    expect(clickSpy).toHaveBeenCalledWith(scoped);
+    expect(clickSpy).toHaveBeenCalledWith(config2.submit, undefined, '');
   });
 
   it('returns succeed when scoped submit clicked', async () => {

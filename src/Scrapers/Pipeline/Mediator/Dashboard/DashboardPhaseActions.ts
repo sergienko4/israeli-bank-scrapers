@@ -24,7 +24,6 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { screenshotPath } from '../../Types/RunLabel.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
 import {
@@ -50,31 +49,6 @@ const MENU_SETTLE_MS = 5000;
 const DASHBOARD_SETTLE_MS = 15000;
 /** Should force-click for hidden menu toggles. */
 const shouldForceMenuClick = true;
-
-/** Screenshot path label. */
-type ScreenshotLabel = string;
-
-/**
- * Take dashboard diagnostic screenshot.
- * @param input - Pipeline context with browser.
- * @param label - Screenshot label suffix.
- * @returns True when done.
- */
-async function takeDashboardScreenshot(
-  input: IPipelineContext,
-  label: ScreenshotLabel,
-): Promise<true> {
-  if (!input.browser.has) return true;
-  try {
-    const page = input.browser.value.page;
-    const path = screenshotPath(input.companyId, label);
-    await page.screenshot({ path });
-    input.logger.debug({ message: `screenshot: ${path}` });
-  } catch {
-    /* mock or headless — screenshot not available */
-  }
-  return true;
-}
 
 /**
  * Log the winning dashboard target for diagnostics.
@@ -153,6 +127,14 @@ async function resolveDashboardTargets(
   mediator: IElementMediator,
   page: Page,
 ): Promise<IDashboardTargets> {
+  // SEQUENTIAL detection (HomeSequentialNav-style): probe WK_TRANSACTIONS for
+  // an exactText match in DOM (Max's "פירוט החיובים והעסקאות" — bank-specific
+  // disambiguator). When present + a MENU_EXPAND trigger is visible, fire
+  // menu→click chain instead of the legacy href-NAV. No-op for other banks
+  // whose dashboards don't contain the exactText. Validated offline:
+  // scripts/validate-max-sequential-v2.local.ts.
+  const sequentialTargets = await tryDashboardSequentialNav(page);
+  if (sequentialTargets) return sequentialTargets;
   const href = await extractTransactionHref(mediator);
   const pageUrl = mediator.getCurrentUrl();
   const hrefTarget = resolveAbsoluteHref(href, pageUrl) || NO_HREF;
@@ -193,6 +175,171 @@ async function resolveDashboardTargets(
     fallbackSelector: genericSelector,
     clickCandidateCount: count,
     menuTarget: false,
+  };
+}
+
+/** Whether at least one candidate is present in the DOM. */
+type IsCandidatePresent = boolean;
+/** DOM count for one candidate (Promise.all entry). */
+type CandCount = number;
+/** Main-frame context identifier — matches FrameRegistry.MAIN_CONTEXT_ID. */
+const MAIN_CONTEXT_ID = 'main';
+/**
+ * Angular `dropdowntoggle` directive — the deterministic structural signal
+ * for a real dropdown-toggle. Always present when the directive is bound,
+ * unlike `role="button"` which Angular hydrates inconsistently across
+ * runs. Cross-bank-validated Max-only via
+ * scripts/validate-trigger-v3.local.ts (only Max's dashboard renders
+ * `[dropdowntoggle]`; all other 6 banks have zero matches).
+ */
+const DROPDOWN_TOGGLE_ARIA_FILTER = '[dropdowntoggle]';
+
+/**
+ * Defensive wrapper around `page.getByText(...).count()` — sync exceptions
+ * thrown by mock pages (no `getByText` method) coerce to a 0 count instead
+ * of crashing the SEQUENTIAL probe.
+ * @param page - Browser page.
+ * @param value - Exact-text value to count.
+ * @returns DOM match count (0 on error).
+ */
+async function safeProbeExactTextCount(page: Page, value: string): Promise<CandCount> {
+  try {
+    return await page.getByText(value, { exact: true }).count();
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Find the first exactText candidate from WK_TRANSACTIONS that has at least
+ * one DOM match on the current page. Used as the SEQUENTIAL-fire signal —
+ * exactText entries are bank-specific disambiguators (e.g., Max's
+ * "פירוט החיובים והעסקאות" with definite articles, validated to be
+ * Max-only via scripts/validate-max-sequential-v2.local.ts).
+ *
+ * Cross-bank-safe because the other 6 banks' dashboard HTML contains zero
+ * matches for any exactText we add to TRANSACTIONS.
+ * @param page - Browser page.
+ * @param candidates - WK_TRANSACTIONS list.
+ * @returns First exactText candidate present in DOM, or false.
+ */
+async function findFirstChildInDom(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+): Promise<SelectorCandidate | false> {
+  const probes = candidates.map((c): Promise<CandCount> => {
+    if (c.kind !== 'exactText') return Promise.resolve(0);
+    return safeProbeExactTextCount(page, c.value);
+  });
+  const counts = await Promise.all(probes);
+  const idx = counts.findIndex((n): IsCandidatePresent => n >= 1);
+  if (idx < 0) return false;
+  return candidates[idx];
+}
+
+/**
+ * Defensive wrapper around `page.locator([dropdowntoggle]).filter().count()`
+ * — sync exceptions thrown by mock pages coerce to a 0 count instead of
+ * crashing the SEQUENTIAL probe.
+ * @param page - Browser page.
+ * @param value - hasText value to filter by.
+ * @returns DOM match count (0 on error).
+ */
+async function safeProbeDropdownToggleCount(page: Page, value: string): Promise<CandCount> {
+  try {
+    return await page.locator(DROPDOWN_TOGGLE_ARIA_FILTER).filter({ hasText: value }).count();
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Find the first WK_MENU_EXPAND text candidate that uniquely matches a
+ * dropdown-toggle on the page (Angular `dropdowntoggle` directive filter).
+ *
+ * Generic mediator.resolveVisible(MENU_EXPAND) is too loose — its race
+ * picks any element with the candidate text, including `role="heading"`
+ * sub-labels and `role="link"` hamburger menus. The directive filter
+ * narrows to elements that actually toggle dropdowns.
+ *
+ * @param page - Browser page.
+ * @param candidates - WK_MENU_EXPAND list.
+ * @returns First matching candidate text, or false.
+ */
+async function findDropdownToggleCandidate(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+): Promise<SelectorCandidate | false> {
+  const probes = candidates.map((c): Promise<CandCount> => {
+    if (c.kind !== 'textContent' && c.kind !== 'exactText') return Promise.resolve(0);
+    return safeProbeDropdownToggleCount(page, c.value);
+  });
+  const counts = await Promise.all(probes);
+  const idx = counts.findIndex((n): IsCandidatePresent => n === 1);
+  if (idx < 0) return false;
+  return candidates[idx];
+}
+
+/** Composed Playwright selector targeting Max's dropdown-toggle. */
+type DropdownToggleSelector = string;
+
+/**
+ * Build a selector that targets the dropdown-toggle uniquely:
+ *   `[dropdowntoggle]:has-text("<value>")`
+ * Combines the WK candidate text with the Angular directive filter.
+ * @param value - Visible text of the dropdown-toggle.
+ * @returns Playwright-compatible selector string.
+ */
+function buildDropdownToggleSelector(value: string): DropdownToggleSelector {
+  return DROPDOWN_TOGGLE_ARIA_FILTER + ':has-text("' + value + '")';
+}
+
+/**
+ * Detect the SEQUENTIAL menu-toggle-then-child pattern on the dashboard.
+ * Mirrors HOME's `executeSequentialNav` shape, but uses the existing
+ * Dashboard ACTION orchestrator's menu→click chain (line ~491 in this
+ * file): PRE pre-resolves the visible trigger and the (still-hidden) child
+ * candidate; ACTION clicks trigger → settle → clicks child via lazy
+ * `text="..."` selector that Playwright evaluates AFTER the dropdown
+ * opens and Angular flips `aria-hidden`.
+ *
+ * Fires when:
+ *   - Some `exactText` candidate from WK_TRANSACTIONS exists in the DOM
+ *     (the disambiguator — Max-only per offline cross-bank validation), AND
+ *   - Some WK_MENU_EXPAND text candidate matches a real dropdown-toggle
+ *     (role=button + aria-haspopup=true) on the page.
+ *
+ * Falls through (returns false) when either is missing → existing href-NAV
+ * flow continues unchanged for the other 6 banks. WK-driven: trigger and
+ * child texts come from WK_DASHBOARD lists, not hardcoded here.
+ * @param page - Browser page.
+ * @returns Populated targets when SEQUENTIAL detected, else false.
+ */
+async function tryDashboardSequentialNav(page: Page): Promise<IDashboardTargets | false> {
+  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const childCandidate = await findFirstChildInDom(page, txnWk);
+  if (!childCandidate) return false;
+  const menuWk = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
+  const triggerCandidate = await findDropdownToggleCandidate(page, menuWk);
+  if (!triggerCandidate) return false;
+  const menuTarget: IResolvedTarget = {
+    selector: buildDropdownToggleSelector(triggerCandidate.value),
+    contextId: MAIN_CONTEXT_ID,
+    kind: 'css',
+    candidateValue: triggerCandidate.value,
+  };
+  const childTarget: IResolvedTarget = {
+    selector: candidateToSelector(childCandidate),
+    contextId: MAIN_CONTEXT_ID,
+    kind: childCandidate.kind,
+    candidateValue: childCandidate.value,
+  };
+  return {
+    hrefTarget: NO_HREF,
+    clickTarget: childTarget,
+    fallbackSelector: NO_HREF,
+    clickCandidateCount: 0,
+    menuTarget,
   };
 }
 
@@ -315,7 +462,6 @@ async function discoverDashboard(
 async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no mediator');
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no browser');
-  await takeDashboardScreenshot(input, 'dashboard-pre');
   const disc = await discoverDashboard(input, input.mediator.value, input.browser.value.page);
   logWinningTarget(input, disc.targets);
   if (!disc.hasAny) {
@@ -673,7 +819,6 @@ async function executeValidateTraffic(
   const mediator = input.mediator.value;
   const pwdCheck = await checkChangePassword(mediator);
   if (pwdCheck) return pwdCheck;
-  await takeDashboardScreenshot(input, 'dashboard-post');
   const isPrimed = validateTrafficGate(mediator.network, input.logger);
   const pageUrl = mediator.getCurrentUrl();
   input.logger.debug({ primed: isPrimed, url: maskVisibleText(pageUrl) });
@@ -740,8 +885,14 @@ async function executeCollectAndSignal(
 }
 
 export {
+  buildDropdownToggleSelector,
   executeCollectAndSignal,
   executeDashboardNavigationSealed,
   executePreLocateNav,
   executeValidateTraffic,
+  findDropdownToggleCandidate,
+  findFirstChildInDom,
+  safeProbeDropdownToggleCount,
+  safeProbeExactTextCount,
+  tryDashboardSequentialNav,
 };

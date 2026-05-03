@@ -321,6 +321,14 @@ const MEDIATOR_NO_ERRORS: IFormErrorScanResult = { hasErrors: false, errors: [],
 const MEDIATOR_FAIL_RESULT = fail(ScraperErrorTypes.Generic, 'mock: not found');
 
 /**
+ * Stub `getFormAnchor` for the mock mediator — empty string means
+ * "no form discovered, use page-wide scope". Typed via the interface
+ * so the architecture lint sees no primitive return on this file.
+ * @returns Empty string sentinel.
+ */
+const EMPTY_FORM_ANCHOR: IElementMediator['getFormAnchor'] = () => '';
+
+/**
  * Create a mock IElementMediator.
  * resolveField and resolveClickable return failure by default.
  * Override methods via overrides parameter for success tests.
@@ -390,6 +398,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Same array.
      */
     scopeToForm: candidates => candidates,
+    /**
+     * Form anchor mock — empty (no scoping in unit tests).
+     * @returns Empty string.
+     */
+    getFormAnchor: EMPTY_FORM_ANCHOR,
     /**
      * Navigation mock — always succeeds.
      * @returns Succeed(undefined).

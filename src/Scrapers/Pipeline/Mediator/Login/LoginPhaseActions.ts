@@ -28,7 +28,6 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { screenshotPath } from '../../Types/RunLabel.js';
 import { waitForPostLoginTraffic } from '../Auth/PostLoginTrafficProbe.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
@@ -40,147 +39,8 @@ import { runPostCallback } from '../Form/PostActionResolver.js';
 /** Timeout for post-login redirect settle. */
 const REDIRECT_SETTLE_MS = 15000;
 
-/**
- * Take a diagnostic screenshot to C:\tmp. When DUMP_FIXTURES_DIR
- * env var is set, ALSO dump main-frame HTML + iframe HTML to
- * <DUMP_FIXTURES_DIR>/<bank>/<label>.html for ZERO-NETWORK mock tests.
- * @param input - Pipeline context with browser.
- * @param label - Screenshot label.
- * @returns True after screenshot.
- */
-async function takeScreenshot(input: IPipelineContext, label: DiagLabel): Promise<true> {
-  if (!input.browser.has) return true;
-  const page = input.browser.value.page;
-  const path = screenshotPath(input.companyId, label);
-  await page.screenshot({ path }).catch((): false => false);
-  input.logger.debug({ message: `screenshot: ${path}` });
-  await dumpFixtureHtml(input, label);
-  return true;
-}
-
-/**
- * When DUMP_FIXTURES_DIR env var is set, save page + iframe HTML so
- * a mock E2E test can serve the same bytes offline. No-op otherwise.
- * @param input - Pipeline context with browser.
- * @param label - Same label used by the screenshot path.
- * @returns True after dump (or no-op).
- */
-async function dumpFixtureHtml(input: IPipelineContext, label: DiagLabel): Promise<true> {
-  const rootEnv = process.env.DUMP_FIXTURES_DIR;
-  if (rootEnv === undefined || rootEnv.length === 0) return true;
-  if (!input.browser.has) return true;
-  const page = input.browser.value.page;
-  const bank = input.companyId;
-  const bankDir = `${rootEnv}/${bank}`.replace(/\\/g, '/');
-  await writeFrameHtml({ page, bankDir, label, input }).catch((): false => false);
-  return true;
-}
-
-/** Bundled args for writing frame fixtures (3-param ceiling). */
-interface IWriteFrameArgs {
-  readonly page: Page;
-  readonly bankDir: string;
-  readonly label: DiagLabel;
-  readonly input: IPipelineContext;
-}
-
-/** One iframe html snapshot ready to write. */
-interface IIframeSnapshot {
-  readonly html: string;
-}
-
-/**
- * Collect every child-frame's HTML in parallel (skips main frame and
- * empty frames). Keeps frame order so iframe indices stay stable.
- * @param page - Playwright page.
- * @returns Non-empty iframe snapshots.
- */
-/**
- * Read one frame's HTML content, swallowing navigation/detached errors.
- * @param frame - Target frame.
- * @returns HTML string (empty on error).
- */
-async function readFrameContent(frame: Frame): Promise<string> {
-  return frame.content().catch((): FrameHtmlFallback => '');
-}
-
-/**
- * Async pluck of each child frame's HTML in parallel. Keeps frame order
- * so iframe indices stay stable.
- * @param page - Playwright page.
- * @returns Non-empty iframe snapshots.
- */
-async function collectIframeSnapshots(page: Page): Promise<readonly IIframeSnapshot[]> {
-  const mainFrame = page.mainFrame();
-  const children = page.frames().filter((f): IsChildFrame => f !== mainFrame);
-  const readPromises = children.map(readFrameContent);
-  const htmls = await Promise.all(readPromises);
-  const nonEmpty = htmls.filter((html): IsNonEmptyHtml => html.length > 0);
-  return nonEmpty.map((html): IIframeSnapshot => ({ html }));
-}
-
-/** An iframe snapshot paired with its stable index. */
-interface IIndexedSnapshot {
-  readonly html: string;
-  readonly idx: number;
-}
-
-import type * as FsPromisesNs from 'node:fs/promises';
-
-type FsPromisesModule = typeof FsPromisesNs;
-
-/** Bundled args for writing one iframe file (3-param ceiling). */
-interface IWriteIframeArgs {
-  readonly fs: FsPromisesModule;
-  readonly outer: IWriteFrameArgs;
-  readonly snap: IIndexedSnapshot;
-}
-
-/**
- * Build the write-promise for a single iframe snapshot.
- * @param args - Bundled fs + outer + snapshot.
- * @returns Write promise.
- */
-function writeIframeSnapshot(args: IWriteIframeArgs): Promise<void> {
-  const idxStr = String(args.snap.idx);
-  const filePath = `${args.outer.bankDir}/${args.outer.label}-iframe-${idxStr}.html`;
-  return args.fs.writeFile(filePath, args.snap.html, 'utf8');
-}
-
-/**
- * Write page.content() to <bankDir>/<label>.html and each iframe to
- * <bankDir>/<label>-iframe-<idx>.html.
- * @param args - Bundled page + bankDir + label + context.
- * @returns True after write.
- */
-async function writeFrameHtml(args: IWriteFrameArgs): Promise<true> {
-  const fs = await import('node:fs/promises');
-  await fs.mkdir(args.bankDir, { recursive: true });
-  const mainHtml = await args.page.content();
-  await fs.writeFile(`${args.bankDir}/${args.label}.html`, mainHtml, 'utf8');
-  args.input.logger.debug({ message: `fixture: ${args.bankDir}/${args.label}.html` });
-  const snapshots = await collectIframeSnapshots(args.page);
-  const indexed = snapshots.map((s, idx): { html: string; idx: number } => ({
-    html: s.html,
-    idx,
-  }));
-  const writePromises = indexed.map(
-    (s): Promise<void> => writeIframeSnapshot({ fs, outer: args, snap: s }),
-  );
-  await Promise.all(writePromises);
-  return true;
-}
-
-/** Diagnostic screenshot label. */
-type DiagLabel = string;
 /** Whether URL changed from login page. */
 type IsRedirect = boolean;
-/** Frame HTML snapshot string (empty on read failure). */
-type FrameHtmlFallback = string;
-/** Array.filter predicate — excludes the main frame from child-frame walks. */
-type IsChildFrame = boolean;
-/** Array.filter predicate — keeps frames whose HTML snapshot is non-empty. */
-type IsNonEmptyHtml = boolean;
 /** Array.find predicate — picks the first frame-scan that reported errors. */
 type HasScanErrors = boolean;
 
@@ -379,20 +239,33 @@ function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly Selecto
   return WK_LOGIN_FORM.submit;
 }
 
+/** Trustworthy form-anchor selector (id/name/class) or empty string sentinel. */
+type FormAnchorSelector = string;
+
 /**
- * Scope candidates to form if anchor exists, otherwise pass through.
- * @param mediator - Element mediator for scoping.
- * @param raw - Raw submit candidates.
- * @param formAnchor - Optional form anchor.
- * @returns Scoped or raw candidates.
+ * Extract form-anchor selector ONLY when the anchor is trustworthy:
+ *   - `#id`             (e.g. Amex/Isracard `#otpLobbyFormPassword`)
+ *   - `tag[name="X"]`   (form name attribute when id is empty)
+ *   - `tag.class`       (e.g. Max `form.user-login-form` when id+name empty)
+ * Positional fallbacks (`tag:nth-of-type(N)`) and bare `tag` are REJECTED
+ * — they're either fragile (`div:nth-of-type(0)` Discount trap) or too
+ * broad (matches every form on the page). For untrustworthy anchors,
+ * return empty so the caller falls back to page-wide search.
+ * @param formAnchor - Optional form anchor option.
+ * @returns Trustworthy CSS selector or empty string.
  */
-function scopeSubmitCandidates(
-  mediator: IElementMediator,
-  raw: readonly SelectorCandidate[],
-  formAnchor: Option<IFormAnchor>,
-): readonly SelectorCandidate[] {
-  if (!formAnchor.has) return raw;
-  return mediator.scopeToForm(raw);
+function extractFormAnchorSelector(formAnchor: Option<IFormAnchor>): FormAnchorSelector {
+  if (!formAnchor.has) return '';
+  const selector = formAnchor.value.selector;
+  if (selector.length === 0) return '';
+  // Accept id-based: starts with `#` followed by a non-empty id.
+  if (selector.startsWith('#') && selector.length > 1) return selector;
+  // Accept attribute-based: contains `[name="..."]`.
+  if (selector.includes('[name="')) return selector;
+  // Accept class-based: contains `.<class>` after the tag (e.g. `form.user-login-form`).
+  if (/^[a-z]+\.[a-zA-Z][\w-]*$/.test(selector)) return selector;
+  // Reject everything else (positional `:nth-of-type`, bare `form`, etc.).
+  return '';
 }
 
 /** Candidate value fallbacks for submit resolution. */
@@ -433,27 +306,47 @@ async function resolveSubmitTarget(
   formAnchor: Option<IFormAnchor>,
   activeFrameId: string,
 ): Promise<Option<IResolvedTarget>> {
+  // Form-membership via Playwright Locator chaining — the form anchor selector
+  // is passed through to mediator.resolveVisible, which scopes ALL candidate
+  // kinds (xpath, textContent, regex, ariaLabel, ...) to descendants of the
+  // matched form. Discriminates co-resident submit buttons on flip-card pages.
+  const anchorSelector = extractFormAnchorSelector(formAnchor);
   const structuralWk = WK_LOGIN_FORM.submitStructural as unknown as readonly SelectorCandidate[];
-  const structural = await resolveInFrame(args, structuralWk, activeFrameId);
+  const structural = await resolveInFrame({
+    args,
+    candidates: structuralWk,
+    requiredFrameId: activeFrameId,
+    formAnchor: anchorSelector,
+  });
   if (structural.has) return structural;
   const raw = normalizeSubmitConfig(args.config.submit);
-  const scoped = scopeSubmitCandidates(args.mediator, raw, formAnchor);
-  return resolveInFrame(args, scoped, activeFrameId);
+  return resolveInFrame({
+    args,
+    candidates: raw,
+    requiredFrameId: activeFrameId,
+    formAnchor: anchorSelector,
+  });
+}
+
+/** Bundled args for resolveInFrame — keeps the function inside the 3-param ceiling. */
+interface IResolveInFrameArgs {
+  readonly args: IDiscoverFieldsArgs;
+  readonly candidates: readonly SelectorCandidate[];
+  readonly requiredFrameId: string;
+  readonly formAnchor: string;
 }
 
 /**
  * Resolve a visible element strictly within a specific frame.
- * @param args - Discovery arguments.
- * @param candidates - Selector candidates to try.
- * @param requiredFrameId - The only frame where a match is accepted.
+ * @param input - Bundled discovery args + candidates + frame + formAnchor.
+ *   `formAnchor` is passed through to `mediator.resolveVisible` so Locator
+ *   chaining applies form scoping uniformly to ALL candidate kinds.
  * @returns Resolved target in the correct frame, or none.
  */
-async function resolveInFrame(
-  args: IDiscoverFieldsArgs,
-  candidates: readonly SelectorCandidate[],
-  requiredFrameId: string,
-): Promise<Option<IResolvedTarget>> {
-  const result = await args.mediator.resolveVisible(candidates);
+async function resolveInFrame(input: IResolveInFrameArgs): Promise<Option<IResolvedTarget>> {
+  const args = input.args;
+  const requiredFrameId = input.requiredFrameId;
+  const result = await args.mediator.resolveVisible(input.candidates, undefined, input.formAnchor);
   if (!result.found || !result.context) return none();
   const contextId = computeContextId(result.context, args.page);
   const candidateVal = extractCandidateVal(result);
@@ -471,28 +364,58 @@ async function resolveInFrame(
     result: 'FOUND',
     message: `"${candidateVal}" kind=${kind} frame=${contextId}`,
   });
-  const selector = buildSubmitSelector(result);
+  const selector = buildSubmitSelector(result, input.formAnchor);
   return some({ selector, contextId, kind, candidateValue: candidateVal });
 }
 
 /**
- * Build a CSS selector from the resolved submit race result.
- * Uses the locator's internal selector if available, falls back to candidate.
+ * Build the inner (un-scoped) selector for a candidate kind.
  * @param result - Race result from resolveVisible.
- * @returns CSS/XPath selector string.
+ * @returns Inner selector string without form scope.
  */
-function buildSubmitSelector(result: IRaceResult): SelectorStr {
+function buildInnerSubmitSelector(result: IRaceResult): SelectorStr {
   if (!result.candidate) return 'button[type="submit"]';
   const c = result.candidate;
+  // ariaLabel kind matches by accessible name, not the [aria-label] attribute.
+  // PRE uses `getByRole('button', { name })`; click-time storage must use the
+  // role engine to agree. Max's user-login-form button derives its name from
+  // an inner <span> and has no aria-label attr — `[aria-label="..."]` would
+  // match 0 elements and the click would silently no-op.
   const selectorMap: Record<string, string> = {
     xpath: c.value,
     textContent: `text=${c.value}`,
     exactText: `text="${c.value}"`,
     placeholder: `[placeholder="${c.value}"]`,
-    ariaLabel: `[aria-label="${c.value}"]`,
+    ariaLabel: `role=button[name="${c.value}"]`,
     labelText: `text=${c.value}`,
   };
   return selectorMap[c.kind] ?? c.value;
+}
+
+/**
+ * Build a scoped selector from the resolved submit race result. When a
+ * trustworthy form anchor (id-based, validated by `extractFormAnchorSelector`)
+ * exists, the stored selector uses Playwright's `>>` chain syntax so the
+ * click executor's `frame.locator(selector).click()` resolves to descendants
+ * of the form — unambiguous click target on flip-card pages where multiple
+ * `<button type="submit">` exist page-wide (Amex/Isracard).
+ *
+ * Without form scoping, `frame.locator('//button[@type="submit"]')` matches
+ * every submit button on the page → multi-match strict violation → click
+ * fails silently → no transition. The form-scoped chain narrows to one match
+ * (the password-form's submit button), so the click lands correctly.
+ *
+ * The form anchor is only applied when `extractFormAnchorSelector` returns
+ * non-empty (id-based anchors only — positional fallbacks are dropped to
+ * preserve safe behavior on banks like Discount with empty-id forms).
+ * @param result - Race result from resolveVisible.
+ * @param formAnchor - Trustworthy form selector or empty string.
+ * @returns Scoped selector string for the click executor.
+ */
+function buildSubmitSelector(result: IRaceResult, formAnchor: string): SelectorStr {
+  const inner = buildInnerSubmitSelector(result);
+  if (formAnchor.length === 0) return inner;
+  return `${formAnchor} >> ${inner}`;
 }
 
 /**
@@ -702,13 +625,10 @@ async function executeValidateLogin(
   if (errors.hasErrors) {
     return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
   }
-  await takeScreenshot(input, 'login-post-before-traffic');
   await waitForPostLoginTraffic(mediator, input.logger);
   const cbResult = await runPostCallback(page, config, input);
   if (!cbResult.success) return cbResult;
-  await takeScreenshot(input, 'login-post-after-callback');
   await ensureDashboardRedirect(mediator, input);
-  await takeScreenshot(input, 'login-post-after-redirect');
   // Late-fire path: SPA banks whose auth API returns AFTER the loading
   // gate (delayed XHR, retried challenge, late SPA hydration). Same
   // generic mechanism, second checkpoint.
@@ -869,12 +789,9 @@ export { executeDiscoverForm, executeFillAndSubmitFromDiscovery, executeValidate
 // Internal helpers exposed only for focused unit tests. Do NOT import
 // outside of src/Tests/Unit/**. Safe to change without deprecation.
 export {
-  collectIframeSnapshots,
   detectAsyncLoginErrors,
   discoverErrorsAllFrames,
-  dumpFixtureHtml,
+  extractFormAnchorSelector,
   hasStayedOnLoginUrl,
   safeScanFrame,
-  writeFrameHtml,
-  writeIframeSnapshot,
 };

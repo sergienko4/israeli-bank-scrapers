@@ -142,13 +142,19 @@ interface IElementMediator {
    * Resolve the first visible element WITHOUT clicking. Returns metadata for inspection.
    * Parallel race across main page + iframes. Captures a value snapshot immediately.
    * Use this for Identify → Inspect → Act: find element, check href/text, then decide.
+   * When `formAnchor` is non-empty, ALL candidate kinds are scoped to descendants
+   * of the matched form via Playwright Locator chaining — same uniform mechanism
+   * as `resolveAndClick`. This is the form-membership signal for resolve-then-store
+   * paths (LOGIN.PRE pre-resolves the submit target for ACTION to click later).
    * @param candidates - WellKnown selector candidates to try.
    * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
+   * @param formAnchor - Optional CSS form selector for descendant scoping.
    * @returns IRaceResult with locator, candidate, context, and snapshot value.
    */
   resolveVisible(
     candidates: readonly SelectorCandidate[],
     timeoutMs?: number,
+    formAnchor?: string,
   ): Promise<IRaceResult>;
 
   /**
@@ -188,13 +194,21 @@ interface IElementMediator {
    * Resolve a clickable element and click it via Procedure.
    * Uses the resolver's text→walk-up-to-interactive-ancestor pipeline.
    * Internally calls resolveVisible then clicks the winner.
+   * When formAnchor is non-empty, child locators are chained off
+   * `ctx.locator(formAnchor)` so ALL candidate kinds (xpath, textContent,
+   * regex, ariaLabel, etc.) are scoped to descendants of that form.
+   * Form-membership becomes a deterministic DOM-tree filter — the only
+   * way to discriminate co-resident submit buttons on flip-card pages.
    * @param candidates - WellKnown selector candidates to try.
    * @param timeoutMs - Optional custom timeout (default: CLICK_RACE_TIMEOUT).
+   * @param formAnchor - Optional CSS selector that scopes candidate
+   *   resolution to descendants of the matched form. Empty = global.
    * @returns Procedure with IRaceResult (found=true if clicked, found=false if not found).
    */
   resolveAndClick(
     candidates: readonly SelectorCandidate[],
     timeoutMs?: number,
+    formAnchor?: string,
   ): Promise<Procedure<IRaceResult>>;
 
   /** Discover and cache the form anchor from a resolved field. */
@@ -202,6 +216,14 @@ interface IElementMediator {
 
   /** Scope candidates to the cached form anchor. */
   scopeToForm(candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[];
+
+  /**
+   * Read the cached form anchor selector populated by `discoverForm`.
+   * Empty string when no form has been discovered yet. Caller passes
+   * this to `resolveAndClick` to enable form-scoped click resolution
+   * via Playwright Locator chaining (Option B for ALL candidate kinds).
+   */
+  getFormAnchor(): string;
 
   /** Network discovery — captures API traffic from browser page. */
   readonly network: INetworkDiscovery;

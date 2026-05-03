@@ -14,7 +14,6 @@ import type {
   IActionMediator,
   IRaceResult,
 } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { IFormAnchor } from '../../../../Scrapers/Pipeline/Mediator/Form/FormAnchor.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 import {
   executeDiscoverForm,
@@ -320,7 +319,7 @@ describe('LoginPhaseActions — Wave 5 branches', () => {
        */
       discoverForm: () => {
         discoverCalls += 1;
-        const someResult18 = some({ formEl: {} } as unknown as IFormAnchor);
+        const someResult18 = some({ selector: '#login', context: frame });
         return Promise.resolve(someResult18);
       },
     });

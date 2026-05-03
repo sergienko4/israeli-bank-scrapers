@@ -19,7 +19,6 @@ import { detectOtpTrigger } from '../Form/OtpProbe.js';
 import {
   type DiagnosticLabel,
   OTP_FALLBACK,
-  otpScreenshot,
   type PhoneHint,
   readDiagTarget,
   unwrapProbe,
@@ -66,7 +65,6 @@ async function extractPhoneHint(input: IPipelineContext): Promise<PhoneHint> {
 async function executeTriggerPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   if (!input.browser.has) return succeed(input);
-  await otpScreenshot(input, 'otp-trigger-pre');
   const mediator = input.mediator.value;
   const page = input.browser.value.page;
   const triggerResult = unwrapProbe(await detectOtpTrigger(mediator).catch(OTP_FALLBACK));
@@ -126,10 +124,10 @@ async function executeTriggerAction(input: IActionContext): Promise<Procedure<IA
  * @param input - Pipeline context.
  * @returns Succeed with screenshot.
  */
-async function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  await otpScreenshot(input, 'otp-trigger-post');
+function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   input.logger.debug({ message: 'trigger validated' });
-  return succeed(input);
+  const result = succeed(input);
+  return Promise.resolve(result);
 }
 
 // ── FINAL: Handoff to OtpFill ─────────────────────────────────────

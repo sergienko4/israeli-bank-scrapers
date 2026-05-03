@@ -58,9 +58,9 @@ describe('discoverFormAnchor', () => {
 
   it('returns form selector when FORM ancestor discovered', async () => {
     const ancestors = [
-      // [tag, id, isForm, fillCount, sibIndex, sibCount]
-      ['DIV', '', false, 0, 0, 1],
-      ['FORM', 'loginForm', true, 3, 0, 1],
+      // [tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass]
+      ['DIV', '', false, 0, 0, 1, '', ''],
+      ['FORM', 'loginForm', true, 3, 0, 1, '', ''],
     ];
     const page = {
       /**
@@ -75,7 +75,7 @@ describe('discoverFormAnchor', () => {
   });
 
   it('returns null when no form ancestor detected', async () => {
-    const ancestors = [['DIV', '', false, 0, 0, 1]];
+    const ancestors = [['DIV', '', false, 0, 0, 1, '', '']];
     const page = {
       /**
        * locator.
@@ -88,7 +88,7 @@ describe('discoverFormAnchor', () => {
   });
 
   it('treats 2-input div as form-like', async () => {
-    const ancestors = [['DIV', 'frm', false, 2, 0, 1]];
+    const ancestors = [['DIV', 'frm', false, 2, 0, 1, '', '']];
     const page = {
       /**
        * locator.
@@ -102,7 +102,7 @@ describe('discoverFormAnchor', () => {
   });
 
   it('uses tag:nth-of-type when no id but sibCount > 1', async () => {
-    const ancestors = [['FORM', '', true, 2, 1, 2]];
+    const ancestors = [['FORM', '', true, 2, 1, 2, '', '']];
     const page = {
       /**
        * locator.
@@ -163,8 +163,10 @@ describe('scopeCandidates', () => {
 interface IFakeElement {
   readonly tagName: string;
   readonly id: string;
+  readonly className: string;
   readonly parentElement: { readonly children: readonly IFakeElement[] } | null;
   querySelectorAll: (sel: string) => { readonly length: number };
+  getAttribute: (name: string) => string;
 }
 
 /**
@@ -174,6 +176,8 @@ interface IFakeElement {
  * @param spec.id - Element id.
  * @param spec.siblings - Sibling elements count or list.
  * @param spec.inputCount - Number of input elements.
+ * @param spec.className - Class attribute value (B.2 stableClass branch).
+ * @param spec.nameAttr - `name` attribute value (B.2 attribute-anchor branch).
  * @returns Fake element.
  */
 function makeFakeElement(spec: {
@@ -181,12 +185,17 @@ function makeFakeElement(spec: {
   id?: string;
   siblings?: readonly { tagName: string }[];
   inputCount?: number;
+  className?: string;
+  nameAttr?: string;
 }): IFakeElement {
   const id = spec.id ?? '';
   const inputCount = spec.inputCount ?? 0;
+  const className = spec.className ?? '';
+  const nameAttr = spec.nameAttr ?? '';
   const self: IFakeElement = {
     tagName: spec.tagName,
     id,
+    className,
     parentElement: null,
     /**
      * Test helper.
@@ -194,6 +203,14 @@ function makeFakeElement(spec: {
      * @returns Result.
      */
     querySelectorAll: (): { readonly length: number } => ({ length: inputCount }),
+    /**
+     * Test helper — returns the configured `name` attribute when asked, or
+     * empty string otherwise. Production code coalesces missing attributes
+     * via `?? absent`; empty-string is the test-safe equivalent (no null).
+     * @param attr - Attribute name.
+     * @returns Configured value or empty string.
+     */
+    getAttribute: (attr: string): string => (attr === 'name' ? nameAttr : ''),
   };
   if (spec.siblings) {
     const kids = [self, ...spec.siblings.map(s => makeFakeElement({ tagName: s.tagName }))];
@@ -300,6 +317,7 @@ describe('discoverFormAnchor — mapAncestorTuples invocation', () => {
     const orphan: IFakeElement = {
       tagName: 'DIV',
       id: 'orphan',
+      className: '',
       parentElement: null,
       /**
        * Test helper.
@@ -307,6 +325,12 @@ describe('discoverFormAnchor — mapAncestorTuples invocation', () => {
        * @returns Result.
        */
       querySelectorAll: (): { readonly length: number } => ({ length: 2 }),
+      /**
+       * Test helper.
+       *
+       * @returns Empty string.
+       */
+      getAttribute: (): string => '',
     };
     const page = makeExecPage([orphan]);
     const result = await discoverFormAnchor(page, '#u');
@@ -399,5 +423,33 @@ describe('discoverFormAnchor — mapAncestorTuples invocation', () => {
     const page = makeExecPage([form]);
     const result = await discoverFormAnchor(page, '#u');
     expect(result?.selector).toBe('form');
+  });
+
+  it('buildSelectorFromMeta prefers tag[name="X"] when id is empty + name is set', async () => {
+    // No id, but a name attribute → `form[name="login"]` (B.2 enrichment).
+    const form = makeFakeElement({
+      tagName: 'FORM',
+      id: '',
+      inputCount: 3,
+      siblings: [{ tagName: 'DIV' }],
+      nameAttr: 'login',
+    });
+    const page = makeExecPage([form]);
+    const result = await discoverFormAnchor(page, '#u');
+    expect(result?.selector).toBe('form[name="login"]');
+  });
+
+  it('buildSelectorFromMeta falls back to tag.stableClass when id+name absent', async () => {
+    // Max-style: no id, no name, but a non-Angular class on the form.
+    const form = makeFakeElement({
+      tagName: 'FORM',
+      id: '',
+      inputCount: 3,
+      siblings: [{ tagName: 'DIV' }],
+      className: 'ng-untouched user-login-form ng-pristine',
+    });
+    const page = makeExecPage([form]);
+    const result = await discoverFormAnchor(page, '#u');
+    expect(result?.selector).toBe('form.user-login-form');
   });
 });

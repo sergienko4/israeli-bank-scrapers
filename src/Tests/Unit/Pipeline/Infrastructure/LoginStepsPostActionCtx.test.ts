@@ -93,6 +93,11 @@ function makeMockMediator(): IElementMediator {
      */
     scopeToForm: (c: readonly SelectorCandidate[]): readonly SelectorCandidate[] => c,
     /**
+     * Stub getFormAnchor — empty (no scoping in unit tests).
+     * @returns Empty string.
+     */
+    getFormAnchor: (): string => '',
+    /**
      * Navigation mock — always succeeds.
      * @returns Succeed(undefined).
      */
