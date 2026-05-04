@@ -19,6 +19,7 @@ import {
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
+import { redactAccount } from '../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
 import { tryBillingFallback } from '../BillingFallbackStrategy.js';
@@ -126,10 +127,12 @@ function buildPostCtx(
   const rawPost = endpoint.postData || '{}';
   const capturedBody = JSON.parse(rawPost) as ApiPayload;
   const baseBody = templatePostBody(rawPost, accountRecord);
+  const isLookupCard = cardId !== accountId;
+  const cardLabel = redactAccount(cardId);
   LOG.debug({
     message:
-      `buildPostCtx: cardUniqueId=${cardId} ` +
-      `source=${CARD_SOURCE_LABELS[String(cardId !== accountId)]}`,
+      `buildPostCtx: cardUniqueId=${cardLabel} ` +
+      `source=${CARD_SOURCE_LABELS[String(isLookupCard)]}`,
   });
   const post: IPostFetchCtx = {
     baseBody,

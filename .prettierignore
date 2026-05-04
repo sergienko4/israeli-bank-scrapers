@@ -8,3 +8,8 @@ typedoc.json
 
 # Shell scripts — not JS/TS
 *.sh
+
+# Prettier v3 typescript-plugin crashes on JSON config files
+# (ReferenceError: convertToJson is not defined). This file is
+# hand-maintained and validated by the architecture gate already.
+src/Tests/Tools/architecture-allowlist.json

@@ -22,6 +22,7 @@ import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
+import { redactAccount } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -177,8 +178,9 @@ function resolveAccountFromBody(body: ApiPayload): IPostBodyFallback | false {
   const rawId = findFieldValue(body, WK.queryId);
   if (!rawId) return false;
   const accountId = String(rawId);
+  const acctLabel = redactAccount(accountId);
   LOG.debug({
-    message: `account fallback: accountId=${accountId} from top level`,
+    message: `account fallback: account=${acctLabel} from top level`,
   });
   return { accountId, record: body };
 }
@@ -209,8 +211,9 @@ function tryPostBodyFallback(
   if (!txnEndpoint.postData) return false;
   const fallback = extractAccountFromPostBody(txnEndpoint.postData);
   if (!fallback) return false;
+  const acctLabel = redactAccount(fallback.accountId);
   LOG.debug({
-    message: `account fallback from POST body: ${fallback.accountId}`,
+    message: `account fallback from POST body: ${acctLabel}`,
   });
   return { ids: [fallback.accountId], records: [fallback.record] };
 }

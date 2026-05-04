@@ -1,0 +1,4 @@
+{
+  "src/Tests/Unit/Tools/LintAndValidate.test.ts": ["PII-Log"],
+  "src/Tests/Unit/Tools/PiiLogBypassPrevention.test.ts": ["PII-Log"]
+}

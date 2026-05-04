@@ -226,6 +226,107 @@ describe('loadAllowlist', () => {
   });
 });
 
+describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => {
+  const piiIdentifiers: readonly string[] = [
+    'accountId',
+    'cardNumber',
+    'phoneNumber',
+    'israeliId',
+    'firstName',
+    'lastName',
+    'fullName',
+    'customerName',
+    'otpCode',
+    'password',
+    'pinCode',
+    'nationalId',
+    'MisparZihuy',
+    'otpLongTermToken',
+    'otpToken',
+    'idToken',
+    'userName',
+    'UserName',
+    'email',
+    'cookie',
+    'setCookie',
+  ];
+  for (const ident of piiIdentifiers) {
+    it(`flags PII identifier "\${${ident}}" in LOG.debug template`, () => {
+      const code = 'LOG.debug(`x: ${' + ident + '}`);';
+      const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+      const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+      expect(pii.length).toBeGreaterThanOrEqual(1);
+    });
+  }
+  it('does NOT flag a scalar identifier in template literal', () => {
+    const code = 'LOG.info(`${count} txns scraped`);';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+  it('does NOT flag PII identifier outside LOG.*', () => {
+    const code = 'console.log(`x: ${accountId}`);';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+});
+
+describe('issuesFromCode — Rule PII-Log T16 payload-bucket patterns', () => {
+  const piiBuckets: readonly string[] = [
+    'result',
+    'accounts',
+    'transactions',
+    'txns',
+    'scrapeOutput',
+    'rawTxn',
+    'rawAccount',
+    'rawAccounts',
+    'rawTxns',
+  ];
+  for (const bucket of piiBuckets) {
+    it(`flags Identifier scrapeOutput as value of "${bucket}"`, () => {
+      const code = 'LOG.info({ ' + bucket + ': scrapeOutput });';
+      const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+      const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+      expect(pii.length).toBeGreaterThanOrEqual(1);
+    });
+  }
+  it('flags array-spread RHS under "accounts"', () => {
+    const code = 'LOG.info({ accounts: [...rawArr] });';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBeGreaterThanOrEqual(1);
+  });
+  it('does NOT flag scalar Literal under "result"', () => {
+    const code = "LOG.info({ result: 'FOUND' });";
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+  it('does NOT flag MemberExpression accessor under "txns" (allTxns.length)', () => {
+    const code = 'LOG.debug({ accounts: 1, txns: allTxns.length });';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+  it('does NOT flag scalar Identifier (count) under "accounts"', () => {
+    const code = 'LOG.info({ accounts: count });';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+  it('respects allowlist for PII-Log', () => {
+    const allow = new Map<string, ReadonlySet<RuleKey>>([
+      [SYNTHETIC_OTHER, new Set<RuleKey>(['PII-Log'])],
+    ]);
+    const code = 'LOG.info({ result: scrapeOutput });';
+    const issues = issuesFromCode(SYNTHETIC_OTHER, code, allow);
+    const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
+    expect(pii.length).toBe(0);
+  });
+});
+
 describe('analyzeFile — file-read wrapper', () => {
   it('returns empty list for a non-existent file', () => {
     const issues = analyzeFile('src/no-such-file-xyz.ts', new Map());

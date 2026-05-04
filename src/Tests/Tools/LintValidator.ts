@@ -9,6 +9,8 @@
  *   Rule #15  — primitive return types in Pipeline/Phases
  *   Rule #10  — Playwright imports in Phase files
  *   [Async]   — unawaited execute/fetch/run/step calls
+ *   PII-Log   — raw PII identifier or full payload bucket in LOG.*
+ *               (T09 template-literal + T16 object-key bypass guards)
  */
 
 import * as fs from 'node:fs';
@@ -20,7 +22,7 @@ const PIPELINE_DIR = 'Scrapers/Pipeline';
 const PHASE_DIR = 'Phases';
 
 /** Rule key enum — any future rule must be listed here. */
-export type RuleKey = 'Rule #15' | 'Rule #10' | '[Async]';
+export type RuleKey = 'Rule #15' | 'Rule #10' | '[Async]' | 'PII-Log';
 
 /** One violation emitted by the analyser. */
 export interface IIssue {
@@ -150,7 +152,8 @@ export function loadAllowlist(
     const value = record[key];
     if (!Array.isArray(value)) continue;
     const rules = value.filter(
-      (v): v is RuleKey => v === 'Rule #15' || v === 'Rule #10' || v === '[Async]',
+      (v): v is RuleKey =>
+        v === 'Rule #15' || v === 'Rule #10' || v === '[Async]' || v === 'PII-Log',
     );
     const normKey = normalisePath(key);
     out.set(normKey, new Set(rules));
@@ -171,6 +174,68 @@ const SAFE_CONTEXT_RE =
   /await\s|async\s|function\s|const\s|export\s|return\s|import\s|describe\(|it\(|=>\s|['"`]/;
 /** Regex: strip every backtick-delimited template literal. */
 const TEMPLATE_LITERAL_RE = /`[\s\S]*?`/g;
+/** PII identifier names banned inside LOG.* template literals (T09). */
+const PII_IDENTIFIER_NAMES: readonly string[] = [
+  'accountId',
+  'cardNumber',
+  'phoneNumber',
+  'israeliId',
+  'firstName',
+  'lastName',
+  'fullName',
+  'customerName',
+  'otpCode',
+  'password',
+  'pinCode',
+  'nationalId',
+  'MisparZihuy',
+  'otpLongTermToken',
+  'otpToken',
+  'idToken',
+  'userName',
+  'UserName',
+  'email',
+  'cookie',
+  'setCookie',
+];
+/** Object keys that imply a full payload bucket (T16). */
+const PII_PAYLOAD_KEYS: readonly string[] = [
+  'result',
+  'accounts',
+  'transactions',
+  'txns',
+  'scrapeOutput',
+  'rawTxn',
+  'rawAccount',
+  'rawAccounts',
+  'rawTxns',
+];
+/** Identifier names that, when passed as RHS, indicate a raw payload (T16b). */
+const PII_PAYLOAD_NAMES: readonly string[] = [
+  'scrapeOutput',
+  'rawTxn',
+  'rawAccount',
+  'rawAccounts',
+  'rawTxns',
+  'fullAccounts',
+  'allTxns',
+  'accountsArr',
+  'txnsArr',
+];
+/** LOG levels matched by both PII regexes. */
+const PII_LOG_LEVELS = '(?:trace|debug|info|warn|error|fatal)';
+/** Regex: PII identifier interpolated into LOG.* template literal (T09). */
+const PII_TEMPLATE_RE = new RegExp(
+  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\x60[\s\S]*?\$\{(?:${PII_IDENTIFIER_NAMES.join('|')})`,
+  'g',
+);
+/** Regex: forbidden payload bucket passed to LOG.* (T16). The lookahead
+ * `(?=\s*[,}])` rejects scalar accessors like `allTxns.length` while still
+ * matching whole-payload identifiers like `scrapeOutput` or `rawTxns`. */
+const PII_PAYLOAD_RE = new RegExp(
+  String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\{[^}]*?\b(?:${PII_PAYLOAD_KEYS.join('|')})\s*:\s*(?:\[|\.\.\.|(?:${PII_PAYLOAD_NAMES.join('|')})(?=\s*[,}]))`,
+  'g',
+);
 
 /**
  * Emit Rule #15 (primitive-return) issues for a file.
@@ -187,6 +252,30 @@ function ruleFifteenIssues(code: string): IIssue[] {
     });
   }
   PRIMITIVE_RETURN_RE.lastIndex = 0;
+  return out;
+}
+
+/**
+ * Emit PII-Log issues for a file. Catches T09 (PII identifier in LOG.*
+ * template literal) and T16 (forbidden payload bucket passed to LOG.*).
+ * Runs on ALL files (not Pipeline-scoped) — PII can leak from Common/,
+ * Scrapers/Base/, Scrapers/<Bank>/ too, and Layer 2 is the only gate
+ * that covers those paths.
+ * @param code - Source text.
+ * @returns PII-Log issues (may be empty).
+ */
+function piiLogIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const tplMatches = code.match(PII_TEMPLATE_RE) ?? [];
+  for (const m of tplMatches) {
+    out.push({ rule: 'PII-Log', message: `[PII-Log] T09 PII in LOG template: ${m.trim()}` });
+  }
+  PII_TEMPLATE_RE.lastIndex = 0;
+  const payloadMatches = code.match(PII_PAYLOAD_RE) ?? [];
+  for (const m of payloadMatches) {
+    out.push({ rule: 'PII-Log', message: `[PII-Log] T16 payload bucket in LOG: ${m.trim()}` });
+  }
+  PII_PAYLOAD_RE.lastIndex = 0;
   return out;
 }
 
@@ -228,6 +317,7 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
     issues.push({ rule: 'Rule #10', message: '[Rule #10] Playwright leaked into Phase.' });
   }
   if (isInPipeline) issues.push(...asyncIssues(code));
+  issues.push(...piiLogIssues(code));
   return issues;
 }
 
