@@ -716,7 +716,10 @@ function safeParse(url: string): URL | false {
 function loginPathOf(url: string): LoginPathname {
   const parsed = safeParse(url);
   if (parsed === false) return url;
-  const stripped = parsed.pathname.replace(/\/+$/, '');
+  // Bounded quantifier so the regex matcher cannot super-linearly
+  // backtrack on adversarial input (`typescript:S5852`). Real URL paths
+  // never carry hundreds of trailing slashes; 255 is a generous cap.
+  const stripped = parsed.pathname.replace(/\/{1,255}$/, '');
   if (stripped.length > 0) return stripped;
   return '/';
 }

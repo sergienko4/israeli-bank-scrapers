@@ -60,7 +60,12 @@ function isSecurityHeader(key: string): IHeaderDecision {
     if (acc.shouldKeep) return acc;
     return { shouldKeep: key.startsWith(p) };
   };
-  return SECURITY_PREFIXES.reduce<IHeaderDecision>(checkPrefix, { shouldKeep: false });
+  // Explicit binary arity wrapper so reduce's index/array args are
+  // visibly discarded at the call-site (typescript:S7727).
+  return SECURITY_PREFIXES.reduce<IHeaderDecision>(
+    (acc, p): IHeaderDecision => checkPrefix(acc, p),
+    { shouldKeep: false },
+  );
 }
 
 /**
@@ -80,7 +85,9 @@ function isNoiseHeader(key: string): IHeaderDecision {
     if (acc.shouldKeep) return acc;
     return { shouldKeep: key.startsWith(p) };
   };
-  return NOISE_PREFIXES.reduce<IHeaderDecision>(checkNoise, { shouldKeep: false });
+  return NOISE_PREFIXES.reduce<IHeaderDecision>((acc, p): IHeaderDecision => checkNoise(acc, p), {
+    shouldKeep: false,
+  });
 }
 
 /**
@@ -111,7 +118,10 @@ function distillHeaders(headers: Record<string, string>): Procedure<DistilledHea
     if (!shouldKeepHeader(lowerKey).shouldKeep) return acc;
     return { ...acc, [entry[0]]: entry[1] };
   };
-  const kept = Object.entries(headers).reduce<DistilledHeaders>(buildKept, {});
+  const kept = Object.entries(headers).reduce<DistilledHeaders>(
+    (acc, entry): DistilledHeaders => buildKept(acc, entry),
+    {},
+  );
   return succeed(kept);
 }
 

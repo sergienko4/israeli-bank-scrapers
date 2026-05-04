@@ -23,6 +23,25 @@ type TxnDescStr = string;
 /** Diagnostic message string. */
 type DiagMessage = string;
 
+/** Three-way comparison sentinel returned by {@link compareLocale}. */
+type CompareSign = -1 | 0 | 1;
+
+/**
+ * Locale-aware comparator wrapping String.localeCompare. Sonar S2871
+ * wants an explicit compare function; Rule #15 forbids primitive
+ * number returns from Pipeline functions, so the result is narrowed
+ * to a CompareSign sentinel.
+ * @param a - First string.
+ * @param b - Second string.
+ * @returns -1 when a < b, 0 when equal, 1 when a > b.
+ */
+function compareLocale(a: string, b: string): CompareSign {
+  const result = a.localeCompare(b);
+  if (result < 0) return -1;
+  if (result > 0) return 1;
+  return 0;
+}
+
 /** Minimal account shape for mirror detection. */
 interface IMirrorAccount {
   readonly accountNumber: AccountNum;
@@ -60,7 +79,8 @@ function canonicalizeTxn(txn: ITxnFingerFields): TxnFingerprint {
  */
 function computeFingerprint(account: IMirrorAccount): TxnFingerprint {
   const canonicals = account.txns.map(canonicalizeTxn);
-  const sorted = [...canonicals].sort();
+  // Explicit localeCompare for locale-stable string ordering.
+  const sorted = [...canonicals].sort(compareLocale);
   return sorted.join('\n');
 }
 

@@ -50,7 +50,9 @@ const HASH_LEN = 12;
 export function frameFilenameForUrl(url: FrameUrl): FrameFilename {
   const parsed = URL.canParse(url) && new URL(url);
   const key = (parsed && `${parsed.origin}${parsed.pathname}`) || url;
-  const hash = crypto.createHash('sha1').update(key).digest('hex').slice(0, HASH_LEN);
+  // SHA-256 (not for security — used only as a stable filename slug).
+  // Switched from sha1 to satisfy `typescript:S4790` weak-hash hotspot.
+  const hash = crypto.createHash('sha256').update(key).digest('hex').slice(0, HASH_LEN);
   return `${hash}.html`;
 }
 

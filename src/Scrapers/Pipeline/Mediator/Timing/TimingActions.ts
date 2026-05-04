@@ -3,6 +3,8 @@
  * Extracted from Waiting.ts to respect max-lines.
  */
 
+import { randomInt } from 'node:crypto';
+
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { HUMAN_DELAY_MAX_MS, HUMAN_DELAY_MIN_MS } from './TimingConfig.js';
@@ -117,6 +119,20 @@ export function sleep(ms: DelayMs): Promise<OpDone> {
 }
 
 /**
+ * Pick a uniform delay in [minMs, maxMs). Uses crypto.randomInt for
+ * Sonar S2245 compliance; falls back to minMs when bounds collapse
+ * (randomInt rejects max<=min, but the prior Math.random() code
+ * returned minMs in that case — fixed-delay test fixtures rely on it).
+ * @param minMs - Lower bound (inclusive).
+ * @param maxMs - Upper bound (exclusive).
+ * @returns Chosen delay in milliseconds.
+ */
+function pickHumanDelay(minMs: DelayMs, maxMs: DelayMs): DelayMs {
+  if (minMs >= maxMs) return minMs;
+  return randomInt(minMs, maxMs);
+}
+
+/**
  * Random delay that mimics human interaction timing.
  * Default range: 300-1200ms (realistic for clicks and navigation).
  * @param minMs - The minimum delay in milliseconds.
@@ -127,7 +143,7 @@ export function humanDelay(
   minMs = HUMAN_DELAY_MIN_MS,
   maxMs = HUMAN_DELAY_MAX_MS,
 ): Promise<Procedure<void>> {
-  const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  const delay = pickHumanDelay(minMs, maxMs);
   return createPromise<Procedure<void>>((resolve): OpDone => {
     const done = succeed(undefined);
     globalThis.setTimeout((): OpDone => resolve(done), delay);

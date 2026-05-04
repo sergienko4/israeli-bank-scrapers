@@ -112,6 +112,13 @@ describe('humanDelay', () => {
     const result = await humanDelay();
     expect(result.success).toBe(true);
   }, 5000);
+  it('returns minMs when minMs === maxMs (pickHumanDelay early return)', async () => {
+    // crypto.randomInt rejects max <= min, so pickHumanDelay short-circuits
+    // to minMs. Verify by passing identical bounds — the call must resolve
+    // without throwing RangeError.
+    const result = await humanDelay(2, 2);
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('Feature — Serial', () => {

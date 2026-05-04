@@ -92,4 +92,31 @@ describe('GenericCanonicalStringBuilder.buildCanonical — edges', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('unknown canonical part');
   });
+
+  it('returns the input verbatim when no query string is present', () => {
+    // Hits the early-return branch in sortQuery (qi < 0).
+    const result = buildCanonical({
+      canonical: PEPPER_SHAPE,
+      pathAndQuery: '/no-query-path',
+      bodyJson: '{}',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value).toBe('/no-query-path%%11.5.5%%{}');
+    }
+  });
+
+  it('preserves params already in lexicographic order through compareLocale', () => {
+    // Hits compareLocale's "a < b" (returns -1) and "a == b" (returns 0)
+    // branches via sort with a duplicate plus an in-order trailing param.
+    const result = buildCanonical({
+      canonical: PEPPER_SHAPE,
+      pathAndQuery: '/p?a=1&a=1&b=2',
+      bodyJson: '{}',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value).toBe('/p?a=1&a=1&b=2%%11.5.5%%{}');
+    }
+  });
 });

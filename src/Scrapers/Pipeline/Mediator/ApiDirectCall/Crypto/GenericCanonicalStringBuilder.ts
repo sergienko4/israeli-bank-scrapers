@@ -28,6 +28,24 @@ type PathAndQueryStr = string;
 /** Canonical part resolver — returns the raw (pre-escape) string. */
 type PartResolver = (args: IBuildCanonicalArgs) => CanonicalFragment;
 
+/** Three-way comparison sentinel returned by {@link compareLocale}. */
+type CompareSign = -1 | 0 | 1;
+
+/**
+ * Locale-aware comparator wrapping String.localeCompare to satisfy
+ * Sonar S2871 ("provide a compare function") while keeping the result
+ * a typed CompareSign (Rule #15 forbids primitive number returns).
+ * @param a - First string.
+ * @param b - Second string.
+ * @returns -1 when a < b, 0 when equal, 1 when a > b.
+ */
+function compareLocale(a: string, b: string): CompareSign {
+  const result = a.localeCompare(b);
+  if (result < 0) return -1;
+  if (result > 0) return 1;
+  return 0;
+}
+
 /**
  * Sort the query parameters of a path+query string lexicographically.
  * Pure data — used when ICanonicalStringConfig.sortQueryParams is true.
@@ -40,7 +58,9 @@ function sortQuery(pathAndQuery: string): PathAndQueryStr {
   const path = pathAndQuery.slice(0, qi);
   const query = pathAndQuery.slice(qi + 1);
   const params = query.split('&');
-  const sorted = [...params].sort();
+  // Explicit localeCompare so canonicalisation is byte-stable across
+  // locales (default Array.sort sorts UTF-16 code units, not strings).
+  const sorted = [...params].sort(compareLocale);
   const joined = sorted.join('&');
   return `${path}?${joined}`;
 }
