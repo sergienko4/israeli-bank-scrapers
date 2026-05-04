@@ -32,6 +32,7 @@ npm install @sergienko4/israeli-bank-scrapers
 - [Supported Institutions (18)](#supported-institutions-18)
 - [OTP (Two-Factor Authentication)](#otp-two-factor-authentication)
 - [Error Types](#error-types)
+- [Logging & Bug Reports](#logging--bug-reports)
 - [Advanced Usage](#advanced-usage)
 - [Contributors](#contributors)
 - [Links](#links)
@@ -147,6 +148,61 @@ Camoufox passes most challenges automatically. If you still get `WAF_BLOCKED`:
 | Parallel failures | Share browser, add 2-5s delay |
 
 </details>
+
+## Logging & Bug Reports
+
+The package **auto-redacts PII before any line is written** — terminal,
+log files, captured network bodies, captured DOM snapshots. You can
+share `pipeline.log`, `network/*.json`, or `screenshots/*.html`
+publicly without exposing your customers' data.
+
+### What gets redacted, and what survives
+
+| Category | Example before → after |
+|---|---|
+| Account / card / Israeli ID / phone | `12-170-456789` → `***6789` |
+| Cardholder / customer name | `דני משהו` → `<name:8>` (length tag) |
+| Merchant description | `סופר-פארם רמת גן` → `<merchant:14>` |
+| Transaction amount | `-247.50` → `-***` (sign only) |
+| Auth tokens / cookies / OTP codes | `eyJhbGc...`, `123456` → `[REDACTED]`, `[OTP]` |
+| URLs | host + path preserved; PII query keys redacted |
+| HTML snapshots | text nodes + `value` attributes scrubbed in place |
+| Anything unrecognised | `[REDACTED]` (default-deny) |
+
+The "stable hints" (`***NNNN`, `<merchant:N>`, `+***`/`-***`,
+array-size markers) are deliberate — they preserve enough for us to
+correlate failures across phases without ever showing raw PII.
+
+### Filing a bug report
+
+Attach **all three** if available:
+
+1. `pipeline.log` — full Pino transcript of the run.
+2. `network/*.json` — captured HTTP bodies (already redacted at write time).
+3. `screenshots/*.html` — DOM snapshots per phase (already redacted).
+
+Skip `screenshots/*.png` (raster images are not OCR-redacted today —
+they may contain unredacted PII rendered by the bank's UI). If a PNG
+is essential to the report, blur or crop before attaching.
+
+### How redaction stays correct over time
+
+Two independent enforcement layers keep raw PII out of the log
+surface even as the codebase evolves:
+
+- **Runtime layer** — `PiiRedactor.ts` is the single source of truth.
+  Pino runs it as the `redact.censor` callback so every record is
+  redacted *before* any transport. `NetworkDiscovery` and
+  `FixtureCapture` route their byte streams through the same
+  redactor before persisting.
+- **Commit-time layer** — ESLint AST selectors (T09 / T16) and an
+  architecture-validator regex (`PII-Log` rule) reject pull requests
+  that try to bypass the runtime by interpolating PII identifiers
+  into `LOG.*` template literals or passing full payload objects
+  under `result|accounts|transactions|...` keys.
+
+If you spot a pattern that leaks past both layers, please open an
+issue — that's a load-bearing bug, not cosmetic.
 
 ## Advanced Usage
 
