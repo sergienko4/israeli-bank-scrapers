@@ -227,19 +227,21 @@ jobs:
   # only starts after every bank in Group A has finished.
   #
   #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
-  #   Stage 1 — Group A (parallel runners): Isracard, VisaCal, Hapoalim
-  #   Stage 2 — Group B (parallel runners): Amex,     Discount, Max
+  #   Stage 1 — Group A (parallel runners): Isracard, VisaCal, Discount, Max
+  #   Stage 2 — Group B (parallel runners): Amex
   #
   # Why the strict between-group sequencing: project Rule #16 forbids
-  # Amex and Isracard from running concurrently. Placing Amex in Group B
-  # and Isracard in Group A — and gating Group B on Group A's completion
-  # — guarantees no temporal overlap, regardless of runner IPs or shared
-  # bank-side throttling.
+  # Amex and Isracard from running concurrently. Placing Amex alone in
+  # Group B — and gating Group B on Group A's completion — guarantees
+  # no temporal overlap, regardless of runner IPs or shared bank-side
+  # throttling. All other banks parallelise in Group A so the critical
+  # path is `max(Group A) + Amex` instead of two sequential medium-sized
+  # buckets.
   #
   # Wall time:
   #   validate (Stage 0) ≈ 10–12 min
-  #   max(Group A banks) ≈ 12 min (Hapoalim slowest)
-  #   max(Group B banks) ≈  7 min
+  #   max(Group A banks) ≈ 7 min (4 in parallel, longest is Isracard)
+  #   Group B (Amex)     ≈ 7 min
   #   Total real-bank cost paid ONLY after Stage 0 is green.
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed to
@@ -259,6 +261,8 @@ jobs:
         bank:
           - Isracard
           - VisaCal
+          - Discount
+          - Max
           # Hapoalim — OTP not supported in CI yet (no retriever wired).
           # Run via workflow_dispatch only. Smoke matrix still covers
           # invalid-credentials on every PR.
@@ -286,6 +290,11 @@ jobs:
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
           VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
           VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
         # and 'fails with invalid credentials' (already covered by smoke
@@ -325,8 +334,6 @@ jobs:
       matrix:
         bank:
           - Amex
-          - Discount
-          - Max
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -340,11 +347,6 @@ jobs:
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
-          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
-          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
-          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
-          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
-          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
         # Happy-path filter — see Group A note above; same rationale.
         run: |
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
