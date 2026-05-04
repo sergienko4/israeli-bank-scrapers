@@ -17,6 +17,7 @@ import {
   findContainerArray,
   findFieldValue,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { waitUntil } from '../../Mediator/Timing/Waiting.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
@@ -105,40 +106,160 @@ function bodyHasAccountContainer(body: ApiPayload): HasAccountContainer {
   return records.length > 0;
 }
 
+/** Maximum time the post-fast-path poll waits before giving up. */
+const ACCOUNTS_POLL_BUDGET_MS = 3000;
+/** Delay between poll iterations during the post-fast-path wait. */
+const ACCOUNTS_POLL_INTERVAL_MS = 500;
+/** Terminal-state sentinel: container endpoint discovered within the budget. */
+const POLL_SUCCESS = 'success';
+/** Terminal-state sentinel: budget exhausted without a container hit. */
+const POLL_TIMEOUT = 'timeout';
+/** Outcome marker carried on the poll result. */
+type PollOutcome = typeof POLL_SUCCESS | typeof POLL_TIMEOUT;
+
+/** Result returned by {@link pollForAccountEndpoint}. */
+interface IPollResult {
+  readonly outcome: PollOutcome;
+  /** The discovered endpoint when {@link outcome} is {@link POLL_SUCCESS}. */
+  readonly endpoint: IDiscoveredEndpoint | false;
+  /** Wall-clock ms from poll start to terminal state. */
+  readonly waitedMs: number;
+}
+
 /**
- * Resolves the captured accounts response, preferring (in order): a
- * URL-matched endpoint whose body actually carries an account
- * container; any captured endpoint with an account container; the
- * URL-matched endpoint as a last resort; content discovery.
- * @param api - api fetch context.
- * @param network - network discovery.
- * @returns Procedure with the parsed accounts body.
+ * Returns the first captured endpoint that satisfies any of the four
+ * discovery tiers (URL match, container match, URL fallback, content
+ * match). Shared between the fast path and the post-wait retry so both
+ * apply identical match rules.
+ * @param network - Live or frozen network discovery.
+ * @returns The matched endpoint, or `false` when no tier hits.
+ */
+function tryDiscoverAccounts(network: INetworkDiscovery): IDiscoveredEndpoint | false {
+  const byUrl = network.discoverAccountsEndpoint();
+  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) return byUrl;
+  const byContainer = findEndpointWithAccountContainer(network);
+  if (byContainer) return byContainer;
+  if (byUrl) return byUrl;
+  const byContent = network.discoverEndpointByContent([...WK.accountId]);
+  if (byContent) return byContent;
+  return false;
+}
+
+/**
+ * Returns a predicate suitable for {@link waitUntil} that retries
+ * {@link tryDiscoverAccounts} on each tick. Emits a per-tick log line so
+ * the race window between scrape.PRE entry and late-arriving SPA
+ * captures is visible in pipeline.log.
+ * @param network - Live network discovery.
+ * @returns Predicate that resolves with a hit or `false` to keep polling.
+ */
+function buildPollPredicate(
+  network: INetworkDiscovery,
+): () => Promise<IDiscoveredEndpoint | false> {
+  return (): Promise<IDiscoveredEndpoint | false> => {
+    const endpointCount = network.getAllEndpoints().length;
+    const hit = tryDiscoverAccounts(network);
+    LOG.debug({
+      message: 'auto-discover: poll-tick',
+      endpointCount,
+      hit: hit !== false,
+    });
+    return Promise.resolve(hit);
+  };
+}
+
+/**
+ * Waits for an account-bearing endpoint to appear in the live network
+ * feed, bounded by {@link ACCOUNTS_POLL_BUDGET_MS}. Generic across banks:
+ * delegates to the cross-bank {@link waitUntil} primitive and the
+ * cross-bank `WK.accountContainers` dictionary — no per-bank
+ * configuration.
+ * @param network - Live network discovery; must NOT be frozen.
+ * @returns Outcome + endpoint (when found) + wall-clock waitedMs.
+ */
+async function pollForAccountEndpoint(network: INetworkDiscovery): Promise<IPollResult> {
+  const startMs = Date.now();
+  const predicate = buildPollPredicate(network);
+  const result = await waitUntil(predicate, 'auto-discover poll', {
+    timeout: ACCOUNTS_POLL_BUDGET_MS,
+    interval: ACCOUNTS_POLL_INTERVAL_MS,
+  })
+    .then(
+      (endpoint: IDiscoveredEndpoint | false): IPollResult => ({
+        outcome: POLL_SUCCESS,
+        endpoint,
+        waitedMs: Date.now() - startMs,
+      }),
+    )
+    .catch(
+      (): IPollResult => ({
+        outcome: POLL_TIMEOUT,
+        endpoint: false,
+        waitedMs: Date.now() - startMs,
+      }),
+    );
+  return result;
+}
+
+/**
+ * Resolves the accounts-bearing endpoint and returns its parsed body.
+ *
+ * <p>Tries the fast path first. On a fast-path miss with a non-empty
+ * capture set, polls the live network for up to
+ * {@link ACCOUNTS_POLL_BUDGET_MS} for a container endpoint to arrive —
+ * fixes the race where `api/registered/*` responses land just after
+ * scrape.PRE entry on slower CI runners.
+ *
+ * <p>Each terminal state emits a single log line so triage is possible
+ * from pipeline.log alone:
+ * <ul>
+ *   <li>`auto-discover: fast-path hit`     — already captured</li>
+ *   <li>`auto-discover: zero captures`     — prior phase broken</li>
+ *   <li>`auto-discover: poll succeeded`    — race resolved</li>
+ *   <li>`auto-discover: poll timed out`    — escalate elsewhere</li>
+ * </ul>
+ *
+ * @param api - API fetch context.
+ * @param network - Live network discovery; freeze happens in the caller.
+ * @returns Parsed accounts body, or `succeed({})` when nothing matches.
  */
 async function discoverAndLoadAccounts(
   api: IApiFetchContext,
   network: INetworkDiscovery,
 ): Promise<Procedure<ApiPayload>> {
-  const byUrl = network.discoverAccountsEndpoint();
-  // URL match wins ONLY when its body actually carries account records.
-  // Otherwise fall through to content-based container discovery.
-  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) {
-    return loadDiscovered<ApiPayload>(api, byUrl);
-  }
-  const byContainer = findEndpointWithAccountContainer(network);
-  if (byContainer) {
+  const fast = tryDiscoverAccounts(network);
+  if (fast) {
     LOG.debug({
-      message: `Container discovery: ${maskVisibleText(byContainer.url)}`,
+      message: 'auto-discover: fast-path hit',
+      endpoint: maskVisibleText(fast.url),
     });
-    return loadDiscovered<ApiPayload>(api, byContainer);
+    return loadDiscovered<ApiPayload>(api, fast);
   }
-  if (byUrl) return loadDiscovered<ApiPayload>(api, byUrl);
-  const byContent = network.discoverEndpointByContent([...WK.accountId]);
-  if (byContent) {
+  const epsAtStart = network.getAllEndpoints().length;
+  if (epsAtStart === 0) {
+    LOG.warn({
+      message: 'auto-discover: zero captures — prior phase issue, skipping wait',
+    });
+    return succeed({});
+  }
+  LOG.debug({
+    message: 'auto-discover: container not yet captured — polling',
+    endpointsAtStart: epsAtStart,
+    budgetMs: ACCOUNTS_POLL_BUDGET_MS,
+  });
+  const polled = await pollForAccountEndpoint(network);
+  if (polled.outcome === POLL_SUCCESS && polled.endpoint) {
     LOG.debug({
-      message: `Content discovery: ${maskVisibleText(byContent.url)}`,
+      message: 'auto-discover: poll succeeded',
+      endpoint: maskVisibleText(polled.endpoint.url),
+      waitedMs: polled.waitedMs,
     });
-    return loadDiscovered<ApiPayload>(api, byContent);
+    return loadDiscovered<ApiPayload>(api, polled.endpoint);
   }
+  LOG.warn({
+    message: 'auto-discover: poll timed out — falling through to credential default',
+    waitedMs: polled.waitedMs,
+  });
   return succeed({});
 }
 
