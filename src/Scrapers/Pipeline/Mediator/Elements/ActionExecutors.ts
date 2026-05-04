@@ -3,7 +3,7 @@
  * Used by IActionMediator closure. Zero discovery capability.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { getDebug } from '../../Types/Debug.js';
@@ -18,6 +18,8 @@ import { computeContextId } from './FrameRegistry.js';
 
 /** Timeout for click actions (ms). */
 const CLICK_TIMEOUT_MS = 15_000;
+/** Max chars of outerHTML to surface in click forensics (forensic snippet). */
+const CLICK_OUTER_HTML_MAX = 300;
 
 /** CSS/XPath selector string. */
 type SelectorStr = string;
@@ -25,6 +27,124 @@ type SelectorStr = string;
 type ValueStr = string;
 /** Whether an identity attribute is a real, non-empty value. */
 type IsAttrPresent = boolean;
+/** URL string captured from page or frame. */
+type UrlStr = string;
+/** Tier label identifying which click strategy succeeded/failed. */
+type TierLabel = 'force-1' | 'natural-1' | 'dispatch-2' | 'evaluate-3' | 'aria-4';
+
+/** Forensic snapshot of a click target — captured BEFORE the click fires. */
+interface IClickForensics {
+  readonly preClickUrl: UrlStr;
+  readonly clickedTag: string;
+  readonly clickedDomId: string;
+  readonly clickedClasses: string;
+  readonly clickedAttrs: {
+    readonly name: string;
+    readonly type: string;
+    readonly ariaLabel: string;
+    readonly title: string;
+    readonly href: string;
+  };
+  readonly clickedOuterHtml: string;
+}
+
+/** Sentinel forensics for failures — keeps log shape stable. */
+const UNKNOWN_FORENSICS: IClickForensics = {
+  preClickUrl: '?',
+  clickedTag: '?',
+  clickedDomId: '?',
+  clickedClasses: '?',
+  clickedAttrs: { name: '?', type: '?', ariaLabel: '?', title: '?', href: '?' },
+  clickedOuterHtml: '?',
+};
+
+/**
+ * Capture pre-click forensics: page URL + clicked element identity + outerHTML.
+ * Always runs (never gated by env) so CI-vs-LOCAL diffs can prove same-element
+ * was clicked. The locator is evaluated in-place — same element the click
+ * tier will hit moments later. Returns a sentinel on evaluate failure (e.g.
+ * detached node, frame teardown) so the click path proceeds uninterrupted.
+ * @param locator - The Playwright locator about to be clicked.
+ * @param frame - Page or Frame the locator binds to (for URL capture).
+ * @returns Forensic snapshot bundled for the post-click log emit.
+ */
+async function captureClickForensics(
+  locator: Locator,
+  frame: Page | Frame,
+): Promise<IClickForensics> {
+  const preClickUrl = frameUrl(frame);
+  return locator
+    .evaluate(
+      (el: Element, max: number): IClickForensics => ({
+        preClickUrl: '',
+        clickedTag: el.tagName,
+        clickedDomId: el.id || '(none)',
+        clickedClasses: el.className || '(none)',
+        clickedAttrs: {
+          name: el.getAttribute('name') ?? '(none)',
+          type: el.getAttribute('type') ?? '(none)',
+          ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+          title: el.getAttribute('title') ?? '(none)',
+          href: el.getAttribute('href') ?? '(none)',
+        },
+        clickedOuterHtml: (el.outerHTML || '').slice(0, max),
+      }),
+      CLICK_OUTER_HTML_MAX,
+    )
+    .then((dom): IClickForensics => ({ ...dom, preClickUrl }))
+    .catch((): IClickForensics => ({ ...UNKNOWN_FORENSICS, preClickUrl }));
+}
+
+/**
+ * Resolve the page URL associated with a frame — `Page.url()` for Page
+ * instances, `Frame.url()` for child frames. Defensive against odd Playwright
+ * states (closed pages, detached frames) and test-fixture mocks that don't
+ * stub `url()` — returns `?` rather than throwing.
+ * @param frame - Page or Frame.
+ * @returns URL string at the time of call, or `?` on failure.
+ */
+function frameUrl(frame: Page | Frame): UrlStr {
+  const fnHolder = frame as { url?: () => UrlStr };
+  if (typeof fnHolder.url !== 'function') return '?';
+  try {
+    return fnHolder.url();
+  } catch {
+    return '?';
+  }
+}
+
+/** Bundled args for emitClickForensics — fits the 3-param ceiling. */
+interface IEmitForensicsArgs {
+  readonly tier: TierLabel;
+  readonly selector: SelectorStr;
+  readonly frame: Page | Frame;
+  readonly forensics: IClickForensics;
+}
+
+/**
+ * Emit a single forensic log line for a click outcome — all the data needed
+ * to compare CI vs LOCAL: pre/post URL, tier, selector, clicked DOM
+ * identity, outerHTML snippet. Always at debug level so it's visible at the
+ * standard CI debug level (not gated on trace).
+ * @param args - Bundled forensics emit args (tier, selector, frame, forensics).
+ * @returns True after emit.
+ */
+function emitClickForensics(args: IEmitForensicsArgs): true {
+  const { tier, selector, frame, forensics } = args;
+  LOG.debug({
+    message: `Tier ${tier}: OK — ${selector}`,
+    tier,
+    selector,
+    preClickUrl: forensics.preClickUrl,
+    postClickUrl: frameUrl(frame),
+    clickedTag: forensics.clickedTag,
+    clickedDomId: forensics.clickedDomId,
+    clickedClasses: forensics.clickedClasses,
+    clickedAttrs: forensics.clickedAttrs,
+    clickedOuterHtml: forensics.clickedOuterHtml,
+  });
+  return true;
+}
 
 /**
  * Fill an input field via Playwright locator with human-like delay.
@@ -72,6 +192,8 @@ function narrowLocator(
 
 /**
  * Click an element via Playwright locator with human-like delay.
+ * Captures click forensics (pre/post URL + DOM identity + outerHTML) before
+ * each tier so CI-vs-LOCAL divergence can be proven from logs alone.
  * @param args - Bundled click arguments (frame, selector, isForce, nth).
  * @returns True after clicking.
  */
@@ -80,41 +202,40 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
   await humanDelay(200, 500);
   const base = frame.locator(selector);
   const locator = narrowLocator(base, nth);
-  if (!isForce) return clickNaturalPath(locator, selector);
+  if (!isForce) return clickNaturalPath(locator, selector, frame);
+  const forensics = await captureClickForensics(locator, frame);
   const didForceClick = await locator
     .click({ force: true, timeout: CLICK_TIMEOUT_MS })
     .then((): true => true)
     .catch((): false => false);
-  if (didForceClick) {
-    LOG.debug({ message: `Tier 1 (force): OK — ${selector}` });
-    return true;
-  }
+  if (didForceClick) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
   LOG.debug({ message: `Tier 1 (force): FAIL — ${selector}` });
   const didDispatch = await locator
     .dispatchEvent('click')
     .then((): true => true)
     .catch((): false => false);
-  if (didDispatch) {
-    LOG.debug({ message: `Tier 2 (dispatch): OK — ${selector}` });
-    return true;
-  }
+  if (didDispatch) return emitClickForensics({ tier: 'dispatch-2', selector, frame, forensics });
   LOG.debug({ message: `Tier 2 (dispatch): FAIL — ${selector}` });
   return evaluateJsClick(locator, selector, frame);
 }
 
 /**
  * Natural click path: Tier 1 (click) → Tier 3 (JS evaluate).
+ * Captures forensics before the click so the post-click URL + clicked DOM
+ * identity surface in the success log.
  * @param locator - Playwright locator.
  * @param selector - Selector string for logging.
+ * @param frame - Page or Frame the click runs in (for forensics + post-URL).
  * @returns True after click (throws on failure — callers rely on throw).
  */
 async function clickNaturalPath(
   locator: ReturnType<Page['locator']>,
   selector: SelectorStr,
+  frame: Page | Frame,
 ): Promise<true> {
+  const forensics = await captureClickForensics(locator, frame);
   await locator.click({ timeout: CLICK_TIMEOUT_MS });
-  LOG.debug({ message: `Tier 1 (natural): OK — ${selector}` });
-  return true;
+  return emitClickForensics({ tier: 'natural-1', selector, frame, forensics });
 }
 
 /**
@@ -136,12 +257,23 @@ const EVALUATE_TIMEOUT_MS = 5_000;
  * @param frame - Page or Frame for direct DOM fallback.
  * @returns True after JS click.
  */
+/**
+ * Tier 3: JS-level el.click() — bypasses coordinates entirely.
+ * Always called with a frame from `clickElementImpl`; emits full click
+ * forensics on success and falls through to Tier 4 (DOM query) on locator
+ * timeout.
+ * @param locator - Playwright locator.
+ * @param selector - Selector string.
+ * @param frame - Page or Frame the click runs in.
+ * @returns True after JS click.
+ */
 async function evaluateJsClick(
   locator: ReturnType<Page['locator']>,
   selector: SelectorStr,
-  frame?: Page | Frame,
+  frame: Page | Frame,
 ): Promise<true> {
   LOG.debug({ message: `Tier 3 (JS evaluate): attempting — ${selector}` });
+  const forensics = await captureClickForensics(locator, frame);
   const didEval = await locator
     .evaluate(
       (el: HTMLElement): true => {
@@ -153,14 +285,9 @@ async function evaluateJsClick(
     )
     .then((): true => true)
     .catch((): false => false);
-  if (didEval) {
-    LOG.debug({ message: `Tier 3 (JS evaluate): OK — ${selector}` });
-    return true;
-  }
+  if (didEval) return emitClickForensics({ tier: 'evaluate-3', selector, frame, forensics });
   LOG.debug({ message: 'Tier 3 (JS evaluate): locator timeout — trying DOM query' });
-  if (frame) {
-    await clickViaAriaLabel(frame, selector);
-  }
+  await clickViaAriaLabel(frame, selector);
   return true;
 }
 

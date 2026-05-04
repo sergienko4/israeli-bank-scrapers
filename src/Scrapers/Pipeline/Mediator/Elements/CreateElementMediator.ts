@@ -848,28 +848,6 @@ function buildFoundResult(entry: ILocatorEntry, winner: IWinnerInfo): IRaceResul
   return { found: true, locator, candidate, context, index, value, identity };
 }
 
-/**
- * Extract structured DOM identity from an element via evaluate.
- * Captures every stable hook the action stage might need to build a precise
- * click/fill selector — id, name, aria-label, title, href — so we don't have
- * to re-derive the selector from the original WK candidate (which lost the
- * resolved element's actual attribute set).
- * @param el - DOM element.
- * @returns Structured identity object.
- */
-function extractIdentity(el: Element): IElementIdentity {
-  return {
-    tag: el.tagName,
-    id: el.id || '(none)',
-    classes: el.className || '(none)',
-    name: el.getAttribute('name') ?? '(none)',
-    type: el.getAttribute('type') ?? '(none)',
-    ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-    title: el.getAttribute('title') ?? '(none)',
-    href: el.getAttribute('href') ?? '(none)',
-  };
-}
-
 /** Identity for "?" — used when evaluate() throws. */
 const UNKNOWN_IDENTITY: IElementIdentity = {
   tag: '?',
@@ -882,21 +860,102 @@ const UNKNOWN_IDENTITY: IElementIdentity = {
   href: '?',
 };
 
+/** Max chars of outerHTML to surface in trace logs (forensic snippet). */
+const OUTER_HTML_SNIPPET_MAX = 300;
+
+/** Identity bundled with a bounded outerHTML snippet — single-evaluate result. */
+interface IIdentityVerbose {
+  readonly identity: IElementIdentity;
+  readonly outerHtml: string;
+}
+
+/** Fallback verbose payload — used when evaluate throws. */
+const UNKNOWN_VERBOSE: IIdentityVerbose = { identity: UNKNOWN_IDENTITY, outerHtml: '?' };
+
 /**
  * Extract Physical Identity, log at TRACE level, return identity for the
  * caller (so ACTION-stage selectors can use the resolved element's actual
  * attributes — id/name/aria-label/title/href — rather than re-deriving from
- * the original WK candidate).
+ * the original WK candidate). The trace emit uses `domId` (not `id`) so the
+ * DOM identity bypasses the credential-id redaction path; DOM ids on a public
+ * commercial site are not PII. An outerHTML snippet (≤300 chars) is also
+ * surfaced so CI-vs-LOCAL diffs can prove same-element-clicked.
+ * @param entry - The winning locator entry.
+ * @returns Identity object captured during PRE.
+ */
+/**
+ * Normalize a partial verbose payload to a fully-defined IIdentityVerbose,
+ * substituting the UNKNOWN sentinel when the shape is wrong. Defensive
+ * against test mocks that return `false`/`true`/strings from `evaluate(...)`
+ * rather than the structured payload.
+ * @param obj - Partial payload — typed (no `unknown`).
+ * @returns Verbose shape, never with missing fields.
+ */
+/** Guaranteed-string outerHTML snippet for trace logging. */
+type OuterHtmlSnippet = string;
+
+/**
+ * Resolve `obj.outerHtml` to a string when present, falling back to `?`
+ * when the field is missing or non-string (test mocks may return non-string
+ * payloads).
+ * @param obj - Partial verbose payload.
+ * @returns A guaranteed outerHTML snippet.
+ */
+function resolveOuterHtml(obj: Partial<IIdentityVerbose>): OuterHtmlSnippet {
+  if (typeof obj.outerHtml === 'string') return obj.outerHtml;
+  return '?';
+}
+
+/**
+ * Normalize a partial verbose payload to a fully-defined `IIdentityVerbose`,
+ * substituting the UNKNOWN sentinels when the shape is wrong. Defensive
+ * against test mocks that return `false`/`true`/strings from `evaluate(...)`
+ * rather than the structured payload.
+ * @param obj - Partial payload from evaluate.
+ * @returns Verbose shape with all fields defined.
+ */
+function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
+  const identity = obj.identity ?? UNKNOWN_IDENTITY;
+  const outerHtml = resolveOuterHtml(obj);
+  return { identity, outerHtml };
+}
+
+/**
+ * Snapshot the resolved element's DOM identity (tag, id, classes, attrs)
+ * plus a bounded outerHTML, log the bundle at debug level, and return the
+ * identity for ACTION-stage selector building. The trace emit uses `domId`
+ * (not `id`) so the public DOM identity bypasses the credential-id Pino
+ * redaction — DOM ids on a public commercial site are not PII.
  * @param entry - The winning locator entry.
  * @returns Identity object captured during PRE.
  */
 async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementIdentity> {
-  const identity = await entry.locator
-    .evaluate(extractIdentity)
-    .catch((): IElementIdentity => UNKNOWN_IDENTITY);
-  LOG.trace({
+  const evaluated = await entry.locator
+    .evaluate(
+      (el: Element, max: number): IIdentityVerbose => ({
+        identity: {
+          tag: el.tagName,
+          id: el.id || '(none)',
+          classes: el.className || '(none)',
+          name: el.getAttribute('name') ?? '(none)',
+          type: el.getAttribute('type') ?? '(none)',
+          ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+          title: el.getAttribute('title') ?? '(none)',
+          href: el.getAttribute('href') ?? '(none)',
+        },
+        outerHtml: (el.outerHTML || '').slice(0, max),
+      }),
+      OUTER_HTML_SNIPPET_MAX,
+    )
+    .catch((): IIdentityVerbose => UNKNOWN_VERBOSE);
+  // Static type says IIdentityVerbose but test mocks return arbitrary
+  // payloads — narrow defensively before destructuring.
+  const raw = evaluated as Partial<IIdentityVerbose>;
+  const verbose = normalizeVerbose(raw);
+  const { identity, outerHtml } = verbose;
+  LOG.debug({
     tag: identity.tag,
-    id: identity.id,
+    domId: identity.id,
     classes: identity.classes,
     attrs: {
       name: identity.name,
@@ -905,13 +964,18 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
       title: identity.title,
       href: identity.href,
     },
+    outerHtml,
     visibility: 'visible',
   });
   return identity;
 }
 
 /**
- * Trace race diagnostic — log per-locator detail at trace level.
+ * Log race diagnostic — fulfilled count + winner index + per-locator detail.
+ * Emitted at debug level (not trace) so the resolver flow stays visible at
+ * the standard CI debug level. Without this, debug-level runs see the
+ * "resolveVisible: 49 locators" probe but no winner — i.e. blind to which
+ * locator actually matched.
  * @param entries - All locator entries with candidate + context.
  * @param diag - Race diagnostic result.
  * @returns True after logging.
@@ -924,7 +988,7 @@ function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagn
     const ctx = e.context.url();
     return `${kind}:${val} @ ${ctx}`;
   });
-  LOG.trace({
+  LOG.debug({
     fulfilled: diag.fulfilledCount,
     hitTestPassed: diag.hitTestPassedCount,
     winner: diag.winner,

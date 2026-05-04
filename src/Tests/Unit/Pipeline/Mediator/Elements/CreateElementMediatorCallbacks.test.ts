@@ -514,21 +514,27 @@ describe('CreateElementMediator — extractIdentity callback (invoked locally)',
       return src.includes('className') && !src.includes('closest');
     });
     expect(idCb).toBeDefined();
-    const idCbSafe = idCb as (e: Element) => {
-      tag: string;
-      id: string;
-      classes: string;
-      name: string;
-      type: string;
+    const idCbSafe = idCb as unknown as (
+      e: Element,
+      max: number,
+    ) => {
+      identity: {
+        tag: string;
+        id: string;
+        classes: string;
+        name: string;
+        type: string;
+      };
+      outerHtml: string;
     };
 
-    // All present
-    const r1 = idCbSafe(el);
-    expect(r1.tag).toBe('INPUT');
-    expect(r1.id).toBe('my-input');
-    expect(r1.classes).toBe('ctl primary');
-    expect(r1.name).toBe('username');
-    expect(r1.type).toBe('text');
+    // All present — identity nested under .identity per the verbose shape
+    const r1 = idCbSafe(el, 300);
+    expect(r1.identity.tag).toBe('INPUT');
+    expect(r1.identity.id).toBe('my-input');
+    expect(r1.identity.classes).toBe('ctl primary');
+    expect(r1.identity.name).toBe('username');
+    expect(r1.identity.type).toBe('text');
 
     // All nullish — triggers || '(none)' and ?? '(none)' branches
     const elEmpty = makeMockElement({
@@ -538,10 +544,10 @@ describe('CreateElementMediator — extractIdentity callback (invoked locally)',
       name: null,
       type: null,
     });
-    const r2 = idCbSafe(elEmpty);
-    expect(r2.id).toBe('(none)');
-    expect(r2.classes).toBe('(none)');
-    expect(r2.name).toBe('(none)');
-    expect(r2.type).toBe('(none)');
+    const r2 = idCbSafe(elEmpty, 300);
+    expect(r2.identity.id).toBe('(none)');
+    expect(r2.identity.classes).toBe('(none)');
+    expect(r2.identity.name).toBe('(none)');
+    expect(r2.identity.type).toBe('(none)');
   }, 5000);
 });

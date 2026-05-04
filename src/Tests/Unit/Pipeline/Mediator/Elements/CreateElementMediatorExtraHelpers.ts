@@ -30,8 +30,23 @@ export interface ILocatorScript {
   readonly clickThrows?: boolean;
 }
 
+/** Identity-verbose shape returned by extractAndTraceIdentity's evaluator. */
+interface IFakeIdentityVerbose {
+  readonly identity: {
+    readonly tag: string;
+    readonly id: string;
+    readonly classes: string;
+    readonly name: string;
+    readonly type: string;
+    readonly ariaLabel: string;
+    readonly title: string;
+    readonly href: string;
+  };
+  readonly outerHtml: string;
+}
+
 /** Scripted evaluate() return union. */
-type EvaluateResult = boolean | string | Record<string, string>;
+type EvaluateResult = boolean | string | Record<string, string> | IFakeIdentityVerbose;
 
 /**
  * Hit-test branch — shared between elementFromPoint and getBoundingClientRect sources.
@@ -55,11 +70,17 @@ function dispatchEvaluateSource(src: string, script: ILocatorScript): EvaluateRe
   }
   if (src.includes('className')) {
     return {
-      tag: 'DIV',
-      id: '(none)',
-      classes: '(none)',
-      name: '(none)',
-      type: '(none)',
+      identity: {
+        tag: 'DIV',
+        id: '(none)',
+        classes: '(none)',
+        name: '(none)',
+        type: '(none)',
+        ariaLabel: '(none)',
+        title: '(none)',
+        href: '(none)',
+      },
+      outerHtml: '<div></div>',
     };
   }
   if (src.includes('tagName')) {
@@ -95,7 +116,7 @@ export function makeRichLocator(script: ILocatorScript): Locator {
      * @param fn - Evaluated function.
      * @returns Scripted.
      */
-    evaluate: (fn: unknown): Promise<boolean | string | Record<string, string>> => {
+    evaluate: (fn: unknown): Promise<EvaluateResult> => {
       const src = String(fn);
       const dispatchResult = dispatchEvaluateSource(src, script);
       return Promise.resolve(dispatchResult);

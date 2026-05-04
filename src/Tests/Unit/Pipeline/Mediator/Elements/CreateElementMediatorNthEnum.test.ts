@@ -122,10 +122,12 @@ function makeFakeElement(identity: IFakeIdentity): Element {
    * @returns True only when `other` is the `false` sentinel.
    */
   const contains = (other: Element | false): boolean => other === false;
+  const outerHTML = `<${identity.tag.toLowerCase()} id="${identity.id}" class="${identity.classes}"></${identity.tag.toLowerCase()}>`;
   return {
     id: identity.id,
     tagName: identity.tag,
     className: identity.classes,
+    outerHTML,
     getAttribute,
     hasAttribute,
     getBoundingClientRect,
