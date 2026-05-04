@@ -213,6 +213,11 @@ function makeMockExecutor(pageUrl = 'https://test.bank.co.il/login'): IActionMed
      */
     countByText: (): Promise<number> => Promise.resolve(0),
     /**
+     * Selector-count mock.
+     * @returns Zero.
+     */
+    countBySelector: (): Promise<number> => Promise.resolve(0),
+    /**
      * Href scan mock.
      * @returns Empty array.
      */

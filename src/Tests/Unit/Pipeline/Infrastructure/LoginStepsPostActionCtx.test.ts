@@ -124,6 +124,11 @@ function makeMockMediator(): IElementMediator {
      */
     countByText: (): Promise<number> => Promise.resolve(0),
     /**
+     * Count by selector mock — returns 0.
+     * @returns Zero.
+     */
+    countBySelector: (): Promise<number> => Promise.resolve(0),
+    /**
      * No-op phase setter in mock.
      * @returns True.
      */

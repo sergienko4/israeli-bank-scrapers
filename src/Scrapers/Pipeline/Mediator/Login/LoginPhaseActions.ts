@@ -18,13 +18,14 @@ import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { none, type Option, some } from '../../Types/Option.js';
-import type {
-  IActionContext,
-  ILoginFieldDiscovery,
-  ILoginState,
-  IPipelineContext,
-  IResolvedTarget,
-  LoginFieldKey,
+import {
+  type IActionContext,
+  type ILoginFieldDiscovery,
+  type ILoginState,
+  type IPipelineContext,
+  type IResolvedTarget,
+  LOGIN_FIELDS,
+  type LoginFieldKey,
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -636,6 +637,30 @@ async function executeValidateLogin(
   if (lateAuthFail !== false) return lateAuthFail;
   const asyncCheck = await detectAsyncLoginErrors(mediator, input);
   if (asyncCheck !== false) return asyncCheck;
+  return runLatePostChecks(mediator, input);
+}
+
+/**
+ * Runs the post-redirect failure detectors that depend on DOM state
+ * (form-presence) or URL shape (bounce). Extracted from
+ * {@link executeValidateLogin} to keep cyclomatic complexity inside
+ * the project's per-function ceiling.
+ *
+ * <p>Order matters: form-presence is the most generic cross-bank
+ * signal (all banks destroy their login form on success), so it runs
+ * before the URL-bounce detector that has bank-specific path-shape
+ * assumptions.
+ *
+ * @param mediator - Element mediator for DOM + URL probes.
+ * @param input - Pipeline context.
+ * @returns Failure procedure on detected failure, otherwise `succeed(input)`.
+ */
+async function runLatePostChecks(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  const formStillThere = await detectLoginFormStillPresent(mediator, input);
+  if (formStillThere !== false) return formStillThere;
   const bounce = detectLoginBounce(mediator, input);
   if (bounce !== false) return bounce;
   return succeed(input);
@@ -725,12 +750,54 @@ function loginPathOf(url: string): LoginPathname {
 }
 
 /**
- * Detect when the post-submit URL landed back on the login path with a
- * MATERIALLY different URL — server bounced us (Max → `/login?ReturnURL=…`).
+ * Confirms the LOGIN ACTION did its job by checking the login form is
+ * gone after the redirect.
+ *
+ * <p>A successful submit destroys the entire login form (the SPA renders
+ * the next view — OTP step or dashboard); a rejected submit leaves the
+ * form intact with the same `#password` element the PRE stage resolved.
+ * Probing for that exact element via the SAME selector PRE recorded
+ * gives a generic, cross-bank failure signal that doesn't depend on
+ * URL pathnames, error-text dictionaries, or auth-API URL patterns
+ * (the three signals the existing chain already covers but each has
+ * gaps for SPA banks like Hapoalim).
+ *
+ * <p>The OTP form is a different form with different field selectors
+ * (`#otpCode`, `[autocomplete="one-time-code"]`, etc.), so a successful
+ * login that proceeds to OTP also fails this check correctly — the
+ * password field is gone, only OTP fields remain.
+ *
+ * @param mediator - Element mediator (for `countBySelector`).
+ * @param input - Pipeline context carrying `loginFieldDiscovery` from PRE.
+ * @returns Failure procedure when the login form is still present, false otherwise.
+ */
+async function detectLoginFormStillPresent(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext> | false> {
+  if (!input.loginFieldDiscovery.has) return false;
+  const discovery = input.loginFieldDiscovery.value;
+  const passwordTarget = discovery.targets.get(LOGIN_FIELDS.PASSWORD);
+  if (!passwordTarget) return false;
+  const stillPresent = await mediator.countBySelector(passwordTarget.selector);
+  if (stillPresent === 0) return false;
+  const masked = maskVisibleText(passwordTarget.selector);
+  input.logger.debug({
+    message: `POST: login form still present — password selector ${masked} resolves`,
+  });
+  return fail(
+    ScraperErrorTypes.InvalidPassword,
+    'LOGIN POST: login form still present after submit (password field resolves)',
+  );
+}
+
+/**
+ * Detects when the post-submit URL landed back on the login path with a
+ * materially different URL — server bounced us (Max → `/login?ReturnURL=…`).
  * Skips when the URL is unchanged (Amex SPA login keeps the same href).
  * @param mediator - Element mediator for current URL.
- * @param input - Pipeline context (for diagnostics.loginUrl).
- * @returns Failure procedure on bounce, else false.
+ * @param input - Pipeline context with `diagnostics.loginUrl`.
+ * @returns Failure procedure on bounce, false otherwise.
  */
 function detectLoginBounce(
   mediator: IElementMediator,

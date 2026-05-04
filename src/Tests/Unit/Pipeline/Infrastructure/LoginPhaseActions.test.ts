@@ -294,6 +294,116 @@ describe('executeValidateLogin', () => {
   });
 });
 
+describe('executeValidateLogin — detectLoginFormStillPresent', () => {
+  /**
+   * Build an ILoginFieldDiscovery whose targets map carries a password
+   * selector. The pipeline checks `targets.get('password').selector`.
+   * @param passwordSelector - The selector to register as the password target.
+   * @returns ILoginFieldDiscovery with one resolved password target.
+   */
+  function makeFieldDiscovery(passwordSelector: string): ILoginFieldDiscovery {
+    return {
+      targets: new Map([
+        [
+          'password',
+          {
+            selector: passwordSelector,
+            contextId: 'main',
+            kind: 'placeholder',
+            candidateValue: 'pwd',
+          },
+        ],
+      ]),
+      formAnchor: none(),
+      activeFrameId: 'main',
+      submitTarget: none(),
+    };
+  }
+
+  it('fails with InvalidPassword when password selector still resolves after submit', async () => {
+    const mediator = makeMockMediator({
+      /**
+       * Login form still present — countBySelector returns 1.
+       * @returns 1 element found.
+       */
+      countBySelector: (): Promise<number> => Promise.resolve(1),
+    });
+    const makeScreenshotPageResult33 = makeScreenshotPage();
+    const baseCtx = makeContextWithLogin(makeScreenshotPageResult33);
+    const discovery = makeFieldDiscovery('#password');
+    const ctx = { ...baseCtx, loginFieldDiscovery: some(discovery) };
+    const result = await executeValidateLogin(
+      TEST_CONFIG as unknown as ILoginConfig,
+      mediator,
+      ctx,
+    );
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!wasOk) expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+  });
+
+  it('passes through when password selector no longer resolves', async () => {
+    const mediator = makeMockMediator({
+      /**
+       * Login form gone — countBySelector returns 0.
+       * @returns 0 elements.
+       */
+      countBySelector: (): Promise<number> => Promise.resolve(0),
+    });
+    const makeScreenshotPageResult34 = makeScreenshotPage();
+    const baseCtx = makeContextWithLogin(makeScreenshotPageResult34);
+    const discoveryGone = makeFieldDiscovery('#password');
+    const ctx = { ...baseCtx, loginFieldDiscovery: some(discoveryGone) };
+    const result = await executeValidateLogin(
+      TEST_CONFIG as unknown as ILoginConfig,
+      mediator,
+      ctx,
+    );
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('skips form-presence check when loginFieldDiscovery is none', async () => {
+    const mediator = makeMockMediator();
+    const makeScreenshotPageResult35 = makeScreenshotPage();
+    const ctx = makeContextWithLogin(makeScreenshotPageResult35);
+    const result = await executeValidateLogin(
+      TEST_CONFIG as unknown as ILoginConfig,
+      mediator,
+      ctx,
+    );
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('skips form-presence check when targets has no password key', async () => {
+    /**
+     * Mediator stub that would always report "form present" if the
+     * check ran — used to prove the early-return branch when
+     * targets.get('password') is undefined.
+     * @returns 99 elements (sentinel; never consulted in this case).
+     */
+    const countBySelectorStub = (): Promise<number> => Promise.resolve(99);
+    const mediator = makeMockMediator({ countBySelector: countBySelectorStub });
+    const makeScreenshotPageResult36 = makeScreenshotPage();
+    const baseCtx = makeContextWithLogin(makeScreenshotPageResult36);
+    const noPasswordDiscovery: ILoginFieldDiscovery = {
+      targets: new Map(),
+      formAnchor: none(),
+      activeFrameId: 'main',
+      submitTarget: none(),
+    };
+    const ctx = { ...baseCtx, loginFieldDiscovery: some(noPasswordDiscovery) };
+    const result = await executeValidateLogin(
+      TEST_CONFIG as unknown as ILoginConfig,
+      mediator,
+      ctx,
+    );
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+});
+
 // Field-discovery path tests split to LoginPhaseActionsFieldDiscovery.test.ts
 
 // ── Deep coverage: resolveOneField SUCCESS + submit discovery ───────

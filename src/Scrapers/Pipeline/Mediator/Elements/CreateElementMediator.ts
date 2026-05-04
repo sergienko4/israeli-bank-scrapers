@@ -1563,6 +1563,22 @@ function buildCountByText(page: Page): IElementMediator['countByText'] {
 }
 
 /**
+ * Build countBySelector method bound to a page. Wraps
+ * `page.locator(selector).count()` with a `.catch → 0` guard so phases
+ * can probe element presence without ever touching Playwright directly.
+ * Used by login.POST to verify the login form is gone after submit.
+ * @param page - The Playwright page.
+ * @returns Mediator countBySelector function.
+ */
+function buildCountBySelector(page: Page): IElementMediator['countBySelector'] {
+  return (selector: string): Promise<ElementCount> =>
+    page
+      .locator(selector)
+      .count()
+      .catch((): ElementCount => 0);
+}
+
+/**
  * Extract all href attributes from anchor elements in one shot.
  * Uses evaluateAll to avoid await-in-loop — single DOM round-trip.
  * @param anchors - Locator for all anchor elements.
@@ -1705,6 +1721,7 @@ function createElementMediator(page: Page): IElementMediator {
 
     waitForURL: buildWaitForURL(page),
     countByText: buildCountByText(page),
+    countBySelector: buildCountBySelector(page),
     collectAllHrefs: buildCollectAllHrefs(page),
     getCookies: buildGetCookies(page),
     /**
@@ -1763,6 +1780,8 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
     getCurrentUrl: () => full.getCurrentUrl(),
     /** @inheritdoc */
     countByText: (...args) => full.countByText(...args),
+    /** @inheritdoc */
+    countBySelector: (...args) => full.countBySelector(...args),
     /** @inheritdoc */
     getCookies: () => full.getCookies(),
     /** @inheritdoc */

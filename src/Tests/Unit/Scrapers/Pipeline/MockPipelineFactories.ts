@@ -424,6 +424,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      */
     countByText: (): Promise<number> => Promise.resolve(0),
     /**
+     * Count by selector mock — returns 0 (no elements).
+     * @returns Zero.
+     */
+    countBySelector: (): Promise<number> => Promise.resolve(0),
+    /**
      * No-op phase setter in mock.
      * @returns True.
      */

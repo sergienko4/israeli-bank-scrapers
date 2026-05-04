@@ -176,6 +176,11 @@ export function makeMockActionExecutor(overrides: Partial<IActionMediator> = {})
      */
     countByText: () => Promise.resolve(0),
     /**
+     * Zero selector count.
+     * @returns 0.
+     */
+    countBySelector: () => Promise.resolve(0),
+    /**
      * Empty hrefs.
      * @returns Empty array.
      */

@@ -43,8 +43,12 @@ describe('discoverAndLoadAccounts — generic poll outcomes', () => {
     const elapsed = Date.now() - startMs;
     const wasOk = isOk(result);
     expect(wasOk).toBe(true);
-    // Fast path adds 0ms — assert under 200ms to allow CI jitter
-    expect(elapsed).toBeLessThan(200);
+    // Fast path adds 0ms of poll time — but the surrounding harness
+    // (mediator + Procedure marshalling) can add 100-300ms under
+    // parallel jest worker load. Generous ceiling against the 3000ms
+    // poll budget so this assertion proves the fast path stayed
+    // out of the polling loop without flaking on loaded CI machines.
+    expect(elapsed).toBeLessThan(1000);
   });
 
   it('zero captures: skips poll entirely when no endpoints captured', async () => {
@@ -61,8 +65,9 @@ describe('discoverAndLoadAccounts — generic poll outcomes', () => {
     const elapsed = Date.now() - startMs;
     const wasOk = isOk(result);
     expect(wasOk).toBe(true);
-    // Zero-captures fast-fails — should NOT wait the 3s budget
-    expect(elapsed).toBeLessThan(500);
+    // Zero-captures fast-fails — should NOT wait the 3s budget.
+    // Generous ceiling vs. the 3000ms poll for parallel-worker jitter.
+    expect(elapsed).toBeLessThan(1500);
   });
 
   it('poll succeeded: container arrives mid-budget', async () => {

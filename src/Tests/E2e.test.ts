@@ -23,12 +23,15 @@ describe('E2E: IScraper Factory', () => {
   });
 });
 
-// Hapoalim's invalid-creds path: real browser launch → page load →
-// form discovery → bank-side INVALID_PASSWORD response. Healthy CI
-// wall-clock is 35-45s; 60s left no headroom and flaked on slower
-// GH runner allocations. 90s absorbs the ~20s observed variance
-// while still failing fast on real regressions.
-const INVALID_CREDS_TEST_TIMEOUT_MS = 90_000;
+// Real-bank smoke against Hapoalim. Wall-clock dominated by three
+// home-phase resolveVisible probes (15s ceiling each) that wait for
+// Hapoalim's homepage to settle — the page has continuous marketing
+// widgets + analytics that delay stability detection. Observed range
+// across CI + local: 42s (fast) → 92s (slow) depending on bank-side
+// load. 180s gives 2x headroom against the slow extreme so genuine
+// regressions still fail fast (a real break exits well before 180s)
+// while bank-side latency variance stops flaking the gate.
+const INVALID_CREDS_TEST_TIMEOUT_MS = 180_000;
 
 describe('E2E: IScraper error handling', () => {
   test(

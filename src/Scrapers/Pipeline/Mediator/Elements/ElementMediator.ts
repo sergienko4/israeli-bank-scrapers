@@ -291,6 +291,17 @@ interface IElementMediator {
   countByText(text: string): Promise<number>;
 
   /**
+   * Count elements matching a raw CSS/XPath selector. Returns 0 on
+   * error or absence. Used by login.POST to verify the login form is
+   * gone after a successful submit (presence = login form survived =
+   * invalid creds). Mirrors {@link countByText} for selector inputs
+   * so phases never touch Playwright directly.
+   * @param selector - CSS or XPath selector string.
+   * @returns Element count (0 if not found or error).
+   */
+  countBySelector(selector: string): Promise<number>;
+
+  /**
    * Check if a resolved element has a specific HTML attribute (passive, no click).
    * Used by HOME.PRE to detect toggle vs navigation link (href presence).
    * @param result - The resolved race result from resolveVisible.
@@ -417,6 +428,8 @@ interface IActionMediator {
   addCookies(cookies: readonly ICookieInjection[]): Promise<void>;
   /** Count elements by text. */
   countByText(text: FieldSelector): Promise<number>;
+  /** Count elements by raw CSS/XPath selector. */
+  countBySelector(selector: FieldSelector): Promise<number>;
   /** Collect all hrefs. */
   collectAllHrefs(): Promise<readonly string[]>;
   /** Collect sessionStorage key-value pairs. */
