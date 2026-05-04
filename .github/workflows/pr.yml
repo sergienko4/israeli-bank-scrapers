@@ -277,12 +277,16 @@ jobs:
         env:
           # LOG_LEVEL=trace makes the pipeline write per-run artefacts
           # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
-          # Free-form `message` strings in pipeline.log are PII-redacted
-          # by the changes in commit `fix(pipeline): redact PII from
-          # pipeline.log…` — so trace-level logs are safe to upload.
-          # Screenshots and network dumps still contain PII (visible
-          # text in PNGs, full response JSON) and are NOT uploaded; the
-          # `Upload diagnostics on failure` step takes pipeline.log only.
+          # Both pipeline.log AND network/*.json are PII-redacted at
+          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
+          # is wired into Pino's redact.censor + NetworkDiscovery's
+          # dumpResponseBody routes through redactJsonBody/redactUrl).
+          # Both file types are safe to upload; the failure-only artifact
+          # below uploads them so we can debug auto-discovery + endpoint
+          # selection (e.g. Max's "scrape skipped — No txn URL" case
+          # needs the 71 captured network URLs to triage).
+          # Screenshots are still excluded — PNGs cannot be reliably
+          # redacted and may capture rendered PII text.
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
@@ -313,11 +317,14 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # ONLY pipeline.log — message-level PII is redacted in code.
-          # /screenshots and /network are deliberately excluded: PNGs
-          # cannot be redacted reliably and network dumps carry full
-          # response bodies (account numbers, balances, names).
-          path: /tmp/runs/pipeline/**/pipeline.log
+          # pipeline.log + network/*.json — both PII-redacted at write
+          # time by the runtime layer (commit 3f1b966d). Network dumps
+          # are required to triage auto-discovery failures (which URL
+          # got picked out of the captured set, what response shape).
+          # Screenshots remain excluded — PNG redaction is unreliable.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -343,7 +350,10 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          # Same trace + RUNS_ROOT setup as Group A — failure artifact
+          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
@@ -356,6 +366,18 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Same artifact policy as Group A — pipeline.log + network/*.json
+          # are PII-redacted at write time; screenshots excluded.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+          retention-days: 7
+          if-no-files-found: warn
 
   dependency-review:
     name: Dependency Review
