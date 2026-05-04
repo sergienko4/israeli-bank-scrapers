@@ -26,8 +26,10 @@ export const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
   { kind: 'name', value: 'otpCode' },
 ];
 
-/** Regex to detect masked phone number hints on OTP screens (e.g. ****1234). */
-export const PHONE_PATTERN = /\*{4,}\d{2,4}/;
+/** Regex to detect masked phone number hints on OTP screens (e.g. ****1234).
+ * Both quantifiers are bounded ({4,32} and {2,4}) so the matcher cannot
+ * super-linearly backtrack on adversarial input. */
+export const PHONE_PATTERN = /\*{4,32}\d{2,4}/;
 
 /** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
 export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [

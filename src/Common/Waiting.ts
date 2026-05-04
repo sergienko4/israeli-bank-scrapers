@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 import type { Falsy } from 'utility-types';
 
 import {
@@ -225,7 +227,10 @@ export function humanDelay(
   minMs = HUMAN_DELAY_MIN_MS,
   maxMs = HUMAN_DELAY_MAX_MS,
 ): Promise<boolean> {
-  const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  // Cryptographic RNG isn't strictly needed for human-delay jitter, but
+  // crypto.randomInt sidesteps the SonarCloud `typescript:S2245` hotspot
+  // (PRNG-safety review) at zero behavioural cost.
+  const delay = randomInt(minMs, maxMs);
   return new Promise(resolve => {
     globalThis.setTimeout(() => {
       resolve(true);
