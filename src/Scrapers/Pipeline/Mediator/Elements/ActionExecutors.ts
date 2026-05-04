@@ -20,6 +20,10 @@ import { computeContextId } from './FrameRegistry.js';
 const CLICK_TIMEOUT_MS = 15_000;
 /** Max chars of outerHTML to surface in click forensics (forensic snippet). */
 const CLICK_OUTER_HTML_MAX = 300;
+/** Cap for the forensics evaluate — short so we never add real latency.
+ *  If a locator can't resolve in 1.5s, drop to UNKNOWN sentinel and let the
+ *  real click proceed with its own 15s timeout. */
+const FORENSICS_EVAL_TIMEOUT_MS = 1_500;
 
 /** CSS/XPath selector string. */
 type SelectorStr = string;
@@ -90,6 +94,7 @@ async function captureClickForensics(
         clickedOuterHtml: (el.outerHTML || '').slice(0, max),
       }),
       CLICK_OUTER_HTML_MAX,
+      { timeout: FORENSICS_EVAL_TIMEOUT_MS },
     )
     .then((dom): IClickForensics => ({ ...dom, preClickUrl }))
     .catch((): IClickForensics => ({ ...UNKNOWN_FORENSICS, preClickUrl }));
