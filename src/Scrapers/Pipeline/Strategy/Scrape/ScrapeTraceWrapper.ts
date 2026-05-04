@@ -2,7 +2,7 @@
  * withTrace — higher-order wrapper for scrape iteration tracing.
  * Emits scrape-card events before and after each fetch call.
  * Captures durationMs and status for the Flight Recorder.
- * Used by ProxyScrapeReplayStrategy and MatrixLoopStrategy.
+ * Used by MatrixLoopStrategy.
  */
 
 import type { ITransaction } from '../../../../Transactions.js';
