@@ -9,6 +9,7 @@ import * as path from 'node:path';
 
 import type { Page } from 'playwright-core';
 
+import { redactHtml } from '../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import { captureDeepHtml } from './SnapshotDeepDom.js';
 import { captureChildFrames } from './SnapshotFrameCapture.js';
@@ -46,7 +47,8 @@ function ensureBankDir(companyId: CompanyId): BankDirPath {
  */
 function tryWrite(filePath: string, html: string): WriteResult {
   try {
-    fs.writeFileSync(filePath, html, 'utf8');
+    const safeHtml = redactHtml(html);
+    fs.writeFileSync(filePath, safeHtml, 'utf8');
     return true;
   } catch {
     return false;

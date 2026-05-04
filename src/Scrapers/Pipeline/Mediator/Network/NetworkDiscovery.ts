@@ -19,6 +19,7 @@ import {
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import { redactJsonBody, redactUrl } from '../../Types/PiiRedactor.js';
 import { getNetworkDumpDir } from '../../Types/TraceConfig.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
@@ -151,9 +152,12 @@ function dumpResponseBody(args: IDumpArgs): DumpCount {
     const safe = args.url.replaceAll(/[^\w.-]/g, '_').slice(-80);
     const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safe}.json`;
     const filePath = path.join(dir, name);
-    const postSuffix = { true: '', false: `\n// POST_BODY: ${args.postData}` };
+    const safeUrl = redactUrl(args.url);
+    const safePostData = redactJsonBody(args.postData);
+    const safeText = redactJsonBody(args.text);
+    const postSuffix = { true: '', false: `\n// POST_BODY: ${safePostData}` };
     const postLine = postSuffix[String(args.postData.length === 0) as 'true' | 'false'];
-    fs.writeFileSync(filePath, `// ${args.method} ${args.url}${postLine}\n${args.text}`);
+    fs.writeFileSync(filePath, `// ${args.method} ${safeUrl}${postLine}\n${safeText}`);
     return dumpCounter;
   } catch {
     return dumpCounter;

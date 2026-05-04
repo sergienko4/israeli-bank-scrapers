@@ -1,12 +1,12 @@
 import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
+import {
+  redactAccount,
+  redactAmount,
+  redactMerchant,
+} from '../Scrapers/Pipeline/Types/PiiRedactor.js';
 import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
 import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
-import {
-  DESC_PREVIEW_LENGTH,
-  MASK_TAIL_LENGTH,
-  MAX_TXN_PREVIEW,
-  SEPARATOR_WIDTH,
-} from './Config/ResultFormatterConfig.js';
+import { MAX_TXN_PREVIEW, SEPARATOR_WIDTH } from './Config/ResultFormatterConfig.js';
 
 /** Optional numeric amount — undefined when the bank API omits the field. */
 type OptionalAmount = number | undefined;
@@ -14,32 +14,43 @@ type OptionalAmount = number | undefined;
 const SEPARATOR = '\u2550'.repeat(SEPARATOR_WIDTH);
 
 /**
- * Mask an account number for PII-safe logging, showing only last 4 digits.
+ * Mask an account number for PII-safe logging via the single source of
+ * truth (PiiRedactor.redactAccount). Pads the hint with one extra '*'
+ * so the test-summary output keeps its 4-asterisk visual prefix.
  * @param acct - The full account number string.
  * @returns The masked account number.
  */
 export function maskAccount(acct: string): string {
-  return acct.length <= MASK_TAIL_LENGTH ? '****' : '****' + acct.slice(-MASK_TAIL_LENGTH);
+  if (acct.length === 0) return '****';
+  const hint = redactAccount(acct);
+  if (hint.length === 0) return '****';
+  if (hint === '[REDACTED]') return '****';
+  if (hint.startsWith('***')) return `*${hint}`;
+  return hint;
 }
 
 /**
- * Mask a transaction amount for PII-safe logging, showing only sign.
+ * Mask a transaction amount for PII-safe logging via PiiRedactor.redactAmount.
+ * Adds a leading space so log columns stay aligned.
  * @param amount - The transaction amount (may be undefined).
  * @returns A masked amount indicator string.
  */
 export function maskAmount(amount: OptionalAmount): string {
-  if (amount == null) return '  ***';
-  return amount >= 0 ? ' +***' : ' -***';
+  if (amount === undefined) return '  ***';
+  const sign = redactAmount(amount);
+  return ` ${sign}`;
 }
 
 /**
- * Mask a transaction description, showing only first 3 characters.
+ * Mask a transaction description via PiiRedactor.redactMerchant — returns
+ * a length-tagged hint like '<merchant:14>' that preserves grapheme count
+ * without revealing the merchant identity.
  * @param desc - The full transaction description.
  * @returns The masked description.
  */
 export function maskDesc(desc: string): string {
-  if (!desc) return '***';
-  return desc.slice(0, DESC_PREVIEW_LENGTH) + '***';
+  if (!desc) return '<merchant:0>';
+  return redactMerchant(desc);
 }
 
 /**

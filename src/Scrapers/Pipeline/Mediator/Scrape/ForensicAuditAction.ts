@@ -5,6 +5,7 @@
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
+import { redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -24,8 +25,6 @@ type CurrencyCode = string;
 type TxnDescStr = string;
 /** Show last N digits of account number for identification. */
 const ACCOUNT_VISIBLE_DIGITS = 5;
-/** Max description chars in preview. */
-const DESC_PREVIEW_LENGTH = 25;
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
   readonly accountNumber: AccountNum;
@@ -58,17 +57,19 @@ function showLastDigits(acctNum: string): AccountNum {
 }
 
 /**
- * Truncate description for preview.
- * @param desc - Full description.
- * @returns Truncated string.
+ * PiiRedactor route for the merchant description (length-tag preserved).
+ * @param desc - Raw transaction description.
+ * @returns Length-tagged stable hint.
  */
-function truncateDesc(desc: TxnDescStr): TxnDescStr {
-  if (desc.length <= DESC_PREVIEW_LENGTH) return desc;
-  return `${desc.slice(0, DESC_PREVIEW_LENGTH)}..`;
+function redactDesc(desc: TxnDescStr): TxnDescStr {
+  if (!desc) return '<merchant:0>';
+  return redactMerchant(desc);
 }
 
 /**
- * Format one transaction line for debug preview.
+ * Format one transaction line for debug preview. Amount and description
+ * are routed through PiiRedactor strategies so the audit line contains
+ * only stable hints (sign of amount, length tag of merchant).
  * @param txn - Transaction record.
  * @returns Formatted string: date | amount currency | description.
  */
@@ -79,9 +80,9 @@ function formatTxnLine(txn: IAuditAccount['txns'][number]): TxnDescStr {
   const hasDate = Boolean(txn.date);
   const date = dateMap[String(hasDate)];
   const rawAmt = txn.chargedAmount ?? txn.originalAmount ?? 0;
-  const amt = String(rawAmt);
+  const amt = redactAmount(rawAmt);
   const cur = txn.originalCurrency ?? 'ILS';
-  const desc = truncateDesc(txn.description ?? '');
+  const desc = redactDesc(txn.description ?? '');
   return `  ${date.padEnd(12)} ${amt.padStart(10)} ${cur.padEnd(4)} ${desc}`;
 }
 

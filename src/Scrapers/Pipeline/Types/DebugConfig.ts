@@ -19,7 +19,10 @@ export const WL_SENSITIVE_KEYS = new Set([
   'queryIdentifier',
 ]);
 
-/** JSON paths to redact from pino log output. */
+/** JSON paths to redact from pino log output (single source of truth =
+ *  PiiRedactor.ts; this list is the Pino-side allow-list of paths to
+ *  invoke the censor on). When an unknown path tail reaches the censor
+ *  via wildcard, the redactor's default-deny rule applies. */
 export const SENSITIVE_PATHS = [
   // Credentials
   'password',
@@ -50,6 +53,41 @@ export const SENSITIVE_PATHS = [
   'balance',
   'chargedAmount',
   'originalAmount',
+  'eventAmount',
+  // Names — redacted to '<name:N>' length tag
+  'firstName',
+  'lastName',
+  'fullName',
+  'customerName',
+  'name',
+  // Israeli national ID
+  'israeliId',
+  'MisparZihuy',
+  // Phone numbers — redacted to '***<last4>'
+  'phone',
+  'phoneNumber',
+  'mobile',
+  'email',
+  // Transaction merchant / description — redacted to '<merchant:N>'
+  'description',
+  'merchant',
+  'payee',
+  // Long-term auth context (otpLongTermToken + assertion ids) — fully redacted
+  'otpLongTermToken',
+  'idToken',
+  'otpToken',
+  'smsAssertionId',
+  'pwdAssertionId',
+  'otpContext',
+  'deviceToken',
+  'sessionId',
+  'deviceId',
+  'challenge',
+  'Sisma',
+  // Cookies / session tokens
+  'cookie',
+  'cookies',
+  'setCookie',
 ];
 
 /** Field names whose values are monetary amounts (masked to sign-only in logs). */

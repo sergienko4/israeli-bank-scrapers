@@ -17,6 +17,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import { redactHtml, redactJsonBody } from './PiiRedactor.js';
 import type { IPipelineContext } from './PipelineContext.js';
 
 /** Diagnostic screenshot label. */
@@ -179,7 +180,8 @@ export async function collectIframeSnapshots(page: Page): Promise<readonly IIfra
 export function writeIframeSnapshot(args: IWriteIframeArgs): Promise<void> {
   const idxStr = String(args.snap.idx);
   const filePath = `${args.outer.bankDir}/${args.outer.label}-iframe-${idxStr}.html`;
-  return args.fs.writeFile(filePath, args.snap.html, 'utf8');
+  const safeHtml = redactHtml(args.snap.html);
+  return args.fs.writeFile(filePath, safeHtml, 'utf8');
 }
 
 /** Per-iframe metadata row written to <label>.frames.json. */
@@ -224,8 +226,9 @@ async function writeFrameMetadata(
     ),
   };
   const metaPath = `${args.bankDir}/${args.label}.frames.json`;
-  const json = JSON.stringify(meta, null, 2);
-  await fs.writeFile(metaPath, json, 'utf8');
+  const json = JSON.stringify(meta);
+  const safeJson = redactJsonBody(json);
+  await fs.writeFile(metaPath, safeJson, 'utf8');
 }
 
 /**
@@ -265,7 +268,8 @@ export async function writeFrameHtml(args: IWriteFrameArgs): Promise<true> {
   const fs = await import('node:fs/promises');
   await fs.mkdir(args.bankDir, { recursive: true });
   const mainHtml = await args.page.content();
-  await fs.writeFile(`${args.bankDir}/${args.label}.html`, mainHtml, 'utf8');
+  const safeMainHtml = redactHtml(mainHtml);
+  await fs.writeFile(`${args.bankDir}/${args.label}.html`, safeMainHtml, 'utf8');
   args.input.logger.debug({ message: `fixture: ${args.bankDir}/${args.label}.html` });
   const iframesWritten = await maybeWalkFrames(fs, args);
   args.input.logger.debug({ message: `iframes: ${String(iframesWritten)}` });

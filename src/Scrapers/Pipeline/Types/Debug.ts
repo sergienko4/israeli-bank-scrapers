@@ -3,21 +3,14 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import pino, { type Logger } from 'pino';
 
 import { getActivePhase, getActiveStage } from './ActiveState.js';
-import { AMOUNT_KEYS, PII_LABEL, SENSITIVE_PATHS, WL_SENSITIVE_KEYS } from './DebugConfig.js';
+import { SENSITIVE_PATHS } from './DebugConfig.js';
+import { createCensorFn } from './PiiRedactor.js';
 import { getLogFile } from './TraceConfig.js';
 
 /** Bank identifier string. */
 type BankName = string;
-/** Sensitive value at a PII-redacted JSON path. */
-type SensitiveValue = string | number;
-/** JSON path segment in pino redaction. */
-type PathSegment = string;
-/** PII-masked output value. */
-type MaskedValue = string;
 /** Logger namespace identifier. */
 type LoggerName = string;
-/** Numeric amount for sign-based masking. */
-type AmountValue = number;
 
 /** Bank context shape for async-local storage. */
 interface IBankContext {
@@ -37,52 +30,8 @@ function createBankStore(): AsyncLocalStorage<IBankContext> {
 /** Async-local store for per-request bank context injected into every log line. */
 const BANK_CONTEXT = createBankStore();
 
-/** Maximum value length that bypasses PII masking (preserves last4Digits, displayId). */
-const MAX_DISPLAY_LENGTH = 4;
-
-/** Censor input — value at a redacted JSON path, typed for pino's censor callback. */
-interface ICensorInput {
-  readonly value: SensitiveValue;
-  readonly key: PathSegment;
-}
-
-/**
- * Parse censor arguments from pino's redact callback.
- * @param value - The value at the sensitive path (string or number).
- * @param path - The JSON path segments leading to this value.
- * @returns Typed censor input.
- */
-function parseCensorArgs(value: SensitiveValue, path: PathSegment[]): ICensorInput {
-  const key = path.at(-1);
-  if (key === undefined) return { value, key: String() };
-  return { value, key };
-}
-
-/**
- * Format the censored amount sign indicator.
- * @param value - The numeric amount value.
- * @returns '+***' for positive, '-***' for negative/zero.
- */
-function censorAmount(value: AmountValue): MaskedValue {
-  if (value > 0) return '+***';
-  return '-***';
-}
-
-/**
- * Redact sensitive values from log output based on the JSON path.
- * Typed to match pino's redact censor callback signature.
- * @param value - The value at the sensitive path.
- * @param path - The JSON path segments leading to this value.
- * @returns A censored string replacement.
- */
-function censor(value: SensitiveValue, path: PathSegment[]): MaskedValue {
-  const input = parseCensorArgs(value, path);
-  const strValue = String(input.value);
-  if (WL_SENSITIVE_KEYS.has(input.key) && strValue.length > MAX_DISPLAY_LENGTH) return PII_LABEL;
-  if (input.key === 'accountNumber') return '****' + strValue.slice(-4);
-  if (AMOUNT_KEYS.has(input.key)) return censorAmount(input.value as number);
-  return '[REDACTED]';
-}
+/** Single source of truth censor — built from PiiRedactor strategies. */
+const CENSOR = createCensorFn();
 
 /**
  * Inject bank context from AsyncLocalStorage into every log line.
@@ -148,7 +97,7 @@ function getRootLogger(): Logger {
     ...(transport && { transport }),
     redact: {
       paths: SENSITIVE_PATHS,
-      censor: censor as unknown as PinoCensorFn,
+      censor: CENSOR as unknown as PinoCensorFn,
     },
     mixin: getBankMixin,
   });

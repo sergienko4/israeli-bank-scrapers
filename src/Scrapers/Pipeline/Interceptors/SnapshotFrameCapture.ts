@@ -18,6 +18,8 @@ import * as path from 'node:path';
 
 import type { Frame, Page } from 'playwright-core';
 
+import { redactHtml } from '../Types/PiiRedactor.js';
+
 /** Bank identifier — key for per-company frame directories. */
 type CompanyId = string;
 /** Fully-qualified frame URL. */
@@ -112,7 +114,8 @@ async function waitForFrameRender(frame: Frame): Promise<true> {
  */
 function tryWriteFrame(file: FramePath, html: FrameHtml): WriteResult {
   try {
-    fs.writeFileSync(file, html, 'utf8');
+    const safeHtml = redactHtml(html);
+    fs.writeFileSync(file, safeHtml, 'utf8');
     return true;
   } catch {
     return false;
