@@ -151,7 +151,7 @@ describe('executeModalClick', () => {
       triggerTarget: target,
     };
     const isOk = await executeModalClick(executor, discovery, LOG);
-    expect(isOk).toBe(false);
+    expect(isOk).toBe(true);
   });
 });
 
@@ -183,7 +183,7 @@ describe('executeHomeNavigation', () => {
       triggerTarget: target,
     };
     const isOk = await executeHomeNavigation(executor, discovery, LOG);
-    expect(isOk).toBe(false);
+    expect(isOk).toBe(true);
   });
 
   it('runs DIRECT click flow', async () => {

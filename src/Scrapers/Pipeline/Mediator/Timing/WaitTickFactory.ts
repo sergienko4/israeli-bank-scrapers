@@ -5,11 +5,6 @@
 
 import { createPromise, createTimeoutError } from './TimingActions.js';
 
-/** Timeout/delay in milliseconds. */
-type DelayMs = number;
-/** Whether an async operation completed. */
-type OpDone = boolean;
-
 /** Callbacks for the wait-tick polling loop. */
 interface IWaitCallbacks<T> {
   /** Called when the async test resolves with a truthy value. */
@@ -25,7 +20,7 @@ interface IWaitCallbacks<T> {
  * @param nextFn - Schedules the next polling iteration.
  * @returns True after handling.
  */
-function handlePollResult<T>(value: T, cbs: IWaitCallbacks<T>, nextFn: () => boolean): OpDone {
+function handlePollResult<T>(value: T, cbs: IWaitCallbacks<T>, nextFn: () => boolean): boolean {
   if (value) return cbs.resolve(value);
   return nextFn();
 }
@@ -36,7 +31,7 @@ function handlePollResult<T>(value: T, cbs: IWaitCallbacks<T>, nextFn: () => boo
  * @param interval - Delay in ms.
  * @returns True after scheduling.
  */
-function scheduleNext(wait: () => OpDone, interval: DelayMs): OpDone {
+function scheduleNext(wait: () => boolean, interval: number): boolean {
   globalThis.setTimeout(wait, interval);
   return true;
 }
@@ -44,14 +39,14 @@ function scheduleNext(wait: () => OpDone, interval: DelayMs): OpDone {
 /** Bundled args for creating a wait-tick. */
 interface ITickArgs<T> {
   readonly asyncTest: () => Promise<T>;
-  readonly interval: DelayMs;
+  readonly interval: number;
   readonly cbs: IWaitCallbacks<T>;
 }
 
 /** Self-reference holder for recursive scheduling. */
 interface ISelfRef {
   /** The poll function reference. */
-  fn: () => OpDone;
+  fn: () => boolean;
 }
 
 /**
@@ -60,16 +55,16 @@ interface ISelfRef {
  * @param self - Self-reference holder for recursive scheduling.
  * @returns True after dispatching.
  */
-function runOnePoll<T>(args: ITickArgs<T>, self: ISelfRef): OpDone {
+function runOnePoll<T>(args: ITickArgs<T>, self: ISelfRef): boolean {
   /**
    * Schedule the next tick iteration.
    * @returns True after scheduling next tick.
    */
-  const next = (): OpDone => scheduleNext(self.fn, args.interval);
+  const next = (): boolean => scheduleNext(self.fn, args.interval);
   args
     .asyncTest()
-    .then((v): OpDone => handlePollResult(v, args.cbs, next))
-    .catch((): OpDone => args.cbs.reject());
+    .then((v): boolean => handlePollResult(v, args.cbs, next))
+    .catch((): boolean => args.cbs.reject());
   return true;
 }
 
@@ -78,41 +73,41 @@ function runOnePoll<T>(args: ITickArgs<T>, self: ISelfRef): OpDone {
  * @param args - Bundled tick arguments.
  * @returns A function that runs one poll cycle.
  */
-function createTickFn<T>(args: ITickArgs<T>): () => OpDone {
+function createTickFn<T>(args: ITickArgs<T>): () => boolean {
   /**
    * No-op placeholder.
    * @returns True.
    */
-  const noop = (): OpDone => true;
+  const noop = (): boolean => true;
   const holder: ISelfRef = { fn: noop };
   const poll = runOnePoll;
   /**
    * Actual poll function bound to args.
    * @returns True after poll dispatched.
    */
-  holder.fn = (): OpDone => poll(args, holder);
+  holder.fn = (): boolean => poll(args, holder);
   return holder.fn;
 }
 
 /**
  * Wrap a resolve callback with typed return.
  * @param resolve - Raw resolve callback.
- * @returns Wrapped resolve returning OpDone.
+ * @returns Wrapped resolve returning boolean.
  */
 function wrapResolve<T>(
   resolve: (value: NonNullable<T>) => boolean,
-): (v: NonNullable<T>) => OpDone {
-  return (v: NonNullable<T>): OpDone => resolve(v);
+): (v: NonNullable<T>) => boolean {
+  return (v: NonNullable<T>): boolean => resolve(v);
 }
 
 /**
  * Wrap a reject callback with a timeout error.
  * @param reject - Raw reject callback.
- * @returns Wrapped reject returning OpDone.
+ * @returns Wrapped reject returning boolean.
  */
-function wrapReject(reject: (reason: Error) => boolean): () => OpDone {
+function wrapReject(reject: (reason: Error) => boolean): () => boolean {
   const pollingError = createTimeoutError('waitUntil polling rejected');
-  return (): OpDone => reject(pollingError);
+  return (): boolean => reject(pollingError);
 }
 
 /**
@@ -136,9 +131,9 @@ function buildWaitCallbacks<T>(
  */
 function buildWaitPromise<T>(
   asyncTest: () => Promise<T>,
-  interval: DelayMs,
+  interval: number,
 ): Promise<NonNullable<T>> {
-  return createPromise<NonNullable<T>>((resolve, reject): OpDone => {
+  return createPromise<NonNullable<T>>((resolve, reject): boolean => {
     const cbs = buildWaitCallbacks<T>(resolve, reject);
     const tick = createTickFn({ asyncTest, interval, cbs });
     tick();

@@ -18,24 +18,8 @@ import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe.js';
-import {
-  type DiagnosticLabel,
-  OTP_FALLBACK,
-  type PhoneHint,
-  readDiagString,
-  readDiagTarget,
-  unwrapProbe,
-} from '../Otp/OtpShared.js';
+import { OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import { createPromise } from '../Timing/TimingActions.js';
-
-/** Whether an OTP form was detected. */
-type OtpDetected = boolean;
-/** OTP code received from consumer callback. */
-type OtpCode = string;
-/** Cookie count. */
-type CookieCount = number;
-/** Body text from frame evaluation. */
-type BodyText = string;
 
 /** Timeout for OTP submit settle. */
 const OTP_SETTLE_TIMEOUT = 10000;
@@ -43,9 +27,6 @@ const OTP_SETTLE_TIMEOUT = 10000;
 const RETRIEVER_SETTLE_MS = 500;
 /** Default OTP timeout (ms) — 3 minutes. */
 const DEFAULT_OTP_TIMEOUT_MS = 180_000;
-/** Timeout error message. */
-type TimeoutMsg = string;
-
 /** Full masked phone pattern (e.g. *****1234 or ******0). */
 const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
 /** Last 1-4 digits extractor. */
@@ -60,11 +41,11 @@ const PHONE_LAST_DIGITS = /(\d{1,4})$/;
  * @returns Last 3-4 digits or empty.
  */
 async function extractHintFromFrame(frame: {
-  evaluate: (fn: () => BodyText) => Promise<BodyText>;
-}): Promise<PhoneHint> {
+  evaluate: (fn: () => string) => Promise<string>;
+}): Promise<string> {
   const bodyText = await frame
-    .evaluate((): BodyText => document.body.innerText)
-    .catch((): BodyText => '');
+    .evaluate((): string => document.body.innerText)
+    .catch((): string => '');
   const fullMatch = PHONE_HINT_PATTERN.exec(bodyText);
   if (!fullMatch) return '';
   const digits = PHONE_LAST_DIGITS.exec(fullMatch[0]);
@@ -80,11 +61,11 @@ async function extractHintFromFrame(frame: {
  * @returns First non-empty hint.
  */
 function reduceHint(
-  acc: Promise<PhoneHint>,
-  frame: { evaluate: (fn: () => BodyText) => Promise<BodyText> },
-): Promise<PhoneHint> {
-  return acc.then((found): Promise<PhoneHint> => {
-    if (found) return Promise.resolve(found);
+  acc: Promise<string>,
+  frame: { evaluate: (fn: () => string) => Promise<string> },
+): Promise<string> {
+  return acc.then(async (found): Promise<string> => {
+    if (found) return found;
     return extractHintFromFrame(frame);
   });
 }
@@ -94,12 +75,12 @@ function reduceHint(
  * @param input - Pipeline context with browser.
  * @returns Last 3-4 digits or empty.
  */
-async function extractDeepPhoneHint(input: IPipelineContext): Promise<PhoneHint> {
+async function extractDeepPhoneHint(input: IPipelineContext): Promise<string> {
   if (!input.browser.has) return '';
   const page = input.browser.value.page;
   const frames = [...page.frames()];
-  const seed: Promise<PhoneHint> = Promise.resolve('');
-  return frames.reduce((acc, f): Promise<PhoneHint> => reduceHint(acc, f), seed);
+  const seed: Promise<string> = Promise.resolve('');
+  return frames.reduce((acc, f): Promise<string> => reduceHint(acc, f), seed);
 }
 
 // ── PRE: Discover Code Input + Submit (Rule #20) ──────────────────
@@ -110,7 +91,7 @@ async function extractDeepPhoneHint(input: IPipelineContext): Promise<PhoneHint>
  * @param mediator - Element mediator.
  * @returns True if dashboard markers are currently visible.
  */
-async function isDashboardAlreadyVisible(mediator: IElementMediator): Promise<OtpDetected> {
+async function isDashboardAlreadyVisible(mediator: IElementMediator): Promise<boolean> {
   const reveal = await probeDashboardReveal(mediator);
   return reveal !== 'no reveal';
 }
@@ -205,8 +186,8 @@ async function executeFillPre(
   const submitResult = unwrapProbe(submitProbe);
   traceResolution(input.logger, 'OTP_FILL.PRE submit', submitResult);
   const submitTarget = raceResultToTarget(submitResult, page);
-  const hasInput: OtpDetected = inputResult.found;
-  const hasSubmit: OtpDetected = submitResult.found;
+  const hasInput: boolean = inputResult.found;
+  const hasSubmit: boolean = submitResult.found;
   if (!hasInput) return handleMissingOtpInput(input, required);
   const phoneHint = await extractDeepPhoneHint(input);
   const hintLabel = maskVisibleText(phoneHint);
@@ -226,7 +207,7 @@ async function executeFillPre(
 // ── OTP Timeout Watchdog ──────────────────────────────────────────
 
 /** Sentinel for timeout — distinguishes from empty string code. */
-const OTP_TIMED_OUT: TimeoutMsg = '__OTP_TIMEOUT__';
+const OTP_TIMED_OUT = '__OTP_TIMEOUT__';
 
 /**
  * Race the OTP retriever against a timeout.
@@ -236,10 +217,10 @@ const OTP_TIMED_OUT: TimeoutMsg = '__OTP_TIMEOUT__';
  * @returns The OTP code, or false if timed out.
  */
 async function raceRetrieverWithTimeout(
-  retriever: (hint: PhoneHint) => Promise<OtpCode>,
-  hint: PhoneHint,
+  retriever: (hint: string) => Promise<string>,
+  hint: string,
   timeoutMs: number,
-): Promise<OtpCode | false> {
+): Promise<string | false> {
   const timer = createTimeoutPromise(timeoutMs);
   const result = await Promise.race([retriever(hint), timer]);
   if (result === OTP_TIMED_OUT) return false;
@@ -251,8 +232,8 @@ async function raceRetrieverWithTimeout(
  * @param ms - Timeout duration.
  * @returns Promise that resolves to OTP_TIMED_OUT.
  */
-function createTimeoutPromise(ms: number): Promise<TimeoutMsg> {
-  return createPromise<TimeoutMsg>((resolve): true => {
+function createTimeoutPromise(ms: number): Promise<string> {
+  return createPromise<string>((resolve): true => {
     globalThis.setTimeout((): true => {
       resolve(OTP_TIMED_OUT);
       return true;
@@ -285,7 +266,7 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
     );
   }
   const executor = input.executor.value;
-  const hint: PhoneHint = readDiagString(input.diagnostics, 'otpPhoneHint');
+  const hint: string = readDiagString(input.diagnostics, 'otpPhoneHint');
   input.logger.flush();
   await executor.waitForNetworkIdle(RETRIEVER_SETTLE_MS).catch((): false => false);
   const timeoutMs = input.options.otpTimeoutMs ?? DEFAULT_OTP_TIMEOUT_MS;
@@ -372,7 +353,7 @@ async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPip
  * @param mediator - Element mediator.
  * @returns Cookie count.
  */
-async function countCookies(mediator: IElementMediator): Promise<CookieCount> {
+async function countCookies(mediator: IElementMediator): Promise<number> {
   const cookies = await mediator.getCookies();
   return cookies.length;
 }
@@ -383,10 +364,7 @@ async function countCookies(mediator: IElementMediator): Promise<CookieCount> {
  * @param action - Diagnostic label.
  * @returns Updated context.
  */
-function succeedWithDiag(
-  input: IPipelineContext,
-  action: DiagnosticLabel,
-): Procedure<IPipelineContext> {
+function succeedWithDiag(input: IPipelineContext, action: string): Procedure<IPipelineContext> {
   const diag = { ...input.diagnostics, lastAction: action };
   return succeed({ ...input, diagnostics: diag });
 }

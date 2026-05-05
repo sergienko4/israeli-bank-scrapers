@@ -16,7 +16,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { IApiMediator } from './ApiMediator.js';
-import type { AuthorizationHeaderValue, ITokenResolver } from './ITokenResolver.js';
+import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
 
 /** Closure-only deps packed by the builder — never exported. */
@@ -33,9 +33,7 @@ interface IBuilderDeps<TCreds> {
  * @param deps - Closure deps bag.
  * @returns Header-value procedure.
  */
-async function runFresh<TCreds>(
-  deps: IBuilderDeps<TCreds>,
-): Promise<Procedure<AuthorizationHeaderValue>> {
+async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<string>> {
   return deps.strategy.primeFresh(deps.bus, deps.ctx, deps.creds);
 }
 
@@ -47,9 +45,7 @@ async function runFresh<TCreds>(
  * @param deps - Closure deps bag.
  * @returns Header-value procedure.
  */
-async function runInitial<TCreds>(
-  deps: IBuilderDeps<TCreds>,
-): Promise<Procedure<AuthorizationHeaderValue>> {
+async function runInitial<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<string>> {
   const first = await deps.strategy.primeInitial(deps.bus, deps.ctx, deps.creds);
   if (isOk(first)) return first;
   const hasWarm = deps.strategy.hasWarmState(deps.creds);
@@ -81,14 +77,14 @@ function buildResolverFromStrategy<TCreds>(args: IBuildResolverArgs<TCreds>): IT
    * Bound resolve — runs the prime ladder.
    * @returns Header-value procedure.
    */
-  function boundResolve(): Promise<Procedure<AuthorizationHeaderValue>> {
+  function boundResolve(): Promise<Procedure<string>> {
     return runInitial(deps);
   }
   /**
    * Bound refresh — runs the fresh path directly.
    * @returns Header-value procedure.
    */
-  function boundRefresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+  function boundRefresh(): Promise<Procedure<string>> {
     return runFresh(deps);
   }
   return { name: args.strategy.name, resolve: boundResolve, refresh: boundRefresh };

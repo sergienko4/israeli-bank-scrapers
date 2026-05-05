@@ -23,21 +23,17 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
 
-/** Whether the page loaded with a valid status. */
-type PageValid = boolean;
-/** Browser page title string. */
-type PageTitle = string;
-
 /**
  * Cold-Start protocol — when DUMP_SNAPSHOTS=1, strip every cookie so
  * device-remembered banks (Hapoalim) present the full OTP challenge.
  * Needed to capture a high-fidelity otp-fill.html with PIN inputs visible.
  * @param context - Browser context to sanitise.
- * @returns Always true (side-effect only).
+ * @returns True when DUMP_SNAPSHOTS was active and cookies were cleared,
+ * false when the dump flag was off and the call was a no-op.
  */
-async function coldStartIfDumping(context: BrowserContext): Promise<true> {
+async function coldStartIfDumping(context: BrowserContext): Promise<boolean> {
   const isDumping = process.env.DUMP_SNAPSHOTS === '1' || process.env.DUMP_SNAPSHOTS === 'true';
-  if (!isDumping) return true;
+  if (!isDumping) return false;
   await context.clearCookies().catch((): false => false);
   return true;
 }
@@ -103,9 +99,9 @@ async function executeValidatePage(input: IPipelineContext): Promise<Procedure<I
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT POST: no browser');
   const page = input.browser.value.page;
   const currentUrl = page.url();
-  const emptyTitle: PageTitle = '';
-  const title = await page.title().catch((): PageTitle => emptyTitle);
-  const isValid: PageValid = currentUrl !== 'about:blank';
+  const emptyTitle = '';
+  const title = await page.title().catch((): string => emptyTitle);
+  const isValid = currentUrl !== 'about:blank';
   input.logger.debug({
     url: maskVisibleText(currentUrl),
     title: maskVisibleText(title),

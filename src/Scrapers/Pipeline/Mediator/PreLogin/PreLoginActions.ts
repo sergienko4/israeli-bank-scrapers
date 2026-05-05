@@ -103,36 +103,56 @@ async function validateFormGatePost(mediator: IElementMediator): Promise<boolean
   return result.found;
 }
 
-/** Timeout in milliseconds for navigation waits. */
-type NavTimeoutMs = number;
-
 /** Bundled args for private-customers reveal click. */
 interface IRevealClickArgs {
   readonly mediator: IElementMediator;
   readonly browserPage: Page;
-  readonly navTimeout: NavTimeoutMs;
+  readonly navTimeout: number;
   readonly logger: ScraperLogger;
 }
 
 /**
  * Click a WK_PRELOGIN.REVEAL element, then wait for password field.
+ * Logs the outcome of each branch and returns the original click
+ * Procedure verbatim so the caller can read both success and the
+ * inner `found` flag.
  * @param args - Bundled reveal click arguments.
  * @returns Procedure with IRaceResult.
  */
 async function tryClickPrivateCustomers(args: IRevealClickArgs): Promise<Procedure<IRaceResult>> {
   const { mediator, browserPage, navTimeout, logger } = args;
   const clickResult = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL);
+  await diagnoseRevealClick({ clickResult, mediator, browserPage, navTimeout, logger });
+  return clickResult;
+}
+
+/** Bundled args for diagnoseRevealClick — fits the 3-param ceiling. */
+interface IDiagnoseArgs {
+  readonly clickResult: Procedure<IRaceResult>;
+  readonly mediator: IElementMediator;
+  readonly browserPage: Page;
+  readonly navTimeout: number;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Log the reveal-click outcome and run the post-click form-gate wait
+ * when the click landed on a real candidate. Pure side-effect — the
+ * caller still returns the original click Procedure verbatim.
+ * @param args - Bundled diagnostic arguments.
+ * @returns True when the post-click wait actually executed, false when
+ * the click failed or no candidate was found and only the diagnostic
+ * log line was emitted.
+ */
+async function diagnoseRevealClick(args: IDiagnoseArgs): Promise<boolean> {
+  const { clickResult, mediator, browserPage, navTimeout, logger } = args;
   if (!clickResult.success) {
-    logger.debug({
-      message: 'reveal click: FAIL',
-    });
-    return clickResult;
+    logger.debug({ message: 'reveal click: FAIL' });
+    return false;
   }
   if (!clickResult.value.found) {
-    logger.debug({
-      message: 'reveal click: NOT FOUND',
-    });
-    return clickResult;
+    logger.debug({ message: 'reveal click: NOT FOUND' });
+    return false;
   }
   const label = clickResult.value.value;
   logger.debug({ text: maskVisibleText(label), formGate: false });
@@ -140,7 +160,7 @@ async function tryClickPrivateCustomers(args: IRevealClickArgs): Promise<Procedu
   await browserPage.waitForURL('**/login**', navOpts).catch((): false => false);
   const hasForm = await waitForFormGate(mediator);
   logger.debug({ text: maskVisibleText(label), formGate: hasForm });
-  return clickResult;
+  return true;
 }
 
 /**

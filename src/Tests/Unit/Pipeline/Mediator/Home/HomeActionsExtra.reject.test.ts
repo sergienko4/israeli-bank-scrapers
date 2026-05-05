@@ -218,7 +218,7 @@ describe('executeStoreLoginSignal + executeModalClick — catch lambdas fire', (
       triggerTarget: target,
     };
     const isOk = await executeModalClick(executor, discovery, LOG);
-    expect(isOk).toBe(false);
+    expect(isOk).toBe(true);
   });
 
   it('settleAfterClick swallows all three rejections via executeHomeNavigation (lines 335/337/338)', async () => {

@@ -12,12 +12,9 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from './ApiMediator.js';
 
-/** Presence flag for an Option-like mediator slot. */
-type SlotPresent = boolean;
-
 /** Option-like shape for a mediator slot (present or absent). */
 interface IMediatorSlot {
-  readonly has?: SlotPresent;
+  readonly has?: boolean;
   readonly value?: IApiMediator;
 }
 

@@ -37,10 +37,6 @@ import {
 } from './DashboardDiscovery.js';
 import checkChangePassword, { extractAuthFromContext } from './DashboardProbe.js';
 
-/** Human-readable match summary. */
-type MatchInfo = string;
-/** Dashboard target URL or clickable text for SPA links. */
-type TargetUrl = string;
 /** Timeout for SPA transaction link probe (15s for Angular SPAs). */
 const TRIGGER_PROBE_TIMEOUT = 15000;
 /** Timeout for menu settle after toggle click. */
@@ -56,27 +52,27 @@ const shouldForceMenuClick = true;
  * @param targets - Resolved targets.
  * @returns Description of the winning target.
  */
-function logWinningTarget(input: IPipelineContext, targets: IDashboardTargets): MatchInfo {
+function logWinningTarget(input: IPipelineContext, targets: IDashboardTargets): string {
   if (targets.clickTarget) {
     const t = targets.clickTarget;
     const n = String(targets.clickCandidateCount);
     const head = `WINNER: ${t.kind}="${t.candidateValue}" @ ${t.contextId}`;
-    const label: MatchInfo = `${head} (x${n} DOM matches)`;
+    const label = `${head} (x${n} DOM matches)`;
     input.logger.debug({ message: label });
     return label;
   }
   if (targets.menuTarget) {
     const m = targets.menuTarget;
-    const label: MatchInfo = `WINNER (menu): ${m.kind}="${m.candidateValue}" @ ${m.contextId}`;
+    const label = `WINNER (menu): ${m.kind}="${m.candidateValue}" @ ${m.contextId}`;
     input.logger.debug({ message: label });
     return label;
   }
   if (targets.hrefTarget) {
-    const label: MatchInfo = `WINNER (href): ${maskVisibleText(targets.hrefTarget)}`;
+    const label = `WINNER (href): ${maskVisibleText(targets.hrefTarget)}`;
     input.logger.debug({ message: label });
     return label;
   }
-  const label: MatchInfo = 'WINNER: NONE — no target resolved';
+  const label = 'WINNER: NONE — no target resolved';
   input.logger.debug({ message: label });
   return label;
 }
@@ -86,17 +82,10 @@ function logWinningTarget(input: IPipelineContext, targets: IDashboardTargets): 
  *  legacy + modern button case needs only 2; cap of 5 leaves headroom. */
 const DASHBOARD_MAX_CANDIDATES = 5;
 
-/** Number of DOM matches for the race-winning selector — semantic alias
- *  over `number` to satisfy Rule #15 (no primitive returns). */
-type CandidateCount = number;
-/** "Did the post-click URL match a transactions-page pattern?" — semantic
- *  alias over `boolean` to satisfy Rule #15. */
-type IsTxnPage = boolean;
-
 /** Resolved dashboard targets from PRE -- main trigger + optional menu toggle. */
 interface IDashboardTargets {
   /** URL target (from href extraction). */
-  readonly hrefTarget: TargetUrl;
+  readonly hrefTarget: string;
   /** Pre-resolved click target (winner of resolveVisible race) — IDENTITY-based
    *  selector that uniquely targets the winning element (HEAD behaviour).
    *  ACTION clicks this FIRST (no nth) so non-ambiguous banks (Isracard,
@@ -105,7 +94,7 @@ interface IDashboardTargets {
   /** Generic-selector fallback string + DOM count, used by ACTION ONLY when
    *  the identity click yields no success signal (Beinleumi pm.mataf vs
    *  pm.q077 case: same aria-label, different element). */
-  readonly fallbackSelector: TargetUrl;
+  readonly fallbackSelector: string;
   /** Number of DOM matches for `fallbackSelector` in the winning frame.
    *  ≥1 when clickTarget set; 0 otherwise. ACTION iterates `.nth(0..count-1)`
    *  of fallbackSelector when identity click failed. */
@@ -163,11 +152,11 @@ async function resolveDashboardTargets(
   // pm.mataf vs pm.q077: same aria-label but different elements).
   const genericSelector = candidateToSelector(txnResult.candidate);
   const ctx = txnResult.context;
-  const fallbackCount: CandidateCount = 1;
+  const fallbackCount = 1;
   const rawCount = await ctx
     .locator(genericSelector)
     .count()
-    .catch((): CandidateCount => fallbackCount);
+    .catch((): number => fallbackCount);
   const count = Math.min(rawCount, DASHBOARD_MAX_CANDIDATES);
   return {
     hrefTarget: NO_HREF,
@@ -178,10 +167,6 @@ async function resolveDashboardTargets(
   };
 }
 
-/** Whether at least one candidate is present in the DOM. */
-type IsCandidatePresent = boolean;
-/** DOM count for one candidate (Promise.all entry). */
-type CandCount = number;
 /** Main-frame context identifier — matches FrameRegistry.MAIN_CONTEXT_ID. */
 const MAIN_CONTEXT_ID = 'main';
 /**
@@ -202,7 +187,7 @@ const DROPDOWN_TOGGLE_ARIA_FILTER = '[dropdowntoggle]';
  * @param value - Exact-text value to count.
  * @returns DOM match count (0 on error).
  */
-async function safeProbeExactTextCount(page: Page, value: string): Promise<CandCount> {
+async function safeProbeExactTextCount(page: Page, value: string): Promise<number> {
   try {
     return await page.getByText(value, { exact: true }).count();
   } catch {
@@ -227,12 +212,12 @@ async function findFirstChildInDom(
   page: Page,
   candidates: readonly SelectorCandidate[],
 ): Promise<SelectorCandidate | false> {
-  const probes = candidates.map((c): Promise<CandCount> => {
+  const probes = candidates.map((c): Promise<number> => {
     if (c.kind !== 'exactText') return Promise.resolve(0);
     return safeProbeExactTextCount(page, c.value);
   });
   const counts = await Promise.all(probes);
-  const idx = counts.findIndex((n): IsCandidatePresent => n >= 1);
+  const idx = counts.findIndex((n): boolean => n >= 1);
   if (idx < 0) return false;
   return candidates[idx];
 }
@@ -245,7 +230,7 @@ async function findFirstChildInDom(
  * @param value - hasText value to filter by.
  * @returns DOM match count (0 on error).
  */
-async function safeProbeDropdownToggleCount(page: Page, value: string): Promise<CandCount> {
+async function safeProbeDropdownToggleCount(page: Page, value: string): Promise<number> {
   try {
     return await page.locator(DROPDOWN_TOGGLE_ARIA_FILTER).filter({ hasText: value }).count();
   } catch {
@@ -270,18 +255,15 @@ async function findDropdownToggleCandidate(
   page: Page,
   candidates: readonly SelectorCandidate[],
 ): Promise<SelectorCandidate | false> {
-  const probes = candidates.map((c): Promise<CandCount> => {
+  const probes = candidates.map((c): Promise<number> => {
     if (c.kind !== 'textContent' && c.kind !== 'exactText') return Promise.resolve(0);
     return safeProbeDropdownToggleCount(page, c.value);
   });
   const counts = await Promise.all(probes);
-  const idx = counts.findIndex((n): IsCandidatePresent => n === 1);
+  const idx = counts.indexOf(1);
   if (idx < 0) return false;
   return candidates[idx];
 }
-
-/** Composed Playwright selector targeting Max's dropdown-toggle. */
-type DropdownToggleSelector = string;
 
 /**
  * Build a selector that targets the dropdown-toggle uniquely:
@@ -290,7 +272,7 @@ type DropdownToggleSelector = string;
  * @param value - Visible text of the dropdown-toggle.
  * @returns Playwright-compatible selector string.
  */
-function buildDropdownToggleSelector(value: string): DropdownToggleSelector {
+function buildDropdownToggleSelector(value: string): string {
   return DROPDOWN_TOGGLE_ARIA_FILTER + ':has-text("' + value + '")';
 }
 
@@ -389,10 +371,11 @@ async function buildApiIfAvailable(
  * Dump all visible clickable text on the page for WK forensic discovery.
  * Used when no target found -- logs text so we can add correct WK candidates.
  * @param input - Pipeline context with browser.
- * @returns True after logging.
+ * @returns True when the dump emitted at least one masked log line, false
+ * when no browser was attached or the underlying $$eval failed silently.
  */
-async function dumpDashboardText(input: IPipelineContext): Promise<true> {
-  if (!input.browser.has) return true;
+async function dumpDashboardText(input: IPipelineContext): Promise<boolean> {
+  if (!input.browser.has) return false;
   try {
     const page = input.browser.value.page;
     const sel = 'a, button, [role="tab"], [role="link"], [role="button"]';
@@ -404,22 +387,20 @@ async function dumpDashboardText(input: IPipelineContext): Promise<true> {
     input.logger.debug({
       message: `VISIBLE CLICKABLE TEXT: [${texts.join(' | ')}]`,
     });
+    return true;
   } catch {
     /* test mock or closed page */
+    return false;
   }
-  return true;
 }
-
-/** Whether transaction traffic already exists from login redirect. */
-type HasExistingTraffic = boolean;
 
 /** Bundled PRE discovery results. */
 interface IPreDiscoveryResult {
-  readonly matchInfo: MatchInfo;
+  readonly matchInfo: string;
   readonly targets: IDashboardTargets;
-  readonly hasAny: DidNavigate;
+  readonly hasAny: boolean;
   readonly apiCtx: IApiFetchContext | false;
-  readonly hasExistingTraffic: HasExistingTraffic;
+  readonly hasExistingTraffic: boolean;
 }
 
 /**
@@ -487,7 +468,7 @@ async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<I
  * @param targets - Resolved dashboard targets.
  * @returns Description string.
  */
-function describeTargets(targets: IDashboardTargets): MatchInfo {
+function describeTargets(targets: IDashboardTargets): string {
   if (targets.clickTarget) {
     const t = targets.clickTarget;
     const n = String(targets.clickCandidateCount);
@@ -501,12 +482,6 @@ function describeTargets(targets: IDashboardTargets): MatchInfo {
   return 'target=NONE';
 }
 
-/** IActionMediator type alias for sealed helpers. */
-type SealedExecutor = IActionMediator;
-
-/** Whether a click/nav succeeded. */
-type DidNavigate = boolean;
-
 /**
  * Click a menu toggle via sealed executor (force-click).
  * Best-effort: catch failures, POST validates traffic.
@@ -516,10 +491,10 @@ type DidNavigate = boolean;
  * @returns True if clicked.
  */
 async function executeMenuClick(
-  executor: SealedExecutor,
+  executor: IActionMediator,
   target: IResolvedTarget,
   logger: IPipelineContext['logger'],
-): Promise<DidNavigate> {
+): Promise<boolean> {
   logger.debug({
     strategy: 'MENU',
     result: `${target.contextId} > ${maskVisibleText(target.selector)}`,
@@ -546,10 +521,10 @@ async function executeMenuClick(
  * @returns True if navigated.
  */
 async function executeHrefNav(
-  executor: SealedExecutor,
-  href: TargetUrl,
+  executor: IActionMediator,
+  href: string,
   logger: IPipelineContext['logger'],
-): Promise<DidNavigate> {
+): Promise<boolean> {
   logger.debug({
     strategy: 'NAV',
     result: maskVisibleText(href),
@@ -595,8 +570,8 @@ async function executeDashboardNavigationSealed(
  * @param url - Current URL after click.
  * @returns True iff URL matches any known transactions-page pattern.
  */
-function isTxnPageUrl(url: string): IsTxnPage {
-  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((pat): IsTxnPage => pat.test(url));
+function isTxnPageUrl(url: string): boolean {
+  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((pat): boolean => pat.test(url));
 }
 
 /** Force-click flag for candidate clicks (matches existing menu/legacy
@@ -621,9 +596,9 @@ const POST_MATCH_TXN_WAIT_MS = 4000;
  * @returns True iff a txn-shape endpoint is captured by budget end.
  */
 async function confirmTxnEndpoint(
-  executor: SealedExecutor,
-  isOnTxnPage: IsTxnPage,
-): Promise<IsTxnPage> {
+  executor: IActionMediator,
+  isOnTxnPage: boolean,
+): Promise<boolean> {
   if (isOnTxnPage) {
     return executor.waitForTxnEndpoint(POST_MATCH_TXN_WAIT_MS).catch((): false => false);
   }
@@ -654,7 +629,7 @@ async function confirmTxnEndpoint(
  */
 async function runCandidateNavigation(
   input: IActionContext,
-  executor: SealedExecutor,
+  executor: IActionMediator,
 ): Promise<Procedure<IActionContext>> {
   const target = input.diagnostics.dashboardTarget;
   const fallbackSelector = input.diagnostics.dashboardFallbackSelector ?? NO_HREF;
@@ -671,7 +646,7 @@ async function runCandidateNavigation(
 
 /** Bundled args for the two-stage walker — fits 3-param ceiling. */
 interface IIterateArgs {
-  readonly executor: SealedExecutor;
+  readonly executor: IActionMediator;
   readonly target: IResolvedTarget;
   readonly fallbackSelector: string;
   readonly count: number;
@@ -680,7 +655,7 @@ interface IIterateArgs {
 
 /** Bundled args for a single click attempt evaluation. */
 interface IClickAttemptArgs {
-  readonly executor: SealedExecutor;
+  readonly executor: IActionMediator;
   readonly contextId: IResolvedTarget['contextId'];
   readonly selector: string;
   readonly nth?: number;
@@ -690,9 +665,9 @@ interface IClickAttemptArgs {
 
 /** Outcome of a single click attempt — success bit + URL before for goback. */
 interface IClickOutcome {
-  readonly isSuccess: IsTxnPage;
-  readonly urlBefore: TargetUrl;
-  readonly urlAfter: TargetUrl;
+  readonly isSuccess: boolean;
+  readonly urlBefore: string;
+  readonly urlAfter: string;
 }
 
 /**
@@ -739,14 +714,15 @@ async function evaluateClickAttempt(args: IClickAttemptArgs): Promise<IClickOutc
  * @param executor - Sealed action mediator.
  * @param outcome - Click outcome with url before/after.
  * @param logger - Pipeline logger.
- * @returns True after navigation settles (best-effort).
+ * @returns True when a goback navigation was attempted, false when the
+ * URL was already at the pre-click value (no-op skip).
  */
 async function restoreUrlIfChanged(
-  executor: SealedExecutor,
+  executor: IActionMediator,
   outcome: IClickOutcome,
   logger: IActionContext['logger'],
-): Promise<true> {
-  if (outcome.urlAfter === outcome.urlBefore) return true;
+): Promise<boolean> {
+  if (outcome.urlAfter === outcome.urlBefore) return false;
   logger.debug({ message: `goback: ${maskVisibleText(outcome.urlBefore)}` });
   await executor.navigateTo(outcome.urlBefore, { waitUntil: 'load' }).catch((): false => false);
   await executor.waitForNetworkIdle().catch((): false => false);
@@ -857,7 +833,7 @@ async function maybeAttachApi(input: IPipelineContext): Promise<IPipelineContext
  * @param ctx - Pipeline context.
  * @returns Endpoint count string.
  */
-function countEndpoints(ctx: IPipelineContext): MatchInfo {
+function countEndpoints(ctx: IPipelineContext): string {
   if (!ctx.mediator.has) return '0';
   return String(ctx.mediator.value.network.getAllEndpoints().length);
 }

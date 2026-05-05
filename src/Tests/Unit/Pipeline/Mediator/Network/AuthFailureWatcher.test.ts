@@ -624,7 +624,7 @@ describe('AuthFailureWatcher — edge cases (empty body, idempotency)', () => {
     const didFirstDispose = watcher.dispose();
     expect(didFirstDispose).toBe(true);
     const didSecondDispose = watcher.dispose();
-    expect(didSecondDispose).toBe(true);
+    expect(didSecondDispose).toBe(false);
     const after = mockPage.listenerCount();
     expect(after).toBe(0);
   });

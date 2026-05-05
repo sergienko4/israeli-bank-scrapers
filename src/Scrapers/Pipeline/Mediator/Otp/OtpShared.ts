@@ -8,11 +8,6 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IRaceResult } from '../Elements/ElementMediator.js';
 
-/** Phone hint — last 3-4 digits of phone number. */
-type PhoneHint = string;
-/** Short diagnostic label. */
-type DiagnosticLabel = string;
-
 /** Not-found sentinel. */
 const NOT_FOUND: IRaceResult = {
   found: false,
@@ -46,10 +41,7 @@ function unwrapProbe(probe: Procedure<IRaceResult>): IRaceResult {
  * @param key - Diagnostic key.
  * @returns Resolved target or false.
  */
-function readDiagTarget(
-  diag: IActionContext['diagnostics'],
-  key: DiagnosticLabel,
-): IResolvedTarget | false {
+function readDiagTarget(diag: IActionContext['diagnostics'], key: string): IResolvedTarget | false {
   const bag = diag as unknown as Readonly<Record<string, IResolvedTarget | false>>;
   return bag[key] || false;
 }
@@ -60,10 +52,9 @@ function readDiagTarget(
  * @param key - Diagnostic key.
  * @returns Value or empty string.
  */
-function readDiagString(diag: IActionContext['diagnostics'], key: DiagnosticLabel): PhoneHint {
+function readDiagString(diag: IActionContext['diagnostics'], key: string): string {
   const bag = diag as unknown as Readonly<Record<string, string>>;
   return bag[key] || '';
 }
 
-export type { DiagnosticLabel, PhoneHint };
 export { NOT_FOUND, OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe };

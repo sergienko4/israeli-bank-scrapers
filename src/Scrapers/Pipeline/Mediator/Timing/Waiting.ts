@@ -18,20 +18,16 @@ export {
 } from './TimingActions.js';
 export { SECOND } from './TimingConfig.js';
 
-/** Timeout/delay in milliseconds. */
-type DelayMs = number;
-/** Diagnostic description string. */
-type DescStr = string;
 /** Serializable poll value for diagnostics. */
-type PollValue = string | DelayMs | boolean;
+type PollValue = string | number | boolean;
 
 /** Maximum characters for a stringified diagnostic value. */
 const MAX_STRINGIFY_LENGTH = 100;
 
 /** Options for the waitUntil polling function. */
 export interface IWaitUntilOpts {
-  timeout?: DelayMs;
-  interval?: DelayMs;
+  timeout?: number;
+  interval?: number;
 }
 
 /** Mutable state for tracking the last polled value. */
@@ -44,7 +40,7 @@ interface ITrackingState {
  * @param value - The value to stringify.
  * @returns The JSON string or String() fallback.
  */
-function trySafeJsonStringify(value: PollValue): DescStr {
+function trySafeJsonStringify(value: PollValue): string {
   try {
     return JSON.stringify(value);
   } catch {
@@ -57,7 +53,7 @@ function trySafeJsonStringify(value: PollValue): DescStr {
  * @param value - The value to stringify.
  * @returns A truncated string representation.
  */
-function safeStringify(value: PollValue): DescStr {
+function safeStringify(value: PollValue): string {
   return trySafeJsonStringify(value).slice(0, MAX_STRINGIFY_LENGTH);
 }
 
@@ -126,15 +122,15 @@ function buildTrackedPoll<T>(
  */
 async function executeWaitUntil<T>(
   asyncTest: () => Promise<T>,
-  description: DescStr,
+  description: string,
   opts: IWaitUntilOpts,
 ): Promise<NonNullable<T>> {
   const timeout = opts.timeout ?? DEFAULT_WAIT_TIMEOUT_MS;
   const { promise, state } = buildTrackedPoll(asyncTest, opts);
   try {
     return await timeoutPromise(timeout, promise, description);
-  } catch (caught) {
-    rethrowWithContext(caught as Error, state);
+  } catch (error_) {
+    rethrowWithContext(error_ as Error, state);
   }
 }
 
