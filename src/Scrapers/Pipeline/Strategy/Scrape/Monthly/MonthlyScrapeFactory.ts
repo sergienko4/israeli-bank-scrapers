@@ -107,8 +107,8 @@ function createMonthlyScrapeFn(config: IMonthlyConfig): CustomScrapeFn {
   return async (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
     try {
       return await executeMonthly(config, ctx);
-    } catch (err) {
-      return wrapMonthlyError(err as Error);
+    } catch (error) {
+      return wrapMonthlyError(error as Error);
     }
   };
 }

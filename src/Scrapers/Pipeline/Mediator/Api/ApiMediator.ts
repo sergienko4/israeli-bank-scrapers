@@ -304,8 +304,8 @@ export function createApiMediator(
   const safeRefresh = async (): Promise<Procedure<string>> => {
     try {
       return await state.resolver.refresh();
-    } catch (err) {
-      const message = toErrorMessage(err as Error);
+    } catch (error) {
+      const message = toErrorMessage(error as Error);
       return fail(ScraperErrorTypes.Generic, `token resolver threw: ${message}`);
     }
   };

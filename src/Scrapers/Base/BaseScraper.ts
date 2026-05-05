@@ -241,8 +241,8 @@ export default class BaseScraper<
     this.diagState.lastAction = 'logging in';
     try {
       return await this.login(credentials);
-    } catch (e) {
-      const errorResult = categorizeError(e as Error);
+    } catch (error) {
+      const errorResult = categorizeError(error as Error);
       return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }
@@ -277,8 +277,8 @@ export default class BaseScraper<
         scrapeResult.persistentOtpToken = loginResult.persistentOtpToken;
       }
       return scrapeResult;
-    } catch (e) {
-      const errorResult = categorizeError(e as Error);
+    } catch (error) {
+      const errorResult = categorizeError(error as Error);
       return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }
@@ -306,8 +306,8 @@ export default class BaseScraper<
   ): Promise<IScraperScrapingResult> {
     try {
       await this.terminate(scrapeResult.success);
-    } catch (e) {
-      return createGenericError((e as Error).message);
+    } catch (error) {
+      return createGenericError((error as Error).message);
     }
     return scrapeResult;
   }

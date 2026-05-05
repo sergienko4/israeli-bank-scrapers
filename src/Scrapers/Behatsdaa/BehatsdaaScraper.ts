@@ -93,7 +93,7 @@ class BehatsdaaScraper extends GenericBankScraper<IScraperSpecificCredentials> {
    * @returns Scraping result with accounts and transactions.
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
-    const token = await this.page.evaluate(() => window.localStorage.getItem('userToken'));
+    const token = await this.page.evaluate(() => globalThis.localStorage.getItem('userToken'));
     if (!token) {
       this.bankLog.debug('Token not found in local storage');
       return createGenericError('TokenNotFound: userToken missing from localStorage');

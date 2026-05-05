@@ -247,8 +247,8 @@ describe('PipelineExecutor/registerOrFail', () => {
     let caught: unknown = null;
     try {
       await executePipeline(descriptor, MOCK_CREDENTIALS);
-    } catch (err) {
-      caught = err;
+    } catch (error) {
+      caught = error;
     }
     expect(caught).toBeInstanceOf(Error);
     expect((caught as Error).message).toMatch(/No run without bank/);

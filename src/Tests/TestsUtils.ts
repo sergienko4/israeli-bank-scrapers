@@ -67,11 +67,11 @@ export function getTestsConfig(): ITestsConfig {
       testsConfig = JSON.parse(environmentConfig) as ITestsConfig;
       return testsConfig;
     }
-  } catch (err) {
-    const errorMessage = (err as Error).message;
+  } catch (error) {
+    const errorMessage = (error as Error).message;
     throw new TestConfigError(
       `failed to parse environment variable 'TESTS_CONFIG' with error '${errorMessage}'`,
-      { cause: err },
+      { cause: error },
     );
   }
 
@@ -79,9 +79,9 @@ export function getTestsConfig(): ITestsConfig {
     const configPath = path.join(DIR_NAME, '.tests-config.cjs');
     testsConfig = ESM_REQUIRE(configPath) as ITestsConfig;
     return testsConfig;
-  } catch (err) {
-    console.error(err);
-    throw new TestConfigError(MISSING_ERROR_MESSAGE, { cause: err });
+  } catch (error) {
+    console.error(error);
+    throw new TestConfigError(MISSING_ERROR_MESSAGE, { cause: error });
   }
 }
 

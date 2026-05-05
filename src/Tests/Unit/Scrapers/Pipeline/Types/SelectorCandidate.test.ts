@@ -25,7 +25,7 @@ describe('SelectorCandidate/backward-compat', () => {
     { kind: 'name' as const, value: 'password' },
     { kind: 'xpath' as const, value: '//button' },
     { kind: 'css' as const, value: '#login' },
-    { kind: 'regex' as const, value: '^שלום\\s+\\S+' },
+    { kind: 'regex' as const, value: String.raw`^שלום\s+\S+` },
     { kind: 'clickableText' as const, value: 'כניסה' },
   ])('$kind candidate works without target/match', candidate => {
     const c: SelectorCandidate = candidate;

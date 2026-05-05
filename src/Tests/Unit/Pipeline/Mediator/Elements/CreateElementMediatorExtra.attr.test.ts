@@ -285,8 +285,8 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
     let caught: unknown = null;
     try {
       await action.pressEnter('no-such-context');
-    } catch (e) {
-      caught = e;
+    } catch (error) {
+      caught = error;
     }
     expect(caught).not.toBeNull();
   }, 5000);

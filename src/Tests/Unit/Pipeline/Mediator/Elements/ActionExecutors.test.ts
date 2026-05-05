@@ -46,8 +46,11 @@ describe('candidateToSelector', () => {
     expect(candidateToSelectorResult7).toBe('[name="p"]');
   });
   it('builds regex selector', () => {
-    const candidateToSelectorResult8 = candidateToSelector({ kind: 'regex', value: '\\d+' });
-    expect(candidateToSelectorResult8).toBe('text=/\\d+/');
+    const candidateToSelectorResult8 = candidateToSelector({
+      kind: 'regex',
+      value: String.raw`\d+`,
+    });
+    expect(candidateToSelectorResult8).toBe(String.raw`text=/\d+/`);
   });
   it('fallback default builder returns text=', () => {
     const c = { kind: 'unknownKind' as unknown as SelectorCandidate['kind'], value: 'v' };

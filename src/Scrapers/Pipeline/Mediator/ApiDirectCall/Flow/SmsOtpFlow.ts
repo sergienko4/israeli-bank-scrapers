@@ -151,8 +151,8 @@ async function invokePreHookFn(
   try {
     const raw = (await fn()) as JsonValue;
     return coercePreHookResult({ raw, hook });
-  } catch (err) {
-    const message = toErrorMessage(err as Error);
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
     return fail(
       ScraperErrorTypes.Generic,
       `preHook: creds.${hook.awaitCredsField}() threw: ${message}`,

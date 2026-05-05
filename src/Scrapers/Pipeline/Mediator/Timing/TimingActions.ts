@@ -80,8 +80,8 @@ function handleRaceError(err: Error): typeof RACE_TIMED_OUT {
 export async function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeoutResult<T> {
   try {
     return await timeoutPromise(ms, promise, 'timeout');
-  } catch (err) {
-    return handleRaceError(err as Error);
+  } catch (error) {
+    return handleRaceError(error as Error);
   }
 }
 

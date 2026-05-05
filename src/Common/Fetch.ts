@@ -249,9 +249,9 @@ function parseGetResult(opts: IParseGetOpts): Nullable<Record<string, JsonValue>
   if (result === '') return {};
   try {
     return JSON.parse(result) as Record<string, JsonValue>;
-  } catch (err) {
+  } catch (error) {
     if (!shouldIgnoreErrors) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = error instanceof Error ? error.message : String(error);
       const statusStr = String(status);
       throw new ScraperError(
         `fetchGetWithinPage parse error: ${msg}, url: ${url}, status: ${statusStr}`,
@@ -366,9 +366,9 @@ function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, JsonVal
   const { shouldIgnoreErrors = false } = opts;
   try {
     if (text !== '') return JSON.parse(text) as Record<string, JsonValue>;
-  } catch (err) {
+  } catch (error) {
     if (!shouldIgnoreErrors) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = error instanceof Error ? error.message : String(error);
       const statusStr = String(status);
       throw new ScraperError(
         `fetchPostWithinPage parse: ${msg}, url: ${url}, status: ${statusStr}`,

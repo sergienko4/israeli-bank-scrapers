@@ -48,7 +48,7 @@ export function getCurrentUrl(
   isClientSide = false,
 ): Promise<string> | string {
   if (isClientSide) {
-    return pageOrFrame.evaluate(() => window.location.href);
+    return pageOrFrame.evaluate(() => globalThis.location.href);
   }
 
   return pageOrFrame.url();
@@ -120,13 +120,13 @@ export async function waitForRedirect(
   LOG.debug('waitForRedirect from %s', initial);
   try {
     await pollForRedirect(pageOrFrame, initial, { isClientSide, ignoreList, timeout });
-  } catch (caught) {
+  } catch (error) {
     LOG.debug(
       'waitForRedirect TIMEOUT (%dms) — still at %s',
       timeout,
       await safeGetUrl(pageOrFrame, isClientSide),
     );
-    throw caught;
+    throw error;
   }
   LOG.debug('waitForRedirect → %s', await safeGetUrl(pageOrFrame, isClientSide));
   return true;
@@ -183,10 +183,10 @@ export async function waitForUrl(
   const { timeout = NAVIGATION_TIMEOUT_MS, isClientSide = false } = opts;
   try {
     await pollForUrl(pageOrFrame, url, { timeout, isClientSide });
-  } catch (caught) {
+  } catch (error) {
     const stuck = await safeGetUrl(pageOrFrame, isClientSide);
     LOG.debug('waitForUrl TIMEOUT (%dms) pattern=%s at %s', timeout, url, stuck);
-    throw caught;
+    throw error;
   }
   return true;
 }

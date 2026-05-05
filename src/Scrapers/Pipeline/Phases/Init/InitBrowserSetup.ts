@@ -38,9 +38,9 @@ async function createContextAndPage(
   try {
     const page = await context.newPage();
     return { context, page };
-  } catch (err) {
+  } catch (error) {
     await context.close().catch((): boolean => false);
-    throw err;
+    throw error;
   }
 }
 

@@ -125,7 +125,7 @@ describe('createMonthlyScrapeFn', () => {
     await scrapeFn(ctx);
 
     expect(callOrder[0]).toBe('setup');
-    const hasFetch = callOrder.some((c): boolean => c === 'fetch');
+    const hasFetch = callOrder.includes('fetch');
     expect(hasFetch).toBe(true);
   });
 

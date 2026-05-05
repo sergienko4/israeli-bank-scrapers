@@ -146,7 +146,7 @@ class TestBrowserScraper extends BASE_SCRAPER_WITH_BROWSER<ScraperCredentials> {
    * @returns Scraping result.
    */
   public async fetchData(): Promise<IScraperScrapingResult> {
-    return Promise.resolve(this.fetchResult);
+    return this.fetchResult;
   }
 }
 

@@ -106,8 +106,8 @@ async function waitUntilElementFound(
   try {
     await ctx.waitForSelector(selector, { state, timeout: opts.timeout });
     return await logFoundDiagnostics(ctx, selector, startMs);
-  } catch (e) {
-    return logTimeoutDiagnostics({ ctx, selector, startMs }, e as Error);
+  } catch (error) {
+    return logTimeoutDiagnostics({ ctx, selector, startMs }, error as Error);
   }
 }
 

@@ -39,10 +39,10 @@ async function withTrace(
     const status = STATUS_MAP[hasTxns];
     LOG.trace({ card, month, txnCount: count, durationMs, status });
     return txns;
-  } catch (err) {
+  } catch (error) {
     const durationMs: number = Date.now() - startMs;
     LOG.trace({ card, month, txnCount: 0, durationMs, status: 'error' });
-    throw err;
+    throw error;
   }
 }
 

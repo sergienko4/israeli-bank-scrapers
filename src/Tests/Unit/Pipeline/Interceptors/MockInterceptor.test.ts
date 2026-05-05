@@ -37,9 +37,9 @@ function withMockEnv(value: string, fn: () => unknown): Promise<boolean> {
   const fnResult1 = fn();
   return Promise.resolve(fnResult1)
     .then(restore)
-    .catch((err: unknown): never => {
+    .catch((error: unknown): never => {
       restore();
-      throw err;
+      throw error;
     });
 }
 

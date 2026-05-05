@@ -266,9 +266,9 @@ function parseGetResult(opts: IParseGetOpts): Nullable<Record<string, JsonValue>
   if (result === '') return {};
   try {
     return JSON.parse(result) as Record<string, JsonValue>;
-  } catch (err) {
+  } catch (error) {
     return handleParseError({
-      err: err as Error,
+      err: error as Error,
       shouldIgnore: shouldIgnoreErrors,
       url,
       status,
@@ -406,9 +406,9 @@ function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, JsonVal
   if (text === '') return {};
   try {
     return JSON.parse(text) as Record<string, JsonValue>;
-  } catch (err) {
+  } catch (error) {
     return handleParseError({
-      err: err as Error,
+      err: error as Error,
       shouldIgnore: shouldIgnoreErrors,
       url,
       status,

@@ -57,8 +57,8 @@ async function getBodyText(page: Page): Promise<string> {
   try {
     const text = await page.evaluate(() => document.body.innerText);
     return typeof text === 'string' ? text : '';
-  } catch (e: unknown) {
-    LOG.debug(e, 'getBodyText failed (page context inaccessible)');
+  } catch (error: unknown) {
+    LOG.debug(error, 'getBodyText failed (page context inaccessible)');
     return '';
   }
 }

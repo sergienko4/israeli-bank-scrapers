@@ -479,8 +479,8 @@ async function runMain(): Promise<void> {
   try {
     const code = await main();
     process.exit(code);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : JSON.stringify(err);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : JSON.stringify(error);
     LOG.error({ err: message }, 'capture failed');
     process.exit(1);
   }

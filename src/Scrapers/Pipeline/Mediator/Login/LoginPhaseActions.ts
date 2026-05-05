@@ -55,8 +55,8 @@ async function runCheckReadiness(
   try {
     await config.checkReadiness(page);
     return false;
-  } catch (err) {
-    const msg = toErrorMessage(err as Error);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `LOGIN PRE: checkReadiness — ${msg}`);
   }
 }
@@ -73,8 +73,8 @@ async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure
     const frame = await config.preAction(page);
     const activeFrame: Page | Frame = frame ?? page;
     return succeed(activeFrame);
-  } catch (err) {
-    const msg = toErrorMessage(err as Error);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `LOGIN PRE: preAction — ${msg}`);
   }
 }
@@ -228,6 +228,7 @@ function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly Selecto
 }
 
 /** Trustworthy form-anchor selector (id/name/class) or empty string sentinel. */
+// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
 type FormAnchorSelector = string;
 
 /**

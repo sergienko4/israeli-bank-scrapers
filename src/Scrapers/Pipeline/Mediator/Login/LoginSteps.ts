@@ -34,8 +34,8 @@ async function runCheckReadiness(
   try {
     await config.checkReadiness(browserPage);
     return succeed(true);
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `checkReadiness: ${toErrorMessage(err as Error)}`);
+  } catch (error) {
+    return fail(ScraperErrorTypes.Generic, `checkReadiness: ${toErrorMessage(error as Error)}`);
   }
 }
 
@@ -53,8 +53,8 @@ async function runPreAction(
   try {
     const frame = await config.preAction(browserPage);
     return succeed(frame ?? browserPage);
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `preAction failed: ${toErrorMessage(err as Error)}`);
+  } catch (error) {
+    return fail(ScraperErrorTypes.Generic, `preAction failed: ${toErrorMessage(error as Error)}`);
   }
 }
 

@@ -301,8 +301,9 @@ async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise
   LOG.debug({ message: `Tier 4 (DOM query): clicking aria-label="${ariaLabel}"` });
   await frame
     .evaluate((label: string): true => {
-      const buttons = document.querySelectorAll(`button[aria-label="${label}"]`);
-      const lastBtn = buttons[buttons.length - 1] as HTMLElement | undefined;
+      const nodeList = document.querySelectorAll<HTMLElement>(`button[aria-label="${label}"]`);
+      const buttons = Array.from(nodeList);
+      const lastBtn = buttons.at(-1);
       if (lastBtn) lastBtn.click();
       return true;
     }, ariaLabel)

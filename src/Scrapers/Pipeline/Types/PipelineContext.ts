@@ -140,6 +140,7 @@ export interface IPreLoginDiscovery {
 // ── Phase-Specific Discovery Types (PRE → ACTION handoff) ───────────
 
 /** Opaque frame identifier — 'main' or 'iframe:<url>' — never a raw Playwright object. */
+// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
 export type ContextId = string;
 
 /** Resolved element target — PRE discovered, ACTION executes via contextId. */

@@ -22,8 +22,8 @@ async function safeAction(action: () => Promise<void>): Promise<Procedure<void>>
   try {
     await action();
     return succeed(undefined);
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `Post-login: ${toErrorMessage(err as Error)}`);
+  } catch (error) {
+    return fail(ScraperErrorTypes.Generic, `Post-login: ${toErrorMessage(error as Error)}`);
   }
 }
 

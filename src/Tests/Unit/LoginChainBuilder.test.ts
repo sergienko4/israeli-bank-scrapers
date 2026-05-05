@@ -212,7 +212,7 @@ describe('buildLoginChain', () => {
     it('always appends post-action as the last step', () => {
       const chain = buildChain({ hasOtpCode: true });
       const names = extractStepNames(chain);
-      const lastStep = names[names.length - 1];
+      const lastStep = names.at(-1);
       expect(lastStep).toBe(POST_ACTION_STEP);
     });
 

@@ -44,8 +44,8 @@ async function safeInvoke<T>(
 ): Promise<Procedure<T>> {
   try {
     return await fn();
-  } catch (err) {
-    const message = toErrorMessage(err as Error);
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ${label} threw: ${message}`);
   }
 }
@@ -146,8 +146,8 @@ async function invokeAuthFlowComplete(
   try {
     await callback({ longTermToken, bearer });
     return true;
-  } catch (err) {
-    const message = toErrorMessage(err as Error);
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
     ctx.logger.warn({
       message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}`,
     });
