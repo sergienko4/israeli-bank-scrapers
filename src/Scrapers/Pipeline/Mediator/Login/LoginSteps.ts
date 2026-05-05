@@ -17,7 +17,8 @@ import { createLoginActionStep } from './LoginSubmitStep.js';
 import { createPostLoginStep } from './PostLoginSteps.js';
 
 export type { IFillOpts } from './LoginFillStep.js';
-export { waitForSubmitToSettle } from './PostLoginSteps.js';
+export { createLoginActionStep } from './LoginSubmitStep.js';
+export { createPostLoginStep, waitForSubmitToSettle } from './PostLoginSteps.js';
 
 /**
  * Run checkReadiness callback if provided.
@@ -115,4 +116,4 @@ function createLoginPhase(config: ILoginConfig): ILoginPhase {
   };
 }
 
-export { createLoginActionStep, createLoginPhase, createPostLoginStep, createPreLoginStep };
+export { createLoginPhase, createPreLoginStep };

@@ -91,24 +91,21 @@ function createBoundGet(
  * @param path - Transaction API path (absolute or relative).
  * @returns Full transaction URL.
  */
-/** Bank URL string. */
-type BankUrlStr = string;
-
 /**
  * Resolve a config transaction path to a full URL.
  * @param baseUrl - Bank base URL.
  * @param path - API path.
  * @returns Full URL.
  */
-function resolveConfigTxnPath(baseUrl: BankUrlStr, path: BankUrlStr): BankUrlStr {
+function resolveConfigTxnPath(baseUrl: string, path: string): string {
   if (path.startsWith('http')) return path;
   return `${baseUrl}${path}`;
 }
 
 /** Config override for transaction path fallback. */
 interface IConfigOverride {
-  readonly baseUrl: BankUrlStr;
-  readonly transactionsPath?: BankUrlStr;
+  readonly baseUrl: string;
+  readonly transactionsPath?: string;
 }
 
 /**

@@ -29,10 +29,6 @@ const NAV_STRATEGY = {
 
 /** Navigation strategy for HOME.ACTION. */
 type NavStrategy = (typeof NAV_STRATEGY)[keyof typeof NAV_STRATEGY];
-/** Visible text of a trigger element. */
-type TriggerText = string;
-/** Predicate result for filter/some callbacks. */
-type IsMatch = boolean;
 
 /** Timeout for initial entry search. */
 const ENTRY_TIMEOUT = 15000;
@@ -42,7 +38,7 @@ interface IHomeDiscovery {
   /** Navigation strategy: single click or menu toggle + child click. */
   readonly strategy: NavStrategy;
   /** Text of the trigger element found in WK_HOME.ENTRY. */
-  readonly triggerText: TriggerText;
+  readonly triggerText: string;
   /** Menu child candidates (WK_HOME.MENU) — only for SEQUENTIAL. */
   readonly menuCandidates: readonly SelectorCandidate[];
   /** Pre-resolved trigger target (contextId + selector) for ACTION executor. */
@@ -91,7 +87,7 @@ async function resolveHomeStrategy(
  */
 function buildDiscoveryByStrategy(
   strategy: NavStrategy,
-  text: TriggerText,
+  text: string,
   target: IResolvedTarget | false,
 ): IHomeDiscovery {
   const buildMap: Record<NavStrategy, IHomeDiscovery> = {
@@ -103,7 +99,7 @@ function buildDiscoveryByStrategy(
 }
 
 /** Non-navigation href patterns — modal triggers, SPA anchors. */
-const FAKE_HREF_PATTERNS = ['#', 'javascript:void(0)', 'javascript:;', ''];
+const FAKE_HREF_PATTERNS = new Set(['#', 'javascript:void(0)', 'javascript:;', '']);
 
 /** HTML attributes that indicate a modal trigger element. */
 const MODAL_ATTRIBUTES = ['data-toggle', 'data-bs-toggle'];
@@ -139,7 +135,7 @@ async function detectRealHref(mediator: IElementMediator, result: IRaceResult): 
   if (!isOk(attrResult)) return false;
   if (!attrResult.value) return false;
   const rawHref = await mediator.getAttributeValue(result, 'href');
-  const isFake = FAKE_HREF_PATTERNS.some((p): IsMatch => rawHref === p);
+  const isFake = FAKE_HREF_PATTERNS.has(rawHref);
   return !isFake;
 }
 
@@ -182,10 +178,7 @@ async function detectModalAttribute(
  * @param triggerTarget - Pre-resolved target for ACTION executor.
  * @returns IHomeDiscovery for DIRECT strategy.
  */
-function buildDirect(
-  triggerText: TriggerText,
-  triggerTarget: IResolvedTarget | false,
-): IHomeDiscovery {
+function buildDirect(triggerText: string, triggerTarget: IResolvedTarget | false): IHomeDiscovery {
   return { strategy: NAV_STRATEGY.DIRECT, triggerText, menuCandidates: [], triggerTarget };
 }
 
@@ -195,10 +188,7 @@ function buildDirect(
  * @param triggerTarget - Pre-resolved target for ACTION executor.
  * @returns IHomeDiscovery for MODAL strategy.
  */
-function buildModal(
-  triggerText: TriggerText,
-  triggerTarget: IResolvedTarget | false,
-): IHomeDiscovery {
+function buildModal(triggerText: string, triggerTarget: IResolvedTarget | false): IHomeDiscovery {
   return { strategy: NAV_STRATEGY.MODAL, triggerText, menuCandidates: [], triggerTarget };
 }
 
@@ -209,7 +199,7 @@ function buildModal(
  * @returns IHomeDiscovery for SEQUENTIAL strategy.
  */
 function buildSequential(
-  triggerText: TriggerText,
+  triggerText: string,
   triggerTarget: IResolvedTarget | false,
 ): IHomeDiscovery {
   const menu = WK_HOME.MENU as unknown as readonly SelectorCandidate[];

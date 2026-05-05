@@ -14,19 +14,6 @@ import {
 
 const LOG = getDebug(import.meta.url);
 
-/** URL string for API endpoints. */
-type UrlStr = string;
-/** HTTP response body string. */
-type BodyStr = string;
-/** HTTP status code. */
-type StatusCode = number;
-/** Whether a condition check passed. */
-type CheckResult = boolean;
-/** JSON payload data. */
-type PayloadStr = string;
-/** HTTP header value. */
-type HeaderVal = string;
-
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
 const EMPTY_RESULT: Nullable<never> = JSON.parse('null') as Nullable<never>;
 
@@ -47,13 +34,13 @@ function getJsonHeaders(): Record<string, string> {
  * @param body - The response body text.
  * @returns A description of the detected block, or empty string if none.
  */
-export function detectWafBlock(status: StatusCode, body: BodyStr): BodyStr {
+export function detectWafBlock(status: number, body: string): string {
   if (WAF_STATUS_CODES.has(status)) {
     return `HTTP ${String(status)}`;
   }
   if (!body) return '';
   const lower = body.toLowerCase();
-  const match = WAF_BLOCK_PATTERNS.find((pattern): CheckResult => lower.includes(pattern));
+  const match = WAF_BLOCK_PATTERNS.find((pattern): boolean => lower.includes(pattern));
   if (match) return `response contains "${match}"`;
   return '';
 }
@@ -65,7 +52,7 @@ export function detectWafBlock(status: StatusCode, body: BodyStr): BodyStr {
  * @param durationMs - Time elapsed in milliseconds.
  * @returns True after logging completes.
  */
-function logApiCall(tag: HeaderVal, status: StatusCode, durationMs: StatusCode): CheckResult {
+function logApiCall(tag: string, status: number, durationMs: number): boolean {
   LOG.debug({
     message: `${tag} → ${String(status)} (${String(durationMs)}ms)`,
   });
@@ -79,7 +66,7 @@ function logApiCall(tag: HeaderVal, status: StatusCode, durationMs: StatusCode):
  * @param url - The request URL for debug output.
  * @returns True after logging completes.
  */
-function logResponseIssues(status: StatusCode, text: BodyStr, url: UrlStr): CheckResult {
+function logResponseIssues(status: number, text: string, url: string): boolean {
   if (text !== '') {
     const bodyPreview = text.substring(0, BODY_PREVIEW_LIMIT);
     LOG.debug({
@@ -109,8 +96,8 @@ function logResponseIssues(status: StatusCode, text: BodyStr, url: UrlStr): Chec
  */
 async function parseFetchGetResponse<TResult>(
   fetchResult: Response,
-  url: UrlStr,
-  startMs: StatusCode,
+  url: string,
+  startMs: number,
 ): Promise<TResult> {
   const elapsed = Date.now() - startMs;
   const urlTail = url.slice(-100);
@@ -134,7 +121,7 @@ async function parseFetchGetResponse<TResult>(
  * @returns The parsed JSON response body.
  */
 export async function fetchGet<TResult>(
-  url: UrlStr,
+  url: string,
   extraHeaders: Record<string, string>,
 ): Promise<TResult> {
   const jsonHeaders = getJsonHeaders();
@@ -154,7 +141,7 @@ export type JsonValue =
   | boolean
   | null
   | JsonValue[]
-  | { [key: UrlStr]: JsonValue };
+  | { [key: string]: JsonValue };
 
 /**
  * Perform a POST request with JSON body using native fetch.
@@ -164,7 +151,7 @@ export type JsonValue =
  * @returns The parsed JSON response body.
  */
 export async function fetchPost<TResult>(
-  url: UrlStr,
+  url: string,
   data: Record<string, JsonValue>,
   extraHeaders: Record<string, string> = {},
 ): Promise<TResult> {
@@ -192,7 +179,7 @@ export interface IFetchGraphqlOptions {
 
 interface IGraphqlResponse<TResult> {
   data: TResult;
-  errors?: { message: BodyStr }[];
+  errors?: { message: string }[];
 }
 
 /**
@@ -203,8 +190,8 @@ interface IGraphqlResponse<TResult> {
  * @returns The parsed data field from the GraphQL response.
  */
 export async function fetchGraphql<TResult>(
-  url: UrlStr,
-  query: PayloadStr,
+  url: string,
+  query: string,
   opts: IFetchGraphqlOptions = {},
 ): Promise<TResult> {
   const { variables = {}, extraHeaders = {} } = opts;
@@ -228,8 +215,8 @@ export async function fetchGraphql<TResult>(
  * @param url - The URL to fetch.
  * @returns A tuple of [responseBody, httpStatus].
  */
-async function evaluateGet(context: Page | Frame, url: UrlStr): Promise<readonly [string, number]> {
-  return context.evaluate(async (innerUrl: UrlStr): Promise<readonly [BodyStr, StatusCode]> => {
+async function evaluateGet(context: Page | Frame, url: string): Promise<readonly [string, number]> {
+  return context.evaluate(async (innerUrl: string): Promise<readonly [string, number]> => {
     const response = await fetch(innerUrl, { credentials: 'include' });
     if (response.status === 204) return ['', response.status] as const;
     return [await response.text(), response.status] as const;
@@ -245,12 +232,12 @@ async function evaluateGet(context: Page | Frame, url: UrlStr): Promise<readonly
  */
 async function evaluateGetWithHeaders(
   context: Page | Frame,
-  url: UrlStr,
+  url: string,
   headers: Record<string, string>,
 ): Promise<readonly [string, number]> {
   return context.evaluate(
     async (args: {
-      url: UrlStr;
+      url: string;
       headers: Record<string, string>;
     }): Promise<readonly [string, number]> => {
       const response = await fetch(args.url, { credentials: 'include', headers: args.headers });
@@ -263,10 +250,10 @@ async function evaluateGetWithHeaders(
 
 /** Options for parsing a GET-within-page response. */
 export interface IParseGetOpts {
-  result: BodyStr;
-  status: StatusCode;
-  url: UrlStr;
-  shouldIgnoreErrors: CheckResult;
+  result: string;
+  status: number;
+  url: string;
+  shouldIgnoreErrors: boolean;
 }
 
 /**
@@ -293,10 +280,10 @@ function parseGetResult(opts: IParseGetOpts): Nullable<Record<string, JsonValue>
 /** Options for handling a JSON parse error. */
 interface IParseErrorOpts {
   readonly err: Error;
-  readonly shouldIgnore: CheckResult;
-  readonly url: UrlStr;
-  readonly status: StatusCode;
-  readonly context: BodyStr;
+  readonly shouldIgnore: boolean;
+  readonly url: string;
+  readonly status: number;
+  readonly context: string;
 }
 
 /**
@@ -322,7 +309,7 @@ function handleParseError(opts: IParseErrorOpts): Nullable<Record<string, JsonVa
  */
 export async function fetchGetWithinPage<TResult>(
   page: Page | Frame,
-  url: UrlStr,
+  url: string,
   shouldIgnoreErrors = false,
 ): Promise<Nullable<TResult>> {
   const startMs = Date.now();
@@ -342,7 +329,7 @@ export async function fetchGetWithinPage<TResult>(
  */
 export async function fetchGetWithinPageWithHeaders<TResult>(
   page: Page | Frame,
-  url: UrlStr,
+  url: string,
   extraHeaders: Record<string, string>,
 ): Promise<Nullable<TResult>> {
   const startMs = Date.now();
@@ -357,13 +344,13 @@ export async function fetchGetWithinPageWithHeaders<TResult>(
 export interface IFetchPostOptions {
   data: Record<string, JsonValue> | readonly JsonValue[];
   extraHeaders?: Record<string, string>;
-  shouldIgnoreErrors?: CheckResult;
+  shouldIgnoreErrors?: boolean;
 }
 
 /** Arguments for POST requests via Playwright's API client. */
 interface IPostEvaluateArgs {
-  innerUrl: UrlStr;
-  innerDataJson: PayloadStr;
+  innerUrl: string;
+  innerDataJson: string;
   innerExtraHeaders: Record<string, string>;
 }
 
@@ -402,9 +389,9 @@ async function runPostEvaluate(
 
 /** Options for parsing a POST-within-page response. */
 export interface IParsePostOpts {
-  text: BodyStr;
-  status: StatusCode;
-  url: UrlStr;
+  text: string;
+  status: number;
+  url: string;
   opts: IFetchPostOptions;
 }
 
@@ -439,7 +426,7 @@ function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, JsonVal
  */
 export async function fetchPostWithinPage<TResult>(
   page: Page | Frame,
-  url: UrlStr,
+  url: string,
   opts: IFetchPostOptions,
 ): Promise<Nullable<TResult>> {
   const { data, extraHeaders = {} } = opts;

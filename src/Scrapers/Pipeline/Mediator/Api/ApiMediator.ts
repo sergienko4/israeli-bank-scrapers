@@ -22,39 +22,12 @@ import { NULL_RESOLVER } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
 import { buildResolverFromStrategy } from './TokenResolverBuilder.js';
 
-/** Headers map for outbound requests. */
-type HeaderMap = Record<string, string>;
-
-/** Bearer token (opaque string). */
-type BearerToken = string;
-
-/** Resolved URL ready for transport. */
-type ResolvedUrl = string;
-
-/** URL with merged querystring parameters appended. */
-type UrlWithQuery = string;
-
-/** Encoded "k=v" query-string pair. */
-type QueryStringPair = string;
-
-/** Resolved GraphQL query string ready for transport. */
-type QueryString = string;
-
-/** First-error-message extraction result ('' when the list is empty). */
-type GraphqlErrorLabel = string;
-
 /** Return value of withTokenResolver — signals the registration completed. */
 type WasResolverSet = true;
 
-/** Return value of setBearer — signals the store completed. */
-type WasBearerSet = boolean;
-
-/** GraphQL error message text. */
-type GraphqlErrorMessage = string;
-
 /** GraphQL error entry with optional message. */
 interface IGraphQLError {
-  readonly message?: GraphqlErrorMessage;
+  readonly message?: string;
 }
 
 /** Wrapped GraphQL response: data + errors. */
@@ -65,15 +38,15 @@ interface IGraphQLEnvelope<T> {
 
 /** Per-call options — extraHeaders + optional URL query params + optional Set-Cookie hook. */
 export interface IApiQueryOpts {
-  readonly extraHeaders?: HeaderMap;
-  readonly query?: HeaderMap;
+  readonly extraHeaders?: Record<string, string>;
+  readonly query?: Record<string, string>;
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
 export interface IApiMediator {
-  setBearer: (token: BearerToken) => WasBearerSet;
-  setRawAuth: (headerValue: string) => WasBearerSet;
+  setBearer: (token: string) => boolean;
+  setRawAuth: (headerValue: string) => boolean;
   withTokenResolver: (r: ITokenResolver) => WasResolverSet;
   withTokenStrategy: <TCreds>(
     strategy: ITokenStrategy<TCreds>,
@@ -95,7 +68,7 @@ export interface IApiMediator {
 }
 
 /** Empty header map — shared singleton for callers with no extras. */
-const NO_EXTRA_HEADERS: HeaderMap = Object.freeze({});
+const NO_EXTRA_HEADERS: Record<string, string> = Object.freeze({});
 
 /**
  * Append query parameters to a URL preserving any existing querystring.
@@ -103,12 +76,10 @@ const NO_EXTRA_HEADERS: HeaderMap = Object.freeze({});
  * @param query - Additional key→value pairs to append.
  * @returns URL with merged querystring.
  */
-function appendQuery(url: string, query: HeaderMap): UrlWithQuery {
+function appendQuery(url: string, query: Record<string, string>): string {
   const keys = Object.keys(query);
   if (keys.length === 0) return url;
-  const parts = keys.map(
-    (k): QueryStringPair => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`,
-  );
+  const parts = keys.map((k): string => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`);
   const joined = parts.join('&');
   if (url.includes('?')) return `${url}&${joined}`;
   return `${url}?${joined}`;
@@ -119,7 +90,7 @@ function appendQuery(url: string, query: HeaderMap): UrlWithQuery {
  * @param rawAuth - Full authorization header value (empty when unset).
  * @returns Header map including Authorization when rawAuth is non-empty.
  */
-function buildHeaders(rawAuth: string): HeaderMap {
+function buildHeaders(rawAuth: string): Record<string, string> {
   if (rawAuth === '') return {};
   return { authorization: rawAuth };
 }
@@ -131,7 +102,7 @@ function buildHeaders(rawAuth: string): HeaderMap {
  * @param extra - Per-call headers supplied by the caller.
  * @returns Combined header map.
  */
-function mergeHeaders(rawAuth: string, extra: HeaderMap): HeaderMap {
+function mergeHeaders(rawAuth: string, extra: Record<string, string>): Record<string, string> {
   return { ...extra, ...buildHeaders(rawAuth) };
 }
 
@@ -151,7 +122,7 @@ function toPostData(body: Record<string, unknown>): PostData {
  * @param errors - Error list from the envelope (empty when absent).
  * @returns Message string ('' only when errors list is empty).
  */
-function firstErrorMessage(errors: readonly IGraphQLError[]): GraphqlErrorLabel {
+function firstErrorMessage(errors: readonly IGraphQLError[]): string {
   if (errors.length === 0) return '';
   const message = errors[0].message;
   if (typeof message === 'string' && message.length > 0) return message;
@@ -186,21 +157,21 @@ interface IApiMediatorDeps {
 /** Args for firePost — bundled to satisfy the 3-parameter ceiling. */
 interface IFirePostArgs {
   readonly deps: IApiMediatorDeps;
-  readonly url: ResolvedUrl;
+  readonly url: string;
   readonly body: Record<string, unknown>;
   readonly rawAuth: string;
-  readonly extraHeaders: HeaderMap;
-  readonly query: HeaderMap;
+  readonly extraHeaders: Record<string, string>;
+  readonly query: Record<string, string>;
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
 /** Args for fireQuery — bundled to satisfy the 3-parameter ceiling. */
 interface IFireQueryArgs {
   readonly deps: IApiMediatorDeps;
-  readonly queryString: QueryString;
+  readonly queryString: string;
   readonly variables: Record<string, unknown>;
   readonly rawAuth: string;
-  readonly extraHeaders: HeaderMap;
+  readonly extraHeaders: Record<string, string>;
 }
 
 /**
@@ -225,7 +196,7 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
  */
 async function fireGet<T>(
   deps: IApiMediatorDeps,
-  url: ResolvedUrl,
+  url: string,
   rawAuth: string,
 ): Promise<Procedure<T>> {
   const extraHeaders = buildHeaders(rawAuth);
@@ -274,7 +245,7 @@ export function createApiMediator(
    * @param headerValue - Full Authorization header value.
    * @returns True once stored.
    */
-  const setRawAuth = (headerValue: string): WasBearerSet => {
+  const setRawAuth = (headerValue: string): boolean => {
     state.rawAuth = headerValue;
     return true;
   };
@@ -284,7 +255,7 @@ export function createApiMediator(
    * @param token - Opaque bearer value.
    * @returns True once stored.
    */
-  const setBearer = (token: BearerToken): WasBearerSet => setRawAuth(`Bearer ${token}`);
+  const setBearer = (token: string): boolean => setRawAuth(`Bearer ${token}`);
 
   /**
    * Register a concrete token resolver. Replaces any prior resolver.
@@ -464,8 +435,8 @@ export function createApiMediator(
 /** Args bundle for the headless-mediator factory (respects 3-param ceiling). */
 interface IHeadlessMediatorArgs {
   readonly bankHint: CompanyTypes;
-  readonly identityBaseUrl: ResolvedUrl;
-  readonly graphqlUrl: ResolvedUrl;
+  readonly identityBaseUrl: string;
+  readonly graphqlUrl: string;
   /** Optional static Authorization header installed before first call. */
   readonly staticAuth?: string;
 }

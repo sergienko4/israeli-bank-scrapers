@@ -12,8 +12,6 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { ContextId } from '../../Types/PipelineContext.js';
 
-/** Predicate result. */
-type IsMatch = boolean;
 /** Delay for CSS menu dropdown to open after toggle. */
 const MENU_SETTLE_MS = 2000;
 /** Default contextId for menu child candidates. */
@@ -32,7 +30,7 @@ const CHILD_CLICK_TIMEOUT = 2000;
 async function tryOneMenuChild(
   executor: IActionMediator,
   candidate: SelectorCandidate,
-): Promise<IsMatch> {
+): Promise<boolean> {
   const selector = `text=${candidate.value}`;
   const clickPromise = executor
     .clickElement({ contextId: MAIN_CONTEXT, selector })
@@ -58,8 +56,8 @@ interface IReduceCtx {
 async function reduceCandidate(
   ctx: IReduceCtx,
   c: SelectorCandidate,
-  found: IsMatch,
-): Promise<IsMatch> {
+  found: boolean,
+): Promise<boolean> {
   if (found) return true;
   const didClick = await tryOneMenuChild(ctx.executor, c);
   if (!didClick) return false;
@@ -80,14 +78,14 @@ async function tryMenuChildren(
   executor: IActionMediator,
   candidates: readonly SelectorCandidate[],
   logger: ScraperLogger,
-): Promise<IsMatch> {
+): Promise<boolean> {
   if (candidates.length === 0) return false;
   await humanDelay(MENU_SETTLE_MS, MENU_SETTLE_MS);
   const ctx: IReduceCtx = { executor, logger };
-  const seed = Promise.resolve(false as IsMatch);
+  const seed = Promise.resolve(false as boolean);
   return candidates.reduce(
-    (prev, c): Promise<IsMatch> =>
-      prev.then((found): Promise<IsMatch> => reduceCandidate(ctx, c, found)),
+    (prev, c): Promise<boolean> =>
+      prev.then((found): Promise<boolean> => reduceCandidate(ctx, c, found)),
     seed,
   );
 }
@@ -103,7 +101,7 @@ async function executeSequentialClick(
   executor: IActionMediator,
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
-): Promise<IsMatch> {
+): Promise<boolean> {
   return tryMenuChildren(executor, discovery.menuCandidates, logger);
 }
 

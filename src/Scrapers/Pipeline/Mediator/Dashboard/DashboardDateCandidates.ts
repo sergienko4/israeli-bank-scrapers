@@ -5,17 +5,14 @@
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 
-/** Zero-padded or raw date component string. */
-type DatePartStr = string;
-
 /** Bundled date parts for format generation. */
 interface IDateParts {
-  readonly dayPad: DatePartStr;
-  readonly dayRaw: DatePartStr;
-  readonly monthPad: DatePartStr;
-  readonly monthRaw: DatePartStr;
-  readonly yearShort: DatePartStr;
-  readonly yearFull: DatePartStr;
+  readonly dayPad: string;
+  readonly dayRaw: string;
+  readonly monthPad: string;
+  readonly monthRaw: string;
+  readonly yearShort: string;
+  readonly yearFull: string;
 }
 
 /**

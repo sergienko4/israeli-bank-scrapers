@@ -9,7 +9,6 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { AuthorizationHeaderValue } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { buildResolverFromStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -25,8 +24,8 @@ interface ITestCreds {
 const STRATEGY_NAME = 'TestStrategy';
 
 /** Two distinct synthetic header values used across cases. */
-const INITIAL_HEADER: AuthorizationHeaderValue = 'Bearer synthetic-initial';
-const FRESH_HEADER: AuthorizationHeaderValue = 'Bearer synthetic-fresh';
+const INITIAL_HEADER = 'Bearer synthetic-initial';
+const FRESH_HEADER = 'Bearer synthetic-fresh';
 
 /**
  * Build a stub IApiMediator — no behaviour; the builder just
@@ -71,8 +70,8 @@ interface ICallCounts {
  * @returns Fake strategy + live call counters.
  */
 function makeScriptedStrategy(
-  initialResult: Procedure<AuthorizationHeaderValue>,
-  freshResult: Procedure<AuthorizationHeaderValue>,
+  initialResult: Procedure<string>,
+  freshResult: Procedure<string>,
   warmFlag: boolean,
 ): { strategy: ITokenStrategy<ITestCreds>; counts: ICallCounts } {
   const counts: ICallCounts = { primeInitial: 0, primeFresh: 0, hasWarmState: 0 };
@@ -80,7 +79,7 @@ function makeScriptedStrategy(
    * Scripted primeInitial — increments count, returns scripted result.
    * @returns Scripted procedure.
    */
-  async function primeInitial(): Promise<Procedure<AuthorizationHeaderValue>> {
+  async function primeInitial(): Promise<Procedure<string>> {
     await Promise.resolve();
     counts.primeInitial = counts.primeInitial + 1;
     return initialResult;
@@ -89,7 +88,7 @@ function makeScriptedStrategy(
    * Scripted primeFresh — increments count, returns scripted result.
    * @returns Scripted procedure.
    */
-  async function primeFresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+  async function primeFresh(): Promise<Procedure<string>> {
     await Promise.resolve();
     counts.primeFresh = counts.primeFresh + 1;
     return freshResult;

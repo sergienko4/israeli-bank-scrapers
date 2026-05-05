@@ -19,9 +19,6 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 
-/** Whether a single cleanup handler completed without error. */
-type CleanupOk = boolean;
-
 /** Type alias for the cleanup function signature from IBrowserState. */
 type CleanupFn = IBrowserState['cleanups'][number];
 
@@ -74,7 +71,7 @@ async function runCleanupsRecursive(
 ): Promise<number> {
   if (index < 0) return 0;
   const result = await runCleanup(cleanups[index], logger);
-  const didSucceed: CleanupOk = isOk(result);
+  const didSucceed: boolean = isOk(result);
   const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
   if (!didSucceed) return restCount;
   return restCount + 1;

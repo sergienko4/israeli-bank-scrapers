@@ -24,25 +24,12 @@ const STORAGE_AUTH_KEYS = ['auth-module', 'auth', 'token', 'session', 'guid'];
 /** WellKnown request header names for auth. */
 const AUTH_HEADER_NAMES = ['authorization', 'x-auth-token'];
 
-/** Auth token string with scheme prefix (e.g. 'CALAuthScheme ...'). */
-type AuthToken = string;
-/** Whether an endpoint has a recognised auth header. */
-type HasAuthHeader = boolean;
-/** Whether an endpoint is a recognised auth endpoint. */
-type IsAuthEndpoint = boolean;
-/** Whether a response body value looks like a token. */
-type IsTokenLike = boolean;
-/** Raw sessionStorage string value or sentinel. */
-type StorageValue = string;
-/** CalConnect token name inside a storage auth object. */
-type TokenFieldName = string;
-
 /**
  * Add auth scheme prefix to a bare token if not already prefixed.
  * @param token - Raw token string.
  * @returns Token with CALAuthScheme or Bearer prefix.
  */
-function prefixToken(token: AuthToken): AuthToken {
+function prefixToken(token: string): string {
   if (token.startsWith('CALAuthScheme ')) return token;
   if (token.startsWith('Bearer ')) return token;
   return `CALAuthScheme ${token}`;
@@ -62,8 +49,7 @@ function prefixToken(token: AuthToken): AuthToken {
  */
 function extractAuthHeader(ep: IDiscoveredEndpoint): string | false {
   const hit = AUTH_HEADER_NAMES.find(
-    (h): HasAuthHeader =>
-      typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
+    (h): boolean => typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
   );
   if (!hit) return false;
   return ep.requestHeaders[hit];
@@ -75,7 +61,7 @@ function extractAuthHeader(ep: IDiscoveredEndpoint): string | false {
  * @returns Auth token or false.
  */
 function discoverFromHeaders(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const match = captured.find((ep): HasAuthHeader => extractAuthHeader(ep) !== false);
+  const match = captured.find((ep): boolean => extractAuthHeader(ep) !== false);
   if (!match) return false;
   return extractAuthHeader(match);
 }
@@ -93,7 +79,7 @@ function findTokenInFlat(obj: Record<string, unknown>): string | false {
    * @param f - Field name.
    * @returns True if string longer than 5 chars.
    */
-  const isToken = (f: TokenFieldName): IsTokenLike => {
+  const isToken = (f: string): boolean => {
     const val = obj[f];
     return typeof val === 'string' && val.length > 5;
   };
@@ -110,7 +96,7 @@ function findTokenInFlat(obj: Record<string, unknown>): string | false {
 function searchBodyForToken(body: Record<string, unknown>): string | false {
   const direct = findTokenInFlat(body);
   if (direct) return direct;
-  const nested = Object.values(body).find((v): IsTokenLike => typeof v === 'object' && v !== null);
+  const nested = Object.values(body).find((v): boolean => typeof v === 'object' && v !== null);
   if (!nested) return false;
   return findTokenInFlat(nested as Record<string, unknown>);
 }
@@ -121,16 +107,15 @@ function searchBodyForToken(body: Record<string, unknown>): string | false {
  * @returns Prefixed token or false.
  */
 function discoverFromResponses(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const authHits = captured.filter(
-    (ep): IsAuthEndpoint =>
-      PIPELINE_WELL_KNOWN_API.auth.some((p): IsAuthEndpoint => p.test(ep.url)),
+  const authHits = captured.filter((ep): boolean =>
+    PIPELINE_WELL_KNOWN_API.auth.some((p): boolean => p.test(ep.url)),
   );
   /**
    * Check if endpoint response body contains a token.
    * @param ep - Captured endpoint to inspect.
    * @returns True if a token is found in the response body.
    */
-  const hasToken = (ep: IDiscoveredEndpoint): IsAuthEndpoint =>
+  const hasToken = (ep: IDiscoveredEndpoint): boolean =>
     searchBodyForToken(ep.responseBody as Record<string, unknown>) !== false;
   const match = authHits.find(hasToken);
   if (!match) return false;
@@ -146,7 +131,7 @@ function discoverFromResponses(captured: readonly IDiscoveredEndpoint[]): string
  */
 /** Parsed sessionStorage auth shape. */
 interface IStorageAuth {
-  auth?: { calConnectToken?: AuthToken; token?: AuthToken };
+  auth?: { calConnectToken?: string; token?: string };
 }
 
 /**
@@ -167,7 +152,7 @@ function extractFromParsed(parsed: IStorageAuth): string | false {
  */
 function tryParseJsonToken(raw: string): string | false {
   try {
-    const parsed = JSON.parse(raw) as { auth?: { calConnectToken?: AuthToken; token?: AuthToken } };
+    const parsed = JSON.parse(raw) as { auth?: { calConnectToken?: string; token?: string } };
     return extractFromParsed(parsed);
   } catch {
     return false;
@@ -187,14 +172,14 @@ async function discoverFromStorage(page: Page): Promise<string | false> {
        * @param keys - Storage key names to try.
        * @returns First non-empty value or sentinel.
        */
-      (keys: StorageValue[]): StorageValue => {
-        const values = keys.map((k): StorageValue => sessionStorage.getItem(k) ?? '');
+      (keys: string[]): string => {
+        const values = keys.map((k): string => sessionStorage.getItem(k) ?? '');
         const found = values.find(Boolean);
         return found ?? 'NONE';
       },
       STORAGE_AUTH_KEYS,
     )
-    .catch((): StorageValue => 'NONE');
+    .catch((): string => 'NONE');
   if (raw === 'NONE') return false;
   const jsonToken = tryParseJsonToken(raw);
   if (jsonToken) return jsonToken;
@@ -214,7 +199,7 @@ async function discoverFromStorage(page: Page): Promise<string | false> {
  * @param raw - Storage value.
  * @returns Token or false.
  */
-function checkOneValue(raw: StorageValue): string | false {
+function checkOneValue(raw: string): string | false {
   const token = tryParseJsonToken(raw);
   if (token) {
     LOG.trace({ message: 'iframe token found (json)' });
@@ -238,8 +223,8 @@ function checkOneValue(raw: StorageValue): string | false {
  * @param values - Non-empty storage values from frames.
  * @returns Prefixed token or false.
  */
-function extractFirstToken(values: readonly StorageValue[]): string | false {
-  const hit = values.find((v): IsTokenLike => checkOneValue(v) !== false);
+function extractFirstToken(values: readonly string[]): string | false {
+  const hit = values.find((v): boolean => checkOneValue(v) !== false);
   if (!hit) return false;
   return checkOneValue(hit);
 }
@@ -249,7 +234,7 @@ function extractFirstToken(values: readonly StorageValue[]): string | false {
  * @param frame - Playwright frame.
  * @returns Raw storage value or sentinel.
  */
-async function readFrameStorage(frame: Frame): Promise<StorageValue> {
+async function readFrameStorage(frame: Frame): Promise<string> {
   return frame
     .evaluate(
       /**
@@ -257,13 +242,13 @@ async function readFrameStorage(frame: Frame): Promise<StorageValue> {
        * @param keys - Storage key names.
        * @returns First found value or sentinel.
        */
-      (keys: StorageValue[]): StorageValue => {
-        const vals = keys.map((k): StorageValue => sessionStorage.getItem(k) ?? '');
+      (keys: string[]): string => {
+        const vals = keys.map((k): string => sessionStorage.getItem(k) ?? '');
         return vals.find(Boolean) ?? 'NONE';
       },
       STORAGE_AUTH_KEYS,
     )
-    .catch((): StorageValue => 'NONE');
+    .catch((): string => 'NONE');
 }
 
 /**
@@ -279,11 +264,11 @@ async function readFrameStorage(frame: Frame): Promise<StorageValue> {
  */
 async function dumpFrameKeys(frame: Frame): Promise<string> {
   const keys = await frame
-    .evaluate((): StorageValue => {
+    .evaluate((): string => {
       const allKeys = Object.keys(sessionStorage);
       return allKeys.join(', ') || 'EMPTY';
     })
-    .catch((): StorageValue => 'CROSS-ORIGIN');
+    .catch((): string => 'CROSS-ORIGIN');
   const url = frame.url().slice(0, 50);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
     LOG.trace({ url: maskVisibleText(url), keys: keys.split(', ') });
@@ -303,8 +288,8 @@ async function discoverFromAllFrames(page: Page): Promise<string | false> {
   const storagePromises = frames.map(readFrameStorage);
   const results = await Promise.allSettled(storagePromises);
   const values = results
-    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== 'NONE')
-    .map((r): StorageValue => (r as PromiseFulfilledResult<StorageValue>).value);
+    .filter((r): boolean => r.status === 'fulfilled' && r.value !== 'NONE')
+    .map((r): string => (r as PromiseFulfilledResult<string>).value);
   return extractFirstToken(values);
 }
 
@@ -325,8 +310,8 @@ async function readAllJsonStorageValues(frame: Frame): Promise<readonly string[]
   return frame
     .evaluate((): string[] =>
       Object.keys(sessionStorage)
-        .map((k): StorageValue => sessionStorage.getItem(k) ?? '')
-        .filter((v): IsTokenLike => v.startsWith('{')),
+        .map((k): string => sessionStorage.getItem(k) ?? '')
+        .filter((v): boolean => v.startsWith('{')),
     )
     .catch((): string[] => []);
 }
@@ -338,7 +323,7 @@ async function readAllJsonStorageValues(frame: Frame): Promise<readonly string[]
  */
 async function scanFrameForTokens(frame: Frame): Promise<string | false> {
   const allValues = await readAllJsonStorageValues(frame);
-  const tokenVal = allValues.find((v): IsTokenLike => tryParseJsonToken(v) !== false);
+  const tokenVal = allValues.find((v): boolean => tryParseJsonToken(v) !== false);
   if (!tokenVal) return false;
   LOG.trace({
     message: maskVisibleText(`Tier3c: token from frame ${frame.url().slice(0, 40)}`),
@@ -356,8 +341,8 @@ async function discoverFromAllStorageKeys(page: Page): Promise<string | false> {
   const scanPromises = frames.map(scanFrameForTokens);
   const results = await Promise.allSettled(scanPromises);
   const tokens = results
-    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== false)
-    .map((r): StorageValue => (r as PromiseFulfilledResult<string>).value);
+    .filter((r): boolean => r.status === 'fulfilled' && r.value !== false)
+    .map((r): string => (r as PromiseFulfilledResult<string>).value);
   if (tokens.length === 0) return false;
   return tokens[0];
 }
@@ -384,7 +369,7 @@ async function pollForAuthModule(page: Page): Promise<string | false> {
   const waiters = frames.map(
     (frame): Promise<string | false> =>
       frame
-        .waitForFunction((): StorageValue => sessionStorage.getItem('auth-module') ?? '', {
+        .waitForFunction((): string => sessionStorage.getItem('auth-module') ?? '', {
           polling: AUTH_POLL_INTERVAL,
           timeout: AUTH_POLL_TIMEOUT,
         })
@@ -397,8 +382,8 @@ async function pollForAuthModule(page: Page): Promise<string | false> {
   );
   const results = await Promise.allSettled(waiters);
   const tokens = results
-    .filter((r): IsTokenLike => r.status === 'fulfilled' && r.value !== false)
-    .map((r): StorageValue => (r as PromiseFulfilledResult<string>).value);
+    .filter((r): boolean => r.status === 'fulfilled' && r.value !== false)
+    .map((r): string => (r as PromiseFulfilledResult<string>).value);
   if (tokens.length === 0) return false;
   const elapsed = String(Date.now() - startMs);
   LOG.trace({

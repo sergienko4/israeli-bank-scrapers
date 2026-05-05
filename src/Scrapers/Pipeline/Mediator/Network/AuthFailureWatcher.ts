@@ -34,26 +34,13 @@ const FAIL_STATUS_MAX = 499;
 
 /** Classifier label distinguishing which detector layer fired. */
 type AuthFailureClassifier = 'http-4xx' | 'body-error';
-/** Predicate yielding true when a URL matches an auth-endpoint regex. */
-type IsAuthUrl = boolean;
-/** Predicate yielding true when a status code is a 4xx auth rejection. */
-type IsFailStatus = boolean;
-/** Predicate yielding true when a body field denotes an authentication failure. */
-type IsBodyFailure = boolean;
-/** Boolean returned by phase teardown / reset / record operations. */
-type WatcherOpResult = boolean;
 /**
  * Parsed-JSON sentinel passed to body classifiers. Aliased so the
  * function signature does not include the bare `unknown` keyword
  * (forbidden by the architecture lint rule).
  */
+// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
 type JsonValue = unknown;
-/**
- * Empty / fallback string returned by catch handlers when a response body
- * cannot be read. Named so the function signatures don't expose a bare
- * `): string` return (forbidden by the project architecture rule #15).
- */
-type CatchTextFallback = string;
 
 /**
  * Pattern row matching a body field whose value indicates an auth failure.
@@ -64,7 +51,7 @@ interface IBodyFailurePattern {
   /** JSON field name to inspect on the parsed response body. */
   readonly field: string;
   /** Predicate — true means this value denotes an auth failure. */
-  readonly isFailure: (value: JsonValue) => IsBodyFailure;
+  readonly isFailure: (value: JsonValue) => boolean;
   /** Documents which bank's contract motivated the row. */
   readonly note: string;
 }
@@ -74,7 +61,7 @@ interface IBodyFailurePattern {
  * @param v - JSON value at the field.
  * @returns True when v is a non-zero number.
  */
-function isNonZeroNumber(v: JsonValue): IsBodyFailure {
+function isNonZeroNumber(v: JsonValue): boolean {
   return typeof v === 'number' && v !== 0;
 }
 
@@ -84,7 +71,7 @@ function isNonZeroNumber(v: JsonValue): IsBodyFailure {
  * @param v - JSON value at the field.
  * @returns True when v indicates failure.
  */
-function isErrorCodeFailure(v: JsonValue): IsBodyFailure {
+function isErrorCodeFailure(v: JsonValue): boolean {
   if (typeof v === 'number') return v !== 0;
   if (typeof v === 'string') return v.length > 0 && v !== '0';
   return false;
@@ -96,7 +83,7 @@ function isErrorCodeFailure(v: JsonValue): IsBodyFailure {
  * @param v - JSON value at the field.
  * @returns True when v indicates a populated error.
  */
-function isErrorObjectFailure(v: JsonValue): IsBodyFailure {
+function isErrorObjectFailure(v: JsonValue): boolean {
   if (v === null || v === undefined) return false;
   if (typeof v === 'string') return v.length > 0;
   if (typeof v === 'object') return Object.keys(v).length > 0;
@@ -109,7 +96,7 @@ function isErrorObjectFailure(v: JsonValue): IsBodyFailure {
  * @param v - JSON value at the field.
  * @returns True when v is a non-success status string.
  */
-function isNonSuccessStatus(v: JsonValue): IsBodyFailure {
+function isNonSuccessStatus(v: JsonValue): boolean {
   return typeof v === 'string' && v !== 'SUCCESS' && v.length > 0;
 }
 
@@ -167,9 +154,9 @@ interface IAuthFailureWatcher {
   /** Synchronous probe — a captured failure if any, false otherwise. */
   readonly hasFailed: () => false | IAuthFailure;
   /** Clear any captured failure (used between retry attempts). */
-  readonly reset: () => WatcherOpResult;
+  readonly reset: () => boolean;
   /** Stop listening — called when the LoginPhase exits. */
-  readonly dispose: () => WatcherOpResult;
+  readonly dispose: () => boolean;
 }
 
 /**
@@ -177,8 +164,8 @@ interface IAuthFailureWatcher {
  * @param url - Response URL.
  * @returns True when at least one auth pattern matches.
  */
-function isAuthEndpointUrl(url: string): IsAuthUrl {
-  return PIPELINE_WELL_KNOWN_API.auth.some((p): IsAuthUrl => p.test(url));
+function isAuthEndpointUrl(url: string): boolean {
+  return PIPELINE_WELL_KNOWN_API.auth.some((p): boolean => p.test(url));
 }
 
 /**
@@ -186,7 +173,7 @@ function isAuthEndpointUrl(url: string): IsAuthUrl {
  * @param status - Response status code.
  * @returns True when status is 400..499 inclusive.
  */
-function isFailureStatusCode(status: number): IsFailStatus {
+function isFailureStatusCode(status: number): boolean {
   return status >= FAIL_STATUS_MIN && status <= FAIL_STATUS_MAX;
 }
 
@@ -201,7 +188,7 @@ function matchInRecord(record: Record<string, JsonValue>): string | false {
    * @param pattern - Body-failure pattern row.
    * @returns True when the row's field is present and predicate fires.
    */
-  const fits = (pattern: IBodyFailurePattern): IsBodyFailure => {
+  const fits = (pattern: IBodyFailurePattern): boolean => {
     if (!(pattern.field in record)) return false;
     return pattern.isFailure(record[pattern.field]);
   };
@@ -241,7 +228,7 @@ function classifyBodyAsFailure(body: JsonValue): string | false {
    * @param value - Nested JSON value.
    * @returns True when matchNested returned a note.
    */
-  const didMatch = (value: JsonValue): IsBodyFailure => matchNested(value) !== false;
+  const didMatch = (value: JsonValue): boolean => matchNested(value) !== false;
   const matchedValue = nestedValues.find(didMatch);
   if (matchedValue === undefined) return false;
   return matchNested(matchedValue);
@@ -253,7 +240,7 @@ function classifyBodyAsFailure(body: JsonValue): string | false {
  * @returns Raw body text up to the preview limit, masked + truncated.
  */
 async function safeBodyPreview(response: Response): Promise<string> {
-  const raw = await response.text().catch((): CatchTextFallback => '');
+  const raw = await response.text().catch((): string => '');
   const slice = raw.slice(0, BODY_PREVIEW_LIMIT);
   return maskVisibleText(slice);
 }
@@ -270,7 +257,7 @@ const NO_PARSED_BODY = '__NO_PARSED_BODY__';
  * @returns Parsed value, or NO_PARSED_BODY sentinel on any error.
  */
 async function safeParsedBody(response: Response): Promise<JsonValue> {
-  const text = await response.text().catch((): CatchTextFallback => '');
+  const text = await response.text().catch((): string => '');
   if (text.length === 0) return NO_PARSED_BODY;
   try {
     return JSON.parse(text) as JsonValue;
@@ -290,12 +277,14 @@ interface IWatcherState {
 
 /**
  * Record a captured failure on state. Logs first capture only.
+ * Idempotent — re-recording on the same state is a no-op.
  * @param state - Watcher state.
  * @param failure - Captured failure record.
- * @returns True after recording.
+ * @returns True when this call recorded a new failure, false when a
+ * prior call had already captured one (idempotent skip).
  */
-function recordFailure(state: IWatcherState, failure: IAuthFailure): WatcherOpResult {
-  if (state.detected) return true;
+function recordFailure(state: IWatcherState, failure: IAuthFailure): boolean {
+  if (state.detected) return false;
   state.detected = failure;
   LOG.debug({
     classifier: failure.classifier,
@@ -312,10 +301,7 @@ function recordFailure(state: IWatcherState, failure: IAuthFailure): WatcherOpRe
  * @param response - Playwright response (already auth-URL matched).
  * @returns True after inspection completes (always — fire-and-forget).
  */
-async function inspectAuthResponse(
-  state: IWatcherState,
-  response: Response,
-): Promise<WatcherOpResult> {
+async function inspectAuthResponse(state: IWatcherState, response: Response): Promise<boolean> {
   // No state.detected guard here — recordFailure() is self-idempotent
   // (returns true and skips when already detected). Avoids dead-code
   // branch that fan-out tests cannot reach in practice.
@@ -345,7 +331,7 @@ async function inspectAuthResponse(
  * @param state - Watcher state to update on detection.
  * @returns Playwright response listener.
  */
-function buildResponseHandler(state: IWatcherState): (response: Response) => WatcherOpResult {
+function buildResponseHandler(state: IWatcherState): (response: Response) => boolean {
   /**
    * Per-response listener. Synchronous shell; the JSON inspection runs in
    * a fire-and-forget Promise so the listener never returns a Promise to
@@ -353,12 +339,12 @@ function buildResponseHandler(state: IWatcherState): (response: Response) => Wat
    * @param response - Playwright response.
    * @returns Always true.
    */
-  return (response: Response): WatcherOpResult => {
+  return (response: Response): boolean => {
     if (state.isDisposed) return false;
     if (state.detected) return false;
     const url = response.url();
     if (!isAuthEndpointUrl(url)) return false;
-    inspectAuthResponse(state, response).catch((): WatcherOpResult => false);
+    inspectAuthResponse(state, response).catch((): boolean => false);
     return true;
   };
 }
@@ -397,7 +383,7 @@ async function awaitFailure(
    * @param r - Playwright response.
    * @returns True for an auth URL with 4xx status.
    */
-  const matcher = (r: Response): IsAuthUrl => {
+  const matcher = (r: Response): boolean => {
     const url = r.url();
     if (!isAuthEndpointUrl(url)) return false;
     const responseStatus = r.status();
@@ -434,16 +420,17 @@ function buildWatcherApi(page: Page, state: IWatcherState): IAuthFailureWatcher 
    * Reset captured state — used between retry attempts.
    * @returns True after reset.
    */
-  const resetFn = (): WatcherOpResult => {
+  const resetFn = (): boolean => {
     state.detected = false;
     return true;
   };
   /**
    * Stop listening to page responses; idempotent.
-   * @returns True after disposal.
+   * @returns True when this call performed the unsubscribe, false when
+   * a prior dispose had already torn the watcher down (idempotent skip).
    */
-  const disposeFn = (): WatcherOpResult => {
-    if (state.isDisposed) return true;
+  const disposeFn = (): boolean => {
+    if (state.isDisposed) return false;
     state.isDisposed = true;
     page.off('response', state.responseHandler);
     return true;
@@ -483,7 +470,7 @@ function createAuthFailureWatcher(page: Page): IAuthFailureWatcher {
    * to guard the page.off call).
    * @returns Always true.
    */
-  const placeholderHandler = (): WatcherOpResult => true;
+  const placeholderHandler = (): boolean => true;
   const state: IWatcherState = {
     detected: false,
     responseHandler: placeholderHandler,
@@ -515,7 +502,7 @@ function createFrozenAuthFailureWatcher(): IAuthFailureWatcher {
    * Stub op for the frozen variant.
    * @returns Always true.
    */
-  const stubOp = (): WatcherOpResult => true;
+  const stubOp = (): boolean => true;
   return {
     waitForFailure: stubWait,
     hasFailed: stubProbe,

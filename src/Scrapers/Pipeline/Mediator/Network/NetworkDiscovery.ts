@@ -28,25 +28,6 @@ import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryT
 
 const LOG = getDebug(import.meta.url);
 
-/** Whether a content-type header indicates a JSON API response. */
-type IsJsonContent = boolean;
-/** Raw URL string of a discovered endpoint. */
-type EndpointUrl = string;
-/** Raw HTTP POST body string. */
-type PostBodyStr = string;
-/** HTTP Content-Type header value. */
-type ContentTypeStr = string;
-/** Numeric comparator result for array sort (negative/zero/positive). */
-type SortOrder = number;
-/** Whether an endpoint was successfully captured and stored. */
-type CaptureResult = boolean;
-/** Whether a regex pattern matched a captured URL. */
-type PatternTest = boolean;
-/** Whether an endpoint contains a non-empty header value. */
-type HeaderPresent = boolean;
-/** Raw header value string extracted from a request. */
-type HeaderValue = string;
-
 /** WK header names — imported from registry. */
 const ORIGIN_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.origin;
 const SITE_ID_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.siteId;
@@ -66,9 +47,9 @@ const JSON_CONTENT_TYPES = ['application/json', 'text/json', 'text/plain', 'text
  * @param contentType - The content-type header value.
  * @returns True if JSON response.
  */
-function isJsonContentType(contentType: ContentTypeStr): IsJsonContent {
+function isJsonContentType(contentType: string): boolean {
   const lower = contentType.toLowerCase();
-  return JSON_CONTENT_TYPES.some((jsonType): IsJsonContent => lower.includes(jsonType));
+  return JSON_CONTENT_TYPES.some((jsonType): boolean => lower.includes(jsonType));
 }
 
 /**
@@ -77,10 +58,10 @@ function isJsonContentType(contentType: ContentTypeStr): IsJsonContent {
  * @returns URL, method, postData, and contentType.
  */
 function extractRequestMeta(response: Response): {
-  url: EndpointUrl;
+  url: string;
   method: 'GET' | 'POST' | 'PUT';
-  postData: PostBodyStr;
-  contentType: ContentTypeStr;
+  postData: string;
+  contentType: string;
   requestHeaders: Record<string, string>;
 } {
   const headers = response.headers();
@@ -120,14 +101,11 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
  */
 let dumpCounter = 0;
 
-/** Named alias for the monotonically increasing dump-file counter (Rule #15). */
-type DumpCount = number;
-
 /** Bundled args for `dumpResponseBody` — keeps the helper inside the
  *  3-param ceiling while exposing both the request body (POST payload)
  *  and the response body to the trace-mode dump file. */
 interface IDumpArgs {
-  readonly url: EndpointUrl;
+  readonly url: string;
   readonly method: string;
   readonly postData: string;
   readonly text: string;
@@ -144,7 +122,7 @@ interface IDumpArgs {
  * @param args - Bundled url/method/postData/responseText.
  * @returns Count of dumps so far.
  */
-function dumpResponseBody(args: IDumpArgs): DumpCount {
+function dumpResponseBody(args: IDumpArgs): number {
   const dir = getNetworkDumpDir();
   if (!dir) return dumpCounter;
   try {
@@ -169,7 +147,7 @@ function dumpResponseBody(args: IDumpArgs): DumpCount {
  * @param fullUrl - Full URL with query params.
  * @returns Base URL without query string.
  */
-function extractBaseUrl(fullUrl: EndpointUrl): EndpointUrl {
+function extractBaseUrl(fullUrl: string): string {
   const idx = fullUrl.indexOf('?');
   if (idx < 0) return fullUrl;
   return fullUrl.slice(0, idx);
@@ -189,8 +167,8 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
     counts.set(base, current + 1);
   }
   const entries = [...counts.entries()];
-  const sorted = entries.sort((a, b): SortOrder => b[1] - a[1]);
-  return sorted[0]?.[0] ?? '';
+  entries.sort((a, b): number => b[1] - a[1]);
+  return entries[0]?.[0] ?? '';
 }
 
 /**
@@ -199,12 +177,12 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
  * @param response - Playwright response.
  * @returns True (always — fire-and-forget).
  */
-function handleResponse(captured: IDiscoveredEndpoint[], response: Response): CaptureResult {
+function handleResponse(captured: IDiscoveredEndpoint[], response: Response): boolean {
   const url = response.url();
   const status = response.status();
   const method = response.request().method();
   parseResponse(response)
-    .then((endpoint): CaptureResult => {
+    .then((endpoint): boolean => {
       const isInteresting = method === 'POST' || url.includes('/col-rest/');
       if (!endpoint && isInteresting) {
         LOG.trace({ method, url: maskVisibleText(url), status });
@@ -217,12 +195,9 @@ function handleResponse(captured: IDiscoveredEndpoint[], response: Response): Ca
       });
       return true;
     })
-    .catch((): CaptureResult => false);
+    .catch((): boolean => false);
   return true;
 }
-
-/** Endpoint is a POST with a non-empty body — replayable as a template. */
-type IsReplayablePost = boolean;
 
 /**
  * Returns true when the endpoint is a non-empty-body POST — the body
@@ -230,7 +205,7 @@ type IsReplayablePost = boolean;
  * @param ep - captured endpoint.
  * @returns true when method=POST and postData is non-empty.
  */
-function isReplayablePost(ep: IDiscoveredEndpoint): IsReplayablePost {
+function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
   if (ep.method !== 'POST') return false;
   return ep.postData.length > 0;
 }
@@ -248,11 +223,11 @@ function discoverShapeAware(
   captured: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
-  const urlMatches = captured.filter(
-    (ep): PatternTest => patterns.some((p): PatternTest => p.test(ep.url)),
+  const urlMatches = captured.filter((ep): boolean =>
+    patterns.some((p): boolean => p.test(ep.url)),
   );
   if (urlMatches.length === 0) return false;
-  const shapePassing = urlMatches.filter((ep): PatternTest => hasTxnArray(ep.responseBody));
+  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
   const postWithShape = shapePassing.find(isReplayablePost);
   if (postWithShape) return postWithShape;
   // Replayable POST without shape — its response was empty for the
@@ -280,17 +255,17 @@ function discoverByWellKnown(
    * @param p - Pattern to test.
    * @returns True if URL matches.
    */
-  const urlMatchesPattern = (ep: IDiscoveredEndpoint, p: RegExp): PatternTest => p.test(ep.url);
+  const urlMatchesPattern = (ep: IDiscoveredEndpoint, p: RegExp): boolean => p.test(ep.url);
   /**
    * Check if any captured endpoint URL matches a pattern.
    * @param p - Pattern to test against all captured endpoints.
    * @returns True if at least one URL matches.
    */
-  const matchesAny = (p: RegExp): PatternTest =>
-    captured.some((ep): PatternTest => urlMatchesPattern(ep, p));
+  const matchesAny = (p: RegExp): boolean =>
+    captured.some((ep): boolean => urlMatchesPattern(ep, p));
   const match = patterns.find(matchesAny);
   if (!match) return false;
-  const hit = captured.find((ep): PatternTest => match.test(ep.url));
+  const hit = captured.find((ep): boolean => match.test(ep.url));
   return hit ?? false;
 }
 
@@ -302,8 +277,7 @@ function discoverByWellKnown(
  */
 function extractHeader(ep: IDiscoveredEndpoint, headerNames: readonly string[]): string | false {
   const match = headerNames.find(
-    (h): HeaderPresent =>
-      typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
+    (h): boolean => typeof ep.requestHeaders[h] === 'string' && ep.requestHeaders[h].length > 0,
   );
   if (!match) return false;
   return ep.requestHeaders[match];
@@ -319,7 +293,7 @@ function discoverHeaderValue(
   captured: readonly IDiscoveredEndpoint[],
   headerNames: readonly string[],
 ): string | false {
-  const ep = captured.find((e): HeaderPresent => extractHeader(e, headerNames) !== false);
+  const ep = captured.find((e): boolean => extractHeader(e, headerNames) !== false);
   if (!ep) return false;
   return extractHeader(ep, headerNames);
 }
@@ -338,7 +312,7 @@ function buildCoreMethods(
   return {
     /** @inheritdoc */
     findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
-      captured.filter((ep): PatternTest => pattern.test(ep.url)),
+      captured.filter((ep): boolean => pattern.test(ep.url)),
     /** @inheritdoc */
     getServicesUrl: (): string | false => findCommonServicesUrl(captured),
     /** @inheritdoc */
@@ -402,8 +376,8 @@ function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false
     ...PIPELINE_WELL_KNOWN_API.balance,
     ...PIPELINE_WELL_KNOWN_API.auth,
   ];
-  const apiEndpoint = captured.find((ep): PatternTest => {
-    const isApi = apiPatterns.some((p): PatternTest => p.test(ep.url));
+  const apiEndpoint = captured.find((ep): boolean => {
+    const isApi = apiPatterns.some((p): boolean => p.test(ep.url));
     if (!isApi) return false;
     const referer = ep.requestHeaders.referer;
     if (!referer) return false;
@@ -457,7 +431,7 @@ function findByCorsOrigin(
   captured: readonly IDiscoveredEndpoint[],
   pageOrigin: string,
 ): string | false {
-  const hit = captured.find((ep): PatternTest => checkCorsHeader(ep, pageOrigin) !== false);
+  const hit = captured.find((ep): boolean => checkCorsHeader(ep, pageOrigin) !== false);
   if (!hit) return false;
   return checkCorsHeader(hit, pageOrigin);
 }
@@ -488,11 +462,11 @@ const INFRA_PREFIXES = ['api.', 'connect.', 'css.', 'cdn.', 'login.'];
  * @param parentDomain - Parent domain suffix.
  * @returns True if candidate SPA.
  */
-function isSpaCandidate(url: string, currentHost: string, parentDomain: string): PatternTest {
+function isSpaCandidate(url: string, currentHost: string, parentDomain: string): boolean {
   const host = new URL(url).hostname;
   const isSameParent = host.endsWith(parentDomain);
   const isDifferent = host !== currentHost;
-  const isNotInfra = !INFRA_PREFIXES.some((p): PatternTest => host.startsWith(p));
+  const isNotInfra = !INFRA_PREFIXES.some((p): boolean => host.startsWith(p));
   return isSameParent && isDifferent && isNotInfra;
 }
 
@@ -511,7 +485,7 @@ function scanConfigBody(
   const body = JSON.stringify(ep.responseBody);
   const urls = body.match(CONFIG_URL_REGEX);
   if (!urls) return false;
-  const hit = urls.find((u): PatternTest => isSpaCandidate(u, currentHost, parentDomain));
+  const hit = urls.find((u): boolean => isSpaCandidate(u, currentHost, parentDomain));
   if (!hit) return false;
   LOG.debug({
     message: `SPA Tier3 (config): ${maskVisibleText(hit)} from ${maskVisibleText(ep.url)}`,
@@ -532,10 +506,10 @@ function findByConfigBody(
   const currentHost = new URL(currentOrigin).hostname;
   const parentDomain = currentHost.split('.').slice(-3).join('.');
   const configEps = captured.filter(
-    (ep): PatternTest => ep.url.includes('config') || ep.url.includes('settings'),
+    (ep): boolean => ep.url.includes('config') || ep.url.includes('settings'),
   );
   const hit = configEps.find(
-    (ep): PatternTest => scanConfigBody(ep, currentHost, parentDomain) !== false,
+    (ep): boolean => scanConfigBody(ep, currentHost, parentDomain) !== false,
   );
   if (!hit) return false;
   return scanConfigBody(hit, currentHost, parentDomain);
@@ -592,9 +566,9 @@ function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
  */
 function discoverApiFromConfig(captured: readonly IDiscoveredEndpoint[]): string | false {
   const configEps = captured.filter(
-    (ep): PatternTest => ep.url.includes('config') || ep.url.includes('settings'),
+    (ep): boolean => ep.url.includes('config') || ep.url.includes('settings'),
   );
-  const hit = configEps.find((ep): PatternTest => extractApiFromBody(ep) !== false);
+  const hit = configEps.find((ep): boolean => extractApiFromBody(ep) !== false);
   if (!hit) return false;
   return extractApiFromBody(hit);
 }
@@ -605,7 +579,7 @@ function discoverApiFromConfig(captured: readonly IDiscoveredEndpoint[]): string
  * @returns API origin or false.
  */
 function discoverApiFromSubdomain(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const hit = captured.find((ep): PatternTest => new URL(ep.url).hostname.startsWith('api.'));
+  const hit = captured.find((ep): boolean => new URL(ep.url).hostname.startsWith('api.'));
   if (!hit) return false;
   const origin = new URL(hit.url).origin;
   LOG.debug({
@@ -620,7 +594,7 @@ function discoverApiFromSubdomain(captured: readonly IDiscoveredEndpoint[]): str
  * @returns API origin or false.
  */
 function discoverApiFromPath(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const hit = captured.find((ep): PatternTest => ep.method === 'POST' && ep.url.includes('/api/'));
+  const hit = captured.find((ep): boolean => ep.method === 'POST' && ep.url.includes('/api/'));
   if (!hit) return false;
   const origin = new URL(hit.url).origin;
   LOG.debug({
@@ -651,9 +625,9 @@ function discoverApiOriginFromTraffic(captured: readonly IDiscoveredEndpoint[]):
  * @param fieldNames - WK field names to search for.
  * @returns True if any field name found as a JSON key.
  */
-function bodyHasFields(body: Record<string, string>, fieldNames: readonly string[]): PatternTest {
+function bodyHasFields(body: Record<string, string>, fieldNames: readonly string[]): boolean {
   const json = JSON.stringify(body);
-  return fieldNames.some((f): PatternTest => json.includes(`"${f}"`));
+  return fieldNames.some((f): boolean => json.includes(`"${f}"`));
 }
 
 /**
@@ -667,7 +641,7 @@ function discoverByContent(
   captured: readonly IDiscoveredEndpoint[],
   fieldNames: readonly string[],
 ): IDiscoveredEndpoint | false {
-  const hit = captured.find((ep): PatternTest => {
+  const hit = captured.find((ep): boolean => {
     if (!ep.responseBody) return false;
     return bodyHasFields(ep.responseBody as Record<string, string>, fieldNames);
   });
@@ -685,7 +659,7 @@ function discoverByContent(
  * @param name - Lowercase header name.
  * @returns True if standard browser header.
  */
-function isBrowserStandard(name: HeaderValue): HeaderPresent {
+function isBrowserStandard(name: string): boolean {
   const lower = name.toLowerCase();
   return BROWSER_STANDARD_HEADERS.has(lower);
 }
@@ -700,7 +674,7 @@ function extractSpaHeaders(captured: readonly IDiscoveredEndpoint[]): Record<str
   const txnEp = discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.transactions);
   if (!txnEp) return {};
   const entries = Object.entries(txnEp.requestHeaders);
-  const spaOnly = entries.filter(([name]): HeaderPresent => !isBrowserStandard(name));
+  const spaOnly = entries.filter(([name]): boolean => !isBrowserStandard(name));
   const count = String(spaOnly.length);
   LOG.debug({ message: `spaHeaders: ${count} custom headers from txn endpoint` });
   return Object.fromEntries(spaOnly);
@@ -724,7 +698,7 @@ function findUrlWithAccountId(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): IDiscoveredEndpoint | false {
-  const hit = captured.find((ep): PatternTest => ep.url.includes(accountId));
+  const hit = captured.find((ep): boolean => ep.url.includes(accountId));
   return hit ?? false;
 }
 
@@ -771,15 +745,16 @@ function buildBalUrlFromTraffic(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): string | false {
-  const balanceHits = captured.filter(
-    (ep): PatternTest => PIPELINE_WELL_KNOWN_API.balance.some((p): PatternTest => p.test(ep.url)),
+  const balanceHits = captured.filter((ep): boolean =>
+    PIPELINE_WELL_KNOWN_API.balance.some((p): boolean => p.test(ep.url)),
   );
   if (balanceHits.length === 0) return false;
   const templateUrl = balanceHits[0].url;
   const pathOnly = templateUrl.split('?')[0];
   const segments = pathOnly.split('/');
-  const lastSeg = segments[segments.length - 1];
-  const isAccountInUrl = /^\d{5,}$/.test(lastSeg);
+  const lastSegMaybe = segments.at(-1);
+  if (lastSegMaybe === undefined) return false;
+  const isAccountInUrl = /^\d{5,}$/.test(lastSegMaybe);
   if (isAccountInUrl) {
     segments[segments.length - 1] = accountId;
     return segments.join('/');
@@ -798,10 +773,10 @@ function findTrafficHit(
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
   const hit = captured.find(
-    (ep): PatternTest =>
+    (ep): boolean =>
       ep.responseBody !== undefined &&
       ep.responseBody !== null &&
-      patterns.some((p): PatternTest => p.test(ep.url)),
+      patterns.some((p): boolean => p.test(ep.url)),
   );
   return hit ?? false;
 }
@@ -831,9 +806,9 @@ async function awaitTraffic(
    * @param r - Playwright response.
    * @returns True if URL matches.
    */
-  const matchUrl = (r: Response): PatternTest => {
+  const matchUrl = (r: Response): boolean => {
     const url = r.url();
-    return args.patterns.some((p): PatternTest => p.test(url));
+    return args.patterns.some((p): boolean => p.test(url));
   };
   await args.page.waitForResponse(matchUrl, { timeout: timeoutMs }).catch((): false => false);
   return findTrafficHit(args.captured, args.patterns);
@@ -856,7 +831,7 @@ const POST_INTERCEPT_TIMEOUT = 120_000;
  * @param captured - Mutable captured endpoints array.
  * @returns True (fire-and-forget).
  */
-function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): CaptureResult {
+function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): boolean {
   const allPatterns = [
     ...PIPELINE_WELL_KNOWN_API.auth,
     ...PIPELINE_WELL_KNOWN_API.transactions,
@@ -873,18 +848,18 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): Ca
    * @param r - Playwright response.
    * @returns True if API method + URL matches.
    */
-  const isWkApi = (r: Response): PatternTest => {
+  const isWkApi = (r: Response): boolean => {
     const method = r.request().method();
     const isApiMethod = method === 'POST' || method === 'PUT';
     const url = r.url();
-    return isApiMethod && allPatterns.some((p): PatternTest => p.test(url));
+    return isApiMethod && allPatterns.some((p): boolean => p.test(url));
   };
   page
     .waitForResponse(isWkApi, { timeout: POST_INTERCEPT_TIMEOUT })
-    .then(async (resp): Promise<CaptureResult> => {
+    .then(async (resp): Promise<boolean> => {
       const endpoint = await parseResponse(resp);
       if (!endpoint) return false;
-      const isDupe = captured.some((ep): PatternTest => ep.url === endpoint.url);
+      const isDupe = captured.some((ep): boolean => ep.url === endpoint.url);
       if (isDupe) return false;
       captured.push(endpoint);
       LOG.trace({
@@ -893,7 +868,7 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): Ca
       });
       return true;
     })
-    .catch((): CaptureResult => false);
+    .catch((): boolean => false);
   return true;
 }
 
@@ -905,7 +880,7 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): Ca
  */
 function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
-  page.on('response', (r: Response): CaptureResult => handleResponse(captured, r));
+  page.on('response', (r: Response): boolean => handleResponse(captured, r));
   interceptPostResponses(page, captured);
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);

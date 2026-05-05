@@ -14,8 +14,6 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
-/** Whether a UI element was found and clicked. */
-type DidClick = boolean;
 /** Best-effort timeout — don't block, traffic captured in LOGIN.POST. */
 const TRAFFIC_TIMEOUT = 5000;
 /** Timeout for WK element discovery. */
@@ -53,7 +51,7 @@ async function waitAndTrace(
   mediator: IElementMediator,
   label: string,
   logger?: ScraperLogger,
-): Promise<DidClick> {
+): Promise<boolean> {
   const masked = maskVisibleText(`Clicked '${label}'`);
   logger?.debug({ message: masked });
   const hit = await mediator.network.waitForTraffic(TXN_PATTERNS, TRAFFIC_TIMEOUT);
@@ -70,7 +68,7 @@ async function waitAndTrace(
 async function triggerDashboardUi(
   mediator: IElementMediator,
   logger?: ScraperLogger,
-): Promise<Procedure<DidClick>> {
+): Promise<Procedure<boolean>> {
   const txn = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
   const txnLabel = await tryWkClick(mediator, txn);
   if (txnLabel) return succeed(await waitAndTrace(mediator, txnLabel, logger));

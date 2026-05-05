@@ -12,9 +12,6 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
-/** Cookie summary string for audit logging. */
-type CookieSummary = string;
-
 /**
  * Audit session cookies after login.
  * @param mediator - Element mediator.
@@ -27,7 +24,7 @@ async function auditCookies(
 ): Promise<number> {
   await mediator.waitForNetworkIdle(10000).catch((): false => false);
   const cookies = await mediator.getCookies();
-  const names = cookies.map((c): CookieSummary => `${c.name}@${c.domain}`);
+  const names = cookies.map((c): string => `${c.name}@${c.domain}`);
   const summary = names.join(', ');
   const countStr = String(cookies.length);
   log.debug({

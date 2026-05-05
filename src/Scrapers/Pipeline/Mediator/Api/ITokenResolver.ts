@@ -24,22 +24,21 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 
-/** Non-empty Authorization header VALUE (raw JWT or "Bearer X"). */
-type AuthorizationHeaderValue = string;
-
-/** Human-readable resolver identity — for logs + error diagnostics. */
-type TokenResolverName = string;
-
 /**
  * Token-lifecycle port. ApiMediator depends on this interface; banks
  * implement it under their own namespace. Each concrete resolver closes
  * over the context + credentials it needs — the port deliberately takes
  * no arguments.
+ *
+ * The `resolve` / `refresh` return value is the full Authorization header
+ * VALUE — raw JWT or "Bearer X" — installed verbatim by ApiMediator's
+ * `setRawAuth`. The `name` is a human-readable identity used by logs and
+ * error diagnostics.
  */
 interface ITokenResolver {
-  readonly name: TokenResolverName;
-  resolve(): Promise<Procedure<AuthorizationHeaderValue>>;
-  refresh(): Promise<Procedure<AuthorizationHeaderValue>>;
+  readonly name: string;
+  resolve(): Promise<Procedure<string>>;
+  refresh(): Promise<Procedure<string>>;
 }
 
 /** Diagnostic message used by NullResolver on both methods. */
@@ -50,7 +49,7 @@ const NULL_RESOLVER_MESSAGE = 'no token resolver registered';
  * doesn't need an "is resolver present?" branch.
  * @returns Generic failure procedure.
  */
-async function nullResolverResolve(): Promise<Procedure<AuthorizationHeaderValue>> {
+async function nullResolverResolve(): Promise<Procedure<string>> {
   await Promise.resolve();
   return fail(ScraperErrorTypes.Generic, NULL_RESOLVER_MESSAGE);
 }
@@ -59,7 +58,7 @@ async function nullResolverResolve(): Promise<Procedure<AuthorizationHeaderValue
  * NullResolver.refresh — matches resolve semantic.
  * @returns Generic failure procedure.
  */
-async function nullResolverRefresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+async function nullResolverRefresh(): Promise<Procedure<string>> {
   await Promise.resolve();
   return fail(ScraperErrorTypes.Generic, NULL_RESOLVER_MESSAGE);
 }
@@ -75,5 +74,5 @@ const NULL_RESOLVER: ITokenResolver = {
   refresh: nullResolverRefresh,
 };
 
-export type { AuthorizationHeaderValue, ITokenResolver, TokenResolverName };
+export type { ITokenResolver };
 export { NULL_RESOLVER };

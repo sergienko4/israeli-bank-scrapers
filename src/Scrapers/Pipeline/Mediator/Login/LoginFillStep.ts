@@ -18,18 +18,10 @@ import { deepFillInput } from '../Elements/ElementsInteractions.js';
 import { fillFieldStep, type IFillAccum, type IFillContext } from '../Form/LoginScopeResolver.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 
-type FormSelector = string;
-/** Whether a credential key is present in the credentials map. */
-type IsPresent = boolean;
-/** A credential key name (e.g. 'username', 'password'). */
-type CredentialKey = string;
-/** A credential value (the user's input). */
-type CredentialValue = string;
-
 /** Options for filling a single credential field. */
 export interface IFillOpts {
-  readonly credentialKey: CredentialKey;
-  readonly value: CredentialValue;
+  readonly credentialKey: string;
+  readonly value: string;
   readonly selectors: readonly SelectorCandidate[];
 }
 
@@ -38,16 +30,13 @@ export interface IFillFieldOpts {
   readonly mediator: IElementMediator;
   readonly fill: IFillOpts;
   readonly scopeContext?: Page | Frame;
-  readonly formSelector?: FormSelector;
+  readonly formSelector?: string;
   readonly logger: ScraperLogger;
 }
 
-/** Whether fill succeeded. */
-type IsFillOk = boolean;
-
 /** Result of filling one field. */
 export interface IFillResult {
-  readonly isOk: IsFillOk;
+  readonly isOk: boolean;
   readonly procedure: Procedure<boolean>;
   readonly resolvedContext?: Page | Frame;
 }
@@ -62,7 +51,7 @@ const RESOLVE_STATUS: Record<string, string> = { true: 'FOUND', false: 'NOT_FOUN
  * @param success - Whether resolution succeeded.
  * @returns The success flag for chaining.
  */
-function logResolveResult(log: ScraperLogger, key: CredentialKey, success: IsPresent): IsPresent {
+function logResolveResult(log: ScraperLogger, key: string, success: boolean): boolean {
   const status = RESOLVE_STATUS[String(success)];
   log.debug({ field: maskVisibleText(key), result: status });
   return success;
@@ -109,9 +98,7 @@ function findMissingKeys(
   fields: readonly IFieldConfig[],
   creds: Record<string, string>,
 ): readonly string[] {
-  return fields
-    .filter((f): IsPresent => !creds[f.credentialKey])
-    .map((f): CredentialKey => f.credentialKey);
+  return fields.filter((f): boolean => !creds[f.credentialKey]).map((f): string => f.credentialKey);
 }
 
 /**
