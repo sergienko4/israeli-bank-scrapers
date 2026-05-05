@@ -23,12 +23,6 @@ import { runSmsOtpFlow } from './SmsOtpFlow.js';
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;
 
-/** Value of a string-typed creds field (empty string when absent). */
-type CredsFieldValue = string;
-
-/** Latest long-term token captured from the most recent successful flow. */
-type LatestLongTermToken = string;
-
 /**
  * Extended ITokenStrategy exposing the most recent long-term token
  * captured during a fresh flow. Returns '' until the first successful
@@ -47,7 +41,7 @@ const STRATEGY_NAME_DEFAULT: TokenResolverName = 'ApiDirectCall';
  * @param field - Field name.
  * @returns String value or ''.
  */
-function readCredsString(creds: GenericCreds, field: string): CredsFieldValue {
+function readCredsString(creds: GenericCreds, field: string): string {
   const value = creds[field];
   if (typeof value !== 'string') return '';
   return value;
@@ -268,7 +262,7 @@ function createTokenStrategyFromConfig(
    * getLatestLongTermToken binding.
    * @returns Latest captured long-term token string.
    */
-  const getLatestLongTermToken = (): LatestLongTermToken => slot.latest;
+  const getLatestLongTermToken = (): string => slot.latest;
   const strategy: IConfigTokenStrategy = {
     name,
     primeInitial,

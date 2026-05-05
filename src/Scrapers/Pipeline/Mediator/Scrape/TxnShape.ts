@@ -15,18 +15,16 @@
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_FIELDS } from '../../Registry/WK/ScrapeFieldMappings.js';
 
-/** Opaque alias over unknown — keeps signatures off the no-unknown rule. */
-type JsonValue = unknown;
 /** Record alias — avoids literal Record<string, unknown> in annotations. */
-type JsonObject = Record<string, JsonValue>;
-/** Rule #15 alias — "carries a non-empty txn array" flag. */
-type CarriesTxn = boolean;
-/** Rule #15 alias — "reachable non-empty txn array" flag. */
-type HasTxnReachable = boolean;
-/** Rule #15 alias — "found" flag on BFS frontier state. */
-type FrontierFound = boolean;
-/** Rule #15 alias — depth counter inside Array.from callback. */
-type DepthIndex = number;
+type JsonObject = Record<string, unknown>;
+
+/**
+ * Untyped JSON value crossing module boundaries. The named alias is
+ * required because the architecture ESLint rule (`no-restricted-syntax`)
+ * forbids the literal `unknown` keyword in function signatures.
+ */
+// NOSONAR: typescript:S6564 — alias is required by `no-restricted-syntax`.
+type JsonValue = unknown;
 
 /** Max BFS depth when scanning a captured body for a txn array.
  *  Banks nest: body.result.bankAccounts[].debitDates[].transactions[]
@@ -48,7 +46,7 @@ export function isPlainRecord(v: JsonValue): v is JsonObject {
  * @param record - Record to inspect.
  * @returns True when any container key holds a non-empty Array.
  */
-function recordCarriesTxnArray(record: JsonObject): CarriesTxn {
+function recordCarriesTxnArray(record: JsonObject): boolean {
   const hit = WK_FIELDS.txnContainers
     .map((key): JsonValue => record[key])
     .find((v): v is readonly JsonValue[] => Array.isArray(v) && v.length > 0);
@@ -69,7 +67,7 @@ function expandForBfs(v: JsonValue): readonly JsonValue[] {
 /** BFS frontier state — one depth level of values to probe. */
 interface IBfsFrontier {
   readonly level: readonly JsonValue[];
-  readonly found: FrontierFound;
+  readonly found: boolean;
 }
 
 /**
@@ -94,8 +92,8 @@ function bfsStep(state: IBfsFrontier): IBfsFrontier {
  * @param body - Captured JSON response body (any shape).
  * @returns True when a non-empty txn array is reachable within the depth budget.
  */
-export function hasTxnArray(body: JsonValue): HasTxnReachable {
-  const depths = Array.from({ length: TXN_SCAN_MAX_DEPTH }, (_, i): DepthIndex => i);
+export function hasTxnArray(body: JsonValue): boolean {
+  const depths = Array.from({ length: TXN_SCAN_MAX_DEPTH }, (_, i): number => i);
   const initial: IBfsFrontier = { level: [body], found: false };
   const final = depths.reduce((acc): IBfsFrontier => bfsStep(acc), initial);
   return final.found;

@@ -11,12 +11,6 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 /** JSON scalar subset — no `undefined`; null is the missing-marker from banks. */
 type JsonPrimitive = string | number | boolean | null;
 
-/** Predicate flag used inside Array.find callbacks that filter JSON entries. */
-type JsonEntryMatch = boolean;
-
-/** Decoded RFC-6901 segment (post `~0`/`~1` unescape). */
-type DecodedSegment = string;
-
 /** JSON array recursion node. */
 type JsonArray = readonly JsonValue[];
 
@@ -85,7 +79,7 @@ function isPlainObject(entry: JsonValue): entry is IJsonObject {
  * @returns Procedure with that property's value, or miss failure.
  */
 function stepArrayPick(arr: JsonArray, propName: string, path: string): Procedure<JsonValue> {
-  const matched = arr.find((entry): JsonEntryMatch => {
+  const matched = arr.find((entry): boolean => {
     if (!isPlainObject(entry)) return false;
     return Object.hasOwn(entry, propName);
   });
@@ -106,7 +100,7 @@ function stepArrayFilter(arr: JsonArray, expr: string, path: string): Procedure<
   if (eq <= 0) return missFail(path);
   const k = expr.slice(0, eq);
   const v = expr.slice(eq + 1);
-  const matched = arr.find((entry): JsonEntryMatch => {
+  const matched = arr.find((entry): boolean => {
     if (!isPlainObject(entry)) return false;
     if (!Object.hasOwn(entry, k)) return false;
     return entry[k] === v;
@@ -199,7 +193,7 @@ function reduceParts(
  * @param raw - Encoded segment.
  * @returns Decoded segment.
  */
-function decodeSegment(raw: string): DecodedSegment {
+function decodeSegment(raw: string): string {
   const slashFixed = raw.replaceAll('~1', '/');
   return slashFixed.replaceAll('~0', '~');
 }

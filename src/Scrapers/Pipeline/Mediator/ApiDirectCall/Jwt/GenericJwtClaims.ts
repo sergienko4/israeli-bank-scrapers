@@ -9,9 +9,6 @@
 
 import type { IJwtClaimsConfig } from '../IApiDirectCallConfig.js';
 
-/** Whether the JWT has usable remaining lifetime per the config. */
-type IsTokenFresh = boolean;
-
 /** Decoded JWT payload — only the configured numeric claim matters. */
 type JwtPayload = Readonly<Record<string, unknown>>;
 
@@ -91,12 +88,11 @@ function decodeNumericClaim(jwt: string, field: string): number | false {
  * @param config - IJwtClaimsConfig (freshnessField + skewSeconds).
  * @returns Freshness flag.
  */
-function isJwtFresh(jwt: string, config: IJwtClaimsConfig): IsTokenFresh {
+function isJwtFresh(jwt: string, config: IJwtClaimsConfig): boolean {
   const claim = decodeNumericClaim(jwt, config.freshnessField);
   if (claim === false) return false;
   const nowSec = Math.floor(Date.now() / 1000);
   return claim > nowSec + config.skewSeconds;
 }
 
-export type { IsTokenFresh };
 export { decodeNumericClaim, isJwtFresh };

@@ -11,29 +11,17 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { detectMirroredAccounts } from './MirrorDetection.js';
 
-/** Whether an audit entry was logged. */
-type IsAuditEntry = boolean;
-/** Account number identifier. */
-type AccountNum = string;
-/** Date string from transaction. */
-type TxnDateStr = string;
-/** Transaction monetary amount. */
-type TxnAmount = number;
-/** Currency code string. */
-type CurrencyCode = string;
-/** Transaction description text. */
-type TxnDescStr = string;
 /** Show last N digits of account number for identification. */
 const ACCOUNT_VISIBLE_DIGITS = 5;
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
-  readonly accountNumber: AccountNum;
+  readonly accountNumber: string;
   readonly txns: readonly {
-    date: TxnDateStr;
-    originalAmount?: TxnAmount;
-    chargedAmount?: TxnAmount;
-    originalCurrency?: CurrencyCode;
-    description?: TxnDescStr;
+    date: string;
+    originalAmount?: number;
+    chargedAmount?: number;
+    originalCurrency?: string;
+    description?: string;
   }[];
 }
 
@@ -50,7 +38,7 @@ const LOG = createLogger('scrape-phase');
  * @param acctNum - Full account number string.
  * @returns Last 5 digits or full string if shorter.
  */
-function showLastDigits(acctNum: string): AccountNum {
+function showLastDigits(acctNum: string): string {
   if (acctNum.length <= ACCOUNT_VISIBLE_DIGITS) return acctNum;
   const visible = acctNum.slice(-ACCOUNT_VISIBLE_DIGITS);
   return `***${visible}`;
@@ -61,7 +49,7 @@ function showLastDigits(acctNum: string): AccountNum {
  * @param desc - Raw transaction description.
  * @returns Length-tagged stable hint.
  */
-function redactDesc(desc: TxnDescStr): TxnDescStr {
+function redactDesc(desc: string): string {
   if (!desc) return '<merchant:0>';
   return redactMerchant(desc);
 }
@@ -73,7 +61,7 @@ function redactDesc(desc: TxnDescStr): TxnDescStr {
  * @param txn - Transaction record.
  * @returns Formatted string: date | amount currency | description.
  */
-function formatTxnLine(txn: IAuditAccount['txns'][number]): TxnDescStr {
+function formatTxnLine(txn: IAuditAccount['txns'][number]): string {
   const parsed = new Date(txn.date);
   const formatted = parsed.toLocaleDateString('he-IL');
   const dateMap: Record<string, string> = { true: formatted, false: '' };
@@ -91,7 +79,7 @@ function formatTxnLine(txn: IAuditAccount['txns'][number]): TxnDescStr {
  * @param acct - Account with transactions.
  * @returns True after logging.
  */
-function logTxnPreview(acct: IAuditAccount): IsAuditEntry {
+function logTxnPreview(acct: IAuditAccount): boolean {
   const lines = acct.txns.map(formatTxnLine);
   const body = lines.join('\n');
   const cardLabel = showLastDigits(acct.accountNumber);
@@ -113,8 +101,8 @@ function logTxnPreview(acct: IAuditAccount): IsAuditEntry {
  * @param accounts - Scraped accounts for txn count lookup.
  * @returns True after logging.
  */
-function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): IsAuditEntry {
-  const acct = accounts.find((a): IsAuditEntry => a.accountNumber === card);
+function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): boolean {
+  const acct = accounts.find((a): boolean => a.accountNumber === card);
   let txnCount = '0';
   if (acct) {
     txnCount = String(acct.txns.length);
@@ -134,7 +122,7 @@ function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): IsA
  * @param acct - Scraped account.
  * @returns True after logging.
  */
-function logAccountTxnSummary(acct: IAuditAccount): IsAuditEntry {
+function logAccountTxnSummary(acct: IAuditAccount): boolean {
   const acctLabel = showLastDigits(acct.accountNumber);
   const count = String(acct.txns.length);
   LOG.info({
@@ -156,11 +144,11 @@ function logAccountTxnSummary(acct: IAuditAccount): IsAuditEntry {
 function logCardClassification(
   input: IPipelineContext,
   accounts: readonly IAuditAccount[],
-): IsAuditEntry {
+): boolean {
   if (!input.scrapeDiscovery.has) return false;
   const disc = input.scrapeDiscovery.value;
-  disc.qualifiedCards.map((card: string): IsAuditEntry => logQualifiedCard(card, accounts));
-  disc.prunedCards.map((card: string): IsAuditEntry => {
+  disc.qualifiedCards.map((card: string): boolean => logQualifiedCard(card, accounts));
+  disc.prunedCards.map((card: string): boolean => {
     const prunedLabel = showLastDigits(card);
     LOG.debug({
       stage: 'POST',
@@ -180,7 +168,7 @@ function logCardClassification(
  * @param input - Pipeline context.
  * @returns True after logging.
  */
-function logForensicAudit(input: IPipelineContext): IsAuditEntry {
+function logForensicAudit(input: IPipelineContext): boolean {
   let accounts: readonly IAuditAccount[] = [];
   if (input.scrape.has) accounts = input.scrape.value.accounts;
   LOG.debug({

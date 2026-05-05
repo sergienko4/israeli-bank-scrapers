@@ -5,8 +5,6 @@
 
 /** A parsed JSON node — object, array, or primitive. */
 type JsonNode = Record<string, unknown> | readonly unknown[] | string | number | boolean | null;
-/** Whether a signature key was found during traversal. */
-type IsSignatureKey = boolean;
 
 /**
  * Check if any key of a record matches a regex pattern.
@@ -14,8 +12,8 @@ type IsSignatureKey = boolean;
  * @param pattern - Regex to match against.
  * @returns True if at least one key matches.
  */
-function objectKeysMatch(obj: Record<string, unknown>, pattern: RegExp): IsSignatureKey {
-  return Object.keys(obj).some((k): IsSignatureKey => pattern.test(k));
+function objectKeysMatch(obj: Record<string, unknown>, pattern: RegExp): boolean {
+  return Object.keys(obj).some((k): boolean => pattern.test(k));
 }
 
 /**
@@ -45,7 +43,7 @@ function arrayFirstElement(arr: readonly unknown[]): readonly JsonNode[] {
 
 /** Result of processing one BFS node. */
 interface INodeResult {
-  readonly isFound: IsSignatureKey;
+  readonly isFound: boolean;
   readonly children: readonly JsonNode[];
 }
 
@@ -73,10 +71,10 @@ function processNode(node: JsonNode, pattern: RegExp): INodeResult {
  * @param pattern - Signature regex.
  * @returns True if any node's keys match the pattern.
  */
-function searchLevel(level: readonly JsonNode[], pattern: RegExp): IsSignatureKey {
+function searchLevel(level: readonly JsonNode[], pattern: RegExp): boolean {
   if (level.length === 0) return false;
   const nextLevel: JsonNode[] = [];
-  const isMatchedInLevel = level.reduce((wasFound: IsSignatureKey, node): IsSignatureKey => {
+  const isMatchedInLevel = level.reduce((wasFound: boolean, node): boolean => {
     if (wasFound) return true;
     const result = processNode(node, pattern);
     if (result.isFound) return true;
@@ -93,7 +91,7 @@ function searchLevel(level: readonly JsonNode[], pattern: RegExp): IsSignatureKe
  * @param pattern - Regex to match against object keys.
  * @returns True if any key matches.
  */
-function bodyHasSignature(body: JsonNode, pattern: RegExp): IsSignatureKey {
+function bodyHasSignature(body: JsonNode, pattern: RegExp): boolean {
   if (!body || typeof body !== 'object') return false;
   return searchLevel([body], pattern);
 }
@@ -113,7 +111,7 @@ function collectFromNode(
   }
   if (!node || typeof node !== 'object') return { keys: [], children: [] };
   const record = node as Record<string, unknown>;
-  const keys = Object.keys(record).filter((k): IsSignatureKey => pattern.test(k));
+  const keys = Object.keys(record).filter((k): boolean => pattern.test(k));
   return { keys, children: objectChildren(record) };
 }
 
@@ -188,5 +186,5 @@ function buildMonthList(current: Date, endMs: number, accumulated: string[]): re
   return buildMonthList(next, endMs, [...accumulated, entry]);
 }
 
-export type { IsSignatureKey, JsonNode };
+export type { JsonNode };
 export { bodyHasSignature, extractMatchingKeys, generateBillingMonths, objectKeysMatch };

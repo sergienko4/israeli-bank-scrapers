@@ -24,9 +24,6 @@ import { createFrozenNetwork, type INetworkDiscovery } from '../Network/NetworkD
 
 const LOG = createLogger('frozen-scrape');
 
-/** Whether scrape result was logged. */
-type DidLog = boolean;
-
 /**
  * Execute frozen DIRECT scrape — full flow with guards.
  * @param input - Sealed action context.
@@ -126,7 +123,7 @@ function buildFrozenLoadCtx(
  * @param accounts - Scraped accounts with txns.
  * @returns True after logging.
  */
-function logScrapeResult(accounts: readonly ITransactionsAccount[]): DidLog {
+function logScrapeResult(accounts: readonly ITransactionsAccount[]): boolean {
   let totalTxns = 0;
   for (const acct of accounts) totalTxns += acct.txns.length;
   LOG.debug({ accounts: accounts.length, txns: totalTxns });
