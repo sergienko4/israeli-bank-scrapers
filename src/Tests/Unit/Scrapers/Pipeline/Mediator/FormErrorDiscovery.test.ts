@@ -7,20 +7,23 @@
 
 import type { Page } from 'playwright-core';
 
+type MockStr = string;
+type MockBool = boolean;
+
 import {
   checkFrameForErrors,
   discoverFormErrors,
   NO_ERRORS,
-} from '../../../../../Scrapers/Pipeline/Mediator/FormErrorDiscovery.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
 // ── DOM item type ─────────────────────────────────────────
 
 /** Mirrors the internal IRawDomItem used by discoverFormErrors. */
 interface IDomItem {
-  tag: string;
-  cls: string;
-  text: string;
-  isHidden: boolean;
+  tag: MockStr;
+  cls: MockStr;
+  text: MockStr;
+  isHidden: MockBool;
 }
 
 /**
@@ -227,7 +230,7 @@ describe('discoverFormErrors/found', () => {
   });
 
   it('classifies non-mat-error tag as authError', async () => {
-    const item = ALERT_ITEM('alert');
+    const item = ALERT_ITEM('פרטים שגויים');
     const ctx = MAKE_CTX_L1([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].kind).toBe('authError');
@@ -300,7 +303,12 @@ describe('checkFrameForErrors/found', () => {
 
 describe('discoverFormErrors/selector-building', () => {
   it('builds selector with first CSS class from cls', async () => {
-    const item: IDomItem = { tag: 'div', cls: 'error-msg other', text: 'err', isHidden: false };
+    const item: IDomItem = {
+      tag: 'div',
+      cls: 'error-msg other',
+      text: 'פרטים שגויים',
+      isHidden: false,
+    };
     const ctx = MAKE_CTX_L1([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].selector).toBe('div.error-msg');
@@ -394,15 +402,15 @@ describe('discoverFormErrors/jsdom-evaluate', () => {
   });
 
   it('handles element with empty className (falsy || fallback)', async () => {
-    const ctx = MAKE_EXEC_CTX('<div role="alert">visible error</div>');
+    const ctx = MAKE_EXEC_CTX('<div role="alert">פרטים שגויים</div>');
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(true);
-    expect(scan.errors[0].text).toBe('visible error');
+    expect(scan.errors[0].text).toBe('פרטים שגויים');
     expect(scan.errors[0].selector).toBe('div');
   });
 
   it('handles element with multi-word className', async () => {
-    const html = '<div role="alert" class="err-box ng-invalid">bad input</div>';
+    const html = '<div role="alert" class="err-box ng-invalid">שגיאה בכניסה</div>';
     const ctx = MAKE_EXEC_CTX(html);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(true);

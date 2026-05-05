@@ -163,6 +163,13 @@ async function waitUntilIframeFound(
  * @param inputValue - The value to fill into the input.
  * @returns True after the input is filled.
  */
+/**
+ * Fill a form input field with a human-like delay.
+ * @param pageOrFrame - The Playwright page or frame containing the input.
+ * @param inputSelector - CSS selector for the input element.
+ * @param inputValue - The value to fill into the input.
+ * @returns True after the input is filled.
+ */
 async function fillInput(
   pageOrFrame: Page | Frame,
   inputSelector: string,
@@ -193,6 +200,65 @@ async function setValue(
       (input as HTMLInputElement).value = val;
     }, inputValue);
   return true;
+}
+
+/**
+ * Check whether a form input has the data-uw-hidden-control attribute.
+ * UserWay-obscured inputs carry this attribute — standard fill() will not trigger ng-model.
+ * @param ctx - Playwright Page or Frame containing the element.
+ * @param selector - Playwright selector of the resolved element.
+ * @returns True if the hidden-control attribute is present.
+ */
+async function isHiddenControlElement(ctx: Page | Frame, selector: string): Promise<boolean> {
+  const locator = ctx.locator(selector).first();
+  /**
+   * Catch evaluate failure (element absent) — treat as no hidden-control.
+   * @returns False.
+   */
+  const catchFalse = (): boolean => false;
+  const hasAttr = await locator
+    .evaluate((el: Element): boolean => el.hasAttribute('data-uw-hidden-control'))
+    .catch(catchFalse);
+  return hasAttr;
+}
+
+/**
+ * Set a form input value via DOM evaluation with AngularJS-compatible event dispatch.
+ * Dispatches input (bubbles:true), change, and blur to satisfy ng-model listeners.
+ * @param ctx - Playwright Page or Frame containing the input.
+ * @param selector - Playwright selector of the target input.
+ * @param value - Value to set.
+ * @returns True after the value is set and events dispatched.
+ */
+async function angularModelFill(
+  ctx: Page | Frame,
+  selector: string,
+  value: string,
+): Promise<boolean> {
+  await humanDelay(FILL_INPUT_DELAY_MIN_MS, FILL_INPUT_DELAY_MAX_MS);
+  const locator = ctx.locator(selector).first();
+  return locator.evaluate((el: Element, val: string): boolean => {
+    (el as HTMLInputElement).value = val;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change'));
+    el.dispatchEvent(new Event('blur'));
+    return true;
+  }, value);
+}
+
+/**
+ * Fill a form input — auto-detects data-uw-hidden-control (UserWay-obscured) elements.
+ * Hidden-control elements use DOM evaluate + AngularJS-compatible event dispatch.
+ * Standard elements use Playwright fill() with human delay.
+ * @param ctx - Playwright Page or Frame containing the input.
+ * @param selector - Playwright selector of the target input.
+ * @param value - Value to fill.
+ * @returns True after fill.
+ */
+async function deepFillInput(ctx: Page | Frame, selector: string, value: string): Promise<boolean> {
+  const isHidden = await isHiddenControlElement(ctx, selector);
+  if (isHidden) return angularModelFill(ctx, selector, value);
+  return fillInput(ctx, selector, value);
 }
 
 /**
@@ -318,6 +384,7 @@ async function dropdownElements(
 export {
   clickButton,
   clickLink,
+  deepFillInput,
   dropdownElements,
   dropdownSelect,
   elementPresentOnPage,

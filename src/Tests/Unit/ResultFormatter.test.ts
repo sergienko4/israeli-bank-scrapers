@@ -31,19 +31,28 @@ function txn(overrides: Partial<ITransaction> = {}): ITransaction {
   };
 }
 
+/** Node Writable.write callback signature, derived from the library types. */
+type WriteFn = NonNullable<ConstructorParameters<typeof Writable>[0]>['write'];
+
 /**
  * Creates a writable stream that captures output to a string.
  * @returns stream and output accessor
  */
 function createCapture(): { stream: Writable; output: () => string } {
   const chunks: string[] = [];
-  const stream = new Writable({
-    write: jest.fn((chunk: Buffer, _enc: BufferEncoding, cb: () => string) => {
-      const text = chunk.toString();
-      chunks.push(text);
-      cb();
-    }),
-  });
+  /**
+   * Buffer the incoming chunk as a string and ack via the provided callback.
+   * @param chunk - raw Buffer written to the stream
+   * @param _enc - encoding (unused — Buffer already carries bytes)
+   * @param cb - Node stream ack callback
+   * @returns Result.
+   */
+  const write: WriteFn = (chunk, _enc, cb) => {
+    const text = (chunk as Buffer).toString();
+    chunks.push(text);
+    cb();
+  };
+  const stream = new Writable({ write: jest.fn(write) });
   /**
    * Accessor for captured output.
    * @returns captured output
@@ -98,17 +107,22 @@ describe('ResultFormatter — PII masking', () => {
     });
   });
   describe('maskDesc', () => {
-    it('shows only first 3 chars and masks the rest', () => {
+    it('returns a length-tagged merchant hint (grapheme count)', () => {
       const hebrew = maskDesc('סופר שופ רמי לוי');
       const empty = maskDesc('');
       const short = maskDesc('AB');
-      expect(hebrew).toBe('סופ***');
-      expect(empty).toBe('***');
-      expect(short).toBe('AB***');
+      expect(hebrew).toBe('<merchant:16>');
+      expect(empty).toBe('<merchant:0>');
+      expect(short).toBe('<merchant:2>');
     });
     it('never exposes full description', () => {
-      const masked = maskDesc('Visa purchase at Amazon.com order #123456');
-      expect(masked).toBe('Vis***');
+      const desc = 'Visa purchase at Amazon.com order #123456';
+      const masked = maskDesc(desc);
+      expect(masked).not.toContain('Visa');
+      expect(masked).not.toContain('Amazon');
+      expect(masked).not.toContain('123456');
+      const isTagShape = masked.startsWith('<merchant:');
+      expect(isTagShape).toBe(true);
     });
   });
   describe('formatResultSummary — no sensitive data leaks', () => {
@@ -149,7 +163,7 @@ describe('ResultFormatter — PII masking', () => {
       const output = formatResultSummary('TestBank', result).join('\n');
       expect(output).not.toContain('Amazon purchase');
       expect(output).not.toContain('secret order');
-      expect(output).toContain('Ama***');
+      expect(output).toContain('<merchant:');
     });
 
     it('masks transaction amounts', () => {

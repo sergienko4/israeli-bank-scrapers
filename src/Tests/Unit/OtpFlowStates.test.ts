@@ -204,7 +204,7 @@ describe('handleOtpCode — code rejected (OTP screen still visible)', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('returns failure with INVALID_OTP errorType', async () => {
-    const mockRetriever = jest.fn().mockResolvedValue('000000');
+    const mockRetriever = jest.fn().mockResolvedValue('fixt-otp-9c1e');
     MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('');
     MOCK_DETECT_OTP_SCREEN.mockResolvedValue(true);
     const mockMainFrame = makeMockPage().mainFrame();
@@ -225,7 +225,7 @@ describe('handleOtpCode — code rejected (OTP screen still visible)', () => {
   });
 
   it('errorMessage describes rejection reason', async () => {
-    const mockRetriever = jest.fn().mockResolvedValue('000000');
+    const mockRetriever = jest.fn().mockResolvedValue('fixt-otp-9c1e');
     MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('');
     MOCK_DETECT_OTP_SCREEN.mockResolvedValue(true);
     const mockMainFrame = makeMockPage().mainFrame();
@@ -244,7 +244,7 @@ describe('handleOtpCode — code rejected (OTP screen still visible)', () => {
   });
 
   it('failure shape has exactly success + errorType + errorMessage', async () => {
-    const mockRetriever = jest.fn().mockResolvedValue('000000');
+    const mockRetriever = jest.fn().mockResolvedValue('fixt-otp-9c1e');
     MOCK_EXTRACT_PHONE_HINT.mockResolvedValue('');
     MOCK_DETECT_OTP_SCREEN.mockResolvedValue(true);
     const mockMainFrame = makeMockPage().mainFrame();

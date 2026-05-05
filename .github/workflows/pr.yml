@@ -49,12 +49,25 @@ concurrency:
   cancel-in-progress: true
 
 # ──────────────────────────────────────────────────────────────
-# Architecture: 2 parallel jobs
+# Job DAG (cheap-gates-first, fail-fast):
 #
-#   validate    — single job: npm ci once → lint → tsc → audit →
-#                 unit tests → e2e smoke (invalid creds) → e2e mocked →
-#                 e2e full (real creds) → build → upload artifacts
-#   dep-review  — no packages needed, PR-only
+#   validate           — lint → tsc → audit → unit tests →
+#                        e2e factory + e2e mocked → build →
+#                        upload artifacts.
+#                        MOCKED tests live here so failures are
+#                        caught BEFORE we burn real-bank capacity.
+#   e2e-smoke          — 17-bank matrix (invalid-creds, parallel).
+#   e2e-real-group-a   — `needs: validate`. Stage 1 of real-bank
+#                        scrapes; banks within run in parallel.
+#   e2e-real-group-b   — `needs: e2e-real-group-a`. Stage 2 (parallel
+#                        within); enforces Rule #16 (Amex never
+#                        co-runs with Isracard) by running strictly
+#                        after Group A completes.
+#   dependency-review  — PR-only, independent.
+#
+# Each gate runs ONCE per PR — no overlap between validate and the
+# real-bank matrices (the legacy E2eFull validate-step that
+# duplicated the matrix has been removed).
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -102,35 +115,22 @@ jobs:
       - name: E2E factory tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
-      # ── E2E Smoke Tests (invalid credentials — always runs, no secrets needed) ──
-      - name: E2E smoke tests (invalid credentials)
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eSmoke' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
+      # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
+      # See `e2e-smoke` job below — runs invalid-credential checks for each
+      # bank in its own ubuntu-latest runner in parallel. Wall time drops
+      # from ~25min serial to ~3-5min matrix.
 
       # ── E2E Mocked Tests ──
       - name: E2E mocked tests
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
-      # ── E2E Full Bank Tests (real credentials — same-repo PRs and manual dispatch only) ──
-      - name: E2E full bank tests (real credentials)
-        if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eFull' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
-        env:
-          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
-          AMEX_ID: ${{ secrets.AMEX_ID }}
-          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
-          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
-          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
-          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
-          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
-          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
-          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
-          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
-          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
-          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
-          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
-          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+      # ── E2E Real Bank Tests (real credentials) ──
+      # Moved out of this job into the dedicated 2-group matrix below
+      # (`e2e-real-group-a` → `e2e-real-group-b`). This avoids running
+      # the same real-bank scrapes twice on every PR (was: also a
+      # legacy `E2eFull` step here that overlapped the matrix).
+      # `npm run test:e2e:full` remains available for manual runs of
+      # the residual Mercantile coverage that lives in src/Tests/E2eFull/.
 
       # ── Build ──
       - uses: ./.github/actions/build-package
@@ -152,13 +152,240 @@ jobs:
           path: src/coverage/
           retention-days: 7
 
+  # ──────────────────────────────────────────────────────────────
+  # E2E Smoke Tests — matrix job, ONE bank per runner.
+  #
+  # Splits the previously-serial 17-bank smoke run into 17 parallel
+  # ubuntu-latest runners. Each runner installs deps + camoufox once,
+  # runs jest with --testNamePattern filtered to a single bank, and
+  # returns. Wall time: ~3-5min matrix vs ~25min serial.
+  #
+  # Per-test timeout is 90s (SMOKE_TIMEOUT) so any bank-specific hang
+  # cancels in 90s instead of the SCRAPE_TIMEOUT 15-min budget.
+  # ──────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E Smoke (${{ matrix.bank }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Leumi
+          - Mizrahi
+          - Max
+          - Isracard
+          - Amex
+          - VisaCal
+          - Discount
+          - Otsar Hahayal
+          - Beinleumi
+          - Mercantile
+          - Massad
+          - Yahav
+          - Beyahad Bishvilha
+          - Behatsdaa
+          - Pagi
+          - OneZero
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # Smoke is INFORMATIONAL — bank-side rate limiting / SPA invalid-creds
+      # rejection latency is bank-specific and outside this PR's scope.
+      # `continue-on-error: true` keeps the matrix runner reporting its
+      # outcome on the PR without blocking the merge gate.
+      - name: E2E smoke (${{ matrix.bank }})
+        continue-on-error: true
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns='E2eSmoke' \
+            --testNamePattern='${{ matrix.bank }} \(invalid login\)' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Real (live banks, real credentials) — 2-stage / 2-group design.
+  #
+  # Gated on `needs: validate` so the cheap gates (lint, tsc, audit,
+  # unit tests, e2e-mocked, build) run FIRST. Real-bank runs hit
+  # actual bank websites with real credentials — running them only
+  # after the mocked suite passes saves both wall time and bank-side
+  # rate-limit budget when something is broken upstream.
+  #
+  # Within each group the banks run on SEPARATE matrix runners IN PARALLEL
+  # (one ubuntu-latest per bank). Between groups the stages run
+  # SEQUENTIALLY: Group B has `needs: e2e-real-group-a`, so Group B
+  # only starts after every bank in Group A has finished.
+  #
+  #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
+  #   Stage 1 — Group A (parallel runners): Isracard, VisaCal, Discount, Max
+  #   Stage 2 — Group B (parallel runners): Amex
+  #
+  # Why the strict between-group sequencing: project Rule #16 forbids
+  # Amex and Isracard from running concurrently. Placing Amex alone in
+  # Group B — and gating Group B on Group A's completion — guarantees
+  # no temporal overlap, regardless of runner IPs or shared bank-side
+  # throttling. All other banks parallelise in Group A so the critical
+  # path is `max(Group A) + Amex` instead of two sequential medium-sized
+  # buckets.
+  #
+  # Wall time:
+  #   validate (Stage 0) ≈ 10–12 min
+  #   max(Group A banks) ≈ 7 min (4 in parallel, longest is Isracard)
+  #   Group B (Amex)     ≈ 7 min
+  #   Total real-bank cost paid ONLY after Stage 0 is green.
+  #
+  # Same-repo PRs and manual dispatch only — secrets are not exposed to
+  # forks (mirrors the prior gating of the now-removed E2eFull step).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-a:
+    name: E2E Real A (${{ matrix.bank }})
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Isracard
+          - VisaCal
+          - Discount
+          - Max
+          # Hapoalim — OTP not supported in CI yet (no retriever wired).
+          # Run via workflow_dispatch only. Smoke matrix still covers
+          # invalid-credentials on every PR.
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          # LOG_LEVEL=trace makes the pipeline write per-run artefacts
+          # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
+          # Both pipeline.log AND network/*.json are PII-redacted at
+          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
+          # is wired into Pino's redact.censor + NetworkDiscovery's
+          # dumpResponseBody routes through redactJsonBody/redactUrl).
+          # Both file types are safe to upload; the failure-only artifact
+          # below uploads them so we can debug auto-discovery + endpoint
+          # selection (e.g. Max's "scrape skipped — No txn URL" case
+          # needs the 71 captured network URLs to triage).
+          # Screenshots are still excluded — PNGs cannot be reliably
+          # redacted and may capture rendered PII text.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
+          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
+          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
+          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
+          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+        # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
+        # has two it() blocks: 'scrapes transactions successfully' (happy)
+        # and 'fails with invalid credentials' (already covered by smoke
+        # matrix). Running both here re-tests invalid-creds against the
+        # same bank twice per PR — testNamePattern eliminates the duplicate.
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # pipeline.log + network/*.json — both PII-redacted at write
+          # time by the runtime layer (commit 3f1b966d). Network dumps
+          # are required to triage auto-discovery failures (which URL
+          # got picked out of the captured set, what response shape).
+          # Screenshots remain excluded — PNG redaction is unreliable.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  e2e-real-group-b:
+    name: E2E Real B (${{ matrix.bank }})
+    needs: e2e-real-group-a
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Amex
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          # Same trace + RUNS_ROOT setup as Group A — failure artifact
+          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          AMEX_ID: ${{ secrets.AMEX_ID }}
+          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
+          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
+        # Happy-path filter — see Group A note above; same rationale.
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Same artifact policy as Group A — pipeline.log + network/*.json
+          # are PII-redacted at write time; screenshots excluded.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+          retention-days: 7
+          if-no-files-found: warn
+
   dependency-review:
     name: Dependency Review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    
+
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

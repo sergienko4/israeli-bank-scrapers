@@ -114,8 +114,8 @@ function defaultLoginOptions(): ILoginOptions {
   return {
     loginUrl: 'https://bank.co.il/login',
     fields: [
-      { selector: '#user', value: 'testuser' },
-      { selector: '#pass', value: 'testpass' },
+      { selector: '#user', value: 'fixt-u-7c2f3e9a' },
+      { selector: '#pass', value: 'fixt-p-9b41ad2e' },
     ],
     submitButtonSelector: '#submit',
     possibleResults: {
@@ -286,8 +286,8 @@ describe('fillInputs', () => {
   it('fills multiple input fields', async () => {
     await createScraper().scrape(TEST_CREDS);
     const anyArg = expect.anything() as ReturnType<typeof CREATE_MOCK_PAGE>;
-    expect(FILL_INPUT).toHaveBeenCalledWith(anyArg, '#user', 'testuser');
-    expect(FILL_INPUT).toHaveBeenCalledWith(anyArg, '#pass', 'testpass');
+    expect(FILL_INPUT).toHaveBeenCalledWith(anyArg, '#user', 'fixt-u-7c2f3e9a');
+    expect(FILL_INPUT).toHaveBeenCalledWith(anyArg, '#pass', 'fixt-p-9b41ad2e');
   });
 });
 

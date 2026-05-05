@@ -83,3 +83,8 @@ capture/
 tasks/
 
 scripts/**
+
+# Stale lint-output left by an older verify-script version. Current
+# src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
+# so this in-repo path must never appear again.
+.canary-verify-tmp.json

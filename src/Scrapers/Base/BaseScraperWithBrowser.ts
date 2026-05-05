@@ -18,6 +18,7 @@ import {
   resolveAndBuildLoginResult,
 } from './BaseScraperHelpers.js';
 import type { SelectorCandidate } from './Config/LoginConfig.js';
+import { ScraperErrorTypes } from './ErrorTypes.js';
 import type {
   IDefaultBrowserOptions,
   IScraperScrapingResult,
@@ -32,6 +33,49 @@ import ScraperError from './ScraperError.js';
 export { type ILoginOptions, LOGIN_RESULTS, type LoginResults, type PossibleLoginResults };
 
 const LOG = getDebug('base-scraper-with-browser');
+
+/** Map type of legacy bank registry. */
+type LegacyBanksMap = typeof SCRAPER_CONFIGURATION.banks;
+/** Bank entry value type from the legacy SCRAPER_CONFIGURATION.banks map. */
+type LegacyBankConfig = LegacyBanksMap[keyof LegacyBanksMap];
+/** loginSetup field type extracted from a legacy bank config row. */
+type LegacyLoginSetup = LegacyBankConfig['loginSetup'];
+
+/** Discriminated result of resolveLegacyBank: either loginSetup or a failure. */
+type LegacyBankLookup =
+  | { readonly loginSetup: LegacyLoginSetup }
+  | { readonly failure: IScraperScrapingResult };
+
+/**
+ * Look up the legacy bank config for a given companyId. Pipeline-only
+ * banks (whose companyId is not present in SCRAPER_CONFIGURATION.banks)
+ * receive a structured failure Result here instead of a destructure
+ * crash downstream. Generic — same shape for every bank, no per-bank
+ * patches.
+ * @param companyId - Bank identifier from scraper options.
+ * @returns Either loginSetup for the legacy bank, or a fail Result for
+ *   the pipeline-only path.
+ */
+function resolveLegacyBank(companyId: string): LegacyBankLookup {
+  // Cast through Record<string, ... | undefined> so TS understands the
+  // index lookup may return undefined (the indexed-access type alone is
+  // narrowed to the value type by tsc unless noUncheckedIndexedAccess
+  // is on).
+  const bankRegistry = SCRAPER_CONFIGURATION.banks as Record<string, LegacyBankConfig | undefined>;
+  const bank = bankRegistry[companyId];
+  if (bank === undefined) {
+    const message = `Pipeline-only bank "${companyId}" reached legacy login path`;
+    LOG.warn(message);
+    return {
+      failure: {
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: message,
+      },
+    };
+  }
+  return { loginSetup: bank.loginSetup };
+}
 
 /**
  * Run a cleanup function, swallowing errors to avoid masking earlier failures.
@@ -173,11 +217,12 @@ class BaseScraperWithBrowser<
   public async login(credentials: ScraperCredentials): Promise<IScraperScrapingResult> {
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
-    const { loginSetup } = SCRAPER_CONFIGURATION.banks[this.options.companyId];
+    const lookup = resolveLegacyBank(this.options.companyId);
+    if ('failure' in lookup) return lookup.failure;
     const ctx: ILoginContext = {
       page: this.page,
       activeFrame: this.page,
-      loginSetup,
+      loginSetup: lookup.loginSetup,
     };
     const stepCtx = this.buildStepContext();
     const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);

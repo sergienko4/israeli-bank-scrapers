@@ -4,14 +4,12 @@ import {
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../WellKnownSelectors.js';
 import {
-  BEINLEUMI_DOM_SELECTORS,
   type IBankScraperConfig,
   NULL_API,
   NULL_AUTH,
   NULL_FORMAT,
   NULL_TIMING,
   SIMPLE_LOGIN,
-  VISACAL_API,
 } from './ScraperConfigDefaults.js';
 
 export type { IBankScraperConfig };
@@ -19,21 +17,6 @@ export type { IBankScraperConfig };
 /** Central per-bank scraper configuration — URLs, API, auth, format, timing, selectors. */
 export const SCRAPER_CONFIGURATION = {
   banks: {
-    [CompanyTypes.Hapoalim]: {
-      urls: { base: 'https://www.bankhapoalim.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://login.bankhapoalim.co.il' },
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: {
-        ...NULL_FORMAT,
-        date: 'YYYYMMDD',
-        apiLang: 'he',
-        numItemsPerPage: 1000,
-        sortCode: 1,
-      },
-      timing: NULL_TIMING,
-      selectors: {},
-    },
     [CompanyTypes.Leumi]: {
       urls: {
         base: 'https://www.leumi.co.il',
@@ -62,24 +45,6 @@ export const SCRAPER_CONFIGURATION = {
         ],
       },
     },
-    [CompanyTypes.Discount]: {
-      urls: { base: 'https://www.discountbank.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://start.telebank.co.il' },
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
-      timing: NULL_TIMING,
-      selectors: {},
-    },
-    [CompanyTypes.Mercantile]: {
-      urls: { base: 'https://www.mercantile.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://start.telebank.co.il' },
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: { ...NULL_FORMAT, date: 'YYYYMMDD' },
-      timing: NULL_TIMING,
-      selectors: {},
-    },
     [CompanyTypes.Mizrahi]: {
       urls: {
         base: 'https://www.mizrahi-tefahot.co.il',
@@ -101,98 +66,6 @@ export const SCRAPER_CONFIGURATION = {
         transactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/root-main-osh-p428New"]' }],
         pendingTransactionsLink: [{ kind: 'css', value: 'a[href*="/osh/legacy/legacy-Osh-p420"]' }],
       },
-    },
-    [CompanyTypes.Max]: {
-      urls: { base: 'https://www.max.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://onlinelcapi.max.co.il' },
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: NULL_FORMAT,
-      timing: NULL_TIMING,
-      selectors: {},
-    },
-    [CompanyTypes.Amex]: {
-      urls: { base: 'https://americanexpress.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://he.americanexpress.co.il' },
-      auth: { ...NULL_AUTH, companyCode: '77', countryCode: '212', idType: '1', checkLevel: '1' },
-      loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
-      format: NULL_FORMAT,
-      timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
-      selectors: {},
-    },
-    [CompanyTypes.Isracard]: {
-      urls: { base: 'https://www.isracard.co.il', loginRoute: null, transactions: null },
-      api: { ...NULL_API, base: 'https://digital.isracard.co.il' },
-      auth: { ...NULL_AUTH, companyCode: '11', countryCode: '212', idType: '1', checkLevel: '1' },
-      loginSetup: { ...SIMPLE_LOGIN, isApiOnly: true },
-      format: NULL_FORMAT,
-      timing: { ...NULL_TIMING, loginDelayMinMs: 1500, loginDelayMaxMs: 3000 },
-      selectors: {},
-    },
-    [CompanyTypes.VisaCal]: {
-      urls: { base: 'https://www.cal-online.co.il/', loginRoute: null, transactions: null },
-      api: VISACAL_API,
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: NULL_FORMAT,
-      timing: NULL_TIMING,
-      selectors: {},
-    },
-    [CompanyTypes.Beinleumi]: {
-      urls: {
-        base: 'https://www.fibi.co.il',
-        loginRoute: null,
-        transactions:
-          'https://online.fibi.co.il/wps/myportal/FibiMenu/Online/OnAccountMngment/OnBalanceTrans/PrivateAccountFlow',
-      },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasOtpConfirm: true, hasOtpCode: true },
-      format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
-      timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_DOM_SELECTORS,
-    },
-    [CompanyTypes.OtsarHahayal]: {
-      urls: {
-        base: 'https://www.bankotsar.co.il',
-        loginRoute: null,
-        transactions:
-          'https://online.bankotsar.co.il/wps/myportal/FibiMenu/Online/OnAccountMngment/OnBalanceTrans/PrivateAccountFlow',
-      },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasOtpConfirm: true, hasOtpCode: true },
-      format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
-      timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_DOM_SELECTORS,
-    },
-    [CompanyTypes.Massad]: {
-      urls: {
-        base: 'https://www.bankmassad.co.il',
-        loginRoute: null,
-        transactions:
-          'https://online.bankmassad.co.il/wps/myportal/FibiMenu/Online/OnAccountMngment/OnBalanceTrans/PrivateAccountFlow',
-      },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasOtpConfirm: true, hasOtpCode: true },
-      format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
-      timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_DOM_SELECTORS,
-    },
-    [CompanyTypes.Pagi]: {
-      urls: {
-        base: 'https://www.pagi.co.il',
-        loginRoute: null,
-        transactions:
-          'https://online.pagi.co.il/wps/myportal/FibiMenu/Online/OnAccountMngment/OnBalanceTrans/PrivateAccountFlow',
-      },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasOtpConfirm: true, hasOtpCode: true },
-      format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
-      timing: { ...NULL_TIMING, elementRenderMs: 10000 },
-      selectors: BEINLEUMI_DOM_SELECTORS,
     },
     [CompanyTypes.Behatsdaa]: {
       urls: { base: 'https://www.behatsdaa.org.il', loginRoute: null, transactions: null },
@@ -262,16 +135,7 @@ export const SCRAPER_CONFIGURATION = {
         daysGridCheck: [{ kind: 'css', value: '.pmu-days > div:nth-child(1)' }],
       },
     },
-    [CompanyTypes.OneZero]: {
-      urls: { base: 'https://www.onezero.co.il', loginRoute: null, transactions: null },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: { ...SIMPLE_LOGIN, hasOtpCode: true },
-      format: NULL_FORMAT,
-      timing: NULL_TIMING,
-      selectors: {},
-    },
-  } satisfies Record<CompanyTypes, IBankScraperConfig>,
+  } satisfies Partial<Record<CompanyTypes, IBankScraperConfig>>,
 
   wellKnownSelectors: WELL_KNOWN_LOGIN_SELECTORS,
   wellKnownDashboardSelectors: WELL_KNOWN_DASHBOARD_SELECTORS,

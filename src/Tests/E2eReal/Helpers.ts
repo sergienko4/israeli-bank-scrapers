@@ -20,7 +20,12 @@ const FAILED_LOGIN_TYPES: string[] = [
 ];
 
 /**
- * Asserts that a scrape result indicates successful login and data retrieval.
+ * Asserts that a scrape result indicates successful login AND meaningful
+ * data retrieval per the project rule: a bank with zero accounts, an
+ * account with no usable identifier, or a result with zero transactions
+ * across the whole 180-day window is treated as a regression — not a
+ * "no recent activity" pass — because every CI bank has historical txn
+ * activity inside the default look-back window.
  * @param result - the scraper result to validate
  * @returns true when all assertions pass
  */
@@ -31,13 +36,27 @@ export function assertSuccessfulScrape(result: IScraperScrapingResult): boolean 
   expect(error).toBe('');
   expect(result.success).toBe(true);
   expect(result.accounts).toBeDefined();
-  // accounts may legitimately be empty when no activity in the billing period
   const accounts = result.accounts ?? [];
+  // Non-zero accounts: a bank with no accounts is always a regression.
+  expect(accounts.length).toBeGreaterThan(0);
   for (const account of accounts) {
     expect(account.accountNumber).toBeTruthy();
+    // 'default' is the Beinleumi-class fallback id leaked by an early
+    // account-discovery path that scraped without resolving the real
+    // account number — redactAccount turns it into '***fault' which
+    // showed up in production traces. Reject it explicitly.
+    expect(account.accountNumber).not.toBe('default');
     const isArray = Array.isArray(account.txns);
     expect(isArray).toBe(true);
   }
+  // Non-zero total txns across the bank: extractor regressions (e.g.
+  // Discount returning 6 txns from the API but reporting 0 to the
+  // pipeline) silently passed before this stricter assertion was
+  // added — every CI bank is known to have activity in the 180-day
+  // window, so total === 0 means data is being lost downstream of
+  // the scrape.
+  const totalTxns = accounts.reduce((acc, a): number => acc + a.txns.length, 0);
+  expect(totalTxns).toBeGreaterThan(0);
   return true;
 }
 
@@ -53,14 +72,19 @@ export function assertFailedLogin(result: IScraperScrapingResult): boolean {
 }
 
 /**
- * Returns a Date representing the start of last month.
- * @returns Date for the first day of the previous month
+ * Default look-back window for E2E happy-path scrapes.
+ * 180 days covers most card billing cycles and gives enough history
+ * to validate transactions even when the current cycle is still open.
  */
-export function lastMonthStartDate(): Date {
-  const startDate = new Date();
-  startDate.setDate(1);
-  startDate.setMonth(startDate.getMonth() - 1);
-  return startDate;
+const DEFAULT_HAPPY_PATH_DAYS = 180;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Returns the default start date for happy-path E2E scrapes (180 days back).
+ * @returns Date 180 days before now
+ */
+export function defaultStartDate(): Date {
+  return new Date(Date.now() - DEFAULT_HAPPY_PATH_DAYS * MS_PER_DAY);
 }
 
 /**

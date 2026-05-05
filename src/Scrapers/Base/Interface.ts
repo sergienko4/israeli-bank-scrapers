@@ -19,6 +19,17 @@ export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
+/**
+ * Payload passed to ScraperOptions.onAuthFlowComplete. Both values
+ * are nonempty strings when the callback fires; longTermToken is the
+ * reusable seed (persist + feed back as creds.otpLongTermToken next
+ * run) and bearer is the session token installed on the mediator.
+ */
+export interface IAuthFlowInfo {
+  readonly longTermToken: string;
+  readonly bearer: string;
+}
+
 export type ScraperCredentials =
   | { userCode: string; password: string }
   | { username: string; password: string }
@@ -31,6 +42,14 @@ export type ScraperCredentials =
       | {
           otpCodeRetriever: () => Promise<string>;
           phoneNumber: string;
+        }
+      | {
+          otpLongTermToken: string;
+        }
+    ))
+  | ({ phoneNumber: string; password: string } & (
+      | {
+          otpCodeRetriever: () => Promise<string>;
         }
       | {
           otpLongTermToken: string;
@@ -154,6 +173,23 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
    */
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;
+
+  /**
+   * Invoked once by API-DIRECT-CALL banks after a successful auth flow
+   * (either warm or cold path) to surface the captured long-term token
+   * + bearer for caller-managed caching. Receiving a nonempty
+   * longTermToken means the caller may persist it and pass it back as
+   * creds.otpLongTermToken on the next run to skip the SMS steps.
+   * Callback errors are logged and swallowed; scrape success is preserved.
+   */
+  onAuthFlowComplete?: (info: IAuthFlowInfo) => void | Promise<void>;
+
+  /**
+   * Maximum time (ms) to wait for the OTP code from the retriever callback.
+   * If the retriever doesn't resolve within this window, the phase fails with OTP_TIMEOUT.
+   * @default 180000 (3 minutes)
+   */
+  otpTimeoutMs?: number;
 
   /**
    * Login chain log verbosity.

@@ -66,53 +66,14 @@ const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
 };
 
 /**
- * Count non-hidden, non-submit inputs inside a container.
- * Runs in browser context only (used inside evaluate).
- * @param container - The DOM element to search within.
- * @param nonFillable - The set of input types to exclude.
- * @returns The number of fillable input elements.
- */
-function countFillable(container: Element, nonFillable: Set<string>): number {
-  const nodeList = container.querySelectorAll('input');
-  const inputs = Array.from(nodeList);
-  const fillable = inputs.filter(inp => !nonFillable.has(inp.type));
-  return fillable.length;
-}
-
-/**
- * Generate a unique CSS selector for a form or container element.
- * Runs in browser context only (used inside evaluate).
- * @param formEl - The form-like DOM element.
- * @returns A CSS selector string, or empty string if no parent.
- */
-function buildSelector(formEl: Element): string {
-  if (formEl.id) return `#${formEl.id}`;
-  const parent = formEl.parentElement;
-  if (!parent) return '';
-  const tag = formEl.tagName.toLowerCase();
-  const siblings = Array.from(parent.children);
-  const sameTags = siblings.filter(c => c.tagName === formEl.tagName);
-  if (sameTags.length === 1) return tag;
-  const idx = sameTags.indexOf(formEl) + 1;
-  return `${tag}:nth-of-type(${String(idx)})`;
-}
-
-/**
  * Evaluate the DOM to find the nearest form-like ancestor of the input.
  * Runs inside the browser context via Playwright's evaluate.
+ * All helpers inlined — browser context cannot access Node.js closures.
  * @param input - The DOM input element to start walking from.
  * @returns A CSS selector for the form ancestor, or empty string if none found.
  */
-function formWalkEvaluator(input: Element): string {
-  const nonFillable = new Set(['hidden', 'submit', 'button']);
-  let el = input.parentElement;
-  while (el && el !== document.body) {
-    if (el.tagName === 'FORM') return buildSelector(el);
-    if (countFillable(el, nonFillable) >= 2) return buildSelector(el);
-    el = el.parentElement;
-  }
-  return '';
-}
+/** Non-fillable input types — shared between Node and browser contexts. */
+const NON_FILLABLE_TYPES = ['hidden', 'submit', 'button', 'radio', 'checkbox'];
 
 /**
  * Run the form-walk evaluation on a resolved input handle.
@@ -122,8 +83,44 @@ function formWalkEvaluator(input: Element): string {
  */
 async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Promise<string> {
   const loc = ctx.locator(resolvedSelector).first();
-  if ((await loc.count()) === 0) return '';
-  return loc.evaluate(formWalkEvaluator);
+  const locCount = await loc.count();
+  if (locCount === 0) return '';
+  return loc.evaluate(formWalkBrowserFn, NON_FILLABLE_TYPES);
+}
+
+/**
+ * Self-contained browser-context form walk. ALL logic inline — no external refs.
+ * Uses only anonymous function expressions to avoid __name injection by build tools.
+ * @param input - DOM input element (injected by Playwright).
+ * @param skipTypes - Non-fillable input types (passed as arg).
+ * @returns CSS selector for the nearest form-like ancestor.
+ */
+/**
+ * Self-contained browser-context form walk. ALL logic inline — no external refs.
+ * Must be self-contained: Playwright evaluate() serializes only this function.
+ * @param input - DOM input element (injected by Playwright).
+ * @param skipTypes - Non-fillable input types (passed as arg).
+ * @returns CSS selector for the nearest form-like ancestor.
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser evaluate() requires self-contained function
+function formWalkBrowserFn(input: Element, skipTypes: string[]): string {
+  const skip = new Set(skipTypes);
+  let el = input.parentElement;
+  while (el && el !== document.body) {
+    const isForm = el.tagName === 'FORM';
+    const fills = isForm ? [] : [...el.querySelectorAll('input')].filter(i => !skip.has(i.type));
+    if (isForm || fills.length >= 2) {
+      if (el.id) return '#' + el.id;
+      const tag = el.tagName.toLowerCase();
+      const p = el.parentElement;
+      if (!p) return tag;
+      const target = el;
+      const sib = [...p.children].filter(c => c.tagName === target.tagName);
+      return sib.length <= 1 ? tag : tag + ':nth-of-type(' + String(sib.indexOf(target) + 1) + ')';
+    }
+    el = el.parentElement;
+  }
+  return '';
 }
 
 /**

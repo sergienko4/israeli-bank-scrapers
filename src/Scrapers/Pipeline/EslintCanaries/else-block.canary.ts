@@ -6,4 +6,5 @@ function withElse(x: boolean): string {
     return 'no';
   }
 }
+
 export { withElse };

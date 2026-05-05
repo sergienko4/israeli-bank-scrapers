@@ -1,11 +1,9 @@
-import { PipelineBuilder } from '../../../../Scrapers/Pipeline/PipelineBuilder.js';
+import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
-  MOCK_DIRECT_LOGIN,
+  MOCK_API_DIRECT,
   MOCK_LOGIN_CONFIG,
-  MOCK_NATIVE_LOGIN,
-  MOCK_OTP_CONFIG,
   MOCK_SCRAPE,
 } from './MockFactories.js';
 
@@ -64,63 +62,12 @@ describe('PipelineBuilder/withDeclarativeLogin', () => {
   });
 });
 
-describe('PipelineBuilder/withDirectPostLogin', () => {
-  it('sets login mode and returns this', () => {
-    const builder = new PipelineBuilder();
-    builder.withOptions(MOCK_OPTIONS);
-    const returned = builder.withDirectPostLogin(MOCK_DIRECT_LOGIN);
-    expect(returned).toBe(builder);
-  });
-
-  it('allows build after setting direct post login', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .build();
-    assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
-  });
-});
-
-describe('PipelineBuilder/withNativeLogin', () => {
-  it('allows build after setting native login', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withNativeLogin(MOCK_NATIVE_LOGIN)
-      .build();
-    assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
-  });
-});
-
 describe('PipelineBuilder/mutual-exclusion', () => {
-  it('fails build after withDeclarativeLogin + withDirectPostLogin', () => {
-    const result = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .build();
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('login mode already set');
-  });
-
-  it('fails build after withDirectPostLogin + withDeclarativeLogin', () => {
+  it('fails build after withDeclarativeLogin + withApiDirect', () => {
     const result = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .build();
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('login mode already set');
-  });
-
-  it('fails build after withNativeLogin + withDeclarativeLogin', () => {
-    const result = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withNativeLogin(MOCK_NATIVE_LOGIN)
+      .withApiDirect(MOCK_API_DIRECT)
       .build();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('login mode already set');
@@ -128,15 +75,15 @@ describe('PipelineBuilder/mutual-exclusion', () => {
 });
 
 describe('PipelineBuilder/optional-phases', () => {
-  it('withOtp returns this', () => {
+  it('withOtpFill returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withOtp(MOCK_OTP_CONFIG);
+    const returned = builder.withOtpFill();
     expect(returned).toBe(builder);
   });
 
-  it('withDashboard returns this', () => {
+  it('withOtpTrigger returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withDashboard();
+    const returned = builder.withOtpTrigger();
     expect(returned).toBe(builder);
   });
 
@@ -153,8 +100,8 @@ describe('PipelineBuilder/full-config', () => {
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
+      .withOtpTrigger()
+      .withOtpFill()
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -162,24 +109,11 @@ describe('PipelineBuilder/full-config', () => {
     expect(desc.options).toBe(MOCK_OPTIONS);
   });
 
-  it('builds with directPostLogin + all optional phases', () => {
+  it('builds with apiDirect headless path + scraper', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withBrowser()
-      .withDirectPostLogin(MOCK_DIRECT_LOGIN)
-      .withOtp(MOCK_OTP_CONFIG)
-      .withDashboard()
-      .withScraper(MOCK_SCRAPE)
-      .build();
-    assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
-  });
-
-  it('builds with nativeLogin without browser', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withNativeLogin(MOCK_NATIVE_LOGIN)
+      .withHeadlessMediator()
+      .withApiDirect(MOCK_API_DIRECT)
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
@@ -203,7 +137,7 @@ describe('PipelineBuilder/descriptor-shape', () => {
   it('returns descriptor with the provided options', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withNativeLogin(MOCK_NATIVE_LOGIN)
+      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
       .build();
     assertOk(descriptor);
     const desc = descriptor.value;

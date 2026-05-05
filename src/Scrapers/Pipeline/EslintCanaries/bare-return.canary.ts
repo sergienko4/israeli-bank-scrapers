@@ -3,4 +3,5 @@ function earlyExit(): boolean {
   // @ts-expect-error Intentional: canary tests bare return
   return;
 }
+
 export { earlyExit };

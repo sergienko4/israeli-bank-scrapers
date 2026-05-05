@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 import type { Falsy } from 'utility-types';
 
 import {
@@ -60,7 +62,7 @@ function makeWaitTick<T>(
   function wait(): boolean {
     asyncTest()
       .then(value => {
-        if (value) cbs.resolve(value as unknown as NonNullable<T>);
+        if (value) cbs.resolve(value);
         else globalThis.setTimeout(wait, interval);
       })
       .catch(() => {
@@ -225,7 +227,12 @@ export function humanDelay(
   minMs = HUMAN_DELAY_MIN_MS,
   maxMs = HUMAN_DELAY_MAX_MS,
 ): Promise<boolean> {
-  const delay = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
+  // Cryptographic RNG isn't strictly needed for human-delay jitter, but
+  // crypto.randomInt sidesteps the SonarCloud `typescript:S2245` hotspot
+  // (PRNG-safety review) at zero behavioural cost. Edge-case: randomInt
+  // requires max > min strictly; the prior Math.random()-based code
+  // returned min when min === max — preserve that for fixed-delay callers.
+  const delay = minMs >= maxMs ? minMs : randomInt(minMs, maxMs);
   return new Promise(resolve => {
     globalThis.setTimeout(() => {
       resolve(true);

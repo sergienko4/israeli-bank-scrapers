@@ -52,9 +52,9 @@ describe('fillInput', () => {
     const page = createMockPage({
       locator: jest.fn().mockReturnValue({ first }),
     });
-    await fillInput(page, '#username', 'testuser');
+    await fillInput(page, '#username', 'fixt-u-7c2f3e9a');
     expect(page.locator).toHaveBeenCalledWith('#username');
-    expect(fill).toHaveBeenCalledWith('testuser');
+    expect(fill).toHaveBeenCalledWith('fixt-u-7c2f3e9a');
   });
 });
 

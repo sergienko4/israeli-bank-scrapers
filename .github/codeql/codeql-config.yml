@@ -1,0 +1,14 @@
+name: "CodeQL config — Pipeline scope"
+
+# Ignore vendored bank HTML fixtures captured for offline mock E2E tests.
+# These files are real bank dashboard HTML (Hapoalim/Discount/Max/VisaCal/etc.)
+# and are NOT our source code; they are loaded read-only by Playwright in
+# tests via `setContent`. Their JS never executes in production. CodeQL
+# findings inside them are noise about the bank's own client-side code.
+paths-ignore:
+  - 'src/Tests/**/fixtures/**'
+  - 'src/Tests/E2eMocked/**/snapshots/**'
+  - 'src/Tests/Tools/**'
+
+queries:
+  - uses: security-extended
