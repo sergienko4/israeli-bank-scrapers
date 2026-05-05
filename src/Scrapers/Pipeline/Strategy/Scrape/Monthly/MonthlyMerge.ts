@@ -5,9 +5,6 @@
 
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
 
-/** Whether an account was successfully merged into the accumulator. */
-type MergeSuccess = boolean;
-
 /**
  * Add an account to the merge map — merges txns for same accountNumber.
  * @param map - Mutable map of accountNumber to merged account.
@@ -17,7 +14,7 @@ type MergeSuccess = boolean;
 function mergeOneAccount(
   map: Map<string, ITransactionsAccount>,
   acct: ITransactionsAccount,
-): MergeSuccess {
+): boolean {
   const existing = map.get(acct.accountNumber);
   const prevTxns = existing?.txns ?? [];
   const merged: ITransactionsAccount = {

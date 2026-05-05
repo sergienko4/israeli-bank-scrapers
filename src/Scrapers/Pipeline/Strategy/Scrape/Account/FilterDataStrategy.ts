@@ -30,14 +30,6 @@ const LOG = createLogger('scrape-filter');
 
 /** Rate limit between monthly GET requests (ms). */
 const GET_RATE_LIMIT_MS = 300;
-/** Display card ID extracted from response. */
-type CardDisplayId = string;
-/** Account identifier passed to the strategy. */
-type AccountId = string;
-/** Base transaction API URL. */
-type EndpointUrl = string;
-/** Whether the captured URL carries the filterData monthly-pagination param. */
-type IsFilterDataUrl = boolean;
 
 /**
  * Safe-parse URL; returns false on malformed input.
@@ -60,7 +52,7 @@ function parseOrFalse(url: string): URL | false {
  * @param keyLower - Lowercased probe.
  * @returns True on match.
  */
-function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): IsFilterDataUrl {
+function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): boolean {
   if (parsed !== false) return parsed.pathname.toLowerCase().includes(keyLower);
   return url.toLowerCase().includes(keyLower);
 }
@@ -73,7 +65,7 @@ function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): 
  * @param url - Captured endpoint URL.
  * @returns True when the URL exposes the filterData family shape.
  */
-export function isFilterDataUrl(url: string): IsFilterDataUrl {
+export function isFilterDataUrl(url: string): boolean {
   if (!url) return false;
   const parsed = parseOrFalse(url);
   const keyLower = WK_QUERY.filterData.toLowerCase();
@@ -84,7 +76,7 @@ export function isFilterDataUrl(url: string): IsFilterDataUrl {
 /** Buffered txn extraction result. */
 interface IBufferedTxns {
   readonly txns: readonly ITransaction[];
-  readonly displayId: CardDisplayId;
+  readonly displayId: string;
   readonly body: Record<string, unknown> | undefined;
 }
 
@@ -93,7 +85,7 @@ interface IBufferedTxns {
  * @param body - Raw parsed response body.
  * @returns Card number or empty string.
  */
-function extractDisplayIdFromRaw(body: Record<string, unknown>): CardDisplayId {
+function extractDisplayIdFromRaw(body: Record<string, unknown>): string {
   const result = body.result as Record<string, unknown> | undefined;
   if (!result) return '';
   const txnArray = result.transactions as Record<string, unknown>[] | undefined;
@@ -132,8 +124,8 @@ function extractBufferedTxns(network: IAccountFetchCtx['network']): IBufferedTxn
  */
 async function scrapeViaFilterData(
   fc: IAccountFetchCtx,
-  accountId: AccountId,
-  baseUrl: EndpointUrl,
+  accountId: string,
+  baseUrl: string,
 ): Promise<Procedure<ITransactionsAccount>> {
   const buffered = extractBufferedTxns(fc.network);
   const allTxns: ITransaction[] = [...buffered.txns];

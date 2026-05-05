@@ -10,16 +10,13 @@ import { WK_HOME } from '../Registry/WK/HomeWK.js';
 /** Quick probe timeout for entry visibility check. */
 const ENTRY_PROBE_MS = 2000;
 
-/** Whether a WK entry point is already visible on the page. */
-type IsEntryVisible = boolean;
-
 /**
  * Check if any WK_HOME.ENTRY element is already visible.
  * If yes, popup dismiss is not needed — the login button is accessible.
  * @param mediator - Element mediator.
  * @returns True if any entry text is visible.
  */
-async function isEntryAlreadyVisible(mediator: IElementMediator): Promise<IsEntryVisible> {
+async function isEntryAlreadyVisible(mediator: IElementMediator): Promise<boolean> {
   const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
   const probeResult = await mediator
     .resolveVisible(candidates, ENTRY_PROBE_MS)

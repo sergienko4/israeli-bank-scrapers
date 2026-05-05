@@ -16,15 +16,10 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 
 const LOG = createLogger('scrape-id');
 
-/** User-facing identifier extracted from account record (e.g. last4Digits). */
-type DisplayIdValue = string;
-/** Internal query identifier sent to billing API (e.g. cardUniqueId). */
-type AccountIdValue = string;
-
 /** Combined result of extractIds — identity receipt plus backward-compat values. */
 interface IExtractedIds extends IAccountIdentity {
-  readonly displayId: DisplayIdValue;
-  readonly accountId: AccountIdValue;
+  readonly displayId: string;
+  readonly accountId: string;
 }
 
 /**
@@ -33,7 +28,7 @@ interface IExtractedIds extends IAccountIdentity {
  * @param fallback - Fallback string if match failed.
  * @returns Resolved display or account ID value.
  */
-function resolveStr(result: Procedure<IFieldMatch>, fallback: DisplayIdValue): DisplayIdValue {
+function resolveStr(result: Procedure<IFieldMatch>, fallback: string): string {
   if (isOk(result)) return String(result.value.value);
   return fallback;
 }
@@ -49,15 +44,12 @@ function resolveReceipt(result: Procedure<IFieldMatch>, fallback: string): IFiel
   return buildFallbackMatch(fallback);
 }
 
-/** Whether debug logging completed. */
-type DidLog = boolean;
-
 /**
  * Log extraction diagnostics for debug tracing.
  * @param ids - The extracted IDs.
  * @returns True after logging.
  */
-function logExtraction(ids: IExtractedIds): DidLog {
+function logExtraction(ids: IExtractedIds): boolean {
   LOG.debug(
     {
       cardUniqueId: ids.accountId,
@@ -83,8 +75,8 @@ function logExtraction(ids: IExtractedIds): DidLog {
  * @returns Display and account ID strings.
  */
 function resolveIdStrings(record: Record<string, unknown>): {
-  displayId: DisplayIdValue;
-  accountId: AccountIdValue;
+  displayId: string;
+  accountId: string;
 } {
   const displayResult = matchField(record, WK.displayId);
   const queryResult = matchField(record, WK.queryId);
@@ -132,7 +124,7 @@ function extractCardId(record: Record<string, unknown>): string | false {
 /** Error message when no captured endpoint carries a displayId. */
 const NO_DISPLAY_ID_IN_STORE = 'no displayId field in any captured endpoint';
 
-/** Opaque alias over `unknown` to satisfy no-restricted-syntax on signatures. */
+// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
 type JsonValue = unknown;
 /** Plain-record alias — composes JsonValue to keep function sigs clean. */
 type JsonObject = Record<string, JsonValue>;

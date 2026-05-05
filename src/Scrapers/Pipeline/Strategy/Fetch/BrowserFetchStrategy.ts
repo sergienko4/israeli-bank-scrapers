@@ -57,9 +57,6 @@ function catchError(error: Error): Procedure<never> {
   return fail(ScraperErrorTypes.Generic, message);
 }
 
-/** Whether target origin matches frame. */
-type OriginMatch = boolean;
-
 /**
  * Find a frame matching the target URL's origin.
  * @param page - Playwright page with attached frames.
@@ -70,7 +67,7 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
   const targetOrigin = new URL(targetUrl).origin;
   const pageOrigin = new URL(page.url()).origin;
   if (targetOrigin === pageOrigin) return page;
-  const frame = page.frames().find((f): OriginMatch => {
+  const frame = page.frames().find((f): boolean => {
     const frameUrl = f.url();
     if (!frameUrl || frameUrl === 'about:blank') return false;
     return new URL(frameUrl).origin === targetOrigin;

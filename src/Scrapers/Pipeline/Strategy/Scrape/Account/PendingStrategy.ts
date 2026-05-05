@@ -18,33 +18,24 @@ import { isOk } from '../../../Types/Procedure.js';
 
 const LOG = createLogger('pending-strategy');
 
-/** Card unique ID string. */
-type CardUniqueId = string;
-/** Endpoint URL string. */
-type EndpointUrl = string;
-/** Monetary amount from API. */
-type AmountValue = number;
-/** API status code. */
-type StatusCode = number;
-
 /** Raw pending transaction from API. */
 interface IPendingTxn {
-  readonly trnAmt: AmountValue;
-  readonly merchantName: CardUniqueId;
-  readonly trnPurchaseDate: CardUniqueId;
-  readonly trnCurrencySymbol: CardUniqueId;
+  readonly trnAmt: number;
+  readonly merchantName: string;
+  readonly trnPurchaseDate: string;
+  readonly trnCurrencySymbol: string;
 }
 
 /** Pending API card result. */
 interface IPendingCard {
-  readonly cardUniqueID: CardUniqueId;
+  readonly cardUniqueID: string;
   readonly authDetalisList: readonly IPendingTxn[];
 }
 
 /** Pending API response shape. */
 interface IPendingResponse {
   readonly result?: { readonly cardsList: readonly IPendingCard[] };
-  readonly statusCode: StatusCode;
+  readonly statusCode: number;
 }
 
 /**
@@ -71,7 +62,7 @@ function mapPendingTxn(raw: IPendingTxn): ITransaction {
  * @param network - Network discovery.
  * @returns Pending endpoint URL or false.
  */
-function discoverPendingUrl(network: INetworkDiscovery): EndpointUrl | false {
+function discoverPendingUrl(network: INetworkDiscovery): string | false {
   const ep = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
   if (ep) return ep.url;
   const origin = network.discoverApiOrigin();
@@ -93,7 +84,7 @@ const CARD_ID_REGEX = /"cardUniqueId"\s*:\s*"([^"]+)"/;
  * @param postData - Raw POST body.
  * @returns Card ID or false.
  */
-function extractOneCardId(postData: CardUniqueId): CardUniqueId | false {
+function extractOneCardId(postData: string): string | false {
   const match = CARD_ID_REGEX.exec(postData);
   if (!match) return false;
   return match[1];
@@ -104,12 +95,12 @@ function extractOneCardId(postData: CardUniqueId): CardUniqueId | false {
  * @param network - Network discovery.
  * @returns Array of card unique IDs.
  */
-function extractCardUniqueIds(network: INetworkDiscovery): readonly CardUniqueId[] {
+function extractCardUniqueIds(network: INetworkDiscovery): readonly string[] {
   const allEps = network.getAllEndpoints();
   const withPost = allEps.filter(ep => Boolean(ep.postData));
   LOG.debug({ message: `pending: ${String(withPost.length)} POST eps to scan` });
   const extracted = withPost.map(ep => extractOneCardId(ep.postData));
-  const valid = extracted.filter((id): id is CardUniqueId => id !== false);
+  const valid = extracted.filter((id): id is string => id !== false);
   LOG.debug({ message: `pending: ${String(valid.length)} cardIds found` });
   return [...new Set(valid)];
 }
@@ -127,7 +118,7 @@ type FieldValue = string | number | boolean | null | undefined;
  * @param val - API field value.
  * @returns String value or empty.
  */
-function safeStr(val: FieldValue): CardUniqueId {
+function safeStr(val: FieldValue): string {
   if (typeof val === 'string') return val;
   if (typeof val === 'number') return val.toString();
   return '';
@@ -138,7 +129,7 @@ function safeStr(val: FieldValue): CardUniqueId {
  * @param record - Raw account record.
  * @returns Display string or empty.
  */
-function extractDisplayFromRecord(record: Record<string, unknown>): CardUniqueId {
+function extractDisplayFromRecord(record: Record<string, unknown>): string {
   const val = findFieldValue(record, WK.displayId);
   if (val !== false) return String(val);
   return '';
@@ -149,9 +140,7 @@ function extractDisplayFromRecord(record: Record<string, unknown>): CardUniqueId
  * @param records - Raw account records from discovery.
  * @returns Map of cardUniqueId → last4 display.
  */
-function buildIdToDisplayMap(
-  records: readonly Record<string, unknown>[],
-): Map<CardUniqueId, CardUniqueId> {
+function buildIdToDisplayMap(records: readonly Record<string, unknown>[]): Map<string, string> {
   const pairs = records.map(r => ({
     uid: safeStr((r.cardUniqueId ?? r.cardUniqueID ?? r.CardUniqueId) as FieldValue),
     display: extractDisplayFromRecord(r),
@@ -167,13 +156,13 @@ function buildIdToDisplayMap(
  * Merge pending txns into matching accounts using cardUniqueId→display map.
  * @param accounts - Existing accounts.
  * @param cardsList - Pending API cardsList.
- * @param idMap - CardUniqueId → display number map.
+ * @param idMap - string → display number map.
  * @returns Accounts with pending txns appended.
  */
 function mergeIntoAccounts(
   accounts: readonly ITransactionsAccount[],
   cardsList: readonly IPendingCard[],
-  idMap: Map<CardUniqueId, CardUniqueId>,
+  idMap: Map<string, string>,
 ): readonly ITransactionsAccount[] {
   const mapped = cardsList.map(card => ({
     display: idMap.get(card.cardUniqueID) ?? card.cardUniqueID,
@@ -198,7 +187,7 @@ function mergeIntoAccounts(
  */
 function extractIdsFromRecords(
   accountRecords: readonly Record<string, unknown>[],
-): readonly CardUniqueId[] {
+): readonly string[] {
   const ids = accountRecords
     .map(r => r.cardUniqueId ?? r.cardUniqueID ?? r.CardUniqueId)
     .filter(Boolean)
@@ -227,7 +216,7 @@ async function fetchAndMergePending(args: IPendingArgs): Promise<readonly ITrans
   const fromRecords = extractIdsFromRecords(accountRecords);
   const fromTraffic = extractCardUniqueIds(network);
   const hasRecordIds = fromRecords.length > 0;
-  const cardIdMap: Record<string, readonly CardUniqueId[]> = {
+  const cardIdMap: Record<string, readonly string[]> = {
     true: fromRecords,
     false: fromTraffic,
   };

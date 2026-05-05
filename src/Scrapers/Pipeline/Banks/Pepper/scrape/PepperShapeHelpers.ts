@@ -5,11 +5,6 @@
 
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 
-/** Display account number used in scraped output (falls back to accountId). */
-type AccountNumberDisplay = string;
-/** Current balance amount (0 when absent). */
-type AccountBalance = number;
-
 /** Account ref emitted by extractAccounts. */
 export interface IPepperAcct {
   readonly accountId: string;
@@ -46,7 +41,7 @@ export function extractAccounts(body: ApiBody): readonly IPepperAcct[] {
  * @param acct - Pepper account.
  * @returns Display number.
  */
-export function accountNumberOf(acct: IPepperAcct): AccountNumberDisplay {
+export function accountNumberOf(acct: IPepperAcct): string {
   return acct.accountNumber ?? acct.accountId;
 }
 
@@ -55,7 +50,7 @@ export function accountNumberOf(acct: IPepperAcct): AccountNumberDisplay {
  * @param body - Unwrapped balance response.
  * @returns Current balance.
  */
-export function balanceExtract(body: ApiBody): AccountBalance {
+export function balanceExtract(body: ApiBody): number {
   const resp = body as unknown as IBalanceResp;
   return resp.accounts?.balance?.currentBalance ?? 0;
 }

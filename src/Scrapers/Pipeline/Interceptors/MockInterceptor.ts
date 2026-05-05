@@ -24,14 +24,11 @@ import { buildHandler } from './MockRouteHandler.js';
 /** Env flag name that activates mock mode. */
 const ENV_FLAG = 'MOCK_MODE';
 
-/** Route registration outcome — true on success, false when browser absent. */
-type RouteResult = boolean;
-
 /**
  * Check whether mock mode is enabled via env var.
  * @returns True when MOCK_MODE is set to a truthy value.
  */
-function isMockEnabled(): RouteResult {
+function isMockEnabled(): boolean {
   const val = process.env[ENV_FLAG];
   return val === '1' || val === 'true';
 }
@@ -44,7 +41,7 @@ function isMockEnabled(): RouteResult {
  * @param state - Mutable state.
  * @returns True if route was registered (or already was), false if no browser.
  */
-async function ensureRouted(ctx: IPipelineContext, state: IMockState): Promise<RouteResult> {
+async function ensureRouted(ctx: IPipelineContext, state: IMockState): Promise<boolean> {
   if (state.isRouted) return true;
   if (!ctx.browser.has) return false;
   const { context } = ctx.browser.value;

@@ -36,14 +36,6 @@ import type {
 const LOG = createLogger('scrape-billing');
 const RATE_LIMIT_MS = 300;
 
-type BillingApiUrl = string;
-type MonthStr = string;
-
-/** URL matched an existing WK.transactions pattern. */
-type PatternMatched = boolean;
-/** Post-body carries a card-unique identifier (billing-endpoint signal). */
-type CarriesCardId = boolean;
-
 /**
  * Check whether the captured POST body mentions any WK.queryId alias
  * (cardUniqueId, cardUniqueID, accountId …). Banks use these identifiers
@@ -53,18 +45,15 @@ type CarriesCardId = boolean;
  * @param postData - Captured POST body string.
  * @returns True when any WK.queryId alias appears in the body.
  */
-function bodyCarriesCardId(postData: RawPostBody): CarriesCardId {
+function bodyCarriesCardId(postData: string): boolean {
   if (!postData) return false;
-  return WK_TXN.queryId.some((alias): CarriesCardId => postData.includes(alias));
+  return WK_TXN.queryId.some((alias): boolean => postData.includes(alias));
 }
-
-/** Raw POST body string from a captured endpoint. */
-type RawPostBody = string;
 
 /** Probe of a single captured endpoint for billing-fallback fitness. */
 interface ICandidateProbe {
-  readonly url: BillingApiUrl;
-  readonly postData: RawPostBody;
+  readonly url: string;
+  readonly postData: string;
 }
 
 /**
@@ -73,8 +62,8 @@ interface ICandidateProbe {
  * @param patterns - WK.transactions regex list.
  * @returns True when both conditions hold.
  */
-function isBillingCandidate(probe: ICandidateProbe, patterns: readonly RegExp[]): PatternMatched {
-  const isUrlMatch = patterns.some((p): PatternMatched => p.test(probe.url));
+function isBillingCandidate(probe: ICandidateProbe, patterns: readonly RegExp[]): boolean {
+  const isUrlMatch = patterns.some((p): boolean => p.test(probe.url));
   if (!isUrlMatch) return false;
   return bodyCarriesCardId(probe.postData);
 }
@@ -86,7 +75,7 @@ function isBillingCandidate(probe: ICandidateProbe, patterns: readonly RegExp[])
  * @param anyCapturedUrl - Any URL already captured on the target host.
  * @returns Full billing URL.
  */
-function buildBillingUrlFromOrigin(anyCapturedUrl: BillingApiUrl): BillingApiUrl {
+function buildBillingUrlFromOrigin(anyCapturedUrl: string): string {
   const origin = new URL(anyCapturedUrl).origin;
   return `${origin}${WK_BILLING.apiPrefix}/${WK_BILLING.pathFragment}/${WK_BILLING.actionName}`;
 }
@@ -103,12 +92,12 @@ function buildBillingUrlFromOrigin(anyCapturedUrl: BillingApiUrl): BillingApiUrl
  * @param fc - Fetch context exposing network.getAllEndpoints().
  * @returns Captured/built URL or false when family isn't present.
  */
-function findCapturedBillingUrl(fc: IAccountFetchCtx): BillingApiUrl | false {
+function findCapturedBillingUrl(fc: IAccountFetchCtx): string | false {
   const patterns = PIPELINE_WELL_KNOWN_API.transactions;
   const captured = fc.network.getAllEndpoints();
-  const directHit = captured.find((ep): PatternMatched => ep.url.includes(WK_BILLING.pathFragment));
+  const directHit = captured.find((ep): boolean => ep.url.includes(WK_BILLING.pathFragment));
   if (directHit) return buildBillingUrlFromOrigin(directHit.url);
-  const shaped = captured.find((ep): PatternMatched => isBillingCandidate(ep, patterns));
+  const shaped = captured.find((ep): boolean => isBillingCandidate(ep, patterns));
   if (shaped) return buildBillingUrlFromOrigin(shaped.url);
   return false;
 }
@@ -118,7 +107,7 @@ function findCapturedBillingUrl(fc: IAccountFetchCtx): BillingApiUrl | false {
  * @param chunk - Month chunk with start date.
  * @returns Month and year as strings.
  */
-function chunkMonthYear(chunk: IMonthChunk): { readonly month: MonthStr; readonly year: MonthStr } {
+function chunkMonthYear(chunk: IMonthChunk): { readonly month: string; readonly year: string } {
   const d = new Date(chunk.start);
   const rawMonth = d.getMonth() + 1;
   const rawYear = d.getFullYear();

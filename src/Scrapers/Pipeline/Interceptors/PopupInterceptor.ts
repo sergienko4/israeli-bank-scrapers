@@ -24,19 +24,6 @@ const POPUP_COOLDOWN_MS = 2000;
 /** Wait for SPA state update after popup dismissal (ms). */
 const POPUP_SETTLE_MS = 1000;
 
-/** Epoch-ms timestamp of the last popup probe. */
-type EpochMs = number;
-/** Whether a popup was found and dismissed. */
-type WasDismissed = boolean;
-
-/**
- * Log network endpoint delta after popup dismissal.
- * @param mediator - Element mediator.
- * @param epsBefore - Endpoint count before dismiss.
- */
-/** Network delta count after popup dismiss. */
-type NetworkDelta = number;
-
 /**
  * Log network endpoint delta after popup dismissal.
  * @param mediator - Element mediator.
@@ -48,7 +35,7 @@ function traceNetworkDelta(
   mediator: IElementMediator,
   epsBefore: number,
   logger: ScraperLogger,
-): NetworkDelta {
+): number {
   const epsAfter = mediator.network.getAllEndpoints().length;
   const delta = epsAfter - epsBefore;
   if (delta > 0) {
@@ -66,10 +53,7 @@ const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'dashboard']);
  * @param logger - Pipeline logger.
  * @returns True if a popup was found and clicked.
  */
-async function tryDismissOnce(
-  mediator: IElementMediator,
-  logger: ScraperLogger,
-): Promise<WasDismissed> {
+async function tryDismissOnce(mediator: IElementMediator, logger: ScraperLogger): Promise<boolean> {
   const result = await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
   if (result === false) return false;
   if (!result.success || !result.value.found) return false;
@@ -95,15 +79,12 @@ async function dismissPopups(mediator: IElementMediator, logger: ScraperLogger):
   return MAX_POPUP_ATTEMPTS;
 }
 
-/** Whether cooldown period is still active. */
-type IsInCooldown = boolean;
-
 /**
  * Check whether cooldown has elapsed.
  * @param lastRunMs - Last probe epoch-ms.
  * @returns True if still in cooldown.
  */
-function isInCooldown(lastRunMs: EpochMs): IsInCooldown {
+function isInCooldown(lastRunMs: number): boolean {
   return Date.now() - lastRunMs < POPUP_COOLDOWN_MS;
 }
 
@@ -117,7 +98,7 @@ function isInCooldown(lastRunMs: EpochMs): IsInCooldown {
  */
 async function tryDismiss(
   ctx: IPipelineContext,
-  lastRunMs: { value: EpochMs },
+  lastRunMs: { value: number },
   nextPhase: string,
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.mediator.has || !POPUP_PHASES.has(nextPhase)) return succeed(ctx);
@@ -135,7 +116,7 @@ async function tryDismiss(
  * @returns IPipelineInterceptor that dismisses popups between phases.
  */
 function createPopupInterceptor(): IPipelineInterceptor {
-  const lastRunMs = { value: 0 as EpochMs };
+  const lastRunMs = { value: 0 };
   /**
    * Dismiss popups before HOME and DASHBOARD phases.
    * @param ctx - Pipeline context.

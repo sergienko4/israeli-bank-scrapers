@@ -15,11 +15,6 @@ const ISO_DATE_FMT = 'YYYY-MM-DD';
 export const PAGE_SIZE = 100;
 const FIRST_PAGE = 1;
 
-/** 1-based pagination page number. */
-type PageNumber = number;
-/** Whether pagination should terminate after the current page. */
-type IsLastPage = boolean;
-
 type PepperTxn = Record<string, unknown>;
 
 interface IOshBlock {
@@ -53,7 +48,7 @@ export function windowOf(ctx: IActionContext): IWindow {
  * @param cursor - Incoming cursor (false on first call).
  * @returns Page number.
  */
-export function pageNumberOf(cursor: number | false): PageNumber {
+export function pageNumberOf(cursor: number | false): number {
   if (cursor === false) return FIRST_PAGE;
   return cursor;
 }
@@ -79,7 +74,7 @@ export function txnsVars(acct: IPepperAcct, cursor: number | false, ctx: IAction
  * @param total - Server-declared totalCount.
  * @returns True when pagination should stop.
  */
-export function isLastPage(rows: number, page: number, total: number): IsLastPage {
+export function isLastPage(rows: number, page: number, total: number): boolean {
   if (rows === 0) return true;
   if (rows < PAGE_SIZE) return true;
   return page * PAGE_SIZE >= total;

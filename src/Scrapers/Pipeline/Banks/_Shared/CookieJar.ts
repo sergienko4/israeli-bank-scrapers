@@ -6,15 +6,6 @@
  * ignored (Expires/Path/Domain/Secure/HttpOnly/SameSite).
  */
 
-/** Attribute-stripped "name=value" head of a Set-Cookie line. */
-type CookieHead = string;
-/** Serialized "name1=v1; name2=v2" Cookie request-header value. */
-type CookieHeaderValue = string;
-/** Count of entries stored in the cookie jar. */
-type CookieStoreSize = number;
-/** Count of Set-Cookie lines successfully ingested. */
-type IngestedCount = number;
-
 /** Parsed (name, value) pair from a single Set-Cookie line. */
 interface ICookieEntry {
   readonly name: string;
@@ -33,7 +24,7 @@ export interface ICookieJar {
  * @param raw - Raw Set-Cookie value, attributes optional.
  * @returns Head string (everything before the first ";").
  */
-function stripAttributes(raw: string): CookieHead {
+function stripAttributes(raw: string): string {
   const trimmed = raw.trim();
   const semi = trimmed.indexOf(';');
   if (semi === -1) return trimmed;
@@ -59,7 +50,7 @@ function parseOne(raw: string): ICookieEntry | false {
  * @param raw - Raw Set-Cookie value.
  * @returns 1 if stored, 0 if ignored.
  */
-function ingestOne(store: Map<string, string>, raw: string): IngestedCount {
+function ingestOne(store: Map<string, string>, raw: string): number {
   const parsed = parseOne(raw);
   if (parsed === false) return 0;
   store.set(parsed.name, parsed.value);
@@ -72,7 +63,7 @@ function ingestOne(store: Map<string, string>, raw: string): IngestedCount {
  * @param lines - Raw Set-Cookie lines.
  * @returns Count of stored entries after ingest.
  */
-function ingestAll(store: Map<string, string>, lines: readonly string[]): CookieStoreSize {
+function ingestAll(store: Map<string, string>, lines: readonly string[]): number {
   for (const line of lines) ingestOne(store, line);
   return store.size;
 }
@@ -82,7 +73,7 @@ function ingestAll(store: Map<string, string>, lines: readonly string[]): Cookie
  * @param store - Underlying Map.
  * @returns "name1=v1; name2=v2; …" (empty when store is empty).
  */
-function serializeHeader(store: Map<string, string>): CookieHeaderValue {
+function serializeHeader(store: Map<string, string>): string {
   const parts: string[] = [];
   for (const [name, value] of store) parts.push(`${name}=${value}`);
   return parts.join('; ');
@@ -93,7 +84,7 @@ function serializeHeader(store: Map<string, string>): CookieHeaderValue {
  * @param store - Underlying Map.
  * @returns Size.
  */
-function jarSize(store: Map<string, string>): CookieStoreSize {
+function jarSize(store: Map<string, string>): number {
   return store.size;
 }
 
@@ -103,7 +94,7 @@ function jarSize(store: Map<string, string>): CookieStoreSize {
  * @returns Add operation.
  */
 function bindAdd(store: Map<string, string>): ICookieJar['add'] {
-  return (lines): CookieStoreSize => ingestAll(store, lines);
+  return (lines): number => ingestAll(store, lines);
 }
 
 /**
@@ -112,7 +103,7 @@ function bindAdd(store: Map<string, string>): ICookieJar['add'] {
  * @returns cookieHeader operation.
  */
 function bindCookieHeader(store: Map<string, string>): ICookieJar['cookieHeader'] {
-  return (): CookieHeaderValue => serializeHeader(store);
+  return (): string => serializeHeader(store);
 }
 
 /**
@@ -121,7 +112,7 @@ function bindCookieHeader(store: Map<string, string>): ICookieJar['cookieHeader'
  * @returns size operation.
  */
 function bindSize(store: Map<string, string>): ICookieJar['size'] {
-  return (): CookieStoreSize => jarSize(store);
+  return (): number => jarSize(store);
 }
 
 /**
