@@ -7,26 +7,13 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 
 const LOG = getDebug(import.meta.url);
 
-/** CSS selector string for form elements. */
-type CssSelectorStr = string;
-/** HTML tag name string. */
-type TagName = string;
-/** HTML element ID attribute. */
-type ElementId = string;
-/** Whether a DOM condition is satisfied. */
-type DomCheck = boolean;
-/** DOM element count. */
-type DomCount = number;
-/** Sibling index position. */
-type SiblingIndex = number;
-
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
 const EMPTY_RESULT: Nullable<never> = JSON.parse('null') as Nullable<never>;
 
 /** A cached form element discovered from a resolved input field. */
 export interface IFormAnchor {
   /** CSS selector uniquely identifying the form element. */
-  selector: CssSelectorStr;
+  selector: string;
   /** The Playwright context (Page or Frame) containing the form. */
   context: Page | Frame;
 }
@@ -37,7 +24,7 @@ export interface IFormAnchor {
  * @param val - The original candidate value.
  * @returns The scoped CSS selector string.
  */
-function scopeCss(form: CssSelectorStr, val: CssSelectorStr): CssSelectorStr {
+function scopeCss(form: string, val: string): string {
   return `${form} ${val}`;
 }
 
@@ -47,7 +34,7 @@ function scopeCss(form: CssSelectorStr, val: CssSelectorStr): CssSelectorStr {
  * @param val - The placeholder text to match.
  * @returns The scoped CSS selector string.
  */
-function scopePlaceholder(form: CssSelectorStr, val: CssSelectorStr): CssSelectorStr {
+function scopePlaceholder(form: string, val: string): string {
   return `${form} input[placeholder*="${val}"]`;
 }
 
@@ -57,7 +44,7 @@ function scopePlaceholder(form: CssSelectorStr, val: CssSelectorStr): CssSelecto
  * @param val - The aria-label text to match.
  * @returns The scoped CSS selector string.
  */
-function scopeAriaLabel(form: CssSelectorStr, val: CssSelectorStr): CssSelectorStr {
+function scopeAriaLabel(form: string, val: string): string {
   return `${form} input[aria-label="${val}"]`;
 }
 
@@ -67,15 +54,12 @@ function scopeAriaLabel(form: CssSelectorStr, val: CssSelectorStr): CssSelectorS
  * @param val - The name attribute value to match.
  * @returns The scoped CSS selector string.
  */
-function scopeName(form: CssSelectorStr, val: CssSelectorStr): CssSelectorStr {
+function scopeName(form: string, val: string): string {
   return `${form} [name="${val}"]`;
 }
 
 /** Map from scopable kind to a function that builds the scoped CSS value. */
-const SCOPE_BUILDERS: Record<
-  CssSelectorStr,
-  (form: CssSelectorStr, val: CssSelectorStr) => CssSelectorStr
-> = {
+const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
   css: scopeCss,
   placeholder: scopePlaceholder,
   ariaLabel: scopeAriaLabel,
@@ -89,10 +73,7 @@ const SCOPE_BUILDERS: Record<
  * @param resolvedSelector - CSS/XPath selector for the already-resolved input.
  * @returns The form CSS selector, or empty string if not found.
  */
-async function evaluateFormWalk(
-  ctx: Page | Frame,
-  resolvedSelector: CssSelectorStr,
-): Promise<CssSelectorStr> {
+async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Promise<string> {
   const loc = ctx.locator(resolvedSelector).first();
   if ((await loc.count()) === 0) return '';
   const ancestors = await collectAncestorMeta(ctx, resolvedSelector);
@@ -101,8 +82,8 @@ async function evaluateFormWalk(
   // share aria-labels with form controls (e.g. Max's `<a aria-label="כניסה">`
   // sibling to the form's submit button) — scoping to the form itself excludes
   // those and produces unambiguous click resolution.
-  const formTag = ancestors.find((m): DomCheck => m.isForm);
-  const fallback = ancestors.find((m): DomCheck => m.fillCount >= MIN_FILLABLE_INPUTS);
+  const formTag = ancestors.find((m): boolean => m.isForm);
+  const fallback = ancestors.find((m): boolean => m.fillCount >= MIN_FILLABLE_INPUTS);
   const formAncestor = formTag ?? fallback;
   if (!formAncestor) return '';
   return buildSelectorFromMeta(formAncestor);
@@ -110,12 +91,12 @@ async function evaluateFormWalk(
 
 /** Metadata for a single ancestor element — transferred from browser to Node. */
 interface IAncestorMeta {
-  readonly tag: TagName;
-  readonly id: ElementId;
-  readonly isForm: DomCheck;
-  readonly fillCount: DomCount;
-  readonly sibIndex: SiblingIndex;
-  readonly sibCount: DomCount;
+  readonly tag: string;
+  readonly id: string;
+  readonly isForm: boolean;
+  readonly fillCount: number;
+  readonly sibIndex: number;
+  readonly sibCount: number;
   readonly name: string;
   readonly stableClass: string;
 }
@@ -151,10 +132,7 @@ const ANCESTOR_XPATH = 'xpath=ancestor::*[not(self::html) and not(self::body)]';
  * @param selector - CSS/XPath selector for the starting element.
  * @returns Array of typed ancestor metadata from nearest to farthest.
  */
-async function collectAncestorMeta(
-  ctx: Page | Frame,
-  selector: CssSelectorStr,
-): Promise<IAncestorMeta[]> {
+async function collectAncestorMeta(ctx: Page | Frame, selector: string): Promise<IAncestorMeta[]> {
   const ancestorLoc = ctx.locator(selector).first().locator(ANCESTOR_XPATH);
   if ((await ancestorLoc.count()) === 0) return [];
   const tuples = await ancestorLoc.evaluateAll(mapAncestorTuples);
@@ -173,7 +151,7 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
   return els.map((el): AncestorTuple => {
     const p = el.parentElement;
     const children = p && [...p.children];
-    const sibs = children?.filter((c): DomCheck => c.tagName === el.tagName);
+    const sibs = children?.filter((c): boolean => c.tagName === el.tagName);
     const idx = sibs?.indexOf(el) ?? 0;
     const cnt = sibs?.length ?? 1;
     // First non-Angular class (Angular adds dynamic ng-* classes that are
@@ -183,8 +161,8 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
     // returns the empty-string sentinel for "absent" attributes; downstream
     // `extractFormAnchorSelector` treats zero-length values as "not present".
     const absent = String();
-    const allClasses = el.className.split(/\s+/).filter((c): DomCheck => c.length > 0);
-    const foundClass = allClasses.find((c): DomCheck => !c.startsWith('ng-'));
+    const allClasses = el.className.split(/\s+/).filter((c): boolean => c.length > 0);
+    const foundClass = allClasses.find((c): boolean => !c.startsWith('ng-'));
     const stableClass = foundClass ?? absent;
     const nameAttr = el.getAttribute('name') ?? absent;
     return [
@@ -219,7 +197,7 @@ const MIN_FILLABLE_INPUTS = 2;
  * @param meta - The ancestor metadata.
  * @returns A CSS selector string.
  */
-function buildSelectorFromMeta(meta: IAncestorMeta): CssSelectorStr {
+function buildSelectorFromMeta(meta: IAncestorMeta): string {
   if (meta.id) return '#' + meta.id;
   const tag = meta.tag.toLowerCase();
   if (meta.name.length > 0) return tag + '[name="' + meta.name + '"]';
@@ -237,7 +215,7 @@ function buildSelectorFromMeta(meta: IAncestorMeta): CssSelectorStr {
  */
 export async function discoverFormAnchor(
   ctx: Page | Frame,
-  resolvedSelector: CssSelectorStr,
+  resolvedSelector: string,
 ): Promise<Nullable<IFormAnchor>> {
   const formSelector = await evaluateFormWalk(ctx, resolvedSelector);
   if (!formSelector) return EMPTY_RESULT;
@@ -256,11 +234,11 @@ export async function discoverFormAnchor(
  * @returns A form-scoped copy of the candidate, or the original if not scopable.
  */
 export function scopeCandidate(
-  formSelector: CssSelectorStr,
+  formSelector: string,
   candidate: SelectorCandidate,
 ): SelectorCandidate {
   const builder = SCOPE_BUILDERS[candidate.kind] as
-    | ((form: CssSelectorStr, val: CssSelectorStr) => CssSelectorStr)
+    | ((form: string, val: string) => string)
     | undefined;
   if (!builder) return candidate;
   return { kind: 'css', value: builder(formSelector, candidate.value) };
@@ -273,7 +251,7 @@ export function scopeCandidate(
  * @returns An array of form-scoped candidates.
  */
 export function scopeCandidates(
-  formSelector: CssSelectorStr,
+  formSelector: string,
   candidates: SelectorCandidate[],
 ): SelectorCandidate[] {
   return candidates.map((c): SelectorCandidate => scopeCandidate(formSelector, c));

@@ -20,31 +20,14 @@ import { WK_LOGIN_ERROR } from '../../Registry/WK/LoginWK.js';
 /** Sentinel for elements with no CSS class attribute. */
 const NO_CLASS = 'no-class';
 
-/** HTML tag name (lowercase). */
-type TagName = string;
-/** CSS class string of a DOM element. */
-type CssClass = string;
-/** Visible text content of an error element. */
-type ErrorText = string;
-/** Whether a DOM element is hidden (display:none or visibility:hidden). */
-type IsHidden = boolean;
-/** CSS selector string identifying an error element. */
-type ErrorSelector = string;
-/** Whether at least one error is present in the scan result. */
-type HasErrors = boolean;
-/** Summary text of the first discovered error. */
-type ErrorSummary = string;
-/** Selector string passed to page.evaluate for DOM querying. */
-type DomQuerySel = string;
-
 // ── Types ──────────────────────────────────────────────────
 
 /** Raw DOM item extracted from browser-side evaluation. */
 interface IRawDomItem {
-  readonly tag: TagName;
-  readonly cls: CssClass;
-  readonly text: ErrorText;
-  readonly isHidden: IsHidden;
+  readonly tag: string;
+  readonly cls: string;
+  readonly text: string;
+  readonly isHidden: boolean;
 }
 
 /** Kind of error discovered — drives ScraperErrorTypes mapping upstream. */
@@ -53,9 +36,9 @@ export type FormErrorKind = 'formValidation' | 'networkError' | 'authError';
 /** A single discovered form error. */
 export interface IFormError {
   /** CSS selector that matched (tag + first class, or 'wellKnown' for Layer 2). */
-  readonly selector: ErrorSelector;
+  readonly selector: string;
   /** Visible text content of the error element. */
-  readonly text: ErrorText;
+  readonly text: string;
   /** Semantic error kind — inferred from the matching selector. */
   readonly kind: FormErrorKind;
 }
@@ -63,11 +46,11 @@ export interface IFormError {
 /** Unified result from any error scan (Layer 1 or Layer 2). */
 export interface IFormErrorScanResult {
   /** True if at least one visible error element was found. */
-  readonly hasErrors: HasErrors;
+  readonly hasErrors: boolean;
   /** All discovered errors (may be empty). */
   readonly errors: readonly IFormError[];
   /** First error text for logging/propagation — empty when hasErrors=false. */
-  readonly summary: ErrorSummary;
+  readonly summary: string;
 }
 
 // ── Constants ──────────────────────────────────────────────
@@ -95,7 +78,7 @@ export const NO_ERRORS: IFormErrorScanResult = { hasErrors: false, errors: [], s
 
 /** Evaluation argument — passes the selector string to the browser context. */
 interface IEvalArg {
-  readonly sel: DomQuerySel;
+  readonly sel: string;
 }
 
 /**
@@ -110,7 +93,7 @@ async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]
       const fieldTags = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
       const els = [...document.querySelectorAll(sel)];
       return els
-        .filter((el): IsHidden => !fieldTags.has(el.tagName))
+        .filter((el): boolean => !fieldTags.has(el.tagName))
         .map((el): IRawDomItem => {
           const cs = globalThis.getComputedStyle(el);
           const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
@@ -142,7 +125,7 @@ function classifyByTag(tag: string): FormErrorKind {
  * @param cls - Class attribute value (NO_CLASS if absent).
  * @returns CSS selector string.
  */
-function buildSelector(tag: TagName, cls: CssClass): ErrorSelector {
+function buildSelector(tag: string, cls: string): string {
   if (cls === NO_CLASS) return tag;
   return `${tag}.${cls.split(' ')[0]}`;
 }
@@ -166,9 +149,9 @@ function toFormError(item: IRawDomItem): IFormError {
  * @param text - Visible text from a DOM element.
  * @returns True if text contains a known error phrase.
  */
-function isKnownErrorText(text: string): HasErrors {
+function isKnownErrorText(text: string): boolean {
   const errorPatterns = WK_LOGIN_ERROR;
-  return errorPatterns.some((pattern): HasErrors => text.includes(pattern.value));
+  return errorPatterns.some((pattern): boolean => text.includes(pattern.value));
 }
 
 /**
@@ -177,7 +160,7 @@ function isKnownErrorText(text: string): HasErrors {
  * @param item - Raw DOM item.
  * @returns True if the element tag is a dedicated error component.
  */
-function isDedicatedErrorTag(item: IRawDomItem): HasErrors {
+function isDedicatedErrorTag(item: IRawDomItem): boolean {
   return item.tag === 'mat-error';
 }
 
@@ -190,8 +173,8 @@ function isDedicatedErrorTag(item: IRawDomItem): HasErrors {
  */
 function filterVisible(items: readonly IRawDomItem[]): readonly IRawDomItem[] {
   return items
-    .filter((item): HasErrors => !item.isHidden && item.text.length > 0)
-    .filter((item): HasErrors => isDedicatedErrorTag(item) || isKnownErrorText(item.text));
+    .filter((item): boolean => !item.isHidden && item.text.length > 0)
+    .filter((item): boolean => isDedicatedErrorTag(item) || isKnownErrorText(item.text));
 }
 
 /**
@@ -234,7 +217,7 @@ async function probeWellKnownText(
    * Element not visible or detached.
    * @returns False.
    */
-  const catchFalse = (): HasErrors => false;
+  const catchFalse = (): boolean => false;
   const isErrorVisible = await first.isVisible().catch(catchFalse);
   if (!isErrorVisible) return NO_ERRORS;
   const error: IFormError = { selector: 'wellKnown', text: value, kind: 'authError' };

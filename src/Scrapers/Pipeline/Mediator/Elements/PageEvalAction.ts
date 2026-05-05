@@ -12,31 +12,20 @@ import type { IPageEvalAllOpts, IPageEvalOpts } from './ElementsInteractions.js'
 
 const LOG = createLogger('elements-eval');
 
-type SelectorStr = string;
-type OpResult = boolean;
-type OptionValue = string;
-type OptionName = string;
-
 /**
  * Wait for the document to reach readyState complete.
  * @param ctx - The Page or Frame to wait on.
  * @returns True if ready, false on failure.
  */
-async function waitForReadyState(ctx: Page | Frame): Promise<OpResult> {
+async function waitForReadyState(ctx: Page | Frame): Promise<boolean> {
   try {
-    await ctx.waitForFunction((): OpResult => document.readyState === 'complete');
+    await ctx.waitForFunction((): boolean => document.readyState === 'complete');
     return true;
   } catch {
     return false;
   }
 }
 
-/**
- * Evaluate a callback on all matching elements.
- * @param ctx - The Playwright page or frame.
- * @param opts - Selector, default result, and callback options.
- * @returns The callback result, or default if no elements found.
- */
 /**
  * Evaluate a callback on all matching elements.
  * @param ctx - The Playwright page or frame.
@@ -94,11 +83,7 @@ async function pageEval<TResult>(
  * @param value - The option value to select.
  * @returns True after selection.
  */
-async function dropdownSelect(
-  ctx: Page,
-  selectSelector: SelectorStr,
-  value: OptionValue,
-): Promise<OpResult> {
+async function dropdownSelect(ctx: Page, selectSelector: string, value: string): Promise<boolean> {
   await ctx.selectOption(selectSelector, value);
   return true;
 }
@@ -108,11 +93,11 @@ async function dropdownSelect(
  * @param optSel - Option selector string.
  * @returns Array of name/value pairs.
  */
-function optionExtractor(optSel: SelectorStr): { name: OptionName; value: OptionValue }[] {
+function optionExtractor(optSel: string): { name: string; value: string }[] {
   const elements = document.querySelectorAll<HTMLOptionElement>(optSel);
   return Array.from(elements)
-    .filter((o): OpResult => Boolean(o.value))
-    .map((o): { name: OptionName; value: OptionValue } => ({ name: o.text, value: o.value }));
+    .filter((o): boolean => Boolean(o.value))
+    .map((o): { name: string; value: string } => ({ name: o.text, value: o.value }));
 }
 
 /**
@@ -123,8 +108,8 @@ function optionExtractor(optSel: SelectorStr): { name: OptionName; value: Option
  */
 async function dropdownElements(
   ctx: Page,
-  selector: SelectorStr,
-): Promise<{ name: OptionName; value: OptionValue }[]> {
+  selector: string,
+): Promise<{ name: string; value: string }[]> {
   const optionSelector = `${selector} > option`;
   return ctx.evaluate(optionExtractor, optionSelector);
 }

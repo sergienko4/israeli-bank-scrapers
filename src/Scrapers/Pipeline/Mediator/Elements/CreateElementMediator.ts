@@ -37,59 +37,30 @@ import {
   type IElementIdentity,
   type IElementMediator,
   type IRaceResult,
-  type IsTxnFound,
   NOT_FOUND_RESULT,
 } from './ElementMediator.js';
 
 const LOG = getDebug(import.meta.url);
 
 import {
-  getActivePhase,
-  getActiveStage,
   setActivePhase as setGlobalPhase,
   setActiveStage as setGlobalStage,
   type StageLabel,
 } from '../../Types/ActiveState.js';
-
-/** CSS selector string cached from form anchor discovery. */
-type FormSelectorStr = string;
-/** Field key string used to identify a credential or form field. */
-type FieldKeyStr = string;
-/** Form anchor CSS selector for scoping subsequent field fills. */
-type FormAnchorStr = string;
-/** Whether a locator is currently visible in the viewport. */
-type IsVisible = boolean;
-/** Index of the winning locator from a race. */
-type WinnerIndex = number;
-/** Raw href or text attribute from a DOM element. */
-type ElementAttr = string;
-/** Diagnostic string for trace logging. */
-type DiagnosticStr = string;
-/** Href string extracted from anchor ancestor walk-up. */
-type AncestorHref = string;
-/** Whether a filter predicate matches. */
-type FilterMatch = boolean;
-/** Current page URL string. */
-type PageUrl = string;
-/** Dedup key for a winning element in extractWinnerSequence. */
-type IdentityKey = string;
-/** Number of matches a base locator yielded (per `Locator.count()`). */
-type LocatorCount = number;
-/** Whether a candidate beats the existing canonical group representative. */
-type IsCanonicalUpgrade = boolean;
+export { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 
 /** Per-instance mutable cache for the form anchor selector. */
 interface IFormCache {
-  selector: FormSelectorStr;
+  selector: string;
 }
 
 /** Options for field resolution — bundled to satisfy max-params. */
 interface IResolveOpts {
   readonly page: Page;
-  readonly fieldKey: FieldKeyStr;
+  readonly fieldKey: string;
   readonly candidates: readonly SelectorCandidate[];
   readonly scopeContext?: Page | Frame;
-  readonly formSelector?: FormAnchorStr;
+  readonly formSelector?: string;
 }
 
 /**
@@ -203,7 +174,7 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
   const candidates = WK_DASHBOARD.LOADING;
   const checks = candidates.map((c): Promise<boolean> => {
     const locator = frame.getByText(c.value).first();
-    return locator.isVisible().catch((): IsVisible => false);
+    return locator.isVisible().catch((): boolean => false);
   });
   const results = await Promise.all(checks);
   const hasLoading = results.some(Boolean);
@@ -341,9 +312,6 @@ function applyFormScope(ctx: Page | Frame, formAnchor: string): LocatorContext {
   return ctx.locator(formAnchor);
 }
 
-/** XPath expression body (no `xpath=` prefix). */
-type XpathValue = string;
-
 /**
  * Convert absolute "//pattern" XPath to descendant-relative ".//pattern"
  * when scoped under a form Locator. Playwright's chained `Locator.locator()`
@@ -353,7 +321,7 @@ type XpathValue = string;
  * @param isScoped - True when chained under a form Locator.
  * @returns Adjusted XPath string.
  */
-function relativizeXpath(value: string, isScoped: boolean): XpathValue {
+function relativizeXpath(value: string, isScoped: boolean): string {
   if (!isScoped) return value;
   if (value.startsWith('//')) return '.' + value;
   return value;
@@ -438,8 +406,8 @@ function buildCandidateLocatorsBase(
     // Explicit "xpath=" prefix: Playwright auto-detects xpath only when
     // selector starts with "//", but the descendant-relative form ".//"
     // starts with "." — without prefix Playwright would parse as CSS.
-    const xpathValue = relativizeXpath(candidate.value, isScoped);
-    return [scope.locator(`xpath=${xpathValue}`)];
+    const string = relativizeXpath(candidate.value, isScoped);
+    return [scope.locator(`xpath=${string}`)];
   }
   if (candidate.kind === 'name') return [scope.locator(`[name="${candidate.value}"]`)];
   if (candidate.kind === 'regex') return [scope.getByText(new RegExp(candidate.value))];
@@ -472,7 +440,7 @@ function buildCandidateLocators(
  */
 function getAllContexts(page: Page): (Page | Frame)[] {
   const mainFrame = page.mainFrame();
-  const childFrames = page.frames().filter((f): IsVisible => f !== mainFrame);
+  const childFrames = page.frames().filter((f): boolean => f !== mainFrame);
   return [page, ...childFrames];
 }
 
@@ -490,13 +458,13 @@ async function raceLocators(
   locators: Locator[],
   timeout: number,
   state: WaitState = 'visible',
-): Promise<WinnerIndex> {
-  const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
+): Promise<number> {
+  const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state, timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  const winner = results.find((r): IsVisible => r.status === 'fulfilled');
+  const winner = results.find((r): boolean => r.status === 'fulfilled');
   if (winner?.status !== 'fulfilled') return -1;
   return winner.value;
 }
@@ -517,9 +485,9 @@ const isMockModeActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE 
  * @param locator - The Playwright locator to test.
  * @returns True when the element is hit-testable.
  */
-async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
+async function isTrulyVisible(locator: Locator): Promise<boolean> {
   return locator
-    .evaluate((el: Element, mockMode: boolean): IsVisible => {
+    .evaluate((el: Element, mockMode: boolean): boolean => {
       // Reject disabled placeholders BEFORE hit-test. Wix renders a
       // disabled <button role="link"> on top of the real link in some bank
       // templates; without this filter the placeholder wins hit-test and
@@ -542,7 +510,7 @@ async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
       if (mockMode && hit === null && rect.width > 0 && rect.height > 0) return true;
       return false;
     }, isMockModeActive)
-    .catch((): IsVisible => false);
+    .catch((): boolean => false);
 }
 
 /**
@@ -555,10 +523,10 @@ async function isTrulyVisible(locator: Locator): Promise<IsVisible> {
  */
 /** Race diagnostic — trace-level detail about what happened. */
 interface IRaceDiagnostic {
-  readonly winner: WinnerIndex;
-  readonly fulfilledCount: WinnerIndex;
-  readonly hitTestPassedCount: WinnerIndex;
-  readonly fulfilledIndices: readonly WinnerIndex[];
+  readonly winner: number;
+  readonly fulfilledCount: number;
+  readonly hitTestPassedCount: number;
+  readonly fulfilledIndices: readonly number[];
 }
 
 /**
@@ -571,21 +539,21 @@ async function raceLocatorsWithHitTest(
   locators: Locator[],
   timeout: number,
 ): Promise<IRaceDiagnostic> {
-  const waiters = locators.map(async (loc, i): Promise<WinnerIndex> => {
+  const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
   const fulfilled = results
-    .filter((r): IsVisible => r.status === 'fulfilled')
-    .map((r): WinnerIndex => (r as PromiseFulfilledResult<WinnerIndex>).value);
-  const hitTestPromises = fulfilled.map(async (idx): Promise<WinnerIndex> => {
+    .filter((r): boolean => r.status === 'fulfilled')
+    .map((r): number => (r as PromiseFulfilledResult<number>).value);
+  const hitTestPromises = fulfilled.map(async (idx): Promise<number> => {
     const isHit = await isTrulyVisible(locators[idx]);
     if (isHit) return idx;
     return -1;
   });
   const hitTests = await Promise.all(hitTestPromises);
-  const hitPassed = hitTests.filter((idx): IsVisible => idx >= 0);
+  const hitPassed = hitTests.filter((idx): boolean => idx >= 0);
   const winner = resolveWinner(hitPassed, fulfilled);
   return {
     winner,
@@ -602,10 +570,7 @@ async function raceLocatorsWithHitTest(
  * @param fulfilled - Indices that passed waitFor visible.
  * @returns Winner index or -1.
  */
-function resolveWinner(
-  hitPassed: readonly WinnerIndex[],
-  fulfilled: readonly WinnerIndex[],
-): WinnerIndex {
+function resolveWinner(hitPassed: readonly number[], fulfilled: readonly number[]): number {
   if (hitPassed.length > 0) return hitPassed[0];
   if (fulfilled.length > 0) return fulfilled[0];
   return -1;
@@ -659,7 +624,7 @@ const MAX_NTH_PER_LOCATOR = 5;
  * @returns Up to `max` `.nth(i)` locators (empty when count() rejects or 0).
  */
 async function expandLocatorToNth(base: Locator, max: number): Promise<readonly Locator[]> {
-  const total = await base.count().catch((): LocatorCount => 0);
+  const total = await base.count().catch((): number => 0);
   if (total <= 0) return [];
   const limit = Math.min(total, max);
   const out: Locator[] = [];
@@ -759,7 +724,7 @@ function mapCandidatesToExpansions(
  * @param el - Starting DOM element.
  * @returns href string from the nearest anchor ancestor, or empty string.
  */
-function walkUpToAnchorHref(el: Element): AncestorHref {
+function walkUpToAnchorHref(el: Element): string {
   const anchor = el.closest('a');
   if (anchor) return anchor.href;
   return '';
@@ -786,7 +751,7 @@ const NO_ATTR = '(none)';
  * @param el - The DOM element.
  * @returns Diagnostic string with tag, text, href, aria.
  */
-function traceElementInfo(el: Element): DiagnosticStr {
+function traceElementInfo(el: Element): string {
   const tag = el.tagName;
   const rawText = el.textContent;
   let text = NO_ATTR;
@@ -812,20 +777,18 @@ function traceElementInfo(el: Element): DiagnosticStr {
  */
 async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   const target = entry.candidate.target ?? 'self';
-  if (target !== 'href') return entry.locator.innerText().catch((): ElementAttr => '');
-  const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): DiagnosticStr => 'error');
+  if (target !== 'href') return entry.locator.innerText().catch((): string => '');
+  const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): string => 'error');
   const candidateInfo = `${entry.candidate.kind}="${entry.candidate.value}"`;
   LOG.debug({
     message:
       `snapshotValue: [${maskVisibleText(elInfo)}] ` +
       `candidate=${maskVisibleText(candidateInfo)}`,
   });
-  const directHref = await entry.locator.getAttribute('href').catch((): ElementAttr => '');
+  const directHref = await entry.locator.getAttribute('href').catch((): string => '');
   if (directHref) return directHref;
-  const ancestorHref = await entry.locator
-    .evaluate(walkUpToAnchorHref)
-    .catch((): AncestorHref => '');
-  return ancestorHref;
+  const string = await entry.locator.evaluate(walkUpToAnchorHref).catch((): string => '');
+  return string;
 }
 
 /** Post-race winner details bundled to satisfy the 3-param ceiling. */
@@ -891,8 +854,6 @@ const UNKNOWN_VERBOSE: IIdentityVerbose = { identity: UNKNOWN_IDENTITY, outerHtm
  * @param obj - Partial payload — typed (no `unknown`).
  * @returns Verbose shape, never with missing fields.
  */
-/** Guaranteed-string outerHTML snippet for trace logging. */
-type OuterHtmlSnippet = string;
 
 /**
  * Resolve `obj.outerHtml` to a string when present, falling back to `?`
@@ -901,7 +862,7 @@ type OuterHtmlSnippet = string;
  * @param obj - Partial verbose payload.
  * @returns A guaranteed outerHTML snippet.
  */
-function resolveOuterHtml(obj: Partial<IIdentityVerbose>): OuterHtmlSnippet {
+function resolveOuterHtml(obj: Partial<IIdentityVerbose>): string {
   if (typeof obj.outerHtml === 'string') return obj.outerHtml;
   return '?';
 }
@@ -981,7 +942,7 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
  * @returns True after logging.
  */
 function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagnostic): true {
-  const fulfilledDetail = diag.fulfilledIndices.map((idx): DiagnosticStr => {
+  const fulfilledDetail = diag.fulfilledIndices.map((idx): string => {
     const e = entries[idx];
     const kind = e.candidate.kind;
     const val = e.candidate.value;
@@ -1025,7 +986,7 @@ async function runHitTestRace(
  * @param index - Winner's index within the entries array.
  * @returns Found IRaceResult ready for the caller.
  */
-async function finalizeWinner(winner: ILocatorEntry, index: WinnerIndex): Promise<IRaceResult> {
+async function finalizeWinner(winner: ILocatorEntry, index: number): Promise<IRaceResult> {
   const identity = await extractAndTraceIdentity(winner);
   const value = await snapshotValue(winner);
   return buildFoundResult(winner, { index, value, identity });
@@ -1108,7 +1069,7 @@ async function resolveVisibleNthAware(args: IClickResolveArgs): Promise<IRaceRes
  * @param identity - DOM identity captured by `extractIdentity`.
  * @returns A string key safe to insert into a Set for dedup.
  */
-function identityKey(entry: ILocatorEntry, identity: IElementIdentity): IdentityKey {
+function string(entry: ILocatorEntry, identity: IElementIdentity): string {
   if (identity.id !== '(none)' && identity.id.length > 0) return `id:${identity.id}`;
   const frameUrl = entry.context.url();
   return `sel:${entry.candidate.kind}=${entry.candidate.value}@${frameUrl}`;
@@ -1120,24 +1081,21 @@ function identityKey(entry: ILocatorEntry, identity: IElementIdentity): Identity
  */
 interface ISequenceArgs {
   readonly entries: readonly ILocatorEntry[];
-  readonly indices: readonly WinnerIndex[];
+  readonly indices: readonly number[];
   readonly cap: number;
 }
 
-/** Race winner enriched with identity + identityKey + selector specificity. */
+/** Race winner enriched with identity + string + selector specificity. */
 interface IEnrichedWinner {
-  readonly winnerIdx: WinnerIndex;
+  readonly winnerIdx: number;
   readonly entry: ILocatorEntry;
   readonly identity: IElementIdentity;
-  readonly key: IdentityKey;
-  readonly rank: SpecificityRank;
+  readonly key: string;
+  readonly rank: number;
 }
 
-/** Lower rank = more specific selector (preferred when picking canonical). */
-type SpecificityRank = number;
-
 /** Selector specificity by candidate kind. Lower = more specific. */
-const KIND_SPECIFICITY: Readonly<Record<SelectorCandidate['kind'], SpecificityRank>> = {
+const KIND_SPECIFICITY: Readonly<Record<SelectorCandidate['kind'], number>> = {
   name: 2,
   ariaLabel: 4,
   css: 5,
@@ -1151,7 +1109,7 @@ const KIND_SPECIFICITY: Readonly<Record<SelectorCandidate['kind'], SpecificityRa
 };
 
 /** CSS attribute-prefix specificity (overrides bare 'css' kind). */
-const CSS_PREFIX_SPECIFICITY: readonly (readonly [string, SpecificityRank])[] = [
+const CSS_PREFIX_SPECIFICITY: readonly (readonly [string, number])[] = [
   ['[id=', 0],
   ['[name=', 1],
   ['[aria-label=', 3],
@@ -1164,7 +1122,7 @@ const CSS_PREFIX_SPECIFICITY: readonly (readonly [string, SpecificityRank])[] = 
  * @param candidate - The selector candidate to inspect.
  * @returns Specificity rank, or -1 when no CSS prefix override applies.
  */
-function cssPrefixRank(candidate: SelectorCandidate): SpecificityRank {
+function cssPrefixRank(candidate: SelectorCandidate): number {
   if (candidate.kind !== 'css') return -1;
   const matched = CSS_PREFIX_SPECIFICITY.find(([prefix]) => candidate.value.startsWith(prefix));
   if (!matched) return -1;
@@ -1179,7 +1137,7 @@ function cssPrefixRank(candidate: SelectorCandidate): SpecificityRank {
  * @param candidate - The selector candidate to rank.
  * @returns Lower number = more specific.
  */
-function specificityRank(candidate: SelectorCandidate): SpecificityRank {
+function number(candidate: SelectorCandidate): number {
   const cssRank = cssPrefixRank(candidate);
   if (cssRank >= 0) return cssRank;
   return KIND_SPECIFICITY[candidate.kind];
@@ -1194,12 +1152,12 @@ function specificityRank(candidate: SelectorCandidate): SpecificityRank {
  */
 async function enrichWinner(
   entries: readonly ILocatorEntry[],
-  winnerIdx: WinnerIndex,
+  winnerIdx: number,
 ): Promise<IEnrichedWinner> {
   const entry = entries[winnerIdx];
   const identity = await extractAndTraceIdentity(entry);
-  const key = identityKey(entry, identity);
-  const rank = specificityRank(entry.candidate);
+  const key = string(entry, identity);
+  const rank = number(entry.candidate);
   return { winnerIdx, entry, identity, key, rank };
 }
 
@@ -1223,7 +1181,7 @@ async function enrichAllWinners(args: ISequenceArgs): Promise<readonly IEnriched
 function shouldReplaceGroupCanonical(
   existing: IEnrichedWinner | false,
   candidate: IEnrichedWinner,
-): IsCanonicalUpgrade {
+): boolean {
   if (!existing) return true;
   return candidate.rank < existing.rank;
 }
@@ -1232,12 +1190,12 @@ function shouldReplaceGroupCanonical(
  * Insert one enriched winner into the group map, replacing any existing
  * entry only when the candidate has higher specificity. Extracted so the
  * caller's loop body stays inside the depth-1 ceiling.
- * @param groups - Mutable group map keyed by identityKey.
+ * @param groups - Mutable group map keyed by string.
  * @param candidate - Enriched winner being considered for canonical slot.
  * @returns True after the insert/replace decision is recorded.
  */
 function upsertCanonicalGroup(
-  groups: Map<IdentityKey, IEnrichedWinner>,
+  groups: Map<string, IEnrichedWinner>,
   candidate: IEnrichedWinner,
 ): true {
   const existing = groups.get(candidate.key) ?? false;
@@ -1247,14 +1205,14 @@ function upsertCanonicalGroup(
 }
 
 /**
- * Group enriched winners by identityKey, keeping ONE canonical entry per
+ * Group enriched winners by string, keeping ONE canonical entry per
  * group (the one with the most specific selector). Insertion order
  * preserves race-time order of FIRST encounter for each DOM element.
  * @param enriched - All race winners, identity-tagged.
  * @returns One canonical entry per distinct DOM element.
  */
 function pickCanonicalPerGroup(enriched: readonly IEnrichedWinner[]): readonly IEnrichedWinner[] {
-  const groups = new Map<IdentityKey, IEnrichedWinner>();
+  const groups = new Map<string, IEnrichedWinner>();
   for (const e of enriched) upsertCanonicalGroup(groups, e);
   return [...groups.values()];
 }
@@ -1273,8 +1231,8 @@ async function buildResultFromEnriched(e: IEnrichedWinner): Promise<IRaceResult>
 /**
  * Emit one IRaceResult per DISTINCT DOM element — never multiple results
  * for the same element via different selectors. Algorithm:
- *   1. Enrich every race winner with identity + identityKey + specificity
- *   2. Group by identityKey, pick the most-specific selector per group
+ *   1. Enrich every race winner with identity + string + specificity
+ *   2. Group by string, pick the most-specific selector per group
  *   3. Cap at `args.cap` GROUPS (i.e. distinct DOM elements)
  *   4. Build IRaceResult per surviving canonical winner
  * Replaces the old race-time-order walk that biased toward selector kind
@@ -1492,14 +1450,11 @@ function buildResolveAndClick(page: Page): IElementMediator['resolveAndClick'] {
  * @returns Mediator getFormAnchor function.
  */
 function buildGetFormAnchor(cache: IFormCache): IElementMediator['getFormAnchor'] {
-  return (): FormAnchorStr => cache.selector;
+  return (): string => cache.selector;
 }
 
 /** Default timeout for network idle wait (matches POST_LOGIN_SETTLE_TIMEOUT). */
 const NETWORK_IDLE_TIMEOUT = 15_000;
-
-/** Element count returned when getByText fails or element is absent. */
-type ElementCount = number;
 
 /**
  * Build navigateTo method bound to a page.
@@ -1526,7 +1481,7 @@ function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
  * @returns Mediator getCurrentUrl function.
  */
 function buildGetCurrentUrl(page: Page): IElementMediator['getCurrentUrl'] {
-  return (): PageUrl => page.url();
+  return (): string => page.url();
 }
 
 /**
@@ -1554,12 +1509,12 @@ function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkId
  * @returns Mediator countByText function.
  */
 function buildCountByText(page: Page): IElementMediator['countByText'] {
-  return (text: string): Promise<ElementCount> =>
+  return (text: string): Promise<number> =>
     page
       .getByText(text)
       .first()
       .count()
-      .catch((): ElementCount => 0);
+      .catch((): number => 0);
 }
 
 /**
@@ -1571,11 +1526,11 @@ function buildCountByText(page: Page): IElementMediator['countByText'] {
  * @returns Mediator countBySelector function.
  */
 function buildCountBySelector(page: Page): IElementMediator['countBySelector'] {
-  return (selector: string): Promise<ElementCount> =>
+  return (selector: string): Promise<number> =>
     page
       .locator(selector)
       .count()
-      .catch((): ElementCount => 0);
+      .catch((): number => 0);
 }
 
 /**
@@ -1590,7 +1545,7 @@ async function extractRawHrefs(anchors: Locator): Promise<readonly string[]> {
    * @param els - Anchor elements from the DOM.
    * @returns Href strings.
    */
-  const mapper = (els: HTMLAnchorElement[]): ElementAttr[] => els.map((el): ElementAttr => el.href);
+  const mapper = (els: HTMLAnchorElement[]): string[] => els.map((el): string => el.href);
   return anchors.evaluateAll(mapper).catch((): string[] => []);
 }
 
@@ -1601,7 +1556,7 @@ async function extractRawHrefs(anchors: Locator): Promise<readonly string[]> {
 function buildGetAttributeValue(): IElementMediator['getAttributeValue'] {
   return async (result, attrName) => {
     if (!result.found || !result.locator) return '';
-    const attr = await result.locator.getAttribute(attrName).catch((): ElementAttr => '');
+    const attr = await result.locator.getAttribute(attrName).catch((): string => '');
     return attr ?? '';
   };
 }
@@ -1619,7 +1574,7 @@ function buildGetAttributeValue(): IElementMediator['getAttributeValue'] {
 function buildCheckAttribute(): IElementMediator['checkAttribute'] {
   return async (result, attrName) => {
     if (!result.found || !result.locator) return succeed(false);
-    const attr = await result.locator.getAttribute(attrName).catch((): ElementAttr => '');
+    const attr = await result.locator.getAttribute(attrName).catch((): string => '');
     const attrStr = attr ?? '';
     const hasAttr = attrStr.length > 0;
     return succeed(hasAttr);
@@ -1636,15 +1591,12 @@ function buildCollectAllHrefs(page: Page): () => Promise<readonly string[]> {
   return async (): Promise<readonly string[]> => {
     const anchors = page.locator('a[href]');
     const rawHrefs = await extractRawHrefs(anchors);
-    return [...new Set(rawHrefs)].filter((h): FilterMatch => h.length > 0);
+    return [...new Set(rawHrefs)].filter((h): boolean => h.length > 0);
   };
 }
 
 /** Default timeout for SPA URL wait. */
 const URL_WAIT_TIMEOUT = 10000;
-
-/** Whether URL matched the expected pattern. */
-type UrlMatched = boolean;
 
 /**
  * Build waitForURL — wait for page URL to match a glob pattern.
@@ -1654,10 +1606,10 @@ type UrlMatched = boolean;
  */
 function buildWaitForURL(page: Page): IElementMediator['waitForURL'] {
   return async (pattern, timeoutMs = URL_WAIT_TIMEOUT) => {
-    const didMatch: UrlMatched = await page
+    const didMatch: boolean = await page
       .waitForURL(pattern, { timeout: timeoutMs })
-      .then((): UrlMatched => true)
-      .catch((): UrlMatched => false);
+      .then((): boolean => true)
+      .catch((): boolean => false);
     return succeed(didMatch);
   };
 }
@@ -1736,6 +1688,22 @@ function createElementMediator(page: Page): IElementMediator {
 }
 
 /**
+ * Snapshot sessionStorage into a plain object inside the browser context.
+ * Iterates by index because Storage instances do not survive structured-clone
+ * via spread, and Sonar S6661 forbids the historic Object.assign pattern.
+ * @returns Plain key/value snapshot of sessionStorage.
+ */
+function snapshotSessionStorage(): Record<string, string> {
+  const total = sessionStorage.length;
+  const indices = Array.from({ length: total }, (_v, i): number => i);
+  const pairs: readonly (readonly [string, string])[] = indices
+    .map((i): readonly [string, string] => [sessionStorage.key(i) ?? '', i.toString()])
+    .filter(([k]): boolean => k.length > 0)
+    .map(([k]): readonly [string, string] => [k, sessionStorage.getItem(k) ?? '']);
+  return Object.fromEntries(pairs);
+}
+
+/**
  * Extract a sealed IActionMediator from a full IElementMediator.
  * Builds a closure-scoped frame registry — private, immutable.
  * NO setActivePhase, NO setActiveStage, NO network, NO raw Frame.
@@ -1747,11 +1715,7 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
   const registry = buildFrameRegistry(page);
   return {
     /** @inheritdoc */
-    fillInput: (
-      ctxId: FormSelectorStr,
-      sel: FormSelectorStr,
-      val: FormSelectorStr,
-    ): Promise<true> => {
+    fillInput: (ctxId: string, sel: string, val: string): Promise<true> => {
       const frame = resolveFrame(registry, ctxId);
       return fillInputImpl(frame, sel, val);
     },
@@ -1766,7 +1730,7 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
       });
     },
     /** @inheritdoc */
-    pressEnter: (ctxId: FormSelectorStr): Promise<true> => {
+    pressEnter: (ctxId: string): Promise<true> => {
       const frame = resolveFrame(registry, ctxId);
       return pressEnterImpl(frame);
     },
@@ -1789,11 +1753,11 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
     /** @inheritdoc */
     collectAllHrefs: () => full.collectAllHrefs(),
     /** @inheritdoc */
-    collectStorage: async () => page.evaluate(() => Object.assign({}, sessionStorage)),
+    collectStorage: async () => page.evaluate(snapshotSessionStorage),
     /** @inheritdoc */
-    hasTxnEndpoint: (): IsTxnFound => full.network.discoverTransactionsEndpoint() !== false,
+    hasTxnEndpoint: (): boolean => full.network.discoverTransactionsEndpoint() !== false,
     /** @inheritdoc */
-    waitForTxnEndpoint: async (timeoutMs: number): Promise<IsTxnFound> => {
+    waitForTxnEndpoint: async (timeoutMs: number): Promise<boolean> => {
       const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
       return hit !== false;
     },
@@ -1801,4 +1765,4 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
 }
 
 export default createElementMediator;
-export { createElementMediator, extractActionMediator, getActivePhase, getActiveStage };
+export { createElementMediator, extractActionMediator };

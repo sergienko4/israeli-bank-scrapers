@@ -19,28 +19,22 @@ import {
 
 const LOG = createLogger('elements');
 
-type SelectorStr = string;
-type OpResult = boolean;
-type PageText = string;
-type HtmlCapture = string;
-type TimeoutMs = number;
-
 /** Options for waiting on element visibility or attachment. */
 export interface IWaitOptions {
-  visible?: OpResult;
-  timeout?: TimeoutMs;
+  visible?: boolean;
+  timeout?: number;
 }
 
 /** Options for evaluating a single element. */
 export interface IPageEvalOpts<TResult> {
-  selector: SelectorStr;
+  selector: string;
   defaultResult: TResult;
   callback: (element: Element, ...args: unknown[]) => TResult;
 }
 
 /** Options for evaluating multiple elements. */
 export interface IPageEvalAllOpts<TResult> {
-  selector: SelectorStr;
+  selector: string;
   defaultResult: TResult;
   callback: (elements: Element[], ...args: unknown[]) => TResult;
 }
@@ -50,14 +44,13 @@ export interface IPageEvalAllOpts<TResult> {
  * @param pageOrFrame - Page or frame.
  * @returns First 400 chars of body text.
  */
-export async function capturePageText(pageOrFrame: Page | Frame): Promise<PageText> {
+export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
   return pageOrFrame
     .evaluate(
-      (limit: TimeoutMs): PageText =>
-        document.body.innerText.replaceAll(/\s+/g, ' ').slice(0, limit),
+      (limit: number): string => document.body.innerText.replaceAll(/\s+/g, ' ').slice(0, limit),
       PAGE_TEXT_CAPTURE_LIMIT,
     )
-    .catch((): PageText => '(context unavailable)');
+    .catch((): string => '(context unavailable)');
 }
 
 /**
@@ -66,17 +59,14 @@ export async function capturePageText(pageOrFrame: Page | Frame): Promise<PageTe
  * @param selector - CSS selector.
  * @returns Truncated outer HTML preview.
  */
-async function captureElementHtml(
-  pageOrFrame: Page | Frame,
-  selector: SelectorStr,
-): Promise<HtmlCapture> {
+async function captureElementHtml(pageOrFrame: Page | Frame, selector: string): Promise<string> {
   return pageOrFrame
     .evaluate(
-      ({ sel, limit }: { sel: SelectorStr; limit: TimeoutMs }): HtmlCapture =>
+      ({ sel, limit }: { sel: string; limit: number }): string =>
         document.querySelector(sel)?.outerHTML.slice(0, limit) ?? '—',
       { sel: selector, limit: ELEMENT_HTML_CAPTURE_LIMIT },
     )
-    .catch((): PageText => '(context unavailable)');
+    .catch((): string => '(context unavailable)');
 }
 
 /**
@@ -85,7 +75,7 @@ async function captureElementHtml(
  * @param buttonSelector - CSS selector.
  * @returns True after click.
  */
-async function clickButton(ctx: Page | Frame, buttonSelector: SelectorStr): Promise<OpResult> {
+async function clickButton(ctx: Page | Frame, buttonSelector: string): Promise<boolean> {
   LOG.debug({
     message: `click ${maskVisibleText(buttonSelector)}`,
   });
@@ -100,7 +90,7 @@ async function clickButton(ctx: Page | Frame, buttonSelector: SelectorStr): Prom
  * @param aSelector - CSS selector for anchor.
  * @returns True after click.
  */
-async function clickLink(ctx: Page, aSelector: SelectorStr): Promise<OpResult> {
+async function clickLink(ctx: Page, aSelector: string): Promise<boolean> {
   await ctx.locator(aSelector).first().click();
   return true;
 }
@@ -111,10 +101,7 @@ async function clickLink(ctx: Page, aSelector: SelectorStr): Promise<OpResult> {
  * @param selector - CSS selector.
  * @returns True if exists.
  */
-async function elementPresentOnPage(
-  pageOrFrame: Page | Frame,
-  selector: SelectorStr,
-): Promise<OpResult> {
+async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string): Promise<boolean> {
   return (await pageOrFrame.locator(selector).count()) > 0;
 }
 

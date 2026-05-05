@@ -25,20 +25,12 @@ const CLICK_OUTER_HTML_MAX = 300;
  *  real click proceed with its own 15s timeout. */
 const FORENSICS_EVAL_TIMEOUT_MS = 1_500;
 
-/** CSS/XPath selector string. */
-type SelectorStr = string;
-/** Input value string. */
-type ValueStr = string;
-/** Whether an identity attribute is a real, non-empty value. */
-type IsAttrPresent = boolean;
-/** URL string captured from page or frame. */
-type UrlStr = string;
 /** Tier label identifying which click strategy succeeded/failed. */
 type TierLabel = 'force-1' | 'natural-1' | 'dispatch-2' | 'evaluate-3' | 'aria-4';
 
 /** Forensic snapshot of a click target — captured BEFORE the click fires. */
 interface IClickForensics {
-  readonly preClickUrl: UrlStr;
+  readonly preClickUrl: string;
   readonly clickedTag: string;
   readonly clickedDomId: string;
   readonly clickedClasses: string;
@@ -108,8 +100,8 @@ async function captureClickForensics(
  * @param frame - Page or Frame.
  * @returns URL string at the time of call, or `?` on failure.
  */
-function frameUrl(frame: Page | Frame): UrlStr {
-  const fnHolder = frame as { url?: () => UrlStr };
+function frameUrl(frame: Page | Frame): string {
+  const fnHolder = frame as { url?: () => string };
   if (typeof fnHolder.url !== 'function') return '?';
   try {
     return fnHolder.url();
@@ -121,7 +113,7 @@ function frameUrl(frame: Page | Frame): UrlStr {
 /** Bundled args for emitClickForensics — fits the 3-param ceiling. */
 interface IEmitForensicsArgs {
   readonly tier: TierLabel;
-  readonly selector: SelectorStr;
+  readonly selector: string;
   readonly frame: Page | Frame;
   readonly forensics: IClickForensics;
 }
@@ -158,11 +150,7 @@ function emitClickForensics(args: IEmitForensicsArgs): true {
  * @param value - Value to fill.
  * @returns True after filling.
  */
-async function fillInputImpl(
-  frame: Page | Frame,
-  selector: SelectorStr,
-  value: ValueStr,
-): Promise<true> {
+async function fillInputImpl(frame: Page | Frame, selector: string, value: string): Promise<true> {
   await deepFillInput(frame, selector, value);
   return true;
 }
@@ -170,7 +158,7 @@ async function fillInputImpl(
 /** Bundled args for clickElementImpl — fits the 3-param ceiling. */
 interface IClickArgs {
   readonly frame: Page | Frame;
-  readonly selector: SelectorStr;
+  readonly selector: string;
   readonly isForce?: boolean;
   /** Optional 0-based nth index when the selector matches multiple DOM
    *  elements (e.g. Beinleumi legacy + modern buttons share aria-label).
@@ -235,7 +223,7 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
  */
 async function clickNaturalPath(
   locator: ReturnType<Page['locator']>,
-  selector: SelectorStr,
+  selector: string,
   frame: Page | Frame,
 ): Promise<true> {
   const forensics = await captureClickForensics(locator, frame);
@@ -274,7 +262,7 @@ const EVALUATE_TIMEOUT_MS = 5_000;
  */
 async function evaluateJsClick(
   locator: ReturnType<Page['locator']>,
-  selector: SelectorStr,
+  selector: string,
   frame: Page | Frame,
 ): Promise<true> {
   LOG.debug({ message: `Tier 3 (JS evaluate): attempting — ${selector}` });
@@ -303,7 +291,7 @@ async function evaluateJsClick(
  * @param selector - Playwright selector (parsed for aria-label).
  * @returns True after click attempt.
  */
-async function clickViaAriaLabel(frame: Page | Frame, selector: SelectorStr): Promise<true> {
+async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise<true> {
   const ariaMatch = /name="([^"]+)"/.exec(selector);
   if (!ariaMatch) {
     LOG.debug({ message: 'Tier 4 (DOM query): no aria-label in selector' });
@@ -344,14 +332,14 @@ async function pressEnterImpl(frame: Page | Frame): Promise<true> {
  * @param v - Candidate value.
  * @returns Text selector string.
  */
-const DEFAULT_BUILDER = (v: ValueStr): SelectorStr => `text=${v}`;
+const DEFAULT_BUILDER = (v: string): string => `text=${v}`;
 
 /**
  * Build text selector from visible text.
  * @param v - Visible text value.
  * @returns Playwright text selector.
  */
-function buildText(v: ValueStr): SelectorStr {
+function buildText(v: string): string {
   return `text=${v}`;
 }
 
@@ -360,7 +348,7 @@ function buildText(v: ValueStr): SelectorStr {
  * @param v - Exact visible text.
  * @returns Playwright quoted text selector.
  */
-function buildExact(v: ValueStr): SelectorStr {
+function buildExact(v: string): string {
   return `text="${v}"`;
 }
 
@@ -373,7 +361,7 @@ function buildExact(v: ValueStr): SelectorStr {
  * @param v - ARIA label value.
  * @returns CSS attribute selector matching any element with the label.
  */
-function buildAria(v: ValueStr): SelectorStr {
+function buildAria(v: string): string {
   return `[aria-label="${v}"]`;
 }
 
@@ -382,7 +370,7 @@ function buildAria(v: ValueStr): SelectorStr {
  * @param v - Placeholder text.
  * @returns CSS attribute selector.
  */
-function buildPlaceholder(v: ValueStr): SelectorStr {
+function buildPlaceholder(v: string): string {
   return `[placeholder="${v}"]`;
 }
 
@@ -391,7 +379,7 @@ function buildPlaceholder(v: ValueStr): SelectorStr {
  * @param v - Raw selector string.
  * @returns Same string unchanged.
  */
-function buildPassthrough(v: ValueStr): SelectorStr {
+function buildPassthrough(v: string): string {
   return v;
 }
 
@@ -400,7 +388,7 @@ function buildPassthrough(v: ValueStr): SelectorStr {
  * @param v - Input name value.
  * @returns CSS name attribute selector.
  */
-function buildName(v: ValueStr): SelectorStr {
+function buildName(v: string): string {
   return `[name="${v}"]`;
 }
 
@@ -409,12 +397,12 @@ function buildName(v: ValueStr): SelectorStr {
  * @param v - Regex pattern string.
  * @returns Playwright regex text selector.
  */
-function buildRegex(v: ValueStr): SelectorStr {
+function buildRegex(v: string): string {
   return `text=/${v}/`;
 }
 
 /** Playwright selector engine prefix map — candidate kind to locator string builder. */
-const SELECTOR_BUILDERS: Readonly<Record<string, (v: ValueStr) => SelectorStr>> = {
+const SELECTOR_BUILDERS: Readonly<Record<string, (v: string) => string>> = {
   textContent: buildText,
   exactText: buildExact,
   clickableText: buildText,
@@ -432,7 +420,7 @@ const SELECTOR_BUILDERS: Readonly<Record<string, (v: ValueStr) => SelectorStr>> 
  * @param candidate - The selector candidate from WK or config.
  * @returns Playwright-compatible selector string.
  */
-function candidateToSelector(candidate: SelectorCandidate): SelectorStr {
+function candidateToSelector(candidate: SelectorCandidate): string {
   const builder = SELECTOR_BUILDERS[candidate.kind] ?? DEFAULT_BUILDER;
   return builder(candidate.value);
 }
@@ -447,7 +435,7 @@ const NO_ATTR_VALUE = '(none)';
  * @param v - Attribute value from IElementIdentity.
  * @returns True iff `v` is a real, non-empty attribute value.
  */
-function hasAttr(v: string): IsAttrPresent {
+function hasAttr(v: string): boolean {
   if (v === NO_ATTR_VALUE) return false;
   if (v.length === 0) return false;
   return true;
@@ -472,7 +460,7 @@ function hasAttr(v: string): IsAttrPresent {
  * @param identity - DOM identity captured by `extractIdentity` at PRE time.
  * @returns CSS attribute selector string, or false if no attribute is usable.
  */
-function buildIdentitySelector(identity: IElementIdentity): SelectorStr | false {
+function buildIdentitySelector(identity: IElementIdentity): string | false {
   if (hasAttr(identity.id)) return `[id="${identity.id}"]`;
   if (hasAttr(identity.name)) return `[name="${identity.name}"]`;
   if (hasAttr(identity.ariaLabel)) return `[aria-label="${identity.ariaLabel}"]`;

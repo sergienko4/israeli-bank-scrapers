@@ -30,10 +30,8 @@ interface IFillAllResult {
 type SubmitMethod = 'enter' | 'click' | 'both';
 
 /** Result of fillAndSubmit — includes which submit method fired. */
-/** Whether the submit operation succeeded. */
-type SubmitSuccess = boolean;
 interface ISubmitResult {
-  readonly success: SubmitSuccess;
+  readonly success: boolean;
   readonly method: SubmitMethod;
 }
 
@@ -194,14 +192,11 @@ function logDiscoveryFill(target: IResolvedTarget, logger: ScraperLogger): Maske
   return masked;
 }
 
-/** Credential value to fill into an input field. */
-type CredentialValue = string;
-
 /** Bundled args for filling one discovery field. */
 interface IFillOneArgs {
   readonly executor: IFillFromDiscoveryArgs['executor'];
   readonly target: IResolvedTarget;
-  readonly value: CredentialValue;
+  readonly value: string;
   readonly logger: ScraperLogger;
 }
 

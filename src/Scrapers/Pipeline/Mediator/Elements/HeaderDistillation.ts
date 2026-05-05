@@ -30,15 +30,11 @@ const NOISE_PREFIXES = ['sec-ch', 'sec-fetch', 'upgrade-'];
 /** Headers that must always be kept (banking API requirements). */
 const ALWAYS_KEEP = new Set(['origin', 'referer']);
 
-/** Flag indicating whether to retain this header in the distilled set. */
-type ShouldKeepFlag = boolean;
-
 /**
  * Decision type — whether a header should be kept.
- * Uses ShouldKeepFlag to satisfy Rule #15 (no raw boolean in struct).
  */
 interface IHeaderDecision {
-  readonly shouldKeep: ShouldKeepFlag;
+  readonly shouldKeep: boolean;
 }
 
 /** Distilled security-relevant headers ready for API calls. */
