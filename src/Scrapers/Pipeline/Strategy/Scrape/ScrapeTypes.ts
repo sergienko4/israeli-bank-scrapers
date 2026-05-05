@@ -9,22 +9,14 @@ import type {
 } from '../../Mediator/Network/NetworkDiscovery.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 
-/** Unique internal ID used for API queries (e.g. cardUniqueId). */
-type AccountId = string;
-/** Display ID shown to the user (e.g. last4Digits or accountNumber). */
-type DisplayId = string;
-/** URL string for an API endpoint. */
-type UrlStr = string;
-/** ISO or YYYYMMDD date string. */
-type DateStr = string;
-/** Billing API endpoint URL. */
-type BillingUrlStr = string;
-/** Number of future billing months to include beyond today. */
-type FutureMonthCount = number;
-
 /** API response payload — wraps Record to hide `unknown` from function signatures. */
 type ApiPayload = Record<string, unknown>;
-/** Untyped API value — wraps `unknown` to satisfy no-unknown-in-signatures ESLint rule. */
+/**
+ * Untyped API value — named alias kept to satisfy the architecture
+ * `no-restricted-syntax` rule that forbids bare `unknown` in function
+ * signatures. NOSONAR rationale below.
+ */
+// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
 type ApiValue = unknown;
 /** Untyped API array — wraps `unknown[]` to satisfy no-unknown-in-signatures ESLint rule. */
 type ApiValueArray = ApiValue[];
@@ -33,8 +25,8 @@ type ApiValueArray = ApiValue[];
 interface IAccountFetchCtx {
   readonly api: IApiFetchContext;
   readonly network: INetworkDiscovery;
-  readonly startDate: DateStr;
-  readonly futureMonths?: FutureMonthCount;
+  readonly startDate: string;
+  readonly futureMonths?: number;
 }
 
 /** Bundled options for fetching one account. */
@@ -47,31 +39,31 @@ interface IAccountFetchOpts {
 interface IChunkingCtx {
   readonly fc: IAccountFetchCtx;
   readonly baseBody: Record<string, unknown>;
-  readonly url: UrlStr;
-  readonly displayId: DisplayId;
-  readonly accountId: AccountId;
+  readonly url: string;
+  readonly displayId: string;
+  readonly accountId: string;
 }
 
 /** Bundled params for POST fetch operations. */
 interface IPostFetchCtx {
   readonly baseBody: Record<string, unknown>;
-  readonly url: UrlStr;
-  readonly displayId: DisplayId;
-  readonly accountId: AccountId;
+  readonly url: string;
+  readonly displayId: string;
+  readonly accountId: string;
 }
 
 /** Bundled params for billing chunk fetches. */
 interface IBillingChunkCtx {
   readonly fc: IAccountFetchCtx;
-  readonly billingUrl: BillingUrlStr;
-  readonly accountId: AccountId;
+  readonly billingUrl: string;
+  readonly accountId: string;
 }
 
 /** Bundled params for account assembly. */
 interface IAccountAssemblyCtx {
   readonly fc: IAccountFetchCtx;
-  readonly accountId: AccountId;
-  readonly displayId: DisplayId;
+  readonly accountId: string;
+  readonly displayId: string;
   /** Optional raw record captured during discovery — used for record-first balance extraction. */
   readonly rawRecord?: Record<string, unknown>;
 }
@@ -85,14 +77,9 @@ interface IFetchAllAccountsCtx {
 }
 
 export type {
-  AccountId,
   ApiPayload,
   ApiValue,
   ApiValueArray,
-  BillingUrlStr,
-  DateStr,
-  DisplayId,
-  FutureMonthCount,
   IAccountAssemblyCtx,
   IAccountFetchCtx,
   IAccountFetchOpts,
@@ -100,5 +87,4 @@ export type {
   IChunkingCtx,
   IFetchAllAccountsCtx,
   IPostFetchCtx,
-  UrlStr,
 };

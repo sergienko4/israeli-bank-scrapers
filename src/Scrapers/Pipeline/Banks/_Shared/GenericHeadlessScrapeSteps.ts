@@ -19,9 +19,6 @@ import type {
 const FROZEN_EMPTY_HEADERS: HeaderMap = Object.freeze({});
 const FROZEN_EMPTY_OPTS: IApiQueryOpts = Object.freeze({ extraHeaders: FROZEN_EMPTY_HEADERS });
 
-/** Whether pagination should terminate after the current accumulator. */
-type ShouldStop = boolean;
-
 /** Driver context — shape + bus + action context. */
 export interface IDriverCtx<TAcct, TCursor> {
   readonly shape: IHeadlessScrapeShape<TAcct, TCursor>;
@@ -123,7 +120,7 @@ type BoundStop = (acc: readonly object[]) => boolean;
  * No-op stop predicate — used when the shape omits a custom stop.
  * @returns False (never stop).
  */
-function neverStop(): ShouldStop {
+function neverStop(): boolean {
   return false;
 }
 
@@ -135,5 +132,5 @@ function neverStop(): ShouldStop {
 export function buildStop<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): BoundStop {
   const stop = d.shape.transactions.stop;
   if (!stop) return neverStop;
-  return (acc): ShouldStop => stop(acc, d.ctx);
+  return (acc): boolean => stop(acc, d.ctx);
 }

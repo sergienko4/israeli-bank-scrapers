@@ -22,18 +22,9 @@ import {
 import { resolveDisplayIdFromCapturedEndpoints } from './Account/ScrapeIdExtraction.js';
 import type { IAccountAssemblyCtx } from './ScrapeTypes.js';
 
-/** Pipe-delimited key for transaction deduplication. */
-type TxnHashKey = string;
-/** Whether a key matches a WK account ID template field. */
-type IsTemplate = boolean;
-/** Whether a template field was applied to the POST body. */
-type FieldApplied = boolean;
-/** Whether a transaction date is after the start date. */
-type IsAfterDate = boolean;
-/** Resolved transaction fetch URL. */
-type TxnUrlStr = string;
-/** Start date string forwarded from scraper options. */
-type StartDateStr = string;
+// Primitive type aliases removed — Rule S6564.
+// Original aliases (TxnHashKey, IsTemplate, FieldApplied, IsAfterDate,
+// TxnUrlStr, StartDateStr) were redundant string/boolean wrappers.
 
 /**
  * Pause execution for rate limiting between API calls.
@@ -64,7 +55,7 @@ function parseStartDate(raw: string): Date {
  * @param t - Transaction to hash.
  * @returns Pipe-delimited key.
  */
-function txnHash(t: ITransaction): TxnHashKey {
+function txnHash(t: ITransaction): string {
   const amt = String(t.originalAmount);
   return `${t.date}|${t.description}|${amt}`;
 }
@@ -72,14 +63,14 @@ function txnHash(t: ITransaction): TxnHashKey {
 // ── Templating ───────────────────────────────────────────
 
 /** Lowercased WK account ID field names. */
-const TEMPLATE_KEYS = new Set(WK.accountId.map((k): TxnHashKey => k.toLowerCase()));
+const TEMPLATE_KEYS = new Set(WK.accountId.map((k): string => k.toLowerCase()));
 
 /**
  * Check if a field key is a templateable account ID.
  * @param key - Field name.
  * @returns True if the key matches a WK account ID field.
  */
-function isTemplateKey(key: TxnHashKey): IsTemplate {
+function isTemplateKey(key: string): boolean {
   const keyLower = key.toLowerCase();
   return TEMPLATE_KEYS.has(keyLower);
 }
@@ -93,9 +84,9 @@ function isTemplateKey(key: TxnHashKey): IsTemplate {
  */
 function applyTemplateField(
   body: Record<string, string | object>,
-  key: TxnHashKey,
+  key: string,
   value: string | number,
-): FieldApplied {
+): boolean {
   if (!isTemplateKey(key)) return false;
   const stringValue = String(value);
   replaceField(body as JsonRecord, [key], stringValue);
@@ -145,9 +136,9 @@ function deduplicateTxns(
   allTxns: readonly ITransaction[],
   startMs: number,
 ): readonly ITransaction[] {
-  const afterStart = allTxns.filter((t): IsAfterDate => new Date(t.date).getTime() >= startMs);
-  const seen = new Set<TxnHashKey>();
-  return afterStart.filter((t): IsAfterDate => {
+  const afterStart = allTxns.filter((t): boolean => new Date(t.date).getTime() >= startMs);
+  const seen = new Set<string>();
+  return afterStart.filter((t): boolean => {
     const key = txnHash(t);
     if (seen.has(key)) return false;
     seen.add(key);
@@ -184,8 +175,8 @@ async function lookupBalance(
 interface ITxnUrlCtx {
   readonly api: IApiFetchContext;
   readonly network: INetworkDiscovery;
-  readonly accountId: TxnUrlStr;
-  readonly startDate: StartDateStr;
+  readonly accountId: string;
+  readonly startDate: string;
 }
 
 /** Generic filterData JSON — "show all" defaults for SPA filter APIs. */
@@ -210,7 +201,7 @@ const FILTER_DATA_TEMPLATE = {
  * @param m - calendar month (1-based, no zero-pad).
  * @returns full URL with encoded filterData + firstCallCardIndex.
  */
-function buildFilterDataUrl(baseUrl: TxnUrlStr, yyyy: number, m: number): TxnUrlStr {
+function buildFilterDataUrl(baseUrl: string, yyyy: number, m: number): string {
   const dateStr = `${String(yyyy)}-${String(m)}-01`;
   const json = JSON.stringify(FILTER_DATA_TEMPLATE).replace('{date}', dateStr);
   let url: URL;
@@ -243,9 +234,6 @@ function resolveTxnUrl(ctx: ITxnUrlCtx): string | false {
 /** Fallback accountNumber value when no record carries a display ID. */
 const DEFAULT_ACCOUNT_NUMBER = 'default';
 
-/** Named alias for the resolved accountNumber string (Rule #15). */
-type AccountNumberStr = string;
-
 /**
  * Resolve final accountNumber. Prefers ctx ids; if both are empty or
  * the synthetic 'default' placeholder, scan captured endpoints.
@@ -253,7 +241,7 @@ type AccountNumberStr = string;
  * @param ctx - Assembly context.
  * @returns Best-effort accountNumber string (never empty).
  */
-function resolveAccountNumber(ctx: IAccountAssemblyCtx): AccountNumberStr {
+function resolveAccountNumber(ctx: IAccountAssemblyCtx): string {
   const primary = ctx.displayId || ctx.accountId;
   if (primary && primary !== DEFAULT_ACCOUNT_NUMBER) return primary;
   const fromStore = resolveDisplayIdFromCapturedEndpoints(ctx.fc.network);

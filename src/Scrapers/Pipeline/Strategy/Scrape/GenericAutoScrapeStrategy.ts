@@ -32,13 +32,6 @@ import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
 import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
-/** Internal account ID used for billing API calls. */
-type FallbackAccountId = string;
-/** URL origin string for SPA/API host comparison. */
-type OriginStr = string;
-/** Whether the SPA pivot navigation completed (or was skipped). */
-type PivotDone = boolean;
-
 const LOG = createLogger('scrape-phase');
 
 /** Timeout for SPA pivot navigation (ms). */
@@ -71,9 +64,6 @@ async function loadDiscovered<T>(
   return api.fetchGet<T>(endpoint.url);
 }
 
-/** Whether a captured response carries an account container. */
-type HasAccountContainer = boolean;
-
 /**
  * Returns the captured endpoint whose responseBody carries a non-empty
  * named-container of account-shaped records (cardsList / cards /
@@ -87,7 +77,7 @@ type HasAccountContainer = boolean;
  */
 function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscoveredEndpoint | false {
   const endpoints = network.getAllEndpoints();
-  const hit = endpoints.find((ep): HasAccountContainer => {
+  const hit = endpoints.find((ep): boolean => {
     if (!ep.responseBody) return false;
     const body = ep.responseBody as ApiPayload;
     const records = findContainerArray(body, [...WK.accountContainers]);
@@ -102,7 +92,7 @@ function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscover
  * @param body - parsed response body.
  * @returns true when an account container is present.
  */
-function bodyHasAccountContainer(body: ApiPayload): HasAccountContainer {
+function bodyHasAccountContainer(body: ApiPayload): boolean {
   const records = findContainerArray(body, [...WK.accountContainers]);
   return records.length > 0;
 }
@@ -266,7 +256,7 @@ async function discoverAndLoadAccounts(
 
 /** Parsed POST body with account info for fallback. */
 interface IPostBodyFallback {
-  readonly accountId: FallbackAccountId;
+  readonly accountId: string;
   readonly record: ApiPayload;
 }
 
@@ -424,10 +414,7 @@ function applyCredentialFallback(
  * @param currentOrigin - Current page origin.
  * @returns True if current origin hosts the txn endpoint.
  */
-function isTxnHostedOnCurrentOrigin(
-  network: INetworkDiscovery,
-  currentOrigin: OriginStr,
-): PivotDone {
+function isTxnHostedOnCurrentOrigin(network: INetworkDiscovery, currentOrigin: string): boolean {
   const txnEndpoint = network.discoverTransactionsEndpoint();
   if (!txnEndpoint) return false;
   return new URL(txnEndpoint.url).origin === currentOrigin;

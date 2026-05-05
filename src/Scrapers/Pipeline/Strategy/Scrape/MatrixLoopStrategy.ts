@@ -27,22 +27,14 @@ const LOG = getDebug(import.meta.url);
 /** Rate limit between monthly chunk fetches. */
 const MATRIX_RATE_LIMIT_MS = 300;
 
-/** Account identifier for API queries. */
-type AccountNum = string;
-/** User-facing display identifier (last 4 digits). */
-type DisplayLabel = string;
-/** URL of a discovered API endpoint. */
-type EndpointUrl = string;
-/** Raw POST body template string. */
-type BodyTemplate = string;
 /** Account record passed through for shape-aware body substitution. */
 type AccountRecord = Readonly<Record<string, unknown>>;
 
 /** Bundled args for the Matrix Loop. */
 interface IMatrixLoopArgs {
   readonly fc: IAccountFetchCtx;
-  readonly accountId: AccountNum;
-  readonly displayId: DisplayLabel;
+  readonly accountId: string;
+  readonly displayId: string;
   /**
    * Per-card raw record from the discovered accounts endpoint. When
    * provided, buildMonthBody applies shape-aware substitution so per-card
@@ -55,8 +47,8 @@ interface IMatrixLoopArgs {
 /** Bundled args for fetching one month chunk. */
 interface IChunkFetchArgs {
   readonly args: IMatrixLoopArgs;
-  readonly txnUrl: EndpointUrl;
-  readonly template: BodyTemplate;
+  readonly txnUrl: string;
+  readonly template: string;
 }
 
 /**

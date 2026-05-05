@@ -44,9 +44,6 @@ import { extractCardId, extractIds } from './ScrapeIdExtraction.js';
 const LOG = createLogger('scrape-post');
 const CARD_SOURCE_LABELS: Record<string, string> = { true: 'from cards[]', false: 'from record' };
 
-/** Endpoint URL string. */
-type EndpointUrlStr = string;
-
 /**
  * Patch URL query-string date params from fc.startDate → today.
  * No-op when no WK.fromDate / WK.toDate keys are present.
@@ -54,7 +51,7 @@ type EndpointUrlStr = string;
  * @param fc - Fetch context.
  * @returns Patched URL.
  */
-function patchUrlRange(url: EndpointUrlStr, fc: IAccountFetchCtx): EndpointUrlStr {
+function patchUrlRange(url: string, fc: IAccountFetchCtx): string {
   const fromDate = parseStartDate(fc.startDate);
   const toDate = new Date();
   const outcome = applyDateRangeToUrlWithCount(url, fromDate, toDate);
@@ -152,9 +149,6 @@ interface IBufferedAttemptCtx {
 /** WK field names that identify a per-card / per-account body parameter. */
 const ACCOUNT_BODY_KEYS: readonly string[] = [...WK.accountId, ...MF.accountId];
 
-/** Whether the captured buffer is reusable for the current iteration target. */
-type BufferReusable = boolean;
-
 /**
  * Returns true when the captured POST body identifies `accountId`, or
  * when the body carries no account identifier at all (single-account
@@ -163,7 +157,7 @@ type BufferReusable = boolean;
  * @param accountId - iterating account identifier.
  * @returns true when the buffer is safe to reuse for this account.
  */
-function bufferedMatchesAccount(endpoint: IDiscoveredEndpoint, accountId: string): BufferReusable {
+function bufferedMatchesAccount(endpoint: IDiscoveredEndpoint, accountId: string): boolean {
   if (!endpoint.postData) return true;
   let parsed: Record<string, unknown>;
   try {

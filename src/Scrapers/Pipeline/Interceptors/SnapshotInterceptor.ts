@@ -20,26 +20,20 @@ import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 import { captureSnapshot } from './SnapshotInterceptorIO.js';
 
-/** Finalization outcome — true once the last snapshot has been attempted. */
-type FinalizeResult = boolean;
-
 /** Env flag name that activates snapshotting. */
 const ENV_FLAG = 'DUMP_SNAPSHOTS';
-
-/** Phase name remembered across beforePhase calls. */
-type SeenPhase = string;
 
 /** Mutable state for a snapshot interceptor instance. */
 interface ISnapshotState {
   /** Last phase we saw in beforePhase — used only by the finalizer fallback. */
-  lastSeenPhase: SeenPhase;
+  lastSeenPhase: string;
 }
 
 /**
  * Check whether snapshot capture is enabled via env var.
  * @returns True when DUMP_SNAPSHOTS is set to a truthy value.
  */
-function isSnapshotEnabled(): FinalizeResult {
+function isSnapshotEnabled(): boolean {
   const val = process.env[ENV_FLAG];
   return val === '1' || val === 'true';
 }
@@ -90,8 +84,8 @@ function buildActiveHandler(
  */
 function buildFinalizer(
   state: ISnapshotState,
-): (ctx: IPipelineContext) => Promise<Procedure<FinalizeResult>> {
-  return async (ctx): Promise<Procedure<FinalizeResult>> => {
+): (ctx: IPipelineContext) => Promise<Procedure<boolean>> {
+  return async (ctx): Promise<Procedure<boolean>> => {
     if (!state.lastSeenPhase) return succeed(false);
     await captureSnapshot(ctx, 'final');
     return succeed(true);

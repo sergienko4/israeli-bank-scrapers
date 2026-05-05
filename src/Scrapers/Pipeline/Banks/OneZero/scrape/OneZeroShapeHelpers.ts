@@ -6,11 +6,6 @@
 
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 
-/** Display account number (portfolio num) used in scraped output. */
-type AccountNumberDisplay = string;
-/** Current account balance amount. */
-type AccountBalance = number;
-
 /** Per-account ref emitted by extractAccounts. */
 export interface IOneZeroAcct {
   readonly portfolioId: string;
@@ -78,7 +73,7 @@ export function extractAccounts(body: ApiBody): readonly IOneZeroAcct[] {
  * @param acct - Account ref.
  * @returns Portfolio display number.
  */
-export function accountNumberOf(acct: IOneZeroAcct): AccountNumberDisplay {
+export function accountNumberOf(acct: IOneZeroAcct): string {
   return acct.portfolioNum;
 }
 
@@ -104,7 +99,7 @@ export function balanceVars(acct: IOneZeroAcct): VarsMap {
  * @param body - Unwrapped balance response.
  * @returns Current account balance.
  */
-export function balanceExtract(body: ApiBody): AccountBalance {
+export function balanceExtract(body: ApiBody): number {
   const resp = body as unknown as IBalResp;
   return resp.balance.currentAccountBalance;
 }

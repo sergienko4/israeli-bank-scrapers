@@ -27,16 +27,13 @@ const APP_VERSION = '11.5.1-202603051858';
 /** Stable per-install client id — generated once per process. */
 const PEPPER_CLIENT_ID = randomUUID();
 
-/** Pepper x-user-id header value (phone without country-code prefix). */
-type PepperUserId = string;
-
 /**
  * Resolve the x-user-id header — Pepper uses the phone without the
  * country-code prefix (first 3 digits "972" dropped).
  * @param ctx - Action context carrying credentials.
  * @returns x-user-id string (empty when phone absent).
  */
-function userIdOf(ctx: IActionContext): PepperUserId {
+function userIdOf(ctx: IActionContext): string {
   const creds = ctx.credentials as unknown as IPepperCreds;
   const digits = creds.phoneNumber.replaceAll(/\D/g, '');
   if (digits.startsWith('972')) return digits.slice(3);

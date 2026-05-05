@@ -20,15 +20,10 @@ import type { PhaseName } from '../Types/Phase.js';
 /** Max time we'll wait for an anchor to be visible in the snapshot. */
 const VISIBILITY_TIMEOUT_MS = 8000;
 
-/** WK candidate discriminator — e.g. 'xpath', 'ariaLabel'. */
-type CandidateKind = string;
-/** WK candidate value — the selector text. */
-type CandidateValue = string;
-
 /** One WK candidate shape — shared across the Registry. */
 interface IWkCandidate {
-  readonly kind: CandidateKind;
-  readonly value: CandidateValue;
+  readonly kind: string;
+  readonly value: string;
 }
 
 /**
@@ -57,7 +52,7 @@ const PHASE_ANCHORS = buildPhaseAnchors();
  * @param candidate - WK candidate object.
  * @returns Selector string suitable for page.locator().
  */
-function candidateToLocator(candidate: IWkCandidate): CandidateValue {
+function candidateToLocator(candidate: IWkCandidate): string {
   if (candidate.kind === 'xpath') return `xpath=${candidate.value}`;
   if (candidate.kind === 'ariaLabel') return `[aria-label="${candidate.value}"]`;
   if (candidate.kind === 'placeholder') return `[placeholder="${candidate.value}"]`;
@@ -70,16 +65,13 @@ function candidateToLocator(candidate: IWkCandidate): CandidateValue {
   return '';
 }
 
-/** Race outcome — true if at least one locator became visible. */
-type VisibilityOutcome = boolean;
-
 /**
  * Race a single candidate's visibility on the page.
  * @param page - Playwright Page.
  * @param candidate - WK candidate.
  * @returns Promise resolving to true when visible, false on timeout/error.
  */
-async function raceOne(page: Page, candidate: IWkCandidate): Promise<VisibilityOutcome> {
+async function raceOne(page: Page, candidate: IWkCandidate): Promise<boolean> {
   const selector = candidateToLocator(candidate);
   if (!selector) return false;
   try {
@@ -112,7 +104,7 @@ const GATE_DISABLED: ReadonlySet<string> = new Set(['otp-trigger', 'otp-fill']);
  * @param phase - Phase whose anchors must be visible.
  * @returns True when any anchor became visible within the timeout.
  */
-async function waitForPhaseAnchor(page: Page, phase: string): Promise<VisibilityOutcome> {
+async function waitForPhaseAnchor(page: Page, phase: string): Promise<boolean> {
   if (GATE_DISABLED.has(phase)) return true;
   const anchors = PHASE_ANCHORS[phase as PhaseName];
   if (!anchors || anchors.length === 0) return true;
@@ -121,10 +113,10 @@ async function waitForPhaseAnchor(page: Page, phase: string): Promise<Visibility
    * @param c - WK candidate.
    * @returns Visibility outcome promise.
    */
-  const probe = (c: IWkCandidate): Promise<VisibilityOutcome> => raceOne(page, c);
+  const probe = (c: IWkCandidate): Promise<boolean> => raceOne(page, c);
   const promises = anchors.map(probe);
   const outcomes = await Promise.allSettled(promises);
-  const hits = outcomes.filter((o): VisibilityOutcome => o.status === 'fulfilled' && o.value);
+  const hits = outcomes.filter((o): boolean => o.status === 'fulfilled' && o.value);
   return hits.length > 0;
 }
 

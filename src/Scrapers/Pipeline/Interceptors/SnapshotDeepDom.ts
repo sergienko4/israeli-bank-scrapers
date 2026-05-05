@@ -17,21 +17,18 @@
 
 import type { Page } from 'playwright-core';
 
-/** Serialised HTML string returned by captureDeepHtml. */
-type CapturedHtml = string;
-
 /** Empty-string fallback when deep serialization fails in the page context. */
-const EMPTY_HTML: CapturedHtml = '';
+const EMPTY_HTML = '';
 
 /** Serializer — runs inside the browser. Plain JS string (see module JSDoc). */
-const SERIALIZE_JS = `(function(){
+const SERIALIZE_JS = String.raw`(function(){
   function readSheet(sheet){
     try {
       var rules = sheet.cssRules;
       if (!rules) return '';
       var out = [];
       for (var i = 0; i < rules.length; i++) out.push(rules[i].cssText || '');
-      return out.join('\\n');
+      return out.join('\n');
     } catch (_e) { return ''; }
   }
   function collectAllStyleText(){
@@ -41,7 +38,7 @@ const SERIALIZE_JS = `(function(){
       var t = readSheet(sheets[i]);
       if (t) parts.push(t);
     }
-    return parts.join('\\n');
+    return parts.join('\n');
   }
   function cloneWithShadow(node){
     if (node.nodeType !== 1) return node.cloneNode(true);
@@ -80,7 +77,7 @@ const SERIALIZE_JS = `(function(){
  * @param page - Playwright Page to read from.
  * @returns HTML string or empty string if page.content() throws.
  */
-async function fallbackHtml(page: Page): Promise<CapturedHtml> {
+async function fallbackHtml(page: Page): Promise<string> {
   try {
     return await page.content();
   } catch {
@@ -93,8 +90,8 @@ async function fallbackHtml(page: Page): Promise<CapturedHtml> {
  * @param page - Playwright Page.
  * @returns Serialised HTML string or '' on error.
  */
-async function tryEvaluate(page: Page): Promise<CapturedHtml> {
-  return page.evaluate<CapturedHtml>(SERIALIZE_JS).catch((): CapturedHtml => EMPTY_HTML);
+async function tryEvaluate(page: Page): Promise<string> {
+  return page.evaluate<string>(SERIALIZE_JS).catch((): string => EMPTY_HTML);
 }
 
 /**
@@ -103,7 +100,7 @@ async function tryEvaluate(page: Page): Promise<CapturedHtml> {
  * @param page - Playwright Page to serialize.
  * @returns HTML string, empty on total failure.
  */
-async function captureDeepHtml(page: Page): Promise<CapturedHtml> {
+async function captureDeepHtml(page: Page): Promise<string> {
   const html = await tryEvaluate(page);
   if (html) return html;
   return fallbackHtml(page);

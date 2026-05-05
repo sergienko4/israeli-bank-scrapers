@@ -17,9 +17,6 @@ import type { IOneZeroAcct } from './OneZeroShapeHelpers.js';
 const MOVEMENTS_LIMIT = 50;
 const LANGUAGE = 'HEBREW';
 
-/** Whether pagination should stop once the oldest row pre-dates the window. */
-type ShouldStopPagination = boolean;
-
 type OneZeroTxn = Record<string, unknown>;
 
 interface IMovResp {
@@ -94,7 +91,7 @@ function resolveStartDate(ctx: IActionContext): Date {
  * @param ctx - Action context.
  * @returns True when pagination should stop.
  */
-export function stopPredicate(acc: readonly object[], ctx: IActionContext): ShouldStopPagination {
+export function stopPredicate(acc: readonly object[], ctx: IActionContext): boolean {
   if (acc.length === 0) return false;
   const last = acc.at(-1) as OneZeroTxn | undefined;
   const raw = last?.movementTimestamp;

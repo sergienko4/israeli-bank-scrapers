@@ -18,21 +18,12 @@ import { waitForPhaseAnchor } from './SnapshotVisibilityGate.js';
 /** Root directory for captured snapshots. */
 const SNAPSHOT_ROOT = 'tests/snapshots';
 
-/** Result of a snapshot write attempt — true on success, false on failure. */
-type WriteResult = boolean;
-/** Bank identifier — directory key under tests/snapshots. */
-type CompanyId = string;
-/** Absolute path to a bank's snapshot directory. */
-type BankDirPath = string;
-/** Whether the page.readyState === 'complete'. */
-type IsDocumentReady = boolean;
-
 /**
  * Ensure the snapshot directory exists for this bank.
  * @param companyId - Bank identifier used as subdirectory.
  * @returns Absolute path to the bank directory.
  */
-function ensureBankDir(companyId: CompanyId): BankDirPath {
+function ensureBankDir(companyId: string): string {
   const cwd = process.cwd();
   const dir = path.join(cwd, SNAPSHOT_ROOT, companyId);
   fs.mkdirSync(dir, { recursive: true });
@@ -45,7 +36,7 @@ function ensureBankDir(companyId: CompanyId): BankDirPath {
  * @param html - HTML payload to persist.
  * @returns True on success, false on I/O failure.
  */
-function tryWrite(filePath: string, html: string): WriteResult {
+function tryWrite(filePath: string, html: string): boolean {
   try {
     const safeHtml = redactHtml(html);
     fs.writeFileSync(filePath, safeHtml, 'utf8');
@@ -62,7 +53,7 @@ function tryWrite(filePath: string, html: string): WriteResult {
  * @param html - Page HTML to persist.
  * @returns True on success, false on I/O failure.
  */
-function writeSnapshot(dir: string, phaseName: string, html: string): WriteResult {
+function writeSnapshot(dir: string, phaseName: string, html: string): boolean {
   const filename = `${phaseName}.html`;
   const filePath = path.join(dir, filename);
   return tryWrite(filePath, html);
@@ -75,7 +66,7 @@ function writeSnapshot(dir: string, phaseName: string, html: string): WriteResul
  * @param html - Captured page HTML.
  * @returns True if written.
  */
-function persistCapture(companyId: string, previousPhase: string, html: string): WriteResult {
+function persistCapture(companyId: string, previousPhase: string, html: string): boolean {
   if (!html) return false;
   const dir = ensureBankDir(companyId);
   return writeSnapshot(dir, previousPhase, html);
@@ -104,7 +95,7 @@ function onWaitFailure(): WaitFallback {
  * Runs inside Playwright's page.waitForFunction evaluation.
  * @returns True when document.readyState is 'complete'.
  */
-function isDocumentReady(): IsDocumentReady {
+function isDocumentReady(): boolean {
   return document.readyState === 'complete';
 }
 
@@ -137,7 +128,7 @@ async function waitForRender(page: Page): Promise<boolean> {
  * @param previousPhase - Name of the phase that just finished.
  * @returns True if snapshot was written, false otherwise.
  */
-async function captureSnapshot(ctx: IPipelineContext, previousPhase: string): Promise<WriteResult> {
+async function captureSnapshot(ctx: IPipelineContext, previousPhase: string): Promise<boolean> {
   if (!ctx.browser.has) return false;
   const { page } = ctx.browser.value;
   await waitForRender(page);
