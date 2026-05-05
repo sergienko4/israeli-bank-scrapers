@@ -22,7 +22,15 @@ const PIPELINE_DIR = 'Scrapers/Pipeline';
 const PHASE_DIR = 'Phases';
 
 /** Rule key enum — any future rule must be listed here. */
-export type RuleKey = 'Rule #15' | 'Rule #10' | '[Async]' | 'PII-Log';
+export type RuleKey =
+  | 'Rule #15'
+  | 'Rule #10'
+  | '[Async]'
+  | 'PII-Log'
+  | 'NOSONAR-Discipline'
+  | 'S6564-Canary'
+  | 'S3735-Canary'
+  | 'S1607-Canary';
 
 /** One violation emitted by the analyser. */
 export interface IIssue {
@@ -153,7 +161,14 @@ export function loadAllowlist(
     if (!Array.isArray(value)) continue;
     const rules = value.filter(
       (v): v is RuleKey =>
-        v === 'Rule #15' || v === 'Rule #10' || v === '[Async]' || v === 'PII-Log',
+        v === 'Rule #15' ||
+        v === 'Rule #10' ||
+        v === '[Async]' ||
+        v === 'PII-Log' ||
+        v === 'NOSONAR-Discipline' ||
+        v === 'S6564-Canary' ||
+        v === 'S3735-Canary' ||
+        v === 'S1607-Canary',
     );
     const normKey = normalisePath(key);
     out.set(normKey, new Set(rules));
@@ -163,6 +178,36 @@ export function loadAllowlist(
 
 /** Regex: primitive return type following a closing paren. */
 const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*[{=]|\s*\n)/g;
+/**
+ * Regex: bare-primitive type alias declaration (S6564 canary).
+ * Matches `type X = string;` / `= number;` / `= boolean;` / `= unknown;`.
+ * Excluded by SonarJS S6564 because the RHS is a TS keyword type;
+ * defence-in-depth here so a bypass via `eslint --no-verify` still
+ * trips the architecture gate. Per-file overrides for the
+ * architecture-rule conflict cases live in
+ * `architecture-allowlist.json` (rule key `S6564-Canary`).
+ */
+const S6564_CANARY_RE = /^type\s+[A-Z]\w*\s*=\s*(?:boolean|string|number|void|unknown);/gm;
+/**
+ * Regex: `void <expression>;` operator at statement start (S3735 canary).
+ * Catches the discard-promise antipattern. Defence-in-depth.
+ */
+const S3735_CANARY_RE = /^\s*void\s+\w/gm;
+/**
+ * Regex: NOSONAR comment lacking rationale text (NOSONAR-Discipline).
+ * Every `// NOSONAR` must carry an explanation after `—` or `:` of at
+ * least 20 chars. Drive-by silencing is rejected.
+ */
+const NOSONAR_DISCIPLINE_RE = /\/\/\s*NOSONAR(?!.*[—:].{20})/g;
+/**
+ * Regex: `it.skip(`/`describe.skip(` (S1607 canary).
+ * Matches the call site; the issue-ref rationale check runs on the
+ * surrounding text and accepts an issue marker like `#nnn` in a
+ * trailing comment.
+ */
+const SKIPPED_TEST_RE = /(?:^|\s)(?:it|describe|test)\.skip\(/gm;
+/** Regex: a `#nnn` issue reference near a skipped test, used as rationale. */
+const SKIP_RATIONALE_RE = /\/\/[^\n]*#\d+/;
 /** Regex: Playwright import in a Phase file. */
 const PLAYWRIGHT_IMPORT_RE = /from ['"]playwright['"]/;
 /** Regex: call positions at line start — execute/fetch/run/step family. */
@@ -236,6 +281,89 @@ const PII_PAYLOAD_RE = new RegExp(
   String.raw`LOG\.${PII_LOG_LEVELS}\s*\(\s*\{[^}]*?\b(?:${PII_PAYLOAD_KEYS.join('|')})\s*:\s*(?:\[|\.\.\.|(?:${PII_PAYLOAD_NAMES.join('|')})(?=\s*[,}]))`,
   'g',
 );
+
+/**
+ * Emit S6564-Canary issues for a file. Catches bare-primitive aliases
+ * even when ESLint is bypassed.
+ * @param code - Source text.
+ * @returns S6564-Canary issues (may be empty).
+ */
+function s6564CanaryIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const matches = code.match(S6564_CANARY_RE) ?? [];
+  for (const m of matches) {
+    out.push({
+      rule: 'S6564-Canary',
+      message: `[S6564-Canary] Bare-primitive type alias: ${m.trim()}`,
+    });
+  }
+  S6564_CANARY_RE.lastIndex = 0;
+  return out;
+}
+
+/**
+ * Emit S3735-Canary issues for a file. Catches the `void <expr>;`
+ * discard-promise antipattern.
+ * @param code - Source text.
+ * @returns S3735-Canary issues (may be empty).
+ */
+function s3735CanaryIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const matches = code.match(S3735_CANARY_RE) ?? [];
+  for (const m of matches) {
+    out.push({
+      rule: 'S3735-Canary',
+      message: `[S3735-Canary] void operator: ${m.trim()}`,
+    });
+  }
+  S3735_CANARY_RE.lastIndex = 0;
+  return out;
+}
+
+/**
+ * Emit NOSONAR-Discipline issues for a file. Forces every NOSONAR
+ * marker to carry rationale text after `—` or `:` of at least 20
+ * chars so drive-by silencing is rejected.
+ * @param code - Source text.
+ * @returns NOSONAR-Discipline issues (may be empty).
+ */
+function nosonarDisciplineIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const matches = code.match(NOSONAR_DISCIPLINE_RE) ?? [];
+  for (const m of matches) {
+    out.push({
+      rule: 'NOSONAR-Discipline',
+      message: `[NOSONAR-Discipline] NOSONAR without rationale: ${m.trim()}`,
+    });
+  }
+  NOSONAR_DISCIPLINE_RE.lastIndex = 0;
+  return out;
+}
+
+/**
+ * Emit S1607-Canary issues for a file. Each `it.skip` / `describe.skip`
+ * must have a `#nnn` issue reference within 3 lines preceding the call
+ * site so the suppression is auditable.
+ * @param code - Source text.
+ * @returns S1607-Canary issues (may be empty).
+ */
+function s1607CanaryIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const lines = code.split('\n');
+  for (const [idx, line] of lines.entries()) {
+    SKIPPED_TEST_RE.lastIndex = 0;
+    if (!SKIPPED_TEST_RE.test(line)) continue;
+    const start = Math.max(0, idx - 3);
+    const window = lines.slice(start, idx + 1).join('\n');
+    if (SKIP_RATIONALE_RE.test(window)) continue;
+    out.push({
+      rule: 'S1607-Canary',
+      message: `[S1607-Canary] Skipped test without #issue rationale at line ${String(idx + 1)}`,
+    });
+  }
+  SKIPPED_TEST_RE.lastIndex = 0;
+  return out;
+}
 
 /**
  * Emit Rule #15 (primitive-return) issues for a file.
@@ -318,6 +446,14 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   }
   if (isInPipeline) issues.push(...asyncIssues(code));
   issues.push(...piiLogIssues(code));
+  // Defence-in-depth canaries: re-affirm the SonarJS rules via regex
+  // so a `--no-verify` ESLint bypass still trips the architecture gate.
+  issues.push(
+    ...s6564CanaryIssues(code),
+    ...s3735CanaryIssues(code),
+    ...nosonarDisciplineIssues(code),
+    ...s1607CanaryIssues(code),
+  );
   return issues;
 }
 
