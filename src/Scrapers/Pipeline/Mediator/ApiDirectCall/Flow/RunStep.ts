@@ -35,7 +35,6 @@ type CarryMap = Readonly<Record<string, JsonValue>>;
 /** String-valued query record — the opts.query shape accepted by apiPost. */
 type QueryRecord = Readonly<Record<string, string>>;
 
-
 /**
  * Minimal cookie-jar port used across a single config-driven flow.
  * SmsOtpFlow constructs one instance and passes it to every RunStep

@@ -29,30 +29,27 @@ export {
 
 const LOG = getDebug(import.meta.url);
 
-/** Whether a value can be BFS-searched (not null, not array). */
-type IsSearchable = boolean;
-/** Whether a WellKnown field name matched a record key. */
-type WkMatch = boolean;
-/** BFS recursion depth counter. */
-type BfsDepth = number;
-/** Transaction signature score (count of matching WK fields). */
-type TxnScore = number;
-/** Lowercased field key for case-insensitive matching. */
-type LowercaseKey = string;
-/** Parsed ISO date string from raw API value. */
-type ParsedDateStr = string;
-/** Coerced string result from field value. */
-type CoercedStr = string;
-/** Coerced number result from field value. */
-type CoercedNum = number;
-/** Filter/find predicate result. */
-type Predicate = boolean;
-/** Count of items pushed or found. */
-type ItemCount = number;
 /** API response record — wraps Record to hide `unknown` from function signatures. */
 type ApiRecord = Record<string, unknown>;
-/** Untyped value — wraps `unknown` to satisfy no-unknown-in-signatures ESLint rule. */
+
+/**
+ * Untyped value crossing module boundaries. The named alias is
+ * required because the architecture ESLint rule (`no-restricted-syntax`)
+ * forbids the literal `unknown` keyword in function signatures —
+ * callers must reference a type identifier instead. Sonar S6564
+ * flagging this one alias is an acknowledged tradeoff.
+ */
+// NOSONAR: typescript:S6564 — alias is required by `no-restricted-syntax`.
 type UntypedValue = unknown;
+
+/**
+ * Result of probing a record for a scalar field — the raw scalar
+ * (string or number) when found, or `false` to mark a miss. Reused
+ * widely by findFieldValue, coerceString, coerceNumber, and the
+ * amount-resolution helpers; named here to keep the union out of
+ * every signature (Sonar S4323).
+ */
+type ScalarFieldHit = string | number | false;
 
 /** Default currency when none found in API response. */
 const DEFAULT_CURRENCY = 'ILS';
@@ -66,10 +63,10 @@ const DEFAULT_CURRENCY = 'ILS';
  * @returns Coerced string.
  */
 function coerceString(
-  val: string | number | false,
+  val: ScalarFieldHit,
   transform?: (s: string) => string,
   fallback = '',
-): CoercedStr {
+): string {
   if (val === false) return fallback;
   let s = '';
   if (typeof val === 'string') s = val;
@@ -85,7 +82,7 @@ function coerceString(
  * @param fallback - Fallback when val is not a number.
  * @returns Coerced number.
  */
-function coerceNumber(val: string | number | false, fallback: CoercedNum): CoercedNum {
+function coerceNumber(val: ScalarFieldHit, fallback: number): number {
   if (typeof val === 'number') return val;
   if (typeof val !== 'string') return fallback;
   const parsed = Number(val);
@@ -98,7 +95,7 @@ function coerceNumber(val: string | number | false, fallback: CoercedNum): Coerc
  * @param val - Raw field value from findFieldValue.
  * @returns Number if numeric, false otherwise.
  */
-function coerceIdentifier(val: string | number | false): number | false {
+function coerceIdentifier(val: ScalarFieldHit): number | false {
   if (typeof val === 'number') return val;
   return false;
 }
@@ -111,7 +108,7 @@ const MAX_SEARCH_DEPTH = 10;
 /** BFS queue item for iterative deep search. */
 interface ISearchItem {
   readonly value: Record<string, unknown>;
-  readonly depth: BfsDepth;
+  readonly depth: number;
 }
 
 /**
@@ -119,7 +116,7 @@ interface ISearchItem {
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
-function isSearchableObject(val: UntypedValue): IsSearchable {
+function isSearchableObject(val: UntypedValue): boolean {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
@@ -136,7 +133,7 @@ function tryMatchWk(
   wkName: string,
 ): Procedure<IFieldMatch> {
   const wkLower = wkName.toLowerCase();
-  const originalKey = recordKeys.find((k): WkMatch => k.toLowerCase() === wkLower);
+  const originalKey = recordKeys.find((k): boolean => k.toLowerCase() === wkLower);
   if (!originalKey) return fail(ScraperErrorTypes.Generic, 'key not found');
   const val = record[originalKey];
   const isScalar = typeof val === 'string' || typeof val === 'number';
@@ -175,7 +172,7 @@ function matchField(
 function matchFieldInRecord(
   record: Record<string, unknown>,
   fieldNames: readonly string[],
-): string | number | false {
+): ScalarFieldHit {
   const result = matchField(record, fieldNames);
   if (!isOk(result)) return false;
   return result.value.value;
@@ -190,9 +187,9 @@ function matchFieldInRecord(
  */
 function enqueueChildren(
   record: Record<string, unknown>,
-  depth: BfsDepth,
+  depth: number,
   queue: ISearchItem[],
-): IsSearchable {
+): boolean {
   if (depth >= MAX_SEARCH_DEPTH) return false;
   const nextDepth = depth + 1;
   const children = Object.values(record)
@@ -261,12 +258,12 @@ function flattenObjectTree(root: ApiRecord): readonly ApiRecord[] {
 function findFieldValue(
   obj: Record<string, unknown>,
   fieldNames: readonly string[],
-): string | number | false {
+): ScalarFieldHit {
   const rootHit = matchFieldInRecord(obj, fieldNames);
   if (rootHit !== false) return rootHit;
   const allObjects = flattenObjectTree(obj);
-  const results = allObjects.map((o): string | number | false => matchFieldInRecord(o, fieldNames));
-  const hit = results.find((r): Predicate => r !== false);
+  const results = allObjects.map((o): ScalarFieldHit => matchFieldInRecord(o, fieldNames));
+  const hit = results.find((r): boolean => r !== false);
   return hit ?? false;
 }
 
@@ -285,7 +282,7 @@ const TXN_SIGNATURE_FIELDS = new Set(
     ...WK.creditAmount,
     ...WK.description,
     ...WK.identifier,
-  ].map((f): LowercaseKey => f.toLowerCase()),
+  ].map((f): string => f.toLowerCase()),
 );
 
 /**
@@ -293,16 +290,16 @@ const TXN_SIGNATURE_FIELDS = new Set(
  * @param item - Object to score.
  * @returns Number of matching WK transaction fields.
  */
-function scoreTxnSignature(item: UntypedValue): TxnScore {
+function scoreTxnSignature(item: UntypedValue): number {
   if (!isSearchableObject(item)) return 0;
-  const keys = Object.keys(item as object).map((k): LowercaseKey => k.toLowerCase());
-  return keys.filter((k): Predicate => TXN_SIGNATURE_FIELDS.has(k)).length;
+  const keys = Object.keys(item as object).map((k): string => k.toLowerCase());
+  return keys.filter((k): boolean => TXN_SIGNATURE_FIELDS.has(k)).length;
 }
 
 /** Stack entry for LIFO array search. */
 interface IStackEntry {
   readonly node: unknown;
-  readonly depth: BfsDepth;
+  readonly depth: number;
 }
 
 /** Context for handleArrayNode. */
@@ -310,7 +307,7 @@ interface IArrayNodeCtx {
   readonly collected: unknown[];
   readonly stack: IStackEntry[];
   readonly node: unknown[];
-  readonly depth: BfsDepth;
+  readonly depth: number;
 }
 
 /**
@@ -322,10 +319,10 @@ interface IArrayNodeCtx {
  */
 function pushArrayChildren(
   stack: IStackEntry[],
-  items: readonly unknown[],
-  depth: BfsDepth,
-): ItemCount {
-  const objects = items.filter((item): Predicate => typeof item === 'object' && item !== null);
+  items: readonly UntypedValue[],
+  depth: number,
+): number {
+  const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
   for (const obj of objects) {
     stack.push({ node: obj, depth: depth + 1 });
   }
@@ -342,8 +339,8 @@ function pushArrayChildren(
 function pushObjectChildren(
   stack: IStackEntry[],
   obj: Record<string, unknown>,
-  depth: BfsDepth,
-): ItemCount {
+  depth: number,
+): number {
   const values = Object.values(obj);
   for (const value of values) {
     stack.push({ node: value, depth: depth + 1 });
@@ -356,7 +353,7 @@ function pushObjectChildren(
  * @param ctx - Array node context.
  * @returns True if items were collected.
  */
-function handleArrayNode(ctx: IArrayNodeCtx): Predicate {
+function handleArrayNode(ctx: IArrayNodeCtx): boolean {
   if (ctx.node.length === 0) return false;
   const score = scoreTxnSignature(ctx.node[0]);
   if (score < MIN_TXN_SCORE) {
@@ -376,9 +373,9 @@ function handleArrayNode(ctx: IArrayNodeCtx): Predicate {
  */
 function processStackEntry(
   entry: IStackEntry,
-  collected: unknown[],
+  collected: UntypedValue[],
   stack: IStackEntry[],
-): Predicate {
+): boolean {
   if (entry.depth > MAX_ARRAY_DEPTH) return false;
   if (Array.isArray(entry.node)) {
     return handleArrayNode({
@@ -407,7 +404,7 @@ function processStackEntry(
  * @param collected - Mutable accumulator.
  * @returns True if stack is now empty.
  */
-function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): Predicate {
+function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolean {
   if (stack.length === 0) return true;
   const last = stack.length - 1;
   const entry = stack[last];
@@ -460,17 +457,12 @@ function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
  * @param dateStr - Raw date string from API response.
  * @returns ISO date string, or original if no match.
  */
-function parseAutoDate(dateStr: ParsedDateStr): ParsedDateStr {
+function parseAutoDate(dateStr: string): string {
   const parsed = moment(dateStr, KNOWN_DATE_FORMATS, true);
   if (parsed.isValid()) return parsed.toISOString();
   return dateStr;
 }
 
-/**
- * Auto-map a raw API transaction to ITransaction.
- * @param raw - Raw transaction object from API.
- * @returns Mapped ITransaction.
- */
 /** Shekel currency aliases from WK. */
 const SHEKEL_ALIASES = new Set(WK.shekelAliases);
 
@@ -479,15 +471,7 @@ const SHEKEL_ALIASES = new Set(WK.shekelAliases);
  * @param raw - Raw currency string.
  * @returns Normalized currency code.
  */
-/** Currency string from API. */
-type CurrencyStr = string;
-
-/**
- * Normalize currency — convert shekel aliases to ILS.
- * @param raw - Raw currency string.
- * @returns Normalized currency code.
- */
-function normalizeCurrency(raw: CurrencyStr): CurrencyStr {
+function normalizeCurrency(raw: string): string {
   if (SHEKEL_ALIASES.has(raw)) return 'ILS';
   return raw;
 }
@@ -499,7 +483,7 @@ function normalizeCurrency(raw: CurrencyStr): CurrencyStr {
  * @param raw - Raw transaction record.
  * @returns True if the transaction should be excluded.
  */
-function isVoidedTransaction(raw: ApiRecord): Predicate {
+function isVoidedTransaction(raw: ApiRecord): boolean {
   const voidVal = findFieldValue(raw, WK.voidIndicators);
   if (voidVal === '1') return true;
   const voucher = findFieldValue(raw, WK.voucherFields);
@@ -514,16 +498,11 @@ function isVoidedTransaction(raw: ApiRecord): Predicate {
  * @param isCardTxn - Whether this is a card company transaction.
  * @returns Negated amount for cards, original for banks.
  */
-function maybeNegateAmount(amount: AmountNum, isCardTxn: IsCardTxn): AmountNum {
+function maybeNegateAmount(amount: number, isCardTxn: boolean): number {
   if (!isCardTxn) return amount;
   if (amount === 0) return 0;
   return -Math.abs(amount);
 }
-
-/** Whether the transaction is from a card company (amounts should be negated). */
-type IsCardTxn = boolean;
-/** Numeric amount value. */
-type AmountNum = number;
 
 /**
  * Resolve amount — single field or split debit/credit netting.
@@ -532,7 +511,7 @@ type AmountNum = number;
  * @param singleAmount - Result of findFieldValue(raw, WK.amount).
  * @returns Resolved numeric amount.
  */
-function resolveAmount(raw: ApiRecord, singleAmount: string | number | false): AmountNum {
+function resolveAmount(raw: ApiRecord, singleAmount: ScalarFieldHit): number {
   if (singleAmount !== false) return coerceNumber(singleAmount, 0);
   const debit = findFieldValue(raw, WK.debitAmount);
   const credit = findFieldValue(raw, WK.creditAmount);
@@ -548,15 +527,12 @@ function resolveAmount(raw: ApiRecord, singleAmount: string | number | false): A
  * @param amount - Amount already resolved via resolveAmount + maybeNegateAmount.
  * @returns Sign-corrected amount.
  */
-function applyDirectionWk(raw: ApiRecord, amount: AmountNum): AmountNum {
+function applyDirectionWk(raw: ApiRecord, amount: number): number {
   const direction = findFieldValue(raw, WK.direction);
   if (typeof direction !== 'string') return amount;
   if (!/^debit$/i.test(direction)) return amount;
   return -Math.abs(amount);
 }
-
-/** Guard outcome — txn is well-formed when date + amount parse cleanly. */
-type TxnMappable = boolean;
 
 /**
  * Validate a mapped txn before it leaves the auto-mapper.
@@ -566,7 +542,7 @@ type TxnMappable = boolean;
  * @param amount - Coerced charged amount.
  * @returns True when txn has the minimum required fields.
  */
-function isMappableTxn(dateIso: string, amount: CoercedNum): TxnMappable {
+function isMappableTxn(dateIso: string, amount: number): boolean {
   if (dateIso === '') return false;
   if (!Number.isFinite(amount)) return false;
   const ms = new Date(dateIso).getTime();
@@ -629,25 +605,18 @@ function autoMapTransaction(raw: ApiRecord): ITransaction | false {
  * @returns Typed record array.
  */
 function castSearchable(items: readonly UntypedValue[]): readonly ApiRecord[] {
-  return items
-    .filter((i): Predicate => isSearchableObject(i))
-    .map((i): ApiRecord => i as ApiRecord);
+  return items.filter((i): boolean => isSearchableObject(i)).map((i): ApiRecord => i as ApiRecord);
 }
 
 /** Preview length for the raw body trace dump. */
 const BODY_PREVIEW_CHARS = 4096;
-
-/** Raw JSON string — output of JSON.stringify. */
-type RawJson = string;
-/** Truncated preview of a RawJson — caller safe for trace dumps. */
-type JsonPreview = string;
 
 /**
  * Stringify a response body, returning a short failure marker on throw.
  * @param body - API body.
  * @returns Full JSON or '<unstringifiable>'.
  */
-function safeStringify(body: ApiRecord): RawJson {
+function safeStringify(body: ApiRecord): string {
   try {
     return JSON.stringify(body);
   } catch {
@@ -660,7 +629,7 @@ function safeStringify(body: ApiRecord): RawJson {
  * @param json - Full JSON string.
  * @returns Truncated preview.
  */
-function truncatePreview(json: RawJson): JsonPreview {
+function truncatePreview(json: string): string {
   if (json.length <= BODY_PREVIEW_CHARS) return json;
   return `${json.slice(0, BODY_PREVIEW_CHARS)}…`;
 }
@@ -690,7 +659,7 @@ function traceRawShape(responseBody: ApiRecord): true {
  * @param v - Candidate value.
  * @returns True when v looks like an account record.
  */
-function looksLikeAccountRecord(v: UntypedValue): Predicate {
+function looksLikeAccountRecord(v: UntypedValue): boolean {
   if (!isSearchableObject(v)) return false;
   const hit = findFieldValue(v as ApiRecord, WK.accountId);
   return hit !== false;
@@ -716,7 +685,7 @@ function tryContainerInRecord(
     const objects = value.filter(looksLikeAccountRecord);
     return objects.map((v): ApiRecord => v as ApiRecord);
   });
-  return hits.find((arr): Predicate => arr.length > 0) ?? [];
+  return hits.find((arr): boolean => arr.length > 0) ?? [];
 }
 
 /**
@@ -734,7 +703,7 @@ function findContainerArray(
 ): readonly ApiRecord[] {
   const allRecords = flattenObjectTree(responseBody);
   const hits = allRecords.map((r): readonly ApiRecord[] => tryContainerInRecord(r, containerKeys));
-  return hits.find((arr): Predicate => arr.length > 0) ?? [];
+  return hits.find((arr): boolean => arr.length > 0) ?? [];
 }
 
 /**
@@ -747,7 +716,7 @@ function findContainerArray(
  */
 function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
   if (!Array.isArray(responseBody)) return [];
-  const arr = responseBody as readonly UntypedValue[];
+  const arr = responseBody as readonly unknown[];
   if (arr.length === 0) return [];
   if (!looksLikeAccountRecord(arr[0])) return [];
   return arr.filter(looksLikeAccountRecord).map((v): ApiRecord => v as ApiRecord);
@@ -792,11 +761,6 @@ function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   return [];
 }
 
-/** Whether a candidate identifier is accepted as real. */
-type IsUsableId = boolean;
-/** Validated account identifier, or empty-string sentinel. */
-type AccountId = string;
-
 /**
  * Returns true when {@link id} is a real, server-accepted identifier
  * rather than a position index, sentinel, or stringification artifact.
@@ -819,7 +783,7 @@ type AccountId = string;
  * @returns True iff {@link id} is acceptable as a transaction-API
  *   query parameter.
  */
-function isUsableIdentifier(id: string): IsUsableId {
+function isUsableIdentifier(id: string): boolean {
   if (id.length < 2) return false;
   if (id === 'default') return false;
   if (id === 'null') return false;
@@ -853,7 +817,7 @@ function isUsableIdentifier(id: string): IsUsableId {
  * @param field - Single WK identifier field name to probe.
  * @returns Validated identifier or empty string.
  */
-function pickIdFromField(record: ApiRecord, field: string): AccountId {
+function pickIdFromField(record: ApiRecord, field: string): string {
   const value = findFieldValue(record, [field]);
   if (value === false) return '';
   const str = String(value);
@@ -871,8 +835,8 @@ function pickIdFromField(record: ApiRecord, field: string): AccountId {
  * @param record - One account/card record.
  * @returns First usable identifier, or empty-string sentinel.
  */
-function extractValidIdentifier(record: ApiRecord): AccountId {
-  const candidates = WK.accountId.map((field): AccountId => pickIdFromField(record, field));
+function extractValidIdentifier(record: ApiRecord): string {
+  const candidates = WK.accountId.map((field): string => pickIdFromField(record, field));
   return candidates.find(Boolean) ?? '';
 }
 
@@ -894,16 +858,13 @@ const MAX_HUNT_DEPTH = 20;
 /** Stack entry for iterative tree walk. */
 interface IHuntEntry {
   readonly val: unknown;
-  readonly depth: HuntDepth;
+  readonly depth: number;
 }
-
-/** Depth counter for stack walk. */
-type HuntDepth = number;
 
 /** Bundled args for array processing. */
 interface IHuntArrayArgs {
   readonly objects: readonly unknown[];
-  readonly depth: HuntDepth;
+  readonly depth: number;
   readonly collected: ApiRecord[];
   readonly stack: IHuntEntry[];
 }
@@ -913,7 +874,7 @@ interface IHuntArrayArgs {
  * @param args - Bundled hunt array arguments.
  * @returns True if collected.
  */
-function processHuntArray(args: IHuntArrayArgs): Predicate {
+function processHuntArray(args: IHuntArrayArgs): boolean {
   const { objects, depth, collected, stack } = args;
   if (objects.length === 0) return false;
   const firstObj = objects[0] as ApiRecord;
@@ -936,11 +897,11 @@ function processHuntArray(args: IHuntArrayArgs): Predicate {
  */
 function processHuntObject(
   record: Record<string, unknown>,
-  depth: HuntDepth,
+  depth: number,
   stack: IHuntEntry[],
-): Predicate {
+): boolean {
   const children = Object.values(record)
-    .filter((v): Predicate => typeof v === 'object' && v !== null)
+    .filter((v): boolean => typeof v === 'object' && v !== null)
     .map((v): IHuntEntry => ({ val: v, depth: depth + 1 }));
   stack.push(...children);
   return true;
@@ -953,17 +914,11 @@ function processHuntObject(
  * @param stack - Mutable stack.
  * @returns True if processed.
  */
-function processHuntEntry(
-  entry: IHuntEntry,
-  collected: ApiRecord[],
-  stack: IHuntEntry[],
-): Predicate {
+function processHuntEntry(entry: IHuntEntry, collected: ApiRecord[], stack: IHuntEntry[]): boolean {
   if (entry.depth > MAX_HUNT_DEPTH) return false;
   const { val, depth } = entry;
   if (Array.isArray(val)) {
-    const objects = (val as unknown[]).filter(
-      (v): Predicate => typeof v === 'object' && v !== null,
-    );
+    const objects = (val as unknown[]).filter((v): boolean => typeof v === 'object' && v !== null);
     return processHuntArray({ objects, depth, collected, stack });
   }
   if (typeof val === 'object' && val !== null) {
@@ -1004,7 +959,7 @@ function huntTransactions(responseBody: ApiRecord): readonly ApiRecord[] {
  */
 function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
   const items = huntTransactions(responseBody);
-  const valid = items.filter((r): Predicate => !isVoidedTransaction(r));
+  const valid = items.filter((r): boolean => !isVoidedTransaction(r));
   const mapped = valid.map(autoMapTransaction);
   const kept = mapped.filter((t): t is ITransaction => t !== false);
   const count = String(items.length);
@@ -1017,9 +972,6 @@ function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
 
 // ── Card-aware extraction (anti-mirroring) ──────────────────────────────
 
-/** Card index identifier for per-card extraction. */
-type CardIndexId = string;
-
 /**
  * Step 1: Key-based lookup — find `Index{cardId}` subtree in response.
  * Isracard/Amex pattern: `CardsTransactionsListBean.Index0`, `.Index1`, etc.
@@ -1027,12 +979,12 @@ type CardIndexId = string;
  * @param cardId - Card index (e.g. '0', '1', '5').
  * @returns Subtree record if found, false otherwise.
  */
-function findIndexedSubtree(body: ApiRecord, cardId: CardIndexId): ApiRecord | false {
+function findIndexedSubtree(body: ApiRecord, cardId: string): ApiRecord | false {
   const indexKey = `Index${cardId}`;
   const values = Object.values(body);
-  const nested = values.filter((v): Predicate => isSearchableObject(v));
+  const nested = values.filter((v): boolean => isSearchableObject(v));
   const records = nested.map((v): ApiRecord => v as ApiRecord);
-  const match = records.find((rec): Predicate => indexKey in rec);
+  const match = records.find((rec): boolean => indexKey in rec);
   if (match) return match[indexKey] as ApiRecord;
   return false;
 }
@@ -1043,10 +995,10 @@ function findIndexedSubtree(body: ApiRecord, cardId: CardIndexId): ApiRecord | f
  * @param cardId - Card index to match.
  * @returns Filtered transaction items, empty if none matched.
  */
-function filterByCardIndex(body: ApiRecord, cardId: CardIndexId): readonly ITransaction[] {
+function filterByCardIndex(body: ApiRecord, cardId: string): readonly ITransaction[] {
   const allItems = findFirstArray(body);
   const searchable = castSearchable(allItems);
-  const matched = searchable.filter((item): Predicate => String(item.cardIndex) === cardId);
+  const matched = searchable.filter((item): boolean => String(item.cardIndex) === cardId);
   if (matched.length === 0) return [];
   const mapped = matched.map(autoMapTransaction);
   return mapped.filter((t): t is ITransaction => t !== false);
@@ -1061,7 +1013,7 @@ function filterByCardIndex(body: ApiRecord, cardId: CardIndexId): readonly ITran
  * @param cardId - Card index for scoping.
  * @returns Transactions for the specified card only.
  */
-function extractTransactionsForCard(body: ApiRecord, cardId: CardIndexId): readonly ITransaction[] {
+function extractTransactionsForCard(body: ApiRecord, cardId: string): readonly ITransaction[] {
   const subtree = findIndexedSubtree(body, cardId);
   if (subtree) {
     LOG.debug({ message: `extractForCard: Index${cardId} → key lookup` });

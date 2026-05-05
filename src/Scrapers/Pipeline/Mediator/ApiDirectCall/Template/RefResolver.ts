@@ -32,7 +32,6 @@ interface ITemplateScope {
 /** Handler for one RefToken category — returns the resolved value. */
 type RefHandler = (token: RefToken, scope: ITemplateScope) => Procedure<JsonValue>;
 
-
 /**
  * Coerce an unknown runtime value into a JsonValue. Arrays + plain
  * objects + scalars pass through; functions + symbols fail.

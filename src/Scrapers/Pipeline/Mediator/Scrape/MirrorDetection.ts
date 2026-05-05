@@ -8,21 +8,6 @@ import { getDebug as createLogger } from '../../Types/Debug.js';
 
 const LOG = createLogger('scrape-phase');
 
-/** Whether mirroring was detected across accounts. */
-type IsMirrored = boolean;
-/** Canonical string fingerprint of an account's transaction set. */
-type TxnFingerprint = string;
-/** Account number identifier. */
-type AccountNum = string;
-/** Transaction date string. */
-type TxnDateStr = string;
-/** Transaction amount. */
-type TxnAmount = number;
-/** Transaction description text. */
-type TxnDescStr = string;
-/** Diagnostic message string. */
-type DiagMessage = string;
-
 /** Three-way comparison sentinel returned by {@link compareLocale}. */
 type CompareSign = -1 | 0 | 1;
 
@@ -44,22 +29,22 @@ function compareLocale(a: string, b: string): CompareSign {
 
 /** Minimal account shape for mirror detection. */
 interface IMirrorAccount {
-  readonly accountNumber: AccountNum;
+  readonly accountNumber: string;
   readonly txns: readonly ITxnFingerFields[];
 }
 
 /** Minimal transaction fields needed for fingerprinting. */
 interface ITxnFingerFields {
-  readonly date: TxnDateStr;
-  readonly originalAmount?: TxnAmount;
-  readonly chargedAmount?: TxnAmount;
-  readonly description?: TxnDescStr;
+  readonly date: string;
+  readonly originalAmount?: number;
+  readonly chargedAmount?: number;
+  readonly description?: string;
 }
 
 /** Mirror detection result. */
 interface IMirrorResult {
-  readonly isMirrored: IsMirrored;
-  readonly message: DiagMessage;
+  readonly isMirrored: boolean;
+  readonly message: string;
 }
 
 /**
@@ -67,7 +52,7 @@ interface IMirrorResult {
  * @param txn - Transaction with date, amount, description.
  * @returns Pipe-delimited canonical string.
  */
-function canonicalizeTxn(txn: ITxnFingerFields): TxnFingerprint {
+function canonicalizeTxn(txn: ITxnFingerFields): string {
   const amount = txn.originalAmount ?? txn.chargedAmount ?? 0;
   return `${txn.date}|${String(amount)}|${txn.description ?? ''}`;
 }
@@ -77,7 +62,7 @@ function canonicalizeTxn(txn: ITxnFingerFields): TxnFingerprint {
  * @param account - Account with transactions.
  * @returns Sorted canonical string joined by newlines.
  */
-function computeFingerprint(account: IMirrorAccount): TxnFingerprint {
+function computeFingerprint(account: IMirrorAccount): string {
   const canonicals = account.txns.map(canonicalizeTxn);
   // Explicit localeCompare for locale-stable string ordering.
   const sorted = [...canonicals].sort(compareLocale);
