@@ -9,9 +9,6 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
-/** Return value of registerWkUrl — signals the entry was stored. */
-type WasUrlRegistered = boolean;
-
 /** Supported WK URL groups — generic API endpoints. */
 export type WKUrlGroup =
   | 'identityBase'
@@ -49,11 +46,7 @@ function bankMapFor(group: WKUrlGroup): Map<CompanyTypes, string> {
  * @param url - Full or relative URL string.
  * @returns True once stored.
  */
-export function registerWkUrl(
-  group: WKUrlGroup,
-  bankHint: CompanyTypes,
-  url: string,
-): WasUrlRegistered {
+export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): boolean {
   const inner = bankMapFor(group);
   inner.set(bankHint, url);
   return true;

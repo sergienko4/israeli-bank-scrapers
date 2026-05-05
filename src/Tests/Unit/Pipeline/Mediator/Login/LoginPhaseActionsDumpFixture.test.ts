@@ -146,23 +146,23 @@ describe('LoginPhaseActions dumpFixtureHtml guard', () => {
   it('is a no-op when DUMP_FIXTURES_DIR is unset', async (): Promise<void> => {
     const pageStub = makePage('<html></html>', []);
     const ctx = makeCtxWithPage(pageStub);
-    const isOk = await dumpFixtureHtml(ctx, 'any-label');
-    expect(isOk).toBe(true);
+    const didWrite = await dumpFixtureHtml(ctx, 'any-label');
+    expect(didWrite).toBe(false);
   });
 
   it('is a no-op when DUMP_FIXTURES_DIR is empty', async (): Promise<void> => {
     process.env.DUMP_FIXTURES_DIR = '';
     const pageStub = makePage('<html></html>', []);
     const ctx = makeCtxWithPage(pageStub);
-    const isOk = await dumpFixtureHtml(ctx, 'any-label');
-    expect(isOk).toBe(true);
+    const didWrite = await dumpFixtureHtml(ctx, 'any-label');
+    expect(didWrite).toBe(false);
   });
 
   it('is a no-op when browser slot is absent', async (): Promise<void> => {
     process.env.DUMP_FIXTURES_DIR = '/tmp/never-used';
     const base = makeMockContext();
-    const isOk = await dumpFixtureHtml(base, 'any-label');
-    expect(isOk).toBe(true);
+    const didWrite = await dumpFixtureHtml(base, 'any-label');
+    expect(didWrite).toBe(false);
   });
 });
 
@@ -179,8 +179,8 @@ describe('LoginPhaseActions dumpFixtureHtml integration', () => {
       { html: '<iframe-1></iframe-1>', url: 'https://example.test/f1', name: 'frame1' },
     ]);
     const ctx = makeCtxWithPage(pageStub);
-    const isOk = await dumpFixtureHtml(ctx, 'login-pre-done');
-    expect(isOk).toBe(true);
+    const didWrite = await dumpFixtureHtml(ctx, 'login-pre-done');
+    expect(didWrite).toBe(true);
     const bankDir = path.join(rootDir, CompanyTypes.OneZero);
     const mainPath = path.join(bankDir, 'login-pre-done.html');
     const mainBytes = await fs.readFile(mainPath, 'utf8');
@@ -210,8 +210,8 @@ describe('LoginPhaseActions dumpFixtureHtml integration', () => {
     process.env.DUMP_FIXTURES_DIR = rootDir;
     const pageStub = makePage('<html>main</html>', ['<iframe-0></iframe-0>']);
     const ctx = makeCtxWithPage(pageStub);
-    const isOk = await dumpFixtureHtml(ctx, 'home-pre-done');
-    expect(isOk).toBe(true);
+    const didWrite = await dumpFixtureHtml(ctx, 'home-pre-done');
+    expect(didWrite).toBe(true);
     const bankDir = path.join(rootDir, CompanyTypes.OneZero);
     const mainPath = path.join(bankDir, 'home-pre-done.html');
     const mainBytes = await fs.readFile(mainPath, 'utf8');

@@ -5,11 +5,6 @@
 
 import type { ScraperLogger } from '../Types/Debug.js';
 
-/** Trace outcome after phase execution. */
-type TraceTag = string;
-/** Whether tracing was emitted. */
-type DidTrace = boolean;
-
 /** Outcome lookup — avoids ternary. */
 const OUTCOME: Record<string, string> = { true: 'OK', false: 'FAIL' };
 
@@ -19,7 +14,7 @@ const OUTCOME: Record<string, string> = { true: 'OK', false: 'FAIL' };
  * @param total - Total phase count.
  * @returns Formatted index string (e.g. '1/7').
  */
-function buildPhaseIndex(index: number, total: number): TraceTag {
+function buildPhaseIndex(index: number, total: number): string {
   return `${String(index + 1)}/${String(total)}`;
 }
 
@@ -30,7 +25,7 @@ function buildPhaseIndex(index: number, total: number): TraceTag {
  * @param indexTag - Phase index tag.
  * @returns True after tracing.
  */
-function traceStart(logger: ScraperLogger, name: TraceTag, indexTag: TraceTag): DidTrace {
+function traceStart(logger: ScraperLogger, name: string, indexTag: string): boolean {
   logger.debug({ phase: name, action: 'START', index: indexTag });
   return true;
 }
@@ -42,9 +37,9 @@ function traceStart(logger: ScraperLogger, name: TraceTag, indexTag: TraceTag): 
  */
 interface ITraceResultCtx {
   readonly logger: ScraperLogger;
-  readonly name: TraceTag;
-  readonly indexTag: TraceTag;
-  readonly isSuccess: DidTrace;
+  readonly name: string;
+  readonly indexTag: string;
+  readonly isSuccess: boolean;
 }
 
 /**
@@ -52,7 +47,7 @@ interface ITraceResultCtx {
  * @param ctx - Bundled trace context.
  * @returns True after tracing.
  */
-function traceResult(ctx: ITraceResultCtx): DidTrace {
+function traceResult(ctx: ITraceResultCtx): boolean {
   const action = OUTCOME[String(ctx.isSuccess)];
   ctx.logger.debug({ phase: ctx.name, action, index: ctx.indexTag });
   return true;

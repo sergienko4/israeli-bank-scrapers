@@ -18,20 +18,16 @@ import type { IActionContext, IPipelineContext } from '../../Types/PipelineConte
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
-/** Cached discovery from PRE for ACTION. */
-type CachedDiscovery = IHomeDiscovery | false;
-
 /** HOME phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class HomePhase extends BasePhase {
   public readonly name = 'home' as const;
-  private _discovery: CachedDiscovery = false;
+  private _discovery: IHomeDiscovery | false = false;
 
   /** @inheritdoc */
   public async pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no mediator');
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no browser');
     const page = input.browser.value.page;
@@ -46,7 +42,6 @@ class HomePhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
     if (!input.executor.has) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no executor');
     if (!this._discovery) return fail(ScraperErrorTypes.Generic, 'HOME ACTION: no discovery');
     await executeHomeNavigation(input.executor.value, this._discovery, input.logger);
@@ -58,8 +53,8 @@ class HomePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME POST: no mediator');
+    input.logger.debug({ phase: this.name, message: 'home.post' });
     const homepageUrl = input.config.urls.base;
     return executeValidateLoginArea({
       mediator: input.mediator.value,
@@ -74,7 +69,7 @@ class HomePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'home.final' });
     if (!input.mediator.has) {
       const err = fail(ScraperErrorTypes.Generic, 'HOME FINAL: no mediator');
       return Promise.resolve(err);

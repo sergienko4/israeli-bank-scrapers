@@ -12,15 +12,12 @@
 
 import type { PhaseName } from './Phase.js';
 
-/** Whether a BasePhase stage should short-circuit in MOCK_MODE. */
-type ShouldSkipStage = boolean;
-
 /** Which of the 4 BasePhase stages to short-circuit when MOCK_MODE is active. */
 export interface IMockStagePolicy {
-  readonly pre: ShouldSkipStage;
-  readonly action: ShouldSkipStage;
-  readonly post: ShouldSkipStage;
-  readonly final: ShouldSkipStage;
+  readonly pre: boolean;
+  readonly action: boolean;
+  readonly post: boolean;
+  readonly final: boolean;
 }
 
 /**

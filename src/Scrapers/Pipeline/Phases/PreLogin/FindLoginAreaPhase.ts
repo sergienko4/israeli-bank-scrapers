@@ -27,7 +27,7 @@ class PreLoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'pre-login.pre' });
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN PRE: no mediator');
     return executePreLocateReveal(input.mediator.value, input);
   }
@@ -37,7 +37,7 @@ class PreLoginPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'pre-login.action' });
     if (!input.executor.has)
       return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN ACTION: no executor');
     return executeFireRevealClicksSealed(input);
@@ -48,7 +48,7 @@ class PreLoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'pre-login.post' });
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN POST: no mediator');
     return executeValidateForm(input.mediator.value, input);
   }
@@ -58,7 +58,7 @@ class PreLoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'pre-login.final' });
     const signal = executeSignalToLogin(input);
     return Promise.resolve(signal);
   }

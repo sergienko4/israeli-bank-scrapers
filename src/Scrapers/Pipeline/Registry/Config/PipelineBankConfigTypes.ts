@@ -4,9 +4,6 @@
  * Rule #15 named-alias discipline.
  */
 
-/** Bank website URL string. */
-type BankUrl = string;
-
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
   | 'identity.deviceToken'
@@ -20,22 +17,22 @@ export type AuthPathKey =
 
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
-  readonly identityBase: BankUrl;
-  readonly graphql: BankUrl;
+  readonly identityBase: string;
+  readonly graphql: string;
   /** Per-bank auth-path map — only the keys the bank actually uses. */
-  readonly paths: Readonly<Partial<Record<AuthPathKey, BankUrl>>>;
+  readonly paths: Readonly<Partial<Record<AuthPathKey, string>>>;
   /** Static Authorization header installed before login (e.g. Transmit TSToken). */
-  readonly staticAuth?: BankUrl;
+  readonly staticAuth?: string;
 }
 
 /** Pipeline bank config — HOME phase URL + optional headless URLs. */
 export interface IPipelineBankConfig {
   /** Official website URL — HOME phase navigates here. */
   readonly urls: {
-    readonly base: BankUrl;
+    readonly base: string;
   };
   /** Fallback transaction API path — used when network discovery finds nothing. */
-  readonly transactionsPath?: BankUrl;
+  readonly transactionsPath?: string;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */
   readonly headless?: IHeadlessUrlsConfig;
 }

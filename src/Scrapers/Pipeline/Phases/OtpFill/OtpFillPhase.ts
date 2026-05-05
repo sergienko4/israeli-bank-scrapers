@@ -49,7 +49,6 @@ class OtpFillPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     return executeFillPre(input, this.required);
   }
 
@@ -58,7 +57,7 @@ class OtpFillPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-fill.action' });
     return executeFillAction(input);
   }
 
@@ -67,7 +66,7 @@ class OtpFillPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-fill.post' });
     return executeFillPost(input);
   }
 
@@ -76,7 +75,7 @@ class OtpFillPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-fill.final' });
     return executeFillFinal(input);
   }
 }

@@ -12,11 +12,11 @@ export const EURO_CURRENCY = 'EUR';
 export const ISO_DATE_FORMAT = 'YYYY-MM-DD[T]HH:mm:ss.SSS[Z]';
 
 const ISO_DATE_PATTERN = [
-  '^\\d{4}-(0[1-9]|1[0-2])',
-  '-(0[1-9]|[12]\\d|3[01])',
-  'T([01]\\d|2[0-3])',
-  '(:[0-5]\\d){2}',
-  '\\.\\d{3}Z$',
+  String.raw`^\d{4}-(0[1-9]|1[0-2])`,
+  String.raw`-(0[1-9]|[12]\d|3[01])`,
+  String.raw`T([01]\d|2[0-3])`,
+  String.raw`(:[0-5]\d){2}`,
+  String.raw`\.\d{3}Z$`,
 ].join('');
 
 export const ISO_DATE_REGEX = new RegExp(ISO_DATE_PATTERN);

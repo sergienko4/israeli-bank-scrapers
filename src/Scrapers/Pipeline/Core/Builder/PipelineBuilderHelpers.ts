@@ -13,7 +13,6 @@ import { assemblePhases } from './PipelineAssembly.js';
 import {
   assertRequiredFields,
   type IBuilderFields,
-  type ScrapeFn,
   toBuilderState,
 } from './PipelineBuilderValidation.js';
 
@@ -45,5 +44,5 @@ function buildDescriptor(
   return succeed({ options, phases, interceptors, isHeadless: fields.isHeadless });
 }
 
-export type { ScrapeFn };
+export type { ScrapeFn } from './PipelineBuilderValidation.js';
 export { buildDescriptor, buildInterceptors };

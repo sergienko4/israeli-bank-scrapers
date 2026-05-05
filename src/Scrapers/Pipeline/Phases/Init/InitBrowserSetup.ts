@@ -12,9 +12,6 @@ import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 
-/** Whether a close call succeeded. */
-type CloseDone = boolean;
-
 /**
  * Launch a new Camoufox browser.
  * @param options - Scraper options with browser config.
@@ -42,7 +39,7 @@ async function createContextAndPage(
     const page = await context.newPage();
     return { context, page };
   } catch (err) {
-    await context.close().catch((): CloseDone => false);
+    await context.close().catch((): boolean => false);
     throw err;
   }
 }
@@ -110,12 +107,12 @@ function buildBrowserState(page: Page, context: BrowserContext, browser: Browser
  * @param browser - Browser handle or false if not yet launched.
  * @returns True if closed, false if no browser or close failed.
  */
-async function closeBrowserSafe(browser: Browser | false): Promise<CloseDone> {
+async function closeBrowserSafe(browser: Browser | false): Promise<boolean> {
   if (!browser) return false;
   return browser
     .close()
-    .then((): CloseDone => true)
-    .catch((): CloseDone => false);
+    .then((): boolean => true)
+    .catch((): boolean => false);
 }
 
 export { buildBrowserState, closeBrowserSafe, createContextAndPage, launchBrowser, setupPage };

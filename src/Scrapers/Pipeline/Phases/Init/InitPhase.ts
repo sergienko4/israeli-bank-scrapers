@@ -55,7 +55,7 @@ class InitPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'init.pre' });
     return executeLaunchBrowser(input);
   }
 
@@ -64,7 +64,7 @@ class InitPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'init.action' });
     const bootstrap = input as IBootstrapContext;
     const full = buildFullFromBootstrap(bootstrap);
     const navResult = await executeNavigateToBank(full);
@@ -77,7 +77,7 @@ class InitPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'init.post' });
     return executeValidatePage(input);
   }
 
@@ -86,7 +86,7 @@ class InitPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'init.final' });
     const wired = executeWireComponents(input);
     return Promise.resolve(wired);
   }

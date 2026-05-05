@@ -10,12 +10,6 @@
 import type { IPipelineInterceptor } from '../../Types/Interceptor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 
-/** Count of interceptors whose afterPipeline hook ran. */
-type FinalizerCount = number;
-
-/** Whether an interceptor exposed an afterPipeline hook. */
-type HasFinalizer = boolean;
-
 /**
  * Run one interceptor's optional afterPipeline hook, swallowing any throw.
  * @param interceptor - Interceptor to finalize.
@@ -25,7 +19,7 @@ type HasFinalizer = boolean;
 async function runOneFinalizer(
   interceptor: IPipelineInterceptor,
   ctx: IPipelineContext,
-): Promise<HasFinalizer> {
+): Promise<boolean> {
   if (!interceptor.afterPipeline) return false;
   await interceptor.afterPipeline(ctx).catch((): false => false);
   return true;
@@ -40,14 +34,14 @@ async function runOneFinalizer(
 async function runAfterPipeline(
   interceptors: readonly IPipelineInterceptor[],
   ctx: IPipelineContext,
-): Promise<FinalizerCount> {
+): Promise<number> {
   /**
    * Wrapper bound to ctx — used with Array.map so Promise.all receives a
    * named function reference instead of a nested inline call.
    * @param i - Interceptor to finalize.
    * @returns Whether a finalizer ran.
    */
-  const finalizeOne = (i: IPipelineInterceptor): Promise<HasFinalizer> => runOneFinalizer(i, ctx);
+  const finalizeOne = (i: IPipelineInterceptor): Promise<boolean> => runOneFinalizer(i, ctx);
   const jobs = interceptors.map(finalizeOne);
   const outcomes = await Promise.all(jobs);
   return outcomes.filter(Boolean).length;

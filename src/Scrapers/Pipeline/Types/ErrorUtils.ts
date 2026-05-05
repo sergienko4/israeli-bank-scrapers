@@ -8,15 +8,12 @@
  * @param error - The unknown caught value.
  * @returns A string message: Error.message for Error instances, the string itself for strings, or `String(error)` for other values.
  */
-/** Normalized error message string extracted from any thrown value. */
-type ErrorMsgStr = string;
-
 /**
  * Safely extract a message string from an unknown thrown value.
  * @param error - The unknown caught value.
  * @returns A string message: Error.message for Error instances, the string itself for strings, or `String(error)` for other values.
  */
-function toErrorMessage(error: Error | string): ErrorMsgStr {
+function toErrorMessage(error: Error | string): string {
   if (error instanceof Error) return error.message;
   return error;
 }

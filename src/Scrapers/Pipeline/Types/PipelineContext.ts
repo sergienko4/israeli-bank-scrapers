@@ -22,15 +22,6 @@ import type { Procedure } from './Procedure.js';
 /** Cleanup handler return type — side-effect only, no payload. */
 type CleanupResult = Procedure<void>;
 
-/** Whether the dashboard page is fully ready after login. */
-type PageReadyFlag = boolean;
-/** URL string of a page captured during the pipeline. */
-type PageUrlStr = string;
-/** Epoch-ms timestamp recorded during a pipeline phase. */
-type TimestampMs = number;
-/** Short diagnostic breadcrumb string (last phase action). */
-type DiagnosticStr = string;
-
 /** Browser lifecycle context — absent for API-only scrapers. */
 interface IBrowserState {
   readonly page: Page;
@@ -46,9 +37,9 @@ interface ILoginState {
 
 /** Dashboard phase result context. */
 interface IDashboardState {
-  readonly isReady: PageReadyFlag;
-  readonly pageUrl: PageUrlStr;
-  readonly trafficPrimed: PageReadyFlag;
+  readonly isReady: boolean;
+  readonly pageUrl: string;
+  readonly trafficPrimed: boolean;
 }
 
 /** Scrape phase result context. */
@@ -69,15 +60,15 @@ type ApiStrategyKind = (typeof API_STRATEGY)[keyof typeof API_STRATEGY];
 
 /** Diagnostics state — tracks timing and breadcrumbs. */
 interface IDiagnosticsState {
-  readonly loginUrl: PageUrlStr;
+  readonly loginUrl: string;
   readonly finalUrl: Option<string>;
-  readonly loginStartMs: TimestampMs;
+  readonly loginStartMs: number;
   readonly fetchStartMs: Option<number>;
-  readonly lastAction: DiagnosticStr;
+  readonly lastAction: string;
   readonly pageTitle: Option<string>;
   readonly warnings: readonly string[];
   /** Target URL extracted in DASHBOARD.PRE for navigation. */
-  readonly dashboardTargetUrl?: PageUrlStr;
+  readonly dashboardTargetUrl?: string;
   /** Pre-resolved single click target from DASHBOARD.PRE (IDENTITY-based
    *  race winner of `resolveVisible` against `WK_DASHBOARD.TRANSACTIONS`).
    *  ACTION clicks this FIRST (HEAD behaviour — proven winner). Only when
@@ -96,7 +87,7 @@ interface IDiagnosticsState {
   /** Pre-resolved menu toggle target for SEQUENTIAL dashboard nav. */
   readonly dashboardMenuTarget?: IResolvedTarget;
   /** Whether txn traffic already exists from login redirect — skip click if true. */
-  readonly dashboardTrafficExists?: PageReadyFlag;
+  readonly dashboardTrafficExists?: boolean;
   /** Auth token discovered from iframe sessionStorage in DASHBOARD.FINAL. */
   readonly discoveredAuth?: string | false;
   /** How the login form was submitted — used by POST to decide validation. */
@@ -122,9 +113,6 @@ interface IApiFetchContext {
   /** Config-fallback transaction URL — used when discovery finds no txn endpoint. */
   readonly configTransactionsUrl?: string | false;
 }
-
-/** Phase-Gate signal: true means PreLogin.POST confirmed the form is interactive. */
-type LoginAreaReadySignal = boolean;
 
 /**
  * Discovery status returned by PreLogin.PRE for each reveal candidate.
@@ -157,13 +145,13 @@ export type ContextId = string;
 /** Resolved element target — PRE discovered, ACTION executes via contextId. */
 export interface IResolvedTarget {
   /** CSS/XPath selector for the element. */
-  readonly selector: PageUrlStr;
+  readonly selector: string;
   /** Opaque frame identifier — resolved by private registry inside executor. */
   readonly contextId: ContextId;
   /** Strategy that matched (xpath, placeholder, labelText, etc.). */
-  readonly kind: PageUrlStr;
+  readonly kind: string;
   /** Candidate value that was searched for. */
-  readonly candidateValue: PageUrlStr;
+  readonly candidateValue: string;
 }
 
 /** LOGIN field keys — compiler-enforced, no raw strings. */
@@ -217,7 +205,7 @@ export interface IActionContext {
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
-  readonly loginAreaReady: LoginAreaReadySignal;
+  readonly loginAreaReady: boolean;
 }
 
 /** Read-only context accumulated through the pipeline. */
@@ -243,7 +231,7 @@ interface IPipelineContext {
    * LOGIN phase aborts immediately if this is false (form not yet validated).
    * Prevents cascading failures: no fill attempt before form is confirmed interactive.
    */
-  readonly loginAreaReady: LoginAreaReadySignal;
+  readonly loginAreaReady: boolean;
   /** PreLogin.PRE discovery results — ACTION reads status instead of re-discovering. */
   readonly preLoginDiscovery: Option<IPreLoginDiscovery>;
   /** LOGIN.PRE field discovery — resolved selectors + form anchor. */
@@ -259,7 +247,7 @@ interface IScrapeDiscovery {
   /** Card IDs that failed the probe (API returned error). */
   readonly prunedCards: readonly string[];
   /** Discovered transaction template URL. */
-  readonly txnTemplateUrl: PageUrlStr;
+  readonly txnTemplateUrl: string;
   /** Discovered transaction template POST body. */
   readonly txnTemplateBody: Record<string, unknown>;
   /** Billing months for 90-day replay. */
@@ -267,11 +255,11 @@ interface IScrapeDiscovery {
   /** cardIndex → cardNumber display map (Isracard/Amex: last 4 digits). */
   readonly cardDisplayMap?: ReadonlyMap<string, string>;
   /** SPA URL for direct-fetch scrapers (false = no SPA navigation needed). */
-  readonly spaUrl?: PageUrlStr | false;
+  readonly spaUrl?: string | false;
   /** Raw account records from API discovery. */
   readonly rawAccountRecords?: readonly Record<string, unknown>[];
   /** Whether SPA navigation completed successfully. */
-  readonly spaNavigated?: PageReadyFlag;
+  readonly spaNavigated?: boolean;
 
   // ── DIRECT path fields (frozen discovery from PRE) ──
 
@@ -288,7 +276,7 @@ interface IScrapeDiscovery {
   /** DIRECT_API: raw card/account response from DASHBOARD.ACTION. */
   readonly directApiResponse?: Record<string, unknown>;
   /** DIRECT_API: transaction endpoint URL from config. */
-  readonly directApiTxnUrl?: PageUrlStr;
+  readonly directApiTxnUrl?: string;
 }
 
 /**

@@ -10,15 +10,6 @@ import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
 import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfig.js';
 
-/** Whether a single WK URL entry was written into the registry. */
-type WasUrlSeeded = boolean;
-/** Whether a headless block's URLs were all seeded. */
-type WasHeadlessSeeded = boolean;
-/** Whether a [bankId,config] entry produced a seeding pass. */
-type WasEntrySeeded = boolean;
-/** Whether the full seeding pass over the registry completed. */
-type WasRegistrySeeded = boolean;
-
 /**
  * Register a single path entry when the URL is present.
  * @param bankHint - Bank identifier.
@@ -26,7 +17,7 @@ type WasRegistrySeeded = boolean;
  * @param url - URL string (may be absent).
  * @returns True once processed.
  */
-function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): WasUrlSeeded {
+function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): boolean {
   if (!url) return false;
   registerWkUrl(key as WKUrlGroup, bankHint, url);
   return true;
@@ -39,10 +30,7 @@ function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): WasUrlS
  * @param headless - Headless URLs block.
  * @returns True once all entries are written.
  */
-function seedWkFromHeadless(
-  bankHint: CompanyTypes,
-  headless: IHeadlessUrlsConfig,
-): WasHeadlessSeeded {
+function seedWkFromHeadless(bankHint: CompanyTypes, headless: IHeadlessUrlsConfig): boolean {
   registerWkUrl('identityBase', bankHint, headless.identityBase);
   registerWkUrl('graphql', bankHint, headless.graphql);
   for (const [key, url] of Object.entries(headless.paths)) seedOnePath(bankHint, key, url);
@@ -55,7 +43,7 @@ function seedWkFromHeadless(
  * @param entry - Tuple from Object.entries(PIPELINE_BANK_CONFIG).
  * @returns True when a headless block was seeded; false when skipped.
  */
-function seedOneEntry(entry: [string, IPipelineBankConfig]): WasEntrySeeded {
+function seedOneEntry(entry: [string, IPipelineBankConfig]): boolean {
   const [key, config] = entry;
   if (!config.headless) return false;
   return seedWkFromHeadless(key as CompanyTypes, config.headless);
@@ -69,7 +57,7 @@ function seedOneEntry(entry: [string, IPipelineBankConfig]): WasEntrySeeded {
  */
 function seedWkFromPipelineConfig(
   registry: Partial<Record<CompanyTypes, IPipelineBankConfig>>,
-): WasRegistrySeeded {
+): boolean {
   const entries = Object.entries(registry);
   entries.forEach(seedOneEntry);
   return true;

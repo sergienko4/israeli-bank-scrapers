@@ -6,7 +6,8 @@ import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDire
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import type { LoginFn } from './PipelineAssembly.js';
-import { buildDescriptor, type ScrapeFn } from './PipelineBuilderHelpers.js';
+import type { ScrapeFn } from './PipelineBuilderHelpers.js';
+import { buildDescriptor } from './PipelineBuilderHelpers.js';
 import {
   createEmptyState,
   type IBuilderState,
@@ -118,6 +119,7 @@ class PipelineBuilder {
   }
 }
 
-export type { LoginFn, ScrapeFn };
+export type { LoginFn } from './PipelineAssembly.js';
+export type { ScrapeFn } from './PipelineBuilderHelpers.js';
 export { PipelineBuilder };
 export { createPipelineBuilder } from './PipelineBuilderFactory.js';
