@@ -46,7 +46,7 @@ class OtpTriggerPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-trigger.pre' });
     return executeTriggerPre(input);
   }
 
@@ -55,7 +55,7 @@ class OtpTriggerPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-trigger.action' });
     return executeTriggerAction(input);
   }
 
@@ -64,7 +64,7 @@ class OtpTriggerPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-trigger.post' });
     return executeTriggerPost(input);
   }
 
@@ -73,7 +73,7 @@ class OtpTriggerPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'otp-trigger.final' });
     return executeTriggerFinal(input);
   }
 }

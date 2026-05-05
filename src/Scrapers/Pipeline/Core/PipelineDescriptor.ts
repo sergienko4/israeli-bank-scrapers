@@ -7,9 +7,6 @@ import type { ScraperOptions } from '../../Base/Interface.js';
 import type { BasePhase } from '../Types/BasePhase.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 
-/** Headless-mode flag — true when the bank uses API-only transport. */
-type IsHeadless = boolean;
-
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */
 interface IPipelineDescriptor {
   readonly options: ScraperOptions;
@@ -21,7 +18,7 @@ interface IPipelineDescriptor {
    * this via `PipelineBuilder.withHeadlessMediator()`. Absent/false
    * for browser-driven banks (back-compat).
    */
-  readonly isHeadless?: IsHeadless;
+  readonly isHeadless?: boolean;
 }
 
 export default IPipelineDescriptor;

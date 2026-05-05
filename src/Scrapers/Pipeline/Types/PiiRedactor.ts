@@ -23,9 +23,6 @@
  * '[REDACTION_ERROR]' and the pipeline continues.
  */
 
-/** Stable redacted representation handed back from a strategy. */
-type StableHint = string;
-
 /** Exhaustive PII classification. */
 type PiiCategory =
   | 'account'
@@ -54,35 +51,6 @@ type JsonValue = JsonScalar | IJsonObject | JsonArray;
 type CensorValue = string | number | boolean;
 /** Pino's redact callback signature — value+path → string. */
 type CensorFn = (value: CensorValue, path: readonly string[]) => string;
-
-/** Whether a path-tail key matches a token / name suffix. */
-type SuffixMatch = boolean;
-/** Whether a JsonValue / object carries at least one PII-classified key. */
-type IsPiiObject = boolean;
-/** Whether an array contains at least one PII-bearing object element. */
-type ArrayHasPiiFlag = boolean;
-/** Grapheme count of a Unicode string (Intl.Segmenter result). */
-type GraphemeCount = number;
-/** Index of the last separator inside an account-shaped string. */
-type SeparatorIndex = number;
-/** Number coerced from a string-or-number input (NaN on bad input). */
-type CoercedNumber = number;
-/** Terminal segment of a separator-delimited string. */
-type TerminalSegmentStr = string;
-/** String coerced from a CensorValue (boolean → "true"/"false"). */
-type CoercedString = string;
-/** Number-or-string forwarded into redactAmount's parser. */
-type AmountInput = number | string;
-/** A regex-fallback-applied scrubbed string. */
-type ScrubbedString = string;
-/** A redacted URL string returned from redactUrl. */
-type RedactedUrlStr = string;
-/** A redacted HTML string returned from redactHtml. */
-type RedactedHtmlStr = string;
-/** A redacted JSON body string returned from redactJsonBody. */
-type RedactedJsonStr = string;
-/** A single replaced @value attribute substring. */
-type AttrReplacement = string;
 
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
@@ -190,7 +158,7 @@ const HTML_TEXT_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[
  * @param key - Last segment of the path.
  * @returns True when the key looks like a token.
  */
-function isTokenSuffix(key: string): SuffixMatch {
+function isTokenSuffix(key: string): boolean {
   const lower = key.toLowerCase();
   if (lower.endsWith('token')) return true;
   if (lower.endsWith('bearer')) return true;
@@ -209,7 +177,7 @@ function isTokenSuffix(key: string): SuffixMatch {
  * @param key - Last segment of the path.
  * @returns True when the key looks like a personal-name field.
  */
-function isNameSuffix(key: string): SuffixMatch {
+function isNameSuffix(key: string): boolean {
   const lower = key.toLowerCase();
   if (lower.endsWith('firstname')) return true;
   if (lower.endsWith('lastname')) return true;
@@ -245,7 +213,7 @@ function buildSegmenter(): Intl.Segmenter {
  * @param input - String to measure.
  * @returns Grapheme count.
  */
-function graphemeCount(input: string): GraphemeCount {
+function graphemeCount(input: string): number {
   if (input.length === 0) return 0;
   const segmenter = buildSegmenter();
   const segments = segmenter.segment(input);
@@ -257,7 +225,7 @@ function graphemeCount(input: string): GraphemeCount {
  * @param value - Input string.
  * @returns Last separator index, or -1.
  */
-function lastSeparatorIndex(value: string): SeparatorIndex {
+function lastSeparatorIndex(value: string): number {
   const dash = value.lastIndexOf('-');
   const slash = value.lastIndexOf('/');
   const space = value.lastIndexOf(' ');
@@ -270,7 +238,7 @@ function lastSeparatorIndex(value: string): SeparatorIndex {
  * @param value - Account-style input.
  * @returns Terminal segment.
  */
-function terminalSegment(value: string): TerminalSegmentStr {
+function terminalSegment(value: string): string {
   const sep = lastSeparatorIndex(value);
   if (sep === -1) return value;
   return value.slice(sep + 1);
@@ -282,7 +250,7 @@ function terminalSegment(value: string): TerminalSegmentStr {
  * @param value - Raw account string.
  * @returns Stable hint.
  */
-function redactAccount(value: string): StableHint {
+function redactAccount(value: string): string {
   if (value.length === 0) return '';
   const tail = terminalSegment(value);
   if (tail.length <= MIN_HINT_LEN) return '[REDACTED]';
@@ -294,7 +262,7 @@ function redactAccount(value: string): StableHint {
  * @param value - Raw card string.
  * @returns Stable hint.
  */
-function redactCard(value: string): StableHint {
+function redactCard(value: string): string {
   if (value.length === 0) return '';
   if (value.length < MIN_HINT_LEN) return '[REDACTED]';
   return `****${value.slice(-4)}`;
@@ -305,9 +273,9 @@ function redactCard(value: string): StableHint {
  * @param value - Raw value.
  * @returns Stable hint.
  */
-function redactIsraeliId(value: string): StableHint {
+function redactIsraeliId(value: string): string {
   if (value.length === 0) return '';
-  const digits = value.replace(/\D/g, '');
+  const digits = value.replaceAll(/\D/g, '');
   if (digits.length !== ISRAELI_ID_LEN) return '[REDACTED]';
   return `***${digits.slice(-4)}`;
 }
@@ -317,9 +285,9 @@ function redactIsraeliId(value: string): StableHint {
  * @param value - Raw phone.
  * @returns Stable hint.
  */
-function redactPhone(value: string): StableHint {
+function redactPhone(value: string): string {
   if (value.length === 0) return '';
-  const digits = value.replace(/\D/g, '');
+  const digits = value.replaceAll(/\D/g, '');
   if (digits.length < MIN_HINT_LEN) return '[REDACTED]';
   return `***${digits.slice(-4)}`;
 }
@@ -329,7 +297,7 @@ function redactPhone(value: string): StableHint {
  * @param value - Raw name.
  * @returns Stable hint.
  */
-function redactName(value: string): StableHint {
+function redactName(value: string): string {
   if (value.length === 0) return '';
   const n = graphemeCount(value);
   return `<name:${String(n)}>`;
@@ -340,7 +308,7 @@ function redactName(value: string): StableHint {
  * @param value - Raw merchant string.
  * @returns Stable hint.
  */
-function redactMerchant(value: string): StableHint {
+function redactMerchant(value: string): string {
   if (value.length === 0) return '';
   const n = graphemeCount(value);
   return `<merchant:${String(n)}>`;
@@ -351,7 +319,7 @@ function redactMerchant(value: string): StableHint {
  * @param value - Number or numeric string.
  * @returns Stable hint.
  */
-function redactAmount(value: number | string): StableHint {
+function redactAmount(value: number | string): string {
   const num = coerceToNumber(value);
   if (Number.isNaN(num)) return '[REDACTED]';
   if (num < 0) return '-***';
@@ -363,7 +331,7 @@ function redactAmount(value: number | string): StableHint {
  * @param value - Number or numeric string.
  * @returns Number (NaN when value is non-numeric).
  */
-function coerceToNumber(value: number | string): CoercedNumber {
+function coerceToNumber(value: number | string): number {
   if (typeof value === 'number') return value;
   return Number(value);
 }
@@ -373,7 +341,7 @@ function coerceToNumber(value: number | string): CoercedNumber {
  * @param value - Raw token.
  * @returns Stable hint.
  */
-function redactToken(value: string): StableHint {
+function redactToken(value: string): string {
   if (value.length === 0) return '';
   return '[REDACTED]';
 }
@@ -384,7 +352,7 @@ function redactToken(value: string): StableHint {
  * @param value - Raw OTP.
  * @returns Stable hint.
  */
-function redactOtp(value: string): StableHint {
+function redactOtp(value: string): string {
   if (value.length === 0) return '';
   if (value.length < OTP_MIN_LEN) return '[REDACTED]';
   if (value.length > OTP_MAX_LEN) return '[REDACTED]';
@@ -396,13 +364,13 @@ function redactOtp(value: string): StableHint {
  * @param value - Raw cookie string.
  * @returns Stable hint.
  */
-function redactCookie(value: string): StableHint {
+function redactCookie(value: string): string {
   if (value.length === 0) return '';
   return '[REDACTED]';
 }
 
 /** String-strategy lookup table (excludes amount which has number input). */
-const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) => StableHint>>> = {
+const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) => string>>> = {
   account: redactAccount,
   card: redactCard,
   israeliId: redactIsraeliId,
@@ -425,7 +393,7 @@ interface IDispatchArgs {
  * @param value - Pino value (string | number | boolean).
  * @returns String coercion.
  */
-function toStringValue(value: CensorValue): CoercedString {
+function toStringValue(value: CensorValue): string {
   if (typeof value === 'string') return value;
   return String(value);
 }
@@ -435,7 +403,7 @@ function toStringValue(value: CensorValue): CoercedString {
  * @param value - Pino value.
  * @returns Number when value is number, else its string form.
  */
-function toAmountValue(value: CensorValue): AmountInput {
+function toAmountValue(value: CensorValue): number | string {
   if (typeof value === 'number') return value;
   if (typeof value === 'boolean') return String(value);
   return value;
@@ -446,7 +414,7 @@ function toAmountValue(value: CensorValue): AmountInput {
  * @param args - Bundled value + category.
  * @returns Stable hint.
  */
-function dispatchStrategy(args: IDispatchArgs): StableHint {
+function dispatchStrategy(args: IDispatchArgs): string {
   if (args.category === 'amount') {
     const amountInput = toAmountValue(args.value);
     return redactAmount(amountInput);
@@ -464,10 +432,10 @@ function dispatchStrategy(args: IDispatchArgs): StableHint {
  * @returns Censor function bound to the production strategy table.
  */
 function createCensorFn(): CensorFn {
-  return (value, path): CoercedString => {
+  return (value, path): string => {
     if (path.length === 0) return '[REDACTED]';
-    const tail = path[path.length - 1];
-    if (tail.length === 0) return '[REDACTED]';
+    const tail = path.at(-1);
+    if (tail === undefined || tail.length === 0) return '[REDACTED]';
     try {
       const category = classifyKey(tail);
       return dispatchStrategy({ value, category });
@@ -483,9 +451,9 @@ function createCensorFn(): CensorFn {
  * @param obj - Candidate object.
  * @returns True when at least one own key classifies as PII.
  */
-function objectHasPii(obj: IJsonObject): IsPiiObject {
+function objectHasPii(obj: IJsonObject): boolean {
   const keys = Object.keys(obj);
-  return keys.some((k): IsPiiObject => classifyKey(k) !== 'unknown');
+  return keys.some((k): boolean => classifyKey(k) !== 'unknown');
 }
 
 /**
@@ -505,8 +473,8 @@ function isJsonObject(v: JsonValue): v is IJsonObject {
  * @param arr - Candidate array.
  * @returns True when at least one element has a PII-classified key.
  */
-function arrayHasPiiObject(arr: JsonArray): ArrayHasPiiFlag {
-  return arr.some((el): ArrayHasPiiFlag => {
+function arrayHasPiiObject(arr: JsonArray): boolean {
+  return arr.some((el): boolean => {
     if (!isJsonObject(el)) return false;
     return objectHasPii(el);
   });
@@ -550,8 +518,8 @@ function redactLeaf(
   censor: CensorFn,
 ): JsonScalar {
   if (path.length === 0) return value;
-  const tail = path[path.length - 1];
-  if (tail.length === 0) return value;
+  const tail = path.at(-1);
+  if (tail === undefined || tail.length === 0) return value;
   const category = classifyKey(tail);
   if (category === 'unknown') return value;
   return censor(value, path);
@@ -625,8 +593,8 @@ function redactNode(value: JsonValue, path: readonly string[], state: IWalkState
  * @param input - String to scrub.
  * @returns Scrubbed string.
  */
-function applyFallbackPatterns(input: string): ScrubbedString {
-  return FALLBACK_PATTERNS.reduce((acc, p): ScrubbedString => acc.replace(p.re, p.to), input);
+function applyFallbackPatterns(input: string): string {
+  return FALLBACK_PATTERNS.reduce((acc, p): string => acc.replaceAll(p.re, p.to), input);
 }
 
 /** Parsed-or-fallback result of trying JSON.parse on a body string. */
@@ -654,7 +622,7 @@ function tryParseJson(body: string): IParseAttempt {
  * @param body - Raw body string.
  * @returns Redacted body string.
  */
-function redactBodyString(body: string): RedactedJsonStr {
+function redactBodyString(body: string): string {
   const attempt = tryParseJson(body);
   if (!attempt.ok) return applyFallbackPatterns(body);
   const censor = createCensorFn();
@@ -669,7 +637,7 @@ function redactBodyString(body: string): RedactedJsonStr {
  * @param body - Parsed JSON tree.
  * @returns Redacted body string.
  */
-function redactBodyValue(body: JsonValue): RedactedJsonStr {
+function redactBodyValue(body: JsonValue): string {
   const censor = createCensorFn();
   const state = buildWalkState(censor);
   const out = redactNode(body, [], state);
@@ -683,7 +651,7 @@ function redactBodyValue(body: JsonValue): RedactedJsonStr {
  * @param body - Raw body string OR parsed JsonValue tree.
  * @returns Redacted body string.
  */
-function redactJsonBody(body: string | JsonValue): RedactedJsonStr {
+function redactJsonBody(body: string | JsonValue): string {
   if (typeof body === 'string') return redactBodyString(body);
   return redactBodyValue(body);
 }
@@ -732,13 +700,13 @@ function redactQueryKey(parsed: URL, key: string, censor: CensorFn): true {
  * @param url - Raw URL string.
  * @returns Redacted URL.
  */
-function redactUrl(url: string): RedactedUrlStr {
+function redactUrl(url: string): string {
   if (url.length === 0) return '';
   const parse = tryParseUrl(url);
   if (!parse.ok) return url;
   const censor = createCensorFn();
   const allKeys = [...parse.url.searchParams.keys()];
-  const piiKeys = allKeys.filter((k): IsPiiObject => PII_QUERY_KEYS.has(k));
+  const piiKeys = allKeys.filter((k): boolean => PII_QUERY_KEYS.has(k));
   for (const key of piiKeys) redactQueryKey(parse.url, key, censor);
   return parse.url.toString();
 }
@@ -753,7 +721,7 @@ const HTML_VALUE_ATTR_RE = /value\s*=\s*["']([^"']{2,})["']/gi;
  * @param content - Captured @value content.
  * @returns Redacted attribute (always normalised to double quotes).
  */
-function replaceValueAttr(_match: string, content: string): AttrReplacement {
+function replaceValueAttr(_match: string, content: string): string {
   const trimmed = content.trim();
   if (trimmed.length === 0) return `value="${content}"`;
   const n = graphemeCount(content);
@@ -766,15 +734,15 @@ function replaceValueAttr(_match: string, content: string): AttrReplacement {
  * @param html - Raw HTML.
  * @returns Redacted HTML.
  */
-function redactHtml(html: string): RedactedHtmlStr {
+function redactHtml(html: string): string {
   if (html.length === 0) return '';
   let out = html;
-  for (const p of HTML_TEXT_PATTERNS) out = out.replace(p.re, p.to);
-  out = out.replace(HTML_VALUE_ATTR_RE, replaceValueAttr);
+  for (const p of HTML_TEXT_PATTERNS) out = out.replaceAll(p.re, p.to);
+  out = out.replaceAll(HTML_VALUE_ATTR_RE, replaceValueAttr);
   return out;
 }
 
-export type { CensorFn, JsonValue, PiiCategory, StableHint };
+export type { CensorFn, JsonValue, PiiCategory };
 export {
   classifyKey,
   createCensorFn,

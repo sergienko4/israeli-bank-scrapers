@@ -7,15 +7,10 @@ import { SENSITIVE_PATHS } from './DebugConfig.js';
 import { createCensorFn } from './PiiRedactor.js';
 import { getLogFile } from './TraceConfig.js';
 
-/** Bank identifier string. */
-type BankName = string;
-/** Logger namespace identifier. */
-type LoggerName = string;
-
 /** Bank context shape for async-local storage. */
 interface IBankContext {
-  readonly [key: BankName]: BankName;
-  bank: BankName;
+  readonly [key: string]: string;
+  bank: string;
 }
 
 /**
@@ -37,7 +32,7 @@ const CENSOR = createCensorFn();
  * Inject bank context from AsyncLocalStorage into every log line.
  * @returns The current bank context or an empty object.
  */
-function getBankMixin(): Record<BankName, BankName> {
+function getBankMixin(): Record<string, string> {
   const bank = BANK_CONTEXT.getStore() ?? {};
   return { ...bank, phase: getActivePhase(), stage: getActiveStage() };
 }
@@ -46,9 +41,6 @@ const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
 
 /** Pino transport for dev mode (pretty printing). */
 const DEV_TRANSPORT = { target: 'pino-pretty', options: { colorize: true } };
-
-/** Absolute log file path — empty string when file logging is off. */
-type LogFilePath = string;
 
 /** Pino's redact options type — pulled from the library so the censor cast
  *  doesn't need to spell `unknown` literally (the codebase forbids that). */
@@ -62,7 +54,7 @@ type PinoCensorFn = Extract<PinoRedactOptions, { censor?: unknown }>['censor'];
  * @returns Transport config or false.
  */
 function buildTransport(
-  logFile: LogFilePath,
+  logFile: string,
 ): pino.TransportSingleOptions | pino.TransportMultiOptions | false {
   if (!isDevMode && !logFile) return false;
   if (!logFile) return DEV_TRANSPORT;
@@ -139,7 +131,7 @@ interface IProxyHandler {
  * @returns Whatever pino Logger exposes at that key.
  */
 function reflectChildProperty(
-  name: LoggerName,
+  name: string,
   entry: IDeferredChildEntry,
   prop: string | symbol,
 ): LoggerProperty {
@@ -155,7 +147,7 @@ function reflectChildProperty(
  * @param entry - Mutable cache slot for the resolved child.
  * @returns Proxy handler.
  */
-function makeChildProxyHandler(name: LoggerName, entry: IDeferredChildEntry): IProxyHandler {
+function makeChildProxyHandler(name: string, entry: IDeferredChildEntry): IProxyHandler {
   return {
     /**
      * Forward property access to the lazily-built child logger.
@@ -179,7 +171,7 @@ const PASCAL_SPLIT_RE = /([a-z0-9])([A-Z])/g;
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns The filename portion (or the input itself if no `/` present).
  */
-function basenameFromUrl(metaUrl: LoggerName): LoggerName {
+function basenameFromUrl(metaUrl: string): string {
   const cleaned = metaUrl.split('?')[0].split('#')[0];
   const lastSlash = cleaned.lastIndexOf('/');
   if (lastSlash < 0) return cleaned;
@@ -195,10 +187,10 @@ function basenameFromUrl(metaUrl: LoggerName): LoggerName {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns Kebab-cased module name.
  */
-function deriveLogName(metaUrl: LoggerName): LoggerName {
+function deriveLogName(metaUrl: string): string {
   const last = basenameFromUrl(metaUrl);
   const stem = last.replace(FILE_EXT_RE, '');
-  const kebab = stem.replace(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
+  const kebab = stem.replaceAll(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
   return kebab;
 }
 
@@ -214,7 +206,7 @@ function deriveLogName(metaUrl: LoggerName): LoggerName {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns A pino-shaped logger that defers child creation.
  */
-export function getDebug(metaUrl: LoggerName): Logger {
+export function getDebug(metaUrl: string): Logger {
   const name = deriveLogName(metaUrl);
   const entry: IDeferredChildEntry = { resolved: false };
   const target: object = {};
@@ -228,7 +220,7 @@ export function getDebug(metaUrl: LoggerName): Logger {
  * @param fn - The async function to execute within the bank context.
  * @returns The result of the function.
  */
-export function runWithBankContext<T>(bank: BankName, fn: () => T): T {
+export function runWithBankContext<T>(bank: string, fn: () => T): T {
   return BANK_CONTEXT.run({ bank }, fn);
 }
 

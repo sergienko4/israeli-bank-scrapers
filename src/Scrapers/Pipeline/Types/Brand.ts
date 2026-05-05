@@ -128,3 +128,27 @@ export type ShouldStop = Brand<boolean, 'ShouldStop'>;
 export function mintShouldStop(flag: boolean): ShouldStop {
   return flag as ShouldStop;
 }
+
+/** Lowercase bank slug (e.g. "pepper", "discount"). */
+export type BankSlug = Brand<string, 'BankSlug'>;
+
+/**
+ * Mints a BankSlug from a raw string.
+ * @param raw - Raw lowercase bank slug.
+ * @returns The same string typed as BankSlug.
+ */
+export function mintBankSlug(raw: string): BankSlug {
+  return raw as BankSlug;
+}
+
+/** Diagnostic phase-and-step descriptor used for screenshot/fixture labels. */
+export type PhaseStepLabel = Brand<string, 'PhaseStepLabel'>;
+
+/**
+ * Mints a PhaseStepLabel from a raw string.
+ * @param raw - Raw label like "login-pre-done".
+ * @returns The same string typed as PhaseStepLabel.
+ */
+export function mintPhaseStepLabel(raw: string): PhaseStepLabel {
+  return raw as PhaseStepLabel;
+}

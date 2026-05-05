@@ -10,11 +10,6 @@
  * When MOCK_MODE is unset, the original value is returned unchanged.
  */
 
-/** Milliseconds value — type alias for timeout durations. */
-type TimeoutMs = number;
-/** Whether mock-timing caps should apply. */
-type IsMockTimingActive = boolean;
-
 /** Env flag that activates mock-timing compression. */
 const MOCK_ENV_FLAG = 'MOCK_MODE';
 
@@ -27,7 +22,7 @@ const MOCK_TIMEOUT_MS = 5000;
  * Check whether mock-timing caps apply to this run.
  * @returns True when MOCK_MODE is set to 1/true.
  */
-function isMockTimingActive(): IsMockTimingActive {
+function isMockTimingActive(): boolean {
   const val = process.env[MOCK_ENV_FLAG];
   return val === '1' || val === 'true';
 }
@@ -37,7 +32,7 @@ function isMockTimingActive(): IsMockTimingActive {
  * @param requested - The caller's requested timeout in milliseconds.
  * @returns Capped timeout — 1000 ms when mocking, original otherwise.
  */
-function capTimeout(requested: TimeoutMs): TimeoutMs {
+function capTimeout(requested: number): number {
   if (!isMockTimingActive()) return requested;
   if (requested <= MOCK_TIMEOUT_MS) return requested;
   return MOCK_TIMEOUT_MS;

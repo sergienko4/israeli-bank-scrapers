@@ -8,24 +8,13 @@ import type { ITransaction } from '../../../Transactions.js';
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
-/** Raw account identifier string from the accounts API. */
-type RawAccountId = string;
-/** Raw balance value from the accounts API. */
-type RawBalance = number;
-/** URL path segment for an API endpoint (no base URL). */
-type ApiPath = string;
-/** Date format string for the bank's API (e.g. 'YYYYMMDD'). */
-type DateFormatStr = string;
-/** ISO currency code string (e.g. 'ILS', 'USD'). */
-type CurrencyStr = string;
-
 /** HTTP method for API calls. */
 type HttpMethod = 'GET' | 'POST';
 
 /** Raw account identifier extracted from accounts API response. */
 interface IRawAccount {
-  readonly accountId: RawAccountId;
-  readonly balance: RawBalance;
+  readonly accountId: string;
+  readonly balance: number;
 }
 
 /** Configuration for fetching the account/card list. */
@@ -33,7 +22,7 @@ interface IAccountsFetchConfig<TRaw> {
   /** HTTP method for accounts endpoint. */
   readonly method: HttpMethod;
   /** URL path (appended to api.base). */
-  readonly path: ApiPath;
+  readonly path: string;
   /** POST body data (for POST method). Empty for GET. */
   readonly postData: Record<string, string>;
   /** Extract account IDs + balances from raw API response. */
@@ -53,7 +42,7 @@ interface ITransactionsFetchConfig<TRaw> {
   readonly buildRequest: (
     accountId: string,
     startDate: string,
-  ) => { path: ApiPath; postData: Record<string, string> };
+  ) => { path: string; postData: Record<string, string> };
   /** Extract ITransaction[] from raw API response. */
   readonly mapper: (raw: TRaw) => readonly ITransaction[];
 }
@@ -77,9 +66,9 @@ interface IScrapeConfig<TAccountsRaw, TTxnRaw> {
   /** Pagination strategy. */
   readonly pagination: PaginationKind;
   /** Date format string for the bank's API (e.g., 'YYYYMMDD'). */
-  readonly dateFormat: DateFormatStr;
+  readonly dateFormat: string;
   /** Default currency for transactions (e.g., 'ILS'). */
-  readonly defaultCurrency: CurrencyStr;
+  readonly defaultCurrency: string;
   /** Extra HTTP headers for API calls (e.g., auth tokens). */
   readonly extraHeaders: (ctx: IPipelineContext) => Record<string, string>;
   /** Optional: extract balance from the txn response (accounts endpoint may not have it). */

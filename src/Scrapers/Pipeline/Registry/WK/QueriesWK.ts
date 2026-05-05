@@ -12,9 +12,6 @@ import { fail, succeed } from '../../Types/Procedure.js';
 /** Supported WK query operations — generic API verbs. */
 export type WKQueryOperation = 'customer' | 'transactions' | 'balance';
 
-/** Return value of registerWkQuery — signals the entry was stored. */
-type WasQueryRegistered = boolean;
-
 /** Internal registry: op -> bankHint -> query string. */
 const WK_QUERIES = new Map<WKQueryOperation, Map<CompanyTypes, string>>();
 
@@ -43,7 +40,7 @@ export function registerWkQuery(
   operation: WKQueryOperation,
   bankHint: CompanyTypes,
   query: string,
-): WasQueryRegistered {
+): boolean {
   const inner = bankMapFor(operation);
   inner.set(bankHint, query);
   return true;

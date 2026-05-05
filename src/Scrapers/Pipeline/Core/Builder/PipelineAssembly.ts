@@ -12,13 +12,7 @@ import { createPreLoginPhase } from '../../Phases/PreLogin/FindLoginAreaPhase.js
 import { createScrapePhase } from '../../Phases/Scrape/ScrapePhase.js';
 import { createTerminatePhase } from '../../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
-import {
-  buildLoginPhase,
-  type IBuilderState,
-  type LoginFn,
-  resolveScrapeExec,
-  type StepExecFn,
-} from './StepResolvers.js';
+import { buildLoginPhase, type IBuilderState, resolveScrapeExec } from './StepResolvers.js';
 
 /**
  * Build browser init phases — Init + Home are always-on for browser
@@ -81,18 +75,40 @@ function optionalPhases(state: IBuilderState): readonly BasePhase[] {
  * @param state - Builder state.
  * @returns Ordered phase array.
  */
-function assemblePhases(state: IBuilderState): BasePhase[] {
-  const phases: BasePhase[] = [];
-  if (state.hasBrowser) phases.push(...browserInitPhases(state));
-  const loginPhase = buildLoginPhase(state);
-  phases.push(loginPhase);
-  phases.push(...optionalPhases(state));
-  if (state.hasBrowser) {
-    const term = createTerminatePhase();
-    phases.push(term);
-  }
-  return phases;
+/**
+ * Build the leading browser-init slice (Init/Home/PreLogin) for browser
+ * pipelines, or empty for headless ones. Pulled out to keep
+ * `assemblePhases` flat and ternary-free per the project lint rules.
+ * @param state - Builder state.
+ * @returns Init slice — empty when `hasBrowser` is false.
+ */
+function leadingInit(state: IBuilderState): readonly BasePhase[] {
+  if (!state.hasBrowser) return [];
+  return browserInitPhases(state);
 }
 
-export type { IBuilderState, LoginFn, StepExecFn };
+/**
+ * Build the trailing terminate slice for browser pipelines, or empty.
+ * @param state - Builder state.
+ * @returns Terminate slice — empty when `hasBrowser` is false.
+ */
+function trailingTerminate(state: IBuilderState): readonly BasePhase[] {
+  if (!state.hasBrowser) return [];
+  return [createTerminatePhase()];
+}
+
+/**
+ * Assemble the ordered phase list from the validated builder state.
+ * @param state - Builder state.
+ * @returns Ordered phase array.
+ */
+function assemblePhases(state: IBuilderState): BasePhase[] {
+  const init = leadingInit(state);
+  const loginPhase = buildLoginPhase(state);
+  const optional = optionalPhases(state);
+  const terminate = trailingTerminate(state);
+  return [...init, loginPhase, ...optional, ...terminate];
+}
+
+export type { IBuilderState, LoginFn, StepExecFn } from './StepResolvers.js';
 export { assemblePhases };

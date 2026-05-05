@@ -11,16 +11,11 @@ import { isOk } from '../../Types/Procedure.js';
 import { traceResult } from '../PipelineTraceService.js';
 import { applyInterceptors, type IContextTracker } from './PipelineMiddleware.js';
 
-/** Phase index tag for trace logging (e.g. "2/8"). */
-type PhaseIndexTag = string;
-/** Zero-based phase position in the pipeline. */
-type PhasePosition = number;
-
 /** Bundled phase step context for tracing. */
 interface IPhaseStep {
   readonly name: PhaseName;
-  readonly tag: PhaseIndexTag;
-  readonly index: PhasePosition;
+  readonly tag: string;
+  readonly index: number;
 }
 
 /** Bundled retry context for sanitization pulse. */

@@ -7,6 +7,7 @@
  * Event-specific fields are intersected via EventPayloads map.
  */
 
+import type { Brand } from './Brand.js';
 import type { PhaseName } from './Phase.js';
 import type { ApiStrategyKind } from './PipelineContext.js';
 
@@ -20,62 +21,17 @@ type LifecycleAction = 'START' | 'OK' | 'FAIL';
 type ElementResult = 'FOUND' | 'NOT_FOUND';
 /** API strategy identifier — single source: PipelineContext.ts. */
 type ApiStrategy = ApiStrategyKind;
-/** HTTP method string. */
-type HttpMethod = string;
-/** Visible text truncated for safety. */
-type MaskedText = string;
-/** URL string for navigation/network events. */
-type EventUrl = string;
-/** Proxy activation step name. */
-type ProxyStep = string;
 /** Phase stage label — exactly one of the 4-stage protocol values. */
 type StageLabel = 'PRE' | 'ACTION' | 'POST' | 'FINAL';
-/** Login submit method identifier. */
-type SubmitMethod = string;
-/** Card index for scrape iteration. */
-type CardIndex = string;
-/** Billing month for scrape iteration. */
-type BillingMonth = string;
-/** Transaction count from a scrape call. */
-type TxnCount = number;
-/** Duration in milliseconds for a traced operation. */
-type DurationMs = number;
 /** Trace status for a completed operation. */
 type TraceStatus = 'ok' | 'empty' | 'error';
-/** Account count from scrape results. */
-type AccountCount = number;
-/** Number of endpoints captured. */
-type EndpointCount = number;
-/** Cookie count from audit. */
-type CookieCount = number;
-/** Field credential key name. */
-type FieldKey = string;
-/** Popup dismiss attempt number. */
-type AttemptNum = number;
-/** Max attempts for popup. */
-type MaxAttempts = number;
-/** Number of iframe contexts. */
-type FrameCount = number;
-/** Whether navigation occurred. */
-type DidNavigate = boolean;
-/** Whether network traffic was observed. */
-type HasTraffic = boolean;
-/** Whether an auth token was found. */
-type HasAuthToken = boolean;
-/** Whether a password field is present. */
-type HasPassword = boolean;
-/** Whether a submit button is present. */
-type HasSubmit = boolean;
-/** Whether form gate is visible. */
-type FormGateVisible = boolean;
-/** Whether a response was captured. */
-type WasCaptured = boolean;
-/** Whether traffic is primed. */
-type IsPrimed = boolean;
-/** Whether auth was found. */
-type AuthFound = boolean;
-/** Whether login form is present. */
-type HasLoginForm = boolean;
+
+/**
+ * Visible text masked for log safety — caller must run `maskVisibleText`
+ * before assigning a raw string to a payload field. The brand is a
+ * compile-time guard; runtime is plain string.
+ */
+type MaskedText = Brand<string, 'MaskedText'>;
 
 // ── Base Event — mandatory coordinates on EVERY log event ────────────
 
@@ -96,43 +52,43 @@ interface IEventPayloads {
   'phase-stage': { result: Outcome };
   'phase-lifecycle': { action: LifecycleAction; index: MaskedText };
   'element-found': { text: MaskedText };
-  'element-resolve': { field: FieldKey; result: ElementResult };
-  navigation: { url: EventUrl; didNavigate: DidNavigate };
-  'navigation-fallback': { url: EventUrl };
-  'page-validate': { url: EventUrl; title: MaskedText };
-  'popup-dismiss': { text: MaskedText; attempt: AttemptNum; max: MaxAttempts };
-  'popup-delta': { delta: EndpointCount };
-  'login-fill': { field: FieldKey; result: ElementResult };
-  'login-submit': { method: SubmitMethod; url: EventUrl };
-  'login-validate': { hasTraffic: HasTraffic; url: EventUrl };
-  'login-signal': { strategy: ApiStrategy; authToken: HasAuthToken; cookies: CookieCount };
-  'pre-login-guard': { hasPwd: HasPassword; hasSubmit: HasSubmit };
-  'pre-login-reveal': { text: MaskedText; formGate: FormGateVisible };
-  'pre-login-form': { hasPwd: HasPassword; iframes: FrameCount };
-  'proxy-activate': { step: ProxyStep; result: Outcome };
-  'proxy-fire': { url: EventUrl };
-  'proxy-response': { captured: WasCaptured };
-  'dashboard-post': { primed: IsPrimed; url: EventUrl };
-  'dashboard-auth': { authFound: AuthFound };
+  'element-resolve': { field: string; result: ElementResult };
+  navigation: { url: string; didNavigate: boolean };
+  'navigation-fallback': { url: string };
+  'page-validate': { url: string; title: MaskedText };
+  'popup-dismiss': { text: MaskedText; attempt: number; max: number };
+  'popup-delta': { delta: number };
+  'login-fill': { field: string; result: ElementResult };
+  'login-submit': { method: string; url: string };
+  'login-validate': { hasTraffic: boolean; url: string };
+  'login-signal': { strategy: ApiStrategy; authToken: boolean; cookies: number };
+  'pre-login-guard': { hasPwd: boolean; hasSubmit: boolean };
+  'pre-login-reveal': { text: MaskedText; formGate: boolean };
+  'pre-login-form': { hasPwd: boolean; iframes: number };
+  'proxy-activate': { step: string; result: Outcome };
+  'proxy-fire': { url: string };
+  'proxy-response': { captured: boolean };
+  'dashboard-post': { primed: boolean; url: string };
+  'dashboard-auth': { authFound: boolean };
   'scrape-card': {
-    card: CardIndex;
-    month: BillingMonth;
-    txnCount: TxnCount;
-    durationMs?: DurationMs;
+    card: string;
+    month: string;
+    txnCount: number;
+    durationMs?: number;
     status?: TraceStatus;
   };
-  'scrape-result': { accounts: AccountCount; txns: TxnCount };
+  'scrape-result': { accounts: number; txns: number };
   'scrape-audit': { message: MaskedText };
-  'scrape-pre': { template: EventUrl; cards: readonly CardIndex[] };
-  'net-capture': { method: HttpMethod; url: EventUrl; card?: CardIndex; month?: BillingMonth };
-  'net-skip': { method: HttpMethod; url: EventUrl; status: AccountCount };
-  'auth-frame': { url: EventUrl; keys: readonly FieldKey[] };
-  'home-validate': { didNavigate: DidNavigate; frames: FrameCount; loginForm: HasLoginForm };
+  'scrape-pre': { template: string; cards: readonly string[] };
+  'net-capture': { method: string; url: string; card?: string; month?: string };
+  'net-skip': { method: string; url: string; status: number };
+  'auth-frame': { url: string; keys: readonly string[] };
+  'home-validate': { didNavigate: boolean; frames: number; loginForm: boolean };
   'home-nav-sequence': { trigger: MaskedText; target: MaskedText };
   'cleanup-error': { message: MaskedText };
   'mirror-detection': { message: MaskedText };
   'wk-match': {
-    wkKey: FieldKey;
+    wkKey: string;
     strategy: MaskedText;
     matchValue: MaskedText;
     via: MaskedText;
@@ -141,12 +97,12 @@ interface IEventPayloads {
     tag: MaskedText;
     id: MaskedText;
     classes: MaskedText;
-    attrs: Readonly<Record<MaskedText, MaskedText>>;
+    attrs: Readonly<Record<string, MaskedText>>;
     visibility: MaskedText;
   };
   'field-resolution-complete': {
-    field: FieldKey;
-    wkConcept: FieldKey;
+    field: string;
+    wkConcept: string;
     strategy: MaskedText;
     elementId: MaskedText;
     elementTag: MaskedText;
@@ -177,12 +133,12 @@ const MAX_VISIBLE_TEXT_LENGTH = 30;
 /**
  * Mask visible text for log safety — truncate to MAX_VISIBLE_TEXT_LENGTH.
  * @param text - Raw text to mask.
- * @returns Truncated text.
+ * @returns Truncated text branded as MaskedText.
  */
-function maskVisibleText(text: MaskedText): MaskedText {
+function maskVisibleText(text: string): MaskedText {
   const trimmed = text.trim();
-  if (trimmed.length <= MAX_VISIBLE_TEXT_LENGTH) return trimmed;
-  return trimmed.slice(0, MAX_VISIBLE_TEXT_LENGTH) + '...';
+  if (trimmed.length <= MAX_VISIBLE_TEXT_LENGTH) return trimmed as MaskedText;
+  return (trimmed.slice(0, MAX_VISIBLE_TEXT_LENGTH) + '...') as MaskedText;
 }
 
 export type { EventName, IBaseEvent, IEventPayloads, MaskedText, PipelineLogEvent, StageLabel };

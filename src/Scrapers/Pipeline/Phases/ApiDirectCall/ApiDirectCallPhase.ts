@@ -38,7 +38,6 @@ class ApiDirectCallPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     return runApiDirectCallPre(this._config, input);
   }
 
@@ -47,7 +46,6 @@ class ApiDirectCallPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
     const full = input as unknown as IPipelineContext;
     const result = await runApiDirectCallAction(this._config, full);
     return result as unknown as Procedure<IActionContext>;
@@ -58,7 +56,6 @@ class ApiDirectCallPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     return runApiDirectCallPost(this._config, input);
   }
 
@@ -67,7 +64,7 @@ class ApiDirectCallPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'api-direct-call.final' });
     await Promise.resolve();
     return succeed(input);
   }

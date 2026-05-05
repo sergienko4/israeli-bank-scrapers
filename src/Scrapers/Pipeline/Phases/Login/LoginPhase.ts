@@ -14,7 +14,7 @@ import {
   executeLoginSignal,
   executeValidateLogin,
 } from '../../Mediator/Login/LoginPhaseActions.js';
-import { BasePhase, type IsPrePayloadValid } from '../../Types/BasePhase.js';
+import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
@@ -38,7 +38,6 @@ class LoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     return executeDiscoverForm(this._config, input);
   }
 
@@ -47,7 +46,6 @@ class LoginPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
     input.logger.debug({
       phase: this.name,
       message: `RUNTIME_SEAL: browser=${String(
@@ -62,7 +60,6 @@ class LoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'LOGIN POST: no mediator');
     return executeValidateLogin(this._config, input.mediator.value, input);
   }
@@ -72,19 +69,8 @@ class LoginPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'login.final' });
     return executeLoginSignal(input);
-  }
-
-  /**
-   * Validate PRE produced loginFieldDiscovery for ACTION.
-   * @param ctx - Context after PRE.
-   * @returns True if discovery payload exists.
-   */
-  protected override validatePrePayload(ctx: IPipelineContext): IsPrePayloadValid {
-    void this.name;
-    if (!ctx.loginFieldDiscovery.has) return true;
-    return true;
   }
 }
 

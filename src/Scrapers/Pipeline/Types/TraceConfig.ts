@@ -32,19 +32,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-/** Two-character zero-padded numeric string, e.g. "07". */
-type PaddedDigits = string;
-/** `DDMMYY-HHMMSScc` timestamp string. */
-type RunStamp = string;
-/** Lowercase bank slug, or empty string when not detected. */
-type BankSlug = string;
-/** Whether `LOG_LEVEL=trace` is active. */
-type IsTraceMode = boolean;
-/** Absolute artefact path or empty string when off-trace. */
-type ArtefactPath = string;
-/** Whether a candidate slug matches the active test pattern. */
-type IsBankSlugMatch = boolean;
-
 /** Default root for per-run artefact folders — overridable via RUNS_ROOT. */
 const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
 /** Sub-directory for network response body dumps. */
@@ -63,14 +50,14 @@ let networkDirCache: string | false = false;
 /** Cached screenshot dir (created on first call to getScreenshotDir). */
 let screenshotDirCache: string | false = false;
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
-let activeBankCache: BankSlug | false = false;
+let activeBankCache: string | false = false;
 
 /**
  * Pad a 1- or 2-digit positive integer to width 2 with leading zero.
  * @param n - Integer to pad.
  * @returns Two-character string.
  */
-function pad2(n: number): PaddedDigits {
+function pad2(n: number): string {
   const s = String(n);
   return s.padStart(2, '0');
 }
@@ -82,7 +69,7 @@ function pad2(n: number): PaddedDigits {
  * @param d - Date to format.
  * @returns Timestamp string.
  */
-function formatRunStamp(d: Date): RunStamp {
+function formatRunStamp(d: Date): string {
   const day = d.getDate();
   const month = d.getMonth() + 1;
   const year = d.getFullYear() % 10000;
@@ -146,12 +133,10 @@ function bankSlugRegex(slug: string): RegExp {
  * when matched, else `''` so the caller can decide how to handle it.
  * @returns Lowercase bank slug, or empty string when no match.
  */
-function detectBankFromArgv(): BankSlug {
+function detectBankFromArgv(): string {
   const argvJoined = process.argv.join(' ');
   const haystack = argvJoined.toLowerCase();
-  const match = KNOWN_BANK_SLUGS.find(
-    (slug): IsBankSlugMatch => bankSlugRegex(slug).test(haystack),
-  );
+  const match = KNOWN_BANK_SLUGS.find((slug): boolean => bankSlugRegex(slug).test(haystack));
   return match ?? '';
 }
 
@@ -163,7 +148,7 @@ function detectBankFromArgv(): BankSlug {
  * @param slug - Lowercase bank slug (must be in KNOWN_BANK_SLUGS).
  * @returns True when accepted, false when the slug is unknown.
  */
-function setActiveBank(slug: string): IsBankSlugMatch {
+function setActiveBank(slug: string): boolean {
   const normalised = slug.trim().toLowerCase();
   if (normalised.length === 0) return false;
   const isKnown = KNOWN_BANK_SLUGS.includes(normalised);
@@ -179,7 +164,7 @@ function setActiveBank(slug: string): IsBankSlugMatch {
  * handle the missing slug (see `getRunFolder` for the trace-mode behaviour).
  * @returns Bank slug, or empty string when not yet known.
  */
-function resolveBankSlug(): BankSlug {
+function resolveBankSlug(): string {
   if (activeBankCache) return activeBankCache;
   const fromArgv = detectBankFromArgv();
   if (fromArgv.length > 0) return fromArgv;
@@ -192,7 +177,7 @@ function resolveBankSlug(): BankSlug {
  * whether to emit anything.
  * @returns True when trace mode is active.
  */
-function isTraceMode(): IsTraceMode {
+function isTraceMode(): boolean {
   const v = (process.env.LOG_LEVEL ?? '').toLowerCase();
   return v === 'trace';
 }
@@ -208,7 +193,7 @@ function isTraceMode(): IsTraceMode {
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
  * @returns Absolute folder path, or empty string.
  */
-function getRunFolder(): ArtefactPath {
+function getRunFolder(): string {
   if (!isTraceMode()) return '';
   if (runFolderCache) return runFolderCache;
   const bank = resolveBankSlug();
@@ -227,7 +212,7 @@ function getRunFolder(): ArtefactPath {
  * needing to register).
  * @returns Absolute log file path, or empty string off-trace.
  */
-function getLogFile(): ArtefactPath {
+function getLogFile(): string {
   const root = getRunFolder();
   if (!root) return '';
   return path.join(root, PIPELINE_LOG_FILE);
@@ -238,7 +223,7 @@ function getLogFile(): ArtefactPath {
  * NetworkDiscovery skips body dumps without forcing a bank registration.
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
-function getNetworkDumpDir(): ArtefactPath {
+function getNetworkDumpDir(): string {
   if (networkDirCache) return networkDirCache;
   const root = getRunFolder();
   if (!root) return '';
@@ -253,7 +238,7 @@ function getNetworkDumpDir(): ArtefactPath {
  * callers can skip the screenshot without needing a registered bank.
  * @returns Absolute screenshot directory path, or empty string off-trace.
  */
-function getScreenshotDir(): ArtefactPath {
+function getScreenshotDir(): string {
   if (screenshotDirCache) return screenshotDirCache;
   const root = getRunFolder();
   if (!root) return '';

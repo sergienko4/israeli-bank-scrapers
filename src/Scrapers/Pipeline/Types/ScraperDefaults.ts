@@ -5,11 +5,8 @@
 
 import type { ScraperOptions } from '../../Base/Interface.js';
 
-/** Future-month count for the scrape window. */
-type FutureMonthCount = number;
-
 /** Default includes current billing cycle + next open cycle. */
-export const DEFAULT_FUTURE_MONTHS: FutureMonthCount = 1;
+export const DEFAULT_FUTURE_MONTHS = 1;
 
 /**
  * Resolve futureMonthsToScrape with null-aware fallback.
@@ -17,6 +14,6 @@ export const DEFAULT_FUTURE_MONTHS: FutureMonthCount = 1;
  * @param options - Scraper options.
  * @returns Number of future months to include in the scrape window.
  */
-export function getFutureMonths(options: ScraperOptions): FutureMonthCount {
+export function getFutureMonths(options: ScraperOptions): number {
   return options.futureMonthsToScrape ?? DEFAULT_FUTURE_MONTHS;
 }

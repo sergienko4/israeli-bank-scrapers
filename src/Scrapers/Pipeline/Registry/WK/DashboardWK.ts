@@ -27,7 +27,7 @@ export const WK_DASHBOARD = {
     { kind: 'textContent', value: 'סיסמה פגה' },
   ],
   REVEAL: [
-    { kind: 'regex', value: 'כניסתך האחרונה.*\\d{1,2}[./\\-]\\d{1,2}[./\\-]\\d{2,4}' },
+    { kind: 'regex', value: String.raw`כניסתך האחרונה.*\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}` },
     { kind: 'textContent', value: 'עסקאות וחיובים' },
     { kind: 'textContent', value: 'כל הפעולות' },
     { kind: 'textContent', value: 'חיובים ועסקאות' },
@@ -138,10 +138,10 @@ export const WK_DASHBOARD = {
   ],
   /** Success indicators — proves login completed and dashboard loaded. */
   SUCCESS: [
-    { kind: 'regex', value: '^היי\\s+\\S+,\\s*.+!$' },
-    { kind: 'regex', value: '^שלום\\s+\\S+' },
-    { kind: 'regex', value: '^ברוך הבא,\\s+\\S+' },
-    { kind: 'regex', value: '^Hello,?\\s+\\w+' },
+    { kind: 'regex', value: String.raw`^היי\s+\S+,\s*.+!$` },
+    { kind: 'regex', value: String.raw`^שלום\s+\S+` },
+    { kind: 'regex', value: String.raw`^ברוך הבא,\s+\S+` },
+    { kind: 'regex', value: String.raw`^Hello,?\s+\w+` },
     { kind: 'textContent', value: 'יציאה' },
     { kind: 'textContent', value: 'התנתק' },
     { kind: 'textContent', value: 'כניסתך האחרונה' },

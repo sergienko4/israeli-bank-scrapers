@@ -4,13 +4,11 @@
  * Set by BasePhase.run() via mediator. Read by any LOG call via getters.
  */
 
-/** Phase label for logging. */
-type PhaseLabel = string;
 /** Stage label — exactly one of the 4-stage protocol values. */
 type StageLabel = 'PRE' | 'ACTION' | 'POST' | 'FINAL';
 
 /** Currently active pipeline phase. */
-let activePhase: PhaseLabel = 'init';
+let activePhase = 'init';
 /** Currently active pipeline stage. */
 let activeStage: StageLabel = 'PRE';
 
@@ -18,7 +16,7 @@ let activeStage: StageLabel = 'PRE';
  * Get the currently active pipeline phase name.
  * @returns Phase name string.
  */
-function getActivePhase(): PhaseLabel {
+function getActivePhase(): string {
   return activePhase;
 }
 
@@ -27,7 +25,7 @@ function getActivePhase(): PhaseLabel {
  * @param name - Phase name.
  * @returns True after setting.
  */
-function setActivePhase(name: PhaseLabel): true {
+function setActivePhase(name: string): true {
   activePhase = name;
   return true;
 }

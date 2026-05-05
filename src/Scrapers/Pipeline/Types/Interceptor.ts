@@ -10,16 +10,10 @@
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
-/** Human-readable label for diagnostics logging. */
-type DiagnosticLabel = string;
-
-/** Result of an afterPipeline hook — true on success, false on no-op/failure. */
-type FinalizeResult = boolean;
-
 /** Middleware that runs between pipeline phases. */
 interface IPipelineInterceptor {
   /** Human-readable name for diagnostics. */
-  readonly name: DiagnosticLabel;
+  readonly name: string;
   /**
    * Run before the next phase starts.
    * Receives accumulated context, returns updated context or failure.
@@ -36,7 +30,7 @@ interface IPipelineInterceptor {
    * @param ctx - Last accumulated pipeline context.
    * @returns Finalization outcome wrapped in a Procedure.
    */
-  afterPipeline?(ctx: IPipelineContext): Promise<Procedure<FinalizeResult>>;
+  afterPipeline?(ctx: IPipelineContext): Promise<Procedure<boolean>>;
 }
 
 export default IPipelineInterceptor;

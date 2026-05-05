@@ -40,7 +40,6 @@ class DeclarativeLogin extends SimplePhase {
    * @returns Updated context.
    */
   public async pre(ctx: Ctx, input: Ctx): StepResult {
-    void this.name;
     return this._phase.pre.execute(ctx, input);
   }
 
@@ -51,7 +50,6 @@ class DeclarativeLogin extends SimplePhase {
    * @returns Success or error.
    */
   public async post(ctx: Ctx, input: Ctx): StepResult {
-    void this.name;
     return this._phase.post.execute(ctx, input);
   }
 
@@ -62,7 +60,7 @@ class DeclarativeLogin extends SimplePhase {
    * @returns Succeed or fail.
    */
   public async final(_ctx: Ctx, input: Ctx): StepResult {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'declarative-login.final' });
     return await executeLoginSignal(input);
   }
 }

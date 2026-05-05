@@ -6,27 +6,18 @@
  * FINAL:  stamp account count for audit trail
  */
 
-import { SCRAPE_POST_STEP } from '../../Mediator/Scrape/ForensicAuditAction.js';
 import {
   executeForensicPre,
   executeMatrixLoop,
   executeStampAccounts,
   executeValidateResults,
 } from '../../Mediator/Scrape/ScrapePhaseActions.js';
-import {
-  genericAutoScrape,
-  loadDiscovered,
-} from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
-import {
-  type ActionExecFn,
-  createConfigScrapeStep,
-  createCustomScrapeStep,
-} from './ScrapeStepFactory.js';
+import { type ActionExecFn } from './ScrapeStepFactory.js';
 
 /**
  * Default action — delegates to mediator's executeMatrixLoop.
@@ -60,7 +51,7 @@ class ScrapePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'scrape.pre' });
     return executeForensicPre(input);
   }
 
@@ -69,7 +60,6 @@ class ScrapePhase extends BasePhase {
     ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
     return this._actionExec(ctx, input);
   }
 
@@ -78,7 +68,7 @@ class ScrapePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'scrape.post' });
     return executeValidateResults(input);
   }
 
@@ -87,7 +77,7 @@ class ScrapePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'scrape.final' });
     return executeStampAccounts(input);
   }
 }
@@ -115,13 +105,10 @@ function createScrapePhase(actionExec?: ActionExecFn): ScrapePhase {
 
 export type { CustomScrapeFn } from '../../Types/ScrapeConfig.js';
 export default SCRAPE_STEP;
+export { SCRAPE_POST_STEP } from '../../Mediator/Scrape/ForensicAuditAction.js';
 export {
-  createConfigScrapeStep,
-  createCustomScrapeStep,
-  createScrapePhase,
   loadDiscovered as fetchDiscovered,
   genericAutoScrape,
-  SCRAPE_POST_STEP,
-  SCRAPE_STEP,
-  ScrapePhase,
-};
+} from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
+export { createScrapePhase, SCRAPE_STEP, ScrapePhase };
+export { createConfigScrapeStep, createCustomScrapeStep } from './ScrapeStepFactory.js';
