@@ -18,10 +18,6 @@ import {
 
 const LOG = createLogger('elements');
 
-type SelectorStr = string;
-type InputValue = string;
-type OpResult = boolean;
-
 /**
  * AngularJS Injected Helper — defined as string, injected into page context.
  * Playwright evaluate() with strings runs at page level (no element injection).
@@ -49,7 +45,7 @@ const ANGULAR_HELPER_SCRIPT = [
  * @param ctx - Page or Frame to inject into.
  * @returns True after injection.
  */
-async function ensureAngularHelper(ctx: Page | Frame): Promise<OpResult> {
+async function ensureAngularHelper(ctx: Page | Frame): Promise<boolean> {
   await ctx.evaluate(ANGULAR_HELPER_SCRIPT).catch((): false => false);
   return true;
 }
@@ -64,14 +60,14 @@ async function ensureAngularHelper(ctx: Page | Frame): Promise<OpResult> {
  */
 async function syncAngularModel(
   ctx: Page | Frame,
-  selector: SelectorStr,
-  value: InputValue,
-): Promise<OpResult> {
+  selector: string,
+  value: string,
+): Promise<boolean> {
   await ctx
     .locator(selector)
     .first()
-    .evaluate((el: Element, val: string): OpResult => {
-      const w = window as unknown as Record<string, unknown>;
+    .evaluate((el: Element, val: string): boolean => {
+      const w = globalThis as unknown as Record<string, unknown>;
       const fn = w.__PIPELINE_NG_SYNC__ as ((e: Element, v: string) => boolean) | undefined;
       if (fn) fn(el, val);
       return true;
@@ -87,7 +83,7 @@ async function syncAngularModel(
  * @param val - Value to set.
  * @returns True after events dispatched.
  */
-function setValueAndFireEvents(el: Element, val: InputValue): OpResult {
+function setValueAndFireEvents(el: Element, val: string): boolean {
   (el as HTMLInputElement).value = val;
   const inputEvt = Reflect.construct(Event, ['input', { bubbles: true }]);
   el.dispatchEvent(inputEvt);
@@ -99,28 +95,11 @@ function setValueAndFireEvents(el: Element, val: InputValue): OpResult {
 }
 
 /**
- * Fill a form input via mediator — Playwright .fill() with DOM+Angular fallback.
- * Step 1: Try Playwright .fill() — types char-by-char, triggers ALL native events.
- * Step 2: If .fill() times out — DOM events + AngularJS Injected Helper.
- * @param ctx - Page or Frame.
- * @param selector - Input selector.
- * @param value - Value to fill.
- * @returns True after fill.
- */
-/**
  * Count sibling inputs under the same parent — PIN-buffer clusters have >1.
  * @param el - The target input element.
  * @returns Number of input siblings (1 for regular, >1 for PIN-buffer).
  */
-/** Count of sibling input elements under the same parent. */
-type SiblingCount = number;
-
-/**
- * Count sibling inputs under the same parent — PIN-buffer clusters have >1.
- * @param el - The target input element.
- * @returns Number of input siblings (1 for regular, >1 for PIN-buffer).
- */
-function countSiblingInputs(el: Element): SiblingCount {
+function countSiblingInputs(el: Element): number {
   return el.parentElement?.querySelectorAll('input').length ?? 1;
 }
 
@@ -129,7 +108,7 @@ function countSiblingInputs(el: Element): SiblingCount {
  * @param locator - Playwright locator.
  * @returns Sibling count (defaults to 1 on error).
  */
-async function safeSiblingCount(locator: ReturnType<Page['locator']>): Promise<SiblingCount> {
+async function safeSiblingCount(locator: ReturnType<Page['locator']>): Promise<number> {
   try {
     const count = await locator.evaluate(countSiblingInputs);
     const isValid = typeof count === 'number' && count > 0;
@@ -148,17 +127,13 @@ async function safeSiblingCount(locator: ReturnType<Page['locator']>): Promise<S
  * @param value - Value to fill.
  * @returns True after fill.
  */
-async function deepFillInput(
-  ctx: Page | Frame,
-  selector: SelectorStr,
-  value: InputValue,
-): Promise<OpResult> {
+async function deepFillInput(ctx: Page | Frame, selector: string, value: string): Promise<boolean> {
   LOG.debug({ field: maskVisibleText(selector), result: 'FOUND' });
   await humanDelay(FILL_INPUT_DELAY_MIN_MS, FILL_INPUT_DELAY_MAX_MS);
   const locator = ctx.locator(selector).first();
   const didFill = await locator
     .fill(value, { timeout: FILL_ATTEMPT_TIMEOUT_MS })
-    .then((): OpResult => true)
+    .then((): boolean => true)
     .catch((): false => false);
   const siblings = didFill && (await safeSiblingCount(locator));
   const isSingleInput = didFill && typeof siblings === 'number' && siblings <= 1;
@@ -190,13 +165,13 @@ async function deepFillInput(
  */
 async function setValue(
   pageOrFrame: Page | Frame,
-  inputSelector: SelectorStr,
-  inputValue: InputValue,
-): Promise<OpResult> {
+  inputSelector: string,
+  inputValue: string,
+): Promise<boolean> {
   await pageOrFrame
     .locator(inputSelector)
     .first()
-    .evaluate((input: Element, val: InputValue): OpResult => {
+    .evaluate((input: Element, val: string): boolean => {
       (input as HTMLInputElement).value = val;
       return true;
     }, inputValue);

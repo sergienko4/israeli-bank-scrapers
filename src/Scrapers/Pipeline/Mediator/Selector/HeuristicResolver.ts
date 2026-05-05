@@ -18,13 +18,6 @@ import type { IFieldContext, IFieldMatch } from './SelectorResolverPipeline.js';
 
 const LOG = getDebug(import.meta.url);
 
-/** Position index for non-password visible inputs. */
-type InputIndex = number;
-/** CSS selector string resolved by heuristic. */
-type HeuristicSelector = string;
-/** Whether the heuristic found a viable input. */
-type IsViable = boolean;
-
 /** Strategy for resolving a password-type field. */
 interface IPasswordStrategy {
   readonly type: 'password';
@@ -33,7 +26,7 @@ interface IPasswordStrategy {
 /** Strategy for resolving a text-type field by positional index. */
 interface ITextStrategy {
   readonly type: 'text';
-  readonly index: InputIndex;
+  readonly index: number;
 }
 
 /** Union of heuristic resolution strategies. */
@@ -64,7 +57,7 @@ const TEXT_INPUT_SELECTOR =
  */
 async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
   const locator = frame.locator(PASSWORD_SELECTOR).first();
-  const count = await locator.count().catch((): InputIndex => 0);
+  const count = await locator.count().catch((): number => 0);
   const resultMap: Record<string, 'FOUND' | 'NOT_FOUND'> = { true: 'FOUND', false: 'NOT_FOUND' };
   const pwdResult = resultMap[String(count > 0)];
   LOG.trace({
@@ -72,12 +65,12 @@ async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
     result: pwdResult,
   });
   if (count === 0) return { selector: '', context: frame };
-  const isVis: IsViable = await locator.isVisible().catch((): IsViable => false);
+  const isVis: boolean = await locator.isVisible().catch((): boolean => false);
   LOG.trace({
     message: `password visible=${String(isVis)}`,
   });
   if (!isVis) return { selector: '', context: frame };
-  const elemId = await locator.getAttribute('id').catch((): HeuristicSelector => '');
+  const elemId = await locator.getAttribute('id').catch((): string => '');
   let selector = PASSWORD_SELECTOR;
   if (elemId) {
     selector = `#${elemId}`;
@@ -98,18 +91,18 @@ async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
  */
 async function resolveTextByIndex(
   frame: Frame,
-  index: InputIndex,
+  index: number,
   fieldKey: string,
 ): Promise<IFieldMatch> {
   const all = frame.locator(TEXT_INPUT_SELECTOR);
-  const total = await all.count().catch((): InputIndex => 0);
+  const total = await all.count().catch((): number => 0);
   if (index >= total) return { selector: '', context: frame };
   const target = all.nth(index);
-  const isVis: IsViable = await target.isVisible().catch((): IsViable => false);
+  const isVis: boolean = await target.isVisible().catch((): boolean => false);
   if (!isVis) return { selector: '', context: frame };
-  const isEnabled: IsViable = await target.isEnabled().catch((): IsViable => false);
+  const isEnabled: boolean = await target.isEnabled().catch((): boolean => false);
   if (!isEnabled) return { selector: '', context: frame };
-  const elemId = await target.getAttribute('id').catch((): HeuristicSelector => '');
+  const elemId = await target.getAttribute('id').catch((): string => '');
   let selector = `${TEXT_INPUT_SELECTOR} >> nth=${String(index)}`;
   if (elemId) {
     selector = `#${elemId}`;
@@ -121,12 +114,6 @@ async function resolveTextByIndex(
   return { selector, context: frame, kind: 'css' };
 }
 
-/**
- * Try heuristic resolution in a single frame.
- * @param frame - The iframe to search.
- * @param fieldKey - The credential key to resolve.
- * @returns Field match or empty.
- */
 /**
  * Resolve a field using heuristics within a specific frame.
  * Wraps in try/catch so mock frames without .locator() fail gracefully.

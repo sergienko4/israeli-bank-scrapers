@@ -10,22 +10,15 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { candidateToCss } from './SelectorResolver.js';
 import type { IFieldContext } from './SelectorResolverPipeline.js';
 
-/** CSS/XPath selector string. */
-type SelectorStr = string;
-/** Whether a predicate matched. */
-type IsMatch = boolean;
-/** DOM element count from Playwright locator. */
-type ElementCount = number;
-
 /**
  * Count elements matching a selector in a context.
  * @param ctx - Page or Frame.
  * @param sel - CSS or XPath selector.
  * @returns Count, 0 on failure.
  */
-function countInContext(ctx: Page | Frame, sel: SelectorStr): Promise<ElementCount> {
+function countInContext(ctx: Page | Frame, sel: string): Promise<number> {
   const locator = ctx.locator(sel);
-  return locator.count().catch((): ElementCount => 0);
+  return locator.count().catch((): number => 0);
 }
 
 /**
@@ -40,9 +33,9 @@ export default async function probeScopedField(
   candidates: readonly SelectorCandidate[],
 ): Promise<IFieldContext> {
   const selectors = candidates.map(candidateToCss);
-  const countPromises = selectors.map((s): Promise<ElementCount> => countInContext(ctx, s));
+  const countPromises = selectors.map((s): Promise<number> => countInContext(ctx, s));
   const counts = await Promise.all(countPromises);
-  const idx = counts.findIndex((n): IsMatch => n > 0);
+  const idx = counts.findIndex((n): boolean => n > 0);
   if (idx < 0) return buildNotFound(ctx);
   return buildFound(ctx, selectors[idx], candidates[idx].kind);
 }
@@ -71,7 +64,7 @@ function buildNotFound(ctx: Page | Frame): IFieldContext {
  */
 function buildFound(
   ctx: Page | Frame,
-  selector: SelectorStr,
+  selector: string,
   kind: SelectorCandidate['kind'],
 ): IFieldContext {
   return {
