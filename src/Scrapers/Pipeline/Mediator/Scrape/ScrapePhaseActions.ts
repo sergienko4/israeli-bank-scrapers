@@ -10,6 +10,7 @@
 
 import moment from 'moment';
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
 import {
   applyCredentialFallback,
@@ -86,6 +87,19 @@ async function executeDirectDiscovery(
   let loadCtx = buildLoadAllCtx(fc, network, rawResult.value);
   loadCtx = applyCredentialFallback(loadCtx, input);
   loadCtx = await applyStorageHarvestPre(loadCtx, input);
+
+  // Fail-fast only when traffic was observed but extraction couldn't
+  // resolve a usable identifier — that's the dangerous case (the silent
+  // 'default' bug). When no transaction endpoint was captured at all,
+  // upstream phases didn't reach that signal yet; let the empty-accounts
+  // result flow through so the assertSuccessfulScrape assertion fires
+  // its own (loud) regression message instead of masking it here.
+  if (loadCtx.ids.length === 0 && loadCtx.txnEndpoint !== false) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      'scrape: no usable account identifier found in captured network',
+    );
+  }
 
   const frozenEndpoints = network.getAllEndpoints();
   const cachedAuth = await network.discoverAuthToken();

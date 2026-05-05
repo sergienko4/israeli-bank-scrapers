@@ -320,7 +320,7 @@ describe('applyCredentialFallback', () => {
     expect(result.ids).toEqual(['123456']);
   });
 
-  it('uses "default" when card6Digits is missing', () => {
+  it('returns context with ids still empty when card6Digits is missing (caller fail-fasts)', () => {
     const api = makeApi();
     const network = makeNetwork();
     const fc = makeFc(api, network);
@@ -333,6 +333,30 @@ describe('applyCredentialFallback', () => {
     };
     const pipeline = makeMockContext();
     const result = applyCredentialFallback(ctx, pipeline);
-    expect(result.ids).toEqual(['default']);
+    // Silent 'default' sentinel removed — ids stays empty so the
+    // ScrapePhaseActions caller can fail-fast with a clear error.
+    expect(result.ids).toEqual([]);
+  });
+
+  it('rejects single-character credential card6Digits as unusable', () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    const txnEp = makeEndpoint({ responseBody: { ok: true } });
+    const ctx: IFetchAllAccountsCtx = {
+      fc,
+      ids: [],
+      records: [],
+      txnEndpoint: txnEp,
+    };
+    const pipeline = makeMockContext({
+      credentials: {
+        username: 'u',
+        password: 'p',
+        card6Digits: '0',
+      } as unknown as IPipelineContext['credentials'],
+    });
+    const result = applyCredentialFallback(ctx, pipeline);
+    expect(result.ids).toEqual([]);
   });
 });

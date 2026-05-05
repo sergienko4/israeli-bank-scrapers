@@ -10,6 +10,7 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
+import { getDebug } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
@@ -21,6 +22,9 @@ import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IStepConfig } from '../IApiDirectCallConfig.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+
+/** Module logger — name derived from source filename per project convention. */
+const LOG = getDebug(import.meta.url);
 
 /** Header map emitted by buildStepHeaders. */
 type HeaderMap = Readonly<Record<string, string>>;
@@ -372,23 +376,124 @@ async function firePost(args: IRunStepArgs, fire: IFireArgs): Promise<Procedure<
   });
 }
 
+/** Diagnostic context shape — PII-safe metadata for log calls. */
+interface IStepLogContext {
+  readonly stepName: string;
+  readonly urlTag: string;
+  readonly bodyKeys: readonly string[];
+  readonly extractKeys: readonly string[];
+}
+
+/** Diagnostic response-shape descriptor — top-level keys + JSON length + envelope error code. */
+interface IRespDescriptor {
+  readonly respKeys: readonly string[];
+  readonly respLength: number;
+  readonly errorCode: string;
+}
+
 /**
- * Run a single IStepConfig end-to-end.
+ * Read top-level keys from a JsonValue, returning [] for non-objects.
+ * Empty for primitives/arrays so log shape stays uniform.
+ * @param value - Any JSON value.
+ * @returns Top-level keys (empty for non-objects).
+ */
+function topLevelKeys(value: JsonValue): readonly string[] {
+  if (typeof value !== 'object' || value === null) return [];
+  if (Array.isArray(value)) return [];
+  return Object.keys(value);
+}
+
+/**
+ * Build the safe diagnostic context for per-step traces. PII-safe per
+ * `logging-pii-guidlines.txt` — only step name, urlTag, body/extract
+ * KEY names (not values) are emitted. No passwords, tokens, phone
+ * numbers, or response bodies leak.
+ * @param step - Step config.
+ * @param bodyValue - Hydrated body (only top-level keys are read).
+ * @returns Structured context fields ready to splat into log calls.
+ */
+function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogContext {
+  return {
+    stepName: step.name,
+    urlTag: step.urlTag,
+    bodyKeys: topLevelKeys(bodyValue),
+    extractKeys: Object.keys(step.extractsToCarry),
+  };
+}
+
+/** Envelope `error_code` value (vendor-defined enum) — '' when absent. */
+type EnvelopeErrorCode = string;
+
+/**
+ * Read the bank's `error_code` envelope field when present. This is a
+ * non-PII enum value (e.g. "00" for success, vendor-specific codes for
+ * errors) used by API-envelope banks like Pepper to surface
+ * application-level failures inside HTTP 200 responses. Returning the
+ * value lets us trace silent error envelopes that the pipeline would
+ * otherwise treat as success because HTTP status is 2xx.
+ * @param resp - Parsed response JSON.
+ * @returns The error_code value when found, '' otherwise.
+ */
+function readEnvelopeErrorCode(resp: JsonValue): EnvelopeErrorCode {
+  if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) return '';
+  const code = (resp as Record<string, JsonValue>).error_code;
+  if (typeof code === 'string') return code;
+  if (typeof code === 'number') return String(code);
+  return '';
+}
+
+/**
+ * Build the safe response-shape diagnostic. Logs only top-level keys,
+ * JSON length, and `error_code` value (non-PII enum). Per
+ * `logging-pii-guidlines.txt`, no body content (passwords, tokens,
+ * phone numbers, balances) is logged.
+ * @param resp - Response JSON value.
+ * @returns Top-level keys + length + error_code value.
+ */
+function describeResponse(resp: JsonValue): IRespDescriptor {
+  return {
+    respKeys: topLevelKeys(resp),
+    respLength: JSON.stringify(resp).length,
+    errorCode: readEnvelopeErrorCode(resp),
+  };
+}
+
+/**
+ * Run a single IStepConfig end-to-end. Emits PII-safe DEBUG traces at
+ * every transition (start, after-fire, after-extract, fail-fast) so a
+ * silent flow becomes inspectable end-to-end. Per `logging-pii-guidlines`,
+ * no body values, response payload, headers, or carry values are logged
+ * — only structural metadata (key names, urlTag, status length, step
+ * name).
  * @param args - Run-step args.
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   const bodyProc = hydrate(args.step.body.shape, args.scope);
-  if (!isOk(bodyProc)) return bodyProc;
+  if (!isOk(bodyProc)) {
+    LOG.debug({ stepName: args.step.name, message: 'hydrate body FAIL' });
+    return bodyProc;
+  }
   const bodyValue = bodyProc.value;
   const bodyJson = JSON.stringify(bodyValue);
+  const baseCtx = buildStepContext(args.step, bodyValue);
+  LOG.debug({ ...baseCtx, message: '[runStep] START' });
   const queryProc = buildQueryRecord(args.step, args.scope);
-  if (!isOk(queryProc)) return queryProc;
+  if (!isOk(queryProc)) {
+    LOG.debug({ ...baseCtx, message: 'queryRecord FAIL' });
+    return queryProc;
+  }
   const urlProc = resolveWkUrl(args.step.urlTag, args.companyId);
-  if (!isOk(urlProc)) return urlProc;
+  if (!isOk(urlProc)) {
+    LOG.debug({ ...baseCtx, message: 'resolveWkUrl FAIL' });
+    return urlProc;
+  }
   const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
   const headersProc = buildStepHeaders(args, { bodyJson, pathAndQuery });
-  if (!isOk(headersProc)) return headersProc;
+  if (!isOk(headersProc)) {
+    LOG.debug({ ...baseCtx, message: 'buildStepHeaders FAIL' });
+    return headersProc;
+  }
   const onSetCookieMaybe = buildOnSetCookie(args);
   const fireBase: IFireArgs = {
     body: bodyValue as Record<string, unknown>,
@@ -397,9 +502,27 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   };
   const fireWithSink = attachSink(fireBase, onSetCookieMaybe);
   const respProc = await firePost(args, fireWithSink);
-  if (!isOk(respProc)) return respProc;
+  if (!isOk(respProc)) {
+    LOG.debug({
+      ...baseCtx,
+      errorType: respProc.errorType,
+      errorMessage: respProc.errorMessage,
+      message: '[runStep] firePost FAIL',
+    });
+    return respProc;
+  }
+  LOG.debug({ ...baseCtx, ...describeResponse(respProc.value), message: '[runStep] firePost OK' });
   const carryProc = extractFields(respProc.value, args.step.extractsToCarry);
-  if (!isOk(carryProc)) return carryProc;
+  if (!isOk(carryProc)) {
+    LOG.debug({
+      ...baseCtx,
+      errorMessage: carryProc.errorMessage,
+      message: '[runStep] extractFields FAIL',
+    });
+    return carryProc;
+  }
+  const carryKeys = Object.keys(carryProc.value);
+  LOG.debug({ ...baseCtx, carryKeys, message: '[runStep] OK' });
   const nextScope = mergeScopeCarry(args.scope, carryProc.value);
   return succeed(nextScope);
 }

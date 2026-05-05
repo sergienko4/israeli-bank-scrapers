@@ -15,7 +15,7 @@
 
 # Israeli Bank Scrapers
 
-Scrape transactions from all **18 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass**.
+Scrape transactions from **17 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass**.
 
 Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), completely rewritten with [Camoufox](https://github.com/niceboyatcomputers/camoufox) (Firefox anti-detect), Playwright, and TypeScript 5.9 strict mode.
 
@@ -29,7 +29,7 @@ npm install @sergienko4/israeli-bank-scrapers
 
 - [What's Different](#whats-different)
 - [Usage](#usage)
-- [Supported Institutions (18)](#supported-institutions-18)
+- [Supported Institutions (17)](#supported-institutions-17)
 - [OTP (Two-Factor Authentication)](#otp-two-factor-authentication)
 - [Error Types](#error-types)
 - [Logging & Bug Reports](#logging--bug-reports)
@@ -80,7 +80,7 @@ if (result.success) {
 ```
 
 <details>
-<summary><strong>Supported Institutions (18)</strong></summary>
+<summary><strong>Supported Institutions (17)</strong></summary>
 
 | Institution | Type | Credentials |
 |---|---|---|
@@ -103,6 +103,17 @@ if (result.success) {
 | Max | Credit Card | `username`, `password`, `id` (conditional) |
 
 </details>
+
+> **Note — Pepper (Bank Leumi digital):** the `CompanyTypes.Pepper` enum entry
+> exists but is currently **unsupported**. The login flow uses Transmit
+> Security and depends on a fingerprint payload bound to a specific
+> Android APK build (and likely Play Integrity attestation from a real
+> device). The pipeline’s API-direct call reaches the bank, password is
+> accepted (HTTP 200, `errorCode: "0"`), but the SMS challenge is silently
+> dropped — bisected to pre-existing breakage (commit `c23a0669`). The E2E
+> happy-path test is opt-in via `PEPPER_E2E_OPT_IN=1`. A re-enabling fix
+> needs a fresh APK fingerprint capture and possibly a real-device
+> attestation proxy.
 
 ## OTP (Two-Factor Authentication)
 

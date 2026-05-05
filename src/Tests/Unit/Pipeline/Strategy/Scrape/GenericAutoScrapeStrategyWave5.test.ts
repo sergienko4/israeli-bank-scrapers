@@ -93,7 +93,7 @@ describe('GenericAutoScrapeStrategy — Wave 5 branches', () => {
     expect(result.ids).toEqual([]);
   });
 
-  it('applyCredentialFallback: has both + no card6Digits creds → default "default"', () => {
+  it('applyCredentialFallback: has txnEndpoint + no card6Digits creds → ids stay empty', () => {
     const api = makeApi();
     const txnEp = makeEndpoint({
       method: 'POST',
@@ -118,7 +118,9 @@ describe('GenericAutoScrapeStrategy — Wave 5 branches', () => {
     };
     const ctx = makeMockContext({ credentials: {} as unknown as IPipelineContext['credentials'] });
     const result = applyCredentialFallback(loadCtx, ctx);
-    expect(result.ids).toEqual(['default']);
+    // Silent 'default' sentinel removed; pipeline must fail-fast in the
+    // caller rather than scraping with an unusable id.
+    expect(result.ids).toEqual([]);
   });
 
   it('genericAutoScrape: !api.has short-circuits (line 334)', async () => {

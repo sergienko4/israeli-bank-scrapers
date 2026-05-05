@@ -5,13 +5,38 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 
+/** Module logger — name derived from source filename per project convention. */
+const LOG = getDebug(import.meta.url);
+
 /** Maximum length of a response-body snippet embedded in an error message. */
 const ERROR_BODY_SNIPPET_LEN = 120;
+
+/** Sanitised URL ready for logging — origin + path only, query stripped. */
+type SafeUrlForLog = string;
+
+/**
+ * Strip query string and credentials from a URL for safe logging.
+ * Per `logging-pii-guidlines.txt`, never log query parameters that may
+ * carry session ids, tokens, or PII (uid, phoneNumber, etc.). Returns
+ * `<scheme>//<host><path>` only — enough for traceability without
+ * leaking sensitive fields.
+ * @param url - Full URL to sanitize.
+ * @returns Origin + path only.
+ */
+function safeUrlForLog(url: string): SafeUrlForLog {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return '<unparseable>';
+  }
+}
 
 /** Base API URL string for this strategy instance. */
 type BaseUrlStr = string;
@@ -145,12 +170,27 @@ interface IDispatchArgs {
 
 /**
  * Dispatch a fetch call and route success/non-2xx through the helpers.
+ * Emits PII-safe DEBUG traces at fire and after-status. Per
+ * `logging-pii-guidlines.txt`, the URL is stripped of query string
+ * (which may carry session ids / tokens) before logging.
  * @param args - url + init + verb + optional cookie hook.
  * @returns Procedure with parsed body or structured failure.
  */
 async function dispatchFetch<T>(args: IDispatchArgs): Promise<Procedure<T>> {
+  const safeUrl = safeUrlForLog(args.url);
+  LOG.debug({ verb: args.verb, url: safeUrl, message: '[fetch] FIRE' });
   const fetchResult = await invokeFetch(args.url, args.init, args.verb);
-  if (!fetchResult.success) return fetchResult;
+  if (!fetchResult.success) {
+    LOG.debug({
+      verb: args.verb,
+      url: safeUrl,
+      errorMessage: fetchResult.errorMessage,
+      message: '[fetch] NETWORK FAIL',
+    });
+    return fetchResult;
+  }
+  const status = fetchResult.value.status;
+  LOG.debug({ verb: args.verb, url: safeUrl, status, message: '[fetch] STATUS' });
   emitSetCookies(fetchResult.value, args.onSetCookie);
   return routeResponse<T>(fetchResult.value, args.verb, args.url);
 }

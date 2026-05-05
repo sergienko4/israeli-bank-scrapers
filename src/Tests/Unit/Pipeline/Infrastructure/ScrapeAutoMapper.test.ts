@@ -8,6 +8,7 @@ import {
   extractAccountRecords,
   extractTransactions,
   extractTransactionsForCard,
+  isUsableIdentifier,
   matchField,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -147,6 +148,70 @@ describe('extractAccountIds', () => {
     >);
     expect(ids).toContain('A1');
     expect(ids).toContain('A2');
+  });
+
+  it('falls through cardIndex=0 to cardNumber when no higher-priority field present', () => {
+    // Max-shaped record — cardIndex is a position (0), cardNumber is the
+    // real last-4 ("0814"). Validator rejects "0", accepts "0814".
+    const maxBody: Record<string, unknown> = {
+      result: {
+        registerUserCardsData: [{ cardIndex: 0, cardNumber: '0814', name: 'max executive' }],
+      },
+    };
+    const ids = extractAccountIds(maxBody);
+    expect(ids).toEqual(['0814']);
+  });
+
+  it('returns empty when only position-like values are present', () => {
+    // No usable identifier in the record — extraction yields []. The
+    // pipeline must fail-fast downstream, not scrape with a sentinel.
+    const positionOnlyBody: Record<string, unknown> = {
+      result: {
+        items: [{ cardIndex: 0 }, { cardIndex: 1 }],
+      },
+    };
+    const ids = extractAccountIds(positionOnlyBody);
+    expect(ids).toEqual([]);
+  });
+
+  it('cardUniqueId still wins over cardNumber when both present', () => {
+    const dualIdBody: Record<string, unknown> = {
+      result: {
+        cards: [{ cardUniqueId: 'abc-uuid-3489986', cardNumber: '0814' }],
+      },
+    };
+    const ids = extractAccountIds(dualIdBody);
+    expect(ids).toEqual(['abc-uuid-3489986']);
+  });
+});
+
+describe('isUsableIdentifier', () => {
+  it('rejects single-character / sentinel values', () => {
+    const isEmptyOk = isUsableIdentifier('');
+    const isZeroOk = isUsableIdentifier('0');
+    const isFiveOk = isUsableIdentifier('5');
+    const isDefaultOk = isUsableIdentifier('default');
+    const isNullStrOk = isUsableIdentifier('null');
+    const isUndefStrOk = isUsableIdentifier('undefined');
+    expect(isEmptyOk).toBe(false);
+    expect(isZeroOk).toBe(false);
+    expect(isFiveOk).toBe(false);
+    expect(isDefaultOk).toBe(false);
+    expect(isNullStrOk).toBe(false);
+    expect(isUndefStrOk).toBe(false);
+  });
+
+  it('accepts realistic banking identifiers', () => {
+    const isLast4Ok = isUsableIdentifier('0814');
+    const isSevenDigitOk = isUsableIdentifier('3489986');
+    const isUuidLikeOk = isUsableIdentifier('abc-uuid-1234');
+    const isShortAcctOk = isUsableIdentifier('A1');
+    const isLongNumOk = isUsableIdentifier('228812');
+    expect(isLast4Ok).toBe(true);
+    expect(isSevenDigitOk).toBe(true);
+    expect(isUuidLikeOk).toBe(true);
+    expect(isShortAcctOk).toBe(true);
+    expect(isLongNumOk).toBe(true);
   });
 });
 

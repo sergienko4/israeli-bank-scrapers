@@ -792,20 +792,100 @@ function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   return [];
 }
 
+/** Whether a candidate identifier is accepted as real. */
+type IsUsableId = boolean;
+/** Validated account identifier, or empty-string sentinel. */
+type AccountId = string;
+
 /**
- * Extract account IDs from an API response.
+ * Returns true when {@link id} is a real, server-accepted identifier
+ * rather than a position index, sentinel, or stringification artifact.
+ *
+ * <p>The pipeline previously accepted any non-empty string as a valid
+ * cardId, which let position indices (`cardIndex: 0` → `"0"`) and the
+ * `'default'` credential sentinel slip through into transaction-API
+ * URLs — the API silently returned 0 transactions and the pipeline
+ * reported `success: true` with empty data. Per the Fail Fast
+ * principle, identifiers must be validated at the extraction layer so
+ * downstream stages either get a real ID or a loud failure.
+ *
+ * <p>Accepts: any string ≥ 2 chars that isn't a known sentinel
+ * (`default`, `null`, `undefined`). The 2-char minimum rejects all
+ * single-digit position values; no real banking identifier is < 2
+ * characters in any captured trace across the 11 banks in the
+ * registry.
+ *
+ * @param id - Candidate identifier string.
+ * @returns True iff {@link id} is acceptable as a transaction-API
+ *   query parameter.
+ */
+function isUsableIdentifier(id: string): IsUsableId {
+  if (id.length < 2) return false;
+  if (id === 'default') return false;
+  if (id === 'null') return false;
+  if (id === 'undefined') return false;
+  return true;
+}
+
+/**
+ * Resolves a single account record to a usable identifier by walking
+ * `WK.accountId` (queryId fields first, displayId fields second) in
+ * priority order and returning the first value that passes
+ * {@link isUsableIdentifier}.
+ *
+ * <p>Lets banks whose response contains both a position-like field
+ * (`cardIndex: 0`) AND a real identifier (`cardNumber: "0814"`)
+ * deterministically yield the real one — important for Max-class
+ * card-family banks where the SPA omits `cardUniqueId` from the
+ * `getRegisterUserData` shape.
+ *
+ * @param record - One account/card record.
+ * @returns First usable identifier, or empty string if none qualify.
+ */
+/**
+ * Resolves a single field name to a usable identifier within a record,
+ * or returns the empty-string sentinel when the field is missing or
+ * its value fails {@link isUsableIdentifier}. Extracted so
+ * {@link extractValidIdentifier} stays inside the one-block max-depth
+ * ceiling.
+ *
+ * @param record - One account/card record.
+ * @param field - Single WK identifier field name to probe.
+ * @returns Validated identifier or empty string.
+ */
+function pickIdFromField(record: ApiRecord, field: string): AccountId {
+  const value = findFieldValue(record, [field]);
+  if (value === false) return '';
+  const str = String(value);
+  if (!isUsableIdentifier(str)) return '';
+  return str;
+}
+
+/**
+ * Resolves a single record to a usable identifier by walking
+ * `WK.accountId` (queryId fields, then displayId fields) and
+ * returning the first value that passes {@link isUsableIdentifier}.
+ * Drives the queryId-then-displayId fallback that lets card-family
+ * banks like Max yield `cardNumber` when `cardUniqueId` is absent.
+ *
+ * @param record - One account/card record.
+ * @returns First usable identifier, or empty-string sentinel.
+ */
+function extractValidIdentifier(record: ApiRecord): AccountId {
+  const candidates = WK.accountId.map((field): AccountId => pickIdFromField(record, field));
+  return candidates.find(Boolean) ?? '';
+}
+
+/**
+ * Extracts validated account identifiers from an API response.
+ *
  * @param responseBody - Parsed JSON response body.
- * @returns Array of account ID strings.
+ * @returns Array of usable identifier strings (empty when no record
+ *   yielded a value passing {@link isUsableIdentifier}).
  */
 function extractAccountIds(responseBody: ApiRecord): readonly string[] {
   const records = extractAccountRecords(responseBody);
-  return records
-    .map((record): LowercaseKey => {
-      const id = findFieldValue(record, WK.accountId);
-      if (id === false) return '';
-      return String(id);
-    })
-    .filter(Boolean);
+  return records.map(extractValidIdentifier).filter(Boolean);
 }
 
 /** Max depth for transaction hunting. */
@@ -1008,6 +1088,7 @@ export {
   findContainerArray,
   findFieldValue,
   findFirstArray,
+  isUsableIdentifier,
   matchField,
   parseAutoDate,
 };

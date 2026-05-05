@@ -156,26 +156,16 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 fi
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
-# # Only runs if everything above passed. Hits real bank APIs; OTP banks
-# # skip interactive parts unless BEINLEUMI_OTP / HAPOALIM_OTP are set.
 # # This is the last gate — if it passes, the commit proceeds.
-# log ""
-# log "🔴 Phase 5a: Live E2E — Amex SOLO (Rule #16 — never parallel with Isracard)"
-# node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns='E2eReal/Amex\.e2e-real' 2>&1 | tee -a "$LOG_FILE"
+log ""
+log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
+# Happy-path only — matches CI's e2e-real-group-a/b filter
+npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
 
-# if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-#   log "❌ Live E2E (Amex solo) FAILED"
-#   exit 1
-# fi
-
-# log ""
-# log "🔴 Phase 5b: Live E2E — everything except Amex (parallel, Rule #16, maxWorkers=2 for reliability)"
-# node --experimental-vm-modules node_modules/jest/bin/jest.js --maxWorkers=2 --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns='E2eReal/Amex\.e2e-real' --testPathPatterns=E2eReal 2>&1 | tee -a "$LOG_FILE"
-
-# if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-#   log "❌ Live E2E (non-Amex parallel) FAILED"
-#   exit 1
-# fi
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  log "❌ Live E2E (happy-path) FAILED"
+  exit 1
+fi
 
 log ""
 log "══════════════════════════════════════════════════════"

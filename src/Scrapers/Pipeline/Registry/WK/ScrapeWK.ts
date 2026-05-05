@@ -47,7 +47,20 @@ export const PIPELINE_WELL_KNOWN_API = {
     /transactions\/list/i,
     /transactions\/v\d/i,
     /current-account\/transactions/i,
-    /getTransactions/i,
+    // `Get<verb-or-modifier>?Transactions` covers the card-family naming
+    // convention shared by Amex/Isracard's StatusPage endpoints:
+    //   • `GetLatestTransactions` — real txn list (POST, replayable)
+    //   • `GetTransactionsList`   — Isracard txn list (POST)
+    //   • `GetTransactions`       — bare-form, used by some banks
+    // The earlier `/getTransactions/i` form only matched contiguous
+    // `getTransactions`, so `GetLatestTransactions` (with `Latest`
+    // between `Get` and `Transactions`) silently fell through and the
+    // GET `GetTransactionsContent` (UI text labels) was selected
+    // instead → 0-txn Amex scrapes. `\w*` lets a single word slot in
+    // between, matching all three real list-endpoint shapes while
+    // still routing through `discoverShapeAware`'s POST-with-shape
+    // preference (no broader risk than the original pattern).
+    /get\w*Transactions/i,
   ],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
   // Auth endpoint patterns — cover every migrated bank's credentials

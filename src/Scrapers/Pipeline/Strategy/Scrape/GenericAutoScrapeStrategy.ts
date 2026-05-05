@@ -16,6 +16,7 @@ import {
   extractAccountRecords,
   findContainerArray,
   findFieldValue,
+  isUsableIdentifier,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { waitUntil } from '../../Mediator/Timing/Waiting.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
@@ -383,10 +384,17 @@ function buildLoadAllCtx(
 }
 
 /**
- * Apply credential-based fallback when account IDs are empty but txn buffer exists.
- * @param loadCtx - The load-all context from buildLoadAllCtx.
- * @param ctx - Pipeline context with credentials.
- * @returns Updated context with credential-based ID, or unchanged.
+ * Promote a usable `creds.card6Digits` into the load context when
+ * extraction produced no identifiers. Returns the context unchanged
+ * (ids stay empty) when the credential is missing or doesn't pass
+ * {@link isUsableIdentifier} — downstream callers must then fail-fast
+ * rather than silently scrape with a sentinel like `'default'`, which
+ * always produces 0-txn results and a misleading `success: true`.
+ *
+ * @param loadCtx - Load-all context from {@link buildLoadAllCtx}.
+ * @param ctx - Pipeline context (carries credentials).
+ * @returns Context with credential-promoted id, or the original
+ *   context with ids still empty.
  */
 function applyCredentialFallback(
   loadCtx: IFetchAllAccountsCtx,
@@ -396,7 +404,13 @@ function applyCredentialFallback(
   if (loadCtx.txnEndpoint === false) return loadCtx;
   if (!loadCtx.txnEndpoint.responseBody) return loadCtx;
   const creds = ctx.credentials as Record<string, string>;
-  const cardId = creds.card6Digits || 'default';
+  const cardId = creds.card6Digits;
+  if (typeof cardId !== 'string' || !isUsableIdentifier(cardId)) {
+    LOG.warn({
+      message: 'ids empty + no usable card6Digits credential — caller must fail-fast',
+    });
+    return loadCtx;
+  }
   LOG.debug({
     message: `ids empty — using credential card6Digits=${cardId}`,
   });

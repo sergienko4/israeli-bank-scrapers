@@ -36,6 +36,7 @@ import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
+import { waitUntil } from '../Timing/Waiting.js';
 
 /** Timeout for post-login redirect settle. */
 const REDIRECT_SETTLE_MS = 15000;
@@ -749,27 +750,92 @@ function loginPathOf(url: string): LoginPathname {
   return '/';
 }
 
+/** Maximum wall-clock budget for the form-presence poll. */
+const FORM_PRESENCE_POLL_BUDGET_MS = 5000;
+/** Per-tick interval for the form-presence poll. */
+const FORM_PRESENCE_POLL_INTERVAL_MS = 500;
+
+/**
+ * Build the selector used to probe for the login form's password input.
+ * <p>When PRE recorded a trustworthy form-anchor selector (id-based,
+ * class-based, or `[name="…"]` — the same predicate `extractFormAnchorSelector`
+ * uses for the submit button), chain it in front of the password
+ * selector so the query matches only descendants of the original login
+ * form. Without scoping, banks that recorded a generic xpath
+ * (`//input[@type="password"]`) accidentally match the OTP step's
+ * password input or any cached login DOM elsewhere on the page —
+ * Isracard's regression in commit `d9636d8e`.
+ * @param passwordSelector - Selector recorded by login.PRE.
+ * @param formAnchor - Optional form anchor option from discovery.
+ * @returns Scoped selector when anchor is trustworthy, else passthrough.
+ */
+function buildScopedFormPresenceSelector(
+  passwordSelector: string,
+  formAnchor: ILoginFieldDiscovery['formAnchor'],
+): SelectorStr {
+  const anchorSelector = extractFormAnchorSelector(formAnchor);
+  if (anchorSelector.length === 0) return passwordSelector;
+  return `${anchorSelector} ${passwordSelector}`;
+}
+
+/**
+ * Build the async predicate that the form-presence poll evaluates each
+ * tick. The predicate resolves to `true` once the count drops to 0
+ * (the login form has fully unmounted) and `false` while the form is
+ * still in the DOM. `waitUntil` returns the first truthy value, so
+ * returning `true` is what releases the poll.
+ * @param mediator - Element mediator with `countBySelector`.
+ * @param scopedSelector - Scoped or unscoped password selector.
+ * @param logger - Pipeline logger for per-tick diagnostics.
+ * @returns Async predicate suitable for `waitUntil`.
+ */
+function buildPollTick(
+  mediator: IElementMediator,
+  scopedSelector: string,
+  logger: IPipelineContext['logger'],
+): () => Promise<boolean> {
+  const masked = maskVisibleText(scopedSelector);
+  return async (): Promise<boolean> => {
+    const stillPresent = await mediator.countBySelector(scopedSelector);
+    logger.debug({
+      message: `POST: form-presence tick — selector ${masked} count=${String(stillPresent)}`,
+    });
+    return stillPresent === 0;
+  };
+}
+
 /**
  * Confirms the LOGIN ACTION did its job by checking the login form is
  * gone after the redirect.
  *
  * <p>A successful submit destroys the entire login form (the SPA renders
  * the next view — OTP step or dashboard); a rejected submit leaves the
- * form intact with the same `#password` element the PRE stage resolved.
- * Probing for that exact element via the SAME selector PRE recorded
- * gives a generic, cross-bank failure signal that doesn't depend on
- * URL pathnames, error-text dictionaries, or auth-API URL patterns
- * (the three signals the existing chain already covers but each has
- * gaps for SPA banks like Hapoalim).
+ * form intact with the same password element the PRE stage resolved.
+ * Probing for that exact element gives a generic, cross-bank failure
+ * signal that doesn't depend on URL pathnames, error-text dictionaries,
+ * or auth-API URL patterns.
  *
- * <p>The OTP form is a different form with different field selectors
- * (`#otpCode`, `[autocomplete="one-time-code"]`, etc.), so a successful
- * login that proceeds to OTP also fails this check correctly — the
- * password field is gone, only OTP fields remain.
+ * <p>Two compounding regressions were observed after the initial check
+ * shipped in commit `d9636d8e`:
+ *  - Generic password selectors (`xpath=//input[@type="password"]`)
+ *    matched the OTP step's password input on banks like Isracard,
+ *    producing a false-positive InvalidPassword on a successful login.
+ *  - SPA frameworks (Angular/React) tear down the login view
+ *    asynchronously after the URL flips. A 9 ms gap between redirect
+ *    and a single-shot probe was not enough — the dying-frame login
+ *    form was still mounted.
+ *
+ * <p>The fix scopes the probe to the trustworthy form anchor PRE
+ * recorded (same predicate used to scope the submit click) AND polls
+ * for up to {@link FORM_PRESENCE_POLL_BUDGET_MS} so the SPA has time
+ * to finish its component teardown. A genuine invalid-credentials
+ * path keeps the form mounted for the entire budget → loud
+ * `fail(InvalidPassword)` — the same signal Hapoalim's gate test
+ * relies on.
  *
  * @param mediator - Element mediator (for `countBySelector`).
  * @param input - Pipeline context carrying `loginFieldDiscovery` from PRE.
- * @returns Failure procedure when the login form is still present, false otherwise.
+ * @returns Failure procedure when the login form persists, false otherwise.
  */
 async function detectLoginFormStillPresent(
   mediator: IElementMediator,
@@ -779,15 +845,26 @@ async function detectLoginFormStillPresent(
   const discovery = input.loginFieldDiscovery.value;
   const passwordTarget = discovery.targets.get(LOGIN_FIELDS.PASSWORD);
   if (!passwordTarget) return false;
-  const stillPresent = await mediator.countBySelector(passwordTarget.selector);
-  if (stillPresent === 0) return false;
-  const masked = maskVisibleText(passwordTarget.selector);
+  const scopedSelector = buildScopedFormPresenceSelector(
+    passwordTarget.selector,
+    discovery.formAnchor,
+  );
+  const tick = buildPollTick(mediator, scopedSelector, input.logger);
+  const isFormGone = await waitUntil(tick, 'login.POST form-presence poll', {
+    timeout: FORM_PRESENCE_POLL_BUDGET_MS,
+    interval: FORM_PRESENCE_POLL_INTERVAL_MS,
+  })
+    .then((): true => true)
+    .catch((): false => false);
+  if (isFormGone) return false;
+  const masked = maskVisibleText(scopedSelector);
+  const budgetMs = String(FORM_PRESENCE_POLL_BUDGET_MS);
   input.logger.debug({
-    message: `POST: login form still present — password selector ${masked} resolves`,
+    message: `POST: form still present after ${budgetMs}ms — ${masked}`,
   });
   return fail(
     ScraperErrorTypes.InvalidPassword,
-    'LOGIN POST: login form still present after submit (password field resolves)',
+    `LOGIN POST: form still present after ${budgetMs}ms — credentials likely invalid`,
   );
 }
 
