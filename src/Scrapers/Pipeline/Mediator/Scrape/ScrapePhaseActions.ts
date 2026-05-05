@@ -30,9 +30,6 @@ import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
 
 const LOG = createLogger('scrape-phase');
 
-/** Whether dashboard traffic was primed. */
-type DidPrime = boolean;
-
 /**
  * Build the base diagnostics for scrape PRE.
  * @param input - Pipeline context.
@@ -49,7 +46,7 @@ function buildPreDiag(input: IPipelineContext): IPipelineContext['diagnostics'] 
  * @param input - Pipeline context.
  * @returns Procedure after priming attempt.
  */
-async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<DidPrime>> {
+async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<boolean>> {
   const isPrimed = !input.dashboard.has || input.dashboard.value.trafficPrimed;
   if (isPrimed || !input.mediator.has) return succeed(true);
   input.logger.debug({
@@ -160,7 +157,11 @@ async function collectStorageSafe(ctx: IPipelineContext): Promise<Record<string,
   if (!ctx.browser.has) return {};
   const page = ctx.browser.value.page;
   return page
-    .evaluate((): Record<string, string> => Object.assign({}, sessionStorage))
+    .evaluate((): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const key of Object.keys(sessionStorage)) out[key] = sessionStorage.getItem(key) ?? '';
+      return out;
+    })
     .catch((): Record<string, string> => ({}));
 }
 
@@ -200,24 +201,16 @@ function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPip
   return Promise.resolve(result);
 }
 
-/** Whether a transaction has zero amounts. */
-type IsZeroAmount = boolean;
-
-/** Monetary amount from a transaction record. */
-type AmountValue = number;
-/** Count of items in a collection. */
-type ItemCount = number;
-
 /** Transaction amount fields for zero-check. */
 interface IAmountFields {
-  readonly chargedAmount: AmountValue;
-  readonly originalAmount: AmountValue;
+  readonly chargedAmount: number;
+  readonly originalAmount: number;
 }
 
 /** Zero-amount audit result. */
 interface IZeroAudit {
-  readonly total: ItemCount;
-  readonly zeros: ItemCount;
+  readonly total: number;
+  readonly zeros: number;
 }
 
 /**
@@ -225,7 +218,7 @@ interface IZeroAudit {
  * @param txn - Transaction amount fields.
  * @returns True if both amounts are zero.
  */
-function isZeroAmountTxn(txn: IAmountFields): IsZeroAmount {
+function isZeroAmountTxn(txn: IAmountFields): boolean {
   return txn.chargedAmount === 0 && txn.originalAmount === 0;
 }
 
@@ -242,20 +235,23 @@ function countZeroAmounts(accounts: readonly { txns: readonly IAmountFields[] }[
 
 /**
  * Warn if all transaction amounts are 0.00 — diagnostic, not failure.
+ * Returns true only when a warning was actually emitted (all txns zero);
+ * the no-op branches (no scrape, empty accounts, mixed amounts) return
+ * false so the function carries semantic information instead of always
+ * yielding the same sentinel.
  * @param input - Pipeline context after scraping.
- * @returns True after check.
+ * @returns True when the all-zero warning fired.
  */
-function warnZeroAmounts(input: IPipelineContext): true {
-  if (!input.scrape.has) return true;
+function warnZeroAmounts(input: IPipelineContext): boolean {
+  if (!input.scrape.has) return false;
   const accounts = input.scrape.value.accounts;
-  if (accounts.length === 0) return true;
+  if (accounts.length === 0) return false;
   const { total, zeros } = countZeroAmounts(accounts);
-  if (total === 0) return true;
-  if (zeros === total) {
-    input.logger.warn({
-      message: `ALL ${String(total)} transactions have 0.00 amounts`,
-    });
-  }
+  if (total === 0) return false;
+  if (zeros !== total) return false;
+  input.logger.warn({
+    message: `ALL ${String(total)} transactions have 0.00 amounts`,
+  });
   return true;
 }
 
