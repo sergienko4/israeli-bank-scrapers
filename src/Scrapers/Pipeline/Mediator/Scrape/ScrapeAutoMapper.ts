@@ -405,24 +405,37 @@ function processStackEntry(
  * @returns True if stack is now empty.
  */
 function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolean {
-  if (stack.length === 0) return true;
-  const last = stack.length - 1;
-  const entry = stack[last];
-  stack.splice(last, 1);
+  // `Array.pop` returns `undefined` on an empty stack, consolidating the
+  // "stack is drained" signal into a single check.
+  const entry = stack.pop();
+  if (entry === undefined) return true;
   processStackEntry(entry, collected, stack);
   return stack.length === 0;
 }
 
+/** Hard cap on iterations — defends against pathological cycles. */
+const MAX_DRAIN_ITERATIONS = 1_000_000;
+
 /**
- * Recursive LIFO drain — processes stack entries until empty.
+ * LIFO drain — iterative loop via `Array.every` short-circuit.
+ * Processes every stack entry until `processOneLifo` reports the
+ * stack is empty. Iterative (was tail-recursive) so adversarial
+ * bodies with tens of thousands of nested items (e.g. Lottie
+ * animation JSON) cannot blow Node's stack budget.
  * @param stack - Mutable stack.
  * @param collected - Mutable accumulator.
  * @returns Collected items.
  */
 function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readonly UntypedValue[] {
-  const isDone = processOneLifo(stack, collected);
-  if (isDone) return collected;
-  return drainLifoStack(stack, collected);
+  // `every` short-circuits when the predicate returns false. Each
+  // step calls `processOneLifo`; when it returns true (stack drained)
+  // the negation short-circuits `every` and the loop ends.
+  const iterations: readonly number[] = Array.from(
+    { length: MAX_DRAIN_ITERATIONS },
+    (_unused, i): number => i,
+  );
+  iterations.every((): boolean => !processOneLifo(stack, collected));
+  return collected;
 }
 
 /**
@@ -679,8 +692,24 @@ function tryContainerInRecord(
   record: ApiRecord,
   containerKeys: readonly string[],
 ): readonly ApiRecord[] {
+  // Case-insensitive SUFFIX match — banks vary in casing AND in
+  // prefix compounding for the same semantic key (`accounts`,
+  // `Accounts`, `UserAccounts`, `myCards`, `BankAccounts`). A
+  // suffix check (`endsWith` after lowercase) catches every prefix
+  // variant while rejecting unrelated keys whose lowercased form
+  // *contains* the WK key as a substring (e.g. `accountSettings`
+  // → `accountsettings` — chars 0..7 are literally `accounts`,
+  // which a substring match would falsely accept; `endsWith`
+  // requires `accounts` to be the trailing word, which it isn't).
+  // `looksLikeAccountRecord` is the second-level filter that
+  // rejects non-account-shape arrays even if their key matches.
+  const originalKeys = Object.keys(record);
+  const lowerKeys = originalKeys.map((k): string => k.toLowerCase());
   const hits = containerKeys.map((key): readonly ApiRecord[] => {
-    const value = record[key];
+    const wantedLower = key.toLowerCase();
+    const matchIdx = lowerKeys.findIndex((k): boolean => k.endsWith(wantedLower));
+    if (matchIdx < 0) return [];
+    const value = record[originalKeys[matchIdx]];
     if (!Array.isArray(value) || value.length === 0) return [];
     const objects = value.filter(looksLikeAccountRecord);
     return objects.map((v): ApiRecord => v as ApiRecord);

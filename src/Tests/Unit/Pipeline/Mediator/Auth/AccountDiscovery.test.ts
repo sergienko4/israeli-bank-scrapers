@@ -104,3 +104,188 @@ describe('discoverAccountsInPool', () => {
     expect(result.endpoint).toBe(named);
   });
 });
+
+describe('request-side extraction (method-specific)', () => {
+  it('extracts accountId from a GET URL query (Hapoalim shape)', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/data?accountId=12-345-678&extra=x',
+      method: 'GET',
+      postData: '',
+      responseBody: { metadata: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.ids).toContain('12-345-678');
+  });
+
+  it('extracts a numeric request-side id and coerces to string', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/data?accountId=987654',
+      method: 'GET',
+      postData: '',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.ids).toContain('987654');
+  });
+
+  it('returns empty when GET URL is malformed (URL constructor throws)', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'not a url at all',
+      method: 'GET',
+      postData: '',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('extracts accountId from POST postData when no body container', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/transactions',
+      method: 'POST',
+      postData: '{"cardUniqueId":"FAKE-CARD","extra":"meta"}',
+      responseBody: { transactions: [] },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.ids).toContain('FAKE-CARD');
+  });
+
+  it('returns empty when POST postData is empty string', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x',
+      method: 'POST',
+      postData: '',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty when POST postData is invalid JSON', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x',
+      method: 'POST',
+      postData: 'not-json{{{',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty when POST postData is a JSON number scalar', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x',
+      method: 'POST',
+      postData: '42',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty when POST postData is a JSON array (no field-value lookup possible)', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x',
+      method: 'POST',
+      postData: '[{"cardUniqueId":"X"}]',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty when POST postData is JSON null', () => {
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x',
+      method: 'POST',
+      postData: 'null',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty when GET URL query has accountId="" (empty string coerces to false)', () => {
+    // Hits `asAccountId`'s falsy branch — the field is present in the
+    // URL but the value is empty, which must NOT be surfaced as an id.
+    const cap: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/data?accountId=',
+      method: 'GET',
+      postData: '',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('returns empty for PUT capture (method neither GET nor POST)', () => {
+    const cap = {
+      url: 'https://x.example/api/x?accountId=xxx',
+      method: 'PUT',
+      postData: '',
+      responseBody: { unrelated: 1 },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    } as unknown as IDiscoveredEndpoint;
+    const result = discoverAccountsInPool([cap]);
+    expect(result.endpoint).toBe(false);
+  });
+
+  it('prefers body match over request-side extraction', () => {
+    const both: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/x?accountId=URL-FAKE',
+      method: 'GET',
+      postData: '',
+      responseBody: { cards: [{ cardUniqueId: 'BODY-FAKE' }] },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 0,
+    };
+    const result = discoverAccountsInPool([both]);
+    expect(result.ids).toContain('BODY-FAKE');
+    expect(result.ids).not.toContain('URL-FAKE');
+  });
+});

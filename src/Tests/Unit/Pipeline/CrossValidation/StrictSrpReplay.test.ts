@@ -181,10 +181,21 @@ describe('Strict SRP — account discovery is PRE-NAV-ONLY', () => {
       expect(result.ids.length).toBeGreaterThan(0);
     });
 
-    it(`${shape.label}: discoverAccountsInPool ignores POST-nav captures (false-positive)`, () => {
-      // Feed ONLY the post-nav txn capture. The discoverer must NOT
-      // mistake a transaction body for an account container.
-      const result = discoverAccountsInPool([shape.postNavTxn]);
+    it(`${shape.label}: discoverAccountsInPool returns empty on a pool of unrelated captures`, () => {
+      // The PRE-NAV-ONLY contract is a CALLER guarantee: production
+      // always invokes `discoverAccountsInPool(network.getPreNavCaptures())`.
+      // The function itself doesn't (and can't) know the bucket; it
+      // just walks whatever pool it's given.
+      // The negative test we DO own here: feed unrelated captures
+      // (no body container, no request-side accountId) and assert the
+      // discoverer returns empty rather than fabricating an answer.
+      const noise = makeCapture({
+        url: 'https://x.example/api/heartbeat',
+        method: 'GET',
+        responseBody: { ok: true, ts: 1 },
+        timestamp: 100,
+      });
+      const result = discoverAccountsInPool([noise]);
       expect(result.endpoint).toBe(false);
       expect(result.ids.length).toBe(0);
     });

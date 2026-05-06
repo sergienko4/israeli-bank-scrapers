@@ -96,21 +96,169 @@ function pickAccountEndpoint(pool: readonly IDiscoveredEndpoint[]): IDiscoveredE
   return rootShape ?? false;
 }
 
+/** Possible scalar shapes returned by `findFieldValue`. */
+type IScalarFieldHit = string | number | boolean;
+
+/**
+ * Coerce a `findFieldValue` result to a non-empty string identifier.
+ * @param hit - Raw field value.
+ * @returns Identifier string or false.
+ */
+function asAccountId(hit: IScalarFieldHit): string | false {
+  if (typeof hit === 'string' && hit.length > 0) return hit;
+  if (typeof hit === 'number') return String(hit);
+  return false;
+}
+
+/**
+ * Inspect a GET capture's URL query parameters for an account-id-
+ * shaped value. Pure URL-side: never reads the response body, never
+ * touches `postData`. Mirrors how the request itself carries the
+ * identifier (Hapoalim's `?accountId=12-170-…`, etc.).
+ * @param ep - Captured endpoint (must be `method === 'GET'`).
+ * @returns Identifier or false.
+ */
+function extractAccountIdFromGetUrl(ep: IDiscoveredEndpoint): string | false {
+  // Method-gating is the caller's job (see `extractAccountIdFromRequest`)
+  // so this helper stays single-purpose: parse URL, query, return id.
+  let parsed: URL;
+  try {
+    parsed = new URL(ep.url);
+  } catch {
+    return false;
+  }
+  const queryRecord: Record<string, string> = {};
+  for (const [name, value] of parsed.searchParams.entries()) {
+    queryRecord[name] = value;
+  }
+  const hit = findFieldValue(queryRecord, [...WK_TXN.accountId]);
+  return asAccountId(hit);
+}
+
+/** Discriminated result of parsing a POST capture's `postData`. */
+interface IParsedPostBody {
+  readonly hasObject: boolean;
+  readonly body: Readonly<Record<string, unknown>>;
+}
+
+const EMPTY_PARSED_BODY: IParsedPostBody = { hasObject: false, body: {} };
+
+/**
+ * Try to parse `postData` as JSON. Returns the parsed value cast to
+ * the discriminated result so the caller stays flat (one-step
+ * try/catch with no inner control flow).
+ * @param postData - Raw POST body string.
+ * @returns Wrapped parsed body.
+ */
+function tryParsePostData(postData: string): IParsedPostBody {
+  try {
+    const raw = JSON.parse(postData) as Record<string, unknown>;
+    return { hasObject: true, body: raw };
+  } catch {
+    return EMPTY_PARSED_BODY;
+  }
+}
+
+/**
+ * Parse a POST capture's `postData` as a JSON object record. Returns
+ * `EMPTY_PARSED_BODY` when empty / malformed / non-object so the
+ * caller stays flat.
+ * @param postData - Raw POST body string.
+ * @returns Wrapped parsed body.
+ */
+function parsePostDataObject(postData: string): IParsedPostBody {
+  if (postData.length === 0) return EMPTY_PARSED_BODY;
+  const parsed = tryParsePostData(postData);
+  if (!parsed.hasObject) return EMPTY_PARSED_BODY;
+  // `JSON.parse('null')` returns the JS `null` value — the type cast
+  // in `tryParsePostData` does not narrow that at runtime, so we
+  // double-check before downstream walkers (which call `Object.keys`)
+  // see a non-record. `Array.isArray` covers JSON arrays.
+  const body = parsed.body as unknown;
+  if (body === null) return EMPTY_PARSED_BODY;
+  if (typeof body !== 'object') return EMPTY_PARSED_BODY;
+  if (Array.isArray(body)) return EMPTY_PARSED_BODY;
+  return parsed;
+}
+
+/**
+ * Inspect a POST capture's request `postData` for an account-id-
+ * shaped value. Pure postData-side: never reads the response body,
+ * never touches the URL query. Mirrors how a POST request carries
+ * its identifier in the JSON body it sends to the server.
+ * @param ep - Captured endpoint (must be `method === 'POST'`).
+ * @returns Identifier or false.
+ */
+function extractAccountIdFromPostData(ep: IDiscoveredEndpoint): string | false {
+  // Method-gating is the caller's job (see `extractAccountIdFromRequest`).
+  const parsed = parsePostDataObject(ep.postData);
+  if (!parsed.hasObject) return false;
+  const hit = findFieldValue(parsed.body, [...WK_TXN.accountId]);
+  return asAccountId(hit);
+}
+
+/**
+ * Strict per-method request-side extraction. GET → URL only,
+ * POST → postData only. No mixing across methods. The response body
+ * is the separate (response-side) concern handled by
+ * `pickAccountEndpoint` above.
+ * @param ep - Capture to inspect.
+ * @returns Identifier surfaced from the request, or false.
+ */
+function extractAccountIdFromRequest(ep: IDiscoveredEndpoint): string | false {
+  if (ep.method === 'GET') return extractAccountIdFromGetUrl(ep);
+  if (ep.method === 'POST') return extractAccountIdFromPostData(ep);
+  return false;
+}
+
+/**
+ * Walk the pool until the first capture surfaces a request-side
+ * identifier. Returns a synthetic single-account result so the
+ * downstream consumer (SCRAPE.PRE) sees the same `{ids, records}`
+ * shape regardless of which side of the capture produced the data.
+ * @param pool - Pre-nav captures.
+ * @returns Synthetic account result, or false.
+ */
+function discoverAccountFromRequest(pool: readonly IDiscoveredEndpoint[]): IAccountDiscoveryResult {
+  const hits = pool
+    .map((ep): { ep: IDiscoveredEndpoint; id: string } | false => {
+      const id = extractAccountIdFromRequest(ep);
+      if (id === false) return false;
+      return { ep, id };
+    })
+    .filter((entry): entry is { ep: IDiscoveredEndpoint; id: string } => entry !== false);
+  if (hits.length === 0) return { endpoint: false, ids: [], records: [] };
+  const winner = hits[0];
+  return {
+    endpoint: winner.ep,
+    ids: [winner.id],
+    records: [{ accountId: winner.id }],
+  };
+}
+
 /**
  * Pure helper — discovers accounts from the supplied capture pool.
- * No network I/O, no global pool access; the auth FINAL passes the
- * pre-nav bucket and gets back a stable result that SCRAPE.PRE can
- * consume directly.
+ * Two phases, each independent:
+ * 1. Response body — named container or root-array (handled by
+ *    `pickAccountEndpoint` + `extractAccountIds/Records`).
+ * 2. Request data — method-strict: GET → URL, POST → postData.
+ *
+ * The response check runs first so banks that publish full account
+ * metadata in the body (Amex/Isracard/Discount/Beinleumi) keep their
+ * rich records. The request-side extraction is the fallback for
+ * banks that never expose a body container (Hapoalim).
  * @param pool - Pre-nav captures from `network.getPreNavCaptures()`.
  * @returns Endpoint pick + extracted ids + records (empties on miss).
  */
 function discoverAccountsInPool(pool: readonly IDiscoveredEndpoint[]): IAccountDiscoveryResult {
   const endpoint = pickAccountEndpoint(pool);
-  if (endpoint === false) return { endpoint: false, ids: [], records: [] };
-  const body = endpoint.responseBody as ApiPayload;
-  const ids = extractAccountIds(body);
-  const records = extractAccountRecords(body);
-  return { endpoint, ids: [...ids], records: [...records] };
+  if (endpoint !== false) {
+    const body = endpoint.responseBody as ApiPayload;
+    const ids = extractAccountIds(body);
+    const records = extractAccountRecords(body);
+    return { endpoint, ids: [...ids], records: [...records] };
+  }
+  return discoverAccountFromRequest(pool);
 }
 
 export type { IAccountDiscoveryResult };
