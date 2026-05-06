@@ -4,6 +4,11 @@
  * Set by BasePhase.run() via mediator. Read by any LOG call via getters.
  */
 
+import type { Brand } from './Brand.js';
+
+/** Active phase name — branded for Rule #15. */
+type ActivePhaseName = Brand<string, 'ActivePhaseName'>;
+
 /** Stage label — exactly one of the 4-stage protocol values. */
 type StageLabel = 'PRE' | 'ACTION' | 'POST' | 'FINAL';
 
@@ -16,8 +21,8 @@ let activeStage: StageLabel = 'PRE';
  * Get the currently active pipeline phase name.
  * @returns Phase name string.
  */
-function getActivePhase(): string {
-  return activePhase;
+function getActivePhase(): ActivePhaseName {
+  return activePhase as ActivePhaseName;
 }
 
 /**

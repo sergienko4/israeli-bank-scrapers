@@ -7,6 +7,7 @@ import moment from 'moment';
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { Brand } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -15,6 +16,9 @@ import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IRawAccount, IScrapeConfig } from '../../Types/ScrapeConfig.js';
 import type { IFetchOpts, IFetchStrategy } from '../Fetch/FetchStrategy.js';
 import { DEFAULT_FETCH_OPTS } from '../Fetch/FetchStrategy.js';
+
+type StartDateFormatted = Brand<string, 'StartDateFormatted'>;
+type ExtractedBalance = Brand<number, 'ExtractedBalance'>;
 
 /** Bundled dependencies for scrape operations. */
 interface IScrapeOps<TA, TT> {
@@ -49,11 +53,11 @@ function buildFetchOpts<TA, TT>(config: IScrapeConfig<TA, TT>, ctx: IPipelineCon
  * @param dateFormat - The bank's date format string.
  * @returns Formatted start date.
  */
-function computeStartDate(ctx: IPipelineContext, dateFormat: string): string {
+function computeStartDate(ctx: IPipelineContext, dateFormat: string): StartDateFormatted {
   const defaultStart = moment().subtract(1, 'years');
   const optionsStart = moment(ctx.options.startDate);
   const start = moment.max(defaultStart, optionsStart);
-  return start.format(dateFormat);
+  return start.format(dateFormat) as StartDateFormatted;
 }
 
 /** Built request shape from buildRequest callback. */
@@ -192,7 +196,10 @@ async function fetchOneAccount<TA, TT>(
   const extractor = ops.config.balanceExtractor;
   let balance: Procedure<number> = succeed(account.balance);
   if (extractor) {
-    balance = safeCall((): number => extractor(raw.value), 'balanceExtractor');
+    balance = safeCall(
+      (): ExtractedBalance => extractor(raw.value) as ExtractedBalance,
+      'balanceExtractor',
+    );
   }
   let resolvedBalance = account.balance;
   if (isOk(balance)) {

@@ -3,7 +3,13 @@
  * Transactions helpers live in PepperShapeTxns.ts.
  */
 
+import type { Brand } from '../../../Types/Brand.js';
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
+
+/** Account display number — branded for Rule #15. */
+type AccountNumberDisplay = Brand<string, 'PepperAccountNumberDisplay'>;
+/** Current account balance — branded for Rule #15. */
+type AccountBalance = Brand<number, 'PepperAccountBalance'>;
 
 /** Account ref emitted by extractAccounts. */
 export interface IPepperAcct {
@@ -41,8 +47,8 @@ export function extractAccounts(body: ApiBody): readonly IPepperAcct[] {
  * @param acct - Pepper account.
  * @returns Display number.
  */
-export function accountNumberOf(acct: IPepperAcct): string {
-  return acct.accountNumber ?? acct.accountId;
+export function accountNumberOf(acct: IPepperAcct): AccountNumberDisplay {
+  return (acct.accountNumber ?? acct.accountId) as AccountNumberDisplay;
 }
 
 /**
@@ -50,9 +56,9 @@ export function accountNumberOf(acct: IPepperAcct): string {
  * @param body - Unwrapped balance response.
  * @returns Current balance.
  */
-export function balanceExtract(body: ApiBody): number {
+export function balanceExtract(body: ApiBody): AccountBalance {
   const resp = body as unknown as IBalanceResp;
-  return resp.accounts?.balance?.currentBalance ?? 0;
+  return (resp.accounts?.balance?.currentBalance ?? 0) as AccountBalance;
 }
 
 /**

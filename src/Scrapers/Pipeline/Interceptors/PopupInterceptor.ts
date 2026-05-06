@@ -10,12 +10,16 @@
 
 import type { IElementMediator } from '../Mediator/Elements/ElementMediator.js';
 import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
+import type { Brand } from '../Types/Brand.js';
 import type { ScraperLogger } from '../Types/Debug.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import { maskVisibleText } from '../Types/LogEvent.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
+
+type EndpointDelta = Brand<number, 'EndpointDelta'>;
+type IsInCooldown = Brand<boolean, 'IsInCooldown'>;
 
 /** Max popup dismissal attempts per phase transition. */
 const MAX_POPUP_ATTEMPTS = 2;
@@ -35,13 +39,13 @@ function traceNetworkDelta(
   mediator: IElementMediator,
   epsBefore: number,
   logger: ScraperLogger,
-): number {
+): EndpointDelta {
   const epsAfter = mediator.network.getAllEndpoints().length;
   const delta = epsAfter - epsBefore;
   if (delta > 0) {
     logger.trace({ delta });
   }
-  return delta;
+  return delta as EndpointDelta;
 }
 
 /** Only run before these phases — the 2 places popups appear. */
@@ -84,8 +88,8 @@ async function dismissPopups(mediator: IElementMediator, logger: ScraperLogger):
  * @param lastRunMs - Last probe epoch-ms.
  * @returns True if still in cooldown.
  */
-function isInCooldown(lastRunMs: number): boolean {
-  return Date.now() - lastRunMs < POPUP_COOLDOWN_MS;
+function isInCooldown(lastRunMs: number): IsInCooldown {
+  return (Date.now() - lastRunMs < POPUP_COOLDOWN_MS) as IsInCooldown;
 }
 
 /**

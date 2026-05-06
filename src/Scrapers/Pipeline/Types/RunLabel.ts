@@ -12,23 +12,31 @@
 
 import * as path from 'node:path';
 
+import type { Brand } from './Brand.js';
 import { getScreenshotDir } from './TraceConfig.js';
+
+/** Two-digit zero-padded numeric — branded for Rule #15. */
+type TwoDigitPad = Brand<string, 'TwoDigitPad'>;
+/** Compact timestamp string `YYYYMMDD-HHMMSS`. */
+type CompactStamp = Brand<string, 'CompactStamp'>;
+/** Absolute screenshot path or empty sentinel. */
+type ScreenshotPath = Brand<string, 'ScreenshotPath'>;
 
 /**
  * Zero-pad a 1- or 2-digit integer to width 2.
  * @param n - Integer to pad.
  * @returns Two-character string.
  */
-function pad2(n: number): string {
+function pad2(n: number): TwoDigitPad {
   const s = String(n);
-  return s.padStart(2, '0');
+  return s.padStart(2, '0') as TwoDigitPad;
 }
 
 /**
  * Format the current timestamp as `YYYYMMDD-HHMMSS` (local time).
  * @returns Compact timestamp string.
  */
-function nowStamp(): string {
+function nowStamp(): CompactStamp {
   const d = new Date();
   const fullYear = d.getFullYear();
   const year = String(fullYear);
@@ -44,7 +52,7 @@ function nowStamp(): string {
   const secondsStr = pad2(seconds);
   const date = `${year}${monthStr}${dayStr}`;
   const time = `${hoursStr}${minutesStr}${secondsStr}`;
-  return `${date}-${time}`;
+  return `${date}-${time}` as CompactStamp;
 }
 
 /**
@@ -55,12 +63,12 @@ function nowStamp(): string {
  * @param label - Phase-and-step descriptor ("login-post-before-traffic").
  * @returns Absolute path inside the trace-mode run folder, or empty string.
  */
-export default function screenshotPath(bank: string, label: string): string {
+export default function screenshotPath(bank: string, label: string): ScreenshotPath {
   const dir = getScreenshotDir();
-  if (!dir) return '';
+  if (!dir) return '' as ScreenshotPath;
   const ts = nowStamp();
   const prefix = bank || 'screenshot';
-  return path.join(dir, `${prefix}-${label}-${ts}.png`);
+  return path.join(dir, `${prefix}-${label}-${ts}.png`) as ScreenshotPath;
 }
 
 export { screenshotPath };

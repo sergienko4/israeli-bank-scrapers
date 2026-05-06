@@ -4,10 +4,22 @@ import * as fs from 'node:fs';
 
 import type { Request, Route } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
 import { getDebug } from '../Types/Debug.js';
 import type { IMockState } from './MockInterceptorIO.js';
 import { resolveMockHtml } from './MockInterceptorIO.js';
 import { frameFilenameForUrl, frameFilePath } from './SnapshotFrameCapture.js';
+
+/** URL-looks-like-iframe predicate. */
+type LooksLikeIframe = Brand<boolean, 'LooksLikeIframe'>;
+/** Hint-substring match predicate. */
+type IsHintMatch = Brand<boolean, 'IsHintMatch'>;
+/** Trace-emit outcome. */
+type DidTraceMiss = Brand<boolean, 'DidTraceMiss'>;
+/** HTML body served for a request (or empty fall-through). */
+type MockHtmlBody = Brand<string, 'MockHtmlBody'>;
+/** HTML body with normalizer injected. */
+type NormalizedHtml = Brand<string, 'NormalizedHtml'>;
 
 const LOG = getDebug(import.meta.url);
 
@@ -20,8 +32,10 @@ const IFRAME_URL_HINTS = ['Servlet', 'iframe', 'embed', 'Matrix'];
  * @param url - Requested URL.
  * @returns True for URLs that likely target a child frame.
  */
-function looksLikeIframeUrl(url: string): boolean {
-  return IFRAME_URL_HINTS.some((hint): boolean => url.includes(hint));
+function looksLikeIframeUrl(url: string): LooksLikeIframe {
+  return IFRAME_URL_HINTS.some(
+    (hint): IsHintMatch => url.includes(hint) as IsHintMatch,
+  ) as LooksLikeIframe;
 }
 
 /**
@@ -31,12 +45,12 @@ function looksLikeIframeUrl(url: string): boolean {
  * @param url - Requested URL (miss).
  * @returns True after the trace, false when URL isn't iframe-ish.
  */
-function traceFrameMiss(companyId: string, url: string): boolean {
-  if (!looksLikeIframeUrl(url)) return false;
+function traceFrameMiss(companyId: string, url: string): DidTraceMiss {
+  if (!looksLikeIframeUrl(url)) return false as DidTraceMiss;
   const expectedFile = frameFilenameForUrl(url);
   const relPath = `${companyId}/frames/${expectedFile}`;
   LOG.info({ message: `mock: iframe snapshot MISS — ${relPath} missing for ${url}` });
-  return true;
+  return true as DidTraceMiss;
 }
 
 /**
@@ -47,13 +61,13 @@ function traceFrameMiss(companyId: string, url: string): boolean {
  * @param url - Requested URL.
  * @returns Frame HTML or empty string when no per-frame file exists.
  */
-function tryServeFrameHtml(companyId: string, url: string): string {
+function tryServeFrameHtml(companyId: string, url: string): MockHtmlBody {
   const file = frameFilePath(companyId, url);
   try {
-    return fs.readFileSync(file, 'utf8');
+    return fs.readFileSync(file, 'utf8') as MockHtmlBody;
   } catch {
     traceFrameMiss(companyId, url);
-    return '';
+    return '' as MockHtmlBody;
   }
 }
 
@@ -87,9 +101,12 @@ const HEAD_OPEN_RE = /<head(?:\s[^>]*)?>/i;
  * @param html - Source HTML body.
  * @returns HTML with normalizer prepended inside `<head>`.
  */
-function injectNormalizer(html: string): string {
-  if (!html) return html;
-  return html.replace(HEAD_OPEN_RE, (match): string => `${match}${NORMALIZER_CSS}`);
+function injectNormalizer(html: string): NormalizedHtml {
+  if (!html) return html as NormalizedHtml;
+  return html.replace(
+    HEAD_OPEN_RE,
+    (match): NormalizedHtml => `${match}${NORMALIZER_CSS}` as NormalizedHtml,
+  ) as NormalizedHtml;
 }
 
 /**
@@ -104,12 +121,16 @@ function injectNormalizer(html: string): string {
  * @param request - Incoming Playwright request (used for frame detection).
  * @returns HTML to fulfil with (normalizer injected).
  */
-function pickHtmlForRequest(companyId: string, state: IMockState, request: Request): string {
+function pickHtmlForRequest(
+  companyId: string,
+  state: IMockState,
+  request: Request,
+): NormalizedHtml {
   const url = request.url();
   const frameHtml = tryServeFrameHtml(companyId, url);
   if (frameHtml) return injectNormalizer(frameHtml);
   const isMainFrame = !request.frame().parentFrame();
-  if (!isMainFrame) return '';
+  if (!isMainFrame) return '' as NormalizedHtml;
   const phaseHtml = resolveMockHtml(companyId, state.currentPhase, state.lastServed);
   state.lastServed = phaseHtml;
   return injectNormalizer(phaseHtml);

@@ -5,8 +5,16 @@ import {
   WELL_KNOWN_DASHBOARD_SELECTORS,
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../../../Registry/WellKnownSelectors.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+
+/** XPath-safe quoted string literal. */
+type XpathLiteralStr = Brand<string, 'XpathLiteralStr'>;
+/** Playwright-compatible CSS or XPath selector. */
+type PlaywrightSelector = Brand<string, 'PlaywrightSelector'>;
+/** Resolved credential dictionary key. */
+type CredentialKey = Brand<string, 'CredentialKey'>;
 import { RACE_TIMED_OUT, raceTimeout } from '../Timing/Waiting.js';
 import {
   isClickableElement,
@@ -40,11 +48,11 @@ const WELL_KNOWN_SELECTORS = WELL_KNOWN_LOGIN_SELECTORS as Record<string, Select
  * @param value - The raw string value.
  * @returns XPath-safe quoted string.
  */
-export function toXpathLiteral(value: string): string {
-  if (!value.includes('"')) return `"${value}"`;
-  if (!value.includes("'")) return `'${value}'`;
+export function toXpathLiteral(value: string): XpathLiteralStr {
+  if (!value.includes('"')) return `"${value}"` as XpathLiteralStr;
+  if (!value.includes("'")) return `'${value}'` as XpathLiteralStr;
   const parts = value.split('"').map((part): string => `"${part}"`);
-  return `concat(${parts.join(", '\"', ")})`;
+  return `concat(${parts.join(", '\"', ")})` as XpathLiteralStr;
 }
 
 /**
@@ -67,17 +75,19 @@ function clickableTextXpath(value: string): string {
  * @param candidate - The selector candidate to convert.
  * @returns A Playwright-compatible CSS or XPath selector string.
  */
-export function candidateToCss(candidate: SelectorCandidate): string {
+export function candidateToCss(candidate: SelectorCandidate): PlaywrightSelector {
   const v = candidate.value;
   const lit = toXpathLiteral(v);
-  if (candidate.kind === 'clickableText') return clickableTextXpath(v);
-  if (candidate.kind === 'labelText') return `xpath=//label[contains(., ${lit})]`;
-  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), ${lit})]`;
-  if (candidate.kind === 'css') return v;
-  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]`;
-  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]`;
-  if (candidate.kind === 'name') return `[name="${v}"]`;
-  return `xpath=${v}`;
+  if (candidate.kind === 'clickableText') return clickableTextXpath(v) as PlaywrightSelector;
+  if (candidate.kind === 'labelText')
+    return `xpath=//label[contains(., ${lit})]` as PlaywrightSelector;
+  if (candidate.kind === 'textContent')
+    return `xpath=//*[contains(text(), ${lit})]` as PlaywrightSelector;
+  if (candidate.kind === 'css') return v as PlaywrightSelector;
+  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]` as PlaywrightSelector;
+  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]` as PlaywrightSelector;
+  if (candidate.kind === 'name') return `[name="${v}"]` as PlaywrightSelector;
+  return `xpath=${v}` as PlaywrightSelector;
 }
 
 /**
@@ -94,15 +104,15 @@ export function isPage(pageOrFrame: Page | Frame): pageOrFrame is Page {
  * @param selector - A CSS selector string such as '#username' or '#tzId'.
  * @returns The normalized credential key (e.g. 'username', 'password', 'id', 'num').
  */
-export function extractCredentialKey(selector: string): string {
+export function extractCredentialKey(selector: string): CredentialKey {
   const id = /^#([\w-]+)/.exec(selector)?.[1] ?? selector;
   const lower = id.toLowerCase();
   const directMatch = CREDENTIAL_KEY_MAP[lower];
-  if (directMatch) return directMatch;
+  if (directMatch) return directMatch as CredentialKey;
   const partialMatch = findPartialCredentialMatch(lower);
-  if (partialMatch) return partialMatch;
-  if (lower.startsWith('id') && lower.length <= MIN_ID_LENGTH) return 'id';
-  return id;
+  if (partialMatch) return partialMatch as CredentialKey;
+  if (lower.startsWith('id') && lower.length <= MIN_ID_LENGTH) return 'id' as CredentialKey;
+  return id as CredentialKey;
 }
 
 /**

@@ -191,4 +191,51 @@ describe('PipelineReducer — api-direct-call NO_RETRY path', () => {
     const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
     expect(result.success).toBe(false);
   });
+
+  it('executePipeline yields fallback message for thrown errors with empty message', async () => {
+    const phase = buildEmptyMessageThrowingPhase();
+    const descriptor: IPipelineDescriptor = {
+      options: MOCK_OPTIONS,
+      phases: [phase],
+      interceptors: [],
+    };
+    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toBe('Unknown pipeline error');
+    }
+  });
+});
+
+/**
+ * Build a phase that throws an Error whose message has been cleared
+ * post-construction, exercising the wrapError `|| 'Unknown pipeline
+ * error'` branch without violating S7722 at the throw site.
+ * @returns A phase whose execute throws an empty-message Error.
+ */
+function buildEmptyMessageThrowingPhase(): SimplePhase {
+  /**
+   * Throwing executor with a blanked-out Error.message.
+   * @returns Never — throws an empty-message Error.
+   */
+  const exec = (): Promise<Procedure<IActionContext>> => {
+    const placeholder = new Error('placeholder');
+    const blank = Object.assign(placeholder, { message: '' });
+    throw blank;
+  };
+  return new SimplePhase('init', exec);
+}
+
+describe('PipelineReducer — sanitization-pulse no-recovery branch', () => {
+  it('propagates the original failure when no api-direct-call retry happens', async () => {
+    const failingPhase = buildFailingPhase('init', 'init failed');
+    const descriptor: IPipelineDescriptor = {
+      options: MOCK_OPTIONS,
+      phases: [failingPhase],
+      interceptors: [],
+    };
+    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('init failed');
+  });
 });

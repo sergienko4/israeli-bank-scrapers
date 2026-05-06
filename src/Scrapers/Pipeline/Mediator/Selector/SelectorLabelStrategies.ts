@@ -1,7 +1,11 @@
 import { type Frame, type Locator, type Page } from 'playwright-core';
 
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+
+/** XPath selector for div/span strict text-content match. */
+type DivSpanStrictXpath = Brand<string, 'DivSpanStrictXpath'>;
 
 const LOG = getDebug(import.meta.url);
 
@@ -370,8 +374,8 @@ export async function resolveTextContent(
  * @param value - The text content to match against.
  * @returns An XPath selector string.
  */
-export function divSpanStrictXpath(value: string): string {
-  return `xpath=//*[${LABEL_TAGS}][text()[contains(., "${value}")]]`;
+export function divSpanStrictXpath(value: string): DivSpanStrictXpath {
+  return `xpath=//*[${LABEL_TAGS}][text()[contains(., "${value}")]]` as DivSpanStrictXpath;
 }
 
 /** Options for resolving a labelText candidate. */

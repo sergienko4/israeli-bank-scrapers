@@ -288,6 +288,26 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     expect(stamp).toBe('02-01-2026_03040506');
   });
 
+  it('setActiveBank rejects empty string and unknown slugs', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const acceptedEmpty = mod.setActiveBank('');
+    const acceptedUnknown = mod.setActiveBank('not-a-real-bank');
+    const acceptedWhitespace = mod.setActiveBank('   ');
+    expect(acceptedEmpty).toBe(false);
+    expect(acceptedUnknown).toBe(false);
+    expect(acceptedWhitespace).toBe(false);
+  });
+
+  it('setActiveBank accepts a known slug case-insensitively', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const accepted = mod.setActiveBank(' Beinleumi ');
+    expect(accepted).toBe(true);
+  });
+
   it('on-trace: bank slug derived from argv shows up in folder path', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-bank');
     const originalArgv = process.argv;

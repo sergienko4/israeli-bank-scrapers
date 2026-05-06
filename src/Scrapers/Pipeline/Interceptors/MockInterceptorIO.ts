@@ -9,7 +9,14 @@ import * as path from 'node:path';
 
 import type { BrowserContext } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
 import { buildHandler } from './MockRouteHandler.js';
+
+type SnapshotHtml = Brand<string, 'SnapshotHtml'>;
+type PlaceholderHtml = Brand<string, 'PlaceholderHtml'>;
+type SnapshotFilePath = Brand<string, 'SnapshotFilePath'>;
+type ServedHtml = Brand<string, 'ServedHtml'>;
+type IsMockEnvActive = Brand<boolean, 'IsMockEnvActive'>;
 
 /** Root directory where snapshots are read from. */
 const SNAPSHOT_ROOT = 'tests/snapshots';
@@ -44,11 +51,11 @@ export function getMockState(companyId: string): IMockState {
  * @param filePath - Absolute snapshot file path.
  * @returns File contents or empty string.
  */
-function tryReadSnapshot(filePath: string): string {
+function tryReadSnapshot(filePath: string): SnapshotHtml {
   try {
-    return fs.readFileSync(filePath, 'utf8');
+    return fs.readFileSync(filePath, 'utf8') as SnapshotHtml;
   } catch {
-    return '';
+    return '' as SnapshotHtml;
   }
 }
 
@@ -58,8 +65,8 @@ function tryReadSnapshot(filePath: string): string {
  * @param phase - Phase name for the message.
  * @returns Placeholder HTML.
  */
-function placeholderHtml(companyId: string, phase: string): string {
-  return `<html><body>no snapshot: ${companyId}/${phase}</body></html>`;
+function placeholderHtml(companyId: string, phase: string): PlaceholderHtml {
+  return `<html><body>no snapshot: ${companyId}/${phase}</body></html>` as PlaceholderHtml;
 }
 
 /**
@@ -68,10 +75,10 @@ function placeholderHtml(companyId: string, phase: string): string {
  * @param phase - Phase name (used as filename).
  * @returns Absolute snapshot file path.
  */
-function snapshotPath(companyId: string, phase: string): string {
+function snapshotPath(companyId: string, phase: string): SnapshotFilePath {
   const cwd = process.cwd();
   const filename = `${phase}.html`;
-  return path.join(cwd, SNAPSHOT_ROOT, companyId, filename);
+  return path.join(cwd, SNAPSHOT_ROOT, companyId, filename) as SnapshotFilePath;
 }
 
 /**
@@ -81,21 +88,21 @@ function snapshotPath(companyId: string, phase: string): string {
  * @param lastHtml - HTML served on the previous request (fallback).
  * @returns HTML string to serve.
  */
-export function resolveMockHtml(companyId: string, phase: string, lastHtml: string): string {
+export function resolveMockHtml(companyId: string, phase: string, lastHtml: string): ServedHtml {
   const file = snapshotPath(companyId, phase);
   const fromDisk = tryReadSnapshot(file);
-  if (fromDisk) return fromDisk;
-  if (lastHtml) return lastHtml;
-  return placeholderHtml(companyId, phase);
+  if (fromDisk) return fromDisk as unknown as ServedHtml;
+  if (lastHtml) return lastHtml as ServedHtml;
+  return placeholderHtml(companyId, phase) as unknown as ServedHtml;
 }
 
 /**
  * Check whether MOCK_MODE is active via env var.
  * @returns True when MOCK_MODE is '1' or 'true'.
  */
-function isMockActive(): boolean {
+function isMockActive(): IsMockEnvActive {
   const val = process.env.MOCK_MODE;
-  return val === '1' || val === 'true';
+  return (val === '1' || val === 'true') as IsMockEnvActive;
 }
 
 /**

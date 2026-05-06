@@ -4,6 +4,9 @@
  */
 
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
+import type { Brand } from '../../../Types/Brand.js';
+
+type DidMerge = Brand<boolean, 'MonthlyDidMerge'>;
 
 /**
  * Add an account to the merge map — merges txns for same accountNumber.
@@ -14,7 +17,7 @@ import type { ITransactionsAccount } from '../../../../../Transactions.js';
 function mergeOneAccount(
   map: Map<string, ITransactionsAccount>,
   acct: ITransactionsAccount,
-): boolean {
+): DidMerge {
   const existing = map.get(acct.accountNumber);
   const prevTxns = existing?.txns ?? [];
   const merged: ITransactionsAccount = {
@@ -23,7 +26,7 @@ function mergeOneAccount(
     txns: [...prevTxns, ...acct.txns],
   };
   map.set(acct.accountNumber, merged);
-  return true;
+  return true as DidMerge;
 }
 
 /**

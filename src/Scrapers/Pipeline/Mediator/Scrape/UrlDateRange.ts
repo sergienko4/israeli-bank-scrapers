@@ -14,6 +14,10 @@
 import moment from 'moment';
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../Types/Brand.js';
+
+/** URL with date-range params rewritten. */
+type DateRangeAppliedUrl = Brand<string, 'DateRangeAppliedUrl'>;
 
 /** Sentinel used when the captured param had no value to probe. */
 const NO_PROBE = 'NO_PROBE';
@@ -135,9 +139,13 @@ function patchUrl(input: string, fromDate: Date, toDate: Date): IPatchOutcome {
  * @param toDate - Range end (Date).
  * @returns Rewritten URL string.
  */
-export function applyDateRangeToUrl(input: string, fromDate: Date, toDate: Date): string {
+export function applyDateRangeToUrl(
+  input: string,
+  fromDate: Date,
+  toDate: Date,
+): DateRangeAppliedUrl {
   const outcome = patchUrl(input, fromDate, toDate);
-  return outcome.url;
+  return outcome.url as DateRangeAppliedUrl;
 }
 
 /**

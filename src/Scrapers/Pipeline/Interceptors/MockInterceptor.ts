@@ -13,6 +13,7 @@
  * to keep this file under the 150-line Pipeline limit.
  */
 
+import type { Brand } from '../Types/Brand.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import type { PhaseName } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -21,6 +22,8 @@ import { succeed } from '../Types/Procedure.js';
 import { getMockState, type IMockState } from './MockInterceptorIO.js';
 import { buildHandler } from './MockRouteHandler.js';
 
+type IsMockEnabled = Brand<boolean, 'IsMockEnabled'>;
+
 /** Env flag name that activates mock mode. */
 const ENV_FLAG = 'MOCK_MODE';
 
@@ -28,9 +31,9 @@ const ENV_FLAG = 'MOCK_MODE';
  * Check whether mock mode is enabled via env var.
  * @returns True when MOCK_MODE is set to a truthy value.
  */
-function isMockEnabled(): boolean {
+function isMockEnabled(): IsMockEnabled {
   const val = process.env[ENV_FLAG];
-  return val === '1' || val === 'true';
+  return (val === '1' || val === 'true') as IsMockEnabled;
 }
 
 /**

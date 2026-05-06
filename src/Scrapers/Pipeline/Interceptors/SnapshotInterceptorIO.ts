@@ -9,11 +9,17 @@ import * as path from 'node:path';
 
 import type { Page } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
 import { redactHtml } from '../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import { captureDeepHtml } from './SnapshotDeepDom.js';
 import { captureChildFrames } from './SnapshotFrameCapture.js';
 import { waitForPhaseAnchor } from './SnapshotVisibilityGate.js';
+
+type BankSnapshotDir = Brand<string, 'BankSnapshotDir'>;
+type DidWriteSnapshot = Brand<boolean, 'DidWriteSnapshot'>;
+type IsDocReady = Brand<boolean, 'IsDocReady'>;
+type DidWaitForRender = Brand<boolean, 'DidWaitForRender'>;
 
 /** Root directory for captured snapshots. */
 const SNAPSHOT_ROOT = 'tests/snapshots';
@@ -23,11 +29,11 @@ const SNAPSHOT_ROOT = 'tests/snapshots';
  * @param companyId - Bank identifier used as subdirectory.
  * @returns Absolute path to the bank directory.
  */
-function ensureBankDir(companyId: string): string {
+function ensureBankDir(companyId: string): BankSnapshotDir {
   const cwd = process.cwd();
   const dir = path.join(cwd, SNAPSHOT_ROOT, companyId);
   fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  return dir as BankSnapshotDir;
 }
 
 /**
@@ -36,13 +42,13 @@ function ensureBankDir(companyId: string): string {
  * @param html - HTML payload to persist.
  * @returns True on success, false on I/O failure.
  */
-function tryWrite(filePath: string, html: string): boolean {
+function tryWrite(filePath: string, html: string): DidWriteSnapshot {
   try {
     const safeHtml = redactHtml(html);
     fs.writeFileSync(filePath, safeHtml, 'utf8');
-    return true;
+    return true as DidWriteSnapshot;
   } catch {
-    return false;
+    return false as DidWriteSnapshot;
   }
 }
 
@@ -53,7 +59,7 @@ function tryWrite(filePath: string, html: string): boolean {
  * @param html - Page HTML to persist.
  * @returns True on success, false on I/O failure.
  */
-function writeSnapshot(dir: string, phaseName: string, html: string): boolean {
+function writeSnapshot(dir: string, phaseName: string, html: string): DidWriteSnapshot {
   const filename = `${phaseName}.html`;
   const filePath = path.join(dir, filename);
   return tryWrite(filePath, html);
@@ -66,8 +72,8 @@ function writeSnapshot(dir: string, phaseName: string, html: string): boolean {
  * @param html - Captured page HTML.
  * @returns True if written.
  */
-function persistCapture(companyId: string, previousPhase: string, html: string): boolean {
-  if (!html) return false;
+function persistCapture(companyId: string, previousPhase: string, html: string): DidWriteSnapshot {
+  if (!html) return false as DidWriteSnapshot;
   const dir = ensureBankDir(companyId);
   return writeSnapshot(dir, previousPhase, html);
 }
@@ -95,8 +101,8 @@ function onWaitFailure(): WaitFallback {
  * Runs inside Playwright's page.waitForFunction evaluation.
  * @returns True when document.readyState is 'complete'.
  */
-function isDocumentReady(): boolean {
-  return document.readyState === 'complete';
+function isDocumentReady(): IsDocReady {
+  return (document.readyState === 'complete') as IsDocReady;
 }
 
 /**
@@ -110,13 +116,13 @@ function isDocumentReady(): boolean {
  * @param page - Playwright Page to stabilise.
  * @returns True once the wait chain completes.
  */
-async function waitForRender(page: Page): Promise<boolean> {
+async function waitForRender(page: Page): Promise<DidWaitForRender> {
   const idleOpts = { timeout: NETWORK_IDLE_TIMEOUT_MS };
   await page.waitForLoadState('networkidle', idleOpts).catch(onWaitFailure);
   const readyOpts = { timeout: READY_STATE_TIMEOUT_MS };
   await page.waitForFunction(isDocumentReady, null, readyOpts).catch(onWaitFailure);
   await page.waitForTimeout(RENDER_SETTLE_MS).catch(onWaitFailure);
-  return true;
+  return true as DidWaitForRender;
 }
 
 /**

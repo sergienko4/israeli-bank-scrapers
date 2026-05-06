@@ -6,8 +6,12 @@
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+
+/** Registry write outcome — branded for Rule #15. */
+type DidRegister = Brand<boolean, 'WkUrlsDidRegister'>;
 
 /** Supported WK URL groups — generic API endpoints. */
 export type WKUrlGroup =
@@ -46,10 +50,10 @@ function bankMapFor(group: WKUrlGroup): Map<CompanyTypes, string> {
  * @param url - Full or relative URL string.
  * @returns True once stored.
  */
-export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): boolean {
+export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): DidRegister {
   const inner = bankMapFor(group);
   inner.set(bankHint, url);
-  return true;
+  return true as DidRegister;
 }
 
 /**

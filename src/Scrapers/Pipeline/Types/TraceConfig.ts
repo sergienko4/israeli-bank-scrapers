@@ -32,6 +32,29 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { Brand } from './Brand.js';
+
+/** Two-digit zero-padded numeric. */
+type TwoDigitPad = Brand<string, 'TraceTwoDigitPad'>;
+/** Run-stamp string `DD-MM-YYYY_HHMMSScc`. */
+type RunStampStr = Brand<string, 'RunStampStr'>;
+/** Lowercase bank slug (or empty). */
+type BankSlugLower = Brand<string, 'BankSlugLower'>;
+/** Per-slug regex match outcome. */
+type IsSlugMatch = Brand<boolean, 'IsSlugMatch'>;
+/** setActiveBank acceptance outcome. */
+type DidAcceptBank = Brand<boolean, 'DidAcceptBank'>;
+/** Trace-mode active flag. */
+type IsTraceModeActive = Brand<boolean, 'IsTraceModeActive'>;
+/** Absolute run folder path (or empty when off-trace). */
+type RunFolderPath = Brand<string, 'RunFolderPath'>;
+/** Absolute log file path (or empty). */
+type LogFilePath = Brand<string, 'LogFilePath'>;
+/** Absolute network-dump directory (or empty). */
+type NetworkDumpDirPath = Brand<string, 'NetworkDumpDirPath'>;
+/** Absolute screenshot directory (or empty). */
+type ScreenshotDirPath = Brand<string, 'ScreenshotDirPath'>;
+
 /** Default root for per-run artefact folders — overridable via RUNS_ROOT. */
 const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
 /** Sub-directory for network response body dumps. */
@@ -57,9 +80,9 @@ let activeBankCache: string | false = false;
  * @param n - Integer to pad.
  * @returns Two-character string.
  */
-function pad2(n: number): string {
+function pad2(n: number): TwoDigitPad {
   const s = String(n);
-  return s.padStart(2, '0');
+  return s.padStart(2, '0') as TwoDigitPad;
 }
 
 /**
@@ -69,7 +92,7 @@ function pad2(n: number): string {
  * @param d - Date to format.
  * @returns Timestamp string.
  */
-function formatRunStamp(d: Date): string {
+function formatRunStamp(d: Date): RunStampStr {
   const day = d.getDate();
   const month = d.getMonth() + 1;
   const year = d.getFullYear() % 10000;
@@ -84,7 +107,7 @@ function formatRunStamp(d: Date): string {
   const mi = pad2(minutes);
   const ss = pad2(seconds);
   const cc = pad2(centiseconds);
-  return `${dd}-${mm}-${yyyy}_${hh}${mi}${ss}${cc}`;
+  return `${dd}-${mm}-${yyyy}_${hh}${mi}${ss}${cc}` as RunStampStr;
 }
 
 /** Bank slugs the auto-detector recognises in test argv. Lowercase, single token. */
@@ -133,11 +156,13 @@ function bankSlugRegex(slug: string): RegExp {
  * when matched, else `''` so the caller can decide how to handle it.
  * @returns Lowercase bank slug, or empty string when no match.
  */
-function detectBankFromArgv(): string {
+function detectBankFromArgv(): BankSlugLower {
   const argvJoined = process.argv.join(' ');
   const haystack = argvJoined.toLowerCase();
-  const match = KNOWN_BANK_SLUGS.find((slug): boolean => bankSlugRegex(slug).test(haystack));
-  return match ?? '';
+  const match = KNOWN_BANK_SLUGS.find(
+    (slug): IsSlugMatch => bankSlugRegex(slug).test(haystack) as IsSlugMatch,
+  );
+  return (match ?? '') as BankSlugLower;
 }
 
 /**
@@ -148,13 +173,13 @@ function detectBankFromArgv(): string {
  * @param slug - Lowercase bank slug (must be in KNOWN_BANK_SLUGS).
  * @returns True when accepted, false when the slug is unknown.
  */
-function setActiveBank(slug: string): boolean {
+function setActiveBank(slug: string): DidAcceptBank {
   const normalised = slug.trim().toLowerCase();
-  if (normalised.length === 0) return false;
+  if (normalised.length === 0) return false as DidAcceptBank;
   const isKnown = KNOWN_BANK_SLUGS.includes(normalised);
-  if (!isKnown) return false;
+  if (!isKnown) return false as DidAcceptBank;
   activeBankCache = normalised;
-  return true;
+  return true as DidAcceptBank;
 }
 
 /**
@@ -164,11 +189,11 @@ function setActiveBank(slug: string): boolean {
  * handle the missing slug (see `getRunFolder` for the trace-mode behaviour).
  * @returns Bank slug, or empty string when not yet known.
  */
-function resolveBankSlug(): string {
-  if (activeBankCache) return activeBankCache;
+function resolveBankSlug(): BankSlugLower {
+  if (activeBankCache) return activeBankCache as BankSlugLower;
   const fromArgv = detectBankFromArgv();
   if (fromArgv.length > 0) return fromArgv;
-  return '';
+  return '' as BankSlugLower;
 }
 
 /**
@@ -177,9 +202,9 @@ function resolveBankSlug(): string {
  * whether to emit anything.
  * @returns True when trace mode is active.
  */
-function isTraceMode(): boolean {
+function isTraceMode(): IsTraceModeActive {
   const v = (process.env.LOG_LEVEL ?? '').toLowerCase();
-  return v === 'trace';
+  return (v === 'trace') as IsTraceModeActive;
 }
 
 /**
@@ -193,17 +218,17 @@ function isTraceMode(): boolean {
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
  * @returns Absolute folder path, or empty string.
  */
-function getRunFolder(): string {
-  if (!isTraceMode()) return '';
-  if (runFolderCache) return runFolderCache;
+function getRunFolder(): RunFolderPath {
+  if (!isTraceMode()) return '' as RunFolderPath;
+  if (runFolderCache) return runFolderCache as RunFolderPath;
   const bank = resolveBankSlug();
-  if (bank.length === 0) return '';
+  if (bank.length === 0) return '' as RunFolderPath;
   const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
   const stamp = formatRunStamp(new Date());
   const folder = path.join(root, PIPELINE_SEGMENT, bank, stamp);
   fs.mkdirSync(folder, { recursive: true });
   runFolderCache = folder;
-  return folder;
+  return folder as RunFolderPath;
 }
 
 /**
@@ -212,10 +237,10 @@ function getRunFolder(): string {
  * needing to register).
  * @returns Absolute log file path, or empty string off-trace.
  */
-function getLogFile(): string {
+function getLogFile(): LogFilePath {
   const root = getRunFolder();
-  if (!root) return '';
-  return path.join(root, PIPELINE_LOG_FILE);
+  if (!root) return '' as LogFilePath;
+  return path.join(root, PIPELINE_LOG_FILE) as LogFilePath;
 }
 
 /**
@@ -223,14 +248,14 @@ function getLogFile(): string {
  * NetworkDiscovery skips body dumps without forcing a bank registration.
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
-function getNetworkDumpDir(): string {
-  if (networkDirCache) return networkDirCache;
+function getNetworkDumpDir(): NetworkDumpDirPath {
+  if (networkDirCache) return networkDirCache as NetworkDumpDirPath;
   const root = getRunFolder();
-  if (!root) return '';
+  if (!root) return '' as NetworkDumpDirPath;
   const dir = path.join(root, NETWORK_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   networkDirCache = dir;
-  return dir;
+  return dir as NetworkDumpDirPath;
 }
 
 /**
@@ -238,14 +263,14 @@ function getNetworkDumpDir(): string {
  * callers can skip the screenshot without needing a registered bank.
  * @returns Absolute screenshot directory path, or empty string off-trace.
  */
-function getScreenshotDir(): string {
-  if (screenshotDirCache) return screenshotDirCache;
+function getScreenshotDir(): ScreenshotDirPath {
+  if (screenshotDirCache) return screenshotDirCache as ScreenshotDirPath;
   const root = getRunFolder();
-  if (!root) return '';
+  if (!root) return '' as ScreenshotDirPath;
   const dir = path.join(root, SCREENSHOT_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   screenshotDirCache = dir;
-  return dir;
+  return dir as ScreenshotDirPath;
 }
 
 /**

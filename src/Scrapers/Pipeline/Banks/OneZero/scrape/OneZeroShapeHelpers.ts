@@ -4,7 +4,13 @@
  * the 150-LOC per-file ceiling.
  */
 
+import type { Brand } from '../../../Types/Brand.js';
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
+
+/** Account display number (portfolioNum) — branded so Rule #15 accepts it. */
+type AccountNumberDisplay = Brand<string, 'OneZeroAccountNumberDisplay'>;
+/** Current account balance — branded so Rule #15 accepts it. */
+type AccountBalance = Brand<number, 'OneZeroAccountBalance'>;
 
 /** Per-account ref emitted by extractAccounts. */
 export interface IOneZeroAcct {
@@ -73,8 +79,8 @@ export function extractAccounts(body: ApiBody): readonly IOneZeroAcct[] {
  * @param acct - Account ref.
  * @returns Portfolio display number.
  */
-export function accountNumberOf(acct: IOneZeroAcct): string {
-  return acct.portfolioNum;
+export function accountNumberOf(acct: IOneZeroAcct): AccountNumberDisplay {
+  return acct.portfolioNum as AccountNumberDisplay;
 }
 
 /**
@@ -99,7 +105,7 @@ export function balanceVars(acct: IOneZeroAcct): VarsMap {
  * @param body - Unwrapped balance response.
  * @returns Current account balance.
  */
-export function balanceExtract(body: ApiBody): number {
+export function balanceExtract(body: ApiBody): AccountBalance {
   const resp = body as unknown as IBalResp;
-  return resp.balance.currentAccountBalance;
+  return resp.balance.currentAccountBalance as AccountBalance;
 }

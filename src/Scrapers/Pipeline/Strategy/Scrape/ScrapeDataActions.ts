@@ -10,10 +10,31 @@ import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.
 import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscoveryTypes.js';
 import { findFieldValue, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
+import {
+  PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
+} from '../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+
+/** Pipe-delimited transaction hash. */
+type TxnHashKey = Brand<string, 'TxnHashKey'>;
+/** Lowercased templateable WK key. */
+type TemplateKeyLower = Brand<string, 'TemplateKeyLower'>;
+/** Templateable-key predicate result. */
+type IsTemplateKey = Brand<boolean, 'IsTemplateKey'>;
+/** Field-application predicate result. */
+type DidApplyField = Brand<boolean, 'DidApplyField'>;
+/** After-start-date predicate result. */
+type IsAfterStartDate = Brand<boolean, 'IsAfterStartDate'>;
+/** Dedup retain predicate result. */
+type ShouldRetainTxn = Brand<boolean, 'ShouldRetainTxn'>;
+/** Per-month transaction URL. */
+type TxnUrlStr = Brand<string, 'TxnUrlStr'>;
+/** Resolved final account-number string. */
+type AccountNumberStr = Brand<string, 'AccountNumberStr'>;
 import {
   isRecord,
   resolveBalanceFromRecords,
@@ -55,24 +76,26 @@ function parseStartDate(raw: string): Date {
  * @param t - Transaction to hash.
  * @returns Pipe-delimited key.
  */
-function txnHash(t: ITransaction): string {
+function txnHash(t: ITransaction): TxnHashKey {
   const amt = String(t.originalAmount);
-  return `${t.date}|${t.description}|${amt}`;
+  return `${t.date}|${t.description}|${amt}` as TxnHashKey;
 }
 
 // ── Templating ───────────────────────────────────────────
 
 /** Lowercased WK account ID field names. */
-const TEMPLATE_KEYS = new Set(WK.accountId.map((k): string => k.toLowerCase()));
+const TEMPLATE_KEYS = new Set(
+  WK.accountId.map((k): TemplateKeyLower => k.toLowerCase() as TemplateKeyLower),
+);
 
 /**
  * Check if a field key is a templateable account ID.
  * @param key - Field name.
  * @returns True if the key matches a WK account ID field.
  */
-function isTemplateKey(key: string): boolean {
+function isTemplateKey(key: string): IsTemplateKey {
   const keyLower = key.toLowerCase();
-  return TEMPLATE_KEYS.has(keyLower);
+  return TEMPLATE_KEYS.has(keyLower as TemplateKeyLower) as IsTemplateKey;
 }
 
 /**
@@ -86,11 +109,11 @@ function applyTemplateField(
   body: Record<string, string | object>,
   key: string,
   value: string | number,
-): boolean {
-  if (!isTemplateKey(key)) return false;
+): DidApplyField {
+  if (!isTemplateKey(key)) return false as DidApplyField;
   const stringValue = String(value);
   replaceField(body as JsonRecord, [key], stringValue);
-  return true;
+  return true as DidApplyField;
 }
 
 /**
@@ -106,22 +129,115 @@ function scalarEntries(record: Record<string, unknown>): readonly [string, strin
   );
 }
 
+/** Plural-array WK keys identifying multi-card request scopes. */
+const PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];
+
+/** Per-txn WK card-id alias union — same union used by the partition. */
+const PER_TXN_CARD_FIELDS: readonly string[] = [...WK.queryId, ...WK.displayId, ...MF.accountId];
+
+/** Local alias for an opaque card-array entry — bypass `unknown` rule. */
+type CardEntry = Record<string, unknown> | string | number | boolean | null;
+
+/** Did-filter outcome — branded so Rule #15 accepts the boolean return. */
+type DidFilter = Brand<boolean, 'DidFilter'>;
+
+/**
+ * Returns true when one card-array entry's WK card-id field matches
+ * the iteration's accountId. Generic via the WK alias list — case-
+ * insensitive key matching is delegated to {@link findFieldValue}.
+ *
+ * @param entry - One element of the plural cards array.
+ * @param accountId - Iteration card identifier.
+ * @returns true when the entry belongs to this card.
+ */
+function entryMatchesAccountId(entry: CardEntry, accountId: string): boolean {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+    return false;
+  }
+  const value = findFieldValue(entry, PER_TXN_CARD_FIELDS);
+  if (value === false) return false;
+  return String(value) === accountId;
+}
+
+/**
+ * Filters the array under one plural key to entries matching
+ * `accountId`. Returns true when a filter actually narrowed the
+ * array. Hoisted so {@link filterPluralCardArrays} stays at depth 1.
+ *
+ * @param body - Mutable POST body.
+ * @param key - Plural key to inspect.
+ * @param accountId - Iteration card identifier.
+ * @returns true when the array under `key` was rewritten.
+ */
+function filterOnePluralKey(
+  body: Record<string, unknown>,
+  key: string,
+  accountId: string,
+): DidFilter {
+  const arr = body[key];
+  if (!Array.isArray(arr)) return false as DidFilter;
+  const entries = arr as readonly CardEntry[];
+  const matched = entries.filter((entry): boolean => entryMatchesAccountId(entry, accountId));
+  if (matched.length === 0) return false as DidFilter;
+  if (matched.length === arr.length) return false as DidFilter;
+  body[key] = matched;
+  return true as DidFilter;
+}
+
+/**
+ * Rewrites every plural cards array in `body` to contain only the
+ * entry matching `accountId`. Banks whose dashboard fires a single
+ * multi-card POST (Amex/Isracard `GetLatestTransactions`) accept a
+ * one-element array equally well — the bank then returns per-card
+ * data per request, eliminating the response-side mirror without
+ * any per-bank code.
+ *
+ * <p>Generic via {@link PLURAL_CARDS_KEYS} (cards/accounts/
+ * bankAccounts) and the WK card-id alias union. No-op when the body
+ * carries no plural array, when no entry matches the accountId, or
+ * when the accountId is empty (single-account banks).
+ *
+ * @param body - Mutable POST body parsed from the captured template.
+ * @param accountId - Iteration card identifier (empty = no filter).
+ * @returns true when at least one plural array was narrowed.
+ */
+function filterPluralCardArrays(body: Record<string, unknown>, accountId: string): DidFilter {
+  if (accountId.length === 0) return false as DidFilter;
+  const outcomes = PLURAL_CARDS_KEYS.map(
+    (key): DidFilter => filterOnePluralKey(body, key, accountId),
+  );
+  return outcomes.includes(true as DidFilter) as DidFilter;
+}
+
 /**
  * Build POST body from captured template.
+ *
+ * <p>Two-step rewrite: first filter any plural cards/accounts array
+ * to the iteration's card (so multi-card request templates become
+ * per-card requests, generic via {@link PLURAL_CARDS_KEYS}); then
+ * substitute scalar WK identifiers via the existing replaceField
+ * walker.
+ *
  * @param postData - Captured raw POST data string.
  * @param accountRecord - Account record with values.
- * @returns Templated body with account IDs substituted.
+ * @param accountId - Iteration card identifier; drives the plural-
+ *   array filter. Optional — when omitted, only scalar substitution
+ *   runs (single-card banks).
+ * @returns Templated body with account IDs substituted and plural
+ *   arrays narrowed to the iteration's card when applicable.
  */
 function templatePostBody(
   postData: string,
   accountRecord: Record<string, unknown>,
+  accountId = '',
 ): Record<string, string | object> {
   const raw = postData || '{}';
-  const body = JSON.parse(raw) as Record<string, string | object>;
+  const body = JSON.parse(raw) as Record<string, unknown>;
+  filterPluralCardArrays(body, accountId);
   for (const [key, value] of scalarEntries(accountRecord)) {
-    applyTemplateField(body, key, value);
+    applyTemplateField(body as Record<string, string | object>, key, value);
   }
-  return body;
+  return body as Record<string, string | object>;
 }
 
 // ── Deduplication ────────────────────────────────────────
@@ -136,13 +252,15 @@ function deduplicateTxns(
   allTxns: readonly ITransaction[],
   startMs: number,
 ): readonly ITransaction[] {
-  const afterStart = allTxns.filter((t): boolean => new Date(t.date).getTime() >= startMs);
+  const afterStart = allTxns.filter(
+    (t): IsAfterStartDate => (new Date(t.date).getTime() >= startMs) as IsAfterStartDate,
+  );
   const seen = new Set<string>();
-  return afterStart.filter((t): boolean => {
+  return afterStart.filter((t): ShouldRetainTxn => {
     const key = txnHash(t);
-    if (seen.has(key)) return false;
+    if (seen.has(key)) return false as ShouldRetainTxn;
     seen.add(key);
-    return true;
+    return true as ShouldRetainTxn;
   });
 }
 
@@ -201,7 +319,7 @@ const FILTER_DATA_TEMPLATE = {
  * @param m - calendar month (1-based, no zero-pad).
  * @returns full URL with encoded filterData + firstCallCardIndex.
  */
-function buildFilterDataUrl(baseUrl: string, yyyy: number, m: number): string {
+function buildFilterDataUrl(baseUrl: string, yyyy: number, m: number): TxnUrlStr {
   const dateStr = `${String(yyyy)}-${String(m)}-01`;
   const json = JSON.stringify(FILTER_DATA_TEMPLATE).replace('{date}', dateStr);
   let url: URL;
@@ -209,11 +327,11 @@ function buildFilterDataUrl(baseUrl: string, yyyy: number, m: number): string {
     url = new URL(baseUrl);
   } catch {
     const encoded = encodeURIComponent(json);
-    return `${baseUrl}?filterData=${encoded}&firstCallCardIndex=-1`;
+    return `${baseUrl}?filterData=${encoded}&firstCallCardIndex=-1` as TxnUrlStr;
   }
   url.searchParams.set('filterData', json);
   url.searchParams.set('firstCallCardIndex', '-1');
-  return url.toString();
+  return url.toString() as TxnUrlStr;
 }
 
 /**
@@ -241,12 +359,12 @@ const DEFAULT_ACCOUNT_NUMBER = 'default';
  * @param ctx - Assembly context.
  * @returns Best-effort accountNumber string (never empty).
  */
-function resolveAccountNumber(ctx: IAccountAssemblyCtx): string {
+function resolveAccountNumber(ctx: IAccountAssemblyCtx): AccountNumberStr {
   const primary = ctx.displayId || ctx.accountId;
-  if (primary && primary !== DEFAULT_ACCOUNT_NUMBER) return primary;
+  if (primary && primary !== DEFAULT_ACCOUNT_NUMBER) return primary as AccountNumberStr;
   const fromStore = resolveDisplayIdFromCapturedEndpoints(ctx.fc.network);
-  if (isOk(fromStore)) return fromStore.value;
-  return primary || DEFAULT_ACCOUNT_NUMBER;
+  if (isOk(fromStore)) return fromStore.value as AccountNumberStr;
+  return (primary || DEFAULT_ACCOUNT_NUMBER) as AccountNumberStr;
 }
 
 /**

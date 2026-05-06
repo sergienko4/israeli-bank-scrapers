@@ -6,8 +6,12 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { LoginFn } from './PipelineAssembly.js';
 import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
+
+/** Setter outcome — true after applying state mutation. */
+type DidSet = Brand<boolean, 'BuilderDidSet'>;
 
 type LoginMode = 'none' | 'declarative' | 'apiDirectConfig';
 
@@ -55,12 +59,12 @@ function createEmptyState(): IBuilderState {
  * @param state - Mutable builder state.
  * @returns True if no conflict.
  */
-function assertNoLoginMode(state: IBuilderState): boolean {
+function assertNoLoginMode(state: IBuilderState): DidSet {
   if (state.loginMode !== 'none') {
     state.error = 'PipelineBuilder: login mode already set';
-    return false;
+    return false as DidSet;
   }
-  return true;
+  return true as DidSet;
 }
 
 /**
@@ -69,15 +73,15 @@ function assertNoLoginMode(state: IBuilderState): boolean {
  * @param configOrFn - ILoginConfig or login function.
  * @returns True after setting.
  */
-function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | LoginFn): boolean {
+function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | LoginFn): DidSet {
   assertNoLoginMode(state);
   state.loginMode = 'declarative';
   if (typeof configOrFn === 'function') {
     state.loginFn = configOrFn;
-    return true;
+    return true as DidSet;
   }
   state.loginConfig = configOrFn;
-  return true;
+  return true as DidSet;
 }
 
 /**
@@ -89,11 +93,11 @@ function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | Lo
  * @param config - Bank IApiDirectCallConfig literal.
  * @returns True after setting.
  */
-function setApiDirectConfig(state: IBuilderState, config: IApiDirectCallConfig): boolean {
+function setApiDirectConfig(state: IBuilderState, config: IApiDirectCallConfig): DidSet {
   assertNoLoginMode(state);
   state.loginMode = 'apiDirectConfig';
   state.apiDirectConfig = config;
-  return true;
+  return true as DidSet;
 }
 
 /**

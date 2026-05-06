@@ -12,9 +12,13 @@ import {
   PIPELINE_WELL_KNOWN_API,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IApiFetchContext } from '../../../Types/PipelineContext.js';
 import { isOk } from '../../../Types/Procedure.js';
+
+type SafeFieldStr = Brand<string, 'SafeFieldStr'>;
+type DisplayFromRecord = Brand<string, 'DisplayFromRecord'>;
 
 const LOG = createLogger('pending-strategy');
 
@@ -118,10 +122,10 @@ type FieldValue = string | number | boolean | null | undefined;
  * @param val - API field value.
  * @returns String value or empty.
  */
-function safeStr(val: FieldValue): string {
-  if (typeof val === 'string') return val;
-  if (typeof val === 'number') return val.toString();
-  return '';
+function safeStr(val: FieldValue): SafeFieldStr {
+  if (typeof val === 'string') return val as SafeFieldStr;
+  if (typeof val === 'number') return val.toString() as SafeFieldStr;
+  return '' as SafeFieldStr;
 }
 
 /**
@@ -129,10 +133,10 @@ function safeStr(val: FieldValue): string {
  * @param record - Raw account record.
  * @returns Display string or empty.
  */
-function extractDisplayFromRecord(record: Record<string, unknown>): string {
+function extractDisplayFromRecord(record: Record<string, unknown>): DisplayFromRecord {
   const val = findFieldValue(record, WK.displayId);
-  if (val !== false) return String(val);
-  return '';
+  if (val !== false) return String(val) as DisplayFromRecord;
+  return '' as DisplayFromRecord;
 }
 
 /**

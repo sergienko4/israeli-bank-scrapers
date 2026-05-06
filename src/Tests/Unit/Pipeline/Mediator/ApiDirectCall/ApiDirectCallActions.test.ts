@@ -112,6 +112,30 @@ describe('ApiDirectCallActions.runApiDirectCallPre classification', () => {
     const result = await runApiDirectCallPre(cfg, ctx);
     expect(result.success).toBe(true);
   });
+
+  it('succeeds when warmStart is populated but jwtClaims is undefined (stale path)', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const cfg: IApiDirectCallConfig = {
+      ...makeBaseConfig(),
+      warmStart: { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 },
+    };
+    const bus = makeStubMediator({ responses: [], captures });
+    const ctx = makeActionsCtx({ bus, credentials: { storedJwt: 'eyJabc.def.ghi' } });
+    const result = await runApiDirectCallPre(cfg, ctx);
+    expect(result.success).toBe(true);
+  });
+
+  it('succeeds when warmStart credentials slot is the wrong type (non-string)', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const cfg: IApiDirectCallConfig = {
+      ...makeBaseConfig(),
+      warmStart: { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 },
+    };
+    const bus = makeStubMediator({ responses: [], captures });
+    const ctx = makeActionsCtx({ bus, credentials: { storedJwt: 12345 } });
+    const result = await runApiDirectCallPre(cfg, ctx);
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('ApiDirectCallActions.runApiDirectCallAction primeSession', () => {

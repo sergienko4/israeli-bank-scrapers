@@ -6,9 +6,13 @@
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+
+/** Stop signal — branded so Rule #15 accepts the boolean return. */
+type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
 import type {
   ApiBody,
   HeaderMap,
@@ -114,14 +118,14 @@ export function buildPageFetcher<TAcct, TCursor>(
 }
 
 /** Stop predicate signature consumed by fetchPaginated. */
-type BoundStop = (acc: readonly object[]) => boolean;
+type BoundStop = (acc: readonly object[]) => ShouldStop;
 
 /**
  * No-op stop predicate — used when the shape omits a custom stop.
  * @returns False (never stop).
  */
-function neverStop(): boolean {
-  return false;
+function neverStop(): ShouldStop {
+  return false as ShouldStop;
 }
 
 /**
@@ -132,5 +136,5 @@ function neverStop(): boolean {
 export function buildStop<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): BoundStop {
   const stop = d.shape.transactions.stop;
   if (!stop) return neverStop;
-  return (acc): boolean => stop(acc, d.ctx);
+  return (acc): ShouldStop => stop(acc, d.ctx) as ShouldStop;
 }

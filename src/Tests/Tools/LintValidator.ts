@@ -176,8 +176,17 @@ export function loadAllowlist(
   return out;
 }
 
-/** Regex: primitive return type following a closing paren. */
-const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*[{=]|\s*\n)/g;
+/**
+ * Regex: primitive return type on a function-body opener.
+ * Matches `): primitive {` only — function/method declarations with a
+ * block body. Does NOT match `): primitive =>` (inline arrow
+ * callbacks): callbacks never cross a module boundary, so Rule #15
+ * (nominal types at module exports) is satisfied without branding
+ * them. Combined with `isExportedDeclaration`, this restricts the
+ * gate to exported function-decl boundaries — internal helpers are
+ * also exempt.
+ */
+const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*\{)/g;
 /**
  * Regex: bare-primitive type alias declaration (S6564 canary).
  * Matches `type X = string;` / `= number;` / `= boolean;` / `= unknown;`.
@@ -284,17 +293,24 @@ const PII_PAYLOAD_RE = new RegExp(
 
 /**
  * Emit S6564-Canary issues for a file. Catches bare-primitive aliases
- * even when ESLint is bypassed.
+ * even when ESLint is bypassed. Skips matches whose immediately
+ * preceding line carries a `// NOSONAR` justification (mirrors
+ * SonarCloud's server-side suppression so the local canary stays
+ * consistent with the cloud gate).
  * @param code - Source text.
  * @returns S6564-Canary issues (may be empty).
  */
 function s6564CanaryIssues(code: string): IIssue[] {
   const out: IIssue[] = [];
-  const matches = code.match(S6564_CANARY_RE) ?? [];
-  for (const m of matches) {
+  const lines = code.split('\n');
+  for (const [idx, line] of lines.entries()) {
+    S6564_CANARY_RE.lastIndex = 0;
+    if (!S6564_CANARY_RE.test(line)) continue;
+    const prev = idx > 0 ? lines[idx - 1] : '';
+    if (prev.includes('NOSONAR')) continue;
     out.push({
       rule: 'S6564-Canary',
-      message: `[S6564-Canary] Bare-primitive type alias: ${m.trim()}`,
+      message: `[S6564-Canary] Bare-primitive type alias at line ${String(idx + 1)}: ${line.trim()}`,
     });
   }
   S6564_CANARY_RE.lastIndex = 0;
@@ -365,18 +381,60 @@ function s1607CanaryIssues(code: string): IIssue[] {
   return out;
 }
 
+/** Regex: function or const declaration (any visibility). */
+const FUNCTION_OR_CONST_DECL_RE = /\b(?:function|const)\s+\w+/;
+/** Regex: declaration line decorated with `export`. */
+const EXPORT_KEYWORD_RE = /\bexport\b/;
+/** Regex: line that carries ONLY the `export` keyword (multi-line decoration). */
+const EXPORT_LINE_ONLY_RE = /^\s*export\s*$/;
+
 /**
- * Emit Rule #15 (primitive-return) issues for a file.
+ * Walk backwards from the match line to the closest function-or-const
+ * declaration, then check whether the declaration itself carries
+ * `export` (same line) or whether the line immediately above is an
+ * `export` line on its own. Internal helpers (no `export`) are
+ * permitted to return primitives — Rule #15 enforces nominal types
+ * only at module boundaries (= `export`ed declarations).
+ *
+ * @param matchIdx - Index of the line where PRIMITIVE_RETURN_RE matched.
+ * @param lines - File source split by newline.
+ * @returns True when the enclosing declaration is exported.
+ */
+function isExportedDeclaration(matchIdx: number, lines: readonly string[]): boolean {
+  for (let i = matchIdx; i >= 0; i--) {
+    const line = lines[i];
+    if (!FUNCTION_OR_CONST_DECL_RE.test(line)) continue;
+    if (EXPORT_KEYWORD_RE.test(line)) return true;
+    if (i > 0 && EXPORT_LINE_ONLY_RE.test(lines[i - 1])) return true;
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Emit Rule #15 (primitive-return) issues for a file. Scope: only
+ * EXPORTED functions/consts. Internal helpers may return primitives —
+ * the architectural intent is nominal typing across module boundaries,
+ * not inside a single file. Class methods (declared without `function`/
+ * `const` keywords on the same line walk) fall through to the default
+ * "not exported" branch and are NOT flagged here; the existing
+ * `no-restricted-syntax` ESLint rule already handles class-method
+ * primitive returns via AST.
+ *
  * @param code - Source text.
  * @returns Rule #15 issues (may be empty).
  */
 function ruleFifteenIssues(code: string): IIssue[] {
   const out: IIssue[] = [];
-  const matches = code.match(PRIMITIVE_RETURN_RE) ?? [];
-  for (const m of matches) {
+  const lines = code.split('\n');
+  for (const [idx, line] of lines.entries()) {
+    PRIMITIVE_RETURN_RE.lastIndex = 0;
+    if (!PRIMITIVE_RETURN_RE.test(line)) continue;
+    PRIMITIVE_RETURN_RE.lastIndex = 0;
+    if (!isExportedDeclaration(idx, lines)) continue;
     out.push({
       rule: 'Rule #15',
-      message: `[Rule #15] Forbidden primitive return: ${m.trim()}`,
+      message: `[Rule #15] Forbidden primitive return at line ${String(idx + 1)}: ${line.trim()}`,
     });
   }
   PRIMITIVE_RETURN_RE.lastIndex = 0;

@@ -14,9 +14,14 @@ import {
   PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk } from '../../../Types/Procedure.js';
+
+type IsPathMatch = Brand<boolean, 'IsPathMatch'>;
+type IsFilterDataUrl = Brand<boolean, 'IsFilterDataUrl'>;
+type DisplayIdFromRaw = Brand<string, 'DisplayIdFromRaw'>;
 import {
   buildAccountResult,
   buildFilterDataUrl,
@@ -52,9 +57,11 @@ function parseOrFalse(url: string): URL | false {
  * @param keyLower - Lowercased probe.
  * @returns True on match.
  */
-function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): boolean {
-  if (parsed !== false) return parsed.pathname.toLowerCase().includes(keyLower);
-  return url.toLowerCase().includes(keyLower);
+function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): IsPathMatch {
+  if (parsed !== false) {
+    return parsed.pathname.toLowerCase().includes(keyLower) as IsPathMatch;
+  }
+  return url.toLowerCase().includes(keyLower) as IsPathMatch;
 }
 
 /**
@@ -65,12 +72,14 @@ function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): 
  * @param url - Captured endpoint URL.
  * @returns True when the URL exposes the filterData family shape.
  */
-export function isFilterDataUrl(url: string): boolean {
-  if (!url) return false;
+export function isFilterDataUrl(url: string): IsFilterDataUrl {
+  if (!url) return false as IsFilterDataUrl;
   const parsed = parseOrFalse(url);
   const keyLower = WK_QUERY.filterData.toLowerCase();
-  if (parsed !== false && parsed.searchParams.has(WK_QUERY.filterData)) return true;
-  return pathOrRawIncludes(url, parsed, keyLower);
+  if (parsed !== false && parsed.searchParams.has(WK_QUERY.filterData)) {
+    return true as IsFilterDataUrl;
+  }
+  return pathOrRawIncludes(url, parsed, keyLower) as unknown as IsFilterDataUrl;
 }
 
 /** Buffered txn extraction result. */
@@ -85,15 +94,15 @@ interface IBufferedTxns {
  * @param body - Raw parsed response body.
  * @returns Card number or empty string.
  */
-function extractDisplayIdFromRaw(body: Record<string, unknown>): string {
+function extractDisplayIdFromRaw(body: Record<string, unknown>): DisplayIdFromRaw {
   const result = body.result as Record<string, unknown> | undefined;
-  if (!result) return '';
+  if (!result) return '' as DisplayIdFromRaw;
   const txnArray = result.transactions as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(txnArray) || txnArray.length === 0) return '';
+  if (!Array.isArray(txnArray) || txnArray.length === 0) return '' as DisplayIdFromRaw;
   const first = txnArray[0];
   const cardId = findFieldValue(first, WK.displayId);
-  if (cardId === false) return '';
-  return String(cardId);
+  if (cardId === false) return '' as DisplayIdFromRaw;
+  return String(cardId) as DisplayIdFromRaw;
 }
 
 /**

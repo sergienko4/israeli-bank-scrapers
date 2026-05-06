@@ -6,17 +6,28 @@
  * ignored (Expires/Path/Domain/Secure/HttpOnly/SameSite).
  */
 
+import type { Brand } from '../../Types/Brand.js';
+
 /** Parsed (name, value) pair from a single Set-Cookie line. */
 interface ICookieEntry {
   readonly name: string;
   readonly value: string;
 }
 
+/** Set-Cookie name=value head (attributes stripped). */
+type CookieHead = Brand<string, 'CookieHead'>;
+/** Serialised Cookie request-header value. */
+type CookieHeaderValue = Brand<string, 'CookieHeaderValue'>;
+/** Size of the cookie store. */
+type CookieStoreSize = Brand<number, 'CookieStoreSize'>;
+/** Count of newly ingested Set-Cookie lines. */
+type IngestedCount = Brand<number, 'IngestedCount'>;
+
 /** Public contract consumers see. */
 export interface ICookieJar {
-  readonly add: (setCookieHeaders: readonly string[]) => number;
-  readonly cookieHeader: () => string;
-  readonly size: () => number;
+  readonly add: (setCookieHeaders: readonly string[]) => IngestedCount;
+  readonly cookieHeader: () => CookieHeaderValue;
+  readonly size: () => CookieStoreSize;
 }
 
 /**
@@ -24,11 +35,11 @@ export interface ICookieJar {
  * @param raw - Raw Set-Cookie value, attributes optional.
  * @returns Head string (everything before the first ";").
  */
-function stripAttributes(raw: string): string {
+function stripAttributes(raw: string): CookieHead {
   const trimmed = raw.trim();
   const semi = trimmed.indexOf(';');
-  if (semi === -1) return trimmed;
-  return trimmed.slice(0, semi);
+  if (semi === -1) return trimmed as CookieHead;
+  return trimmed.slice(0, semi) as CookieHead;
 }
 
 /**
@@ -50,11 +61,11 @@ function parseOne(raw: string): ICookieEntry | false {
  * @param raw - Raw Set-Cookie value.
  * @returns 1 if stored, 0 if ignored.
  */
-function ingestOne(store: Map<string, string>, raw: string): number {
+function ingestOne(store: Map<string, string>, raw: string): IngestedCount {
   const parsed = parseOne(raw);
-  if (parsed === false) return 0;
+  if (parsed === false) return 0 as IngestedCount;
   store.set(parsed.name, parsed.value);
-  return 1;
+  return 1 as IngestedCount;
 }
 
 /**
@@ -63,9 +74,9 @@ function ingestOne(store: Map<string, string>, raw: string): number {
  * @param lines - Raw Set-Cookie lines.
  * @returns Count of stored entries after ingest.
  */
-function ingestAll(store: Map<string, string>, lines: readonly string[]): number {
+function ingestAll(store: Map<string, string>, lines: readonly string[]): IngestedCount {
   for (const line of lines) ingestOne(store, line);
-  return store.size;
+  return store.size as IngestedCount;
 }
 
 /**
@@ -73,10 +84,10 @@ function ingestAll(store: Map<string, string>, lines: readonly string[]): number
  * @param store - Underlying Map.
  * @returns "name1=v1; name2=v2; …" (empty when store is empty).
  */
-function serializeHeader(store: Map<string, string>): string {
+function serializeHeader(store: Map<string, string>): CookieHeaderValue {
   const parts: string[] = [];
   for (const [name, value] of store) parts.push(`${name}=${value}`);
-  return parts.join('; ');
+  return parts.join('; ') as CookieHeaderValue;
 }
 
 /**
@@ -84,8 +95,8 @@ function serializeHeader(store: Map<string, string>): string {
  * @param store - Underlying Map.
  * @returns Size.
  */
-function jarSize(store: Map<string, string>): number {
-  return store.size;
+function jarSize(store: Map<string, string>): CookieStoreSize {
+  return store.size as CookieStoreSize;
 }
 
 /**
@@ -94,7 +105,7 @@ function jarSize(store: Map<string, string>): number {
  * @returns Add operation.
  */
 function bindAdd(store: Map<string, string>): ICookieJar['add'] {
-  return (lines): number => ingestAll(store, lines);
+  return (lines): IngestedCount => ingestAll(store, lines);
 }
 
 /**
@@ -103,7 +114,7 @@ function bindAdd(store: Map<string, string>): ICookieJar['add'] {
  * @returns cookieHeader operation.
  */
 function bindCookieHeader(store: Map<string, string>): ICookieJar['cookieHeader'] {
-  return (): string => serializeHeader(store);
+  return (): CookieHeaderValue => serializeHeader(store);
 }
 
 /**
@@ -112,7 +123,7 @@ function bindCookieHeader(store: Map<string, string>): ICookieJar['cookieHeader'
  * @returns size operation.
  */
 function bindSize(store: Map<string, string>): ICookieJar['size'] {
-  return (): number => jarSize(store);
+  return (): CookieStoreSize => jarSize(store);
 }
 
 /**

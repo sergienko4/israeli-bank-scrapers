@@ -17,6 +17,10 @@
 
 import type { Page } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
+
+type DeepSerializedHtml = Brand<string, 'DeepSerializedHtml'>;
+
 /** Empty-string fallback when deep serialization fails in the page context. */
 const EMPTY_HTML = '';
 
@@ -91,7 +95,9 @@ async function fallbackHtml(page: Page): Promise<string> {
  * @returns Serialised HTML string or '' on error.
  */
 async function tryEvaluate(page: Page): Promise<string> {
-  return page.evaluate<string>(SERIALIZE_JS).catch((): string => EMPTY_HTML);
+  return page
+    .evaluate<string>(SERIALIZE_JS)
+    .catch((): DeepSerializedHtml => EMPTY_HTML as DeepSerializedHtml);
 }
 
 /**

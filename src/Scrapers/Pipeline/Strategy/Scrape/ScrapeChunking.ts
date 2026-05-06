@@ -19,9 +19,12 @@ import {
   parseStartDate,
   rateLimitPause,
 } from '../../Strategy/Scrape/ScrapeDataActions.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { IAccountAssemblyCtx, IChunkingCtx } from './ScrapeTypes.js';
+
+type IsAfterStart = Brand<boolean, 'IsAfterStart'>;
 
 const RATE_LIMIT_MS = 300;
 
@@ -114,9 +117,9 @@ async function scrapeWithMonthlyChunking(
  * @param startMs - Start epoch ms.
  * @returns True if valid and after start.
  */
-function isAfterStart(txn: ITransaction, startMs: number): boolean {
+function isAfterStart(txn: ITransaction, startMs: number): IsAfterStart {
   const txnMs = new Date(txn.date).getTime();
-  return !Number.isNaN(txnMs) && txnMs >= startMs;
+  return (!Number.isNaN(txnMs) && txnMs >= startMs) as IsAfterStart;
 }
 
 /**
@@ -130,7 +133,7 @@ function applyGlobalDateFilter(
   startMs: number,
 ): readonly ITransactionsAccount[] {
   for (const account of accounts) {
-    account.txns = account.txns.filter((t): boolean => isAfterStart(t, startMs));
+    account.txns = account.txns.filter((t): IsAfterStart => isAfterStart(t, startMs));
   }
   return accounts;
 }

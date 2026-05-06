@@ -3,9 +3,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import pino, { type Logger } from 'pino';
 
 import { getActivePhase, getActiveStage } from './ActiveState.js';
+import type { Brand } from './Brand.js';
 import { SENSITIVE_PATHS } from './DebugConfig.js';
 import { createCensorFn } from './PiiRedactor.js';
 import { getLogFile } from './TraceConfig.js';
+
+/** URL basename string — branded for Rule #15. */
+type UrlBasename = Brand<string, 'UrlBasename'>;
+/** Kebab-cased logger name derived from a source filename. */
+type LoggerNameKebab = Brand<string, 'LoggerNameKebab'>;
 
 /** Bank context shape for async-local storage. */
 interface IBankContext {
@@ -171,11 +177,11 @@ const PASCAL_SPLIT_RE = /([a-z0-9])([A-Z])/g;
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns The filename portion (or the input itself if no `/` present).
  */
-function basenameFromUrl(metaUrl: string): string {
+function basenameFromUrl(metaUrl: string): UrlBasename {
   const cleaned = metaUrl.split('?')[0].split('#')[0];
   const lastSlash = cleaned.lastIndexOf('/');
-  if (lastSlash < 0) return cleaned;
-  return cleaned.substring(lastSlash + 1);
+  if (lastSlash < 0) return cleaned as UrlBasename;
+  return cleaned.substring(lastSlash + 1) as UrlBasename;
 }
 
 /**
@@ -187,11 +193,11 @@ function basenameFromUrl(metaUrl: string): string {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns Kebab-cased module name.
  */
-function deriveLogName(metaUrl: string): string {
+function deriveLogName(metaUrl: string): LoggerNameKebab {
   const last = basenameFromUrl(metaUrl);
   const stem = last.replace(FILE_EXT_RE, '');
   const kebab = stem.replaceAll(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
-  return kebab;
+  return kebab as LoggerNameKebab;
 }
 
 /**

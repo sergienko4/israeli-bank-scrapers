@@ -21,6 +21,7 @@ import {
 import { waitUntil } from '../../Mediator/Timing/Waiting.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
@@ -28,6 +29,10 @@ import { redactAccount } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+
+type IsContainerEndpoint = Brand<boolean, 'IsContainerEndpoint'>;
+type HasAccountContainer = Brand<boolean, 'HasAccountContainer'>;
+type IsTxnOnCurrentOrigin = Brand<boolean, 'IsTxnOnCurrentOrigin'>;
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
 import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
@@ -77,11 +82,11 @@ async function loadDiscovered<T>(
  */
 function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscoveredEndpoint | false {
   const endpoints = network.getAllEndpoints();
-  const hit = endpoints.find((ep): boolean => {
-    if (!ep.responseBody) return false;
+  const hit = endpoints.find((ep): IsContainerEndpoint => {
+    if (!ep.responseBody) return false as IsContainerEndpoint;
     const body = ep.responseBody as ApiPayload;
     const records = findContainerArray(body, [...WK.accountContainers]);
-    return records.length > 0;
+    return (records.length > 0) as IsContainerEndpoint;
   });
   return hit ?? false;
 }
@@ -92,9 +97,9 @@ function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscover
  * @param body - parsed response body.
  * @returns true when an account container is present.
  */
-function bodyHasAccountContainer(body: ApiPayload): boolean {
+function bodyHasAccountContainer(body: ApiPayload): HasAccountContainer {
   const records = findContainerArray(body, [...WK.accountContainers]);
-  return records.length > 0;
+  return (records.length > 0) as HasAccountContainer;
 }
 
 /** Maximum time the post-fast-path poll waits before giving up. */
@@ -414,10 +419,13 @@ function applyCredentialFallback(
  * @param currentOrigin - Current page origin.
  * @returns True if current origin hosts the txn endpoint.
  */
-function isTxnHostedOnCurrentOrigin(network: INetworkDiscovery, currentOrigin: string): boolean {
+function isTxnHostedOnCurrentOrigin(
+  network: INetworkDiscovery,
+  currentOrigin: string,
+): IsTxnOnCurrentOrigin {
   const txnEndpoint = network.discoverTransactionsEndpoint();
-  if (!txnEndpoint) return false;
-  return new URL(txnEndpoint.url).origin === currentOrigin;
+  if (!txnEndpoint) return false as IsTxnOnCurrentOrigin;
+  return (new URL(txnEndpoint.url).origin === currentOrigin) as IsTxnOnCurrentOrigin;
 }
 
 /**

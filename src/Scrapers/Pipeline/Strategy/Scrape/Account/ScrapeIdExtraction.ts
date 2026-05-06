@@ -8,11 +8,15 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue, matchField } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../../../Types/FieldMatch.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+
+type ResolvedIdStr = Brand<string, 'ResolvedIdStr'>;
+type DidLogExtraction = Brand<boolean, 'DidLogExtraction'>;
 
 const LOG = createLogger('scrape-id');
 
@@ -28,9 +32,9 @@ interface IExtractedIds extends IAccountIdentity {
  * @param fallback - Fallback string if match failed.
  * @returns Resolved display or account ID value.
  */
-function resolveStr(result: Procedure<IFieldMatch>, fallback: string): string {
-  if (isOk(result)) return String(result.value.value);
-  return fallback;
+function resolveStr(result: Procedure<IFieldMatch>, fallback: string): ResolvedIdStr {
+  if (isOk(result)) return String(result.value.value) as ResolvedIdStr;
+  return fallback as ResolvedIdStr;
 }
 
 /**
@@ -49,7 +53,7 @@ function resolveReceipt(result: Procedure<IFieldMatch>, fallback: string): IFiel
  * @param ids - The extracted IDs.
  * @returns True after logging.
  */
-function logExtraction(ids: IExtractedIds): boolean {
+function logExtraction(ids: IExtractedIds): DidLogExtraction {
   LOG.debug(
     {
       cardUniqueId: ids.accountId,
@@ -61,7 +65,7 @@ function logExtraction(ids: IExtractedIds): boolean {
     },
     'extractIds',
   );
-  return true;
+  return true as DidLogExtraction;
 }
 
 /**

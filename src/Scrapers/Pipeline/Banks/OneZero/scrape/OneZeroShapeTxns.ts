@@ -10,9 +10,13 @@ import {
   FIRST_PAGE_CURSOR_WIRE,
 } from '../../../Mediator/Scrape/CursorPagination.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
+import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IOneZeroAcct } from './OneZeroShapeHelpers.js';
+
+/** Pagination stop signal — branded so Rule #15 accepts the boolean return. */
+type ShouldStopPagination = Brand<boolean, 'OneZeroShouldStopPagination'>;
 
 const MOVEMENTS_LIMIT = 50;
 const LANGUAGE = 'HEBREW';
@@ -91,11 +95,11 @@ function resolveStartDate(ctx: IActionContext): Date {
  * @param ctx - Action context.
  * @returns True when pagination should stop.
  */
-export function stopPredicate(acc: readonly object[], ctx: IActionContext): boolean {
-  if (acc.length === 0) return false;
+export function stopPredicate(acc: readonly object[], ctx: IActionContext): ShouldStopPagination {
+  if (acc.length === 0) return false as ShouldStopPagination;
   const last = acc.at(-1) as OneZeroTxn | undefined;
   const raw = last?.movementTimestamp;
-  if (typeof raw !== 'string') return false;
-  if (raw === '') return false;
-  return new Date(raw) < resolveStartDate(ctx);
+  if (typeof raw !== 'string') return false as ShouldStopPagination;
+  if (raw === '') return false as ShouldStopPagination;
+  return (new Date(raw) < resolveStartDate(ctx)) as ShouldStopPagination;
 }

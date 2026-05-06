@@ -13,12 +13,15 @@
  * 150-line Pipeline limit.
  */
 
+import type { Brand } from '../Types/Brand.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import type { PhaseName } from '../Types/Phase.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
 import { captureSnapshot } from './SnapshotInterceptorIO.js';
+
+type IsSnapshotEnabled = Brand<boolean, 'IsSnapshotEnabled'>;
 
 /** Env flag name that activates snapshotting. */
 const ENV_FLAG = 'DUMP_SNAPSHOTS';
@@ -33,9 +36,9 @@ interface ISnapshotState {
  * Check whether snapshot capture is enabled via env var.
  * @returns True when DUMP_SNAPSHOTS is set to a truthy value.
  */
-function isSnapshotEnabled(): boolean {
+function isSnapshotEnabled(): IsSnapshotEnabled {
   const val = process.env[ENV_FLAG];
-  return val === '1' || val === 'true';
+  return (val === '1' || val === 'true') as IsSnapshotEnabled;
 }
 
 /**

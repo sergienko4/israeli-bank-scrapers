@@ -16,10 +16,26 @@ import {
   PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_TXN,
 } from '../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
+
+/** POST-body carries-card-id predicate. */
+type BodyCarriesCardId = Brand<boolean, 'BodyCarriesCardId'>;
+/** WK queryId alias-match predicate. */
+type IsAliasMatch = Brand<boolean, 'IsAliasMatch'>;
+/** Billing-candidate predicate. */
+type IsBillingCandidate = Brand<boolean, 'IsBillingCandidate'>;
+/** WK transactions URL-match predicate. */
+type IsUrlPatternMatch = Brand<boolean, 'IsUrlPatternMatch'>;
+/** Built billing URL string. */
+type BillingUrlStr = Brand<string, 'BillingUrlStr'>;
+/** Direct-hit endpoint predicate (URL contains WK billing path fragment). */
+type IsDirectBillingHit = Brand<boolean, 'IsDirectBillingHit'>;
+/** Shaped-hit endpoint predicate (URL matches transactions + card-id body). */
+type IsShapedBillingHit = Brand<boolean, 'IsShapedBillingHit'>;
 import {
   buildAccountResult,
   deduplicateTxns,
@@ -45,9 +61,11 @@ const RATE_LIMIT_MS = 300;
  * @param postData - Captured POST body string.
  * @returns True when any WK.queryId alias appears in the body.
  */
-function bodyCarriesCardId(postData: string): boolean {
-  if (!postData) return false;
-  return WK_TXN.queryId.some((alias): boolean => postData.includes(alias));
+function bodyCarriesCardId(postData: string): BodyCarriesCardId {
+  if (!postData) return false as BodyCarriesCardId;
+  return WK_TXN.queryId.some(
+    (alias): IsAliasMatch => postData.includes(alias) as IsAliasMatch,
+  ) as BodyCarriesCardId;
 }
 
 /** Probe of a single captured endpoint for billing-fallback fitness. */
@@ -62,10 +80,15 @@ interface ICandidateProbe {
  * @param patterns - WK.transactions regex list.
  * @returns True when both conditions hold.
  */
-function isBillingCandidate(probe: ICandidateProbe, patterns: readonly RegExp[]): boolean {
-  const isUrlMatch = patterns.some((p): boolean => p.test(probe.url));
-  if (!isUrlMatch) return false;
-  return bodyCarriesCardId(probe.postData);
+function isBillingCandidate(
+  probe: ICandidateProbe,
+  patterns: readonly RegExp[],
+): IsBillingCandidate {
+  const isUrlMatch = patterns.some(
+    (p): IsUrlPatternMatch => p.test(probe.url) as IsUrlPatternMatch,
+  );
+  if (!isUrlMatch) return false as IsBillingCandidate;
+  return bodyCarriesCardId(probe.postData) as unknown as IsBillingCandidate;
 }
 
 /**
@@ -75,9 +98,11 @@ function isBillingCandidate(probe: ICandidateProbe, patterns: readonly RegExp[])
  * @param anyCapturedUrl - Any URL already captured on the target host.
  * @returns Full billing URL.
  */
-function buildBillingUrlFromOrigin(anyCapturedUrl: string): string {
+function buildBillingUrlFromOrigin(anyCapturedUrl: string): BillingUrlStr {
   const origin = new URL(anyCapturedUrl).origin;
-  return `${origin}${WK_BILLING.apiPrefix}/${WK_BILLING.pathFragment}/${WK_BILLING.actionName}`;
+  const { apiPrefix, pathFragment, actionName } = WK_BILLING;
+  const path = `${apiPrefix}/${pathFragment}/${actionName}`;
+  return `${origin}${path}` as BillingUrlStr;
 }
 
 /**
@@ -92,12 +117,23 @@ function buildBillingUrlFromOrigin(anyCapturedUrl: string): string {
  * @param fc - Fetch context exposing network.getAllEndpoints().
  * @returns Captured/built URL or false when family isn't present.
  */
-function findCapturedBillingUrl(fc: IAccountFetchCtx): string | false {
+function findCapturedBillingUrl(fc: IAccountFetchCtx): BillingUrlStr | false {
   const patterns = PIPELINE_WELL_KNOWN_API.transactions;
   const captured = fc.network.getAllEndpoints();
-  const directHit = captured.find((ep): boolean => ep.url.includes(WK_BILLING.pathFragment));
+  const directHit = captured.find(
+    (ep): IsDirectBillingHit => ep.url.includes(WK_BILLING.pathFragment) as IsDirectBillingHit,
+  );
   if (directHit) return buildBillingUrlFromOrigin(directHit.url);
-  const shaped = captured.find((ep): boolean => isBillingCandidate(ep, patterns));
+  /**
+   * Probe one captured endpoint for shaped-billing fitness (URL + body).
+   * @param ep - Captured endpoint.
+   * @returns Branded predicate.
+   */
+  const isShapedHit = (ep: ICandidateProbe): IsShapedBillingHit => {
+    const candidate = isBillingCandidate(ep, patterns);
+    return Boolean(candidate) as IsShapedBillingHit;
+  };
+  const shaped = captured.find(isShapedHit);
   if (shaped) return buildBillingUrlFromOrigin(shaped.url);
   return false;
 }

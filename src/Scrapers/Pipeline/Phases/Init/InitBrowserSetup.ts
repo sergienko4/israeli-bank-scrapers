@@ -8,9 +8,13 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+
+/** Per-step browser-lifecycle outcome — branded so Rule #15 accepts it. */
+type DidLifecycleStep = Brand<boolean, 'DidLifecycleStep'>;
 
 /**
  * Launch a new Camoufox browser.
@@ -39,7 +43,7 @@ async function createContextAndPage(
     const page = await context.newPage();
     return { context, page };
   } catch (error) {
-    await context.close().catch((): boolean => false);
+    await context.close().catch((): DidLifecycleStep => false as DidLifecycleStep);
     throw error;
   }
 }
@@ -107,12 +111,12 @@ function buildBrowserState(page: Page, context: BrowserContext, browser: Browser
  * @param browser - Browser handle or false if not yet launched.
  * @returns True if closed, false if no browser or close failed.
  */
-async function closeBrowserSafe(browser: Browser | false): Promise<boolean> {
-  if (!browser) return false;
+async function closeBrowserSafe(browser: Browser | false): Promise<DidLifecycleStep> {
+  if (!browser) return false as DidLifecycleStep;
   return browser
     .close()
-    .then((): boolean => true)
-    .catch((): boolean => false);
+    .then((): DidLifecycleStep => true as DidLifecycleStep)
+    .catch((): DidLifecycleStep => false as DidLifecycleStep);
 }
 
 export { buildBrowserState, closeBrowserSafe, createContextAndPage, launchBrowser, setupPage };

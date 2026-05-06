@@ -17,8 +17,26 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { Brand } from './Brand.js';
 import { redactHtml, redactJsonBody } from './PiiRedactor.js';
 import type { IPipelineContext } from './PipelineContext.js';
+
+/** Phase name extracted from a label (no stage suffix). */
+type PhaseNameFromLabel = Brand<string, 'PhaseNameFromLabel'>;
+/** Stage-suffix endsWith predicate result. */
+type IsStageSuffix = Brand<boolean, 'IsStageSuffix'>;
+/** Walk-frames decision for a label. */
+type ShouldWalkFrames = Brand<boolean, 'ShouldWalkFrames'>;
+/** HTML body string read from a Playwright Frame. */
+type FrameHtmlBody = Brand<string, 'FrameHtmlBody'>;
+/** Frame URL string. */
+type FrameUrlStr = Brand<string, 'FrameUrlStr'>;
+/** Frame `name` attribute. */
+type FrameNameStr = Brand<string, 'FrameNameStr'>;
+/** Predicate result identifying the main page frame. */
+type IsMainFrame = Brand<boolean, 'IsMainFrame'>;
+/** Predicate result for non-empty HTML snapshot filter. */
+type IsNonEmptySnapshot = Brand<boolean, 'IsNonEmptySnapshot'>;
 
 /** Stage-output suffixes appended by BasePhase.takePhaseScreenshot. */
 const STAGE_SUFFIXES: readonly string[] = [
@@ -36,10 +54,10 @@ const FRAME_WALK_PHASES: readonly string[] = ['pre-login', 'login'];
  * @param label - Full label like "login-pre-done".
  * @returns Phase name like "login".
  */
-function extractPhaseFromLabel(label: string): string {
-  const found = STAGE_SUFFIXES.find((s): boolean => label.endsWith(s));
-  if (found === undefined) return label;
-  return label.slice(0, -found.length);
+function extractPhaseFromLabel(label: string): PhaseNameFromLabel {
+  const found = STAGE_SUFFIXES.find((s): IsStageSuffix => label.endsWith(s) as IsStageSuffix);
+  if (found === undefined) return label as PhaseNameFromLabel;
+  return label.slice(0, -found.length) as PhaseNameFromLabel;
 }
 
 /**
@@ -48,9 +66,9 @@ function extractPhaseFromLabel(label: string): string {
  * @param label - Full label like "login-pre-done".
  * @returns True iff frames should be walked.
  */
-function shouldWalkFrames(label: string): boolean {
+function shouldWalkFrames(label: string): ShouldWalkFrames {
   const phase = extractPhaseFromLabel(label);
-  return FRAME_WALK_PHASES.includes(phase);
+  return FRAME_WALK_PHASES.includes(phase) as ShouldWalkFrames;
 }
 
 /** Bundled args for writing frame fixtures (3-param ceiling). */
@@ -93,8 +111,8 @@ export interface IWriteIframeArgs {
  * @param frame - Target frame.
  * @returns HTML string (empty on error).
  */
-async function readFrameContent(frame: Frame): Promise<string> {
-  return frame.content().catch((): string => '');
+async function readFrameContent(frame: Frame): Promise<FrameHtmlBody> {
+  return frame.content().catch((): FrameHtmlBody => '' as FrameHtmlBody) as Promise<FrameHtmlBody>;
 }
 
 /** Frame URL string (or empty when the frame is detached / stub). */
@@ -106,13 +124,13 @@ async function readFrameContent(frame: Frame): Promise<string> {
  * @param frame - Target frame.
  * @returns Frame URL or empty string.
  */
-function readFrameUrl(frame: Frame): string {
+function readFrameUrl(frame: Frame): FrameUrlStr {
   const fn = (frame as { url?: () => string }).url;
-  if (typeof fn !== 'function') return '';
+  if (typeof fn !== 'function') return '' as FrameUrlStr;
   try {
-    return fn.call(frame);
+    return fn.call(frame) as FrameUrlStr;
   } catch {
-    return '';
+    return '' as FrameUrlStr;
   }
 }
 
@@ -121,13 +139,13 @@ function readFrameUrl(frame: Frame): string {
  * @param frame - Target frame.
  * @returns Frame name attribute or empty string.
  */
-function readFrameName(frame: Frame): string {
+function readFrameName(frame: Frame): FrameNameStr {
   const fn = (frame as { name?: () => string }).name;
-  if (typeof fn !== 'function') return '';
+  if (typeof fn !== 'function') return '' as FrameNameStr;
   try {
-    return fn.call(frame);
+    return fn.call(frame) as FrameNameStr;
   } catch {
-    return '';
+    return '' as FrameNameStr;
   }
 }
 
@@ -141,7 +159,7 @@ function readFrameName(frame: Frame): string {
  */
 export async function collectIframeSnapshots(page: Page): Promise<readonly IIframeSnapshot[]> {
   const mainFrame = page.mainFrame();
-  const children = page.frames().filter((f): boolean => f !== mainFrame);
+  const children = page.frames().filter((f): IsMainFrame => (f !== mainFrame) as IsMainFrame);
   const readPromises = children.map(readFrameContent);
   const htmls = await Promise.all(readPromises);
   const snaps = children.map(
@@ -151,7 +169,7 @@ export async function collectIframeSnapshots(page: Page): Promise<readonly IIfra
       name: readFrameName(f),
     }),
   );
-  return snaps.filter((s): boolean => s.html.length > 0);
+  return snaps.filter((s): IsNonEmptySnapshot => (s.html.length > 0) as IsNonEmptySnapshot);
 }
 
 /**

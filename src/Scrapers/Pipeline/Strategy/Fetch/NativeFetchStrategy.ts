@@ -5,13 +5,16 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { SafeUrlForLog } from '../../Types/Brand.js';
+import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+
+type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
+type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -110,12 +113,12 @@ function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Prom
  * @param hook - Optional caller-supplied callback.
  * @returns Number of Set-Cookie lines emitted (0 when no hook / no cookies).
  */
-function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): number {
-  if (!hook) return 0;
+function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): SetCookieEmitCount {
+  if (!hook) return 0 as SetCookieEmitCount;
   const list = response.headers.getSetCookie();
-  if (list.length === 0) return 0;
+  if (list.length === 0) return 0 as SetCookieEmitCount;
   hook(list);
-  return list.length;
+  return list.length as SetCookieEmitCount;
 }
 
 /**
@@ -230,9 +233,9 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @param url - Caller-supplied URL (absolute or relative).
    * @returns The fully-qualified URL suitable for globalThis.fetch.
    */
-  protected resolveUrl(url: string): string {
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return `${this._baseUrl}${url}`;
+  protected resolveUrl(url: string): FullyQualifiedUrl {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
+    return `${this._baseUrl}${url}` as FullyQualifiedUrl;
   }
 }
 

@@ -10,6 +10,7 @@
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
 import { setActivePhase, setActiveStage } from './ActiveState.js';
+import type { Brand } from './Brand.js';
 import { isMockTimingActive } from './Debug.js';
 import { dumpFixtureHtml } from './FixtureCapture.js';
 import type { PipelineLogEvent } from './LogEvent.js';
@@ -20,6 +21,13 @@ import type { IActionContext, IBootstrapContext, IPipelineContext } from './Pipe
 import type { Procedure } from './Procedure.js';
 import { fail, succeed } from './Procedure.js';
 import { screenshotPath } from './RunLabel.js';
+
+/** Trace tag — 'OK' or 'FAIL'. */
+type TraceTagStr = Brand<string, 'TraceTagStr'>;
+/** Handoff emit outcome — branded for Rule #15. */
+type DidEmitHandoff = Brand<boolean, 'DidEmitHandoff'>;
+/** PRE-payload validation outcome — branded for Rule #15. */
+export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
 
 /** Lookup for success/fail trace tags. */
 const RESULT_TAG: Record<string, PipelineLogEvent['event'] extends string ? string : never> = {
@@ -32,8 +40,8 @@ const RESULT_TAG: Record<string, PipelineLogEvent['event'] extends string ? stri
  * @param r - Procedure result (any payload type).
  * @returns 'OK' or 'FAIL'.
  */
-function traceTag<T>(r: Procedure<T>): string {
-  return RESULT_TAG[String(r.success)];
+function traceTag<T>(r: Procedure<T>): TraceTagStr {
+  return RESULT_TAG[String(r.success)] as TraceTagStr;
 }
 
 /**
@@ -183,17 +191,17 @@ function logHandoffSummary(
   phaseName: PhaseName,
   ctx: IPipelineContext,
   log: IPipelineContext['logger'],
-): boolean {
+): DidEmitHandoff {
   const key = PHASE_KEY_MAP[phaseName] ?? phaseName;
   const resolver = HANDOFF_MAP[key];
-  if (!resolver) return false;
+  if (!resolver) return false as DidEmitHandoff;
   const parts = resolver(ctx);
-  if (parts.length === 0) return false;
+  if (parts.length === 0) return false as DidEmitHandoff;
   const summary = parts.join(', ');
   log.debug({
     message: `[HANDOFF] { ${summary} }`,
   });
-  return true;
+  return true as DidEmitHandoff;
 }
 
 /** Abstract base for all pipeline phases. */
@@ -301,8 +309,8 @@ abstract class BasePhase {
    * @param ctx - Context after PRE completed.
    * @returns True if payload valid for ACTION.
    */
-  protected validatePrePayload(ctx: IPipelineContext): boolean {
-    return Boolean(ctx) && this.name.length > 0;
+  protected validatePrePayload(ctx: IPipelineContext): IsPrePayloadValid {
+    return (Boolean(ctx) && this.name.length > 0) as IsPrePayloadValid;
   }
 
   /**

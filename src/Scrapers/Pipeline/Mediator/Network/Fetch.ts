@@ -2,9 +2,13 @@ import { type Frame, type Page } from 'playwright-core';
 
 import type { Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+
+/** WAF/IP block description (empty when no block detected). */
+type WafBlockDescription = Brand<string, 'WafBlockDescription'>;
 import {
   BODY_PREVIEW_LIMIT,
   JSON_CONTENT_TYPE,
@@ -34,15 +38,15 @@ function getJsonHeaders(): Record<string, string> {
  * @param body - The response body text.
  * @returns A description of the detected block, or empty string if none.
  */
-export function detectWafBlock(status: number, body: string): string {
+export function detectWafBlock(status: number, body: string): WafBlockDescription {
   if (WAF_STATUS_CODES.has(status)) {
-    return `HTTP ${String(status)}`;
+    return `HTTP ${String(status)}` as WafBlockDescription;
   }
-  if (!body) return '';
+  if (!body) return '' as WafBlockDescription;
   const lower = body.toLowerCase();
   const match = WAF_BLOCK_PATTERNS.find((pattern): boolean => lower.includes(pattern));
-  if (match) return `response contains "${match}"`;
-  return '';
+  if (match) return `response contains "${match}"` as WafBlockDescription;
+  return '' as WafBlockDescription;
 }
 
 /**

@@ -14,6 +14,10 @@
  */
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_FIELDS } from '../../Registry/WK/ScrapeFieldMappings.js';
+import type { Brand } from '../../Types/Brand.js';
+
+/** Whether a response body carries a non-empty txn array. */
+type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
 
 /** Record alias — avoids literal Record<string, unknown> in annotations. */
 type JsonObject = Record<string, unknown>;
@@ -92,9 +96,9 @@ function bfsStep(state: IBfsFrontier): IBfsFrontier {
  * @param body - Captured JSON response body (any shape).
  * @returns True when a non-empty txn array is reachable within the depth budget.
  */
-export function hasTxnArray(body: JsonValue): boolean {
+export function hasTxnArray(body: JsonValue): HasTxnArray {
   const depths = Array.from({ length: TXN_SCAN_MAX_DEPTH }, (_, i): number => i);
   const initial: IBfsFrontier = { level: [body], found: false };
   const final = depths.reduce((acc): IBfsFrontier => bfsStep(acc), initial);
-  return final.found;
+  return final.found as HasTxnArray;
 }

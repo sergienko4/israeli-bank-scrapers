@@ -148,6 +148,86 @@ describe('templatePostBody', () => {
     const body = templatePostBody('', {});
     expect(body).toEqual({});
   });
+
+  it('filters plural cards array to the iteration card via WK last4Digits', () => {
+    const captured = JSON.stringify({
+      cards: [
+        { last4digits: '7641', companyCode: 11 },
+        { last4digits: '3852', companyCode: 11 },
+        { last4digits: '6109', companyCode: 11 },
+      ],
+    });
+    const body = templatePostBody(captured, { last4Digits: '3852' }, '3852');
+    expect(body).toEqual({
+      cards: [{ last4digits: '3852', companyCode: 11 }],
+    });
+  });
+
+  it('filters plural cards array via the cardNumber WK alias', () => {
+    const captured = JSON.stringify({
+      cards: [{ cardNumber: '8503' }, { cardNumber: '2974' }],
+    });
+    const body = templatePostBody(captured, { cardNumber: '2974' }, '2974');
+    expect(body).toEqual({ cards: [{ cardNumber: '2974' }] });
+  });
+
+  it('leaves the plural array untouched when no entry matches the accountId', () => {
+    const captured = JSON.stringify({
+      cards: [{ last4digits: '7641' }, { last4digits: '3852' }],
+    });
+    const body = templatePostBody(captured, {}, '9999');
+    expect(body).toEqual({
+      cards: [{ last4digits: '7641' }, { last4digits: '3852' }],
+    });
+  });
+
+  it('does not filter when accountId is empty (single-account banks)', () => {
+    const captured = JSON.stringify({
+      cards: [{ last4digits: '7641' }, { last4digits: '3852' }],
+    });
+    const body = templatePostBody(captured, {});
+    expect(body).toEqual({
+      cards: [{ last4digits: '7641' }, { last4digits: '3852' }],
+    });
+  });
+
+  it('skips non-object entries inside the plural array (defensive)', () => {
+    const captured = JSON.stringify({
+      cards: ['7641', null, { last4digits: '7641' }, [1, 2]],
+    });
+    const body = templatePostBody(captured, {}, '7641');
+    // Only the plain-object entry can match WK fields; others ignored.
+    expect(body).toEqual({ cards: [{ last4digits: '7641' }] });
+  });
+
+  it('no-ops when the body has no plural cards key', () => {
+    const captured = JSON.stringify({ cardUniqueId: 'x', billingMonth: '01/05/2026' });
+    const body = templatePostBody(captured, {}, '7641');
+    expect(body).toEqual({ cardUniqueId: 'x', billingMonth: '01/05/2026' });
+  });
+
+  it('no-ops when the plural array is already a single entry that matches', () => {
+    const captured = JSON.stringify({ cards: [{ last4digits: '7641' }] });
+    const body = templatePostBody(captured, {}, '7641');
+    // Already 1-element with match → no narrowing.
+    expect(body).toEqual({ cards: [{ last4digits: '7641' }] });
+  });
+
+  it('still substitutes scalar WK fields after filtering the plural array', () => {
+    const captured = JSON.stringify({
+      cards: [{ last4digits: '7641' }, { last4digits: '3852' }],
+      cardUniqueId: 'old-id',
+    });
+    const body = templatePostBody(
+      captured,
+      { cardUniqueId: 'new-id', last4Digits: '7641' },
+      '7641',
+    );
+    expect(body).toEqual({
+      cards: [{ last4digits: '7641' }],
+      cardUniqueId: 'new-id',
+    });
+  });
 });
 
 describe('rateLimitPause', () => {
@@ -334,6 +414,23 @@ describe('buildAccountResult', () => {
     const result = await buildAccountResult(ctx, []);
     const isOkResult9 = isOk(result);
     expect(isOkResult9).toBe(true);
+  });
+
+  it('treats displayId="default" as a placeholder and prefers a captured account number', async () => {
+    const api = makeApi();
+    const network = makeNetwork({
+      /**
+       * Returns endpoints with a real captured account number.
+       * @returns Captured endpoint list.
+       */
+      getAllEndpoints: () => [makeEndpoint({ responseBody: { accountNumber: '7777' } })],
+    });
+    const fc = makeFc(api, network);
+    const ctx: IAccountAssemblyCtx = { fc, accountId: '', displayId: 'default' };
+    const result = await buildAccountResult(ctx, []);
+    const isOkResult10 = isOk(result);
+    expect(isOkResult10).toBe(true);
+    if (isOk(result)) expect(result.value.accountNumber).toBe('7777');
   });
 });
 
