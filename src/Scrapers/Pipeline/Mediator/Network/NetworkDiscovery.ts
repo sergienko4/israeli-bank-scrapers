@@ -19,7 +19,7 @@ import {
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import { redactJsonBody, redactUrl } from '../../Types/PiiRedactor.js';
+import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getNetworkDumpDir } from '../../Types/TraceConfig.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
@@ -86,8 +86,13 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
     const text = await response.text();
     const responseBody = JSON.parse(text) as unknown;
     const responseHeaders = response.headers();
-    dumpResponseBody({ url: meta.url, method: meta.method, postData: meta.postData, text });
-    return { ...meta, responseHeaders, responseBody, timestamp: Date.now() };
+    const captureIndex = dumpResponseBody({
+      url: meta.url,
+      method: meta.method,
+      postData: meta.postData,
+      text,
+    });
+    return { ...meta, responseHeaders, responseBody, timestamp: Date.now(), captureIndex };
   } catch {
     return false;
   }
@@ -124,11 +129,19 @@ interface IDumpArgs {
  */
 function dumpResponseBody(args: IDumpArgs): number {
   const dir = getNetworkDumpDir();
+  // Always increment so `captureIndex` stays a stable per-process
+  // counter even when trace artefacts aren't being written to disk —
+  // the index is also the log-side correlation key.
+  dumpCounter += 1;
   if (!dir) return dumpCounter;
   try {
-    dumpCounter += 1;
-    const safe = args.url.replaceAll(/[^\w.-]/g, '_').slice(-80);
-    const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safe}.json`;
+    // Redact account / card IDs in path segments BEFORE the regex
+    // safe-encoding pass so identifiers never reach the on-disk
+    // filename. `redactUrl` (query) + `redactAccount` (per-segment)
+    // is composed inside `redactUrlFull` — same masking we use in
+    // structured discovery logs, single source of truth.
+    const safeStub = redactUrlFull(args.url).replaceAll(/[^\w.-]/g, '_').slice(-80);
+    const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safeStub}.json`;
     const filePath = path.join(dir, name);
     const safeUrl = redactUrl(args.url);
     const safePostData = redactJsonBody(args.postData);
@@ -210,11 +223,55 @@ function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
   return ep.postData.length > 0;
 }
 
+/** Tier label emitted on the canonical `discover.shapeAware` event. */
+type ShapeAwareTier =
+  | 'none'
+  | 'postWithShape'
+  | 'replayablePost'
+  | 'shapePassing'
+  | 'urlFallback';
+
+/**
+ * Emit one canonical structured event per `discoverShapeAware` call.
+ * Named fields keep the log queryable in centralized stores; PII-safe
+ * via `redactUrlFull`; `captureIndex` bridges the log line to the
+ * exact on-disk capture file (`<runId>/network/NNNN-METHOD-…json`).
+ * @param tier - Which match tier produced the pick.
+ * @param picked - Endpoint chosen (or `false` for the no-match tier).
+ * @param matches - URL-pattern match count.
+ * @returns True (placeholder for chaining).
+ */
+function logShapeAwarePick(
+  tier: ShapeAwareTier,
+  picked: IDiscoveredEndpoint | false,
+  matches: number,
+): true {
+  if (!picked) {
+    LOG.debug({ event: 'discover.shapeAware', tier, matches });
+    return true;
+  }
+  LOG.debug({
+    event: 'discover.shapeAware',
+    tier,
+    picked: redactUrlFull(picked.url),
+    method: picked.method,
+    captureIndex: picked.captureIndex ?? 0,
+    matches,
+  });
+  return true;
+}
+
 /**
  * Picks the best endpoint among URL matches, preferring a replayable
  * POST template (so MatrixLoop has data to iterate) over a preview GET
  * even when the captured POST body was empty (e.g. current cycle not
  * yet charged).
+ *
+ * Emits one canonical `discover.shapeAware` event per call so the
+ * picker's tier choice and selected URL are traceable from
+ * `pipeline.log` alone. The `captureIndex` field on the log line
+ * matches the on-disk filename prefix.
+ *
  * @param captured - all captured endpoints.
  * @param patterns - WellKnown regex patterns.
  * @returns best endpoint, or false when no URL matches.
@@ -226,17 +283,32 @@ function discoverShapeAware(
   const urlMatches = captured.filter((ep): boolean =>
     patterns.some((p): boolean => p.test(ep.url)),
   );
-  if (urlMatches.length === 0) return false;
+  if (urlMatches.length === 0) {
+    logShapeAwarePick('none', false, 0);
+    return false;
+  }
+  const matches = urlMatches.length;
   const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
   const postWithShape = shapePassing.find(isReplayablePost);
-  if (postWithShape) return postWithShape;
+  if (postWithShape) {
+    logShapeAwarePick('postWithShape', postWithShape, matches);
+    return postWithShape;
+  }
   // Replayable POST without shape — its response was empty for the
   // captured card+month (e.g. current billing cycle not yet charged),
   // but the body template still drives MatrixLoop replay.
   const anyReplayablePost = urlMatches.find(isReplayablePost);
-  if (anyReplayablePost) return anyReplayablePost;
-  if (shapePassing.length > 0) return shapePassing[0];
-  return urlMatches[0] ?? false;
+  if (anyReplayablePost) {
+    logShapeAwarePick('replayablePost', anyReplayablePost, matches);
+    return anyReplayablePost;
+  }
+  if (shapePassing.length > 0) {
+    logShapeAwarePick('shapePassing', shapePassing[0], matches);
+    return shapePassing[0];
+  }
+  const fallback = urlMatches[0] ?? false;
+  logShapeAwarePick('urlFallback', fallback, matches);
+  return fallback;
 }
 
 /**

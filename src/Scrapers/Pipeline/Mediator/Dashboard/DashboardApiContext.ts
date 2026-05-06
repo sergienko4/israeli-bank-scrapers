@@ -5,9 +5,26 @@
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
+import { getDebug } from '../../Types/Debug.js';
+import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+
+const LOG = getDebug(import.meta.url);
+
+/**
+ * PII-safe URL hint for `api.context` log events. Returns the
+ * `redactUrlFull` view of a discovered URL, or `'none'` when
+ * discovery yielded nothing — keeps the structured field type
+ * stable so log queries don't have to handle `false`.
+ * @param url - URL string or `false`.
+ * @returns Redacted URL or 'none'.
+ */
+function urlHint(url: string | false): string {
+  if (!url) return 'none';
+  return redactUrlFull(url);
+}
 
 /**
  * Extract URL from a discovered endpoint, or false.
@@ -40,12 +57,30 @@ function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
   const txnHit = network.discoverTransactionsEndpoint();
   const balHit = network.discoverBalanceEndpoint();
   const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
-  return {
+  const urls: DiscoveredUrls = {
     accountsUrl: urlOrFalse(acctHit),
     transactionsUrl: urlOrFalse(txnHit),
     balanceUrl: urlOrFalse(balHit),
     pendingUrl: urlOrFalse(pendHit),
   };
+  // Canonical `api.context` event: one structured log line carrying
+  // every URL the API context will hand to downstream phases. Lets a
+  // developer see at a glance which sibling endpoint was bound to
+  // each role at DASHBOARD.FINAL time, and join each entry to its
+  // capture file via the per-endpoint `captureIndex` already emitted
+  // in `discover.shapeAware` / `discover.accounts`.
+  LOG.debug({
+    event: 'api.context',
+    accountsUrl: urlHint(urls.accountsUrl),
+    transactionsUrl: urlHint(urls.transactionsUrl),
+    balanceUrl: urlHint(urls.balanceUrl),
+    pendingUrl: urlHint(urls.pendingUrl),
+    accountsCapture: acctHit ? acctHit.captureIndex ?? 0 : 0,
+    transactionsCapture: txnHit ? txnHit.captureIndex ?? 0 : 0,
+    balanceCapture: balHit ? balHit.captureIndex ?? 0 : 0,
+    pendingCapture: pendHit ? pendHit.captureIndex ?? 0 : 0,
+  });
+  return urls;
 }
 
 /** Late-binding header provider — resolves headers on each call. */

@@ -6,7 +6,7 @@ import { getActivePhase, getActiveStage } from './ActiveState.js';
 import type { Brand } from './Brand.js';
 import { SENSITIVE_PATHS } from './DebugConfig.js';
 import { createCensorFn } from './PiiRedactor.js';
-import { getLogFile } from './TraceConfig.js';
+import { getActiveRunId, getLogFile } from './TraceConfig.js';
 
 /** URL basename string — branded for Rule #15. */
 type UrlBasename = Brand<string, 'UrlBasename'>;
@@ -35,12 +35,33 @@ const BANK_CONTEXT = createBankStore();
 const CENSOR = createCensorFn();
 
 /**
- * Inject bank context from AsyncLocalStorage into every log line.
- * @returns The current bank context or an empty object.
+ * Pino mixin: injects ambient context onto every log line so callers
+ * never have to attach `bank` / `phase` / `stage` / `runId` manually.
+ *
+ * Fields:
+ *   - `bank` / extra fields — read from the AsyncLocalStorage scope
+ *     established by {@link runWithBankContext}.
+ *   - `phase` — current pipeline phase (init / login / scrape / …).
+ *   - `stage` — 4-stage protocol (PRE / ACTION / POST / FINAL).
+ *   - `runId` — per-process run-stamp (`DD-MM-YYYY_HHMMSScc`); SAME
+ *     value the trace artefact folder is named with on disk, so a log
+ *     line can be deterministically joined to its `network/` and
+ *     `screenshots/` siblings even after logs are aggregated off-host.
+ *     Omitted from the mixin object when empty (pre-`setActiveBank`
+ *     log lines) so it never appears as `runId:""` noise.
+ *
+ * @returns Mixin fields to merge onto every log entry.
  */
 function getBankMixin(): Record<string, string> {
   const bank = BANK_CONTEXT.getStore() ?? {};
-  return { ...bank, phase: getActivePhase(), stage: getActiveStage() };
+  const runId = getActiveRunId();
+  const ambient: Record<string, string> = {
+    ...bank,
+    phase: getActivePhase(),
+    stage: getActiveStage(),
+  };
+  if (runId.length > 0) ambient.runId = runId;
+  return ambient;
 }
 
 const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';

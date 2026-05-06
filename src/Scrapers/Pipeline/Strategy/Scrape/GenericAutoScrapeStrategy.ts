@@ -25,7 +25,7 @@ import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
-import { redactAccount } from '../../Types/PiiRedactor.js';
+import { redactAccount, redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -59,7 +59,10 @@ async function loadDiscovered<T>(
     return succeed(endpoint.responseBody as T);
   }
   LOG.debug({
-    message: `Re-loading ${endpoint.method} ${maskVisibleText(endpoint.url)}`,
+    event: 'autoScrape.reload',
+    method: endpoint.method,
+    picked: redactUrlFull(endpoint.url),
+    captureIndex: endpoint.captureIndex ?? 0,
   });
   if (endpoint.method === 'POST') {
     const rawBody = endpoint.postData || '{}';
@@ -122,22 +125,65 @@ interface IPollResult {
   readonly waitedMs: number;
 }
 
+/** Tier label emitted on the canonical `discover.accounts` event. */
+type AccountsTier = 'none' | 'urlAndContainer' | 'container' | 'urlOnly' | 'content';
+
+/**
+ * Emit the canonical `discover.accounts` structured event. PII-safe
+ * via `redactUrlFull`; `captureIndex` lets the log line bridge to the
+ * exact on-disk capture (`<runId>/network/NNNN-METHOD-…json`).
+ * @param tier - Which discovery tier produced the pick.
+ * @param picked - Endpoint chosen, or false for the no-match tier.
+ * @returns True (placeholder for chaining).
+ */
+function logAccountsPick(tier: AccountsTier, picked: IDiscoveredEndpoint | false): true {
+  if (!picked) {
+    LOG.debug({ event: 'discover.accounts', tier });
+    return true;
+  }
+  LOG.debug({
+    event: 'discover.accounts',
+    tier,
+    picked: redactUrlFull(picked.url),
+    method: picked.method,
+    captureIndex: picked.captureIndex ?? 0,
+  });
+  return true;
+}
+
 /**
  * Returns the first captured endpoint that satisfies any of the four
  * discovery tiers (URL match, container match, URL fallback, content
  * match). Shared between the fast path and the post-wait retry so both
  * apply identical match rules.
+ *
+ * Emits one canonical `discover.accounts` event per call so the tier
+ * choice and selected URL are traceable from `pipeline.log` alone.
+ *
  * @param network - Live or frozen network discovery.
  * @returns The matched endpoint, or `false` when no tier hits.
  */
 function tryDiscoverAccounts(network: INetworkDiscovery): IDiscoveredEndpoint | false {
   const byUrl = network.discoverAccountsEndpoint();
-  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) return byUrl;
+  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) {
+    logAccountsPick('urlAndContainer', byUrl);
+    return byUrl;
+  }
   const byContainer = findEndpointWithAccountContainer(network);
-  if (byContainer) return byContainer;
-  if (byUrl) return byUrl;
+  if (byContainer) {
+    logAccountsPick('container', byContainer);
+    return byContainer;
+  }
+  if (byUrl) {
+    logAccountsPick('urlOnly', byUrl);
+    return byUrl;
+  }
   const byContent = network.discoverEndpointByContent([...WK.accountId]);
-  if (byContent) return byContent;
+  if (byContent) {
+    logAccountsPick('content', byContent);
+    return byContent;
+  }
+  logAccountsPick('none', false);
   return false;
 }
 
@@ -226,8 +272,10 @@ async function discoverAndLoadAccounts(
   const fast = tryDiscoverAccounts(network);
   if (fast) {
     LOG.debug({
-      message: 'auto-discover: fast-path hit',
-      endpoint: maskVisibleText(fast.url),
+      event: 'autoDiscover.fastPathHit',
+      picked: redactUrlFull(fast.url),
+      method: fast.method,
+      captureIndex: fast.captureIndex ?? 0,
     });
     return loadDiscovered<ApiPayload>(api, fast);
   }
@@ -246,8 +294,10 @@ async function discoverAndLoadAccounts(
   const polled = await pollForAccountEndpoint(network);
   if (polled.outcome === POLL_SUCCESS && polled.endpoint) {
     LOG.debug({
-      message: 'auto-discover: poll succeeded',
-      endpoint: maskVisibleText(polled.endpoint.url),
+      event: 'autoDiscover.pollSucceeded',
+      picked: redactUrlFull(polled.endpoint.url),
+      method: polled.endpoint.method,
+      captureIndex: polled.endpoint.captureIndex ?? 0,
       waitedMs: polled.waitedMs,
     });
     return loadDiscovered<ApiPayload>(api, polled.endpoint);
@@ -343,13 +393,14 @@ function tryPostBodyFallback(
 function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | false {
   if (ep) {
     LOG.debug({
-      message: `autoScrape: txnEndpoint=${maskVisibleText(ep.url)} method=${ep.method}`,
+      event: 'autoScrape.txnEndpoint',
+      picked: redactUrlFull(ep.url),
+      method: ep.method,
+      captureIndex: ep.captureIndex ?? 0,
     });
     return ep;
   }
-  LOG.debug({
-    message: 'autoScrape: txnEndpoint=NONE method=NONE',
-  });
+  LOG.debug({ event: 'autoScrape.txnEndpoint', picked: 'none' });
   return ep;
 }
 

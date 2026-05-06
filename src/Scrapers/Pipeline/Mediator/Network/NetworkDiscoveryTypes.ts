@@ -23,6 +23,15 @@ interface IDiscoveredEndpoint {
   readonly responseHeaders: Record<string, string>;
   /** Capture timestamp (ms since epoch). */
   readonly timestamp: number;
+  /**
+   * Sequential capture index — same `dumpCounter` value used as the
+   * filename prefix `NNNN-METHOD-stub.json` under the run's `network/`
+   * folder. Lets a structured log line referencing this endpoint be
+   * deterministically joined to its on-disk capture file via
+   * `runId` + `captureIndex`. Optional: undefined when the endpoint
+   * was synthesised without a dump (frozen replay, tests).
+   */
+  readonly captureIndex?: number;
 }
 
 /** Network discovery interface — captures and queries API traffic. */

@@ -2,6 +2,7 @@
  * Unit tests for Types/Debug — child logger factory, runWithBankContext, re-exports.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -21,6 +22,43 @@ const DEBUG_TEST_TMP_ROOT = os.tmpdir();
 const DEBUG_TEST_RUNS_ROOT_DEV = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-dev');
 const DEBUG_TEST_RUNS_ROOT_CI = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-ci');
 const DEBUG_TEST_RUNS_ROOT_CACHE = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-cache-invalidation');
+const DEBUG_TEST_RUNS_ROOT_RUNID = path.join(DEBUG_TEST_TMP_ROOT, 'test-runs-runid-mixin');
+
+/** Single-step delay used by the wait-for-file polling loop. */
+const FILE_POLL_INTERVAL_MS = 100;
+/** Outer budget for the wait-for-file polling loop. */
+const FILE_POLL_TIMEOUT_MS = 5000;
+
+/**
+ * Sleep for a short tick, used inside the file polling loop.
+ * @returns Promise that resolves after FILE_POLL_INTERVAL_MS.
+ */
+async function tick(): Promise<void> {
+  await new Promise((resolve): void => {
+    setTimeout(resolve, FILE_POLL_INTERVAL_MS);
+  });
+}
+
+/**
+ * Poll for a pino-written log file to materialise on disk and reach a
+ * minimum content length. Pino's file transport runs in a worker
+ * thread; calls return before the destination is written, so reads
+ * race the worker. Bounded by FILE_POLL_TIMEOUT_MS.
+ * @param logFile - Path to the log file to wait on.
+ * @param minBytes - Minimum size before the wait considers ready.
+ * @returns Final contents (may still be empty on timeout).
+ */
+async function readLogWhenReady(logFile: string, minBytes: number): Promise<string> {
+  const deadline = Date.now() + FILE_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(logFile)) {
+      const contents = fs.readFileSync(logFile, 'utf8');
+      if (contents.length >= minBytes) return contents;
+    }
+    await tick();
+  }
+  return fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '';
+}
 
 describe('getDebug', () => {
   it('returns a logger with info/debug/warn/error methods', () => {
@@ -235,6 +273,36 @@ describe('Debug buildTransport — env-permutation branches', () => {
       log.info({ msg: 'info ok' });
       log.debug({ msg: 'debug filtered out' });
     }).not.toThrow();
+  });
+
+  it('runId is auto-injected on every log entry without per-call wiring', async () => {
+    delete process.env.CI;
+    process.env.NODE_ENV = 'development';
+    process.env.LOG_LEVEL = 'trace';
+    process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_RUNID;
+    jest.resetModules();
+    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    tc.setActiveBank('beinleumi');
+    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const log = dbg.getDebug(import.meta.url);
+    const runId = tc.getActiveRunId();
+    log.info({ msg: 'first call' });
+    log.info({ msg: 'second call' });
+    log.debug({ msg: 'debug call' });
+    const logFile = tc.getLogFile();
+    const contents = await readLogWhenReady(logFile, 100);
+    const lines = contents.split('\n').filter((l): boolean => l.trim().length > 0);
+    expect(runId).not.toBe('');
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    // Every emitted line MUST carry runId without the call site adding it.
+    const allHaveRunId = lines.every(
+      (line): boolean => line.includes(`"runId":"${runId}"`),
+    );
+    expect(allHaveRunId).toBe(true);
+    // Same log entry shape across phases / stages — no per-call wiring needed.
+    expect(lines[0]).toContain('"phase":');
+    expect(lines[0]).toContain('"stage":');
+    expect(lines[0]).toContain('"module":');
   });
 
   it('LOG fired before setActiveBank does NOT lock cache — first post-bank LOG picks up file path', async () => {

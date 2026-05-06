@@ -74,6 +74,14 @@ let networkDirCache: string | false = false;
 let screenshotDirCache: string | false = false;
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
 let activeBankCache: string | false = false;
+/**
+ * Per-run unique identifier — the same `DD-MM-YYYY_HHMMSScc` stamp that
+ * names the run-artefact folder on disk. Cached on first read so every
+ * log line in the run shares a single value, and so the on-disk folder
+ * (when trace mode is active) and the in-log `runId` field (always)
+ * stay in sync. See {@link getActiveRunId}.
+ */
+let activeRunIdCache: string | false = false;
 
 /**
  * Pad a 1- or 2-digit positive integer to width 2 with leading zero.
@@ -208,6 +216,27 @@ function isTraceMode(): IsTraceModeActive {
 }
 
 /**
+ * Per-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp computed once
+ * per process and cached. Used as the `runId` field auto-injected on
+ * every log line via the pino mixin in `Debug.ts`, and as the leaf
+ * folder name when trace-mode artefacts are written. Available in EVERY
+ * mode (trace and off-trace) so aggregated logs across hosts can be
+ * grouped by run without depending on the artefact folder existing on
+ * disk. Returns `''` only when no bank slug has been resolved yet —
+ * pre-`setActiveBank` log lines simply omit the field.
+ *
+ * @returns The run-stamp string, or empty when bank is not yet known.
+ */
+function getActiveRunId(): RunStampStr {
+  if (activeRunIdCache) return activeRunIdCache as RunStampStr;
+  const bank = resolveBankSlug();
+  if (bank.length === 0) return '' as RunStampStr;
+  const stamp = formatRunStamp(new Date());
+  activeRunIdCache = stamp;
+  return stamp as RunStampStr;
+}
+
+/**
  * Lazily resolve the per-process run folder
  * `<RUNS_ROOT>/pipeline/<bank>/<DDMMYY-HHMMSScc>/`. Path format is the same
  * for every log level. Returns `''` when off-trace OR when no bank has
@@ -216,6 +245,8 @@ function isTraceMode(): IsTraceModeActive {
  * forcing a bank registration before imports resolve. The "no run without
  * bank" rule is enforced at pipeline start by `PipelineExecutor` calling
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
+ * Reuses {@link getActiveRunId}'s cached stamp so the on-disk folder
+ * leaf and the in-log `runId` field always match.
  * @returns Absolute folder path, or empty string.
  */
 function getRunFolder(): RunFolderPath {
@@ -223,8 +254,9 @@ function getRunFolder(): RunFolderPath {
   if (runFolderCache) return runFolderCache as RunFolderPath;
   const bank = resolveBankSlug();
   if (bank.length === 0) return '' as RunFolderPath;
+  const stamp = getActiveRunId();
+  if (stamp.length === 0) return '' as RunFolderPath;
   const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
-  const stamp = formatRunStamp(new Date());
   const folder = path.join(root, PIPELINE_SEGMENT, bank, stamp);
   fs.mkdirSync(folder, { recursive: true });
   runFolderCache = folder;
@@ -284,12 +316,14 @@ function resetTraceConfigCache(): true {
   networkDirCache = false;
   screenshotDirCache = false;
   activeBankCache = false;
+  activeRunIdCache = false;
   return true;
 }
 
 export {
   detectBankFromArgv,
   formatRunStamp,
+  getActiveRunId,
   getLogFile,
   getNetworkDumpDir,
   getRunFolder,

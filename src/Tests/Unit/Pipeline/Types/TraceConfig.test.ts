@@ -225,6 +225,67 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
+  it('getActiveRunId returns "" when no bank has been registered', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const runId = mod.getActiveRunId();
+    expect(runId).toBe('');
+  });
+
+  it('getActiveRunId is stable across calls within one process', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('discount');
+    const a = mod.getActiveRunId();
+    const b = mod.getActiveRunId();
+    expect(a).not.toBe('');
+    expect(a).toBe(b);
+  });
+
+  it('getActiveRunId matches the on-disk run-folder leaf name (trace mode)', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-runid');
+    process.env.LOG_LEVEL = 'trace';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('discount');
+    const runId = mod.getActiveRunId();
+    const folder = mod.getRunFolder();
+    const leaf = path.basename(folder);
+    expect(runId).toBe(leaf);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('getActiveRunId is available off-trace (no folder created)', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('hapoalim');
+    const runId = mod.getActiveRunId();
+    const folder = mod.getRunFolder();
+    expect(runId).not.toBe('');
+    expect(/^\d{2}-\d{2}-\d{4}_\d{8}$/.test(runId)).toBe(true);
+    expect(folder).toBe('');
+  });
+
+  it('resetTraceConfigCache clears the runId so a new call re-derives', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('hapoalim');
+    const before = mod.getActiveRunId();
+    mod.resetTraceConfigCache();
+    mod.setActiveBank('hapoalim');
+    const after = mod.getActiveRunId();
+    expect(before).not.toBe('');
+    expect(after).not.toBe('');
+    // Both are well-formed; equality is timing-dependent so we only
+    // assert format stability.
+    expect(/^\d{2}-\d{2}-\d{4}_\d{8}$/.test(after)).toBe(true);
+  });
+
   it('getScreenshotDir is cached across calls', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shot');
     process.env.LOG_LEVEL = 'trace';

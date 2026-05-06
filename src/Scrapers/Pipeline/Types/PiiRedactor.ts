@@ -727,6 +727,51 @@ function redactUrl(url: string): PiiHintString {
   return parse.url.toString() as PiiHintString;
 }
 
+/** Path segments shorter than this are safe to leave intact. */
+const PATH_SEGMENT_DIGIT_THRESHOLD = 4;
+
+/**
+ * Predicate for path segments that look like account / card / phone
+ * IDs — runs of ≥ 4 digits, optionally with embedded separators.
+ * Conservative: digit-only segments. Hyphenated runs are caught by
+ * `redactAccount`'s terminal-segment split.
+ * @param segment - Single path segment.
+ * @returns True when the segment is a candidate for last-4 hinting.
+ */
+function isLikelyIdSegment(segment: string): boolean {
+  if (segment.length < PATH_SEGMENT_DIGIT_THRESHOLD) return false;
+  return /^\d{4,}$/.test(segment);
+}
+
+/**
+ * Redact a URL fully — `redactUrl` (query) plus per-segment account
+ * masking (path). For each `/`-delimited segment that looks like an
+ * account or card identifier (≥ 4 digit run), replace it with the
+ * `***XXXX` last-4 hint produced by {@link redactAccount}. Leaves
+ * non-identifier segments untouched so route names like
+ * `getTransactionsAndGraphs` survive — the segment that *actually*
+ * disambiguates which sibling endpoint the network picker chose is
+ * never lost to the 30-char `maskVisibleText` truncation, while
+ * account IDs in path positions never reach the log channel.
+ *
+ * Composes existing `redactUrl` + `redactAccount`; no new redaction
+ * logic, just composition.
+ *
+ * @param url - Raw URL string.
+ * @returns Redacted URL with both query and path-segment PII masked.
+ */
+function redactUrlFull(url: string): PiiHintString {
+  const queryRedacted = redactUrl(url);
+  const parse = tryParseUrl(queryRedacted);
+  if (!parse.ok) return queryRedacted;
+  const segments = parse.url.pathname.split('/');
+  const masked = segments.map(
+    (seg): string => (isLikelyIdSegment(seg) ? redactAccount(seg) : seg),
+  );
+  parse.url.pathname = masked.join('/');
+  return parse.url.toString() as PiiHintString;
+}
+
 /** Regex matching `value="…"` / `value='…'` attributes (single capture). */
 const HTML_VALUE_ATTR_RE = /value\s*=\s*["']([^"']{2,})["']/gi;
 
@@ -775,4 +820,5 @@ export {
   redactPhone,
   redactToken,
   redactUrl,
+  redactUrlFull,
 };
