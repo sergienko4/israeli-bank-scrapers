@@ -17,10 +17,11 @@ import {
   PIPELINE_WELL_KNOWN_HEADERS,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
+import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
-import { getNetworkDumpDir } from '../../Types/TraceConfig.js';
+import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import { createAuthFailureWatcher, createFrozenAuthFailureWatcher } from './AuthFailureWatcher.js';
@@ -128,7 +129,9 @@ interface IDumpArgs {
  * @returns Count of dumps so far.
  */
 function dumpResponseBody(args: IDumpArgs): number {
-  const dir = getNetworkDumpDir();
+  const phase = getActivePhase();
+  const stage = getActiveStage();
+  const dir = getSubStepNetworkDumpDir(phase, stage);
   // Always increment so `captureIndex` stays a stable per-process
   // counter even when trace artefacts aren't being written to disk —
   // the index is also the log-side correlation key.

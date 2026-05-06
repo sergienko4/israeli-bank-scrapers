@@ -70,6 +70,8 @@ const PIPELINE_SEGMENT = 'pipeline';
 let runFolderCache: string | false = false;
 /** Cached network dump dir (created on first call to getNetworkDumpDir). */
 let networkDirCache: string | false = false;
+/** Cached per-substep dump dirs keyed by `<phase>-<stage>`. */
+const SUB_STEP_DIR_CACHE = new Map<string, string>();
 /** Cached screenshot dir (created on first call to getScreenshotDir). */
 let screenshotDirCache: string | false = false;
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
@@ -291,6 +293,29 @@ function getNetworkDumpDir(): NetworkDumpDirPath {
 }
 
 /**
+ * Per-substep network dump dir
+ * `<run>/network/<phase>-<stage>/`. Each sub-step gets its own
+ * folder so the on-disk layout itself answers "which sub-step saw
+ * this capture" without timestamp cross-referencing — pre-nav for
+ * an auth FINAL = the union of every sub-folder dumped before
+ * `dashboard-PRE/`. Empty string off-trace.
+ * @param phase - Active phase name from ActiveState.
+ * @param stage - Active stage label from ActiveState.
+ * @returns Absolute sub-step folder path, or empty string off-trace.
+ */
+function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirPath {
+  const key = `${phase}-${stage}`;
+  const cached = SUB_STEP_DIR_CACHE.get(key);
+  if (cached !== undefined) return cached as NetworkDumpDirPath;
+  const root = getNetworkDumpDir();
+  if (!root) return '' as NetworkDumpDirPath;
+  const dir = path.join(root, key);
+  fs.mkdirSync(dir, { recursive: true });
+  SUB_STEP_DIR_CACHE.set(key, dir);
+  return dir as NetworkDumpDirPath;
+}
+
+/**
  * Screenshot directory inside the run folder. Empty string off-trace so
  * callers can skip the screenshot without needing a registered bank.
  * @returns Absolute screenshot directory path, or empty string off-trace.
@@ -314,6 +339,7 @@ function getScreenshotDir(): ScreenshotDirPath {
 function resetTraceConfigCache(): true {
   runFolderCache = false;
   networkDirCache = false;
+  SUB_STEP_DIR_CACHE.clear();
   screenshotDirCache = false;
   activeBankCache = false;
   activeRunIdCache = false;
@@ -328,6 +354,7 @@ export {
   getNetworkDumpDir,
   getRunFolder,
   getScreenshotDir,
+  getSubStepNetworkDumpDir,
   isTraceMode,
   resetTraceConfigCache,
   setActiveBank,
