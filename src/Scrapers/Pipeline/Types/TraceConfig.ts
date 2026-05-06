@@ -233,7 +233,7 @@ function getActiveRunId(): RunStampStr {
   if (bank.length === 0) return '' as RunStampStr;
   const stamp = formatRunStamp(new Date());
   activeRunIdCache = stamp;
-  return stamp as RunStampStr;
+  return stamp;
 }
 
 /**

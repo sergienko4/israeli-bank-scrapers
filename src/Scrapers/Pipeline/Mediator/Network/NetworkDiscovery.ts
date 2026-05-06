@@ -140,7 +140,9 @@ function dumpResponseBody(args: IDumpArgs): number {
     // filename. `redactUrl` (query) + `redactAccount` (per-segment)
     // is composed inside `redactUrlFull` — same masking we use in
     // structured discovery logs, single source of truth.
-    const safeStub = redactUrlFull(args.url).replaceAll(/[^\w.-]/g, '_').slice(-80);
+    const safeStub = redactUrlFull(args.url)
+      .replaceAll(/[^\w.-]/g, '_')
+      .slice(-80);
     const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safeStub}.json`;
     const filePath = path.join(dir, name);
     const safeUrl = redactUrl(args.url);
@@ -224,12 +226,7 @@ function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
 }
 
 /** Tier label emitted on the canonical `discover.shapeAware` event. */
-type ShapeAwareTier =
-  | 'none'
-  | 'postWithShape'
-  | 'replayablePost'
-  | 'shapePassing'
-  | 'urlFallback';
+type ShapeAwareTier = 'none' | 'postWithShape' | 'replayablePost' | 'shapePassing' | 'urlFallback';
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.

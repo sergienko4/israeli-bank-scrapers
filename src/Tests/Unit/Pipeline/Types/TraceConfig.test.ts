@@ -16,6 +16,9 @@ type TraceConfigModule = typeof TraceConfigModuleType;
 const TEMP_BASE = process.env.TEMP ?? 'C:/tmp';
 const MODULE_PATH = '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 
+/** Format of the per-run identifier — `DD-MM-YYYY_HHMMSScc`. */
+const RUN_ID_FORMAT_RE = /^\d{2}-\d{2}-\d{4}_\d{8}$/;
+
 /**
  * Dynamically import the TraceConfig module under test with full typing,
  * avoiding the implicit `any` that bare `await import(...)` returns.
@@ -265,8 +268,9 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     mod.setActiveBank('hapoalim');
     const runId = mod.getActiveRunId();
     const folder = mod.getRunFolder();
+    const isWellFormed = RUN_ID_FORMAT_RE.test(runId);
     expect(runId).not.toBe('');
-    expect(/^\d{2}-\d{2}-\d{4}_\d{8}$/.test(runId)).toBe(true);
+    expect(isWellFormed).toBe(true);
     expect(folder).toBe('');
   });
 
@@ -279,11 +283,12 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     mod.resetTraceConfigCache();
     mod.setActiveBank('hapoalim');
     const after = mod.getActiveRunId();
+    const isAfterWellFormed = RUN_ID_FORMAT_RE.test(after);
     expect(before).not.toBe('');
     expect(after).not.toBe('');
     // Both are well-formed; equality is timing-dependent so we only
     // assert format stability.
-    expect(/^\d{2}-\d{2}-\d{4}_\d{8}$/.test(after)).toBe(true);
+    expect(isAfterWellFormed).toBe(true);
   });
 
   it('getScreenshotDir is cached across calls', async () => {

@@ -251,4 +251,16 @@ export function runWithBankContext<T>(bank: string, fn: () => T): T {
   return BANK_CONTEXT.run({ bank }, fn);
 }
 
+/**
+ * Read-only accessor for the pino mixin record — every log line gets
+ * these fields injected automatically through pino's `mixin` hook.
+ * Production code never needs to call this; exposed so unit tests can
+ * assert the auto-injection contract (notably `runId`) directly,
+ * without depending on async file-transport flush timing.
+ * @returns Same record the pino mixin merges onto every log entry.
+ */
+export function getActiveLogContext(): Record<string, string> {
+  return getBankMixin();
+}
+
 export { capTimeout, isMockTimingActive, MOCK_TIMEOUT_MS } from './MockTiming.js';

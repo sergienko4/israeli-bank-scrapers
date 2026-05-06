@@ -10,8 +10,12 @@ import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 
 const LOG = getDebug(import.meta.url);
+
+/** Sentinel emitted on the `api.context` log when no endpoint was bound. */
+const NO_CAPTURE_INDEX = 0;
 
 /**
  * PII-safe URL hint for `api.context` log events. Returns the
@@ -24,6 +28,20 @@ const LOG = getDebug(import.meta.url);
 function urlHint(url: string | false): string {
   if (!url) return 'none';
   return redactUrlFull(url);
+}
+
+/**
+ * Read the per-endpoint `captureIndex` for the `api.context` log.
+ * Pulled out of the log-builder to keep the decision branch out of a
+ * ternary (the project lints ternaries as a forbidden form). Returns
+ * `NO_CAPTURE_INDEX` for both "no endpoint matched" and "endpoint
+ * matched but was synthesised without a dump".
+ * @param hit - Discovered endpoint or false.
+ * @returns The `captureIndex` value, or `NO_CAPTURE_INDEX`.
+ */
+function captureIndexOf(hit: IDiscoveredEndpoint | false): number {
+  if (!hit) return NO_CAPTURE_INDEX;
+  return hit.captureIndex ?? NO_CAPTURE_INDEX;
 }
 
 /**
@@ -75,10 +93,10 @@ function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
     transactionsUrl: urlHint(urls.transactionsUrl),
     balanceUrl: urlHint(urls.balanceUrl),
     pendingUrl: urlHint(urls.pendingUrl),
-    accountsCapture: acctHit ? acctHit.captureIndex ?? 0 : 0,
-    transactionsCapture: txnHit ? txnHit.captureIndex ?? 0 : 0,
-    balanceCapture: balHit ? balHit.captureIndex ?? 0 : 0,
-    pendingCapture: pendHit ? pendHit.captureIndex ?? 0 : 0,
+    accountsCapture: captureIndexOf(acctHit),
+    transactionsCapture: captureIndexOf(txnHit),
+    balanceCapture: captureIndexOf(balHit),
+    pendingCapture: captureIndexOf(pendHit),
   });
   return urls;
 }

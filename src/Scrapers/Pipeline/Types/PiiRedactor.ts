@@ -744,6 +744,19 @@ function isLikelyIdSegment(segment: string): boolean {
 }
 
 /**
+ * Mask a single URL path segment when it looks like an identifier.
+ * Pulled out of `redactUrlFull`'s `.map` so the per-segment branch
+ * isn't a ternary (the project lints ternaries as a forbidden form).
+ * @param seg - Single path segment.
+ * @returns The `***XXXX` hint when the segment looks like an ID,
+ *   otherwise the input segment unchanged.
+ */
+function maskPathSegmentIfId(seg: string): string {
+  if (!isLikelyIdSegment(seg)) return seg;
+  return redactAccount(seg);
+}
+
+/**
  * Redact a URL fully — `redactUrl` (query) plus per-segment account
  * masking (path). For each `/`-delimited segment that looks like an
  * account or card identifier (≥ 4 digit run), replace it with the
@@ -765,9 +778,7 @@ function redactUrlFull(url: string): PiiHintString {
   const parse = tryParseUrl(queryRedacted);
   if (!parse.ok) return queryRedacted;
   const segments = parse.url.pathname.split('/');
-  const masked = segments.map(
-    (seg): string => (isLikelyIdSegment(seg) ? redactAccount(seg) : seg),
-  );
+  const masked = segments.map(maskPathSegmentIfId);
   parse.url.pathname = masked.join('/');
   return parse.url.toString() as PiiHintString;
 }
