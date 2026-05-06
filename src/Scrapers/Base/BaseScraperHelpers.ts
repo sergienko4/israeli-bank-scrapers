@@ -108,8 +108,8 @@ export async function matchesAnyCondition(
 export async function safeCleanup(cleanup: () => Promise<boolean>): Promise<boolean> {
   try {
     await cleanup();
-  } catch (e) {
-    LOG.debug(`Cleanup function failed: ${(e as Error).message}`);
+  } catch (error) {
+    LOG.debug(`Cleanup function failed: ${(error as Error).message}`);
   }
   return true;
 }

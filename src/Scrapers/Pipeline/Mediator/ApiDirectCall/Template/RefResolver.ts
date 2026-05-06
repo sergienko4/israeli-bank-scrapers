@@ -32,9 +32,6 @@ interface ITemplateScope {
 /** Handler for one RefToken category — returns the resolved value. */
 type RefHandler = (token: RefToken, scope: ITemplateScope) => Procedure<JsonValue>;
 
-/** Predicate flag emitted by the prefix matcher for Array.find. */
-type PrefixMatch = boolean;
-
 /**
  * Coerce an unknown runtime value into a JsonValue. Arrays + plain
  * objects + scalars pass through; functions + symbols fail.
@@ -198,7 +195,7 @@ const PREFIX_HANDLERS: readonly { readonly prefix: string; readonly handle: RefH
  * @returns Predicate that returns true when the entry prefix matches.
  */
 function prefixMatcher(token: RefToken): (e: (typeof PREFIX_HANDLERS)[number]) => boolean {
-  return (e): PrefixMatch => token.startsWith(e.prefix);
+  return (e): boolean => token.startsWith(e.prefix);
 }
 
 /**

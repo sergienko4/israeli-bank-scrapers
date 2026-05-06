@@ -41,20 +41,6 @@ import { waitUntil } from '../Timing/Waiting.js';
 /** Timeout for post-login redirect settle. */
 const REDIRECT_SETTLE_MS = 15000;
 
-/** Whether URL changed from login page. */
-type IsRedirect = boolean;
-/** Array.find predicate — picks the first frame-scan that reported errors. */
-type HasScanErrors = boolean;
-
-/** Candidate value extracted from race result. */
-type CandidateValue = string;
-/** Candidate kind extracted from race result. */
-type CandidateKind = string;
-/** CSS/XPath selector string. */
-type SelectorStr = string;
-/** URL pathname with trailing slashes stripped (root returned as "/"). */
-type LoginPathname = string;
-
 /**
  * Run checkReadiness if configured — returns failure Procedure or false.
  * @param config - Login config.
@@ -69,8 +55,8 @@ async function runCheckReadiness(
   try {
     await config.checkReadiness(page);
     return false;
-  } catch (err) {
-    const msg = toErrorMessage(err as Error);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `LOGIN PRE: checkReadiness — ${msg}`);
   }
 }
@@ -87,8 +73,8 @@ async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure
     const frame = await config.preAction(page);
     const activeFrame: Page | Frame = frame ?? page;
     return succeed(activeFrame);
-  } catch (err) {
-    const msg = toErrorMessage(err as Error);
+  } catch (error) {
+    const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `LOGIN PRE: preAction — ${msg}`);
   }
 }
@@ -242,6 +228,7 @@ function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly Selecto
 }
 
 /** Trustworthy form-anchor selector (id/name/class) or empty string sentinel. */
+// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
 type FormAnchorSelector = string;
 
 /**
@@ -278,7 +265,7 @@ const SUBMIT_FALLBACKS: Record<string, string> = { true: '', false: 'submit' };
  * @param result - Race result from resolveVisible.
  * @returns Candidate value string.
  */
-function extractCandidateVal(result: IRaceResult): CandidateValue {
+function extractCandidateVal(result: IRaceResult): string {
   if (!result.candidate) return SUBMIT_FALLBACKS.false;
   return result.candidate.value;
 }
@@ -288,7 +275,7 @@ function extractCandidateVal(result: IRaceResult): CandidateValue {
  * @param result - Race result from resolveVisible.
  * @returns Candidate kind string.
  */
-function extractCandidateKind(result: IRaceResult): CandidateKind {
+function extractCandidateKind(result: IRaceResult): string {
   if (!result.candidate) return 'unknown';
   return result.candidate.kind;
 }
@@ -375,7 +362,7 @@ async function resolveInFrame(input: IResolveInFrameArgs): Promise<Option<IResol
  * @param result - Race result from resolveVisible.
  * @returns Inner selector string without form scope.
  */
-function buildInnerSubmitSelector(result: IRaceResult): SelectorStr {
+function buildInnerSubmitSelector(result: IRaceResult): string {
   if (!result.candidate) return 'button[type="submit"]';
   const c = result.candidate;
   // ariaLabel kind matches by accessible name, not the [aria-label] attribute.
@@ -414,7 +401,7 @@ function buildInnerSubmitSelector(result: IRaceResult): SelectorStr {
  * @param formAnchor - Trustworthy form selector or empty string.
  * @returns Scoped selector string for the click executor.
  */
-function buildSubmitSelector(result: IRaceResult, formAnchor: string): SelectorStr {
+function buildSubmitSelector(result: IRaceResult, formAnchor: string): string {
   const inner = buildInnerSubmitSelector(result);
   if (formAnchor.length === 0) return inner;
   return `${formAnchor} >> ${inner}`;
@@ -555,7 +542,7 @@ async function discoverErrorsAllFrames(
     (frame): Promise<IFramesScanResult> => safeScanFrame(mediator, frame),
   );
   const scans = await Promise.all(scanPromises);
-  const hit = scans.find((scan): HasScanErrors => scan.hasErrors);
+  const hit = scans.find((scan): boolean => scan.hasErrors);
   return hit ?? FRAMES_NO_ERRORS;
 }
 
@@ -702,7 +689,7 @@ async function detectAsyncLoginErrors(
  * @param input - Pipeline context (for diagnostics.loginUrl).
  * @returns True when URL has not moved off the login path.
  */
-function hasStayedOnLoginUrl(mediator: IElementMediator, input: IPipelineContext): HasScanErrors {
+function hasStayedOnLoginUrl(mediator: IElementMediator, input: IPipelineContext): boolean {
   const loginUrl = input.diagnostics.loginUrl;
   if (loginUrl.length === 0) return true;
   const currentUrl = mediator.getCurrentUrl();
@@ -739,7 +726,7 @@ function safeParse(url: string): URL | false {
  * @param url - URL string.
  * @returns Pathname (no trailing slash unless root).
  */
-function loginPathOf(url: string): LoginPathname {
+function loginPathOf(url: string): string {
   const parsed = safeParse(url);
   if (parsed === false) return url;
   // Bounded quantifier so the regex matcher cannot super-linearly
@@ -772,7 +759,7 @@ const FORM_PRESENCE_POLL_INTERVAL_MS = 500;
 function buildScopedFormPresenceSelector(
   passwordSelector: string,
   formAnchor: ILoginFieldDiscovery['formAnchor'],
-): SelectorStr {
+): string {
   const anchorSelector = extractFormAnchorSelector(formAnchor);
   if (anchorSelector.length === 0) return passwordSelector;
   return `${anchorSelector} ${passwordSelector}`;
@@ -901,26 +888,29 @@ function detectLoginBounce(
 /**
  * Wait for post-login redirect to the authenticated dashboard.
  * After iframe login, the parent page auto-redirects. Just wait for it.
+ * The wait is best-effort — a timeout does not fail the phase; POST's
+ * subsequent traffic + URL gates make the actual decision.
  * @param mediator - Element mediator for URL access.
  * @param input - Pipeline context with browser + diagnostics.
- * @returns True after redirect completes or timeout.
+ * @returns True when the redirect wait actually ran, false when the page
+ * was already off the login URL or no browser was available (no-op skip).
  */
 async function ensureDashboardRedirect(
   mediator: IElementMediator,
   input: IPipelineContext,
-): Promise<true> {
+): Promise<boolean> {
   const currentUrl = mediator.getCurrentUrl();
   const loginUrl = input.diagnostics.loginUrl;
   const isStillOnLogin = currentUrl === loginUrl || currentUrl === `${loginUrl}#`;
-  if (!isStillOnLogin) return true;
-  if (!input.browser.has) return true;
+  if (!isStillOnLogin) return false;
+  if (!input.browser.has) return false;
   input.logger.debug({
     message: 'POST: waiting for dashboard redirect',
   });
   const page = input.browser.value.page;
   const loginHash = `${currentUrl}#`;
   await page
-    .waitForURL((url: URL): IsRedirect => url.href !== currentUrl && url.href !== loginHash, {
+    .waitForURL((url: URL): boolean => url.href !== currentUrl && url.href !== loginHash, {
       timeout: REDIRECT_SETTLE_MS,
     })
     .catch((): false => false);

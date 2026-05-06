@@ -8,9 +8,13 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { HeaderMap, IHeadlessScrapeShape } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IPepperCreds } from '../PepperCreds.js';
+
+/** Pepper user id (phone without country code) — branded for Rule #15. */
+type PepperUserId = Brand<string, 'PepperUserId'>;
 import {
   accountNumberOf,
   balanceExtract,
@@ -27,9 +31,6 @@ const APP_VERSION = '11.5.1-202603051858';
 /** Stable per-install client id — generated once per process. */
 const PEPPER_CLIENT_ID = randomUUID();
 
-/** Pepper x-user-id header value (phone without country-code prefix). */
-type PepperUserId = string;
-
 /**
  * Resolve the x-user-id header — Pepper uses the phone without the
  * country-code prefix (first 3 digits "972" dropped).
@@ -39,8 +40,8 @@ type PepperUserId = string;
 function userIdOf(ctx: IActionContext): PepperUserId {
   const creds = ctx.credentials as unknown as IPepperCreds;
   const digits = creds.phoneNumber.replaceAll(/\D/g, '');
-  if (digits.startsWith('972')) return digits.slice(3);
-  return digits;
+  if (digits.startsWith('972')) return digits.slice(3) as PepperUserId;
+  return digits as PepperUserId;
 }
 
 /**

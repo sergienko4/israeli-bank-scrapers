@@ -23,8 +23,14 @@
  * '[REDACTION_ERROR]' and the pipeline continues.
  */
 
-/** Stable redacted representation handed back from a strategy. */
-type StableHint = string;
+import type { Brand } from './Brand.js';
+
+/** Stable PII hint string emitted by every redact strategy. */
+type PiiHintString = Brand<string, 'PiiHintString'>;
+/** Boolean predicate result for PII classifiers. */
+type PiiClassifierBool = Brand<boolean, 'PiiClassifierBool'>;
+/** Integer count returned by PII helpers (graphemes, indices). */
+type PiiCountInt = Brand<number, 'PiiCountInt'>;
 
 /** Exhaustive PII classification. */
 type PiiCategory =
@@ -54,35 +60,6 @@ type JsonValue = JsonScalar | IJsonObject | JsonArray;
 type CensorValue = string | number | boolean;
 /** Pino's redact callback signature — value+path → string. */
 type CensorFn = (value: CensorValue, path: readonly string[]) => string;
-
-/** Whether a path-tail key matches a token / name suffix. */
-type SuffixMatch = boolean;
-/** Whether a JsonValue / object carries at least one PII-classified key. */
-type IsPiiObject = boolean;
-/** Whether an array contains at least one PII-bearing object element. */
-type ArrayHasPiiFlag = boolean;
-/** Grapheme count of a Unicode string (Intl.Segmenter result). */
-type GraphemeCount = number;
-/** Index of the last separator inside an account-shaped string. */
-type SeparatorIndex = number;
-/** Number coerced from a string-or-number input (NaN on bad input). */
-type CoercedNumber = number;
-/** Terminal segment of a separator-delimited string. */
-type TerminalSegmentStr = string;
-/** String coerced from a CensorValue (boolean → "true"/"false"). */
-type CoercedString = string;
-/** Number-or-string forwarded into redactAmount's parser. */
-type AmountInput = number | string;
-/** A regex-fallback-applied scrubbed string. */
-type ScrubbedString = string;
-/** A redacted URL string returned from redactUrl. */
-type RedactedUrlStr = string;
-/** A redacted HTML string returned from redactHtml. */
-type RedactedHtmlStr = string;
-/** A redacted JSON body string returned from redactJsonBody. */
-type RedactedJsonStr = string;
-/** A single replaced @value attribute substring. */
-type AttrReplacement = string;
 
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
@@ -190,13 +167,13 @@ const HTML_TEXT_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[
  * @param key - Last segment of the path.
  * @returns True when the key looks like a token.
  */
-function isTokenSuffix(key: string): SuffixMatch {
+function isTokenSuffix(key: string): PiiClassifierBool {
   const lower = key.toLowerCase();
-  if (lower.endsWith('token')) return true;
-  if (lower.endsWith('bearer')) return true;
-  if (lower.endsWith('cookie')) return true;
-  if (lower.endsWith('secret')) return true;
-  return false;
+  if (lower.endsWith('token')) return true as PiiClassifierBool;
+  if (lower.endsWith('bearer')) return true as PiiClassifierBool;
+  if (lower.endsWith('cookie')) return true as PiiClassifierBool;
+  if (lower.endsWith('secret')) return true as PiiClassifierBool;
+  return false as PiiClassifierBool;
 }
 
 /**
@@ -209,13 +186,13 @@ function isTokenSuffix(key: string): SuffixMatch {
  * @param key - Last segment of the path.
  * @returns True when the key looks like a personal-name field.
  */
-function isNameSuffix(key: string): SuffixMatch {
+function isNameSuffix(key: string): PiiClassifierBool {
   const lower = key.toLowerCase();
-  if (lower.endsWith('firstname')) return true;
-  if (lower.endsWith('lastname')) return true;
-  if (lower.endsWith('fullname')) return true;
-  if (lower.endsWith('customername')) return true;
-  return false;
+  if (lower.endsWith('firstname')) return true as PiiClassifierBool;
+  if (lower.endsWith('lastname')) return true as PiiClassifierBool;
+  if (lower.endsWith('fullname')) return true as PiiClassifierBool;
+  if (lower.endsWith('customername')) return true as PiiClassifierBool;
+  return false as PiiClassifierBool;
 }
 
 /**
@@ -245,11 +222,11 @@ function buildSegmenter(): Intl.Segmenter {
  * @param input - String to measure.
  * @returns Grapheme count.
  */
-function graphemeCount(input: string): GraphemeCount {
-  if (input.length === 0) return 0;
+function graphemeCount(input: string): PiiCountInt {
+  if (input.length === 0) return 0 as PiiCountInt;
   const segmenter = buildSegmenter();
   const segments = segmenter.segment(input);
-  return Array.from(segments).length;
+  return Array.from(segments).length as PiiCountInt;
 }
 
 /**
@@ -257,11 +234,11 @@ function graphemeCount(input: string): GraphemeCount {
  * @param value - Input string.
  * @returns Last separator index, or -1.
  */
-function lastSeparatorIndex(value: string): SeparatorIndex {
+function lastSeparatorIndex(value: string): PiiCountInt {
   const dash = value.lastIndexOf('-');
   const slash = value.lastIndexOf('/');
   const space = value.lastIndexOf(' ');
-  return Math.max(dash, slash, space);
+  return Math.max(dash, slash, space) as PiiCountInt;
 }
 
 /**
@@ -270,10 +247,10 @@ function lastSeparatorIndex(value: string): SeparatorIndex {
  * @param value - Account-style input.
  * @returns Terminal segment.
  */
-function terminalSegment(value: string): TerminalSegmentStr {
+function terminalSegment(value: string): PiiHintString {
   const sep = lastSeparatorIndex(value);
-  if (sep === -1) return value;
-  return value.slice(sep + 1);
+  if (sep === -1) return value as PiiHintString;
+  return value.slice(sep + 1) as PiiHintString;
 }
 
 /**
@@ -282,11 +259,11 @@ function terminalSegment(value: string): TerminalSegmentStr {
  * @param value - Raw account string.
  * @returns Stable hint.
  */
-function redactAccount(value: string): StableHint {
-  if (value.length === 0) return '';
+function redactAccount(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
   const tail = terminalSegment(value);
-  if (tail.length <= MIN_HINT_LEN) return '[REDACTED]';
-  return `***${tail.slice(-4)}`;
+  if (tail.length <= MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  return `***${tail.slice(-4)}` as PiiHintString;
 }
 
 /**
@@ -294,10 +271,10 @@ function redactAccount(value: string): StableHint {
  * @param value - Raw card string.
  * @returns Stable hint.
  */
-function redactCard(value: string): StableHint {
-  if (value.length === 0) return '';
-  if (value.length < MIN_HINT_LEN) return '[REDACTED]';
-  return `****${value.slice(-4)}`;
+function redactCard(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  if (value.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  return `****${value.slice(-4)}` as PiiHintString;
 }
 
 /**
@@ -305,11 +282,11 @@ function redactCard(value: string): StableHint {
  * @param value - Raw value.
  * @returns Stable hint.
  */
-function redactIsraeliId(value: string): StableHint {
-  if (value.length === 0) return '';
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== ISRAELI_ID_LEN) return '[REDACTED]';
-  return `***${digits.slice(-4)}`;
+function redactIsraeliId(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  const digits = value.replaceAll(/\D/g, '');
+  if (digits.length !== ISRAELI_ID_LEN) return '[REDACTED]' as PiiHintString;
+  return `***${digits.slice(-4)}` as PiiHintString;
 }
 
 /**
@@ -317,11 +294,11 @@ function redactIsraeliId(value: string): StableHint {
  * @param value - Raw phone.
  * @returns Stable hint.
  */
-function redactPhone(value: string): StableHint {
-  if (value.length === 0) return '';
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < MIN_HINT_LEN) return '[REDACTED]';
-  return `***${digits.slice(-4)}`;
+function redactPhone(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  const digits = value.replaceAll(/\D/g, '');
+  if (digits.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  return `***${digits.slice(-4)}` as PiiHintString;
 }
 
 /**
@@ -329,10 +306,10 @@ function redactPhone(value: string): StableHint {
  * @param value - Raw name.
  * @returns Stable hint.
  */
-function redactName(value: string): StableHint {
-  if (value.length === 0) return '';
+function redactName(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
-  return `<name:${String(n)}>`;
+  return `<name:${String(n)}>` as PiiHintString;
 }
 
 /**
@@ -340,10 +317,10 @@ function redactName(value: string): StableHint {
  * @param value - Raw merchant string.
  * @returns Stable hint.
  */
-function redactMerchant(value: string): StableHint {
-  if (value.length === 0) return '';
+function redactMerchant(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
-  return `<merchant:${String(n)}>`;
+  return `<merchant:${String(n)}>` as PiiHintString;
 }
 
 /**
@@ -351,11 +328,11 @@ function redactMerchant(value: string): StableHint {
  * @param value - Number or numeric string.
  * @returns Stable hint.
  */
-function redactAmount(value: number | string): StableHint {
+function redactAmount(value: number | string): PiiHintString {
   const num = coerceToNumber(value);
-  if (Number.isNaN(num)) return '[REDACTED]';
-  if (num < 0) return '-***';
-  return '+***';
+  if (Number.isNaN(num)) return '[REDACTED]' as PiiHintString;
+  if (num < 0) return '-***' as PiiHintString;
+  return '+***' as PiiHintString;
 }
 
 /**
@@ -363,9 +340,9 @@ function redactAmount(value: number | string): StableHint {
  * @param value - Number or numeric string.
  * @returns Number (NaN when value is non-numeric).
  */
-function coerceToNumber(value: number | string): CoercedNumber {
-  if (typeof value === 'number') return value;
-  return Number(value);
+function coerceToNumber(value: number | string): PiiCountInt {
+  if (typeof value === 'number') return value as PiiCountInt;
+  return Number(value) as PiiCountInt;
 }
 
 /**
@@ -373,9 +350,9 @@ function coerceToNumber(value: number | string): CoercedNumber {
  * @param value - Raw token.
  * @returns Stable hint.
  */
-function redactToken(value: string): StableHint {
-  if (value.length === 0) return '';
-  return '[REDACTED]';
+function redactToken(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  return '[REDACTED]' as PiiHintString;
 }
 
 /**
@@ -384,11 +361,11 @@ function redactToken(value: string): StableHint {
  * @param value - Raw OTP.
  * @returns Stable hint.
  */
-function redactOtp(value: string): StableHint {
-  if (value.length === 0) return '';
-  if (value.length < OTP_MIN_LEN) return '[REDACTED]';
-  if (value.length > OTP_MAX_LEN) return '[REDACTED]';
-  return '[OTP]';
+function redactOtp(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  if (value.length < OTP_MIN_LEN) return '[REDACTED]' as PiiHintString;
+  if (value.length > OTP_MAX_LEN) return '[REDACTED]' as PiiHintString;
+  return '[OTP]' as PiiHintString;
 }
 
 /**
@@ -396,13 +373,13 @@ function redactOtp(value: string): StableHint {
  * @param value - Raw cookie string.
  * @returns Stable hint.
  */
-function redactCookie(value: string): StableHint {
-  if (value.length === 0) return '';
-  return '[REDACTED]';
+function redactCookie(value: string): PiiHintString {
+  if (value.length === 0) return '' as PiiHintString;
+  return '[REDACTED]' as PiiHintString;
 }
 
 /** String-strategy lookup table (excludes amount which has number input). */
-const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) => StableHint>>> = {
+const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) => string>>> = {
   account: redactAccount,
   card: redactCard,
   israeliId: redactIsraeliId,
@@ -425,9 +402,9 @@ interface IDispatchArgs {
  * @param value - Pino value (string | number | boolean).
  * @returns String coercion.
  */
-function toStringValue(value: CensorValue): CoercedString {
-  if (typeof value === 'string') return value;
-  return String(value);
+function toStringValue(value: CensorValue): PiiHintString {
+  if (typeof value === 'string') return value as PiiHintString;
+  return String(value) as PiiHintString;
 }
 
 /**
@@ -435,7 +412,7 @@ function toStringValue(value: CensorValue): CoercedString {
  * @param value - Pino value.
  * @returns Number when value is number, else its string form.
  */
-function toAmountValue(value: CensorValue): AmountInput {
+function toAmountValue(value: CensorValue): number | string {
   if (typeof value === 'number') return value;
   if (typeof value === 'boolean') return String(value);
   return value;
@@ -446,15 +423,15 @@ function toAmountValue(value: CensorValue): AmountInput {
  * @param args - Bundled value + category.
  * @returns Stable hint.
  */
-function dispatchStrategy(args: IDispatchArgs): StableHint {
+function dispatchStrategy(args: IDispatchArgs): PiiHintString {
   if (args.category === 'amount') {
     const amountInput = toAmountValue(args.value);
     return redactAmount(amountInput);
   }
   const strategy = STRING_STRATEGIES[args.category];
-  if (strategy === undefined) return '[REDACTED]';
+  if (strategy === undefined) return '[REDACTED]' as PiiHintString;
   const stringInput = toStringValue(args.value);
-  return strategy(stringInput);
+  return strategy(stringInput) as PiiHintString;
 }
 
 /**
@@ -464,15 +441,15 @@ function dispatchStrategy(args: IDispatchArgs): StableHint {
  * @returns Censor function bound to the production strategy table.
  */
 function createCensorFn(): CensorFn {
-  return (value, path): CoercedString => {
-    if (path.length === 0) return '[REDACTED]';
-    const tail = path[path.length - 1];
-    if (tail.length === 0) return '[REDACTED]';
+  return (value, path): PiiHintString => {
+    if (path.length === 0) return '[REDACTED]' as PiiHintString;
+    const tail = path.at(-1);
+    if (tail === undefined || tail.length === 0) return '[REDACTED]' as PiiHintString;
     try {
       const category = classifyKey(tail);
       return dispatchStrategy({ value, category });
     } catch {
-      return '[REDACTION_ERROR]';
+      return '[REDACTION_ERROR]' as PiiHintString;
     }
   };
 }
@@ -483,9 +460,11 @@ function createCensorFn(): CensorFn {
  * @param obj - Candidate object.
  * @returns True when at least one own key classifies as PII.
  */
-function objectHasPii(obj: IJsonObject): IsPiiObject {
+function objectHasPii(obj: IJsonObject): PiiClassifierBool {
   const keys = Object.keys(obj);
-  return keys.some((k): IsPiiObject => classifyKey(k) !== 'unknown');
+  return keys.some(
+    (k): PiiClassifierBool => (classifyKey(k) !== 'unknown') as PiiClassifierBool,
+  ) as PiiClassifierBool;
 }
 
 /**
@@ -505,11 +484,11 @@ function isJsonObject(v: JsonValue): v is IJsonObject {
  * @param arr - Candidate array.
  * @returns True when at least one element has a PII-classified key.
  */
-function arrayHasPiiObject(arr: JsonArray): ArrayHasPiiFlag {
-  return arr.some((el): ArrayHasPiiFlag => {
-    if (!isJsonObject(el)) return false;
+function arrayHasPiiObject(arr: JsonArray): PiiClassifierBool {
+  return arr.some((el): PiiClassifierBool => {
+    if (!isJsonObject(el)) return false as PiiClassifierBool;
     return objectHasPii(el);
-  });
+  }) as PiiClassifierBool;
 }
 
 /** Recursive walk state — carried through redactNode for safety guards. */
@@ -550,8 +529,8 @@ function redactLeaf(
   censor: CensorFn,
 ): JsonScalar {
   if (path.length === 0) return value;
-  const tail = path[path.length - 1];
-  if (tail.length === 0) return value;
+  const tail = path.at(-1);
+  if (tail === undefined || tail.length === 0) return value;
   const category = classifyKey(tail);
   if (category === 'unknown') return value;
   return censor(value, path);
@@ -625,8 +604,11 @@ function redactNode(value: JsonValue, path: readonly string[], state: IWalkState
  * @param input - String to scrub.
  * @returns Scrubbed string.
  */
-function applyFallbackPatterns(input: string): ScrubbedString {
-  return FALLBACK_PATTERNS.reduce((acc, p): ScrubbedString => acc.replace(p.re, p.to), input);
+function applyFallbackPatterns(input: string): PiiHintString {
+  return FALLBACK_PATTERNS.reduce(
+    (acc, p): PiiHintString => acc.replaceAll(p.re, p.to) as PiiHintString,
+    input as PiiHintString,
+  );
 }
 
 /** Parsed-or-fallback result of trying JSON.parse on a body string. */
@@ -654,7 +636,7 @@ function tryParseJson(body: string): IParseAttempt {
  * @param body - Raw body string.
  * @returns Redacted body string.
  */
-function redactBodyString(body: string): RedactedJsonStr {
+function redactBodyString(body: string): PiiHintString {
   const attempt = tryParseJson(body);
   if (!attempt.ok) return applyFallbackPatterns(body);
   const censor = createCensorFn();
@@ -669,7 +651,7 @@ function redactBodyString(body: string): RedactedJsonStr {
  * @param body - Parsed JSON tree.
  * @returns Redacted body string.
  */
-function redactBodyValue(body: JsonValue): RedactedJsonStr {
+function redactBodyValue(body: JsonValue): PiiHintString {
   const censor = createCensorFn();
   const state = buildWalkState(censor);
   const out = redactNode(body, [], state);
@@ -683,7 +665,7 @@ function redactBodyValue(body: JsonValue): RedactedJsonStr {
  * @param body - Raw body string OR parsed JsonValue tree.
  * @returns Redacted body string.
  */
-function redactJsonBody(body: string | JsonValue): RedactedJsonStr {
+function redactJsonBody(body: string | JsonValue): PiiHintString {
   if (typeof body === 'string') return redactBodyString(body);
   return redactBodyValue(body);
 }
@@ -732,15 +714,73 @@ function redactQueryKey(parsed: URL, key: string, censor: CensorFn): true {
  * @param url - Raw URL string.
  * @returns Redacted URL.
  */
-function redactUrl(url: string): RedactedUrlStr {
-  if (url.length === 0) return '';
+function redactUrl(url: string): PiiHintString {
+  if (url.length === 0) return '' as PiiHintString;
   const parse = tryParseUrl(url);
-  if (!parse.ok) return url;
+  if (!parse.ok) return url as PiiHintString;
   const censor = createCensorFn();
   const allKeys = [...parse.url.searchParams.keys()];
-  const piiKeys = allKeys.filter((k): IsPiiObject => PII_QUERY_KEYS.has(k));
+  const piiKeys = allKeys.filter(
+    (k): PiiClassifierBool => PII_QUERY_KEYS.has(k) as PiiClassifierBool,
+  );
   for (const key of piiKeys) redactQueryKey(parse.url, key, censor);
-  return parse.url.toString();
+  return parse.url.toString() as PiiHintString;
+}
+
+/** Path segments shorter than this are safe to leave intact. */
+const PATH_SEGMENT_DIGIT_THRESHOLD = 4;
+
+/**
+ * Predicate for path segments that look like account / card / phone
+ * IDs — runs of ≥ 4 digits, optionally with embedded separators.
+ * Conservative: digit-only segments. Hyphenated runs are caught by
+ * `redactAccount`'s terminal-segment split.
+ * @param segment - Single path segment.
+ * @returns True when the segment is a candidate for last-4 hinting.
+ */
+function isLikelyIdSegment(segment: string): boolean {
+  if (segment.length < PATH_SEGMENT_DIGIT_THRESHOLD) return false;
+  return /^\d{4,}$/.test(segment);
+}
+
+/**
+ * Mask a single URL path segment when it looks like an identifier.
+ * Pulled out of `redactUrlFull`'s `.map` so the per-segment branch
+ * isn't a ternary (the project lints ternaries as a forbidden form).
+ * @param seg - Single path segment.
+ * @returns The `***XXXX` hint when the segment looks like an ID,
+ *   otherwise the input segment unchanged.
+ */
+function maskPathSegmentIfId(seg: string): string {
+  if (!isLikelyIdSegment(seg)) return seg;
+  return redactAccount(seg);
+}
+
+/**
+ * Redact a URL fully — `redactUrl` (query) plus per-segment account
+ * masking (path). For each `/`-delimited segment that looks like an
+ * account or card identifier (≥ 4 digit run), replace it with the
+ * `***XXXX` last-4 hint produced by {@link redactAccount}. Leaves
+ * non-identifier segments untouched so route names like
+ * `getTransactionsAndGraphs` survive — the segment that *actually*
+ * disambiguates which sibling endpoint the network picker chose is
+ * never lost to the 30-char `maskVisibleText` truncation, while
+ * account IDs in path positions never reach the log channel.
+ *
+ * Composes existing `redactUrl` + `redactAccount`; no new redaction
+ * logic, just composition.
+ *
+ * @param url - Raw URL string.
+ * @returns Redacted URL with both query and path-segment PII masked.
+ */
+function redactUrlFull(url: string): PiiHintString {
+  const queryRedacted = redactUrl(url);
+  const parse = tryParseUrl(queryRedacted);
+  if (!parse.ok) return queryRedacted;
+  const segments = parse.url.pathname.split('/');
+  const masked = segments.map(maskPathSegmentIfId);
+  parse.url.pathname = masked.join('/');
+  return parse.url.toString() as PiiHintString;
 }
 
 /** Regex matching `value="…"` / `value='…'` attributes (single capture). */
@@ -753,11 +793,11 @@ const HTML_VALUE_ATTR_RE = /value\s*=\s*["']([^"']{2,})["']/gi;
  * @param content - Captured @value content.
  * @returns Redacted attribute (always normalised to double quotes).
  */
-function replaceValueAttr(_match: string, content: string): AttrReplacement {
+function replaceValueAttr(_match: string, content: string): PiiHintString {
   const trimmed = content.trim();
-  if (trimmed.length === 0) return `value="${content}"`;
+  if (trimmed.length === 0) return `value="${content}"` as PiiHintString;
   const n = graphemeCount(content);
-  return `value="<name:${String(n)}>"`;
+  return `value="<name:${String(n)}>"` as PiiHintString;
 }
 
 /**
@@ -766,15 +806,15 @@ function replaceValueAttr(_match: string, content: string): AttrReplacement {
  * @param html - Raw HTML.
  * @returns Redacted HTML.
  */
-function redactHtml(html: string): RedactedHtmlStr {
-  if (html.length === 0) return '';
+function redactHtml(html: string): PiiHintString {
+  if (html.length === 0) return '' as PiiHintString;
   let out = html;
-  for (const p of HTML_TEXT_PATTERNS) out = out.replace(p.re, p.to);
-  out = out.replace(HTML_VALUE_ATTR_RE, replaceValueAttr);
-  return out;
+  for (const p of HTML_TEXT_PATTERNS) out = out.replaceAll(p.re, p.to);
+  out = out.replaceAll(HTML_VALUE_ATTR_RE, replaceValueAttr);
+  return out as PiiHintString;
 }
 
-export type { CensorFn, JsonValue, PiiCategory, StableHint };
+export type { CensorFn, JsonValue, PiiCategory };
 export {
   classifyKey,
   createCensorFn,
@@ -791,4 +831,5 @@ export {
   redactPhone,
   redactToken,
   redactUrl,
+  redactUrlFull,
 };

@@ -56,8 +56,8 @@ async function buildMissingRetrieverResult(
     try {
       const screenshotPath = await saveScreenshot(page, screenshotDir);
       errorMessage += ` Screenshot saved to ${screenshotPath}`;
-    } catch (e: unknown) {
-      LOG.debug(e, 'screenshot failed');
+    } catch (error: unknown) {
+      LOG.debug(error, 'screenshot failed');
     }
   }
   return { success: false, errorType: ScraperErrorTypes.TwoFactorRetrieverMissing, errorMessage };
@@ -141,8 +141,8 @@ async function typeOtpIntoField(
     const locator = frame.locator(matchedSelector).first();
     await locator.pressSequentially(code, { delay: OTP_CHAR_INPUT_DELAY_MS });
     LOG.debug('typed OTP code via locator selector: %s', matchedSelector);
-  } catch (e: unknown) {
-    LOG.debug(e, 'locator failed, falling back to evaluate injection');
+  } catch (error: unknown) {
+    LOG.debug(error, 'locator failed, falling back to evaluate injection');
     if (el) await injectOtpViaEvaluate(el, code);
   }
   return true;
@@ -189,7 +189,7 @@ async function clickOtpSubmitButton(
 ): Promise<boolean> {
   const didClick = await el.evaluate((btn: HTMLElement) => {
     btn.removeAttribute('disabled');
-    const win = window as Window &
+    const win = globalThis as Window &
       typeof globalThis & { $?: (s: string) => { trigger: (e: string) => boolean } };
     if (win.$ && btn.id) win.$(`#${btn.id}`).trigger('click');
     else btn.click();

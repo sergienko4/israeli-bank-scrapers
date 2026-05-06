@@ -27,7 +27,7 @@ class DashboardPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'dashboard.pre' });
     return executePreLocateNav(input);
   }
 
@@ -36,7 +36,7 @@ class DashboardPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'dashboard.action' });
     return executeDashboardNavigationSealed(input);
   }
 
@@ -45,7 +45,7 @@ class DashboardPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'dashboard.post' });
     return executeValidateTraffic(input);
   }
 
@@ -54,7 +54,7 @@ class DashboardPhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'dashboard.final' });
     return executeCollectAndSignal(input);
   }
 }

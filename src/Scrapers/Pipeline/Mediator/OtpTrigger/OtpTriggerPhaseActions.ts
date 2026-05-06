@@ -16,18 +16,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpTrigger } from '../Form/OtpProbe.js';
-import {
-  type DiagnosticLabel,
-  OTP_FALLBACK,
-  type PhoneHint,
-  readDiagTarget,
-  unwrapProbe,
-} from '../Otp/OtpShared.js';
-
-/** Whether an OTP trigger was detected. */
-type OtpDetected = boolean;
-/** Body text from page evaluation. */
-type BodyText = string;
+import { OTP_FALLBACK, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 
 /** Full masked phone pattern (e.g. *****1234 or ******0). */
 const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
@@ -43,12 +32,12 @@ const OTP_SETTLE_TIMEOUT = 10000;
  * @param input - Pipeline context.
  * @returns Last digits or empty.
  */
-async function extractPhoneHint(input: IPipelineContext): Promise<PhoneHint> {
+async function extractPhoneHint(input: IPipelineContext): Promise<string> {
   if (!input.browser.has) return '';
   const page = input.browser.value.page;
   const bodyText = await page
-    .evaluate((): BodyText => document.body.innerText)
-    .catch((): BodyText => '');
+    .evaluate((): string => document.body.innerText)
+    .catch((): string => '');
   const fullMatch = PHONE_HINT_PATTERN.exec(bodyText);
   if (!fullMatch) return '';
   const digits = PHONE_LAST_DIGITS.exec(fullMatch[0]);
@@ -74,7 +63,7 @@ async function executeTriggerPre(input: IPipelineContext): Promise<Procedure<IPi
   input.logger.debug({
     message: `phone-hint: ${maskVisibleText(phoneHint)}`,
   });
-  const hasTrigger: OtpDetected = triggerResult.found;
+  const hasTrigger: boolean = triggerResult.found;
   const isMockMode = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
   if (!hasTrigger && !isMockMode) {
     return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
@@ -138,7 +127,7 @@ function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IPipelin
  * @returns Updated context with handoff diagnostics.
  */
 function executeTriggerFinal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const diag: DiagnosticLabel = 'otp-trigger-final (handoff to otp-fill)';
+  const diag = 'otp-trigger-final (handoff to otp-fill)';
   const result = succeed({
     ...input,
     diagnostics: { ...input.diagnostics, lastAction: diag },

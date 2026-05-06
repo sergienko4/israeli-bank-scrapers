@@ -58,7 +58,7 @@ async function main(): Promise<0 | 1> {
 
 main()
   .then((code): never => process.exit(code))
-  .catch((err: unknown): never => {
-    console.error(err);
+  .catch((error: unknown): never => {
+    console.error(error);
     return process.exit(1);
   });

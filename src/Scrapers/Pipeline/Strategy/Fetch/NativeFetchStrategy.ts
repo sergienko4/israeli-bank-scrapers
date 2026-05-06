@@ -5,20 +5,22 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
+import { mintSafeUrlForLog } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 
+type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
+type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
+
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
 
 /** Maximum length of a response-body snippet embedded in an error message. */
 const ERROR_BODY_SNIPPET_LEN = 120;
-
-/** Sanitised URL ready for logging — origin + path only, query stripped. */
-type SafeUrlForLog = string;
 
 /**
  * Strip query string and credentials from a URL for safe logging.
@@ -27,28 +29,19 @@ type SafeUrlForLog = string;
  * `<scheme>//<host><path>` only — enough for traceability without
  * leaking sensitive fields.
  * @param url - Full URL to sanitize.
- * @returns Origin + path only.
+ * @returns Origin + path only as a branded SafeUrlForLog.
  */
 function safeUrlForLog(url: string): SafeUrlForLog {
   try {
     const parsed = new URL(url);
-    return `${parsed.origin}${parsed.pathname}`;
+    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
   } catch {
-    return '<unparseable>';
+    return mintSafeUrlForLog('<unparseable>');
   }
 }
 
-/** Base API URL string for this strategy instance. */
-type BaseUrlStr = string;
-
-/** Fully-qualified URL after baseUrl resolution (absolute http(s) URL). */
-type FullyQualifiedUrl = string;
-
 /** HTTP method verbs used by this strategy. */
 type HttpVerb = 'GET' | 'POST';
-
-/** Count of Set-Cookie lines surfaced to the caller hook. */
-type SetCookieEmitCount = number;
 
 /**
  * Merge the default JSON content-type with caller-supplied headers.
@@ -121,11 +114,11 @@ function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Prom
  * @returns Number of Set-Cookie lines emitted (0 when no hook / no cookies).
  */
 function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): SetCookieEmitCount {
-  if (!hook) return 0;
+  if (!hook) return 0 as SetCookieEmitCount;
   const list = response.headers.getSetCookie();
-  if (list.length === 0) return 0;
+  if (list.length === 0) return 0 as SetCookieEmitCount;
   hook(list);
-  return list.length;
+  return list.length as SetCookieEmitCount;
 }
 
 /**
@@ -197,7 +190,7 @@ async function dispatchFetch<T>(args: IDispatchArgs): Promise<Procedure<T>> {
 
 /** Native fetch — uses globalThis.fetch with merged JSON headers. */
 class NativeFetchStrategy implements IFetchStrategy {
-  protected readonly _baseUrl: BaseUrlStr;
+  protected readonly _baseUrl: string;
 
   /**
    * Create a NativeFetchStrategy.
@@ -241,8 +234,8 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns The fully-qualified URL suitable for globalThis.fetch.
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return `${this._baseUrl}${url}`;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
+    return `${this._baseUrl}${url}` as FullyQualifiedUrl;
   }
 }
 

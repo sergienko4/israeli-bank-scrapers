@@ -124,11 +124,11 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       );
       const accounts = await runSerial(actions);
       return { success: true, accounts };
-    } catch (caught) {
+    } catch (error) {
       return {
         success: false,
         errorType: ScraperErrorTypes.Generic,
-        errorMessage: (caught as Error).message,
+        errorMessage: (error as Error).message,
       };
     }
   }

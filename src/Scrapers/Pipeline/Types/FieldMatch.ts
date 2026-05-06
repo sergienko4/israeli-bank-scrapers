@@ -3,17 +3,14 @@
  * Used by extractIds to separate display IDs from query IDs.
  */
 
-/** The exact key name from the raw API JSON (e.g. "cardUniqueID"). */
-type ApiKeyStr = string;
-
 /** Receipt for a single field extraction -- traces what matched, from where. */
 interface IFieldMatch {
   /** Exact key from the API JSON (e.g., "cardUniqueID"). */
-  readonly originalKey: ApiKeyStr;
+  readonly originalKey: string;
   /** Actual value (e.g., "3307405447882020118"). */
   readonly value: string | number;
   /** Which WK entry matched (e.g., "cardUniqueId"). */
-  readonly matchingKey: ApiKeyStr;
+  readonly matchingKey: string;
 }
 
 /** Per-card/account identity -- separates display from query IDs. */

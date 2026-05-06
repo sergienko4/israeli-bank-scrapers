@@ -13,30 +13,26 @@
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IApiMediator } from './ApiMediator.js';
-import type { AuthorizationHeaderValue, TokenResolverName } from './ITokenResolver.js';
-
-/** Predicate flag — TYPE alias satisfies Rule #15 (no bare boolean returns). */
-type WarmStateFlag = boolean;
 
 /**
- * Bank token-lifecycle port. Each method returns
- * `Procedure<AuthorizationHeaderValue>`; the string is installed
- * verbatim by ApiMediator via `setRawAuth`. Methods MUST NOT
- * throw — exceptions are caught at the mediator boundary.
+ * Generic-parameter helper alias for ITokenStrategy callers — a synonym
+ * for `Promise<Procedure<string>>` that documents the contract carried
+ * by primeInitial / primeFresh: the full Authorization header VALUE
+ * (raw JWT or "Bearer X"), wrapped in the project's Result Procedure.
+ */
+type TokenPrimeProcedure = Promise<Procedure<string>>;
+
+/**
+ * Bank token-lifecycle port. Each method returns a
+ * `TokenPrimeProcedure` whose payload is the full Authorization header
+ * value installed verbatim by ApiMediator via `setRawAuth`. Methods
+ * MUST NOT throw — exceptions are caught at the mediator boundary.
  */
 interface ITokenStrategy<TCreds> {
-  readonly name: TokenResolverName;
-  primeInitial(
-    bus: IApiMediator,
-    ctx: IPipelineContext,
-    creds: TCreds,
-  ): Promise<Procedure<AuthorizationHeaderValue>>;
-  primeFresh(
-    bus: IApiMediator,
-    ctx: IPipelineContext,
-    creds: TCreds,
-  ): Promise<Procedure<AuthorizationHeaderValue>>;
-  hasWarmState(creds: TCreds): WarmStateFlag;
+  readonly name: string;
+  primeInitial(bus: IApiMediator, ctx: IPipelineContext, creds: TCreds): TokenPrimeProcedure;
+  primeFresh(bus: IApiMediator, ctx: IPipelineContext, creds: TCreds): TokenPrimeProcedure;
+  hasWarmState(creds: TCreds): boolean;
 }
 
-export type { ITokenStrategy, WarmStateFlag };
+export type { ITokenStrategy, TokenPrimeProcedure };

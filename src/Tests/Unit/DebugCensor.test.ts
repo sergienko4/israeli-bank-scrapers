@@ -30,7 +30,7 @@ const AMOUNT_KEYS = new Set(['balance', 'originalAmount', 'chargedAmount']);
  * @returns A censored string replacement.
  */
 function censor(value: unknown, path: string[]): string {
-  const key = path[path.length - 1];
+  const key = path.at(-1) ?? '';
   if (key === 'accountNumber') return '****' + String(value).slice(-4);
   if (AMOUNT_KEYS.has(key)) return (value as number) > 0 ? '+***' : '-***';
   return '[REDACTED]';

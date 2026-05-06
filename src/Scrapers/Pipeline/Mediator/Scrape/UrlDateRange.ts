@@ -14,29 +14,23 @@
 import moment from 'moment';
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../Types/Brand.js';
 
-/** Captured URL string (Rule #15 alias). */
-type CapturedUrl = string;
-/** Whether the URL's value matched a YYYYMMDD literal. */
-type IsYmdShape = boolean;
-/** Number of params we rewrote. */
-type SwapCount = number;
+/** URL with date-range params rewritten. */
+type DateRangeAppliedUrl = Brand<string, 'DateRangeAppliedUrl'>;
+
 /** Sentinel used when the captured param had no value to probe. */
 const NO_PROBE = 'NO_PROBE';
 /** Bundled outcome of the patch operation. */
 interface IPatchOutcome {
-  readonly url: CapturedUrl;
-  readonly swapped: SwapCount;
+  readonly url: string;
+  readonly swapped: number;
 }
-/** URL query-param key name. */
-type ParamKey = string;
-/** Formatted date literal (YYYYMMDD or ISO). */
-type FormattedDate = string;
 
 /** Bundled context for swapping a single URL param. */
 interface ISwapCtx {
   readonly params: URLSearchParams;
-  readonly key: ParamKey;
+  readonly key: string;
   readonly fromDate: Date;
   readonly toDate: Date;
 }
@@ -52,7 +46,7 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}/;
  * @param raw - Captured param value.
  * @returns True when raw is exactly 8 digits.
  */
-function isYmdShape(raw: string): IsYmdShape {
+function isYmdShape(raw: string): boolean {
   return YMD_PATTERN.test(raw);
 }
 
@@ -64,7 +58,7 @@ function isYmdShape(raw: string): IsYmdShape {
  * @param probe - The original captured value (used to detect format).
  * @returns Formatted date string.
  */
-function formatLikeProbe(when: Date, probe: FormattedDate): FormattedDate {
+function formatLikeProbe(when: Date, probe: string): string {
   if (isYmdShape(probe)) return moment(when).format('YYYYMMDD');
   if (ISO_DATE_PATTERN.test(probe)) return moment(when).format('YYYY-MM-DD');
   return moment(when).format('YYYYMMDD');
@@ -76,7 +70,7 @@ function formatLikeProbe(when: Date, probe: FormattedDate): FormattedDate {
  * @param key - Param key.
  * @returns Existing value or NO_PROBE sentinel.
  */
-function readProbe(params: URLSearchParams, key: ParamKey): FormattedDate {
+function readProbe(params: URLSearchParams, key: string): string {
   const raw = params.get(key);
   if (raw === null) return NO_PROBE;
   return raw;
@@ -87,7 +81,7 @@ function readProbe(params: URLSearchParams, key: ParamKey): FormattedDate {
  * @param ctx - Bundled swap context.
  * @returns 1 when swapped, 0 otherwise.
  */
-function swapOneParam(ctx: ISwapCtx): SwapCount {
+function swapOneParam(ctx: ISwapCtx): number {
   if (FROM_KEYS.has(ctx.key)) {
     const probe = readProbe(ctx.params, ctx.key);
     const formatted = formatLikeProbe(ctx.fromDate, probe);
@@ -108,7 +102,7 @@ function swapOneParam(ctx: ISwapCtx): SwapCount {
  * @param input - Candidate URL string.
  * @returns Parsed URL or false.
  */
-function safeParseUrl(input: CapturedUrl): URL | false {
+function safeParseUrl(input: string): URL | false {
   try {
     return new URL(input);
   } catch {
@@ -124,7 +118,7 @@ function safeParseUrl(input: CapturedUrl): URL | false {
  * @param toDate - End of range (today).
  * @returns Patch outcome with the (possibly mutated) URL + swap count.
  */
-function patchUrl(input: CapturedUrl, fromDate: Date, toDate: Date): IPatchOutcome {
+function patchUrl(input: string, fromDate: Date, toDate: Date): IPatchOutcome {
   const parsed = safeParseUrl(input);
   if (parsed === false) return { url: input, swapped: 0 };
   let total = 0;
@@ -145,9 +139,13 @@ function patchUrl(input: CapturedUrl, fromDate: Date, toDate: Date): IPatchOutco
  * @param toDate - Range end (Date).
  * @returns Rewritten URL string.
  */
-export function applyDateRangeToUrl(input: CapturedUrl, fromDate: Date, toDate: Date): CapturedUrl {
+export function applyDateRangeToUrl(
+  input: string,
+  fromDate: Date,
+  toDate: Date,
+): DateRangeAppliedUrl {
   const outcome = patchUrl(input, fromDate, toDate);
-  return outcome.url;
+  return outcome.url as DateRangeAppliedUrl;
 }
 
 /**
@@ -159,7 +157,7 @@ export function applyDateRangeToUrl(input: CapturedUrl, fromDate: Date, toDate: 
  * @returns Bundled outcome.
  */
 export function applyDateRangeToUrlWithCount(
-  input: CapturedUrl,
+  input: string,
   fromDate: Date,
   toDate: Date,
 ): IPatchOutcome {

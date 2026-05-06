@@ -12,7 +12,6 @@ import {
   executeRunCleanupsFromContext,
   executeSignalDone,
   executeStartCleanup,
-  runAllCleanups,
 } from '../../Mediator/Terminate/TerminateActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -61,7 +60,7 @@ class TerminatePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'terminate.pre' });
     return executeStartCleanup(input);
   }
 
@@ -70,9 +69,9 @@ class TerminatePhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    void this.name;
-    const result = succeed(input);
-    return Promise.resolve(result);
+    input.logger.debug({ phase: this.name, message: 'terminate.action' });
+    await Promise.resolve();
+    return succeed(input);
   }
 
   /** @inheritdoc */
@@ -80,7 +79,7 @@ class TerminatePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'terminate.post' });
     const cleanupResult = await executeRunCleanupsFromContext(input);
     if (!cleanupResult.success) return cleanupResult;
     return executeLogResults(input);
@@ -91,7 +90,7 @@ class TerminatePhase extends BasePhase {
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    void this.name;
+    input.logger.debug({ phase: this.name, message: 'terminate.final' });
     return executeSignalDone(input);
   }
 }
@@ -104,4 +103,5 @@ function createTerminatePhase(): TerminatePhase {
   return new TerminatePhase();
 }
 
-export { createTerminatePhase, runAllCleanups, TERMINATE_STEP, TerminatePhase };
+export { runAllCleanups } from '../../Mediator/Terminate/TerminateActions.js';
+export { createTerminatePhase, TERMINATE_STEP, TerminatePhase };

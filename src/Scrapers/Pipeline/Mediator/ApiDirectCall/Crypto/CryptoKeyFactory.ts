@@ -14,15 +14,12 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { SignerAlgorithm } from '../IApiDirectCallConfig.js';
 
-/** Lowercase-hex SHA-256 digest used as the universal key-id. */
-type KeyIdHex = string;
-
 /** Uniform keypair bundle returned for every supported algorithm. */
 interface IGenericKeypair {
   readonly privateKey: KeyObject;
   readonly publicKeyDer: Buffer;
   readonly publicKeyBase64: string;
-  readonly keyIdHex: KeyIdHex;
+  readonly keyIdHex: string;
 }
 
 /**
@@ -30,7 +27,7 @@ interface IGenericKeypair {
  * @param publicKeyDer - SubjectPublicKeyInfo DER bytes.
  * @returns 64-char lowercase hex string.
  */
-function keyIdOf(publicKeyDer: Buffer): KeyIdHex {
+function keyIdOf(publicKeyDer: Buffer): string {
   const hash = createHash('sha256');
   const updated = hash.update(publicKeyDer);
   return updated.digest('hex');
@@ -91,6 +88,6 @@ function generateKeypair(algorithm: SignerAlgorithm): Procedure<IGenericKeypair>
   return factory();
 }
 
-export type { IGenericKeypair, KeyIdHex };
+export type { IGenericKeypair };
 export default generateKeypair;
 export { generateKeypair };

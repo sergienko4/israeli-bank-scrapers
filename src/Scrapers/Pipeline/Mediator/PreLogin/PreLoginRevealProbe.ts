@@ -13,11 +13,6 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
-/** Whether a DOM element count check matched (> 0). */
-type ElementFound = boolean;
-/** Raw DOM element count from Playwright locator.count(). */
-type ElementCount = number;
-
 /**
  * Check if any WK_PRELOGIN.REVEAL text candidate exists in the DOM.
  * @param mediator - Active mediator for element queries.
@@ -25,13 +20,11 @@ type ElementCount = number;
  */
 async function isRevealAttached(mediator: IElementMediator): Promise<Procedure<boolean>> {
   const textCandidates = (WK_PRELOGIN.REVEAL as readonly SelectorCandidate[]).filter(
-    (c): ElementFound => c.kind === 'textContent',
+    (c): boolean => c.kind === 'textContent',
   );
-  const countPromises = textCandidates.map(
-    (c): Promise<ElementCount> => mediator.countByText(c.value),
-  );
+  const countPromises = textCandidates.map((c): Promise<number> => mediator.countByText(c.value));
   const counts = await Promise.all(countPromises);
-  const isAttached = counts.some((n): ElementFound => n > 0);
+  const isAttached = counts.some((n): boolean => n > 0);
   return succeed(isAttached);
 }
 

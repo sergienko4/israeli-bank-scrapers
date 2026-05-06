@@ -8,10 +8,6 @@
 import type { ITransaction } from '../../../../Transactions.js';
 import { getDebug } from '../../Types/Debug.js';
 
-/** Number of transactions returned from a traced iteration. */
-type TracedTxnCount = number;
-/** Elapsed time in milliseconds. */
-type ElapsedMs = number;
 /** Trace outcome status. */
 type TraceOutcome = 'ok' | 'empty' | 'error';
 
@@ -37,16 +33,16 @@ async function withTrace(
   const startMs = Date.now();
   try {
     const txns = await fn();
-    const count: TracedTxnCount = txns.length;
-    const durationMs: ElapsedMs = Date.now() - startMs;
+    const count: number = txns.length;
+    const durationMs: number = Date.now() - startMs;
     const hasTxns = String(count > 0);
     const status = STATUS_MAP[hasTxns];
     LOG.trace({ card, month, txnCount: count, durationMs, status });
     return txns;
-  } catch (err) {
-    const durationMs: ElapsedMs = Date.now() - startMs;
+  } catch (error) {
+    const durationMs: number = Date.now() - startMs;
     LOG.trace({ card, month, txnCount: 0, durationMs, status: 'error' });
-    throw err;
+    throw error;
   }
 }
 

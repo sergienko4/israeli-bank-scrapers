@@ -179,6 +179,20 @@ describe('captureSnapshot', () => {
     }
   });
 
+  it('returns false when both evaluate and content yield empty HTML', async () => {
+    const now = Date.now();
+    const companyId = `snapshot-io-empty-${String(now)}`;
+    const page = makePage({ evaluateHtml: '', contentHtml: '', anchorVisible: true });
+    const base = makeMockContext();
+    const ctx: IPipelineContext = {
+      ...base,
+      companyId: companyId as unknown as IPipelineContext['companyId'],
+      browser: some({ browser: {}, context: {}, page }) as unknown as IPipelineContext['browser'],
+    };
+    const didWrite = await captureSnapshot(ctx, 'terminate');
+    expect(didWrite).toBe(false);
+  });
+
   // Reference os + tempdir to avoid unused-import warning
   it('confirms tmpdir is a non-empty string', () => {
     expect(typeof os.tmpdir()).toBe('string');

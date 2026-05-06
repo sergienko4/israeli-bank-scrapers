@@ -17,11 +17,9 @@ import {
   type IFillResult,
 } from '../Login/LoginFillStep.js';
 
-type FormSelector = string;
-
 interface IFieldScope {
   readonly ctx?: Page | Frame;
-  readonly formSelector?: FormSelector;
+  readonly formSelector?: string;
 }
 
 interface IFillAccum {
@@ -117,9 +115,6 @@ async function fillFieldStep(
   return updateScopeAfterFill(scope, { ctx, field, result });
 }
 
-/** Whether a field is the password anchor. */
-type IsAnchor = boolean;
-
 /**
  * Reorder fields: password first (universal anchor), then the rest.
  * input[type="password"] is easiest to find — scopes other fields.
@@ -132,9 +127,9 @@ function passwordFirst(fields: readonly IFieldConfig[]): readonly IFieldConfig[]
    * @param f - Field config.
    * @returns True if password.
    */
-  const isPwd = (f: IFieldConfig): IsAnchor => f.credentialKey === 'password';
+  const isPwd = (f: IFieldConfig): boolean => f.credentialKey === 'password';
   const pwd = fields.filter(isPwd);
-  const rest = fields.filter((f): IsAnchor => !isPwd(f));
+  const rest = fields.filter((f): boolean => !isPwd(f));
   return [...pwd, ...rest];
 }
 

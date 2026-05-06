@@ -240,6 +240,33 @@ describe('AccountScrapeStrategy — branch extensions', () => {
     expect(result).not.toBe(false);
   });
 
+  it('tryBufferedResponse refuses reuse when postData carries a plural cards array', async () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    // StatusPage-shape capture: plural cards array, no scalar id at root.
+    // Reusing the captured buffer for any iteration would mirror the
+    // combined response. The predicate must refuse reuse.
+    const endpoint = makeEndpoint({
+      method: 'POST',
+      postData: JSON.stringify({
+        cards: [
+          { last4digits: '7641', companyCode: 11 },
+          { last4digits: '3852', companyCode: 11 },
+        ],
+      }),
+      responseBody: TXN_BODY,
+    });
+    const postCtx: IPostFetchCtx = {
+      baseBody: {},
+      url: 'u',
+      displayId: 'D7641',
+      accountId: '7641',
+    };
+    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
+    expect(result).toBe(false);
+  });
+
   it('tryBufferedResponse handles unparsable postData by falling through to reuse', async () => {
     const api = makeApi();
     const network = makeNetwork();

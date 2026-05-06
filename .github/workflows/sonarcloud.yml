@@ -71,3 +71,34 @@ jobs:
           args: >
             -Dsonar.organization=${{ secrets.SONAR_ORG }}
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+
+      - name: Fail on any new SonarCloud issues (count gate)
+        if: github.event_name == 'pull_request'
+        env:
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          # The MQR quality gate checks RATINGS (A-E), which can stay
+          # green at hundreds of code-smell hits. This step enforces the
+          # COUNT — any new issue introduced by this PR fails the gate.
+          api="https://sonarcloud.io/api/issues/search"
+          query="componentKeys=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true&ps=1"
+          attempt=1
+          total=""
+          while [ "${attempt}" -le 5 ]; do
+            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty')
+            if [ -n "${total}" ]; then break; fi
+            echo "::warning::SonarCloud API returned empty body, retrying (${attempt}/5)"
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          if [ -z "${total}" ]; then
+            echo "::error::Could not read SonarCloud issue count after 5 attempts."
+            exit 1
+          fi
+          echo "SonarCloud reports ${total} new issues on PR #${PR_NUMBER}."
+          if [ "${total}" -gt 0 ]; then
+            echo "::error::SonarCloud reports ${total} new issues — blocking merge. See https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true"
+            exit 1
+          fi

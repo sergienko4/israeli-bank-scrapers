@@ -5,9 +5,44 @@
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
+import { getDebug } from '../../Types/Debug.js';
+import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
+
+const LOG = getDebug(import.meta.url);
+
+/** Sentinel emitted on the `api.context` log when no endpoint was bound. */
+const NO_CAPTURE_INDEX = 0;
+
+/**
+ * PII-safe URL hint for `api.context` log events. Returns the
+ * `redactUrlFull` view of a discovered URL, or `'none'` when
+ * discovery yielded nothing — keeps the structured field type
+ * stable so log queries don't have to handle `false`.
+ * @param url - URL string or `false`.
+ * @returns Redacted URL or 'none'.
+ */
+function urlHint(url: string | false): string {
+  if (!url) return 'none';
+  return redactUrlFull(url);
+}
+
+/**
+ * Read the per-endpoint `captureIndex` for the `api.context` log.
+ * Pulled out of the log-builder to keep the decision branch out of a
+ * ternary (the project lints ternaries as a forbidden form). Returns
+ * `NO_CAPTURE_INDEX` for both "no endpoint matched" and "endpoint
+ * matched but was synthesised without a dump".
+ * @param hit - Discovered endpoint or false.
+ * @returns The `captureIndex` value, or `NO_CAPTURE_INDEX`.
+ */
+function captureIndexOf(hit: IDiscoveredEndpoint | false): number {
+  if (!hit) return NO_CAPTURE_INDEX;
+  return hit.captureIndex ?? NO_CAPTURE_INDEX;
+}
 
 /**
  * Extract URL from a discovered endpoint, or false.
@@ -40,12 +75,30 @@ function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
   const txnHit = network.discoverTransactionsEndpoint();
   const balHit = network.discoverBalanceEndpoint();
   const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
-  return {
+  const urls: DiscoveredUrls = {
     accountsUrl: urlOrFalse(acctHit),
     transactionsUrl: urlOrFalse(txnHit),
     balanceUrl: urlOrFalse(balHit),
     pendingUrl: urlOrFalse(pendHit),
   };
+  // Canonical `api.context` event: one structured log line carrying
+  // every URL the API context will hand to downstream phases. Lets a
+  // developer see at a glance which sibling endpoint was bound to
+  // each role at DASHBOARD.FINAL time, and join each entry to its
+  // capture file via the per-endpoint `captureIndex` already emitted
+  // in `discover.shapeAware` / `discover.accounts`.
+  LOG.debug({
+    event: 'api.context',
+    accountsUrl: urlHint(urls.accountsUrl),
+    transactionsUrl: urlHint(urls.transactionsUrl),
+    balanceUrl: urlHint(urls.balanceUrl),
+    pendingUrl: urlHint(urls.pendingUrl),
+    accountsCapture: captureIndexOf(acctHit),
+    transactionsCapture: captureIndexOf(txnHit),
+    balanceCapture: captureIndexOf(balHit),
+    pendingCapture: captureIndexOf(pendHit),
+  });
+  return urls;
 }
 
 /** Late-binding header provider — resolves headers on each call. */
@@ -91,24 +144,21 @@ function createBoundGet(
  * @param path - Transaction API path (absolute or relative).
  * @returns Full transaction URL.
  */
-/** Bank URL string. */
-type BankUrlStr = string;
-
 /**
  * Resolve a config transaction path to a full URL.
  * @param baseUrl - Bank base URL.
  * @param path - API path.
  * @returns Full URL.
  */
-function resolveConfigTxnPath(baseUrl: BankUrlStr, path: BankUrlStr): BankUrlStr {
+function resolveConfigTxnPath(baseUrl: string, path: string): string {
   if (path.startsWith('http')) return path;
   return `${baseUrl}${path}`;
 }
 
 /** Config override for transaction path fallback. */
 interface IConfigOverride {
-  readonly baseUrl: BankUrlStr;
-  readonly transactionsPath?: BankUrlStr;
+  readonly baseUrl: string;
+  readonly transactionsPath?: string;
 }
 
 /**

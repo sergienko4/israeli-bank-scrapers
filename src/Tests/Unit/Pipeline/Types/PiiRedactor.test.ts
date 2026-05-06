@@ -19,6 +19,7 @@ import {
   redactPhone,
   redactToken,
   redactUrl,
+  redactUrlFull,
 } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 describe('PiiRedactor — redactAccount (TC-AC-01..05)', () => {
@@ -223,6 +224,44 @@ describe('PiiRedactor — redactUrl', () => {
   it('returns empty for empty input', () => {
     const out = redactUrl('');
     expect(out).toBe('');
+  });
+});
+
+describe('PiiRedactor — redactUrlFull', () => {
+  it('redacts an account ID embedded in a path segment (Hapoalim)', () => {
+    const out = redactUrlFull('https://x.example/api/lastTransactions/0152228812/Date');
+    expect(out).toContain('lastTransactions/***8812/Date');
+    expect(out).not.toContain('0152228812');
+  });
+  it('preserves a non-identifier route segment that disambiguates picker choice', () => {
+    const out = redactUrlFull(
+      'https://www.max.co.il/api/registered/transactionDetails/getTransactionsAndGraphs?v=V4',
+    );
+    expect(out).toContain('getTransactionsAndGraphs');
+  });
+  it('redacts both query and path PII when both are present', () => {
+    const out = redactUrlFull(
+      'https://x.example/api/accounts/0152228812/Date?accountId=12-170-536347&v=1',
+    );
+    expect(out).toContain('accounts/***8812/Date');
+    expect(out).toContain('accountId=***6347');
+    expect(out).toContain('v=1');
+  });
+  it('passes through URLs with no PII identifiers in path or query', () => {
+    const out = redactUrlFull('https://x.example/api/healthcheck?v=V4');
+    expect(out).toBe('https://x.example/api/healthcheck?v=V4');
+  });
+  it('returns input unchanged when not parseable', () => {
+    const out = redactUrlFull('not-a-url');
+    expect(out).toBe('not-a-url');
+  });
+  it('returns empty for empty input', () => {
+    const out = redactUrlFull('');
+    expect(out).toBe('');
+  });
+  it('leaves segments shorter than 4 digits intact (no over-redaction)', () => {
+    const out = redactUrlFull('https://x.example/api/v1/users/42/profile');
+    expect(out).toContain('users/42/profile');
   });
 });
 

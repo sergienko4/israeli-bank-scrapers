@@ -8,9 +8,12 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { IDiscoveredEndpoint } from '../../../Mediator/Network/NetworkDiscovery.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
+
+type AccountIndexNum = Brand<number, 'AccountIndexNum'>;
 import type {
   ApiPayload,
   IAccountFetchCtx,
@@ -48,9 +51,6 @@ const PER_ACCOUNT_TIMEOUT_MS = 300_000;
 const GLOBAL_SCRAPE_BUDGET_MS = 600_000;
 
 export { tryBufferedResponse } from './AccountScrapeStrategy.js';
-
-/** Account index in sequential iteration. */
-type AccountIndex = number;
 
 /**
  * Check if options indicate a POST endpoint is available.
@@ -175,8 +175,8 @@ async function processOneAccount(
  * @param count - Number of accounts.
  * @returns Array of indices [0, 1, 2, ...].
  */
-function indexArray(count: number): readonly AccountIndex[] {
-  return Array.from({ length: count }, (_, i): AccountIndex => i);
+function indexArray(count: number): readonly number[] {
+  return Array.from({ length: count }, (_, i): AccountIndexNum => i as AccountIndexNum);
 }
 
 /** Bundled args for processOrSkip — respects the 3-param ceiling. */

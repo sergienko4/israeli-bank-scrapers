@@ -12,11 +12,6 @@ import { extractAccountIds, extractAccountRecords } from './ScrapeAutoMapper.js'
 
 const LOG = getDebug(import.meta.url);
 
-/** Raw JSON string from sessionStorage. */
-type StorageValue = string;
-/** Whether a storage value starts with '{'. */
-type IsJsonLike = boolean;
-
 /** Bootstrapped account IDs + records. */
 interface IBootstrapResult {
   readonly ids: readonly string[];
@@ -36,19 +31,14 @@ const HARVEST_TIMEOUT = 10_000;
  */
 async function readAllJsonValues(frame: Frame): Promise<readonly string[]> {
   return frame
-    .evaluate((): StorageValue[] =>
+    .evaluate((): string[] =>
       Object.keys(sessionStorage)
-        .map((k): StorageValue => sessionStorage.getItem(k) ?? '')
-        .filter((v): IsJsonLike => v.startsWith('{')),
+        .map((k): string => sessionStorage.getItem(k) ?? '')
+        .filter((v): boolean => v.startsWith('{')),
     )
-    .catch((): StorageValue[] => []);
+    .catch((): string[] => []);
 }
 
-/**
- * Try parsing a JSON string and extracting account IDs via WK.
- * @param raw - Raw JSON string from sessionStorage.
- * @returns Bootstrap result or false.
- */
 /**
  * Parse JSON and extract accounts. Returns false if no IDs found.
  * @param body - Parsed JSON.
@@ -66,7 +56,7 @@ function extractFromBody(body: Record<string, unknown>): IBootstrapResult | fals
  * @param raw - Raw JSON string from sessionStorage.
  * @returns Bootstrap result or false.
  */
-function tryExtractAccounts(raw: StorageValue): IBootstrapResult | false {
+function tryExtractAccounts(raw: string): IBootstrapResult | false {
   try {
     const body = JSON.parse(raw) as Record<string, unknown>;
     return extractFromBody(body);
@@ -82,7 +72,7 @@ function tryExtractAccounts(raw: StorageValue): IBootstrapResult | false {
  */
 async function scanFrame(frame: Frame): Promise<IBootstrapResult | false> {
   const values = await readAllJsonValues(frame);
-  const matchVal = values.find((v): IsJsonLike => tryExtractAccounts(v) !== false);
+  const matchVal = values.find((v): boolean => tryExtractAccounts(v) !== false);
   if (!matchVal) return false;
   return tryExtractAccounts(matchVal);
 }
@@ -96,7 +86,7 @@ async function scanAllFrames(page: Page): Promise<IBootstrapResult | false> {
   const frames = page.frames();
   const scanPromises = frames.map(scanFrame);
   const results = await Promise.allSettled(scanPromises);
-  const hit = results.find((r): IsJsonLike => r.status === 'fulfilled' && r.value !== false);
+  const hit = results.find((r): boolean => r.status === 'fulfilled' && r.value !== false);
   if (hit?.status !== 'fulfilled') return false;
   return hit.value || false;
 }
@@ -125,11 +115,11 @@ async function harvestAccountsFromStorage(page: Page): Promise<IBootstrapResult>
     (frame): Promise<string> =>
       frame
         .waitForFunction(
-          (): StorageValue => {
-            const vals = Object.keys(sessionStorage)
-              .map((k): StorageValue => sessionStorage.getItem(k) ?? '')
-              .filter((v): IsJsonLike => v.includes('cardUniqueId') || v.includes('accountId'));
-            return vals[0] || '';
+          (): string => {
+            const hit = Object.keys(sessionStorage)
+              .map((k): string => sessionStorage.getItem(k) ?? '')
+              .find((v): boolean => v.includes('cardUniqueId') || v.includes('accountId'));
+            return hit ?? '';
           },
           { timeout: HARVEST_TIMEOUT, polling: 500 },
         )
@@ -137,13 +127,13 @@ async function harvestAccountsFromStorage(page: Page): Promise<IBootstrapResult>
           const val = await h.jsonValue();
           return val || '';
         })
-        .catch((): StorageValue => ''),
+        .catch((): string => ''),
   );
   const waited = await Promise.allSettled(waiters);
   const nonEmpty = waited
-    .filter((r): IsJsonLike => r.status === 'fulfilled' && r.value.length > 0)
-    .map((r): StorageValue => (r as PromiseFulfilledResult<StorageValue>).value);
-  const matchVal = nonEmpty.find((v): IsJsonLike => tryExtractAccounts(v) !== false);
+    .filter((r): boolean => r.status === 'fulfilled' && r.value.length > 0)
+    .map((r): string => (r as PromiseFulfilledResult<string>).value);
+  const matchVal = nonEmpty.find((v): boolean => tryExtractAccounts(v) !== false);
   if (!matchVal) {
     LOG.debug({
       message: 'Storage harvest: 0 accounts found',

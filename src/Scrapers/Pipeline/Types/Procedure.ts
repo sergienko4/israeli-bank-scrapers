@@ -8,9 +8,6 @@ import type { IScraperScrapingResult } from '../../Base/Interface.js';
 import type { IWafErrorDetails } from '../../Base/Interfaces/WafErrorDetails.js';
 import { none, type Option, some } from './Option.js';
 
-/** Human-readable error message for failed procedure outcomes. */
-type ProcedureErrMsg = string;
-
 /** Successful procedure outcome carrying a typed payload. */
 interface IProcedureSuccess<T> {
   readonly success: true;
@@ -21,7 +18,7 @@ interface IProcedureSuccess<T> {
 interface IProcedureFailure {
   readonly success: false;
   readonly errorType: ScraperErrorTypes;
-  readonly errorMessage: ProcedureErrMsg;
+  readonly errorMessage: string;
   readonly errorDetails: Option<IWafErrorDetails>;
 }
 

@@ -6,30 +6,28 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { LoginFn } from './PipelineAssembly.js';
 import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
 
+/** Setter outcome — true after applying state mutation. */
+type DidSet = Brand<boolean, 'BuilderDidSet'>;
+
 type LoginMode = 'none' | 'declarative' | 'apiDirectConfig';
-/** Whether a builder capability flag is set. */
-type HasCapability = boolean;
-/** Whether a builder setter completed without conflict. */
-type DidSet = boolean;
-/** Builder error message (empty when no error). */
-type BuilderError = string;
 
 /** Mutable builder state operated on by setter functions. */
 interface IBuilderState {
   options: ScraperOptions | false;
-  hasBrowser: HasCapability;
-  isHeadless: HasCapability;
+  hasBrowser: boolean;
+  isHeadless: boolean;
   loginMode: LoginMode;
-  error: BuilderError;
+  error: string;
   loginConfig: ILoginConfig | false;
   loginFn: LoginFn | false;
-  hasPreLogin: HasCapability;
-  hasOtpFill: HasCapability;
-  otpFillRequired: HasCapability;
-  hasOtpTrigger: HasCapability;
+  hasPreLogin: boolean;
+  hasOtpFill: boolean;
+  otpFillRequired: boolean;
+  hasOtpTrigger: boolean;
   scrapeFn: ScrapeFn | false;
   apiDirectConfig: IApiDirectCallConfig | false;
 }
@@ -64,9 +62,9 @@ function createEmptyState(): IBuilderState {
 function assertNoLoginMode(state: IBuilderState): DidSet {
   if (state.loginMode !== 'none') {
     state.error = 'PipelineBuilder: login mode already set';
-    return false;
+    return false as DidSet;
   }
-  return true;
+  return true as DidSet;
 }
 
 /**
@@ -80,10 +78,10 @@ function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | Lo
   state.loginMode = 'declarative';
   if (typeof configOrFn === 'function') {
     state.loginFn = configOrFn;
-    return true;
+    return true as DidSet;
   }
   state.loginConfig = configOrFn;
-  return true;
+  return true as DidSet;
 }
 
 /**
@@ -99,7 +97,7 @@ function setApiDirectConfig(state: IBuilderState, config: IApiDirectCallConfig):
   assertNoLoginMode(state);
   state.loginMode = 'apiDirectConfig';
   state.apiDirectConfig = config;
-  return true;
+  return true as DidSet;
 }
 
 /**

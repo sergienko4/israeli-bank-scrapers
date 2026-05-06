@@ -85,11 +85,11 @@ async function waitUntilElementFound(
     LOG.debug('waitForSelector %s → found (%dms)', elementSelector, Date.now() - startMs);
     const html = await captureElementHtml(page, elementSelector);
     LOG.debug('element html: %s', html);
-  } catch (e) {
+  } catch (error) {
     LOG.debug('waitForSelector %s → TIMEOUT (%dms)', elementSelector, Date.now() - startMs);
     const text = await capturePageText(page);
     LOG.debug('page text: %s', text);
-    throw e;
+    throw error;
   }
   return true;
 }

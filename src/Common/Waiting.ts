@@ -163,10 +163,10 @@ export function waitUntil<T>(
   const state = { lastSeen: undefined as unknown };
   const trackingTest = createTrackingTest(asyncTest, state);
   const promise = buildWaitPromise(trackingTest, interval);
-  const withContext = timeoutPromise(timeout, promise, description).catch((caught: unknown) => {
-    if (!(caught instanceof TimeoutError)) throw caught;
+  const withContext = timeoutPromise(timeout, promise, description).catch((error: unknown) => {
+    if (!(error instanceof TimeoutError)) throw error;
     const lastStr = safeStringify(state.lastSeen);
-    throw new TimeoutError(`${caught.message} — last: ${lastStr}`);
+    throw new TimeoutError(`${error.message} — last: ${lastStr}`);
   });
   return withContext as WaitUntilReturn<T>;
 }
@@ -184,8 +184,8 @@ type RaceTimeoutResult<T> = Promise<T | typeof RACE_TIMED_OUT>;
  * @returns The resolved value, or RACE_TIMED_OUT if timed out.
  */
 export function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeoutResult<T> {
-  return timeoutPromise(ms, promise, 'timeout').catch((err: unknown) => {
-    if (!(err instanceof TimeoutError)) throw err;
+  return timeoutPromise(ms, promise, 'timeout').catch((error: unknown) => {
+    if (!(error instanceof TimeoutError)) throw error;
     return RACE_TIMED_OUT;
   });
 }

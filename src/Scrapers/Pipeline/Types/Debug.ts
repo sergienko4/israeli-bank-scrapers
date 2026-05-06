@@ -3,19 +3,20 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import pino, { type Logger } from 'pino';
 
 import { getActivePhase, getActiveStage } from './ActiveState.js';
+import type { Brand } from './Brand.js';
 import { SENSITIVE_PATHS } from './DebugConfig.js';
 import { createCensorFn } from './PiiRedactor.js';
-import { getLogFile } from './TraceConfig.js';
+import { getActiveRunId, getLogFile } from './TraceConfig.js';
 
-/** Bank identifier string. */
-type BankName = string;
-/** Logger namespace identifier. */
-type LoggerName = string;
+/** URL basename string — branded for Rule #15. */
+type UrlBasename = Brand<string, 'UrlBasename'>;
+/** Kebab-cased logger name derived from a source filename. */
+type LoggerNameKebab = Brand<string, 'LoggerNameKebab'>;
 
 /** Bank context shape for async-local storage. */
 interface IBankContext {
-  readonly [key: BankName]: BankName;
-  bank: BankName;
+  readonly [key: string]: string;
+  bank: string;
 }
 
 /**
@@ -34,21 +35,39 @@ const BANK_CONTEXT = createBankStore();
 const CENSOR = createCensorFn();
 
 /**
- * Inject bank context from AsyncLocalStorage into every log line.
- * @returns The current bank context or an empty object.
+ * Pino mixin: injects ambient context onto every log line so callers
+ * never have to attach `bank` / `phase` / `stage` / `runId` manually.
+ *
+ * Fields:
+ *   - `bank` / extra fields — read from the AsyncLocalStorage scope
+ *     established by {@link runWithBankContext}.
+ *   - `phase` — current pipeline phase (init / login / scrape / …).
+ *   - `stage` — 4-stage protocol (PRE / ACTION / POST / FINAL).
+ *   - `runId` — per-process run-stamp (`DD-MM-YYYY_HHMMSScc`); SAME
+ *     value the trace artefact folder is named with on disk, so a log
+ *     line can be deterministically joined to its `network/` and
+ *     `screenshots/` siblings even after logs are aggregated off-host.
+ *     Omitted from the mixin object when empty (pre-`setActiveBank`
+ *     log lines) so it never appears as `runId:""` noise.
+ *
+ * @returns Mixin fields to merge onto every log entry.
  */
-function getBankMixin(): Record<BankName, BankName> {
+function getBankMixin(): Record<string, string> {
   const bank = BANK_CONTEXT.getStore() ?? {};
-  return { ...bank, phase: getActivePhase(), stage: getActiveStage() };
+  const runId = getActiveRunId();
+  const ambient: Record<string, string> = {
+    ...bank,
+    phase: getActivePhase(),
+    stage: getActiveStage(),
+  };
+  if (runId.length > 0) ambient.runId = runId;
+  return ambient;
 }
 
 const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
 
 /** Pino transport for dev mode (pretty printing). */
 const DEV_TRANSPORT = { target: 'pino-pretty', options: { colorize: true } };
-
-/** Absolute log file path — empty string when file logging is off. */
-type LogFilePath = string;
 
 /** Pino's redact options type — pulled from the library so the censor cast
  *  doesn't need to spell `unknown` literally (the codebase forbids that). */
@@ -62,7 +81,7 @@ type PinoCensorFn = Extract<PinoRedactOptions, { censor?: unknown }>['censor'];
  * @returns Transport config or false.
  */
 function buildTransport(
-  logFile: LogFilePath,
+  logFile: string,
 ): pino.TransportSingleOptions | pino.TransportMultiOptions | false {
   if (!isDevMode && !logFile) return false;
   if (!logFile) return DEV_TRANSPORT;
@@ -139,7 +158,7 @@ interface IProxyHandler {
  * @returns Whatever pino Logger exposes at that key.
  */
 function reflectChildProperty(
-  name: LoggerName,
+  name: string,
   entry: IDeferredChildEntry,
   prop: string | symbol,
 ): LoggerProperty {
@@ -155,7 +174,7 @@ function reflectChildProperty(
  * @param entry - Mutable cache slot for the resolved child.
  * @returns Proxy handler.
  */
-function makeChildProxyHandler(name: LoggerName, entry: IDeferredChildEntry): IProxyHandler {
+function makeChildProxyHandler(name: string, entry: IDeferredChildEntry): IProxyHandler {
   return {
     /**
      * Forward property access to the lazily-built child logger.
@@ -179,11 +198,11 @@ const PASCAL_SPLIT_RE = /([a-z0-9])([A-Z])/g;
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns The filename portion (or the input itself if no `/` present).
  */
-function basenameFromUrl(metaUrl: LoggerName): LoggerName {
+function basenameFromUrl(metaUrl: string): UrlBasename {
   const cleaned = metaUrl.split('?')[0].split('#')[0];
   const lastSlash = cleaned.lastIndexOf('/');
-  if (lastSlash < 0) return cleaned;
-  return cleaned.substring(lastSlash + 1);
+  if (lastSlash < 0) return cleaned as UrlBasename;
+  return cleaned.substring(lastSlash + 1) as UrlBasename;
 }
 
 /**
@@ -195,11 +214,11 @@ function basenameFromUrl(metaUrl: LoggerName): LoggerName {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns Kebab-cased module name.
  */
-function deriveLogName(metaUrl: LoggerName): LoggerName {
+function deriveLogName(metaUrl: string): LoggerNameKebab {
   const last = basenameFromUrl(metaUrl);
   const stem = last.replace(FILE_EXT_RE, '');
-  const kebab = stem.replace(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
-  return kebab;
+  const kebab = stem.replaceAll(PASCAL_SPLIT_RE, '$1-$2').toLowerCase();
+  return kebab as LoggerNameKebab;
 }
 
 /**
@@ -214,7 +233,7 @@ function deriveLogName(metaUrl: LoggerName): LoggerName {
  * @param metaUrl - The caller's `import.meta.url`.
  * @returns A pino-shaped logger that defers child creation.
  */
-export function getDebug(metaUrl: LoggerName): Logger {
+export function getDebug(metaUrl: string): Logger {
   const name = deriveLogName(metaUrl);
   const entry: IDeferredChildEntry = { resolved: false };
   const target: object = {};
@@ -228,8 +247,20 @@ export function getDebug(metaUrl: LoggerName): Logger {
  * @param fn - The async function to execute within the bank context.
  * @returns The result of the function.
  */
-export function runWithBankContext<T>(bank: BankName, fn: () => T): T {
+export function runWithBankContext<T>(bank: string, fn: () => T): T {
   return BANK_CONTEXT.run({ bank }, fn);
+}
+
+/**
+ * Read-only accessor for the pino mixin record — every log line gets
+ * these fields injected automatically through pino's `mixin` hook.
+ * Production code never needs to call this; exposed so unit tests can
+ * assert the auto-injection contract (notably `runId`) directly,
+ * without depending on async file-transport flush timing.
+ * @returns Same record the pino mixin merges onto every log entry.
+ */
+export function getActiveLogContext(): Record<string, string> {
+  return getBankMixin();
 }
 
 export { capTimeout, isMockTimingActive, MOCK_TIMEOUT_MS } from './MockTiming.js';

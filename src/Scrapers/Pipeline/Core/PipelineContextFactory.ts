@@ -107,13 +107,10 @@ function buildInitialContext(
   return { ...core, diagnostics: diag, ...phases, ...results, loginAreaReady: false };
 }
 
-/** Resolved URL string (after WK lookup). */
-type ResolvedUrlStr = string;
-
 /** Pair of URLs + optional staticAuth needed to wire the headless ApiMediator. */
 interface IHeadlessWiring {
-  readonly identity: ResolvedUrlStr;
-  readonly graphql: ResolvedUrlStr;
+  readonly identity: string;
+  readonly graphql: string;
   readonly staticAuth?: string;
 }
 

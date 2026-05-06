@@ -16,6 +16,9 @@ type TraceConfigModule = typeof TraceConfigModuleType;
 const TEMP_BASE = process.env.TEMP ?? 'C:/tmp';
 const MODULE_PATH = '../../../../Scrapers/Pipeline/Types/TraceConfig.js';
 
+/** Format of the per-run identifier — `DD-MM-YYYY_HHMMSScc`. */
+const RUN_ID_FORMAT_RE = /^\d{2}-\d{2}-\d{4}_\d{8}$/;
+
 /**
  * Dynamically import the TraceConfig module under test with full typing,
  * avoiding the implicit `any` that bare `await import(...)` returns.
@@ -225,6 +228,69 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
+  it('getActiveRunId returns "" when no bank has been registered', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const runId = mod.getActiveRunId();
+    expect(runId).toBe('');
+  });
+
+  it('getActiveRunId is stable across calls within one process', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('discount');
+    const a = mod.getActiveRunId();
+    const b = mod.getActiveRunId();
+    expect(a).not.toBe('');
+    expect(a).toBe(b);
+  });
+
+  it('getActiveRunId matches the on-disk run-folder leaf name (trace mode)', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-runid');
+    process.env.LOG_LEVEL = 'trace';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('discount');
+    const runId = mod.getActiveRunId();
+    const folder = mod.getRunFolder();
+    const leaf = path.basename(folder);
+    expect(runId).toBe(leaf);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('getActiveRunId is available off-trace (no folder created)', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('hapoalim');
+    const runId = mod.getActiveRunId();
+    const folder = mod.getRunFolder();
+    const isWellFormed = RUN_ID_FORMAT_RE.test(runId);
+    expect(runId).not.toBe('');
+    expect(isWellFormed).toBe(true);
+    expect(folder).toBe('');
+  });
+
+  it('resetTraceConfigCache clears the runId so a new call re-derives', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('hapoalim');
+    const before = mod.getActiveRunId();
+    mod.resetTraceConfigCache();
+    mod.setActiveBank('hapoalim');
+    const after = mod.getActiveRunId();
+    const isAfterWellFormed = RUN_ID_FORMAT_RE.test(after);
+    expect(before).not.toBe('');
+    expect(after).not.toBe('');
+    // Both are well-formed; equality is timing-dependent so we only
+    // assert format stability.
+    expect(isAfterWellFormed).toBe(true);
+  });
+
   it('getScreenshotDir is cached across calls', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shot');
     process.env.LOG_LEVEL = 'trace';
@@ -286,6 +352,26 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     const date = new Date(2026, 0, 2, 3, 4, 5, 60);
     const stamp = mod.formatRunStamp(date);
     expect(stamp).toBe('02-01-2026_03040506');
+  });
+
+  it('setActiveBank rejects empty string and unknown slugs', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const acceptedEmpty = mod.setActiveBank('');
+    const acceptedUnknown = mod.setActiveBank('not-a-real-bank');
+    const acceptedWhitespace = mod.setActiveBank('   ');
+    expect(acceptedEmpty).toBe(false);
+    expect(acceptedUnknown).toBe(false);
+    expect(acceptedWhitespace).toBe(false);
+  });
+
+  it('setActiveBank accepts a known slug case-insensitively', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const accepted = mod.setActiveBank(' Beinleumi ');
+    expect(accepted).toBe(true);
   });
 
   it('on-trace: bank slug derived from argv shows up in folder path', async () => {

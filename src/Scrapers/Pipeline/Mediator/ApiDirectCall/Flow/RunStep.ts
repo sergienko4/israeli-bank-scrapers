@@ -35,21 +35,6 @@ type CarryMap = Readonly<Record<string, JsonValue>>;
 /** String-valued query record — the opts.query shape accepted by apiPost. */
 type QueryRecord = Readonly<Record<string, string>>;
 
-/** Cookie-jar size (entry count) — returned by ingest/add operations. */
-type CookieJarSize = number;
-
-/** Assembled `k=v; k2=v2` Cookie header value emitted by the jar. */
-type CookieHeaderValue = string;
-
-/** A single `k=v` pair rendered for inclusion in the Cookie header. */
-type CookiePairStr = string;
-
-/** Predicate flag — true when the query entry value is not a valid scalar. */
-type NonScalarEntryFlag = boolean;
-
-/** URL path + final merged query string fed into the canonical signer. */
-type PathAndQueryStr = string;
-
 /**
  * Minimal cookie-jar port used across a single config-driven flow.
  * SmsOtpFlow constructs one instance and passes it to every RunStep
@@ -91,7 +76,7 @@ function parseCookieLine(line: string): readonly [string, string] | false {
  * @param setCookieLines - Raw Set-Cookie lines.
  * @returns Updated jar size.
  */
-function ingestCookies(jar: Map<string, string>, setCookieLines: readonly string[]): CookieJarSize {
+function ingestCookies(jar: Map<string, string>, setCookieLines: readonly string[]): number {
   const parsedPairs = setCookieLines
     .map(parseCookieLine)
     .filter((p): p is readonly [string, string] => p !== false);
@@ -104,10 +89,10 @@ function ingestCookies(jar: Map<string, string>, setCookieLines: readonly string
  * @param jar - Backing map.
  * @returns Joined cookie header.
  */
-function emitCookieHeader(jar: Map<string, string>): CookieHeaderValue {
+function emitCookieHeader(jar: Map<string, string>): string {
   const jarEntries = jar.entries();
   const entries = Array.from(jarEntries);
-  const pairs = entries.map(([name, value]): CookiePairStr => `${name}=${value}`);
+  const pairs = entries.map(([name, value]): string => `${name}=${value}`);
   return pairs.join('; ');
 }
 
@@ -124,14 +109,14 @@ function createSimpleCookieJar(): IStepCookieJar {
      * @param setCookieLines - Raw Set-Cookie lines.
      * @returns Jar size.
      */
-    add(setCookieLines: readonly string[]): CookieJarSize {
+    add(setCookieLines: readonly string[]): number {
       return ingestCookies(jar, setCookieLines);
     },
     /**
      * Emit cookie header.
      * @returns Cookie header string.
      */
-    header(): CookieHeaderValue {
+    header(): string {
       return emitCookieHeader(jar);
     },
   };
@@ -161,7 +146,7 @@ function coerceQueryRecord(hydrated: JsonValue): Procedure<QueryRecord> {
     return fail(ScraperErrorTypes.Generic, 'step.queryTemplate did not hydrate to an object');
   }
   const entries = Object.entries(hydrated);
-  const badKey = entries.find(([, v]): NonScalarEntryFlag => scalarToString(v) === false);
+  const badKey = entries.find(([, v]): boolean => scalarToString(v) === false);
   if (badKey !== undefined) {
     return fail(ScraperErrorTypes.Generic, `queryTemplate[${badKey[0]}] must be a scalar`);
   }
@@ -191,7 +176,7 @@ function buildQueryRecord(step: IStepConfig, scope: ITemplateScope): Procedure<Q
  * @param extra - Additional query pairs.
  * @returns Path + final query string.
  */
-function buildPathAndQuery(resolvedUrl: string, extra: QueryRecord): PathAndQueryStr {
+function buildPathAndQuery(resolvedUrl: string, extra: QueryRecord): string {
   let pathname: string;
   let search: string;
   try {
@@ -307,7 +292,7 @@ function mergeScopeCarry(scope: ITemplateScope, addition: CarryMap): ITemplateSc
 }
 
 /** Minimal on-set-cookie callback — adds to jar and returns jar size. */
-type OnSetCookie = (cookies: readonly string[]) => CookieJarSize;
+type OnSetCookie = (cookies: readonly string[]) => number;
 
 /**
  * Build the on-set-cookie callback when step.cookieJar=true. Returns
@@ -326,7 +311,7 @@ function bindJarSink(jar: IStepCookieJar): OnSetCookie {
    * @param cookies - Raw Set-Cookie lines.
    * @returns Jar size after addition.
    */
-  function addToJar(cookies: readonly string[]): CookieJarSize {
+  function addToJar(cookies: readonly string[]): number {
     return jar.add(cookies);
   }
   return addToJar;
@@ -421,9 +406,6 @@ function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogCont
   };
 }
 
-/** Envelope `error_code` value (vendor-defined enum) — '' when absent. */
-type EnvelopeErrorCode = string;
-
 /**
  * Read the bank's `error_code` envelope field when present. This is a
  * non-PII enum value (e.g. "00" for success, vendor-specific codes for
@@ -434,7 +416,7 @@ type EnvelopeErrorCode = string;
  * @param resp - Parsed response JSON.
  * @returns The error_code value when found, '' otherwise.
  */
-function readEnvelopeErrorCode(resp: JsonValue): EnvelopeErrorCode {
+function readEnvelopeErrorCode(resp: JsonValue): string {
   if (typeof resp !== 'object' || resp === null || Array.isArray(resp)) return '';
   const code = (resp as Record<string, JsonValue>).error_code;
   if (typeof code === 'string') return code;

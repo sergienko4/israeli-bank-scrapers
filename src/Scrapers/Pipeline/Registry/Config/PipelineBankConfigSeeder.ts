@@ -6,18 +6,13 @@
  */
 
 import type { CompanyTypes } from '../../../../Definitions.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
 import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfig.js';
 
-/** Whether a single WK URL entry was written into the registry. */
-type WasUrlSeeded = boolean;
-/** Whether a headless block's URLs were all seeded. */
-type WasHeadlessSeeded = boolean;
-/** Whether a [bankId,config] entry produced a seeding pass. */
-type WasEntrySeeded = boolean;
-/** Whether the full seeding pass over the registry completed. */
-type WasRegistrySeeded = boolean;
+/** WK seeder per-call result — branded so Rule #15 accepts the boolean return. */
+type DidSeed = Brand<boolean, 'DidSeed'>;
 
 /**
  * Register a single path entry when the URL is present.
@@ -26,10 +21,10 @@ type WasRegistrySeeded = boolean;
  * @param url - URL string (may be absent).
  * @returns True once processed.
  */
-function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): WasUrlSeeded {
-  if (!url) return false;
+function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): DidSeed {
+  if (!url) return false as DidSeed;
   registerWkUrl(key as WKUrlGroup, bankHint, url);
-  return true;
+  return true as DidSeed;
 }
 
 /**
@@ -39,14 +34,11 @@ function seedOnePath(bankHint: CompanyTypes, key: string, url?: string): WasUrlS
  * @param headless - Headless URLs block.
  * @returns True once all entries are written.
  */
-function seedWkFromHeadless(
-  bankHint: CompanyTypes,
-  headless: IHeadlessUrlsConfig,
-): WasHeadlessSeeded {
+function seedWkFromHeadless(bankHint: CompanyTypes, headless: IHeadlessUrlsConfig): DidSeed {
   registerWkUrl('identityBase', bankHint, headless.identityBase);
   registerWkUrl('graphql', bankHint, headless.graphql);
   for (const [key, url] of Object.entries(headless.paths)) seedOnePath(bankHint, key, url);
-  return true;
+  return true as DidSeed;
 }
 
 /**
@@ -55,9 +47,9 @@ function seedWkFromHeadless(
  * @param entry - Tuple from Object.entries(PIPELINE_BANK_CONFIG).
  * @returns True when a headless block was seeded; false when skipped.
  */
-function seedOneEntry(entry: [string, IPipelineBankConfig]): WasEntrySeeded {
+function seedOneEntry(entry: [string, IPipelineBankConfig]): DidSeed {
   const [key, config] = entry;
-  if (!config.headless) return false;
+  if (!config.headless) return false as DidSeed;
   return seedWkFromHeadless(key as CompanyTypes, config.headless);
 }
 
@@ -69,10 +61,10 @@ function seedOneEntry(entry: [string, IPipelineBankConfig]): WasEntrySeeded {
  */
 function seedWkFromPipelineConfig(
   registry: Partial<Record<CompanyTypes, IPipelineBankConfig>>,
-): WasRegistrySeeded {
+): DidSeed {
   const entries = Object.entries(registry);
   entries.forEach(seedOneEntry);
-  return true;
+  return true as DidSeed;
 }
 
 export default seedWkFromPipelineConfig;

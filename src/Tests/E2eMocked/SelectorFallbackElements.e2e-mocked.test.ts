@@ -36,6 +36,9 @@ const SPAN_NESTED_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed labelText
+// resolution when the label is a <span> wrapping the input. Tracked under
+// PR-206-FOLLOWUP. Body preserved for the regression diagnosis.
 describe.skip('labelText via <span> with nested input', () => {
   it('resolves <span>סיסמה<input></span> via nested strategy', async () => {
     /**
@@ -92,6 +95,9 @@ const DIV_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed labelText
+// resolution when the label is a sibling <div>. Tracked under
+// PR-206-FOLLOWUP. Body preserved for the regression diagnosis.
 describe.skip('labelText via <div> with sibling input', () => {
   it('resolves <div>סיסמה</div><input> via sibling strategy', async () => {
     /**
@@ -153,6 +159,9 @@ const PLACEHOLDER_ONLY_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </script>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed placeholder
+// resolution. Tracked under PR-206-FOLLOWUP. Body preserved for the
+// regression diagnosis.
 describe.skip('placeholder resolution (regression)', () => {
   it('resolves fields via placeholder when no label/div/span/CSS exists', async () => {
     /**

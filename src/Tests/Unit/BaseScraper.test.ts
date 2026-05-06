@@ -29,7 +29,7 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
    */
   protected override async login(): Promise<IScraperLoginResult> {
     if (this.loginError) throw this.loginError;
-    return Promise.resolve(this.loginResult);
+    return this.loginResult;
   }
 
   /**
@@ -38,7 +38,7 @@ class TestScraper extends BaseScraper<ScraperCredentials> {
    */
   protected override async fetchData(): Promise<IScraperScrapingResult> {
     if (this.fetchError) throw this.fetchError;
-    return Promise.resolve(this.fetchResult);
+    return this.fetchResult;
   }
 
   /**

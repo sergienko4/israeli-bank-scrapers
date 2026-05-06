@@ -8,23 +8,22 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue, matchField } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../../../Types/FieldMatch.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 
-const LOG = createLogger('scrape-id');
+type ResolvedIdStr = Brand<string, 'ResolvedIdStr'>;
+type DidLogExtraction = Brand<boolean, 'DidLogExtraction'>;
 
-/** User-facing identifier extracted from account record (e.g. last4Digits). */
-type DisplayIdValue = string;
-/** Internal query identifier sent to billing API (e.g. cardUniqueId). */
-type AccountIdValue = string;
+const LOG = createLogger('scrape-id');
 
 /** Combined result of extractIds — identity receipt plus backward-compat values. */
 interface IExtractedIds extends IAccountIdentity {
-  readonly displayId: DisplayIdValue;
-  readonly accountId: AccountIdValue;
+  readonly displayId: string;
+  readonly accountId: string;
 }
 
 /**
@@ -33,9 +32,9 @@ interface IExtractedIds extends IAccountIdentity {
  * @param fallback - Fallback string if match failed.
  * @returns Resolved display or account ID value.
  */
-function resolveStr(result: Procedure<IFieldMatch>, fallback: DisplayIdValue): DisplayIdValue {
-  if (isOk(result)) return String(result.value.value);
-  return fallback;
+function resolveStr(result: Procedure<IFieldMatch>, fallback: string): ResolvedIdStr {
+  if (isOk(result)) return String(result.value.value) as ResolvedIdStr;
+  return fallback as ResolvedIdStr;
 }
 
 /**
@@ -49,15 +48,12 @@ function resolveReceipt(result: Procedure<IFieldMatch>, fallback: string): IFiel
   return buildFallbackMatch(fallback);
 }
 
-/** Whether debug logging completed. */
-type DidLog = boolean;
-
 /**
  * Log extraction diagnostics for debug tracing.
  * @param ids - The extracted IDs.
  * @returns True after logging.
  */
-function logExtraction(ids: IExtractedIds): DidLog {
+function logExtraction(ids: IExtractedIds): DidLogExtraction {
   LOG.debug(
     {
       cardUniqueId: ids.accountId,
@@ -69,7 +65,7 @@ function logExtraction(ids: IExtractedIds): DidLog {
     },
     'extractIds',
   );
-  return true;
+  return true as DidLogExtraction;
 }
 
 /**
@@ -83,8 +79,8 @@ function logExtraction(ids: IExtractedIds): DidLog {
  * @returns Display and account ID strings.
  */
 function resolveIdStrings(record: Record<string, unknown>): {
-  displayId: DisplayIdValue;
-  accountId: AccountIdValue;
+  displayId: string;
+  accountId: string;
 } {
   const displayResult = matchField(record, WK.displayId);
   const queryResult = matchField(record, WK.queryId);
@@ -132,7 +128,7 @@ function extractCardId(record: Record<string, unknown>): string | false {
 /** Error message when no captured endpoint carries a displayId. */
 const NO_DISPLAY_ID_IN_STORE = 'no displayId field in any captured endpoint';
 
-/** Opaque alias over `unknown` to satisfy no-restricted-syntax on signatures. */
+// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
 type JsonValue = unknown;
 /** Plain-record alias — composes JsonValue to keep function sigs clean. */
 type JsonObject = Record<string, JsonValue>;

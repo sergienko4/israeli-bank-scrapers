@@ -19,14 +19,8 @@ interface IBuildCanonicalArgs {
   readonly bodyJson: string;
 }
 
-/** Raw (pre-escape) canonical fragment contributed by one part. */
-type CanonicalFragment = string;
-
-/** Path + optional query (as both input and output of sortQuery). */
-type PathAndQueryStr = string;
-
 /** Canonical part resolver — returns the raw (pre-escape) string. */
-type PartResolver = (args: IBuildCanonicalArgs) => CanonicalFragment;
+type PartResolver = (args: IBuildCanonicalArgs) => string;
 
 /** Three-way comparison sentinel returned by {@link compareLocale}. */
 type CompareSign = -1 | 0 | 1;
@@ -52,7 +46,7 @@ function compareLocale(a: string, b: string): CompareSign {
  * @param pathAndQuery - Path + optional `?k=v&…` query.
  * @returns Path with sorted query, or original if no `?`.
  */
-function sortQuery(pathAndQuery: string): PathAndQueryStr {
+function sortQuery(pathAndQuery: string): string {
   const qi = pathAndQuery.indexOf('?');
   if (qi < 0) return pathAndQuery;
   const path = pathAndQuery.slice(0, qi);
@@ -70,7 +64,7 @@ function sortQuery(pathAndQuery: string): PathAndQueryStr {
  * @param args - Build args (uses args.canonical.sortQueryParams).
  * @returns Raw path+query (sorted if configured).
  */
-function pathAndQueryResolver(args: IBuildCanonicalArgs): CanonicalFragment {
+function pathAndQueryResolver(args: IBuildCanonicalArgs): string {
   if (args.canonical.sortQueryParams) return sortQuery(args.pathAndQuery);
   return args.pathAndQuery;
 }
@@ -80,7 +74,7 @@ function pathAndQueryResolver(args: IBuildCanonicalArgs): CanonicalFragment {
  * @param args - Build args (uses args.canonical.clientVersion).
  * @returns Raw client-version string.
  */
-function clientVersionResolver(args: IBuildCanonicalArgs): CanonicalFragment {
+function clientVersionResolver(args: IBuildCanonicalArgs): string {
   return args.canonical.clientVersion;
 }
 
@@ -89,7 +83,7 @@ function clientVersionResolver(args: IBuildCanonicalArgs): CanonicalFragment {
  * @param args - Build args (uses args.bodyJson).
  * @returns Raw body-JSON string.
  */
-function bodyJsonResolver(args: IBuildCanonicalArgs): CanonicalFragment {
+function bodyJsonResolver(args: IBuildCanonicalArgs): string {
   return args.bodyJson;
 }
 
@@ -106,7 +100,7 @@ const PART_RESOLVERS: Readonly<Partial<Record<CanonicalPart, PartResolver>>> = {
  * @param canonical - Canonical config (escapeFrom + escapeTo).
  * @returns Escaped string safe to join with the separator.
  */
-function escapePart(raw: string, canonical: ICanonicalStringConfig): CanonicalFragment {
+function escapePart(raw: string, canonical: ICanonicalStringConfig): string {
   return raw.replaceAll(canonical.escapeFrom, canonical.escapeTo);
 }
 

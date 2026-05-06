@@ -24,12 +24,6 @@ type StepResult = Promise<Procedure<IPipelineContext>>;
 type Ctx = IActionContext;
 type FullCtx = IPipelineContext;
 type LoginFn = (ctx: FullCtx, credentials: Record<string, string>) => StepResult;
-/** Whether a browser instance is available. */
-type HasBrowser = boolean;
-/** Whether OTP configuration is present. */
-type HasOtp = boolean;
-/** Login mode identifier string. */
-type LoginModeId = string;
 
 /** Step shape accepted by wrapStep — legacy steps that return Procedure<IPipelineContext>. */
 interface IWrappableStep {
@@ -75,13 +69,13 @@ const LOGIN_STEPS: Record<string, StepExecFn> = {
 
 /** Bundled builder state for assembly. */
 interface IBuilderState {
-  readonly hasBrowser: HasBrowser;
-  readonly isHeadless: HasBrowser;
-  readonly hasPreLogin: HasOtp;
-  readonly hasOtpFill: HasOtp;
-  readonly otpFillRequired: HasOtp;
-  readonly hasOtpTrigger: HasOtp;
-  readonly loginMode: LoginModeId;
+  readonly hasBrowser: boolean;
+  readonly isHeadless: boolean;
+  readonly hasPreLogin: boolean;
+  readonly hasOtpFill: boolean;
+  readonly otpFillRequired: boolean;
+  readonly hasOtpTrigger: boolean;
+  readonly loginMode: string;
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
   readonly scrapeFn: ((ctx: Ctx) => StepResult) | false;

@@ -1,28 +1,19 @@
 import { type Frame, type Locator, type Page } from 'playwright-core';
 
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+
+/** XPath selector for div/span strict text-content match. */
+type DivSpanStrictXpath = Brand<string, 'DivSpanStrictXpath'>;
 
 const LOG = getDebug(import.meta.url);
 
 /** XPath union of elements that can visually label an input field. */
 const LABEL_TAGS = 'self::label or self::div or self::span';
 
-/** CSS/XPath selector string. */
-type CssStr = string;
-/** HTML tag name. */
-type TagStr = string;
-/** HTML attribute value. */
-type AttrVal = string;
-/** Whether an element check passed. */
-type ElementCheck = boolean;
-/** XPath base expression. */
-type XpathBase = string;
-/** Label text value. */
-type LabelVal = string;
-
 /** A function that checks element existence with a timeout. */
-export type QueryFn = (context: Page | Frame, css: CssStr) => Promise<ElementCheck>;
+export type QueryFn = (context: Page | Frame, css: string) => Promise<boolean>;
 
 /** Input types that accept text via Playwright .fill(). */
 const FILLABLE_INPUT_TYPES = new Set([
@@ -47,10 +38,10 @@ const CLICKABLE_ROLES = new Set(['button', 'link', 'tab', 'menuitem']);
 
 /** Extracted element metadata — shared by fillable and clickable checks. */
 interface IElementMeta {
-  readonly tag: TagStr;
-  readonly type: AttrVal;
-  readonly role: AttrVal;
-  readonly tabindex: AttrVal;
+  readonly tag: string;
+  readonly type: string;
+  readonly role: string;
+  readonly tabindex: string;
 }
 
 /**
@@ -60,7 +51,7 @@ interface IElementMeta {
  * @param name - The attribute name.
  * @returns The attribute value, or empty string when the attribute is not present.
  */
-async function extractAttrOrEmpty(loc: Locator, name: AttrVal): Promise<AttrVal> {
+async function extractAttrOrEmpty(loc: Locator, name: string): Promise<string> {
   const value = await loc.getAttribute(name);
   if (value === null) return String();
   return value;
@@ -74,11 +65,11 @@ async function extractAttrOrEmpty(loc: Locator, name: AttrVal): Promise<AttrVal>
  */
 async function extractElementMeta(
   ctx: Page | Frame,
-  selector: CssStr,
+  selector: string,
 ): Promise<IElementMeta | false> {
   const loc = ctx.locator(selector).first();
   if ((await loc.count()) === 0) return false;
-  const tag = await loc.evaluate((el: Element): TagStr => el.tagName.toLowerCase());
+  const tag = await loc.evaluate((el: Element): string => el.tagName.toLowerCase());
   const type = await extractAttrOrEmpty(loc, 'type');
   const role = await extractAttrOrEmpty(loc, 'role');
   const tabindex = await extractAttrOrEmpty(loc, 'tabindex');
@@ -91,7 +82,7 @@ async function extractElementMeta(
  * @param selector - CSS or XPath selector for the element to check.
  * @returns True if the element accepts text input via .fill().
  */
-export async function isFillableInput(ctx: Page | Frame, selector: CssStr): Promise<ElementCheck> {
+export async function isFillableInput(ctx: Page | Frame, selector: string): Promise<boolean> {
   const meta = await extractElementMeta(ctx, selector);
   if (!meta) return false;
   if (meta.tag === 'textarea') return true;
@@ -105,10 +96,7 @@ export async function isFillableInput(ctx: Page | Frame, selector: CssStr): Prom
  * @param selector - CSS or XPath selector for the element to check.
  * @returns True if the element is clickable (button, link, tab, etc.).
  */
-export async function isClickableElement(
-  ctx: Page | Frame,
-  selector: CssStr,
-): Promise<ElementCheck> {
+export async function isClickableElement(ctx: Page | Frame, selector: string): Promise<boolean> {
   const meta = await extractElementMeta(ctx, selector);
   if (!meta) return false;
   if (CLICKABLE_TAGS.has(meta.tag)) return true;
@@ -126,8 +114,8 @@ export async function isClickableElement(
  */
 export async function findInputByForAttr(
   ctx: Page | Frame,
-  forAttr: AttrVal,
-  labelValue: LabelVal,
+  forAttr: string,
+  labelValue: string,
 ): Promise<string> {
   const inputSelector = `#${forAttr}`;
   if ((await ctx.locator(inputSelector).count()) === 0) {
@@ -154,7 +142,7 @@ export async function findInputByForAttr(
 /** Options for xpath-based input resolution strategies. */
 interface IXpathStrategyOpts {
   ctx: Page | Frame;
-  baseXpath: XpathBase;
+  baseXpath: string;
   queryFn: QueryFn;
 }
 
@@ -183,14 +171,14 @@ type NullableAttrResult = Promise<string | null>;
 /** A DOM element handle that supports getting attribute values. */
 interface ILabelHandle {
   /** Retrieve an HTML attribute by name. */
-  getAttribute: (name: AttrVal) => NullableAttrResult;
+  getAttribute: (name: string) => NullableAttrResult;
 }
 
 /** Options for aria-based input resolution. */
 interface IAriaRefOpts {
   ctx: Page | Frame;
   label: ILabelHandle;
-  labelValue: LabelVal;
+  labelValue: string;
   queryFn: QueryFn;
 }
 
@@ -255,8 +243,8 @@ export async function resolveByProximity(opts: IXpathStrategyOpts): Promise<stri
 export interface ILabelStrategyOpts {
   ctx: Page | Frame;
   label: ILabelHandle;
-  baseXpath: XpathBase;
-  labelValue: LabelVal;
+  baseXpath: string;
+  labelValue: string;
   queryFn: QueryFn;
 }
 
@@ -295,7 +283,7 @@ const INTERACTIVE_ANCESTORS = ['button', 'a', 'select'] as const;
  */
 export async function resolveByContainerInput(
   ctx: Page | Frame,
-  textValue: LabelVal,
+  textValue: string,
   queryFn: QueryFn,
 ): Promise<string> {
   const xpath =
@@ -315,7 +303,7 @@ export async function resolveByContainerInput(
 /** Options for building an ancestor probe action. */
 interface IAncestorProbeOpts {
   ctx: Page | Frame;
-  textValue: LabelVal;
+  textValue: string;
   queryFn: QueryFn;
 }
 
@@ -325,7 +313,7 @@ interface IAncestorProbeOpts {
  * @param tag - The HTML tag name to search for.
  * @returns An async function that resolves to a selector or empty string.
  */
-function buildAncestorProbe(opts: IAncestorProbeOpts, tag: TagStr): () => Promise<CssStr> {
+function buildAncestorProbe(opts: IAncestorProbeOpts, tag: string): () => Promise<string> {
   return async (): Promise<string> => {
     const xpath = `xpath=//${tag}[.//text()[contains(., "${opts.textValue}")]]`;
     const isFound = await opts.queryFn(opts.ctx, xpath);
@@ -347,7 +335,7 @@ function buildAncestorProbe(opts: IAncestorProbeOpts, tag: TagStr): () => Promis
  */
 export async function resolveByAncestorWalkUp(
   ctx: Page | Frame,
-  textValue: LabelVal,
+  textValue: string,
   queryFn: QueryFn,
 ): Promise<string> {
   const opts: IAncestorProbeOpts = { ctx, textValue, queryFn };
@@ -372,7 +360,7 @@ export async function resolveByAncestorWalkUp(
  */
 export async function resolveTextContent(
   ctx: Page | Frame,
-  textValue: LabelVal,
+  textValue: string,
   queryFn: QueryFn,
 ): Promise<string> {
   const interactive = await resolveByAncestorWalkUp(ctx, textValue, queryFn);
@@ -386,15 +374,15 @@ export async function resolveTextContent(
  * @param value - The text content to match against.
  * @returns An XPath selector string.
  */
-export function divSpanStrictXpath(value: LabelVal): XpathBase {
-  return `xpath=//*[${LABEL_TAGS}][text()[contains(., "${value}")]]`;
+export function divSpanStrictXpath(value: string): DivSpanStrictXpath {
+  return `xpath=//*[${LABEL_TAGS}][text()[contains(., "${value}")]]` as DivSpanStrictXpath;
 }
 
 /** Options for resolving a labelText candidate. */
 interface IResolveLabelTextOpts {
   ctx: Page | Frame;
-  labelXpath: XpathBase;
-  labelValue: LabelVal;
+  labelXpath: string;
+  labelValue: string;
   queryFn: QueryFn;
 }
 

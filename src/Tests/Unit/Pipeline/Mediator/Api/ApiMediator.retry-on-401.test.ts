@@ -9,7 +9,6 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { AuthorizationHeaderValue } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
@@ -24,7 +23,7 @@ interface ITestCreds {
 }
 
 /** Fake Authorization header value used as the refresh success payload. */
-const FRESH_HEADER: AuthorizationHeaderValue = 'Bearer refresh-token-abc';
+const FRESH_HEADER = 'Bearer refresh-token-abc';
 
 /** Reuse an existing WKUrlGroup so the factory's URL resolver succeeds. */
 const TEST_URL_TAG = 'auth.bind' as const;
@@ -100,16 +99,14 @@ function stubGraphqlStrategy(): GraphQLFetchStrategy {
  * @param freshResults - Ordered results to emit on successive primeFresh calls.
  * @returns Strategy stub.
  */
-function scriptedStrategy(
-  freshResults: readonly Procedure<AuthorizationHeaderValue>[],
-): ITokenStrategy<ITestCreds> {
+function scriptedStrategy(freshResults: readonly Procedure<string>[]): ITokenStrategy<ITestCreds> {
   const queue = [...freshResults];
   /**
    * primeInitial is not exercised through retryOn401 — returns
    * a default success to satisfy the port shape.
    * @returns Success procedure.
    */
-  async function primeInitial(): Promise<Procedure<AuthorizationHeaderValue>> {
+  async function primeInitial(): Promise<Procedure<string>> {
     await Promise.resolve();
     return succeed(FRESH_HEADER);
   }
@@ -117,7 +114,7 @@ function scriptedStrategy(
    * Pull the next scripted fresh result.
    * @returns Queued procedure.
    */
-  async function primeFresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+  async function primeFresh(): Promise<Procedure<string>> {
     await Promise.resolve();
     const next = queue.shift();
     if (next === undefined) return fail(ScraperErrorTypes.Generic, 'fresh exhausted');
@@ -138,7 +135,7 @@ function scriptedStrategy(
  * Throwing primeFresh used to exercise ApiMediator.safeRefresh.
  * @throws Always throws a ScraperError on invocation.
  */
-async function throwingPrimeFresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+async function throwingPrimeFresh(): Promise<Procedure<string>> {
   await Promise.resolve();
   throw new ScraperError('resolver boom');
 }
@@ -148,7 +145,7 @@ async function throwingPrimeFresh(): Promise<Procedure<AuthorizationHeaderValue>
  * via retryOn401.
  * @returns Success procedure.
  */
-async function throwingPrimeInitial(): Promise<Procedure<AuthorizationHeaderValue>> {
+async function throwingPrimeInitial(): Promise<Procedure<string>> {
   await Promise.resolve();
   return succeed(FRESH_HEADER);
 }
@@ -188,7 +185,7 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
      * Counting primeFresh — increments on every invocation.
      * @returns Success procedure.
      */
-    async function countingFresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+    async function countingFresh(): Promise<Procedure<string>> {
       await Promise.resolve();
       freshCount = freshCount + 1;
       return succeed(FRESH_HEADER);
@@ -197,7 +194,7 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
      * primeInitial used during withTokenStrategy registration only.
      * @returns Success procedure.
      */
-    async function countingInitial(): Promise<Procedure<AuthorizationHeaderValue>> {
+    async function countingInitial(): Promise<Procedure<string>> {
       await Promise.resolve();
       return succeed(FRESH_HEADER);
     }

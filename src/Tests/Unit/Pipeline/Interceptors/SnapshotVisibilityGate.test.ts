@@ -75,4 +75,28 @@ describe('waitForPhaseAnchor', () => {
     const isAnchorVisible = await waitForPhaseAnchor(page, 'scrape');
     expect(isAnchorVisible).toBe(true);
   });
+
+  it('returns true for dashboard phase with visible dashboard anchor', async () => {
+    const page = makePage(true);
+    const isAnchorVisible = await waitForPhaseAnchor(page, 'dashboard');
+    expect(isAnchorVisible).toBe(true);
+  });
+
+  it('returns true for pre-login phase with visible password anchor', async () => {
+    const page = makePage(true);
+    const isAnchorVisible = await waitForPhaseAnchor(page, 'pre-login');
+    expect(isAnchorVisible).toBe(true);
+  });
+
+  it('returns true for otp-fill phase (gate disabled)', async () => {
+    const page = makePage(false);
+    const isAnchorVisible = await waitForPhaseAnchor(page, 'otp-fill');
+    expect(isAnchorVisible).toBe(true);
+  });
+
+  it('returns false for dashboard when locators all timeout', async () => {
+    const page = makePage(false);
+    const isAnchorVisible = await waitForPhaseAnchor(page, 'dashboard');
+    expect(isAnchorVisible).toBe(false);
+  });
 });

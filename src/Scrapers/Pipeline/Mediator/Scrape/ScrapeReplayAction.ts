@@ -15,39 +15,12 @@ type JsonRecord = Record<string, JsonNode>;
 /** Max depth for iterative replaceField BFS. */
 const MAX_REPLACE_DEPTH = 15;
 
-/** Whether a value is a searchable object (not null, not array). */
-type IsSearchable = boolean;
-/** Whether a replaceField operation mutated the target body. */
-type DidReplace = boolean;
-/** Whether a POST body uses monthly date pagination. */
-type IsMonthly = boolean;
-/** Whether a POST body has date range (from/to) fields. */
-type IsIterable = boolean;
-/** Lowercased field key from POST body for WK matching. */
-type BodyKey = string;
-/** Raw POST body template string. */
-type PostTemplate = string;
-/** Account ID string used in billing POST body. */
-type AccountIdStr = string;
-/** Calendar month number (1-indexed). */
-type MonthNum = number;
-/** Calendar year number. */
-type YearNum = number;
-/** Epoch milliseconds timestamp. */
-type EpochMs = number;
-/** ISO start date string for a month chunk. */
-type ChunkStart = string;
-/** ISO end date string for a month chunk. */
-type ChunkEnd = string;
-/** Formatted YYYY-MM-DD date string. */
-type DatePartStr = string;
-
 /**
  * Check if a value is a searchable object (not null, not array).
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
-function isSearchableObj(val: JsonNode): IsSearchable {
+function isSearchableObj(val: JsonNode): boolean {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
@@ -58,14 +31,10 @@ function isSearchableObj(val: JsonNode): IsSearchable {
  * @param value - New value to set.
  * @returns True if a field was replaced.
  */
-function replaceInObject(
-  obj: JsonRecord,
-  fieldNames: readonly string[],
-  value: PostTemplate,
-): DidReplace {
+function replaceInObject(obj: JsonRecord, fieldNames: readonly string[], value: string): boolean {
   const keys = Object.keys(obj);
-  const lowerKeys = keys.map((k): BodyKey => k.toLowerCase());
-  const hit = fieldNames.find((f): IsSearchable => {
+  const lowerKeys = keys.map((k): string => k.toLowerCase());
+  const hit = fieldNames.find((f): boolean => {
     const lowerF = f.toLowerCase();
     return lowerKeys.includes(lowerF);
   });
@@ -84,7 +53,7 @@ function replaceInObject(
  */
 function collectArrayObjs(arr: readonly JsonNode[]): JsonRecord[] {
   return arr
-    .filter((item): IsSearchable => isSearchableObj(item))
+    .filter((item): boolean => isSearchableObj(item))
     .map((item): JsonRecord => item as JsonRecord);
 }
 
@@ -121,8 +90,8 @@ function collectBfsChildren(obj: JsonRecord): JsonRecord[] {
 function processReplaceLevel(
   queue: JsonRecord[],
   fieldNames: readonly string[],
-  value: PostTemplate,
-): { didReplace: DidReplace; next: JsonRecord[] } {
+  value: string,
+): { didReplace: boolean; next: JsonRecord[] } {
   let didReplace = false;
   const next: JsonRecord[] = [];
   for (const obj of queue) {
@@ -143,7 +112,7 @@ function processReplaceLevel(
 /** Bundled BFS replace context. */
 interface IBfsReplaceCtx {
   readonly fieldNames: readonly string[];
-  readonly value: PostTemplate;
+  readonly value: string;
 }
 
 /**
@@ -153,7 +122,7 @@ interface IBfsReplaceCtx {
  * @param depth - Current depth.
  * @returns True if any field was replaced.
  */
-function replaceBfsLevel(queue: JsonRecord[], ctx: IBfsReplaceCtx, depth: number): DidReplace {
+function replaceBfsLevel(queue: JsonRecord[], ctx: IBfsReplaceCtx, depth: number): boolean {
   if (queue.length === 0 || depth >= MAX_REPLACE_DEPTH) return false;
   const level = processReplaceLevel(queue, ctx.fieldNames, ctx.value);
   if (level.didReplace) return true;
@@ -167,11 +136,7 @@ function replaceBfsLevel(queue: JsonRecord[], ctx: IBfsReplaceCtx, depth: number
  * @param value - New value to set.
  * @returns True if at least one field was replaced.
  */
-function replaceField(
-  body: JsonRecord,
-  fieldNames: readonly string[],
-  value: PostTemplate,
-): DidReplace {
+function replaceField(body: JsonRecord, fieldNames: readonly string[], value: string): boolean {
   const didReplaceDirect = replaceBfsLevel([body], { fieldNames, value }, 0);
   if (didReplaceDirect) return true;
   return replaceFieldInBase64Context(body, fieldNames, value);
@@ -187,8 +152,8 @@ function replaceField(
 function replaceFieldInBase64Context(
   body: JsonRecord,
   fieldNames: readonly string[],
-  value: PostTemplate,
-): DidReplace {
+  value: string,
+): boolean {
   const ctx = findPagingContext(body);
   if (!ctx) return false;
   const didReplace = replaceBfsLevel([ctx.decoded], { fieldNames, value }, 0);
@@ -208,10 +173,10 @@ type AccountRecordShape = Readonly<Record<string, unknown>>;
 
 /** Options for building a monthly POST body. */
 interface IMonthBodyOpts {
-  readonly template: PostTemplate;
-  readonly accountId: AccountIdStr;
-  readonly month: MonthNum;
-  readonly year: YearNum;
+  readonly template: string;
+  readonly accountId: string;
+  readonly month: number;
+  readonly year: number;
   /**
    * Per-card account record used for shape-aware substitution. Any
    * scalar field whose name matches a body key (case-insensitive) is
@@ -253,7 +218,7 @@ function isScalar(v: AccountRecordShape[string]): v is ScalarValue {
 
 /** Matched body key paired with the scalar value to substitute. */
 interface IShapeHit {
-  readonly bodyKey: BodyKey;
+  readonly bodyKey: string;
   readonly recVal: ScalarValue;
 }
 
@@ -270,10 +235,10 @@ interface IShapeHit {
 function findScalarShapeHit(
   record: AccountRecordShape,
   recordKeys: readonly string[],
-  bodyKey: BodyKey,
+  bodyKey: string,
 ): IShapeHit | false {
   const lowerBody = bodyKey.toLowerCase();
-  const rk = recordKeys.find((k): DidReplace => k.toLowerCase() === lowerBody);
+  const rk = recordKeys.find((k): boolean => k.toLowerCase() === lowerBody);
   if (!rk) return false;
   const recVal = record[rk];
   if (!isScalar(recVal)) return false;
@@ -290,16 +255,18 @@ interface IShapeStepCtx {
 
 /**
  * Substitutes `body[bk]` with the matching scalar from `ctx.record`,
- * unless `bk` is reserved for WK monthly substitution.
+ * unless `bk` is reserved for WK monthly substitution. Returns true
+ * only when an actual mutation took place so the function carries
+ * semantic information (the skip / no-hit branches return false).
  * @param ctx - bundled shape context.
  * @param bk - body key under consideration.
- * @returns true (sentinel — Rule #15 forbids void).
+ * @returns True when a substitution was applied.
  */
-function applyShapeForKey(ctx: IShapeStepCtx, bk: BodyKey): true {
+function applyShapeForKey(ctx: IShapeStepCtx, bk: string): boolean {
   const lowerBk = bk.toLowerCase();
-  if (ctx.skipKeys.has(lowerBk)) return true;
+  if (ctx.skipKeys.has(lowerBk)) return false;
   const hit = findScalarShapeHit(ctx.record, ctx.recordKeys, bk);
-  if (!hit) return true;
+  if (!hit) return false;
   const before = ctx.body[bk];
   ctx.body[bk] = coerceToBodyType(before, hit.recVal);
   return true;
@@ -332,8 +299,8 @@ function applyRecordShape(
  * applyRecordShape skip them so it doesn't fight buildMonthBody.
  */
 const RESERVED_WK_KEYS: ReadonlySet<string> = new Set(
-  [...MF.accountId, ...MF.month, ...MF.year, ...MF.compositeDate].map(
-    (k): BodyKey => k.toLowerCase(),
+  [...MF.accountId, ...MF.month, ...MF.year, ...MF.compositeDate].map((k): string =>
+    k.toLowerCase(),
   ),
 );
 
@@ -345,13 +312,13 @@ const RESERVED_WK_KEYS: ReadonlySet<string> = new Set(
  */
 function findCompositeField(body: JsonRecord): string | false {
   const bodyKeys = Object.keys(body);
-  const lowerBodyKeys = bodyKeys.map((k): BodyKey => k.toLowerCase());
+  const lowerstrings = bodyKeys.map((k): string => k.toLowerCase());
   const compositeFields = MF.compositeDate;
-  const lowerComposite = compositeFields.map((f): BodyKey => f.toLowerCase());
-  const hitIdx = lowerComposite.findIndex((lf): IsSearchable => lowerBodyKeys.includes(lf));
+  const lowerComposite = compositeFields.map((f): string => f.toLowerCase());
+  const hitIdx = lowerComposite.findIndex((lf): boolean => lowerstrings.includes(lf));
   if (hitIdx < 0) return false;
   const matchedLower = lowerComposite[hitIdx];
-  const bodyIdx = lowerBodyKeys.indexOf(matchedLower);
+  const bodyIdx = lowerstrings.indexOf(matchedLower);
   return bodyKeys[bodyIdx];
 }
 
@@ -363,7 +330,7 @@ function findCompositeField(body: JsonRecord): string | false {
  * @param year - Calendar year.
  * @returns True after apply.
  */
-function applyMonthYear(body: JsonRecord, month: MonthNum, year: YearNum): true {
+function applyMonthYear(body: JsonRecord, month: number, year: number): true {
   const compositeKey = findCompositeField(body);
   if (compositeKey) {
     const mm = String(month).padStart(2, '0');
@@ -421,23 +388,18 @@ function safeParse(raw: string): JsonRecord | false {
  * @param postData - Captured POST body string.
  * @returns True if the endpoint uses monthly fetching.
  */
-function isMonthlyEndpoint(postData: PostTemplate): IsMonthly {
+function isMonthlyEndpoint(postData: string): boolean {
   if (!postData) return false;
   const body = safeParse(postData);
   if (!body) return false;
-  const hasMonth = MF.month.some((f): IsMonthly => f in body);
-  const hasYear = MF.year.some((f): IsMonthly => f in body);
+  const hasMonth = MF.month.some((f): boolean => f in body);
+  const hasYear = MF.year.some((f): boolean => f in body);
   if (hasMonth && hasYear) return true;
   // Composite date (DD/MM/YYYY) encodes both month+year in one field
   return findCompositeField(body) !== false;
 }
 
 // ── Base64 Paging Context Support ─────────────────────────────────
-
-/** Whether a value looks like Base64-encoded JSON. */
-type IsBase64 = boolean;
-/** Decoded Base64 JSON key. */
-type PagingKey = string;
 
 /** Known paging context field names (case-insensitive). */
 const PAGING_CONTEXT_KEYS = [
@@ -466,14 +428,14 @@ function tryDecodeBase64(encoded: string): JsonRecord | false {
  * @param obj - Object to encode.
  * @returns Base64-encoded string.
  */
-function encodeToBase64(obj: JsonRecord): PostTemplate {
+function encodeToBase64(obj: JsonRecord): string {
   const jsonStr = JSON.stringify(obj);
   return Buffer.from(jsonStr, 'utf-8').toString('base64');
 }
 
 /** Result of paging context lookup. */
 interface IPagingContextHit {
-  readonly key: PagingKey;
+  readonly key: string;
   readonly decoded: JsonRecord;
 }
 
@@ -483,11 +445,9 @@ interface IPagingContextHit {
  * @param bk - Body key to check.
  * @returns Decoded context or false.
  */
-function tryPagingKey(body: JsonRecord, bk: PagingKey): IPagingContextHit | false {
+function trystring(body: JsonRecord, bk: string): IPagingContextHit | false {
   const lowerBk = bk.toLowerCase();
-  const isKnown: IsBase64 = PAGING_CONTEXT_KEYS.some(
-    (pk): IsBase64 => pk.toLowerCase() === lowerBk,
-  );
+  const isKnown: boolean = PAGING_CONTEXT_KEYS.some((pk): boolean => pk.toLowerCase() === lowerBk);
   if (!isKnown) return false;
   const val = body[bk];
   if (typeof val !== 'string') return false;
@@ -503,7 +463,7 @@ function tryPagingKey(body: JsonRecord, bk: PagingKey): IPagingContextHit | fals
  */
 function findPagingContext(body: JsonRecord): IPagingContextHit | false {
   const bodyKeys = Object.keys(body);
-  const hits = bodyKeys.map((bk): IPagingContextHit | false => tryPagingKey(body, bk));
+  const hits = bodyKeys.map((bk): IPagingContextHit | false => trystring(body, bk));
   const firstHit = hits.find((h): h is IPagingContextHit => h !== false);
   return firstHit ?? false;
 }
@@ -513,13 +473,13 @@ function findPagingContext(body: JsonRecord): IPagingContextHit | false {
  * @param body - Parsed POST body.
  * @returns True if from+to WK fields found (direct or encoded).
  */
-function hasDateRangeFields(body: JsonRecord): IsIterable {
-  const lowerKeys = Object.keys(body).map((k): BodyKey => k.toLowerCase());
+function hasDateRangeFields(body: JsonRecord): boolean {
+  const lowerKeys = Object.keys(body).map((k): string => k.toLowerCase());
   const keys = new Set(lowerKeys);
-  const lowerFrom = WK.fromDate.map((f): BodyKey => f.toLowerCase());
-  const lowerTo = WK.toDate.map((f): BodyKey => f.toLowerCase());
-  const hasFrom = lowerFrom.some((f): IsIterable => keys.has(f));
-  const hasTo = lowerTo.some((f): IsIterable => keys.has(f));
+  const lowerFrom = WK.fromDate.map((f): string => f.toLowerCase());
+  const lowerTo = WK.toDate.map((f): string => f.toLowerCase());
+  const hasFrom = lowerFrom.some((f): boolean => keys.has(f));
+  const hasTo = lowerTo.some((f): boolean => keys.has(f));
   return hasFrom && hasTo;
 }
 
@@ -529,7 +489,7 @@ function hasDateRangeFields(body: JsonRecord): IsIterable {
  * @param body - Parsed POST body.
  * @returns True if both from and to WK fields are present.
  */
-function isRangeIterable(body: JsonRecord): IsIterable {
+function isRangeIterable(body: JsonRecord): boolean {
   if (hasDateRangeFields(body)) return true;
   const ctx = findPagingContext(body);
   if (!ctx) return false;
@@ -538,8 +498,8 @@ function isRangeIterable(body: JsonRecord): IsIterable {
 
 /** A single month chunk with start and end ISO strings. */
 interface IMonthChunk {
-  readonly start: ChunkStart;
-  readonly end: ChunkEnd;
+  readonly start: string;
+  readonly end: string;
 }
 
 /**
@@ -547,7 +507,7 @@ interface IMonthChunk {
  * @param d - Date to format.
  * @returns Formatted date string.
  */
-function formatDatePart(d: Date): DatePartStr {
+function formatDatePart(d: Date): string {
   const fullYear = d.getFullYear();
   const monthIdx = d.getMonth() + 1;
   const y = String(fullYear);
@@ -563,7 +523,7 @@ function formatDatePart(d: Date): DatePartStr {
  * @param month - Current month (0-indexed).
  * @returns Next year and month.
  */
-function advanceMonth(year: YearNum, month: MonthNum): { year: YearNum; month: MonthNum } {
+function advanceMonth(year: number, month: number): { year: number; month: number } {
   const next = month + 1;
   if (next > 11) return { year: year + 1, month: 0 };
   return { year, month: next };
@@ -596,9 +556,9 @@ function buildChunk(year: number, month: number, endTime: number): IMonthChunk {
  * @returns Array of month chunks with ISO timestamps.
  */
 interface IChunkBuildState {
-  readonly year: YearNum;
-  readonly month: MonthNum;
-  readonly endTime: EpochMs;
+  readonly year: number;
+  readonly month: number;
+  readonly endTime: number;
 }
 
 /**

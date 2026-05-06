@@ -16,9 +16,6 @@ const MAIN_CONTEXT_ID: ContextId = 'main';
 /** Iframe context identifier prefix. */
 const IFRAME_PREFIX: ContextId = 'iframe:';
 
-/** Whether this context is the main page. */
-type IsMainPage = boolean;
-
 /**
  * Compute a stable opaque contextId for a Page or Frame.
  * Uses frame URL (stable across dynamic iframe additions).
@@ -49,9 +46,9 @@ function stableUrl(rawUrl: ContextId): ContextId {
  * @returns Stable opaque contextId string.
  */
 function computeContextId(context: Page | Frame, page: Page): ContextId {
-  const isMain: IsMainPage = context === page;
+  const isMain: boolean = context === page;
   if (isMain) return MAIN_CONTEXT_ID;
-  const isMainFrame: IsMainPage = 'mainFrame' in page && context === page.mainFrame();
+  const isMainFrame: boolean = 'mainFrame' in page && context === page.mainFrame();
   if (isMainFrame) return MAIN_CONTEXT_ID;
   const frame = context as Frame;
   const url = frame.url();
@@ -71,7 +68,7 @@ type FrameRegistryMap = ReadonlyMap<ContextId, Page | Frame>;
  * @param page - Main page.
  * @returns True if main frame (skip in registry).
  */
-function isMainFrame(frame: Frame, page: Page): IsMainPage {
+function isMainFrame(frame: Frame, page: Page): boolean {
   return frame === page.mainFrame();
 }
 
@@ -84,7 +81,7 @@ function isMainFrame(frame: Frame, page: Page): IsMainPage {
 function buildFrameRegistry(page: Page): FrameRegistryMap {
   const registry = new Map<ContextId, Page | Frame>();
   registry.set(MAIN_CONTEXT_ID, page);
-  const childFrames = page.frames().filter((f): IsMainPage => !isMainFrame(f, page));
+  const childFrames = page.frames().filter((f): boolean => !isMainFrame(f, page));
   for (const frame of childFrames) {
     const id = computeContextId(frame, page);
     registry.set(id, frame);

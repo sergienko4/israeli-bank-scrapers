@@ -17,19 +17,26 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { Brand } from './Brand.js';
 import { redactHtml, redactJsonBody } from './PiiRedactor.js';
 import type { IPipelineContext } from './PipelineContext.js';
 
-/** Diagnostic screenshot label. */
-export type FixtureLabel = string;
-/** Frame HTML snapshot string (empty on read failure). */
-type FrameHtmlFallback = string;
-/** Array.filter predicate — excludes the main frame from child-frame walks. */
-type IsChildFrame = boolean;
-/** Array.filter predicate — keeps frames whose HTML snapshot is non-empty. */
-type IsNonEmptyHtml = boolean;
-/** Whether iframe walk + metadata write should run for this label. */
-type WalkFrames = boolean;
+/** Phase name extracted from a label (no stage suffix). */
+type PhaseNameFromLabel = Brand<string, 'PhaseNameFromLabel'>;
+/** Stage-suffix endsWith predicate result. */
+type IsStageSuffix = Brand<boolean, 'IsStageSuffix'>;
+/** Walk-frames decision for a label. */
+type ShouldWalkFrames = Brand<boolean, 'ShouldWalkFrames'>;
+/** HTML body string read from a Playwright Frame. */
+type FrameHtmlBody = Brand<string, 'FrameHtmlBody'>;
+/** Frame URL string. */
+type FrameUrlStr = Brand<string, 'FrameUrlStr'>;
+/** Frame `name` attribute. */
+type FrameNameStr = Brand<string, 'FrameNameStr'>;
+/** Predicate result identifying the main page frame. */
+type IsMainFrame = Brand<boolean, 'IsMainFrame'>;
+/** Predicate result for non-empty HTML snapshot filter. */
+type IsNonEmptySnapshot = Brand<boolean, 'IsNonEmptySnapshot'>;
 
 /** Stage-output suffixes appended by BasePhase.takePhaseScreenshot. */
 const STAGE_SUFFIXES: readonly string[] = [
@@ -42,20 +49,15 @@ const STAGE_SUFFIXES: readonly string[] = [
 /** Phases whose iframes are dumped + metadata-tracked (login normalization). */
 const FRAME_WALK_PHASES: readonly string[] = ['pre-login', 'login'];
 
-/** Phase name slice extracted from a fixture label. */
-type PhaseName = string;
-/** Predicate alias used by ad-hoc Array find/filter callbacks in this module. */
-type LabelMatch = boolean;
-
 /**
  * Strip the stage suffix from a label to recover the phase name.
  * @param label - Full label like "login-pre-done".
  * @returns Phase name like "login".
  */
-function extractPhaseFromLabel(label: FixtureLabel): PhaseName {
-  const found = STAGE_SUFFIXES.find((s): LabelMatch => label.endsWith(s));
-  if (found === undefined) return label;
-  return label.slice(0, -found.length);
+function extractPhaseFromLabel(label: string): PhaseNameFromLabel {
+  const found = STAGE_SUFFIXES.find((s): IsStageSuffix => label.endsWith(s) as IsStageSuffix);
+  if (found === undefined) return label as PhaseNameFromLabel;
+  return label.slice(0, -found.length) as PhaseNameFromLabel;
 }
 
 /**
@@ -64,18 +66,18 @@ function extractPhaseFromLabel(label: FixtureLabel): PhaseName {
  * @param label - Full label like "login-pre-done".
  * @returns True iff frames should be walked.
  */
-function shouldWalkFrames(label: FixtureLabel): WalkFrames {
+function shouldWalkFrames(label: string): ShouldWalkFrames {
   const phase = extractPhaseFromLabel(label);
-  return FRAME_WALK_PHASES.includes(phase);
+  return FRAME_WALK_PHASES.includes(phase) as ShouldWalkFrames;
 }
 
 /** Bundled args for writing frame fixtures (3-param ceiling). */
 export interface IWriteFrameArgs {
   readonly page: Page;
   readonly bankDir: string;
-  readonly label: FixtureLabel;
+  readonly label: string;
   readonly input: IPipelineContext;
-  readonly walkFrames: WalkFrames;
+  readonly walkFrames: boolean;
 }
 
 /** One iframe html snapshot ready to write — with frame URL/name metadata. */
@@ -109,14 +111,12 @@ export interface IWriteIframeArgs {
  * @param frame - Target frame.
  * @returns HTML string (empty on error).
  */
-async function readFrameContent(frame: Frame): Promise<string> {
-  return frame.content().catch((): FrameHtmlFallback => '');
+async function readFrameContent(frame: Frame): Promise<FrameHtmlBody> {
+  return frame.content().catch((): FrameHtmlBody => '' as FrameHtmlBody) as Promise<FrameHtmlBody>;
 }
 
 /** Frame URL string (or empty when the frame is detached / stub). */
-type FrameUrl = string;
 /** Frame `name` attribute (or empty when the frame is anonymous / stub). */
-type FrameName = string;
 
 /**
  * Defensive lookup of `frame.url()` — Playwright frames have it; some test
@@ -124,13 +124,13 @@ type FrameName = string;
  * @param frame - Target frame.
  * @returns Frame URL or empty string.
  */
-function readFrameUrl(frame: Frame): FrameUrl {
+function readFrameUrl(frame: Frame): FrameUrlStr {
   const fn = (frame as { url?: () => string }).url;
-  if (typeof fn !== 'function') return '';
+  if (typeof fn !== 'function') return '' as FrameUrlStr;
   try {
-    return fn.call(frame);
+    return fn.call(frame) as FrameUrlStr;
   } catch {
-    return '';
+    return '' as FrameUrlStr;
   }
 }
 
@@ -139,13 +139,13 @@ function readFrameUrl(frame: Frame): FrameUrl {
  * @param frame - Target frame.
  * @returns Frame name attribute or empty string.
  */
-function readFrameName(frame: Frame): FrameName {
+function readFrameName(frame: Frame): FrameNameStr {
   const fn = (frame as { name?: () => string }).name;
-  if (typeof fn !== 'function') return '';
+  if (typeof fn !== 'function') return '' as FrameNameStr;
   try {
-    return fn.call(frame);
+    return fn.call(frame) as FrameNameStr;
   } catch {
-    return '';
+    return '' as FrameNameStr;
   }
 }
 
@@ -159,7 +159,7 @@ function readFrameName(frame: Frame): FrameName {
  */
 export async function collectIframeSnapshots(page: Page): Promise<readonly IIframeSnapshot[]> {
   const mainFrame = page.mainFrame();
-  const children = page.frames().filter((f): IsChildFrame => f !== mainFrame);
+  const children = page.frames().filter((f): IsMainFrame => (f !== mainFrame) as IsMainFrame);
   const readPromises = children.map(readFrameContent);
   const htmls = await Promise.all(readPromises);
   const snaps = children.map(
@@ -169,7 +169,7 @@ export async function collectIframeSnapshots(page: Page): Promise<readonly IIfra
       name: readFrameName(f),
     }),
   );
-  return snaps.filter((s): IsNonEmptyHtml => s.html.length > 0);
+  return snaps.filter((s): IsNonEmptySnapshot => (s.html.length > 0) as IsNonEmptySnapshot);
 }
 
 /**
@@ -194,7 +194,7 @@ interface IIframeMetaRow {
 
 /** Frame-set metadata for one phase-stage label. */
 interface IFrameMetaFile {
-  readonly label: FixtureLabel;
+  readonly label: string;
   readonly main: { readonly url: string; readonly htmlPath: string };
   readonly iframes: readonly IIframeMetaRow[];
 }
@@ -284,24 +284,26 @@ export async function writeFrameHtml(args: IWriteFrameArgs): Promise<true> {
  * the same artifact set without per-phase helpers.
  * @param input - Pipeline context with browser.
  * @param label - Same label used by the screenshot path.
- * @returns True after dump (or no-op).
+ * @returns True when bytes were actually written, false on no-op skip
+ * (DUMP_FIXTURES_DIR unset/empty, or no browser attached). Callers MUST
+ * treat false as "not an error" — it is the documented gate.
  */
-export async function dumpFixtureHtml(input: IPipelineContext, label: FixtureLabel): Promise<true> {
+export async function dumpFixtureHtml(input: IPipelineContext, label: string): Promise<boolean> {
   const rootEnv = process.env.DUMP_FIXTURES_DIR;
-  if (rootEnv === undefined || rootEnv.length === 0) return true;
-  if (!input.browser.has) return true;
+  if (rootEnv === undefined || rootEnv.length === 0) return false;
+  if (!input.browser.has) return false;
   const page = input.browser.value.page;
   const bank = input.companyId;
-  const bankDir = `${rootEnv}/${bank}`.replace(/\\/g, '/');
+  const bankDir = `${rootEnv}/${bank}`.replaceAll('\\', '/');
   const shouldWalk = shouldWalkFrames(label);
-  await writeFrameHtml({
+  const didWrite = await writeFrameHtml({
     page,
     bankDir,
     label,
     input,
     walkFrames: shouldWalk,
   }).catch((): false => false);
-  return true;
+  return didWrite;
 }
 
 export { extractPhaseFromLabel, FRAME_WALK_PHASES, shouldWalkFrames };

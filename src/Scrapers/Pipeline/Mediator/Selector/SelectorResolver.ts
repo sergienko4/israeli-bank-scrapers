@@ -5,8 +5,16 @@ import {
   WELL_KNOWN_DASHBOARD_SELECTORS,
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../../../Registry/WellKnownSelectors.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+
+/** XPath-safe quoted string literal. */
+type XpathLiteralStr = Brand<string, 'XpathLiteralStr'>;
+/** Playwright-compatible CSS or XPath selector. */
+type PlaywrightSelector = Brand<string, 'PlaywrightSelector'>;
+/** Resolved credential dictionary key. */
+type CredentialKey = Brand<string, 'CredentialKey'>;
 import { RACE_TIMED_OUT, raceTimeout } from '../Timing/Waiting.js';
 import {
   isClickableElement,
@@ -14,20 +22,6 @@ import {
   resolveLabelText,
   resolveTextContent,
 } from './SelectorLabelStrategies.js';
-
-/** CSS/XPath selector string. */
-type CssStr = string;
-/** XPath literal string. */
-type XpathStr = string;
-/** Credential field key. */
-type FieldKey = string;
-/** Page URL for diagnostics. */
-type PageUrl = string;
-/** Whether a DOM query found an element. */
-type IsFound = boolean;
-/** Candidate kind identifier. */
-type CandidateKind = string;
-
 import {
   CANDIDATE_TIMEOUT_MS,
   CREDENTIAL_KEY_MAP,
@@ -54,11 +48,11 @@ const WELL_KNOWN_SELECTORS = WELL_KNOWN_LOGIN_SELECTORS as Record<string, Select
  * @param value - The raw string value.
  * @returns XPath-safe quoted string.
  */
-export function toXpathLiteral(value: XpathStr): XpathStr {
-  if (!value.includes('"')) return `"${value}"`;
-  if (!value.includes("'")) return `'${value}'`;
-  const parts = value.split('"').map((part): XpathStr => `"${part}"`);
-  return `concat(${parts.join(", '\"', ")})`;
+export function toXpathLiteral(value: string): XpathLiteralStr {
+  if (!value.includes('"')) return `"${value}"` as XpathLiteralStr;
+  if (!value.includes("'")) return `'${value}'` as XpathLiteralStr;
+  const parts = value.split('"').map((part): string => `"${part}"`);
+  return `concat(${parts.join(", '\"', ")})` as XpathLiteralStr;
 }
 
 /**
@@ -66,7 +60,7 @@ export function toXpathLiteral(value: XpathStr): XpathStr {
  * @param value - The visible text to match.
  * @returns Playwright-compatible XPath selector.
  */
-function clickableTextXpath(value: CssStr): XpathStr {
+function clickableTextXpath(value: string): string {
   const lit = toXpathLiteral(value);
   return [
     'xpath=//*[not(self::script)',
@@ -81,17 +75,19 @@ function clickableTextXpath(value: CssStr): XpathStr {
  * @param candidate - The selector candidate to convert.
  * @returns A Playwright-compatible CSS or XPath selector string.
  */
-export function candidateToCss(candidate: SelectorCandidate): CssStr {
+export function candidateToCss(candidate: SelectorCandidate): PlaywrightSelector {
   const v = candidate.value;
   const lit = toXpathLiteral(v);
-  if (candidate.kind === 'clickableText') return clickableTextXpath(v);
-  if (candidate.kind === 'labelText') return `xpath=//label[contains(., ${lit})]`;
-  if (candidate.kind === 'textContent') return `xpath=//*[contains(text(), ${lit})]`;
-  if (candidate.kind === 'css') return v;
-  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]`;
-  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]`;
-  if (candidate.kind === 'name') return `[name="${v}"]`;
-  return `xpath=${v}`;
+  if (candidate.kind === 'clickableText') return clickableTextXpath(v) as PlaywrightSelector;
+  if (candidate.kind === 'labelText')
+    return `xpath=//label[contains(., ${lit})]` as PlaywrightSelector;
+  if (candidate.kind === 'textContent')
+    return `xpath=//*[contains(text(), ${lit})]` as PlaywrightSelector;
+  if (candidate.kind === 'css') return v as PlaywrightSelector;
+  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]` as PlaywrightSelector;
+  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]` as PlaywrightSelector;
+  if (candidate.kind === 'name') return `[name="${v}"]` as PlaywrightSelector;
+  return `xpath=${v}` as PlaywrightSelector;
 }
 
 /**
@@ -108,15 +104,15 @@ export function isPage(pageOrFrame: Page | Frame): pageOrFrame is Page {
  * @param selector - A CSS selector string such as '#username' or '#tzId'.
  * @returns The normalized credential key (e.g. 'username', 'password', 'id', 'num').
  */
-export function extractCredentialKey(selector: CssStr): FieldKey {
+export function extractCredentialKey(selector: string): CredentialKey {
   const id = /^#([\w-]+)/.exec(selector)?.[1] ?? selector;
   const lower = id.toLowerCase();
   const directMatch = CREDENTIAL_KEY_MAP[lower];
-  if (directMatch) return directMatch;
+  if (directMatch) return directMatch as CredentialKey;
   const partialMatch = findPartialCredentialMatch(lower);
-  if (partialMatch) return partialMatch;
-  if (lower.startsWith('id') && lower.length <= MIN_ID_LENGTH) return 'id';
-  return id;
+  if (partialMatch) return partialMatch as CredentialKey;
+  if (lower.startsWith('id') && lower.length <= MIN_ID_LENGTH) return 'id' as CredentialKey;
+  return id as CredentialKey;
 }
 
 /**
@@ -124,9 +120,9 @@ export function extractCredentialKey(selector: CssStr): FieldKey {
  * @param lower - The lowercased identifier to search within.
  * @returns The matched credential key, or empty string if none found.
  */
-function findPartialCredentialMatch(lower: CssStr): FieldKey {
+function findPartialCredentialMatch(lower: string): string {
   const entries = Object.entries(CREDENTIAL_KEY_MAP);
-  const match = entries.find(([key]): IsFound => lower.includes(key));
+  const match = entries.find(([key]): boolean => lower.includes(key));
   if (!match) return String();
   return match[1];
 }
@@ -137,7 +133,7 @@ function findPartialCredentialMatch(lower: CssStr): FieldKey {
  * @param css - The CSS or XPath selector to look for.
  * @returns Whether the element was found within the timeout.
  */
-export async function queryWithTimeout(ctx: Page | Frame, css: CssStr): Promise<IsFound> {
+export async function queryWithTimeout(ctx: Page | Frame, css: string): Promise<boolean> {
   const queryPromise = ctx.$(css);
   const el = await raceTimeout(CANDIDATE_TIMEOUT_MS, queryPromise);
   return el !== RACE_TIMED_OUT && el !== null;
@@ -145,7 +141,7 @@ export async function queryWithTimeout(ctx: Page | Frame, css: CssStr): Promise<
 
 /** Internal probe result — selector + which kind matched. */
 interface IProbeResult {
-  css: CssStr;
+  css: string;
   kind: SelectorCandidate['kind'];
 }
 
@@ -154,7 +150,7 @@ interface IProbeResult {
  * @param candidate - The selector candidate that was skipped.
  * @returns True after logging completes.
  */
-function debugCandidateSkipped(candidate: SelectorCandidate): IsFound {
+function debugCandidateSkipped(candidate: SelectorCandidate): boolean {
   LOG.debug({
     message: `candidate ${candidate.kind}` + ` "${maskVisibleText(candidate.value)}" → skipped`,
   });
@@ -211,13 +207,9 @@ const FILLABLE_KINDS = new Set(['name', 'ariaLabel']);
  * @param kind - Candidate kind.
  * @returns True if fillable or not an input-targeting kind.
  */
-async function checkFillable(
-  ctx: Page | Frame,
-  css: CssStr,
-  kind: CandidateKind,
-): Promise<IsFound> {
+async function checkFillable(ctx: Page | Frame, css: string, kind: string): Promise<boolean> {
   if (!FILLABLE_KINDS.has(kind)) return true;
-  return isFillableInput(ctx, css).catch((): IsFound => true);
+  return isFillableInput(ctx, css).catch((): boolean => true);
 }
 
 /**
@@ -310,7 +302,7 @@ async function dispatchProbe(
  * @param text - Visible text to search for.
  * @returns XPath selector string.
  */
-function buildTextXpath(text: CssStr): XpathStr {
+function buildTextXpath(text: string): string {
   const lit = toXpathLiteral(text);
   return [
     'xpath=//*[not(self::script)',
@@ -333,7 +325,7 @@ async function probeClickableText(
   const xpath = buildTextXpath(candidate.value);
   const isFound = await queryWithTimeout(ctx, xpath);
   if (!isFound) return { css: '', kind: 'clickableText' };
-  const hasClick = await isClickableElement(ctx, xpath).catch((): IsFound => true);
+  const hasClick = await isClickableElement(ctx, xpath).catch((): boolean => true);
   if (!hasClick) return { css: '', kind: 'clickableText' };
   LOG.debug({
     field: `clickableText:${maskVisibleText(candidate.value)}`,
@@ -408,16 +400,16 @@ export async function tryInContext(
 export interface ICachedResolveOpts {
   pageOrFrame: Page | Frame;
   field: IFieldConfig;
-  pageUrl: PageUrl;
+  pageUrl: string;
   cachedFrames: Frame[];
 }
 
 /** Options for resolving a post-login dashboard selector. */
 export interface IDashboardFieldOpts {
   pageOrFrame: Page | Frame;
-  fieldKey: FieldKey;
+  fieldKey: string;
   bankCandidates: SelectorCandidate[];
-  pageUrl: PageUrl;
+  pageUrl: string;
 }
 
 /**
@@ -451,7 +443,7 @@ async function resolveAll(opts: IResolveAllOpts): Promise<IFieldContext> {
 export async function resolveFieldContext(
   pageOrFrame: Page | Frame,
   field: IFieldConfig,
-  pageUrl: PageUrl,
+  pageUrl: string,
 ): Promise<IFieldContext> {
   return resolveAll({
     pageOrFrame,

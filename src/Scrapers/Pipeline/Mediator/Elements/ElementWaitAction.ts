@@ -14,18 +14,12 @@ import { capturePageText, type IWaitOptions } from './ElementsInteractions.js';
 
 const LOG = createLogger('elements-wait');
 
-type SelectorStr = string;
-type OpResult = boolean;
-type TimeoutMs = number;
-type PageText = string;
-type HtmlCapture = string;
-
 /**
  * Resolve the Playwright wait state from the visibility flag.
  * @param visible - Whether to wait for visibility.
  * @returns 'visible' or 'attached'.
  */
-function resolveWaitState(visible?: OpResult): 'visible' | 'attached' {
+function resolveWaitState(visible?: boolean): 'visible' | 'attached' {
   if (visible) return 'visible';
   return 'attached';
 }
@@ -39,9 +33,9 @@ function resolveWaitState(visible?: OpResult): 'visible' | 'attached' {
  */
 async function logFoundDiagnostics(
   ctx: Page | Frame,
-  selector: SelectorStr,
+  selector: string,
   startMs: number,
-): Promise<OpResult> {
+): Promise<boolean> {
   const elapsedStr = String(Date.now() - startMs);
   LOG.debug({
     message: `waitForSelector ${maskVisibleText(selector)} → found (${elapsedStr}ms)`,
@@ -56,8 +50,8 @@ async function logFoundDiagnostics(
 /** Bundled args for timeout diagnostics. */
 interface ITimeoutDiagArgs {
   readonly ctx: Page | Frame;
-  readonly selector: SelectorStr;
-  readonly startMs: TimeoutMs;
+  readonly selector: string;
+  readonly startMs: number;
 }
 
 /**
@@ -84,15 +78,15 @@ async function logTimeoutDiagnostics(args: ITimeoutDiagArgs, error: Error): Prom
  * @param selector - CSS selector.
  * @returns Truncated outer HTML.
  */
-async function captureElementHtml(ctx: Page | Frame, selector: SelectorStr): Promise<HtmlCapture> {
+async function captureElementHtml(ctx: Page | Frame, selector: string): Promise<string> {
   const limit = 200;
   return ctx
     .evaluate(
-      ({ sel, lim }: { sel: SelectorStr; lim: number }): HtmlCapture =>
+      ({ sel, lim }: { sel: string; lim: number }): string =>
         document.querySelector(sel)?.outerHTML.slice(0, lim) ?? '—',
       { sel: selector, lim: limit },
     )
-    .catch((): HtmlCapture => '(context unavailable)');
+    .catch((): string => '(context unavailable)');
 }
 
 /**
@@ -104,16 +98,16 @@ async function captureElementHtml(ctx: Page | Frame, selector: SelectorStr): Pro
  */
 async function waitUntilElementFound(
   ctx: Page | Frame,
-  selector: SelectorStr,
+  selector: string,
   opts: IWaitOptions = {},
-): Promise<OpResult> {
+): Promise<boolean> {
   const state = resolveWaitState(opts.visible);
   const startMs = Date.now();
   try {
     await ctx.waitForSelector(selector, { state, timeout: opts.timeout });
     return await logFoundDiagnostics(ctx, selector, startMs);
-  } catch (e) {
-    return logTimeoutDiagnostics({ ctx, selector, startMs }, e as Error);
+  } catch (error) {
+    return logTimeoutDiagnostics({ ctx, selector, startMs }, error as Error);
   }
 }
 
@@ -126,9 +120,9 @@ async function waitUntilElementFound(
  */
 async function waitUntilElementDisappear(
   ctx: Page,
-  selector: SelectorStr,
-  timeout?: TimeoutMs,
-): Promise<OpResult> {
+  selector: string,
+  timeout?: number,
+): Promise<boolean> {
   await ctx.waitForSelector(selector, { state: 'hidden', timeout });
   return true;
 }
@@ -142,12 +136,12 @@ async function waitUntilElementDisappear(
  */
 async function waitForIframe(
   ctx: Page,
-  framePredicate: (frame: Frame) => OpResult,
-  timeout: TimeoutMs,
+  framePredicate: (frame: Frame) => boolean,
+  timeout: number,
 ): Promise<Frame | false> {
   let frame: Frame | false = false;
   await waitUntil(
-    (): Promise<OpResult> => {
+    (): Promise<boolean> => {
       frame = ctx.frames().find(framePredicate) ?? false;
       return Promise.resolve(frame !== false);
     },
@@ -166,8 +160,8 @@ async function waitForIframe(
  */
 async function waitUntilIframeFound(
   ctx: Page,
-  framePredicate: (frame: Frame) => OpResult,
-  opts: IWaitOptions & { description?: PageText } = {},
+  framePredicate: (frame: Frame) => boolean,
+  opts: IWaitOptions & { description?: string } = {},
 ): Promise<Frame> {
   const { timeout = IFRAME_DEFAULT_TIMEOUT_MS, description = '' } = opts;
   const frame = await waitForIframe(ctx, framePredicate, timeout);

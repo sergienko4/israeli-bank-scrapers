@@ -8,13 +8,8 @@
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 
-/** Phone number in international format. */
-type PhoneNumberStr = string;
-/** OTP code entered by the user. */
-type OtpCodeStr = string;
-
 /** Signature of a hint-accepting OTP retriever. */
-export type OtpRetrieverFn = (phoneHint: PhoneNumberStr) => Promise<OtpCodeStr>;
+export type OtpRetrieverFn = (phoneHint: string) => Promise<string>;
 
 /** Credentials shape the picker inspects — just the retriever slot. */
 export interface IOtpCredsView {
@@ -41,12 +36,12 @@ export function pickRetriever(ctx: IPipelineContext, creds: IOtpCredsView): OtpR
  */
 export function bindPhoneHint(
   retrieve: OtpRetrieverFn,
-  phoneNumber: PhoneNumberStr,
-): () => Promise<OtpCodeStr> {
+  phoneNumber: string,
+): () => Promise<string> {
   /**
    * Invoke the retriever with the closed-over phone hint.
    * @returns OTP code entered by the user.
    */
-  const bound = (): Promise<OtpCodeStr> => retrieve(phoneNumber);
+  const bound = (): Promise<string> => retrieve(phoneNumber);
   return bound;
 }

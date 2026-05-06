@@ -7,9 +7,6 @@ import type { Option } from './Option.js';
 import type { IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 
-/** Name identifier for a pipeline step (e.g. 'login', 'scrape-pre'). */
-type StepNameStr = string;
-
 /** The pipeline phases in execution order. */
 type PhaseName =
   | 'init'
@@ -25,7 +22,7 @@ type PhaseName =
 
 /** A single executable step within a phase. */
 interface IPipelineStep<TIn, TOut> {
-  readonly name: StepNameStr;
+  readonly name: string;
   execute(ctx: IPipelineContext, input: TIn): Promise<Procedure<TOut>>;
 }
 

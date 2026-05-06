@@ -32,18 +32,28 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-/** Two-character zero-padded numeric string, e.g. "07". */
-type PaddedDigits = string;
-/** `DDMMYY-HHMMSScc` timestamp string. */
-type RunStamp = string;
-/** Lowercase bank slug, or empty string when not detected. */
-type BankSlug = string;
-/** Whether `LOG_LEVEL=trace` is active. */
-type IsTraceMode = boolean;
-/** Absolute artefact path or empty string when off-trace. */
-type ArtefactPath = string;
-/** Whether a candidate slug matches the active test pattern. */
-type IsBankSlugMatch = boolean;
+import type { Brand } from './Brand.js';
+
+/** Two-digit zero-padded numeric. */
+type TwoDigitPad = Brand<string, 'TraceTwoDigitPad'>;
+/** Run-stamp string `DD-MM-YYYY_HHMMSScc`. */
+type RunStampStr = Brand<string, 'RunStampStr'>;
+/** Lowercase bank slug (or empty). */
+type BankSlugLower = Brand<string, 'BankSlugLower'>;
+/** Per-slug regex match outcome. */
+type IsSlugMatch = Brand<boolean, 'IsSlugMatch'>;
+/** setActiveBank acceptance outcome. */
+type DidAcceptBank = Brand<boolean, 'DidAcceptBank'>;
+/** Trace-mode active flag. */
+type IsTraceModeActive = Brand<boolean, 'IsTraceModeActive'>;
+/** Absolute run folder path (or empty when off-trace). */
+type RunFolderPath = Brand<string, 'RunFolderPath'>;
+/** Absolute log file path (or empty). */
+type LogFilePath = Brand<string, 'LogFilePath'>;
+/** Absolute network-dump directory (or empty). */
+type NetworkDumpDirPath = Brand<string, 'NetworkDumpDirPath'>;
+/** Absolute screenshot directory (or empty). */
+type ScreenshotDirPath = Brand<string, 'ScreenshotDirPath'>;
 
 /** Default root for per-run artefact folders — overridable via RUNS_ROOT. */
 const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
@@ -63,16 +73,24 @@ let networkDirCache: string | false = false;
 /** Cached screenshot dir (created on first call to getScreenshotDir). */
 let screenshotDirCache: string | false = false;
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
-let activeBankCache: BankSlug | false = false;
+let activeBankCache: string | false = false;
+/**
+ * Per-run unique identifier — the same `DD-MM-YYYY_HHMMSScc` stamp that
+ * names the run-artefact folder on disk. Cached on first read so every
+ * log line in the run shares a single value, and so the on-disk folder
+ * (when trace mode is active) and the in-log `runId` field (always)
+ * stay in sync. See {@link getActiveRunId}.
+ */
+let activeRunIdCache: string | false = false;
 
 /**
  * Pad a 1- or 2-digit positive integer to width 2 with leading zero.
  * @param n - Integer to pad.
  * @returns Two-character string.
  */
-function pad2(n: number): PaddedDigits {
+function pad2(n: number): TwoDigitPad {
   const s = String(n);
-  return s.padStart(2, '0');
+  return s.padStart(2, '0') as TwoDigitPad;
 }
 
 /**
@@ -82,7 +100,7 @@ function pad2(n: number): PaddedDigits {
  * @param d - Date to format.
  * @returns Timestamp string.
  */
-function formatRunStamp(d: Date): RunStamp {
+function formatRunStamp(d: Date): RunStampStr {
   const day = d.getDate();
   const month = d.getMonth() + 1;
   const year = d.getFullYear() % 10000;
@@ -97,7 +115,7 @@ function formatRunStamp(d: Date): RunStamp {
   const mi = pad2(minutes);
   const ss = pad2(seconds);
   const cc = pad2(centiseconds);
-  return `${dd}-${mm}-${yyyy}_${hh}${mi}${ss}${cc}`;
+  return `${dd}-${mm}-${yyyy}_${hh}${mi}${ss}${cc}` as RunStampStr;
 }
 
 /** Bank slugs the auto-detector recognises in test argv. Lowercase, single token. */
@@ -146,13 +164,13 @@ function bankSlugRegex(slug: string): RegExp {
  * when matched, else `''` so the caller can decide how to handle it.
  * @returns Lowercase bank slug, or empty string when no match.
  */
-function detectBankFromArgv(): BankSlug {
+function detectBankFromArgv(): BankSlugLower {
   const argvJoined = process.argv.join(' ');
   const haystack = argvJoined.toLowerCase();
   const match = KNOWN_BANK_SLUGS.find(
-    (slug): IsBankSlugMatch => bankSlugRegex(slug).test(haystack),
+    (slug): IsSlugMatch => bankSlugRegex(slug).test(haystack) as IsSlugMatch,
   );
-  return match ?? '';
+  return (match ?? '') as BankSlugLower;
 }
 
 /**
@@ -163,13 +181,13 @@ function detectBankFromArgv(): BankSlug {
  * @param slug - Lowercase bank slug (must be in KNOWN_BANK_SLUGS).
  * @returns True when accepted, false when the slug is unknown.
  */
-function setActiveBank(slug: string): IsBankSlugMatch {
+function setActiveBank(slug: string): DidAcceptBank {
   const normalised = slug.trim().toLowerCase();
-  if (normalised.length === 0) return false;
+  if (normalised.length === 0) return false as DidAcceptBank;
   const isKnown = KNOWN_BANK_SLUGS.includes(normalised);
-  if (!isKnown) return false;
+  if (!isKnown) return false as DidAcceptBank;
   activeBankCache = normalised;
-  return true;
+  return true as DidAcceptBank;
 }
 
 /**
@@ -179,11 +197,11 @@ function setActiveBank(slug: string): IsBankSlugMatch {
  * handle the missing slug (see `getRunFolder` for the trace-mode behaviour).
  * @returns Bank slug, or empty string when not yet known.
  */
-function resolveBankSlug(): BankSlug {
-  if (activeBankCache) return activeBankCache;
+function resolveBankSlug(): BankSlugLower {
+  if (activeBankCache) return activeBankCache as BankSlugLower;
   const fromArgv = detectBankFromArgv();
   if (fromArgv.length > 0) return fromArgv;
-  return '';
+  return '' as BankSlugLower;
 }
 
 /**
@@ -192,9 +210,30 @@ function resolveBankSlug(): BankSlug {
  * whether to emit anything.
  * @returns True when trace mode is active.
  */
-function isTraceMode(): IsTraceMode {
+function isTraceMode(): IsTraceModeActive {
   const v = (process.env.LOG_LEVEL ?? '').toLowerCase();
-  return v === 'trace';
+  return (v === 'trace') as IsTraceModeActive;
+}
+
+/**
+ * Per-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp computed once
+ * per process and cached. Used as the `runId` field auto-injected on
+ * every log line via the pino mixin in `Debug.ts`, and as the leaf
+ * folder name when trace-mode artefacts are written. Available in EVERY
+ * mode (trace and off-trace) so aggregated logs across hosts can be
+ * grouped by run without depending on the artefact folder existing on
+ * disk. Returns `''` only when no bank slug has been resolved yet —
+ * pre-`setActiveBank` log lines simply omit the field.
+ *
+ * @returns The run-stamp string, or empty when bank is not yet known.
+ */
+function getActiveRunId(): RunStampStr {
+  if (activeRunIdCache) return activeRunIdCache as RunStampStr;
+  const bank = resolveBankSlug();
+  if (bank.length === 0) return '' as RunStampStr;
+  const stamp = formatRunStamp(new Date());
+  activeRunIdCache = stamp;
+  return stamp;
 }
 
 /**
@@ -206,19 +245,22 @@ function isTraceMode(): IsTraceMode {
  * forcing a bank registration before imports resolve. The "no run without
  * bank" rule is enforced at pipeline start by `PipelineExecutor` calling
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
+ * Reuses {@link getActiveRunId}'s cached stamp so the on-disk folder
+ * leaf and the in-log `runId` field always match.
  * @returns Absolute folder path, or empty string.
  */
-function getRunFolder(): ArtefactPath {
-  if (!isTraceMode()) return '';
-  if (runFolderCache) return runFolderCache;
+function getRunFolder(): RunFolderPath {
+  if (!isTraceMode()) return '' as RunFolderPath;
+  if (runFolderCache) return runFolderCache as RunFolderPath;
   const bank = resolveBankSlug();
-  if (bank.length === 0) return '';
+  if (bank.length === 0) return '' as RunFolderPath;
+  const stamp = getActiveRunId();
+  if (stamp.length === 0) return '' as RunFolderPath;
   const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
-  const stamp = formatRunStamp(new Date());
   const folder = path.join(root, PIPELINE_SEGMENT, bank, stamp);
   fs.mkdirSync(folder, { recursive: true });
   runFolderCache = folder;
-  return folder;
+  return folder as RunFolderPath;
 }
 
 /**
@@ -227,10 +269,10 @@ function getRunFolder(): ArtefactPath {
  * needing to register).
  * @returns Absolute log file path, or empty string off-trace.
  */
-function getLogFile(): ArtefactPath {
+function getLogFile(): LogFilePath {
   const root = getRunFolder();
-  if (!root) return '';
-  return path.join(root, PIPELINE_LOG_FILE);
+  if (!root) return '' as LogFilePath;
+  return path.join(root, PIPELINE_LOG_FILE) as LogFilePath;
 }
 
 /**
@@ -238,14 +280,14 @@ function getLogFile(): ArtefactPath {
  * NetworkDiscovery skips body dumps without forcing a bank registration.
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
-function getNetworkDumpDir(): ArtefactPath {
-  if (networkDirCache) return networkDirCache;
+function getNetworkDumpDir(): NetworkDumpDirPath {
+  if (networkDirCache) return networkDirCache as NetworkDumpDirPath;
   const root = getRunFolder();
-  if (!root) return '';
+  if (!root) return '' as NetworkDumpDirPath;
   const dir = path.join(root, NETWORK_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   networkDirCache = dir;
-  return dir;
+  return dir as NetworkDumpDirPath;
 }
 
 /**
@@ -253,14 +295,14 @@ function getNetworkDumpDir(): ArtefactPath {
  * callers can skip the screenshot without needing a registered bank.
  * @returns Absolute screenshot directory path, or empty string off-trace.
  */
-function getScreenshotDir(): ArtefactPath {
-  if (screenshotDirCache) return screenshotDirCache;
+function getScreenshotDir(): ScreenshotDirPath {
+  if (screenshotDirCache) return screenshotDirCache as ScreenshotDirPath;
   const root = getRunFolder();
-  if (!root) return '';
+  if (!root) return '' as ScreenshotDirPath;
   const dir = path.join(root, SCREENSHOT_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   screenshotDirCache = dir;
-  return dir;
+  return dir as ScreenshotDirPath;
 }
 
 /**
@@ -274,12 +316,14 @@ function resetTraceConfigCache(): true {
   networkDirCache = false;
   screenshotDirCache = false;
   activeBankCache = false;
+  activeRunIdCache = false;
   return true;
 }
 
 export {
   detectBankFromArgv,
   formatRunStamp,
+  getActiveRunId,
   getLogFile,
   getNetworkDumpDir,
   getRunFolder,

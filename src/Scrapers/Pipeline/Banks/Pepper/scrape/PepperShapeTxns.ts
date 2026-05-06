@@ -6,19 +6,20 @@
 import moment from 'moment';
 
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
+import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IPepperAcct } from './PepperShapeHelpers.js';
+
+/** 1-based pagination page number — branded for Rule #15. */
+type PageNumber = Brand<number, 'PepperPageNumber'>;
+/** Last-page predicate result — branded for Rule #15. */
+type IsLastPage = Brand<boolean, 'PepperIsLastPage'>;
 
 const ISO_DATE_FMT = 'YYYY-MM-DD';
 /** Page-size limit for transactions pagination. */
 export const PAGE_SIZE = 100;
 const FIRST_PAGE = 1;
-
-/** 1-based pagination page number. */
-type PageNumber = number;
-/** Whether pagination should terminate after the current page. */
-type IsLastPage = boolean;
 
 type PepperTxn = Record<string, unknown>;
 
@@ -54,8 +55,8 @@ export function windowOf(ctx: IActionContext): IWindow {
  * @returns Page number.
  */
 export function pageNumberOf(cursor: number | false): PageNumber {
-  if (cursor === false) return FIRST_PAGE;
-  return cursor;
+  if (cursor === false) return FIRST_PAGE as PageNumber;
+  return cursor as PageNumber;
 }
 
 /**
@@ -80,9 +81,9 @@ export function txnsVars(acct: IPepperAcct, cursor: number | false, ctx: IAction
  * @returns True when pagination should stop.
  */
 export function isLastPage(rows: number, page: number, total: number): IsLastPage {
-  if (rows === 0) return true;
-  if (rows < PAGE_SIZE) return true;
-  return page * PAGE_SIZE >= total;
+  if (rows === 0) return true as IsLastPage;
+  if (rows < PAGE_SIZE) return true as IsLastPage;
+  return (page * PAGE_SIZE >= total) as IsLastPage;
 }
 
 /**

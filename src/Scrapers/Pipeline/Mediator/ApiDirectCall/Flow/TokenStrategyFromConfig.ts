@@ -13,8 +13,7 @@ import type { IPipelineContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
-import type { AuthorizationHeaderValue, TokenResolverName } from '../../Api/ITokenResolver.js';
-import type { ITokenStrategy, WarmStateFlag } from '../../Api/ITokenStrategy.js';
+import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
@@ -22,12 +21,6 @@ import { runSmsOtpFlow } from './SmsOtpFlow.js';
 
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;
-
-/** Value of a string-typed creds field (empty string when absent). */
-type CredsFieldValue = string;
-
-/** Latest long-term token captured from the most recent successful flow. */
-type LatestLongTermToken = string;
 
 /**
  * Extended ITokenStrategy exposing the most recent long-term token
@@ -39,7 +32,7 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
 }
 
 /** Default strategy display name. */
-const STRATEGY_NAME_DEFAULT: TokenResolverName = 'ApiDirectCall';
+const STRATEGY_NAME_DEFAULT = 'ApiDirectCall';
 
 /**
  * Read a string-valued creds field, returning '' when absent or wrong type.
@@ -47,7 +40,7 @@ const STRATEGY_NAME_DEFAULT: TokenResolverName = 'ApiDirectCall';
  * @param field - Field name.
  * @returns String value or ''.
  */
-function readCredsString(creds: GenericCreds, field: string): CredsFieldValue {
+function readCredsString(creds: GenericCreds, field: string): string {
   const value = creds[field];
   if (typeof value !== 'string') return '';
   return value;
@@ -59,7 +52,7 @@ function readCredsString(creds: GenericCreds, field: string): CredsFieldValue {
  * @param token - Raw token string (no prefix).
  * @returns Authorization header value.
  */
-function formatAuthValue(config: IApiDirectCallConfig, token: string): AuthorizationHeaderValue {
+function formatAuthValue(config: IApiDirectCallConfig, token: string): string {
   if (config.authScheme === 'bearer') return `Bearer ${token}`;
   return token;
 }
@@ -108,7 +101,7 @@ interface ILongTermTokenSlot {
 async function runConfiguredFlow(
   args: IRunFlowArgs,
   slot: ILongTermTokenSlot,
-): Promise<Procedure<AuthorizationHeaderValue>> {
+): Promise<Procedure<string>> {
   const flowProc = await runSmsOtpFlow({
     config: args.config,
     bus: args.bus,
@@ -170,7 +163,7 @@ interface IPrimeArgs {
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */
-async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<AuthorizationHeaderValue>> {
+async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
   const stored = pickWarmSeed(config, creds);
   if (stored === false) {
@@ -185,7 +178,7 @@ async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<Authorizati
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */
-async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<AuthorizationHeaderValue>> {
+async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
   return runConfiguredFlow({ config, bus, creds, companyId: ctx.companyId }, slot);
 }
@@ -196,7 +189,7 @@ async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<Authorization
  * @param creds - Caller credentials.
  * @returns Warm-state flag.
  */
-function hasWarmStateImpl(config: IApiDirectCallConfig, creds: GenericCreds): WarmStateFlag {
+function hasWarmStateImpl(config: IApiDirectCallConfig, creds: GenericCreds): boolean {
   if (config.warmStart === undefined) return false;
   return readCredsString(creds, config.warmStart.credsField).length > 0;
 }
@@ -204,7 +197,7 @@ function hasWarmStateImpl(config: IApiDirectCallConfig, creds: GenericCreds): Wa
 /** Args for createTokenStrategyFromConfig — respects 3-param ceiling. */
 interface ICreateTokenStrategyArgs {
   readonly config: IApiDirectCallConfig;
-  readonly name?: TokenResolverName;
+  readonly name?: string;
 }
 
 /**
@@ -241,7 +234,7 @@ function createTokenStrategyFromConfig(
     bus: IApiMediator,
     ctx: IPipelineContext,
     creds: GenericCreds,
-  ): Promise<Procedure<AuthorizationHeaderValue>> => {
+  ): Promise<Procedure<string>> => {
     return primeInitialImpl({ config, bus, ctx, creds, slot });
   };
   /**
@@ -255,7 +248,7 @@ function createTokenStrategyFromConfig(
     bus: IApiMediator,
     ctx: IPipelineContext,
     creds: GenericCreds,
-  ): Promise<Procedure<AuthorizationHeaderValue>> => {
+  ): Promise<Procedure<string>> => {
     return primeFreshImpl({ config, bus, ctx, creds, slot });
   };
   /**
@@ -263,12 +256,12 @@ function createTokenStrategyFromConfig(
    * @param creds - Caller credentials.
    * @returns Warm-state flag.
    */
-  const hasWarmState = (creds: GenericCreds): WarmStateFlag => hasWarmStateImpl(config, creds);
+  const hasWarmState = (creds: GenericCreds): boolean => hasWarmStateImpl(config, creds);
   /**
    * getLatestLongTermToken binding.
    * @returns Latest captured long-term token string.
    */
-  const getLatestLongTermToken = (): LatestLongTermToken => slot.latest;
+  const getLatestLongTermToken = (): string => slot.latest;
   const strategy: IConfigTokenStrategy = {
     name,
     primeInitial,

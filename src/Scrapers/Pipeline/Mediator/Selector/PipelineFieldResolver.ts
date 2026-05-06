@@ -31,13 +31,6 @@ import {
 
 const LOG = getDebug(import.meta.url);
 
-/** URL string of the current page or frame context. */
-type ContextUrl = string;
-/** Credential key identifying which form field to resolve. */
-type FieldKeyStr = string;
-/** CSS selector string used to scope form field resolution. */
-type FormScopeStr = string;
-
 /**
  * Extended field context returned by the pipeline resolver.
  * Adds dynamically-extracted DOM metadata after text-based resolution.
@@ -58,7 +51,7 @@ interface IFieldCandidates {
  * @param pageOrFrame - Playwright Page or Frame.
  * @returns URL string, or empty string for frames.
  */
-function getContextUrl(pageOrFrame: Page | Frame): ContextUrl {
+function getContextUrl(pageOrFrame: Page | Frame): string {
   if (!('url' in pageOrFrame)) return '';
   return (pageOrFrame as Page).url();
 }
@@ -168,9 +161,9 @@ function applyFormScope(
 /** Options for resolveFieldPipeline — bundled to satisfy max-params. */
 export interface IResolveFieldArgs {
   readonly pageOrFrame: Page | Frame;
-  readonly fieldKey: FieldKeyStr;
+  readonly fieldKey: string;
   readonly bankCandidates: readonly SelectorCandidate[];
-  readonly formSelector?: FormScopeStr;
+  readonly formSelector?: string;
 }
 
 /** Sentinel for no form scoping — avoids bare '' fallback. */

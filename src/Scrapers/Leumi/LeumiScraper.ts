@@ -71,7 +71,7 @@ async function clickBySelector(page: Page, selector: string): Promise<boolean> {
  * @returns The sanitized string.
  */
 function removeSpecialCharacters(str: string): SanitizedAccountString {
-  return str.replace(/[^0-9/-]/g, '');
+  return str.replaceAll(/[^0-9/-]/g, '');
 }
 
 interface IFetchForAccountOpts {
@@ -121,7 +121,7 @@ async function interceptFilteredResponse(page: Page): Promise<ILeumiAccountRespo
  * @returns The sanitized account ID.
  */
 function sanitizeAccountId(accountId: string): SanitizedAccountId {
-  return accountId.replace('/', '_').replace(/[^\d\-_]/g, '');
+  return accountId.replace('/', '_').replaceAll(/[^\d\-_]/g, '');
 }
 
 /**

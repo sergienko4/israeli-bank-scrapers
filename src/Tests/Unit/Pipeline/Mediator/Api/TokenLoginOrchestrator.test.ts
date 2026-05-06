@@ -8,7 +8,6 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { AuthorizationHeaderValue } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { runTokenStrategyLogin } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenLoginOrchestrator.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -23,7 +22,7 @@ interface ITestCreds {
 }
 
 /** Sample initial header value. */
-const INITIAL_HEADER: AuthorizationHeaderValue = 'Bearer synthetic-initial';
+const INITIAL_HEADER = 'Bearer synthetic-initial';
 
 /**
  * Build a mediator stub whose methods are jest.fn() spies. The
@@ -32,7 +31,7 @@ const INITIAL_HEADER: AuthorizationHeaderValue = 'Bearer synthetic-initial';
  * @param primedResult - Procedure the mocked primeSession resolves to.
  * @returns Mediator with spy-able methods.
  */
-function makeMediatorSpy(primedResult: Procedure<AuthorizationHeaderValue>): IApiMediator {
+function makeMediatorSpy(primedResult: Procedure<string>): IApiMediator {
   return {
     apiPost: jest.fn(),
     apiGet: jest.fn(),
@@ -54,7 +53,7 @@ function makeMediatorSpy(primedResult: Procedure<AuthorizationHeaderValue>): IAp
  * which is mocked separately on the mediator).
  * @returns Failure (never reached).
  */
-async function stubPrimeFresh(): Promise<Procedure<AuthorizationHeaderValue>> {
+async function stubPrimeFresh(): Promise<Procedure<string>> {
   await Promise.resolve();
   return fail(ScraperErrorTypes.Generic, 'fresh not expected in this test');
 }
@@ -73,14 +72,12 @@ function stubHasWarmState(): boolean {
  * @param initialResult - Result to emit on primeInitial.
  * @returns Strategy stub.
  */
-function stubStrategy(
-  initialResult: Procedure<AuthorizationHeaderValue>,
-): ITokenStrategy<ITestCreds> {
+function stubStrategy(initialResult: Procedure<string>): ITokenStrategy<ITestCreds> {
   /**
    * Scripted primeInitial.
    * @returns Scripted result.
    */
-  async function primeInitial(): Promise<Procedure<AuthorizationHeaderValue>> {
+  async function primeInitial(): Promise<Procedure<string>> {
     await Promise.resolve();
     return initialResult;
   }

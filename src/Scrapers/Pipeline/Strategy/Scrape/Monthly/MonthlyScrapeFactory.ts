@@ -23,17 +23,12 @@ import { mergeAccounts } from './MonthlyMerge.js';
 /** Custom scrape function type. */
 type CustomScrapeFn = (ctx: IPipelineContext) => Promise<Procedure<IPipelineContext>>;
 
-/** Count of months to look back from today. */
-type MonthsBack = number;
-/** Delay between fetches in milliseconds. */
-type RateLimitMs = number;
-
 /** Full monthly config with setup, month range, rate limiting. */
 interface IMonthlyConfig {
   /** Default months back from startDate. */
-  readonly defaultMonthsBack: MonthsBack;
+  readonly defaultMonthsBack: number;
   /** Rate limit delay between month fetches (ms). */
-  readonly rateLimitMs: RateLimitMs;
+  readonly rateLimitMs: number;
   /** One-time setup before monthly iteration. */
   readonly setup?: (ctx: IPipelineContext) => Promise<Procedure<boolean>>;
   /** Fetch and map one month's data. */
@@ -112,8 +107,8 @@ function createMonthlyScrapeFn(config: IMonthlyConfig): CustomScrapeFn {
   return async (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
     try {
       return await executeMonthly(config, ctx);
-    } catch (err) {
-      return wrapMonthlyError(err as Error);
+    } catch (error) {
+      return wrapMonthlyError(error as Error);
     }
   };
 }

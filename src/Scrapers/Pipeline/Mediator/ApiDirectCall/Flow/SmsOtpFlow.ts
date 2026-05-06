@@ -29,9 +29,6 @@ import type { ITemplateScope } from '../Template/RefResolver.js';
 import type { IStepCookieJar } from './RunStep.js';
 import { createSimpleCookieJar, runStep } from './RunStep.js';
 
-/** Reusable long-term token captured from carry per config.warmStart. */
-type LongTermToken = string;
-
 /** Args bundle for runSmsOtpFlow — respects the 3-param ceiling. */
 interface IRunSmsOtpArgs {
   readonly config: IApiDirectCallConfig;
@@ -154,8 +151,8 @@ async function invokePreHookFn(
   try {
     const raw = (await fn()) as JsonValue;
     return coercePreHookResult({ raw, hook });
-  } catch (err) {
-    const message = toErrorMessage(err as Error);
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
     return fail(
       ScraperErrorTypes.Generic,
       `preHook: creds.${hook.awaitCredsField}() threw: ${message}`,
@@ -309,7 +306,7 @@ function extractTokenFromCarry(scope: ITemplateScope): Procedure<string> {
 function extractLongTermTokenFromCarry(
   config: IApiDirectCallConfig,
   scope: ITemplateScope,
-): LongTermToken {
+): string {
   const warm = config.warmStart;
   if (warm === undefined) return '';
   const value = scope.carry[warm.carryField];

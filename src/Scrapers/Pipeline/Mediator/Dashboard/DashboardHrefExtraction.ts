@@ -13,11 +13,8 @@ const LOG = createLogger('dashboard-href');
 
 /** SPA render timeout for href extraction. */
 const TRIGGER_RENDER_TIMEOUT_MS = 10000;
-type IsMatch = boolean;
-type PatternMatch = boolean;
-type ExtractedHref = string;
 /** Sentinel for "no href found". */
-const NO_HREF: ExtractedHref = '';
+const NO_HREF = '';
 
 /**
  * Augment a candidate with target:'href'.
@@ -33,9 +30,9 @@ function withHrefTarget(c: SelectorCandidate): SelectorCandidate {
  * @param h - Href to test.
  * @returns True if matches.
  */
-function matchesTxnPattern(h: string): IsMatch {
+function matchesTxnPattern(h: string): boolean {
   const patterns = WK_DASHBOARD.TXN_PAGE_PATTERNS;
-  return patterns.some((p): PatternMatch => p.test(h));
+  return patterns.some((p): boolean => p.test(h));
 }
 
 /**
@@ -46,7 +43,7 @@ function matchesTxnPattern(h: string): IsMatch {
  * @param href - Raw href returned by resolveVisible.
  * @returns The href when it matches TXN_PAGE_PATTERNS, else NO_HREF.
  */
-function filterByTxnPattern(href: ExtractedHref): ExtractedHref {
+function filterByTxnPattern(href: string): string {
   if (!href) return NO_HREF;
   if (matchesTxnPattern(href)) return href;
   return NO_HREF;
@@ -61,8 +58,8 @@ function filterByTxnPattern(href: ExtractedHref): ExtractedHref {
 async function extractHrefLayer1(
   mediator: IElementMediator,
   candidates: readonly SelectorCandidate[],
-): Promise<ExtractedHref> {
-  const ariaOnly = candidates.filter((c): IsMatch => c.kind === 'ariaLabel');
+): Promise<string> {
+  const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
   if (ariaOnly.length === 0) return NO_HREF;
   const hrefCandidates = ariaOnly.map(withHrefTarget);
   const timeout = TRIGGER_RENDER_TIMEOUT_MS;
@@ -87,7 +84,7 @@ async function extractHrefLayer1(
 async function extractHrefLayer2(
   mediator: IElementMediator,
   candidates: readonly SelectorCandidate[],
-): Promise<ExtractedHref> {
+): Promise<string> {
   const hrefCandidates = candidates.map(withHrefTarget);
   const timeout = TRIGGER_RENDER_TIMEOUT_MS;
   const race = await mediator.resolveVisible(hrefCandidates, timeout);
@@ -107,7 +104,7 @@ async function extractHrefLayer2(
  * @param mediator - Element mediator.
  * @returns Matching href or empty.
  */
-async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedHref> {
+async function extractHrefLayer3(mediator: IElementMediator): Promise<string> {
   const allHrefs = await mediator.collectAllHrefs();
   const txnHref = allHrefs.find(matchesTxnPattern);
   const label = txnHref ?? 'none';
@@ -122,7 +119,7 @@ async function extractHrefLayer3(mediator: IElementMediator): Promise<ExtractedH
  * @param mediator - Element mediator.
  * @returns Extracted href (empty if not found).
  */
-async function extractTransactionHref(mediator: IElementMediator): Promise<ExtractedHref> {
+async function extractTransactionHref(mediator: IElementMediator): Promise<string> {
   const candidates = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
   const l1 = await extractHrefLayer1(mediator, candidates);
   if (l1) return l1;

@@ -7,33 +7,23 @@ import { tryInContextInternal } from './SelectorResolver.js';
 
 const LOG = getDebug(import.meta.url);
 
-/** CSS/XPath selector string. */
-type SelectorStr = string;
-/** URL string for diagnostics. */
-type PageUrl = string;
-/** Credential field key (e.g. 'id', 'password'). */
-type FieldKey = string;
-/** Diagnostic message string. */
-type DiagMsg = string;
-/** Whether a resolution matched. */
-type IsResolved = boolean;
 /** List of tried selectors for diagnostics. */
-type TriedList = SelectorStr[];
+type TriedList = string[];
 
 /**
  * The resolved location of a login field — always returned, never throws.
  * Check `isResolved` before using `selector` / `context`.
  */
 export interface IFieldContext {
-  isResolved: IsResolved;
-  selector: SelectorStr;
+  isResolved: boolean;
+  selector: string;
   context: Page | Frame;
   resolvedVia: 'bankConfig' | 'wellKnown' | 'heuristic' | 'notResolved';
   round: 'iframe' | 'mainPage' | 'heuristic' | 'notResolved';
   /** Which SelectorCandidate kind actually matched (additive, optional). */
   resolvedKind?: SelectorCandidate['kind'];
   /** Diagnostic message — populated when isResolved is false. */
-  message?: DiagMsg;
+  message?: string;
 }
 
 /**
@@ -41,7 +31,7 @@ export interface IFieldContext {
  * `selector` is empty string when not found (never null).
  */
 export interface IFieldMatch {
-  selector: SelectorStr;
+  selector: string;
   context: Page | Frame;
   kind?: SelectorCandidate['kind'];
 }
@@ -50,7 +40,7 @@ export interface IFieldMatch {
 export interface IResolveAllOpts {
   pageOrFrame: Page | Frame;
   field: IFieldConfig;
-  pageUrl: PageUrl;
+  pageUrl: string;
   bankCandidates: SelectorCandidate[];
   wellKnownCandidates: SelectorCandidate[];
   /** Pre-cached child frames from stepParseLoginPage. */
@@ -101,10 +91,10 @@ async function getPageTitle(pageOrFrame: Page | Frame): Promise<string> {
 
 /** Context for building a not-found diagnostic message. */
 interface INotFoundContext {
-  credentialKey: FieldKey;
-  pageUrl: PageUrl;
+  credentialKey: string;
+  pageUrl: string;
   tried: TriedList;
-  pageTitle: DiagMsg;
+  pageTitle: string;
 }
 
 /**
@@ -112,7 +102,7 @@ interface INotFoundContext {
  * @param ctx - The not-found context with credential key, URL, and tried candidates.
  * @returns A multiline diagnostic message string.
  */
-function buildNotFoundMessage(ctx: INotFoundContext): DiagMsg {
+function buildNotFoundMessage(ctx: INotFoundContext): string {
   const { credentialKey, pageUrl, tried, pageTitle } = ctx;
   const triedCount = String(tried.length);
   return (
@@ -133,7 +123,7 @@ function buildNotFoundMessage(ctx: INotFoundContext): DiagMsg {
  * @param tried - The formatted candidate strings that were tried.
  * @returns True after logging completes.
  */
-function logTriedCandidates(key: FieldKey, _url: PageUrl, tried: TriedList): IsResolved {
+function logTriedCandidates(key: string, _url: string, tried: TriedList): boolean {
   LOG.debug({
     field: key,
     result: 'NOT_FOUND',
@@ -189,7 +179,7 @@ export async function buildNotFoundContext(opts: IResolveAllOpts): Promise<IFiel
  * @param message - The diagnostic message explaining why resolution failed.
  * @returns A IFieldContext with isResolved=false.
  */
-function buildNotResolvedResult(context: Page | Frame, message: DiagMsg): IFieldContext {
+function buildNotResolvedResult(context: Page | Frame, message: string): IFieldContext {
   return {
     isResolved: false,
     selector: '',
@@ -284,7 +274,7 @@ export async function searchInChildFrames(
 export async function resolveInMainContext(
   pageOrFrame: Page | Frame,
   allCandidates: SelectorCandidate[],
-  credentialKey: FieldKey,
+  credentialKey: string,
 ): Promise<IFieldMatch> {
   LOG.debug({
     message: 'Round 2: searching main page',
@@ -350,7 +340,7 @@ export async function probeIframes(
 interface IMainGroupOpts {
   ctx: Page | Frame;
   candidates: SelectorCandidate[];
-  credentialKey: FieldKey;
+  credentialKey: string;
   via: IFieldContext['resolvedVia'];
 }
 

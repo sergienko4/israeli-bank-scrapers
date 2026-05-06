@@ -13,12 +13,6 @@ import { fail, succeed } from '../../../Types/Procedure.js';
 import type { ISignerConfig, SignerEncoding } from '../IApiDirectCallConfig.js';
 import type { IGenericKeypair } from './CryptoKeyFactory.js';
 
-/** Header value the caller attaches under config.headerName. */
-type SignatureHeaderValue = string;
-
-/** Base64-encoded signature bytes. */
-type SignatureBase64 = string;
-
 /** Lookup table — Partial wrapper makes lookups safely undefined-able at runtime. */
 const DSA_ENCODING_MAP: Readonly<Partial<Record<SignerEncoding, 'der' | 'ieee-p1363'>>> = {
   DER: 'der',
@@ -51,7 +45,7 @@ function signBytes(
   bytes: Buffer,
   keypair: IGenericKeypair,
   encoding: SignerEncoding,
-): Procedure<SignatureBase64> {
+): Procedure<string> {
   const dsaEnc = dsaEncodingFor(encoding);
   if (!dsaEnc.success) return dsaEnc;
   const signer = createSign('SHA256');
@@ -73,7 +67,7 @@ function signCanonical(
   bytes: Buffer,
   keypair: IGenericKeypair,
   config: ISignerConfig,
-): Procedure<SignatureHeaderValue> {
+): Procedure<string> {
   const sigB64 = signBytes(bytes, keypair, config.encoding);
   if (!sigB64.success) return sigB64;
   const schemeStr = String(config.schemeTag);
@@ -81,6 +75,5 @@ function signCanonical(
   return succeed(value);
 }
 
-export type { SignatureBase64, SignatureHeaderValue };
 export default signCanonical;
 export { signCanonical };

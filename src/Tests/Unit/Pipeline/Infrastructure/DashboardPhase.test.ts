@@ -107,7 +107,7 @@ function makeDashCtx(opts: {
 
 describe('DashboardPhase/PRE', () => {
   it('fails when indicator found but no navigation target', async () => {
-    const greetingCandidate: SelectorCandidate = { kind: 'regex', value: '^שלום\\s+\\S+' };
+    const greetingCandidate: SelectorCandidate = { kind: 'regex', value: String.raw`^שלום\s+\S+` };
     const mockResult: IRaceResult = {
       found: true,
       locator: false,

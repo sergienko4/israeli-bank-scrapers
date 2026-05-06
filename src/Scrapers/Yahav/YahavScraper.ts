@@ -142,7 +142,7 @@ function handleTransactionRow(txns: IScrapedTransaction[], txnRow: ITransactions
   const regex = /\D+/g;
   const tx: IScrapedTransaction = {
     date: div[1],
-    reference: div[2].replace(regex, ''),
+    reference: div[2].replaceAll(regex, ''),
     memo: '',
     description: div[3],
     debit: div[4],

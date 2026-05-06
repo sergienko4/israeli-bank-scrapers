@@ -14,9 +14,14 @@ import {
   PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk } from '../../../Types/Procedure.js';
+
+type IsPathMatch = Brand<boolean, 'IsPathMatch'>;
+type IsFilterDataUrl = Brand<boolean, 'IsFilterDataUrl'>;
+type DisplayIdFromRaw = Brand<string, 'DisplayIdFromRaw'>;
 import {
   buildAccountResult,
   buildFilterDataUrl,
@@ -30,14 +35,6 @@ const LOG = createLogger('scrape-filter');
 
 /** Rate limit between monthly GET requests (ms). */
 const GET_RATE_LIMIT_MS = 300;
-/** Display card ID extracted from response. */
-type CardDisplayId = string;
-/** Account identifier passed to the strategy. */
-type AccountId = string;
-/** Base transaction API URL. */
-type EndpointUrl = string;
-/** Whether the captured URL carries the filterData monthly-pagination param. */
-type IsFilterDataUrl = boolean;
 
 /**
  * Safe-parse URL; returns false on malformed input.
@@ -60,9 +57,11 @@ function parseOrFalse(url: string): URL | false {
  * @param keyLower - Lowercased probe.
  * @returns True on match.
  */
-function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): IsFilterDataUrl {
-  if (parsed !== false) return parsed.pathname.toLowerCase().includes(keyLower);
-  return url.toLowerCase().includes(keyLower);
+function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): IsPathMatch {
+  if (parsed !== false) {
+    return parsed.pathname.toLowerCase().includes(keyLower) as IsPathMatch;
+  }
+  return url.toLowerCase().includes(keyLower) as IsPathMatch;
 }
 
 /**
@@ -74,17 +73,19 @@ function pathOrRawIncludes(url: string, parsed: URL | false, keyLower: string): 
  * @returns True when the URL exposes the filterData family shape.
  */
 export function isFilterDataUrl(url: string): IsFilterDataUrl {
-  if (!url) return false;
+  if (!url) return false as IsFilterDataUrl;
   const parsed = parseOrFalse(url);
   const keyLower = WK_QUERY.filterData.toLowerCase();
-  if (parsed !== false && parsed.searchParams.has(WK_QUERY.filterData)) return true;
-  return pathOrRawIncludes(url, parsed, keyLower);
+  if (parsed !== false && parsed.searchParams.has(WK_QUERY.filterData)) {
+    return true as IsFilterDataUrl;
+  }
+  return pathOrRawIncludes(url, parsed, keyLower) as unknown as IsFilterDataUrl;
 }
 
 /** Buffered txn extraction result. */
 interface IBufferedTxns {
   readonly txns: readonly ITransaction[];
-  readonly displayId: CardDisplayId;
+  readonly displayId: string;
   readonly body: Record<string, unknown> | undefined;
 }
 
@@ -93,15 +94,15 @@ interface IBufferedTxns {
  * @param body - Raw parsed response body.
  * @returns Card number or empty string.
  */
-function extractDisplayIdFromRaw(body: Record<string, unknown>): CardDisplayId {
+function extractDisplayIdFromRaw(body: Record<string, unknown>): DisplayIdFromRaw {
   const result = body.result as Record<string, unknown> | undefined;
-  if (!result) return '';
+  if (!result) return '' as DisplayIdFromRaw;
   const txnArray = result.transactions as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(txnArray) || txnArray.length === 0) return '';
+  if (!Array.isArray(txnArray) || txnArray.length === 0) return '' as DisplayIdFromRaw;
   const first = txnArray[0];
   const cardId = findFieldValue(first, WK.displayId);
-  if (cardId === false) return '';
-  return String(cardId);
+  if (cardId === false) return '' as DisplayIdFromRaw;
+  return String(cardId) as DisplayIdFromRaw;
 }
 
 /**
@@ -132,8 +133,8 @@ function extractBufferedTxns(network: IAccountFetchCtx['network']): IBufferedTxn
  */
 async function scrapeViaFilterData(
   fc: IAccountFetchCtx,
-  accountId: AccountId,
-  baseUrl: EndpointUrl,
+  accountId: string,
+  baseUrl: string,
 ): Promise<Procedure<ITransactionsAccount>> {
   const buffered = extractBufferedTxns(fc.network);
   const allTxns: ITransaction[] = [...buffered.txns];

@@ -237,6 +237,31 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
+  it('mixin auto-injects runId after setActiveBank — no per-call wiring', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    tc.setActiveBank('beinleumi');
+    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const fields = dbg.getActiveLogContext();
+    const expectedRunId = tc.getActiveRunId();
+    expect(expectedRunId).not.toBe('');
+    expect(fields.runId).toBe(expectedRunId);
+    // Same mixin still emits phase / stage so no field is dropped.
+    expect(fields.phase).toBeDefined();
+    expect(fields.stage).toBeDefined();
+  });
+
+  it('mixin omits runId when bank not yet registered', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    tc.resetTraceConfigCache();
+    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const fields = dbg.getActiveLogContext();
+    expect(fields.runId).toBeUndefined();
+  });
+
   it('LOG fired before setActiveBank does NOT lock cache — first post-bank LOG picks up file path', async () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';

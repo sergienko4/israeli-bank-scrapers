@@ -27,13 +27,6 @@ import type { IHomeDiscovery } from './HomeResolver.js';
 import { NAV_STRATEGY } from './HomeResolver.js';
 import { executeSequentialClick } from './HomeSequentialNav.js';
 
-/** Whether a login link was found. */
-type DidFind = boolean;
-/** Discovered login URL from navigation or iframe. */
-type LoginUrlStr = string;
-/** Number of frames on the page. */
-type FrameCount = number;
-
 /** Login path patterns — common across Israeli banks. */
 const LOGIN_PATH_PATTERNS = [/personalarea\/login/i, /login/i, /auth/i];
 
@@ -99,7 +92,7 @@ async function executeDirectNav(
   mediator: IElementMediator,
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   const candidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
   const result = await mediator.resolveAndClick([candidate]).catch((): false => false);
   if (result === false) return false;
@@ -120,7 +113,7 @@ async function executeSequentialNav(
   mediator: IElementMediator,
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   // Step 1: Click trigger (open menu)
   const triggerCandidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
   await mediator.resolveAndClick([triggerCandidate]).catch((): false => false);
@@ -149,9 +142,9 @@ async function executeSequentialNav(
  * @param mediator - Element mediator.
  * @returns First matching login href or false.
  */
-async function findLoginHrefOnPage(mediator: IElementMediator): Promise<LoginUrlStr | false> {
+async function findLoginHrefOnPage(mediator: IElementMediator): Promise<string | false> {
   const allHrefs = await mediator.collectAllHrefs();
-  const match = allHrefs.find((h): DidFind => LOGIN_PATH_PATTERNS.some((p): DidFind => p.test(h)));
+  const match = allHrefs.find((h): boolean => LOGIN_PATH_PATTERNS.some((p): boolean => p.test(h)));
   return match ?? false;
 }
 
@@ -164,7 +157,7 @@ async function findLoginHrefOnPage(mediator: IElementMediator): Promise<LoginUrl
 async function tryFallbackNavigation(
   mediator: IElementMediator,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   const loginHref = await findLoginHrefOnPage(mediator);
   if (!loginHref) return false;
   logger.debug({ url: maskVisibleText(loginHref) });
@@ -177,7 +170,7 @@ async function tryFallbackNavigation(
 interface IValidateLoginAreaArgs {
   readonly mediator: IElementMediator;
   readonly input: IPipelineContext;
-  readonly homepageUrl: LoginUrlStr;
+  readonly homepageUrl: string;
   readonly logger: ScraperLogger;
 }
 
@@ -192,14 +185,14 @@ async function executeValidateLoginArea(
   const { mediator, input, homepageUrl, logger } = args;
   const currentUrl = mediator.getCurrentUrl();
   const didNavigate = currentUrl !== homepageUrl;
-  let frameCount: FrameCount = 0;
+  let frameCount = 0;
   if (input.browser.has) frameCount = input.browser.value.page.frames().length;
   const hasFrames = frameCount > 1;
   const formGate = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
   const formProbe = await mediator
     .resolveVisible(formGate, ENTRY_TIMEOUT)
     .catch((): false => false);
-  const hasLoginForm: DidFind = formProbe !== false && formProbe.found;
+  const hasLoginForm: boolean = formProbe !== false && formProbe.found;
   logger.debug({
     didNavigate,
     frames: frameCount,
@@ -245,7 +238,7 @@ async function executeStoreLoginSignal(
 async function waitForFormReady(
   mediator: IElementMediator,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   const gate = WK_PRELOGIN.FORM_GATE as unknown as readonly SelectorCandidate[];
   const result = await mediator.resolveVisible(gate, FORM_READY_TIMEOUT).catch((): false => false);
   const isReady = result !== false && result.found;
@@ -269,7 +262,7 @@ async function tryClickLoginLink(mediator: IElementMediator): Promise<Procedure<
  * @param browserPage - Browser page.
  * @returns True if any login link visible.
  */
-async function waitForAnyLoginLink(browserPage: Page): Promise<DidFind> {
+async function waitForAnyLoginLink(browserPage: Page): Promise<boolean> {
   const candidates = WK_HOME.ENTRY;
   const locators = candidates.map((c): Locator => browserPage.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<number> => {
@@ -277,7 +270,7 @@ async function waitForAnyLoginLink(browserPage: Page): Promise<DidFind> {
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  return results.some((r): DidFind => r.status === 'fulfilled');
+  return results.some((r): boolean => r.status === 'fulfilled');
 }
 
 /** Timeout for modal iframe content to render. */
@@ -285,27 +278,28 @@ const MODAL_SETTLE_TIMEOUT = 15000;
 
 /**
  * Execute MODAL click — click trigger, wait for iframe content.
- * All HTML interaction via sealed executor (Mediator pattern).
+ * All HTML interaction via sealed executor (Mediator pattern). Returns
+ * `true` once the trigger click and settle complete, `false` only when
+ * no triggerTarget was resolved. URL never changes for modal flows so
+ * callers must NOT use this value as a "did navigate" signal — POST
+ * validates the iframe.
  * @param executor - Sealed action mediator.
  * @param discovery - Home discovery with MODAL strategy.
  * @param logger - Pipeline logger.
- * @returns False (no URL change expected for modal).
+ * @returns True when the trigger click was attempted and settled.
  */
 async function executeModalClick(
   executor: IActionMediator,
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   if (!discovery.triggerTarget) return false;
   const { contextId, selector } = discovery.triggerTarget;
   await executor.clickElement({ contextId, selector }).catch((): false => false);
   logger.debug({ message: 'modal: trigger clicked, waiting for content' });
   await executor.waitForNetworkIdle(MODAL_SETTLE_TIMEOUT).catch((): false => false);
-  return false;
+  return true;
 }
-
-/** Predicate for href matching. */
-type IsHrefMatch = boolean;
 
 /**
  * Click a pre-resolved target via executor.
@@ -318,7 +312,7 @@ async function clickResolvedTarget(
   executor: IActionMediator,
   target: IResolvedTarget,
   isForce?: boolean,
-): Promise<DidFind> {
+): Promise<boolean> {
   await executor.clickElement({ contextId: target.contextId, selector: target.selector, isForce });
   return true;
 }
@@ -331,8 +325,8 @@ async function clickResolvedTarget(
  */
 async function settleAfterClick(
   executor: IActionMediator,
-  isSequential: DidFind,
-): Promise<DidFind> {
+  isSequential: boolean,
+): Promise<boolean> {
   if (isSequential) {
     await executor.waitForNetworkIdle(SETTLE_TIMEOUT).catch((): false => false);
   }
@@ -347,10 +341,10 @@ async function settleAfterClick(
  * @param logger - Pipeline logger.
  * @returns True if navigated.
  */
-async function tryFallbackNav(executor: IActionMediator, logger: ScraperLogger): Promise<DidFind> {
+async function tryFallbackNav(executor: IActionMediator, logger: ScraperLogger): Promise<boolean> {
   const allHrefs = await executor.collectAllHrefs();
   const patterns = [/personalarea\/login/i, /login/i, /auth/i];
-  const match = allHrefs.find((h): IsHrefMatch => patterns.some((p): IsHrefMatch => p.test(h)));
+  const match = allHrefs.find((h): boolean => patterns.some((p): boolean => p.test(h)));
   if (!match) return false;
   logger.debug({ url: maskVisibleText(match) });
   await executor.navigateTo(match, { waitUntil: 'domcontentloaded' }).catch((): false => false);
@@ -369,7 +363,7 @@ async function executeHomeNavigation(
   executor: IActionMediator,
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
-): Promise<DidFind> {
+): Promise<boolean> {
   if (!discovery.triggerTarget) return false;
   if (discovery.strategy === NAV_STRATEGY.MODAL) {
     return executeModalClick(executor, discovery, logger);

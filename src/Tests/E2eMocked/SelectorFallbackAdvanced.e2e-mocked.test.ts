@@ -45,6 +45,11 @@ const FALSE_POSITIVE_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </div>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed the labelText
+// false-positive guard. Selector resolver no longer descends through nested
+// <p> children before checking <input placeholder>. Tracked under PR-206-FOLLOWUP.
+// Body preserved so the regression diagnosis can re-run the assertions once
+// the resolver chain is restored.
 describe.skip('labelText false-positive guard', () => {
   it('does NOT resolve <div> containing "סיסמה" in nested <p> — uses placeholder instead', async () => {
     const fpConfig: ILoginConfig = {
@@ -116,6 +121,9 @@ const FRAME_LABEL_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed labelText
+// resolution inside cross-frame contexts. Tracked under PR-206-FOLLOWUP.
+// Body preserved for the regression diagnosis.
 describe.skip('labelText in iframe', () => {
   it('resolves <label for="id"> inside an iframe (Round 1)', async () => {
     const iframeLabelConfig: ILoginConfig = {
@@ -190,6 +198,9 @@ const LABEL_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed sibling-label
+// resolution (label without `for=` attr). Tracked under PR-206-FOLLOWUP.
+// Body preserved for the regression diagnosis.
 describe.skip('labelText sibling strategy', () => {
   it('resolves <label>text</label><input> (no for= attr) via sibling strategy', async () => {
     const siblingConfig: ILoginConfig = {

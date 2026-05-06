@@ -10,11 +10,6 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IRaceResult } from './ElementMediator.js';
 
-/** Opaque context description for trace logging. */
-type ContextDesc = string;
-/** Resolution label for trace logging. */
-type ResolutionLabel = string;
-
 /** Prefix map: Page has 'context' property, Frame does not. */
 const CTX_PREFIX: Record<string, string> = { true: 'main', false: 'iframe' };
 
@@ -23,7 +18,7 @@ const CTX_PREFIX: Record<string, string> = { true: 'main', false: 'iframe' };
  * @param ctx - Playwright Page or Frame, or false.
  * @returns Human-readable context description.
  */
-function describeContext(ctx: Page | Frame | false): ContextDesc {
+function describeContext(ctx: Page | Frame | false): string {
   if (!ctx) return 'none';
   const url = ctx.url();
   const isMain = 'context' in ctx;
@@ -37,8 +32,8 @@ function describeContext(ctx: Page | Frame | false): ContextDesc {
 
 /** Winner metadata from resolution race. */
 interface IWinnerMeta {
-  readonly kind: ContextDesc;
-  readonly value: ContextDesc;
+  readonly kind: string;
+  readonly value: string;
 }
 
 /**
@@ -58,11 +53,7 @@ function buildWinner(result: IRaceResult): IWinnerMeta | false {
  * @param result - The full race result from resolveVisible.
  * @returns The same result (pass-through for chaining).
  */
-function traceResolution(
-  logger: ScraperLogger,
-  label: ResolutionLabel,
-  result: IRaceResult,
-): IRaceResult {
+function traceResolution(logger: ScraperLogger, label: string, result: IRaceResult): IRaceResult {
   const winner = buildWinner(result);
   const ctx = describeContext(result.context);
   const snap = maskVisibleText(result.value);

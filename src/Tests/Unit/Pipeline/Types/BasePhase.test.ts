@@ -3,7 +3,10 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import {
+  BasePhase,
+  type IsPrePayloadValid,
+} from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
@@ -223,8 +226,8 @@ class ContractPhase extends BasePhase {
    * Test helper.
    * @returns Result.
    */
-  protected override validatePrePayload(): boolean {
-    return false;
+  protected override validatePrePayload(): IsPrePayloadValid {
+    return false as IsPrePayloadValid;
   }
 }
 

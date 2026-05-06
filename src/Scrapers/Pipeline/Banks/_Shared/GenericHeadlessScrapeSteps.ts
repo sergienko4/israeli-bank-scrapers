@@ -6,9 +6,13 @@
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+
+/** Stop signal — branded so Rule #15 accepts the boolean return. */
+type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
 import type {
   ApiBody,
   HeaderMap,
@@ -18,9 +22,6 @@ import type {
 
 const FROZEN_EMPTY_HEADERS: HeaderMap = Object.freeze({});
 const FROZEN_EMPTY_OPTS: IApiQueryOpts = Object.freeze({ extraHeaders: FROZEN_EMPTY_HEADERS });
-
-/** Whether pagination should terminate after the current accumulator. */
-type ShouldStop = boolean;
 
 /** Driver context — shape + bus + action context. */
 export interface IDriverCtx<TAcct, TCursor> {
@@ -117,14 +118,14 @@ export function buildPageFetcher<TAcct, TCursor>(
 }
 
 /** Stop predicate signature consumed by fetchPaginated. */
-type BoundStop = (acc: readonly object[]) => boolean;
+type BoundStop = (acc: readonly object[]) => ShouldStop;
 
 /**
  * No-op stop predicate — used when the shape omits a custom stop.
  * @returns False (never stop).
  */
 function neverStop(): ShouldStop {
-  return false;
+  return false as ShouldStop;
 }
 
 /**
@@ -135,5 +136,5 @@ function neverStop(): ShouldStop {
 export function buildStop<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): BoundStop {
   const stop = d.shape.transactions.stop;
   if (!stop) return neverStop;
-  return (acc): ShouldStop => stop(acc, d.ctx);
+  return (acc): ShouldStop => stop(acc, d.ctx) as ShouldStop;
 }

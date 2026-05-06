@@ -72,6 +72,9 @@ afterAll(async () => {
   await closeSharedBrowser();
 });
 
+// Skipped reason — pipeline-architecture migration regressed
+// WELL_KNOWN_SELECTORS resolver chain. Tracked under PR-206-FOLLOWUP.
+// Body preserved for the regression diagnosis.
 describe.skip('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
   it('resolves fields via Hebrew placeholder when primary CSS id is wrong — login succeeds', async () => {
     /**
@@ -185,6 +188,9 @@ const FRAME_LOGIN_HTML = `<!DOCTYPE html><html><body>
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed Round 1
+// iframe-first detection. Tracked under PR-206-FOLLOWUP. Body preserved
+// for the regression diagnosis.
 describe.skip('Selector fallback Round 1: iframe-first detection', () => {
   it('finds login fields inside an iframe before checking the main page', async () => {
     // Config: only wrong CSS ids — no explicit display-name fallbacks.
@@ -275,6 +281,9 @@ const LABEL_FOR_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
+// Skipped reason — pipeline-architecture migration regressed label-for
+// resolution. Tracked under PR-206-FOLLOWUP. Body preserved for the
+// regression diagnosis.
 describe.skip('labelText resolution: <label for="id">', () => {
   it('resolves fields via <label for="id"> when no placeholder or CSS id matches', async () => {
     const labelConfig: ILoginConfig = {

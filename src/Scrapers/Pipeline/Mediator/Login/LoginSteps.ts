@@ -17,7 +17,8 @@ import { createLoginActionStep } from './LoginSubmitStep.js';
 import { createPostLoginStep } from './PostLoginSteps.js';
 
 export type { IFillOpts } from './LoginFillStep.js';
-export { waitForSubmitToSettle } from './PostLoginSteps.js';
+export { createLoginActionStep } from './LoginSubmitStep.js';
+export { createPostLoginStep, waitForSubmitToSettle } from './PostLoginSteps.js';
 
 /**
  * Run checkReadiness callback if provided.
@@ -33,8 +34,8 @@ async function runCheckReadiness(
   try {
     await config.checkReadiness(browserPage);
     return succeed(true);
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `checkReadiness: ${toErrorMessage(err as Error)}`);
+  } catch (error) {
+    return fail(ScraperErrorTypes.Generic, `checkReadiness: ${toErrorMessage(error as Error)}`);
   }
 }
 
@@ -52,8 +53,8 @@ async function runPreAction(
   try {
     const frame = await config.preAction(browserPage);
     return succeed(frame ?? browserPage);
-  } catch (err) {
-    return fail(ScraperErrorTypes.Generic, `preAction failed: ${toErrorMessage(err as Error)}`);
+  } catch (error) {
+    return fail(ScraperErrorTypes.Generic, `preAction failed: ${toErrorMessage(error as Error)}`);
   }
 }
 
@@ -115,4 +116,4 @@ function createLoginPhase(config: ILoginConfig): ILoginPhase {
   };
 }
 
-export { createLoginActionStep, createLoginPhase, createPostLoginStep, createPreLoginStep };
+export { createLoginPhase, createPreLoginStep };

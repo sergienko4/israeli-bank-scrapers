@@ -10,6 +10,7 @@ import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/Scrap
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 
+// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
 type JsonValue = unknown;
 type JsonObject = Record<string, JsonValue>;
 type MaybeRecord = JsonObject | null | undefined;

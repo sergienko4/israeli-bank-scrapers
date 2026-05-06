@@ -18,18 +18,21 @@ import * as path from 'node:path';
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
 import { redactHtml } from '../Types/PiiRedactor.js';
 
-/** Bank identifier — key for per-company frame directories. */
-type CompanyId = string;
-/** Fully-qualified frame URL. */
-type FrameUrl = string;
-/** Basename of the captured frame HTML file. */
-type FrameFilename = string;
-/** Absolute path to a frame HTML file. */
-type FramePath = string;
-/** HTML body captured from a child frame. */
-type FrameHtml = string;
+/** URL-derived snapshot filename. */
+type FrameFilename = Brand<string, 'FrameFilename'>;
+/** Absolute path to a captured frame file. */
+type FrameFilePath = Brand<string, 'FrameFilePath'>;
+/** Absolute path to the bank's frames directory. */
+type FramesDirPath = Brand<string, 'FramesDirPath'>;
+/** Snapshot HTML body read from a Playwright Frame. */
+type FrameHtmlSnapshot = Brand<string, 'FrameHtmlSnapshot'>;
+/** Frame-write success/failure outcome. */
+type DidWriteFrame = Brand<boolean, 'DidWriteFrame'>;
+/** Main-vs-child frame predicate. */
+type IsChildFrame = Brand<boolean, 'IsChildFrame'>;
 
 /** Root directory for captured snapshots — mirrors SnapshotInterceptorIO. */
 const SNAPSHOT_ROOT = 'tests/snapshots';
@@ -47,13 +50,13 @@ const HASH_LEN = 12;
  * @param url - Frame URL.
  * @returns Filename like 'a1b2c3d4e5f6.html'.
  */
-export function frameFilenameForUrl(url: FrameUrl): FrameFilename {
+export function frameFilenameForUrl(url: string): FrameFilename {
   const parsed = URL.canParse(url) && new URL(url);
   const key = (parsed && `${parsed.origin}${parsed.pathname}`) || url;
   // SHA-256 (not for security — used only as a stable filename slug).
   // Switched from sha1 to satisfy `typescript:S4790` weak-hash hotspot.
   const hash = crypto.createHash('sha256').update(key).digest('hex').slice(0, HASH_LEN);
-  return `${hash}.html`;
+  return `${hash}.html` as FrameFilename;
 }
 
 /**
@@ -62,25 +65,22 @@ export function frameFilenameForUrl(url: FrameUrl): FrameFilename {
  * @param url - Frame URL.
  * @returns Absolute path.
  */
-export function frameFilePath(companyId: CompanyId, url: FrameUrl): FramePath {
+export function frameFilePath(companyId: string, url: string): FrameFilePath {
   const cwd = process.cwd();
   const filename = frameFilenameForUrl(url);
-  return path.join(cwd, SNAPSHOT_ROOT, companyId, FRAMES_DIR, filename);
+  return path.join(cwd, SNAPSHOT_ROOT, companyId, FRAMES_DIR, filename) as FrameFilePath;
 }
-
-/** Write outcome — true on success, false on I/O failure. */
-type WriteResult = boolean;
 
 /**
  * Ensure the per-bank frames directory exists.
  * @param companyId - Bank identifier.
  * @returns Absolute path to the frames directory.
  */
-function ensureFramesDir(companyId: CompanyId): FramePath {
+function ensureFramesDir(companyId: string): FramesDirPath {
   const cwd = process.cwd();
   const dir = path.join(cwd, SNAPSHOT_ROOT, companyId, FRAMES_DIR);
   fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  return dir as FramesDirPath;
 }
 
 /**
@@ -114,13 +114,13 @@ async function waitForFrameRender(frame: Frame): Promise<true> {
  * @param html - Content to persist.
  * @returns True on success, false on I/O failure.
  */
-function tryWriteFrame(file: FramePath, html: FrameHtml): WriteResult {
+function tryWriteFrame(file: string, html: string): DidWriteFrame {
   try {
     const safeHtml = redactHtml(html);
     fs.writeFileSync(file, safeHtml, 'utf8');
-    return true;
+    return true as DidWriteFrame;
   } catch {
-    return false;
+    return false as DidWriteFrame;
   }
 }
 
@@ -130,11 +130,11 @@ function tryWriteFrame(file: FramePath, html: FrameHtml): WriteResult {
  * @param companyId - Bank identifier.
  * @returns True if a file was written, false on skip/failure.
  */
-async function captureOneFrame(frame: Frame, companyId: CompanyId): Promise<WriteResult> {
+async function captureOneFrame(frame: Frame, companyId: string): Promise<boolean> {
   const url = frame.url();
   if (!url || url === 'about:blank') return false;
   await waitForFrameRender(frame);
-  const html = await frame.content().catch((): FrameHtml => '');
+  const html = await frame.content().catch((): FrameHtmlSnapshot => '' as FrameHtmlSnapshot);
   if (!html) return false;
   const dir = ensureFramesDir(companyId);
   const filename = frameFilenameForUrl(url);
@@ -150,15 +150,15 @@ async function captureOneFrame(frame: Frame, companyId: CompanyId): Promise<Writ
  * @param companyId - Bank identifier.
  * @returns Count of frames persisted.
  */
-export async function captureChildFrames(page: Page, companyId: CompanyId): Promise<number> {
+export async function captureChildFrames(page: Page, companyId: string): Promise<number> {
   const main = page.mainFrame();
-  const children = page.frames().filter((f): WriteResult => f !== main);
+  const children = page.frames().filter((f): IsChildFrame => (f !== main) as IsChildFrame);
   /**
    * Bind companyId so Promise.all receives a named function.
    * @param f - Frame to capture.
    * @returns Write outcome.
    */
-  const captureFn = (f: Frame): Promise<WriteResult> => captureOneFrame(f, companyId);
+  const captureFn = (f: Frame): Promise<boolean> => captureOneFrame(f, companyId);
   const jobs = children.map(captureFn);
   const writes = await Promise.all(jobs);
   return writes.filter(Boolean).length;

@@ -6,15 +6,6 @@
  */
 
 import {
-  BANK_TRANSFER_DETAILS,
-  CARD_DETAILS,
-  CASH_DETAILS,
-  CATEGORY_AND_RECURRENCE,
-  CHEQUES_DETAILS,
-  DEFAULT_DETAILS,
-  FEE_DETAILS,
-} from './OneZeroFragmentsDetails.js';
-import {
   LOAN_DETAILS,
   MANDATE_DETAILS,
   MOVEMENT_AND_PAGINATION,
@@ -42,6 +33,7 @@ export {
   CHEQUES_DETAILS,
   DEFAULT_DETAILS,
   FEE_DETAILS,
-  MOVEMENTS_FRAGMENTS_2,
-};
+} from './OneZeroFragmentsDetails.js';
+
+export { MOVEMENTS_FRAGMENTS_2 };
 export default MOVEMENTS_FRAGMENTS_2;

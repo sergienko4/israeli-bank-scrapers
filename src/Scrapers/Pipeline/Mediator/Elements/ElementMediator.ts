@@ -24,25 +24,6 @@ import type { IFormErrorScanResult } from '../Form/FormErrorDiscovery.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 
-/** Whether an element race found a visible element. */
-type RaceFound = boolean;
-/** 0-based index of the winning locator (-1 if not found). */
-type WinnerIndex = number;
-/** Snapshot text or href captured immediately after winning the race. */
-type SnapshotValue = string;
-/** Current page URL returned by mediator. */
-type CurrentPageUrl = string;
-/** Whether an HTML attribute was found on the element. */
-type HasAttribute = boolean;
-/** Whether the URL matched the expected pattern after navigation. */
-type DidNavigate = boolean;
-/** CSS/XPath selector string for form fields. */
-type FieldSelector = string;
-/** Input value string for form filling. */
-type FieldValue = string;
-/** Whether a WK transaction-shaped endpoint has been captured. */
-type IsTxnFound = boolean;
-
 /**
  * Structured DOM identity captured during PRE resolution.
  * Carries every stable attribute the ACTION stage might use to build a
@@ -69,7 +50,7 @@ interface IElementIdentity {
  */
 interface IRaceResult {
   /** True if an element was found within the timeout. */
-  readonly found: RaceFound;
+  readonly found: boolean;
   /** The winning Playwright locator, or false if not found. */
   readonly locator: Locator | false;
   /** Which SelectorCandidate matched, or false if not found. */
@@ -77,9 +58,9 @@ interface IRaceResult {
   /** The Page or Frame where the element was found, or false. */
   readonly context: Page | Frame | false;
   /** Index of the winning locator in the flat array (-1 if not found). */
-  readonly index: WinnerIndex;
+  readonly index: number;
   /** Snapshot of innerText (or href for target:'href') captured immediately. */
-  readonly value: SnapshotValue;
+  readonly value: string;
   /** Resolved element's actual DOM identity — id, name, aria-label, title, href.
    *  Used by ACTION to build a precise selector that matches the exact element
    *  PRE found, instead of re-deriving from the original WK candidate kind. */
@@ -263,7 +244,7 @@ interface IElementMediator {
    * Call AFTER waitForNetworkIdle to get the final URL, not a redirect intermediate.
    * @returns Current page URL string.
    */
-  getCurrentUrl(): CurrentPageUrl;
+  getCurrentUrl(): string;
 
   /**
    * Wait for network to settle. Timeout is non-fatal.
@@ -280,7 +261,7 @@ interface IElementMediator {
    * @param timeoutMs - Max wait time (default: 10000ms).
    * @returns Procedure with true if URL matched, false on timeout.
    */
-  waitForURL(pattern: string, timeoutMs?: number): Promise<Procedure<DidNavigate>>;
+  waitForURL(pattern: string, timeoutMs?: number): Promise<Procedure<boolean>>;
 
   /**
    * Count elements matching visible text. Returns 0 on error.
@@ -308,7 +289,7 @@ interface IElementMediator {
    * @param attrName - The HTML attribute to check (e.g. 'href').
    * @returns Procedure with true if attribute exists and is non-empty.
    */
-  checkAttribute(result: IRaceResult, attrName: string): Promise<Procedure<HasAttribute>>;
+  checkAttribute(result: IRaceResult, attrName: string): Promise<Procedure<boolean>>;
 
   /**
    * Get the raw value of an HTML attribute on a resolved element (passive).
@@ -342,28 +323,25 @@ interface IElementMediator {
 
 /** Cookie snapshot from browser context (getCookies). */
 interface ICookieSnapshot {
-  readonly name: CookieLabel;
-  readonly domain: CookieLabel;
-  readonly value: CookieLabel;
+  readonly name: string;
+  readonly domain: string;
+  readonly value: string;
 }
 
 /** Cookie injection shape (addCookies) — includes path. */
 interface ICookieInjection {
-  readonly name: CookieLabel;
-  readonly value: CookieLabel;
-  readonly domain: CookieLabel;
-  readonly path: CookieLabel;
+  readonly name: string;
+  readonly value: string;
+  readonly domain: string;
+  readonly path: string;
 }
-
-/** Opaque cookie field (name, domain, value, or path). */
-type CookieLabel = string;
 
 /** Bundled args for `IActionMediator.clickElement` — fits the 3-param ceiling. */
 interface IClickElementArgs {
   /** Opaque frame identifier. */
   readonly contextId: ContextId;
   /** CSS/XPath selector. */
-  readonly selector: FieldSelector;
+  readonly selector: string;
   /** Force click bypassing actionability checks (for hidden toggles). */
   readonly isForce?: boolean;
   /** Optional 0-based nth index when the selector matches multiple DOM
@@ -390,7 +368,7 @@ interface IActionMediator {
    * @param value - Value to fill.
    * @returns True after filling.
    */
-  fillInput(contextId: ContextId, selector: FieldSelector, value: FieldValue): Promise<true>;
+  fillInput(contextId: ContextId, selector: string, value: string): Promise<true>;
 
   /**
    * Click an element by contextId + selector.
@@ -410,15 +388,15 @@ interface IActionMediator {
 
   /** Navigate to URL. */
   navigateTo(
-    url: FieldSelector,
+    url: string,
     opts?: { waitUntil?: 'domcontentloaded' | 'load' | 'networkidle'; timeout?: number },
   ): Promise<Procedure<void>>;
   /** Wait for network idle. */
   waitForNetworkIdle(timeoutMs?: number): Promise<Procedure<void>>;
   /** Wait for URL pattern match. */
-  waitForURL(pattern: FieldSelector, timeoutMs?: number): Promise<Procedure<DidNavigate>>;
+  waitForURL(pattern: string, timeoutMs?: number): Promise<Procedure<boolean>>;
   /** Get current page URL. */
-  getCurrentUrl(): CurrentPageUrl;
+  getCurrentUrl(): string;
 
   // ── Cookie/State (no raw Frame needed) ──
 
@@ -427,19 +405,19 @@ interface IActionMediator {
   /** Add cookies. */
   addCookies(cookies: readonly ICookieInjection[]): Promise<void>;
   /** Count elements by text. */
-  countByText(text: FieldSelector): Promise<number>;
+  countByText(text: string): Promise<number>;
   /** Count elements by raw CSS/XPath selector. */
-  countBySelector(selector: FieldSelector): Promise<number>;
+  countBySelector(selector: string): Promise<number>;
   /** Collect all hrefs. */
   collectAllHrefs(): Promise<readonly string[]>;
   /** Collect sessionStorage key-value pairs. */
-  collectStorage(): Promise<Readonly<Record<FieldSelector, FieldSelector>>>;
+  collectStorage(): Promise<Readonly<Record<string, string>>>;
 
   /** Read-only check: has a WK transaction-shaped endpoint been captured
    *  in the network discovery so far? Single narrow method for ACTION-stage
    *  callers that need to verify a click had real txn-traffic effect (e.g.
    *  Beinleumi pm.q077 BFF detection). NOT a full discovery surface. */
-  hasTxnEndpoint(): IsTxnFound;
+  hasTxnEndpoint(): boolean;
 
   /** Event-driven wait for a WK transaction-shaped endpoint to be captured
    *  (wraps Playwright `page.waitForResponse`). Used by DASHBOARD ACTION
@@ -449,7 +427,7 @@ interface IActionMediator {
    *  Returns immediately if already captured. Non-fatal on timeout.
    *  @param timeoutMs - Max wait budget.
    *  @returns True if captured (now or already), false on timeout. */
-  waitForTxnEndpoint(timeoutMs: number): Promise<IsTxnFound>;
+  waitForTxnEndpoint(timeoutMs: number): Promise<boolean>;
 
   // ── REMOVED: setActivePhase, setActiveStage, full network discovery ──
   // BasePhase.run() is the SOLE authority for stage transitions.
@@ -458,7 +436,6 @@ interface IActionMediator {
 
 export default IElementMediator;
 export type {
-  CookieLabel,
   IActionMediator,
   IClickElementArgs,
   ICookieInjection,
@@ -466,9 +443,5 @@ export type {
   IElementIdentity,
   IElementMediator,
   IRaceResult,
-  IsTxnFound,
-  RaceFound,
-  SnapshotValue,
-  WinnerIndex,
 };
 export { NOT_FOUND_RESULT };

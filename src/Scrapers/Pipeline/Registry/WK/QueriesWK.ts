@@ -6,14 +6,15 @@
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
+/** Registry write outcome — branded for Rule #15. */
+type DidRegister = Brand<boolean, 'WkQueriesDidRegister'>;
+
 /** Supported WK query operations — generic API verbs. */
 export type WKQueryOperation = 'customer' | 'transactions' | 'balance';
-
-/** Return value of registerWkQuery — signals the entry was stored. */
-type WasQueryRegistered = boolean;
 
 /** Internal registry: op -> bankHint -> query string. */
 const WK_QUERIES = new Map<WKQueryOperation, Map<CompanyTypes, string>>();
@@ -43,10 +44,10 @@ export function registerWkQuery(
   operation: WKQueryOperation,
   bankHint: CompanyTypes,
   query: string,
-): WasQueryRegistered {
+): DidRegister {
   const inner = bankMapFor(operation);
   inner.set(bankHint, query);
-  return true;
+  return true as DidRegister;
 }
 
 /**

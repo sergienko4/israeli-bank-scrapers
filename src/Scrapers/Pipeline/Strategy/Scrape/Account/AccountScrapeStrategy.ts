@@ -18,10 +18,14 @@ import {
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
+
+type PatchedUrlStr = Brand<string, 'PatchedUrlStr'>;
+type IsBufferReusable = Brand<boolean, 'IsBufferReusable'>;
 import { tryBillingFallback } from '../BillingFallbackStrategy.js';
 import { tryMatrixLoop } from '../MatrixLoopStrategy.js';
 import {
@@ -44,9 +48,6 @@ import { extractCardId, extractIds } from './ScrapeIdExtraction.js';
 const LOG = createLogger('scrape-post');
 const CARD_SOURCE_LABELS: Record<string, string> = { true: 'from cards[]', false: 'from record' };
 
-/** Endpoint URL string. */
-type EndpointUrlStr = string;
-
 /**
  * Patch URL query-string date params from fc.startDate → today.
  * No-op when no WK.fromDate / WK.toDate keys are present.
@@ -54,14 +55,14 @@ type EndpointUrlStr = string;
  * @param fc - Fetch context.
  * @returns Patched URL.
  */
-function patchUrlRange(url: EndpointUrlStr, fc: IAccountFetchCtx): EndpointUrlStr {
+function patchUrlRange(url: string, fc: IAccountFetchCtx): PatchedUrlStr {
   const fromDate = parseStartDate(fc.startDate);
   const toDate = new Date();
   const outcome = applyDateRangeToUrlWithCount(url, fromDate, toDate);
   if (outcome.swapped > 0) {
     LOG.debug({ message: `URL date-range patched (${String(outcome.swapped)} params)` });
   }
-  return outcome.url;
+  return outcome.url as PatchedUrlStr;
 }
 
 /**
@@ -126,7 +127,7 @@ function buildPostCtx(
   const cardId = extractCardId(accountRecord) || accountId;
   const rawPost = endpoint.postData || '{}';
   const capturedBody = JSON.parse(rawPost) as ApiPayload;
-  const baseBody = templatePostBody(rawPost, accountRecord);
+  const baseBody = templatePostBody(rawPost, accountRecord, cardId);
   const isLookupCard = cardId !== accountId;
   const cardLabel = redactAccount(cardId);
   LOG.debug({
@@ -152,28 +153,59 @@ interface IBufferedAttemptCtx {
 /** WK field names that identify a per-card / per-account body parameter. */
 const ACCOUNT_BODY_KEYS: readonly string[] = [...WK.accountId, ...MF.accountId];
 
-/** Whether the captured buffer is reusable for the current iteration target. */
-type BufferReusable = boolean;
+/** Plural-array WK keys identifying multi-card request scopes. */
+const BUFFER_PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];
+
+/**
+ * Returns true when the parsed POST body carries a non-empty plural
+ * cards/accounts array. The buffer captured under such a request is
+ * multi-card scope — `findFieldValue` cannot descend into arrays
+ * (`enqueueChildren` excludes them), so without this explicit check
+ * `bufferedMatchesAccount` mistakes "no singular id" for "safe to
+ * reuse for any iteration", mirroring the captured combined response
+ * onto every card.
+ *
+ * @param parsed - Parsed POST body.
+ * @returns true when at least one WK plural cards array is present.
+ */
+function postDataIsMultiCardScope(parsed: Record<string, unknown>): boolean {
+  return BUFFER_PLURAL_CARDS_KEYS.some((key): boolean => {
+    const value = parsed[key];
+    return Array.isArray(value) && value.length > 1;
+  });
+}
 
 /**
  * Returns true when the captured POST body identifies `accountId`, or
  * when the body carries no account identifier at all (single-account
  * banks share one buffer across the run).
+ *
+ * <p>Refuses reuse when the body carries a plural cards array
+ * (`cards: [...]`), because the captured response under such a
+ * request reflects multiple cards combined and cannot be safely
+ * attributed to one iteration's accountId. The fall-through path
+ * (scrapePostDirect) re-posts a per-card-templated body and gets
+ * per-card data naturally.
+ *
  * @param endpoint - captured endpoint with optional postData.
  * @param accountId - iterating account identifier.
  * @returns true when the buffer is safe to reuse for this account.
  */
-function bufferedMatchesAccount(endpoint: IDiscoveredEndpoint, accountId: string): BufferReusable {
-  if (!endpoint.postData) return true;
+function bufferedMatchesAccount(
+  endpoint: IDiscoveredEndpoint,
+  accountId: string,
+): IsBufferReusable {
+  if (!endpoint.postData) return true as IsBufferReusable;
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(endpoint.postData) as Record<string, unknown>;
   } catch {
-    return true;
+    return true as IsBufferReusable;
   }
+  if (postDataIsMultiCardScope(parsed)) return false as IsBufferReusable;
   const id = findFieldValue(parsed, ACCOUNT_BODY_KEYS);
-  if (id === false) return true;
-  return String(id) === accountId;
+  if (id === false) return true as IsBufferReusable;
+  return (String(id) === accountId) as IsBufferReusable;
 }
 
 /**

@@ -85,8 +85,8 @@ function resolveLegacyBank(companyId: string): LegacyBankLookup {
 async function runCleanup(fn: () => Promise<boolean>): Promise<boolean> {
   try {
     await fn();
-  } catch (e) {
-    LOG.debug(`Cleanup function failed: ${(e as Error).message}`);
+  } catch (error) {
+    LOG.debug(`Cleanup function failed: ${(error as Error).message}`);
   }
   return true;
 }
@@ -241,7 +241,7 @@ class BaseScraperWithBrowser<
     this.bankLog.debug('terminating browser with success = %s', isSuccess);
     this.emitProgress(ScraperProgressTypes.Terminating);
     await this.captureFailureScreenshot(isSuccess);
-    const reversed = this._cleanups.reverse();
+    const reversed = [...this._cleanups].reverse();
     const cleanupPromises = reversed.map(runCleanup);
     await Promise.all(cleanupPromises);
     this._cleanups = [];
@@ -447,8 +447,8 @@ class BaseScraperWithBrowser<
     const bankLogger = this.bankLog;
     await this.page
       .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-      .catch((caught: unknown) => {
-        const errMsg = (caught as Error).message.slice(0, 80);
+      .catch((error: unknown) => {
+        const errMsg = (error as Error).message.slice(0, 80);
         bankLogger.debug('screenshot failed: %s', errMsg);
         didCapture = false;
       });

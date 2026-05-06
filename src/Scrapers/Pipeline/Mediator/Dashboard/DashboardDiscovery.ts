@@ -20,12 +20,6 @@ export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
 const DASHBOARD_TIMEOUT = 30000;
 /** Timeout for REVEAL probe. */
 const REVEAL_TIMEOUT_MS = 15000;
-type HasBody = boolean;
-type TxnTrafficCount = number;
-type IsMatch = boolean;
-type PatternMatch = boolean;
-/** Resolved absolute URL string. */
-type AbsoluteHref = string;
 
 /**
  * Filter endpoints that arrived after a given timestamp.
@@ -37,7 +31,7 @@ function recentEndpoints(
   network: INetworkDiscovery,
   sinceMs: number,
 ): readonly IDiscoveredEndpoint[] {
-  return network.getAllEndpoints().filter((ep): IsMatch => ep.timestamp > sinceMs);
+  return network.getAllEndpoints().filter((ep): boolean => ep.timestamp > sinceMs);
 }
 
 /**
@@ -49,15 +43,15 @@ function recentEndpoints(
  * @param sinceMs - Epoch ms (0 = all time).
  * @returns Count of endpoints with real txn data.
  */
-function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): TxnTrafficCount {
+function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): number {
   const recent = recentEndpoints(network, sinceMs);
-  const matched = recent.filter(
-    (ep): IsMatch => PIPELINE_WELL_KNOWN_API.transactions.some((p): PatternMatch => p.test(ep.url)),
+  const matched = recent.filter((ep): boolean =>
+    PIPELINE_WELL_KNOWN_API.transactions.some((p): boolean => p.test(ep.url)),
   );
   const withBody = matched.filter(
-    (ep): HasBody => ep.responseBody !== undefined && ep.responseBody !== null,
+    (ep): boolean => ep.responseBody !== undefined && ep.responseBody !== null,
   );
-  return withBody.filter((ep): HasBody => hasTxnArray(ep.responseBody)).length;
+  return withBody.filter((ep): boolean => hasTxnArray(ep.responseBody)).length;
 }
 
 /** Lowercased URL schemes rejected by `resolveAbsoluteHref` —
@@ -73,19 +67,15 @@ const REJECTED_HREF_SCHEMES: readonly string[] = [
   'wss:',
 ];
 
-/** "Did the href match a rejected URL scheme?" — semantic alias over
- *  `boolean` to satisfy Rule #15 (no primitive returns at boundaries). */
-type IsRejectedScheme = boolean;
-
 /**
  * Test whether an href starts with a rejected URL scheme. Case-insensitive
  * because the WHATWG URL parser also normalises scheme to lower-case.
  * @param href - Trimmed href string.
  * @returns True iff href begins with any rejected scheme.
  */
-function startsWithRejectedScheme(href: string): IsRejectedScheme {
+function startsWithRejectedScheme(href: string): boolean {
   const lower = href.toLowerCase().trim();
-  return REJECTED_HREF_SCHEMES.some((scheme): IsRejectedScheme => lower.startsWith(scheme));
+  return REJECTED_HREF_SCHEMES.some((scheme): boolean => lower.startsWith(scheme));
 }
 
 /**
@@ -94,7 +84,7 @@ function startsWithRejectedScheme(href: string): IsRejectedScheme {
  * @param pageUrl - Current page URL for resolution.
  * @returns Absolute URL string, or empty if malformed.
  */
-function resolveAbsoluteHref(href: string, pageUrl: string): AbsoluteHref {
+function resolveAbsoluteHref(href: string, pageUrl: string): string {
   if (!href || href.startsWith('#') || startsWithRejectedScheme(href)) return '';
   try {
     return new URL(href, pageUrl).href;
@@ -155,9 +145,6 @@ async function probeDashboardReveal(mediator: IElementMediator): Promise<string>
   return `reveal: ${result.candidate.value}`;
 }
 
-/** Whether transaction traffic was observed. */
-type TrafficPrimed = boolean;
-
 /**
  * Validate traffic gate — check that ANY endpoints were captured.
  * No strategy dependency — DASHBOARD is pure navigation.
@@ -165,7 +152,7 @@ type TrafficPrimed = boolean;
  * @param logger - Optional logger.
  * @returns True if endpoints exist, false if dashboard captured nothing.
  */
-function validateTrafficGate(network: INetworkDiscovery, logger?: ScraperLogger): TrafficPrimed {
+function validateTrafficGate(network: INetworkDiscovery, logger?: ScraperLogger): boolean {
   const allEndpoints = network.getAllEndpoints();
   if (allEndpoints.length > 0) return true;
   logger?.debug({ message: 'trafficPrimed=false (endpoints=0)' });

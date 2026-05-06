@@ -3,12 +3,13 @@
  * Infrastructure concern — lives in Core/, not Types/.
  */
 
+import type { Brand } from '../Types/Brand.js';
 import type { ScraperLogger } from '../Types/Debug.js';
 
-/** Trace outcome after phase execution. */
-type TraceTag = string;
-/** Whether tracing was emitted. */
-type DidTrace = boolean;
+/** Phase index tag string (e.g. '1/7') — branded for Rule #15. */
+type PhaseIndexTag = Brand<string, 'PhaseIndexTag'>;
+/** Trace emit outcome — branded for Rule #15. */
+type DidTrace = Brand<boolean, 'DidTrace'>;
 
 /** Outcome lookup — avoids ternary. */
 const OUTCOME: Record<string, string> = { true: 'OK', false: 'FAIL' };
@@ -19,8 +20,8 @@ const OUTCOME: Record<string, string> = { true: 'OK', false: 'FAIL' };
  * @param total - Total phase count.
  * @returns Formatted index string (e.g. '1/7').
  */
-function buildPhaseIndex(index: number, total: number): TraceTag {
-  return `${String(index + 1)}/${String(total)}`;
+function buildPhaseIndex(index: number, total: number): PhaseIndexTag {
+  return `${String(index + 1)}/${String(total)}` as PhaseIndexTag;
 }
 
 /**
@@ -30,9 +31,9 @@ function buildPhaseIndex(index: number, total: number): TraceTag {
  * @param indexTag - Phase index tag.
  * @returns True after tracing.
  */
-function traceStart(logger: ScraperLogger, name: TraceTag, indexTag: TraceTag): DidTrace {
+function traceStart(logger: ScraperLogger, name: string, indexTag: string): DidTrace {
   logger.debug({ phase: name, action: 'START', index: indexTag });
-  return true;
+  return true as DidTrace;
 }
 
 /**
@@ -42,9 +43,9 @@ function traceStart(logger: ScraperLogger, name: TraceTag, indexTag: TraceTag): 
  */
 interface ITraceResultCtx {
   readonly logger: ScraperLogger;
-  readonly name: TraceTag;
-  readonly indexTag: TraceTag;
-  readonly isSuccess: DidTrace;
+  readonly name: string;
+  readonly indexTag: string;
+  readonly isSuccess: boolean;
 }
 
 /**
@@ -55,7 +56,7 @@ interface ITraceResultCtx {
 function traceResult(ctx: ITraceResultCtx): DidTrace {
   const action = OUTCOME[String(ctx.isSuccess)];
   ctx.logger.debug({ phase: ctx.name, action, index: ctx.indexTag });
-  return true;
+  return true as DidTrace;
 }
 
 export default buildPhaseIndex;

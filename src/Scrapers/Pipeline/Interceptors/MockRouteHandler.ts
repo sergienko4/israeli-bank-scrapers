@@ -4,23 +4,24 @@ import * as fs from 'node:fs';
 
 import type { Request, Route } from 'playwright-core';
 
+import type { Brand } from '../Types/Brand.js';
 import { getDebug } from '../Types/Debug.js';
 import type { IMockState } from './MockInterceptorIO.js';
 import { resolveMockHtml } from './MockInterceptorIO.js';
 import { frameFilenameForUrl, frameFilePath } from './SnapshotFrameCapture.js';
 
-const LOG = getDebug(import.meta.url);
+/** URL-looks-like-iframe predicate. */
+type LooksLikeIframe = Brand<boolean, 'LooksLikeIframe'>;
+/** Hint-substring match predicate. */
+type IsHintMatch = Brand<boolean, 'IsHintMatch'>;
+/** Trace-emit outcome. */
+type DidTraceMiss = Brand<boolean, 'DidTraceMiss'>;
+/** HTML body served for a request (or empty fall-through). */
+type MockHtmlBody = Brand<string, 'MockHtmlBody'>;
+/** HTML body with normalizer injected. */
+type NormalizedHtml = Brand<string, 'NormalizedHtml'>;
 
-/** Route handler outcome — true after fulfilment. */
-type RouteResult = boolean;
-/** Whether a URL looks like an iframe load we expect to have captured. */
-type LooksLikeIframe = boolean;
-/** Bank identifier — string alias for clarity in handler signatures. */
-type CompanyId = string;
-/** Fully-qualified request URL. */
-type RequestUrl = string;
-/** HTML body served to a route request. */
-type ResponseHtml = string;
+const LOG = getDebug(import.meta.url);
 
 /** URL patterns we treat as iframe candidates — parent HTML declares them via <iframe src=...>. */
 const IFRAME_URL_HINTS = ['Servlet', 'iframe', 'embed', 'Matrix'];
@@ -31,8 +32,10 @@ const IFRAME_URL_HINTS = ['Servlet', 'iframe', 'embed', 'Matrix'];
  * @param url - Requested URL.
  * @returns True for URLs that likely target a child frame.
  */
-function looksLikeIframeUrl(url: RequestUrl): LooksLikeIframe {
-  return IFRAME_URL_HINTS.some((hint): LooksLikeIframe => url.includes(hint));
+function looksLikeIframeUrl(url: string): LooksLikeIframe {
+  return IFRAME_URL_HINTS.some(
+    (hint): IsHintMatch => url.includes(hint) as IsHintMatch,
+  ) as LooksLikeIframe;
 }
 
 /**
@@ -42,12 +45,12 @@ function looksLikeIframeUrl(url: RequestUrl): LooksLikeIframe {
  * @param url - Requested URL (miss).
  * @returns True after the trace, false when URL isn't iframe-ish.
  */
-function traceFrameMiss(companyId: CompanyId, url: RequestUrl): LooksLikeIframe {
-  if (!looksLikeIframeUrl(url)) return false;
+function traceFrameMiss(companyId: string, url: string): DidTraceMiss {
+  if (!looksLikeIframeUrl(url)) return false as DidTraceMiss;
   const expectedFile = frameFilenameForUrl(url);
   const relPath = `${companyId}/frames/${expectedFile}`;
   LOG.info({ message: `mock: iframe snapshot MISS — ${relPath} missing for ${url}` });
-  return true;
+  return true as DidTraceMiss;
 }
 
 /**
@@ -58,13 +61,13 @@ function traceFrameMiss(companyId: CompanyId, url: RequestUrl): LooksLikeIframe 
  * @param url - Requested URL.
  * @returns Frame HTML or empty string when no per-frame file exists.
  */
-function tryServeFrameHtml(companyId: CompanyId, url: RequestUrl): ResponseHtml {
+function tryServeFrameHtml(companyId: string, url: string): MockHtmlBody {
   const file = frameFilePath(companyId, url);
   try {
-    return fs.readFileSync(file, 'utf8');
+    return fs.readFileSync(file, 'utf8') as MockHtmlBody;
   } catch {
     traceFrameMiss(companyId, url);
-    return '';
+    return '' as MockHtmlBody;
   }
 }
 
@@ -98,9 +101,12 @@ const HEAD_OPEN_RE = /<head(?:\s[^>]*)?>/i;
  * @param html - Source HTML body.
  * @returns HTML with normalizer prepended inside `<head>`.
  */
-function injectNormalizer(html: ResponseHtml): ResponseHtml {
-  if (!html) return html;
-  return html.replace(HEAD_OPEN_RE, (match): ResponseHtml => `${match}${NORMALIZER_CSS}`);
+function injectNormalizer(html: string): NormalizedHtml {
+  if (!html) return html as NormalizedHtml;
+  return html.replace(
+    HEAD_OPEN_RE,
+    (match): NormalizedHtml => `${match}${NORMALIZER_CSS}` as NormalizedHtml,
+  ) as NormalizedHtml;
 }
 
 /**
@@ -116,15 +122,15 @@ function injectNormalizer(html: ResponseHtml): ResponseHtml {
  * @returns HTML to fulfil with (normalizer injected).
  */
 function pickHtmlForRequest(
-  companyId: CompanyId,
+  companyId: string,
   state: IMockState,
   request: Request,
-): ResponseHtml {
+): NormalizedHtml {
   const url = request.url();
   const frameHtml = tryServeFrameHtml(companyId, url);
   if (frameHtml) return injectNormalizer(frameHtml);
   const isMainFrame = !request.frame().parentFrame();
-  if (!isMainFrame) return '';
+  if (!isMainFrame) return '' as NormalizedHtml;
   const phaseHtml = resolveMockHtml(companyId, state.currentPhase, state.lastServed);
   state.lastServed = phaseHtml;
   return injectNormalizer(phaseHtml);
@@ -138,10 +144,10 @@ function pickHtmlForRequest(
  * @returns Route handler for page.route.
  */
 export function buildHandler(
-  companyId: CompanyId,
+  companyId: string,
   state: IMockState,
-): (route: Route, request: Request) => Promise<RouteResult> {
-  return async (route: Route, request: Request): Promise<RouteResult> => {
+): (route: Route, request: Request) => Promise<boolean> {
+  return async (route: Route, request: Request): Promise<boolean> => {
     const body = pickHtmlForRequest(companyId, state, request);
     await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body });
     return true;

@@ -9,6 +9,8 @@ import globals from 'globals';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
+import sonarjs from 'eslint-plugin-sonarjs';
+import unicorn from 'eslint-plugin-unicorn';
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -449,6 +451,8 @@ export default tseslint.config(
       'simple-import-sort': simpleImportSort,
       regexp: regexpPlugin,
       jsdoc,
+      sonarjs,
+      unicorn,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -533,6 +537,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
+
+      // The 19 SonarJS / Unicorn rules that mirror SonarCloud's checks
+      // are wired in a dedicated "Pipeline scope" block below (matching
+      // the sonar.exclusions list in sonar-project.properties), not
+      // here. Tests and legacy scrapers are out of Sonar's scope; we
+      // mirror that locally so ESLint and SonarCloud stay aligned.
 
       // Unused Code
       'no-unused-vars': 'error',
@@ -824,7 +834,105 @@ export default tseslint.config(
     },
   },
 
-  // 11. Legacy bank lookup safety canary — scoped to shared base code only.
+  // 11. SONARJS + UNICORN PARITY — local equivalents of the 19 SonarCloud
+  //     rules that surfaced 661 issues during the v2 cleanup. Catching
+  //     them here prevents recurrence at edit time, before commit.
+  //
+  //     Scope mirrors `sonar-project.properties` `sonar.exclusions`:
+  //     active Pipeline production code only. Tests and legacy scrapers
+  //     are out of Sonar's scope, so they're out of these rules' scope
+  //     too — keeps ESLint and SonarCloud aligned without surfacing
+  //     thousands of test-stub issues that don't exist in Sonar.
+  {
+    files: ['src/**/*.ts'],
+    ignores: [
+      'src/Tests/**',
+      'src/Common/**',
+      'src/Scrapers/Behatsdaa/**',
+      'src/Scrapers/BeyahadBishvilha/**',
+      'src/Scrapers/Leumi/**',
+      'src/Scrapers/Mizrahi/**',
+      'src/Scrapers/Yahav/**',
+      'src/Scrapers/Registry/**',
+      'src/scrapers/**',
+    ],
+    rules: {
+      // SonarJS — Sonar's own rules
+      'sonarjs/redundant-type-aliases': 'error', // S6564
+      'sonarjs/void-use': 'error', // S3735
+      'sonarjs/no-invariant-returns': 'error', // S3516 BLOCKER
+      'sonarjs/no-identical-functions': 'error', // S4144
+      'sonarjs/no-misleading-array-reverse': 'error', // S4043
+      'sonarjs/use-type-alias': 'error', // S4323
+      'sonarjs/no-skipped-tests': 'error', // S1607
+      // Unicorn — modern-JS rules SonarCloud wraps
+      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: true }], // S7763
+      'unicorn/prefer-string-replace-all': 'error', // S7781
+      'unicorn/prefer-string-raw': 'error', // S7780
+      'unicorn/prefer-at': 'error', // S7755
+      'unicorn/no-useless-promise-resolve-reject': 'error', // S7746
+      'unicorn/catch-error-name': 'error', // S7718
+      'unicorn/prefer-global-this': 'error', // S7764
+      'unicorn/prefer-includes': 'error', // S7765
+      'unicorn/prefer-array-find': 'error', // S7750
+      'unicorn/prefer-array-index-of': 'error', // S7753
+      'unicorn/prefer-single-call': 'error', // S7778
+      // Built-in
+      'prefer-object-spread': 'error', // S6661
+    },
+  },
+
+  // 12. ARCHITECTURE-RULE EXCEPTION — files where the project's
+  //     architecture rules force a NAMED type alias that SonarJS S6564
+  //     would otherwise flag as redundant.
+  //
+  //     Two flavours of conflict:
+  //       (a) `no-restricted-syntax` forbids bare `unknown` in function
+  //           signatures → forces `type X = unknown;` aliases.
+  //       (b) Rule #15 forbids primitive return types (`: string`,
+  //           `: number`, `: boolean`, `: void`) in Pipeline/Phases →
+  //           forces `type X = string;` aliases for return-type sites
+  //           that would be too invasive to brand (broad call-site fan-out).
+  //
+  //     Each file in this block also carries a `// NOSONAR` comment on
+  //     the offending alias line so SonarCloud silences the issue
+  //     server-side. The architecture rule wins; this override silences
+  //     S6564 locally to keep `eslint --max-warnings 0` green.
+  {
+    files: [
+      // (a) `unknown` aliases
+      'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/TxnShape.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.ts',
+      // (b) Rule #15 return-type aliases for primitives
+      'src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts',
+      'src/Scrapers/Pipeline/Types/PipelineContext.ts',
+    ],
+    rules: {
+      'sonarjs/redundant-type-aliases': 'off',
+    },
+  },
+
+  // 12b. TEST STUB EXCEPTION — `require-await` flags `async` methods
+  //      that don't actually await. Production code MUST await; test
+  //      stubs (e.g., `async fetchData() { return ScraperResult.ok }`)
+  //      mock the Promise<T> return type without doing real async work.
+  //      Disabled only inside `src/Tests/Unit/Base*` legacy stubs.
+  {
+    files: [
+      'src/Tests/Unit/BaseScraper.test.ts',
+      'src/Tests/Unit/BaseScraperWithBrowser.test.ts',
+      'src/Tests/Unit/BaseScraperWithBrowserExtended.test.ts',
+    ],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
+
+  // 13. Legacy bank lookup safety canary — scoped to shared base code only.
   //
   //     The PR #205 root cause was `BaseScraperWithBrowser.login()` doing
   //     a bare destructure of SCRAPER_CONFIGURATION.banks[runtimeId] —

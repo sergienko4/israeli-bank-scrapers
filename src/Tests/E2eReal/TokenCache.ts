@@ -64,8 +64,8 @@ async function readCacheSafe(cachePath: string, log: ScraperLogger): Promise<str
   try {
     const raw = await fs.readFile(cachePath, 'utf8');
     return raw.trim();
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
+  } catch (error) {
+    const e = error as NodeJS.ErrnoException;
     if (e.code === 'ENOENT') return '';
     log.warn({ cachePath, code: e.code ?? 'UNKNOWN' }, 'TokenCache read failure');
     return '';
@@ -95,8 +95,8 @@ async function writeCacheSafe(
   try {
     await fs.writeFile(cachePath, token, { encoding: 'utf8', mode: CACHE_FILE_MODE });
     return true;
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
+  } catch (error) {
+    const e = error as NodeJS.ErrnoException;
     log.warn({ cachePath, code: e.code ?? 'UNKNOWN' }, 'TokenCache write failure');
     return false;
   }

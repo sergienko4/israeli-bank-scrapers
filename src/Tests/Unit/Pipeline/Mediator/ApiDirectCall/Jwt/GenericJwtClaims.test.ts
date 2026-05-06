@@ -66,4 +66,27 @@ describe('GenericJwtClaims.isJwtFresh — malformed input', () => {
     const isFresh = isJwtFresh(jwt, EXP_60S);
     expect(isFresh).toBe(false);
   });
+
+  it('returns false when payload decodes to JSON null root', () => {
+    const headerJson = JSON.stringify({ alg: 'none' });
+    const headerBuffer = Buffer.from(headerJson);
+    const headerEnc = headerBuffer.toString('base64url');
+    const nullPayloadBuffer = Buffer.from('null');
+    const nullPayloadEnc = nullPayloadBuffer.toString('base64url');
+    const jwt = `${headerEnc}.${nullPayloadEnc}.sig`;
+    const isFresh = isJwtFresh(jwt, EXP_60S);
+    expect(isFresh).toBe(false);
+  });
+
+  it('returns false when configured claim value is not a number', () => {
+    const headerJson = JSON.stringify({ alg: 'none' });
+    const headerBuffer = Buffer.from(headerJson);
+    const headerEnc = headerBuffer.toString('base64url');
+    const stringExpJson = JSON.stringify({ exp: '1234567890' });
+    const stringExpBuffer = Buffer.from(stringExpJson);
+    const stringExpEnc = stringExpBuffer.toString('base64url');
+    const jwt = `${headerEnc}.${stringExpEnc}.sig`;
+    const isFresh = isJwtFresh(jwt, EXP_60S);
+    expect(isFresh).toBe(false);
+  });
 });

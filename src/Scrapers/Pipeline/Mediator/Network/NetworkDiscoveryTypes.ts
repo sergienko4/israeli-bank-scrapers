@@ -5,33 +5,33 @@
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { IAuthFailureWatcher } from './AuthFailureWatcher.js';
 
-/** Full URL of a captured API endpoint. */
-type CapturedUrl = string;
-/** Raw POST body string of a captured request. */
-type CapturedPostData = string;
-/** HTTP Content-Type header of a captured response. */
-type CapturedContentType = string;
-/** Epoch ms timestamp when the endpoint was captured. */
-type CaptureTimestamp = number;
-
 /** A discovered API endpoint — captured from browser network traffic. */
 interface IDiscoveredEndpoint {
   /** Full URL including query params. */
-  readonly url: CapturedUrl;
+  readonly url: string;
   /** HTTP method (GET or POST). */
   readonly method: 'GET' | 'POST' | 'PUT';
   /** POST body if applicable. */
-  readonly postData: CapturedPostData;
+  readonly postData: string;
   /** Parsed JSON response body. */
   readonly responseBody: unknown;
   /** Response content type. */
-  readonly contentType: CapturedContentType;
+  readonly contentType: string;
   /** Request headers sent by page JS (for auth token, origin, site ID). */
   readonly requestHeaders: Record<string, string>;
   /** Response headers from server (for CORS, content-type, cookies). */
   readonly responseHeaders: Record<string, string>;
   /** Capture timestamp (ms since epoch). */
-  readonly timestamp: CaptureTimestamp;
+  readonly timestamp: number;
+  /**
+   * Sequential capture index — same `dumpCounter` value used as the
+   * filename prefix `NNNN-METHOD-stub.json` under the run's `network/`
+   * folder. Lets a structured log line referencing this endpoint be
+   * deterministically joined to its on-disk capture file via
+   * `runId` + `captureIndex`. Optional: undefined when the endpoint
+   * was synthesised without a dump (frozen replay, tests).
+   */
+  readonly captureIndex?: number;
 }
 
 /** Network discovery interface — captures and queries API traffic. */

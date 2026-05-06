@@ -15,11 +15,14 @@ import {
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
 } from '../../Mediator/Network/Fetch.js';
+import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
+
+type IsTargetFrame = Brand<boolean, 'IsTargetFrame'>;
 
 const LOG = getDebug(import.meta.url);
 
@@ -57,9 +60,6 @@ function catchError(error: Error): Procedure<never> {
   return fail(ScraperErrorTypes.Generic, message);
 }
 
-/** Whether target origin matches frame. */
-type OriginMatch = boolean;
-
 /**
  * Find a frame matching the target URL's origin.
  * @param page - Playwright page with attached frames.
@@ -70,10 +70,10 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
   const targetOrigin = new URL(targetUrl).origin;
   const pageOrigin = new URL(page.url()).origin;
   if (targetOrigin === pageOrigin) return page;
-  const frame = page.frames().find((f): OriginMatch => {
+  const frame = page.frames().find((f): IsTargetFrame => {
     const frameUrl = f.url();
-    if (!frameUrl || frameUrl === 'about:blank') return false;
-    return new URL(frameUrl).origin === targetOrigin;
+    if (!frameUrl || frameUrl === 'about:blank') return false as IsTargetFrame;
+    return (new URL(frameUrl).origin === targetOrigin) as IsTargetFrame;
   });
   if (frame) {
     const frameUrl = frame.url().slice(0, 50);
