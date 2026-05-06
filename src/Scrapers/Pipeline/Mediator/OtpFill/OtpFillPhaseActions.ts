@@ -10,9 +10,12 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import { some } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { discoverAccountsInPool } from '../Auth/AccountDiscovery.js';
+import { verifyPreNavReadiness } from '../Auth/PreNavReadiness.js';
 import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
@@ -340,12 +343,26 @@ async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPip
     return succeedWithDiag(input, 'otp-fill-final (no mediator)');
   }
   const mediator = input.mediator.value;
+  // Readiness check — for OTP banks the trace gate flips ON at
+  // OTP-FILL entry, so by FINAL the dashboard render fetches have
+  // landed in pre-nav. Enforce that an account container is present
+  // before signalling readiness to DASHBOARD.PRE.
+  const readiness = verifyPreNavReadiness(input, 'OTP-FILL');
+  if (!isOk(readiness)) return readiness;
+  // Account discovery — auth boundary owns this for OTP banks. Same
+  // contract as LOGIN.FINAL (non-OTP path); SCRAPE.PRE never
+  // re-discovers against the global pool.
+  const preNav = mediator.network.getPreNavCaptures();
+  const accounts = discoverAccountsInPool(preNav);
+  const accountDiscovery = some({ ids: accounts.ids, records: accounts.records });
   const cookieCount = await countCookies(mediator);
   const currentUrl = mediator.getCurrentUrl();
   input.logger.debug({
     message: `cookies=${String(cookieCount)} url=${maskVisibleText(currentUrl)}`,
   });
-  return succeedWithDiag(input, `otp-fill-final (cookies=${String(cookieCount)})`);
+  const cookiesLabel = `otp-fill-final (cookies=${String(cookieCount)})`;
+  const diag = { ...input.diagnostics, lastAction: cookiesLabel };
+  return succeed({ ...input, diagnostics: diag, accountDiscovery });
 }
 
 /**

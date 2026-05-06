@@ -92,6 +92,10 @@ describe('NetworkDiscovery account/txn endpoints', () => {
   it('discoverTransactionsEndpoint prefers POST over GET when both pass shape gate', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
+    // Strict SRP: txn discovery requires post-nav captures. Mark a
+    // click at t=0 so every simulated capture (Date.now() based)
+    // lands in the post-nav bucket.
+    discovery.markDashboardClickAt(0);
     // GET preview captured first, POST template captured second; both
     // match /getTransactions/i and both pass shape gate.
     await simulate({
@@ -121,6 +125,7 @@ describe('NetworkDiscovery account/txn endpoints', () => {
   it('discoverTransactionsEndpoint accepts replayable POST even with empty body', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     // GET preview is the only thing passing shape gate; POST returned
     // empty (current cycle not yet charged) but is still replayable.
     await simulate({

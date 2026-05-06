@@ -429,6 +429,57 @@ function buildLoadAllCtx(
   return { fc, ids, records, txnEndpoint };
 }
 
+/** Bundled args for `buildLoadCtxFromPreDiscovered`. */
+interface IPreDiscoveredArgs {
+  readonly fc: IAccountFetchCtx;
+  readonly network: INetworkDiscovery;
+  readonly ids: readonly string[];
+  readonly records: readonly Record<string, unknown>[];
+}
+
+/**
+ * Build fetch-all context when accounts have ALREADY been discovered
+ * by the auth FINAL stage (LOGIN.FINAL / OTP-FILL.FINAL). SCRAPE.PRE
+ * uses this entry point to enforce strict SRP: it never re-runs
+ * account discovery against the global capture pool.
+ *
+ * The transaction endpoint is still discovered here — that's
+ * SCRAPE.PRE's own responsibility. When the supplied account list is
+ * empty, a single defensive fallback runs: try to extract a card id
+ * from the discovered txn endpoint's POST body. Beyond that, the
+ * caller (SCRAPE.PRE) chains `applyCredentialFallback` and
+ * `applyStorageHarvest` for the genuinely-empty case.
+ * @param args - Bundled args.
+ * @returns Fetch-all context ready for the matrix loop.
+ */
+function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccountsCtx {
+  const txnEndpoint = args.network.discoverTransactionsEndpoint();
+  logTxnEndpoint(txnEndpoint);
+  if (args.ids.length > 0) {
+    return {
+      fc: args.fc,
+      ids: [...args.ids],
+      records: [...args.records],
+      txnEndpoint,
+    };
+  }
+  const fallback = tryPostBodyFallback(txnEndpoint);
+  if (fallback) {
+    return {
+      fc: args.fc,
+      ids: fallback.ids,
+      records: fallback.records,
+      txnEndpoint,
+    };
+  }
+  return {
+    fc: args.fc,
+    ids: [],
+    records: [],
+    txnEndpoint,
+  };
+}
+
 /**
  * Promote a usable `creds.card6Digits` into the load context when
  * extraction produced no identifiers. Returns the context unchanged
@@ -585,6 +636,7 @@ async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipe
 export {
   applyCredentialFallback,
   buildLoadAllCtx,
+  buildLoadCtxFromPreDiscovered,
   discoverAndLoadAccounts,
   genericAutoScrape,
   loadDiscovered,

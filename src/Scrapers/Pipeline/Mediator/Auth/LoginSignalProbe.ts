@@ -5,12 +5,15 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { API_STRATEGY } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { discoverAccountsInPool } from './AccountDiscovery.js';
+import { verifyPreNavReadiness } from './PreNavReadiness.js';
 
 /**
  * Audit session cookies after login.
@@ -54,6 +57,19 @@ export default async function executeLoginSignal(
   if (cookieCount === 0) {
     return fail(ScraperErrorTypes.Generic, 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies');
   }
+  // Readiness check — for non-OTP banks this enforces that the
+  // dashboard render produced an account container. OTP banks have
+  // an empty pre-nav at this point (gate flips ON at OTP-FILL entry),
+  // so the check skips here and runs again in OTP-FILL.FINAL.
+  const readiness = verifyPreNavReadiness(input, 'LOGIN');
+  if (!isOk(readiness)) return readiness;
+  // Account discovery — the auth boundary owns this. Run on pre-nav
+  // captures only so login traffic can't pollute the account list,
+  // and so SCRAPE.PRE consumes a stable contract instead of
+  // re-discovering against the global capture pool.
+  const preNav = mediator.network.getPreNavCaptures();
+  const accounts = discoverAccountsInPool(preNav);
+  const accountDiscovery = some({ ids: accounts.ids, records: accounts.records });
   const revealInfo = await probeDashboardReveal(mediator);
   const authToken = await mediator.network.discoverAuthToken();
   const hasAuth = Boolean(authToken);
@@ -72,7 +88,7 @@ export default async function executeLoginSignal(
     lastAction: `login-signal (${revealInfo})`,
     apiStrategy,
   };
-  return succeed({ ...input, diagnostics: diag });
+  return succeed({ ...input, diagnostics: diag, accountDiscovery });
 }
 
 export { executeLoginSignal };

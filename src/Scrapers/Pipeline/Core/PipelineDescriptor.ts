@@ -19,6 +19,16 @@ interface IPipelineDescriptor {
    * for browser-driven banks (back-compat).
    */
   readonly isHeadless?: boolean;
+  /**
+   * Boundary phase after which the network interceptor starts
+   * collecting captures. Auto-resolved by the builder to the last
+   * configured auth phase (`otp-fill` > `otp-trigger` > `login`) for
+   * every browser bank, so the discovery pool never sees pre-auth
+   * noise. Absent/empty for headless or test pipelines that don't
+   * gate the network. Carried for diagnostics only — the actual
+   * gating is owned by `NetworkTraceLifecycleInterceptor`.
+   */
+  readonly traceStartAfterPhase?: string;
 }
 
 export default IPipelineDescriptor;

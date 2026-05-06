@@ -180,6 +180,31 @@ function makeMockMediator(): IElementMediator {
     addCookies: (): Promise<void> => Promise.resolve(),
     network: {
       /**
+       * No-op recording gate in mock.
+       * @returns True.
+       */
+      setCollectionActive: (): true => true,
+      /**
+       * No-op click marker in mock.
+       * @returns True.
+       */
+      markDashboardClickAt: (): true => true,
+      /**
+       * No click in mock.
+       * @returns False.
+       */
+      getDashboardClickAt: (): false => false,
+      /**
+       * Empty pre-nav captures in mock.
+       * @returns Empty array.
+       */
+      getPreNavCaptures: (): readonly [] => [],
+      /**
+       * Empty post-nav captures in mock.
+       * @returns Empty array.
+       */
+      getPostNavCaptures: (): readonly [] => [],
+      /**
        * No endpoints in mock.
        * @returns Empty array.
        */

@@ -14,15 +14,14 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
 import {
   applyCredentialFallback,
-  buildLoadAllCtx,
-  discoverAndLoadAccounts,
+  buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import type { IAccountFetchCtx, IFetchAllAccountsCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import { type IActionContext, type IPipelineContext } from '../../Types/PipelineContext.js';
-import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
+import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { triggerDashboardUi } from '../Dashboard/DashboardTrigger.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
@@ -55,6 +54,29 @@ async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<bo
   return triggerDashboardUi(input.mediator.value, input.logger);
 }
 
+/** Pre-discovered account list bundle (or empty when missing). */
+interface IPreDiscoveredAccounts {
+  readonly ids: readonly string[];
+  readonly records: readonly Record<string, unknown>[];
+}
+
+/**
+ * Read the pre-discovered account list set by LOGIN.FINAL /
+ * OTP-FILL.FINAL. Returns empty arrays when the auth FINAL did not
+ * populate the field — the caller's fallback chain
+ * (`applyCredentialFallback` + `applyStorageHarvestPre`) covers that
+ * case.
+ * @param input - Pipeline context.
+ * @returns Pre-discovered account ids + records (empties on miss).
+ */
+function readPreDiscoveredAccounts(input: IPipelineContext): IPreDiscoveredAccounts {
+  if (!input.accountDiscovery.has) return { ids: [], records: [] };
+  return {
+    ids: input.accountDiscovery.value.ids,
+    records: input.accountDiscovery.value.records,
+  };
+}
+
 /**
  * DIRECT path: discover endpoints + load accounts + freeze network.
  * Runs SPA pivot, endpoint discovery, account loading, storage harvest.
@@ -75,13 +97,21 @@ async function executeDirectDiscovery(
   const mediator = input.mediator.value;
 
   await pivotToSpaIfNeeded(mediator, network);
-  const rawResult = await discoverAndLoadAccounts(api, network);
-  if (!isOk(rawResult)) return fail(rawResult.errorType, rawResult.errorMessage);
 
+  // Account discovery moved to LOGIN.FINAL / OTP-FILL.FINAL; SCRAPE.PRE
+  // consumes the pre-discovered list and runs ONLY transaction-endpoint
+  // discovery on the post-nav bucket. No global-pool rediscovery, no
+  // mixing of auth-side and dashboard-side data.
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
   const fc: IAccountFetchCtx = { api, network, startDate, futureMonths };
-  let loadCtx = buildLoadAllCtx(fc, network, rawResult.value);
+  const preDiscovered = readPreDiscoveredAccounts(input);
+  let loadCtx = buildLoadCtxFromPreDiscovered({
+    fc,
+    network,
+    ids: preDiscovered.ids,
+    records: preDiscovered.records,
+  });
   loadCtx = applyCredentialFallback(loadCtx, input);
   loadCtx = await applyStorageHarvestPre(loadCtx, input);
 
@@ -101,6 +131,13 @@ async function executeDirectDiscovery(
   const frozenEndpoints = network.getAllEndpoints();
   const cachedAuth = await network.discoverAuthToken();
   const storageHarvest = await collectStorageSafe(input);
+  // Carry the dashboard-click timestamp into the frozen replay so
+  // SCRAPE.ACTION's frozen network sees the same pre-nav / post-nav
+  // split that the live network used during DASHBOARD.FINAL
+  // validation. Without this the frozen network has no click marker
+  // and falls back to the full pool, which would re-introduce the
+  // pre-click widget pollution we just removed.
+  const dashboardClickAt = network.getDashboardClickAt();
 
   const idCount = String(loadCtx.ids.length);
   const recCount = String(loadCtx.records.length);
@@ -121,6 +158,7 @@ async function executeDirectDiscovery(
     txnEndpoint: loadCtx.txnEndpoint,
     cachedAuth,
     storageHarvest,
+    dashboardClickAt,
   };
 
   return succeed({

@@ -1761,6 +1761,9 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
       const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
       return hit !== false;
     },
+    /** @inheritdoc */
+    markDashboardClickAt: (timestampMs: number): true =>
+      full.network.markDashboardClickAt(timestampMs),
   };
 }
 

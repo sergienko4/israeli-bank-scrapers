@@ -76,6 +76,19 @@ function makeMediator(opts: IMockMediatorOpts): IElementMediator {
        * @returns Mock proxy.
        */
       discoverProxyEndpoint: (): string | false => opts.proxy,
+      /**
+       * Empty pre-nav so PreNavReadiness skips (gate-not-yet-on path).
+       * Tests that exercise the readiness FAIL path supply their own
+       * mock with non-empty captures.
+       * @returns Empty array.
+       */
+      getPreNavCaptures: (): readonly [] => [],
+      /**
+       * Empty endpoint pool so PreNavReadiness sees zero captures →
+       * skip enforcement.
+       * @returns Empty array.
+       */
+      getAllEndpoints: (): readonly [] => [],
     },
   } as unknown as IElementMediator;
 }
@@ -144,6 +157,43 @@ describe('executeLoginSignal', () => {
     const result = await executeLoginSignal(ctx);
     // Cookie count > 0 → succeeds even though waitForNetworkIdle rejected
     expect(result.success).toBe(true);
+  });
+
+  it('fails when pre-nav captures lack an account container (readiness fail-loud)', async () => {
+    const cookies = [{ name: 'SID', domain: 'bank.co.il', value: 'abc' }];
+    const baseMediator = makeMediator({ cookies, auth: false, proxy: false });
+    // Override network to expose a non-empty pool with NO account container —
+    // this exercises the readiness fail path inside executeLoginSignal.
+    const mediator = {
+      ...baseMediator,
+      network: {
+        ...(baseMediator.network as object),
+        /**
+         * Non-empty pre-nav with body that doesn't expose an account
+         * container — readiness check must fail loud.
+         * @returns Single capture with unrelated body.
+         */
+        getPreNavCaptures: (): readonly { responseBody: unknown }[] => [
+          { responseBody: { unrelated: true } },
+        ],
+        /**
+         * Same single endpoint — non-zero count flips
+         * `shouldSkipPreNavCheck` off so the check actually runs.
+         * @returns Single endpoint.
+         */
+        getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
+      },
+    } as unknown as IElementMediator;
+    const ctx = makeMockContext({
+      login: { has: true, value: {} } as IPipelineContext['login'],
+      mediator: { has: true, value: mediator } as IPipelineContext['mediator'],
+    });
+    const result = await executeLoginSignal(ctx);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('LOGIN');
+      expect(result.errorMessage).toContain('account/cards container');
+    }
   });
 
   it('succeeds with proxy-based strategy when proxy discovered', async () => {

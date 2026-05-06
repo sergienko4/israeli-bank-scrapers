@@ -190,9 +190,17 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
  * Handle a response event — parse and store if JSON API.
  * @param captured - Mutable array to store discovered endpoints.
  * @param response - Playwright response.
+ * @param isCollectionActive - Predicate gating capture storage so the
+ *   listener can stay attached for the whole run while the
+ *   discovery pool is silenced during pre-auth phases.
  * @returns True (always — fire-and-forget).
  */
-function handleResponse(captured: IDiscoveredEndpoint[], response: Response): boolean {
+function handleResponse(
+  captured: IDiscoveredEndpoint[],
+  response: Response,
+  isCollectionActive: () => boolean,
+): boolean {
+  if (!isCollectionActive()) return false;
   const url = response.url();
   const status = response.status();
   const method = response.request().method();
@@ -954,10 +962,138 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): bo
  * @param page - Playwright page to observe.
  * @returns Network discovery interface.
  */
+/**
+ * Mutable click-at slot — the only piece of state shared between
+ * DASHBOARD.ACTION (writes) and DASHBOARD.FINAL / SCRAPE.PRE
+ * (reads). Encapsulated in an interface so the closure that owns
+ * it can hand the same handle to multiple builders.
+ */
+interface IDashboardClickState {
+  readonly mark: (timestampMs: number) => true;
+  readonly read: () => number | false;
+}
+
+/**
+ * Build the dashboard-click marker + reader pair backed by a single
+ * mutable cell. Bank-agnostic — the timestamp is just a number.
+ * @param initial - Initial value (false means "no click yet").
+ * @returns Mark + read accessors.
+ */
+function buildDashboardClickState(initial: number | false): IDashboardClickState {
+  let value: number | false = initial;
+  /**
+   * Set the dashboard-click timestamp on the closure cell.
+   * @param timestampMs - Click timestamp.
+   * @returns True after writing.
+   */
+  const mark = (timestampMs: number): true => {
+    value = timestampMs;
+    return true;
+  };
+  /**
+   * Read the dashboard-click timestamp from the closure cell.
+   * @returns Click timestamp or false when not yet set.
+   */
+  const read = (): number | false => value;
+  return { mark, read };
+}
+
+/**
+ * Mutable state pair for the live recording gate — the writer
+ * (`flip`) is what the lifecycle interceptor calls between phases;
+ * the reader (`read`) is consulted on every captured response so the
+ * page listener can short-circuit during pre-auth phases without
+ * tearing the listener down.
+ */
+interface ICollectionState {
+  readonly flip: (active: boolean) => true;
+  readonly read: () => boolean;
+}
+
+/**
+ * Build the recording-gate accessors backed by a single mutable cell.
+ * Default `true` preserves legacy behaviour for any caller that never
+ * gates the network (API-direct banks, tests).
+ * @param initial - Initial recording state.
+ * @returns Flip + read accessors.
+ */
+function buildCollectionState(initial: boolean): ICollectionState {
+  let isActive = initial;
+  /**
+   * Apply the recording state to the closure cell.
+   * @param active - True to record captures.
+   * @returns True after writing.
+   */
+  const flip = (active: boolean): true => {
+    isActive = active;
+    return true;
+  };
+  /**
+   * Read the recording state from the closure cell.
+   * @returns True when captures should be stored.
+   */
+  const read = (): boolean => isActive;
+  return { flip, read };
+}
+
+/**
+ * Build the click-aware capture-bucketing helpers shared by live and
+ * frozen networks. Strict SRP: the split is purely timestamp-driven
+ * with NO fallback. Consumers must NOT mix the two buckets — accounts
+ * come from pre-nav only (auth FINAL), transactions come from post-
+ * nav only (DASHBOARD.FINAL onwards). When `clickAt` has not been set
+ * yet, `getPostNavCaptures` returns an empty array; the caller is
+ * responsible for the SRP boundary, not the network primitive.
+ * @param captured - Captures array (live or frozen).
+ * @param clickState - Shared click-at state.
+ * @returns Bucketing accessors for the INetworkDiscovery contract.
+ */
+function buildBucketingMethods(
+  captured: readonly IDiscoveredEndpoint[],
+  clickState: IDashboardClickState,
+): Pick<
+  INetworkDiscovery,
+  'markDashboardClickAt' | 'getDashboardClickAt' | 'getPreNavCaptures' | 'getPostNavCaptures'
+> {
+  return {
+    /** @inheritdoc */
+    markDashboardClickAt: clickState.mark,
+    /** @inheritdoc */
+    getDashboardClickAt: clickState.read,
+    /** @inheritdoc */
+    getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => {
+      const clickAt = clickState.read();
+      if (clickAt === false) return captured;
+      return captured.filter((ep): boolean => ep.timestamp < clickAt);
+    },
+    /** @inheritdoc */
+    getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => {
+      const clickAt = clickState.read();
+      if (clickAt === false) return [];
+      return captured.filter((ep): boolean => ep.timestamp >= clickAt);
+    },
+  };
+}
+
+/**
+ * Build the live INetworkDiscovery instance bound to a Playwright Page.
+ * Captures responses, exposes WK-pattern discovery, and tracks the
+ * dashboard-click moment so DASHBOARD.FINAL / SCRAPE.PRE can split
+ * captures into pre-nav and post-nav buckets.
+ * @param page - Playwright page to capture responses from.
+ * @returns The live network-discovery instance.
+ */
 function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
-  page.on('response', (r: Response): boolean => handleResponse(captured, r));
+  const collectionState = buildCollectionState(true);
+  page.on('response', (r: Response): boolean => handleResponse(captured, r, collectionState.read));
   interceptPostResponses(page, captured);
+  const clickState = buildDashboardClickState(false);
+  const bucketing = buildBucketingMethods(captured, clickState);
+  const lifecycle = {
+    /** @inheritdoc */
+    setCollectionActive: collectionState.flip,
+  };
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
   const originDiscover = {
@@ -1043,8 +1179,38 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   // before later phases run. See AuthFailureWatcher.ts for layer details.
   const authFailureWatcher = createAuthFailureWatcher(page);
   const failureGate = { authFailureWatcher };
+  // Override the txn-endpoint discovery to operate on POST-NAV captures
+  // by default. With the soft-fallback inside `getPostNavCaptures`,
+  // banks that fire full-history at login (no click) still get a full
+  // pool — but banks like Isracard / Max where the click reveals the
+  // real full-history endpoint never see the pre-click widget pollute
+  // the picker. Accounts discovery stays on the full captured array
+  // because account / card lists fire at any phase of the flow.
+  /**
+   * Pick the txn endpoint from the post-nav bucket so SCRAPE.PRE
+   * never sees the pre-click widget endpoint.
+   * @returns Discovered txn endpoint or false.
+   */
+  const discoverTxnFromPostNav = (): IDiscoveredEndpoint | false => {
+    const pool = bucketing.getPostNavCaptures();
+    return discoverShapeAware(pool, PIPELINE_WELL_KNOWN_API.transactions);
+  };
+  const txnDiscovery = {
+    /** @inheritdoc */
+    discoverTransactionsEndpoint: discoverTxnFromPostNav,
+  };
   const base = { ...core, ...endpoints, ...originDiscover, ...urlBuilders };
-  return { ...base, ...traffic, ...authCache, ...apiOrigin, ...contentScan, ...failureGate };
+  return {
+    ...base,
+    ...bucketing,
+    ...lifecycle,
+    ...txnDiscovery,
+    ...traffic,
+    ...authCache,
+    ...apiOrigin,
+    ...contentScan,
+    ...failureGate,
+  };
 }
 
 /**
@@ -1052,15 +1218,24 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
  * All discovery methods operate on the frozen captured array — no live Page.
  * Auth methods return the pre-cached token. Traffic polling returns false.
  * Used by SCRAPE.ACTION to execute without browser access.
+ *
  * @param endpoints - Frozen copy of captured endpoints from PRE.
  * @param cachedAuth - Pre-cached auth token from DASHBOARD.
+ * @param dashboardClickAt - Click timestamp inherited from the live
+ *   network at freeze time. `false` for tests / synthetic frozen
+ *   replays — bucketing methods then expose the full pool, which is
+ *   the safe default when no nav-click occurred. SCRAPE.PRE callers
+ *   should always pass the real value through `IScrapeDiscovery`.
  * @returns Frozen INetworkDiscovery.
  */
 function createFrozenNetwork(
   endpoints: readonly IDiscoveredEndpoint[],
   cachedAuth: string | false,
+  dashboardClickAt: number | false = false,
 ): INetworkDiscovery {
   const frozen = [...endpoints];
+  const clickState = buildDashboardClickState(dashboardClickAt);
+  const bucketing = buildBucketingMethods(frozen, clickState);
   const core = buildCoreMethods(frozen);
   const epMethods = buildEndpointMethods(frozen);
   const frozenHeaders = buildFrozenHeaders(frozen, cachedAuth);
@@ -1089,8 +1264,39 @@ function createFrozenNetwork(
   };
   // Frozen-network has no live Page, so the watcher is a no-op stub.
   const failureGate = { authFailureWatcher: createFrozenAuthFailureWatcher() };
+  // Same post-nav-aware txn discovery override as the live network —
+  // SCRAPE.PRE / ACTION callers see the same shape regardless of
+  // whether they're operating on a live or frozen instance.
+  /**
+   * Pick the txn endpoint from the frozen post-nav bucket.
+   * @returns Discovered txn endpoint or false.
+   */
+  const discoverTxnFromPostNav = (): IDiscoveredEndpoint | false => {
+    const pool = bucketing.getPostNavCaptures();
+    return discoverShapeAware(pool, PIPELINE_WELL_KNOWN_API.transactions);
+  };
+  const txnDiscovery = {
+    /** @inheritdoc */
+    discoverTransactionsEndpoint: discoverTxnFromPostNav,
+  };
+  // Frozen replays have no listener, so the lifecycle gate is a
+  // no-op — accepting the call lets callers stay live-vs-frozen
+  // agnostic without runtime branching.
+  const lifecycle = {
+    /** @inheritdoc */
+    setCollectionActive: (): true => true,
+  };
   const base = { ...core, ...epMethods, ...frozenHeaders, ...urlBuilders };
-  return { ...base, ...frozenTraffic, ...apiOrigin, ...contentScan, ...failureGate };
+  return {
+    ...base,
+    ...bucketing,
+    ...lifecycle,
+    ...txnDiscovery,
+    ...frozenTraffic,
+    ...apiOrigin,
+    ...contentScan,
+    ...failureGate,
+  };
 }
 
 /**

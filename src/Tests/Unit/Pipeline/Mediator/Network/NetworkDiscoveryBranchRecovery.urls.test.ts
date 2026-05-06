@@ -206,6 +206,7 @@ describe('NetworkDiscovery — findCommonServicesUrl edges (L200, L251, L281)', 
   it('discoverTransactionsEndpoint returns shape-pass over plain-url match', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     // First: URL matches but body lacks transactions array.
     await simulate({
       url: 'https://api.bank.co.il/lastTransactions/1',

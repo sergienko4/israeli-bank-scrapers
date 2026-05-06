@@ -203,6 +203,8 @@ export interface IActionContext {
   readonly dashboard: Option<IDashboardState>;
   /** Scrape discovery. */
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
+  /** Pre-discovered accounts owned by LOGIN.FINAL / OTP-FILL.FINAL. */
+  readonly accountDiscovery: Option<IAccountDiscovery>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -239,6 +241,28 @@ interface IPipelineContext {
   readonly loginFieldDiscovery: Option<ILoginFieldDiscovery>;
   /** Scrape.PRE qualification results — ACTION reads qualified targets only. */
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
+  /**
+   * Account discovery owned by the auth FINAL stage (LOGIN.FINAL for
+   * non-OTP banks, OTP-FILL.FINAL for OTP banks). Populated from
+   * pre-nav captures BEFORE the dashboard navigation click — so the
+   * auth boundary is the contract for "we know the user's accounts".
+   * SCRAPE.PRE consumes this directly instead of re-running account
+   * discovery against the global capture pool. Strict SRP: each phase
+   * owns its data; no upstream rediscovery.
+   */
+  readonly accountDiscovery: Option<IAccountDiscovery>;
+}
+
+/**
+ * Pre-nav-derived account list owned by the auth FINAL stage.
+ * Format-stable so SCRAPE.PRE can consume it without bank-specific
+ * coupling. `ids` are the qualified account / card identifiers; the
+ * matching `records` carry the raw response payloads SCRAPE downstream
+ * may need (display name, last-4, etc.).
+ */
+interface IAccountDiscovery {
+  readonly ids: readonly string[];
+  readonly records: readonly Record<string, unknown>[];
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */
@@ -272,6 +296,16 @@ interface IScrapeDiscovery {
   readonly txnEndpoint?: IDiscoveredEndpoint | false;
   /** Pre-cached auth token from DASHBOARD. */
   readonly cachedAuth?: string | false;
+  /**
+   * Dashboard navigation-click timestamp inherited from the live
+   * network at freeze time. Lets the frozen network split captures
+   * into pre-nav vs post-nav buckets so SCRAPE.PRE's discovery sees
+   * the same post-nav-aware view as DASHBOARD.FINAL did. `false`
+   * when no click was dispatched (banks like Hapoalim that fire
+   * full-history at login) — the frozen network's soft-fallback then
+   * exposes the full pool.
+   */
+  readonly dashboardClickAt?: number | false;
   /** Harvested sessionStorage key-value pairs. */
   readonly storageHarvest?: Readonly<Record<string, string>>;
   /** DIRECT_API: raw card/account response from DASHBOARD.ACTION. */
@@ -290,6 +324,7 @@ export interface IBootstrapContext extends IActionContext {
 
 export type {
   ApiStrategyKind,
+  IAccountDiscovery,
   IApiFetchContext,
   IBrowserState,
   IDashboardState,

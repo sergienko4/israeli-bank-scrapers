@@ -87,6 +87,7 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
   it('uses shape gate to prefer endpoint with txn array', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     // Summary first (no txn array) — will match URL but not shape
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/summary',
@@ -104,6 +105,7 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
   it('falls back to first match when no body passes shape gate', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/summary',
       body: { total: 0 },

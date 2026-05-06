@@ -71,6 +71,43 @@ describe('OtpFillPhaseActions — branch recovery #3', () => {
     expect(isOkResult).toBe(true);
   });
 
+  it('executeFillFinal: pre-nav lacks account container → readiness fail-loud', async () => {
+    // Build a mediator whose network exposes a non-empty pool with NO
+    // account container — exercises the `!isOk(readiness)` branch in
+    // executeFillFinal added when the pre-nav account container check
+    // moved out of DASHBOARD.FINAL into OTP-FILL.FINAL.
+    const baseMediator = makeMockMediator({});
+    const mediator = {
+      ...baseMediator,
+      network: {
+        ...(baseMediator as { network: object }).network,
+        /**
+         * Non-empty pre-nav with non-account body.
+         * @returns Single capture.
+         */
+        getPreNavCaptures: (): readonly { responseBody: unknown }[] => [
+          { responseBody: { unrelated: 'no-container' } },
+        ],
+        /**
+         * Non-zero pool so shouldSkipPreNavCheck returns false.
+         * @returns Single endpoint.
+         */
+        getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
+      },
+    };
+    const base = makeMockContext();
+    const ctx = {
+      ...base,
+      mediator: some(mediator as unknown as Parameters<typeof some>[0]),
+    } as Parameters<typeof executeFillFinal>[0];
+    const result = await executeFillFinal(ctx);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('OTP-FILL');
+      expect(result.errorMessage).toContain('account/cards container');
+    }
+  });
+
   it('executeFillPost: error detected → rejects path', async () => {
     const page = makeScreenshotPage();
     const base = makeContextWithBrowser(page);

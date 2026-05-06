@@ -13,6 +13,7 @@ import type { Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type {
@@ -45,6 +46,18 @@ const MENU_SETTLE_MS = 5000;
 const DASHBOARD_SETTLE_MS = 15000;
 /** Should force-click for hidden menu toggles. */
 const shouldForceMenuClick = true;
+
+/**
+ * Convert the click-at sentinel (`number | false`) to a numeric value
+ * suitable for logging. Returns 0 when no click was dispatched. Pulled
+ * out so the structured log fields stay free of ternaries.
+ * @param clickAt - The raw click-at value.
+ * @returns Click timestamp in ms, or 0 when absent.
+ */
+function clickAtForLog(clickAt: number | false): number {
+  if (clickAt === false) return 0;
+  return clickAt;
+}
 
 /**
  * Log the winning dashboard target for diagnostics.
@@ -559,6 +572,12 @@ async function executeDashboardNavigationSealed(
     input.logger.debug({ message: 'no executor -- traffic from login' });
     return succeed(input);
   }
+  // Mark the navigation moment so DASHBOARD.POST and SCRAPE.PRE can
+  // split captures into pre-nav (login + dashboard widget) vs
+  // post-nav (full-history) buckets. PURE GENERIC — every bank's
+  // ACTION funnels through this entry point.
+  const clickAtMs = Date.now();
+  input.executor.value.markDashboardClickAt(clickAtMs);
   return runCandidateNavigation(input, input.executor.value);
 }
 
@@ -798,6 +817,22 @@ async function executeValidateTraffic(
   const isPrimed = validateTrafficGate(mediator.network, input.logger);
   const pageUrl = mediator.getCurrentUrl();
   input.logger.debug({ primed: isPrimed, url: maskVisibleText(pageUrl) });
+  // POST validates the traffic delta the click produced. The bucketing
+  // helpers compute pre-nav vs post-nav from the timestamp marker set
+  // by ACTION; emitting the counts here gives operators a single
+  // structured event to reason about whether the click revealed a
+  // new endpoint.
+  const network = mediator.network;
+  const preNavCount = network.getPreNavCaptures().length;
+  const postNavCount = network.getPostNavCaptures().length;
+  const rawClickAt = network.getDashboardClickAt();
+  const clickAt = clickAtForLog(rawClickAt);
+  input.logger.debug({
+    event: 'dashboard.post.delta',
+    preNavCount,
+    postNavCount,
+    clickAt,
+  });
   if (!isPrimed) {
     return fail(ScraperErrorTypes.Generic, 'DASHBOARD POST: no API traffic hasTxn');
   }
@@ -843,19 +878,90 @@ function countEndpoints(ctx: IPipelineContext): string {
  * @param input - Pipeline context.
  * @returns Updated context with api + auth in diagnostics.
  */
+/** WK transactions URL patterns used by FINAL's gatekeeper. */
+const FINAL_TXN_PATTERNS = PIPELINE_WELL_KNOWN_API.transactions;
+
+/** Bundled bucket counts emitted on the `dashboard.signal.ready` event. */
+interface INavBucketCounts {
+  readonly preNavCount: number;
+  readonly postNavCount: number;
+}
+
+/**
+ * Count the pre-nav / post-nav capture buckets for the FINAL signal.
+ * Returns zeros when the mediator hasn't been attached. Pulled out
+ * to keep `executeCollectAndSignal` free of inline ternaries.
+ * @param ctx - Pipeline context.
+ * @returns Bucket counts.
+ */
+function countNavBuckets(ctx: IPipelineContext): INavBucketCounts {
+  if (!ctx.mediator.has) return { preNavCount: 0, postNavCount: 0 };
+  const network = ctx.mediator.value.network;
+  return {
+    preNavCount: network.getPreNavCaptures().length,
+    postNavCount: network.getPostNavCaptures().length,
+  };
+}
+
+/**
+ * Verify the post-nav bucket (with soft-fallback) carries at least
+ * one WK-transactions URL match. This is the architectural contract
+ * the user spec requires: DASHBOARD.FINAL hands SCRAPE.PRE a complete
+ * `{ preNavCaptures, postNavCaptures }` payload where postNav is
+ * known-good. SCRAPE.PRE then performs pure discovery without any
+ * re-validation.
+ * @param ctx - Pipeline context.
+ * @returns True iff a WK-transactions match exists in postNav.
+ */
+function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
+  if (!ctx.mediator.has) return false;
+  const postNav = ctx.mediator.value.network.getPostNavCaptures();
+  return postNav.some((ep): boolean =>
+    FINAL_TXN_PATTERNS.some((p: RegExp): boolean => p.test(ep.url)),
+  );
+}
+
+/**
+ * FINAL: gate the phase, build API context, and emit the
+ * `dashboard.signal.ready` event for SCRAPE.PRE.
+ * @param input - Pipeline context.
+ * @returns Updated context with API + canonical signal, or fail.
+ */
 async function executeCollectAndSignal(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD FINAL: not ready');
+  // Gatekeeper — fail loud when SCRAPE.PRE would inherit an
+  // incomplete signal. The soft-fallback already widens postNav to
+  // the full pool when no nav-click was issued, so this only fires
+  // when NO captures across the entire run match a transactions
+  // pattern (broken login / dashboard / network). Only invoked when
+  // a real mediator is attached — mock contexts (unit tests, tools)
+  // skip the network-side check.
+  if (input.mediator.has && !hasPostNavTxnMatch(input)) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD FINAL: no transactions endpoint captured — pre-nav and post-nav both empty of WK-txn matches',
+    );
+  }
   const withApi = await maybeAttachApi(input);
   const dashUrl = withApi.dashboard.has && withApi.dashboard.value.pageUrl;
   const discoveredAuth = await extractAuthFromContext(withApi);
   const diag = { ...withApi.diagnostics, finalUrl: some(dashUrl || ''), discoveredAuth };
   const hasAuth = Boolean(discoveredAuth);
   const epCount = countEndpoints(withApi);
+  // Emit the canonical signal-ready event. preNavCount / postNavCount
+  // form the materialised contract: SCRAPE.PRE consumes the post-nav
+  // pool (already validated above) and never re-checks completeness.
+  const counts = countNavBuckets(withApi);
+  const preNavCount = counts.preNavCount;
+  const postNavCount = counts.postNavCount;
   withApi.logger.debug({
+    event: 'dashboard.signal.ready',
     authFound: hasAuth,
     endpoints: epCount,
+    preNavCount,
+    postNavCount,
   });
   return succeed({ ...withApi, diagnostics: diag });
 }

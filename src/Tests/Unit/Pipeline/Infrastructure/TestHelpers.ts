@@ -200,6 +200,11 @@ export function makeMockActionExecutor(overrides: Partial<IActionMediator> = {})
      * @returns Resolved false.
      */
     waitForTxnEndpoint: (): Promise<boolean> => Promise.resolve(false),
+    /**
+     * No-op click marker stub.
+     * @returns True.
+     */
+    markDashboardClickAt: (): true => true,
   };
   return { ...base, ...overrides };
 }

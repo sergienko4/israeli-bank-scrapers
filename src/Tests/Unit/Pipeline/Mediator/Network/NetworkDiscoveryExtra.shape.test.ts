@@ -44,6 +44,7 @@ describe('NetworkDiscovery — discoverShapeAware full branch matrix', () => {
   it('shape pass branch: txn endpoint body contains transactions array', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/full',
       body: { transactions: [{ a: 1 }] },
@@ -55,6 +56,7 @@ describe('NetworkDiscovery — discoverShapeAware full branch matrix', () => {
   it('shape pass branch with txns key', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/full',
       body: { txns: [{ a: 1 }] },
@@ -66,6 +68,7 @@ describe('NetworkDiscovery — discoverShapeAware full branch matrix', () => {
   it('shape pass via txnIsrael container key', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/v2',
       body: { data: { txnIsrael: [{ id: 1 }] } },

@@ -69,7 +69,8 @@ async function runFrozenScrape(
 ): Promise<Procedure<IActionContext>> {
   const frozenEps = disc.frozenEndpoints ?? [];
   const cachedAuth = disc.cachedAuth ?? false;
-  const frozen = createFrozenNetwork(frozenEps, cachedAuth);
+  const dashboardClickAt = disc.dashboardClickAt ?? false;
+  const frozen = createFrozenNetwork(frozenEps, cachedAuth, dashboardClickAt);
   const api = await resolveFrozenApi(input);
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);

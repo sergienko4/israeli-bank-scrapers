@@ -6,11 +6,6 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
-/** Whether a mock operation completed successfully. */
-type MockResult = boolean;
-/** Mock URL string. */
-type MockUrl = string;
-
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   ICookieSnapshot,
@@ -19,6 +14,7 @@ import type {
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IFormErrorScanResult } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 import { createFrozenAuthFailureWatcher } from '../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
+import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -49,6 +45,41 @@ import { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/Moc
 export { makeMockContext, makeMockPage };
 
 // ── Browser mocks ─────────────────────────────────────────
+
+/**
+ * Synthetic endpoint that matches a `WK.transactions` URL pattern
+ * (`getTransactions`) so DASHBOARD.FINAL's gatekeeper passes by
+ * default in tests that don't deliberately exercise the fail path.
+ * Tests that need to verify the gatekeeper's failure mode override
+ * `getPostNavCaptures` to return `[]`.
+ */
+const MOCK_TXN_ENDPOINT: IDiscoveredEndpoint = {
+  url: 'https://test.example/api/getTransactions',
+  method: 'POST',
+  postData: '',
+  responseBody: { transactions: [] },
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+};
+
+/**
+ * Synthetic pre-nav endpoint whose body holds a `WK.accountContainers`
+ * array (`cards`) so DASHBOARD.FINAL's pre-nav gatekeeper passes by
+ * default. Tests that exercise the gatekeeper's failure mode override
+ * `getPreNavCaptures` to return `[]`.
+ */
+const MOCK_ACCOUNTS_ENDPOINT: IDiscoveredEndpoint = {
+  url: 'https://test.example/api/getDashboardAccounts',
+  method: 'GET',
+  postData: '',
+  responseBody: { cards: [{ accountId: 'mock-1' }] },
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+};
 
 /** Minimal locator mock used by makeMockFullPage. */
 const MOCK_LOCATOR = {
@@ -133,7 +164,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * No-op timeout setter mock.
      * @returns True.
      */
-    setDefaultTimeout: (): MockResult => true,
+    setDefaultTimeout: (): boolean => true,
     /**
      * Resolves immediately for any load state.
      * @returns Resolved true.
@@ -412,7 +443,7 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * URL mock — returns about:blank.
      * @returns Mock URL string.
      */
-    getCurrentUrl: (): MockUrl => 'about:blank',
+    getCurrentUrl: (): string => 'about:blank',
     /**
      * Network idle mock — always succeeds.
      * @returns Succeed(undefined).
@@ -479,6 +510,37 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      */
     addCookies: (): Promise<void> => Promise.resolve(),
     network: {
+      /**
+       * No-op recording gate in mock.
+       * @returns True.
+       */
+      setCollectionActive: (): true => true,
+      /**
+       * No-op click marker in mock.
+       * @returns True.
+       */
+      markDashboardClickAt: (): true => true,
+      /**
+       * No click in mock.
+       * @returns False.
+       */
+      getDashboardClickAt: (): false => false,
+      /**
+       * Single fake accounts-shape endpoint so DASHBOARD.FINAL's
+       * pre-nav gatekeeper passes by default. Tests that exercise
+       * the failure mode override `getPreNavCaptures` to return `[]`.
+       * @returns Single-element array with a synthetic accounts
+       *   container.
+       */
+      getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => [MOCK_ACCOUNTS_ENDPOINT],
+      /**
+       * Single fake txn-pattern endpoint so DASHBOARD.FINAL's
+       * gatekeeper passes by default. Tests that specifically want
+       * to exercise the gatekeeper fail-fast path should override
+       * this with `getPostNavCaptures: () => []`.
+       * @returns Single-element array with a synthetic txn match.
+       */
+      getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => [MOCK_TXN_ENDPOINT],
       /**
        * No endpoints in mock.
        * @returns Empty array.
