@@ -4,7 +4,12 @@
  * Uses ONLY WK_HOME. Never imports from PreLoginWK or LoginWK.
  *
  * Rule #20: PRE is passive (HomeResolver.ts). ACTION is the Executioner.
- * Supports DIRECT (single click) and SEQUENTIAL (menu toggle + child click).
+ *
+ * SRP rule (Phase 6): ACTION clicks ONLY the PRE-resolved
+ * `triggerTarget` (identity selector). No `text=<value>` re-resolution,
+ * no tier-cascade onto a different DOM element, no href-scan rescue.
+ * If the click doesn't navigate, ACTION returns false and the phase
+ * fails loud.
  */
 
 import type { Locator, Page } from 'playwright-core';
@@ -25,10 +30,6 @@ import type {
 } from '../Elements/ElementMediator.js';
 import type { IHomeDiscovery } from './HomeResolver.js';
 import { NAV_STRATEGY } from './HomeResolver.js';
-import { executeSequentialClick } from './HomeSequentialNav.js';
-
-/** Login path patterns — common across Israeli banks. */
-const LOGIN_PATH_PATTERNS = [/personalarea\/login/i, /login/i, /auth/i];
 
 /** Timeout for settle after click. */
 const SETTLE_TIMEOUT = 15000;
@@ -36,135 +37,8 @@ const SETTLE_TIMEOUT = 15000;
 /** Timeout for waiting for login link in POST. */
 const ENTRY_TIMEOUT = 15000;
 
-/** Timeout for menu child visibility after dropdown open. */
-const MENU_WAIT_MS = 5000;
-
-/** Timeout for SPA URL change after menu click. */
+/** Timeout for SPA URL change after click (Angular routing delay). */
 const SPA_NAV_TIMEOUT = 10000;
-
-/** Bundled args for navigation execution. */
-interface INavExecArgs {
-  readonly mediator: IElementMediator;
-  readonly input: IPipelineContext;
-  readonly discovery: IHomeDiscovery;
-  readonly logger: ScraperLogger;
-}
-
-/**
- * ACTION: Navigate to login page using discovery from PRE.
- * DIRECT: single click → wait. SEQUENTIAL: click trigger → find menu child → click → wait.
- * Falls back to href scan if navigation doesn't occur.
- * @param args - Bundled navigation arguments.
- * @returns Procedure with updated context.
- */
-async function executeNavigateToLogin(args: INavExecArgs): Promise<Procedure<IPipelineContext>> {
-  const { mediator, discovery, logger } = args;
-  const urlBefore = mediator.getCurrentUrl();
-  const isSequential = discovery.strategy === NAV_STRATEGY.SEQUENTIAL;
-  if (isSequential) {
-    await executeSequentialNav(mediator, discovery, logger);
-  }
-  if (!isSequential) {
-    await executeDirectNav(mediator, discovery, logger);
-  }
-  await mediator.waitForNetworkIdle(SETTLE_TIMEOUT).catch((): false => false);
-  const urlAfter = mediator.getCurrentUrl();
-  const didNavigate = urlBefore !== urlAfter;
-  const maskedUrl = maskVisibleText(urlAfter);
-  logger.debug({ url: maskedUrl, didNavigate });
-  if (!didNavigate) await tryFallbackNavigation(mediator, logger);
-  const finalUrl = mediator.getCurrentUrl();
-  logger.trace({
-    url: maskVisibleText(finalUrl),
-    didNavigate: urlBefore !== finalUrl,
-  });
-  return succeed(args.input);
-}
-
-/**
- * Execute DIRECT navigation — single click on trigger text.
- * @param mediator - Element mediator.
- * @param discovery - Discovery with triggerText.
- * @param logger - Pipeline logger.
- * @returns True if clicked.
- */
-async function executeDirectNav(
-  mediator: IElementMediator,
-  discovery: IHomeDiscovery,
-  logger: ScraperLogger,
-): Promise<boolean> {
-  const candidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
-  const result = await mediator.resolveAndClick([candidate]).catch((): false => false);
-  if (result === false) return false;
-  if (!result.success || !result.value.found) return false;
-  const label = result.value.value;
-  logger.debug({ text: maskVisibleText(label) });
-  return true;
-}
-
-/**
- * Execute SEQUENTIAL navigation — click trigger (menu), wait, click child.
- * @param mediator - Element mediator.
- * @param discovery - Discovery with triggerText + menuCandidates.
- * @param logger - Pipeline logger.
- * @returns True if target clicked.
- */
-async function executeSequentialNav(
-  mediator: IElementMediator,
-  discovery: IHomeDiscovery,
-  logger: ScraperLogger,
-): Promise<boolean> {
-  // Step 1: Click trigger (open menu)
-  const triggerCandidate: SelectorCandidate = { kind: 'textContent', value: discovery.triggerText };
-  await mediator.resolveAndClick([triggerCandidate]).catch((): false => false);
-  logger.debug({
-    text: maskVisibleText(discovery.triggerText),
-  });
-  // Step 2: Wait for menu child to become visible
-  await mediator.waitForNetworkIdle(MENU_WAIT_MS).catch((): false => false);
-  // Step 3: Click the menu child
-  if (discovery.menuCandidates.length === 0) return false;
-  const candidates = discovery.menuCandidates;
-  const menuResult = await mediator.resolveAndClick(candidates).catch((): false => false);
-  if (menuResult === false) return false;
-  if (!menuResult.success || !menuResult.value.found) return false;
-  const targetText = menuResult.value.value;
-  const maskedTrigger = maskVisibleText(discovery.triggerText);
-  const maskedTarget = maskVisibleText(targetText);
-  logger.debug({ trigger: maskedTrigger, target: maskedTarget });
-  // Step 4: SPA wait — wait for URL to contain /login (Angular routing delay)
-  await mediator.waitForURL('**/login**', SPA_NAV_TIMEOUT);
-  return true;
-}
-
-/**
- * Scan all hrefs on the page for a login URL pattern.
- * @param mediator - Element mediator.
- * @returns First matching login href or false.
- */
-async function findLoginHrefOnPage(mediator: IElementMediator): Promise<string | false> {
-  const allHrefs = await mediator.collectAllHrefs();
-  const match = allHrefs.find((h): boolean => LOGIN_PATH_PATTERNS.some((p): boolean => p.test(h)));
-  return match ?? false;
-}
-
-/**
- * Fallback: scan page for login href and navigate directly.
- * @param mediator - Element mediator.
- * @param logger - Pipeline logger.
- * @returns True if navigated, false otherwise.
- */
-async function tryFallbackNavigation(
-  mediator: IElementMediator,
-  logger: ScraperLogger,
-): Promise<boolean> {
-  const loginHref = await findLoginHrefOnPage(mediator);
-  if (!loginHref) return false;
-  logger.debug({ url: maskVisibleText(loginHref) });
-  const navOpts = { waitUntil: 'domcontentloaded' as const };
-  await mediator.navigateTo(loginHref, navOpts).catch((): false => false);
-  return true;
-}
 
 /** Bundled args for login area validation. */
 interface IValidateLoginAreaArgs {
@@ -336,28 +210,25 @@ async function settleAfterClick(
 }
 
 /**
- * Fallback: scan hrefs and navigate to login URL.
- * @param executor - Sealed action mediator.
- * @param logger - Pipeline logger.
- * @returns True if navigated.
- */
-async function tryFallbackNav(executor: IActionMediator, logger: ScraperLogger): Promise<boolean> {
-  const allHrefs = await executor.collectAllHrefs();
-  const patterns = [/personalarea\/login/i, /login/i, /auth/i];
-  const match = allHrefs.find((h): boolean => patterns.some((p): boolean => p.test(h)));
-  if (!match) return false;
-  logger.debug({ url: maskVisibleText(match) });
-  await executor.navigateTo(match, { waitUntil: 'domcontentloaded' }).catch((): false => false);
-  return true;
-}
-
-/**
- * Execute full HOME navigation via sealed executor.
- * Dispatches by strategy: MODAL, SEQUENTIAL, DIRECT.
+ * Execute HOME navigation via sealed executor — SRP: ACTION clicks
+ * ONLY the PRE-resolved `triggerTarget` (identity selector captured
+ * by the resolver). Strategy dispatch:
+ *   • MODAL: open the modal overlay (separate flow).
+ *   • DIRECT / SEQUENTIAL: single click on `triggerTarget`, then
+ *     wait for the URL to change. No tier fallback, no `text=`
+ *     re-resolution, no href-scan rescue. If the URL doesn't change
+ *     within `SETTLE_TIMEOUT`, return false — caller fails loud.
+ *
+ * Why both strategies use the same single-click path: live cross-
+ * validation (2026-05-06) showed every non-OTP bank's HOME click
+ * resolves to ONE element. The legacy SEQUENTIAL "second click via
+ * text=<value>" fired against an unscoped locator that could match
+ * a DIFFERENT DOM element with the same visible text — the Max BoG
+ * regression. Removing it eliminates that whole class of bug.
  * @param executor - Sealed action mediator.
  * @param discovery - Discovery from PRE.
  * @param logger - Pipeline logger.
- * @returns True if navigated.
+ * @returns True iff `page.url()` changed after the click.
  */
 async function executeHomeNavigation(
   executor: IActionMediator,
@@ -371,19 +242,16 @@ async function executeHomeNavigation(
   const urlBefore = executor.getCurrentUrl();
   const isSeq = discovery.strategy === NAV_STRATEGY.SEQUENTIAL;
   await clickResolvedTarget(executor, discovery.triggerTarget, isSeq);
-  if (isSeq) await executeSequentialClick(executor, discovery, logger);
   await settleAfterClick(executor, isSeq);
-  const didNavigate = urlBefore !== executor.getCurrentUrl();
   const currentUrl = executor.getCurrentUrl();
+  const didNavigate = urlBefore !== currentUrl;
   logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
-  if (!didNavigate) return tryFallbackNav(executor, logger);
-  return true;
+  return didNavigate;
 }
 
 export {
   executeHomeNavigation,
   executeModalClick,
-  executeNavigateToLogin,
   executeStoreLoginSignal,
   executeValidateLoginArea,
   tryClickLoginLink,

@@ -39,8 +39,6 @@ interface IHomeDiscovery {
   readonly strategy: NavStrategy;
   /** Text of the trigger element found in WK_HOME.ENTRY. */
   readonly triggerText: string;
-  /** Menu child candidates (WK_HOME.MENU) — only for SEQUENTIAL. */
-  readonly menuCandidates: readonly SelectorCandidate[];
   /** Pre-resolved trigger target (contextId + selector) for ACTION executor. */
   readonly triggerTarget: IResolvedTarget | false;
 }
@@ -179,7 +177,7 @@ async function detectModalAttribute(
  * @returns IHomeDiscovery for DIRECT strategy.
  */
 function buildDirect(triggerText: string, triggerTarget: IResolvedTarget | false): IHomeDiscovery {
-  return { strategy: NAV_STRATEGY.DIRECT, triggerText, menuCandidates: [], triggerTarget };
+  return { strategy: NAV_STRATEGY.DIRECT, triggerText, triggerTarget };
 }
 
 /**
@@ -189,11 +187,16 @@ function buildDirect(triggerText: string, triggerTarget: IResolvedTarget | false
  * @returns IHomeDiscovery for MODAL strategy.
  */
 function buildModal(triggerText: string, triggerTarget: IResolvedTarget | false): IHomeDiscovery {
-  return { strategy: NAV_STRATEGY.MODAL, triggerText, menuCandidates: [], triggerTarget };
+  return { strategy: NAV_STRATEGY.MODAL, triggerText, triggerTarget };
 }
 
 /**
- * Build SEQUENTIAL discovery — menu toggle + child click.
+ * Build SEQUENTIAL discovery — single click on the same identity-
+ * based `triggerTarget` as DIRECT. Strategy distinction kept for
+ * back-compat / classification semantics, but ACTION takes the
+ * same code path. The legacy `menuCandidates` text array was
+ * removed in Phase 6 (Max BoG regression — see HomeActions.ts
+ * `executeHomeNavigation` doc).
  * @param triggerText - Trigger element text.
  * @param triggerTarget - Pre-resolved target for ACTION executor.
  * @returns IHomeDiscovery for SEQUENTIAL strategy.
@@ -202,8 +205,7 @@ function buildSequential(
   triggerText: string,
   triggerTarget: IResolvedTarget | false,
 ): IHomeDiscovery {
-  const menu = WK_HOME.MENU as unknown as readonly SelectorCandidate[];
-  return { strategy: NAV_STRATEGY.SEQUENTIAL, triggerText, menuCandidates: menu, triggerTarget };
+  return { strategy: NAV_STRATEGY.SEQUENTIAL, triggerText, triggerTarget };
 }
 
 export type { IHomeDiscovery };
