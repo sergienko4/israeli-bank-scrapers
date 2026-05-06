@@ -5,14 +5,12 @@
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
-import { redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
+import { redactAccount, redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { detectMirroredAccounts } from './MirrorDetection.js';
 
-/** Show last N digits of account number for identification. */
-const ACCOUNT_VISIBLE_DIGITS = 5;
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
   readonly accountNumber: string;
@@ -34,14 +32,15 @@ const LOG = createLogger('scrape-phase');
  * @returns True after logging.
  */
 /**
- * Show last N digits of an account/card number.
+ * Show an account/card number for the AUDIT log line. Delegates to
+ * the central `redactAccount` so the local dev-mode toggle
+ * (`PII_REDACTION=off`) controls audit output the same way it
+ * controls every other redacted field — single source of truth.
  * @param acctNum - Full account number string.
- * @returns Last 5 digits or full string if shorter.
+ * @returns Stable hint (or raw value when redaction is disabled).
  */
 function showLastDigits(acctNum: string): string {
-  if (acctNum.length <= ACCOUNT_VISIBLE_DIGITS) return acctNum;
-  const visible = acctNum.slice(-ACCOUNT_VISIBLE_DIGITS);
-  return `***${visible}`;
+  return redactAccount(acctNum);
 }
 
 /**

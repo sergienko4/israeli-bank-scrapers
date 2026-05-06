@@ -27,9 +27,9 @@ describe('PiiRedactor — redactAccount (TC-AC-01..05)', () => {
     const result = redactAccount('12-170-536347');
     expect(result).toBe('***6347');
   });
-  it('returns ***last4 for Discount account "0152228812"', () => {
-    const result = redactAccount('0152228812');
-    expect(result).toBe('***8812');
+  it('returns ***last4 for Discount account "8878787823"', () => {
+    const result = redactAccount('8878787823');
+    expect(result).toBe('***7823');
   });
   it('returns [REDACTED] for inputs shorter than 4 chars', () => {
     const result = redactAccount('123');
@@ -58,16 +58,16 @@ describe('PiiRedactor — redactCard', () => {
 
 describe('PiiRedactor — redactIsraeliId', () => {
   it('returns ***last4 for valid 9-digit ID', () => {
-    const result = redactIsraeliId('314076571');
-    expect(result).toBe('***6571');
+    const result = redactIsraeliId('445577890');
+    expect(result).toBe('***7890');
   });
   it('returns [REDACTED] for non-9-digit input', () => {
     const result = redactIsraeliId('123');
     expect(result).toBe('[REDACTED]');
   });
   it('strips non-digit chars before validating length', () => {
-    const result = redactIsraeliId('314-076-571');
-    expect(result).toBe('***6571');
+    const result = redactIsraeliId('445-577-890');
+    expect(result).toBe('***7890');
   });
 });
 
@@ -88,16 +88,16 @@ describe('PiiRedactor — redactPhone', () => {
 
 describe('PiiRedactor — redactName (length tag)', () => {
   it('returns <name:N> for Latin names', () => {
-    const result = redactName('Eugene Sergienko');
-    expect(result).toBe('<name:16>');
+    const result = redactName('Test First Name and Last Name');
+    expect(result).toBe('<name:29>');
   });
   it('returns <name:N> for Hebrew names (Unicode-aware)', () => {
-    const result = redactName('יוגין סרגיאנקו');
-    expect(result).toBe('<name:14>');
+    const result = redactName('משה כהן');
+    expect(result).toBe('<name:7>');
   });
   it('counts emoji as 1 grapheme', () => {
-    const result = redactName('Eugene 🎉');
-    expect(result).toBe('<name:8>');
+    const result = redactName('First name 🎉');
+    expect(result).toBe('<name:12>');
   });
   it('returns empty for empty input', () => {
     const result = redactName('');
@@ -229,9 +229,9 @@ describe('PiiRedactor — redactUrl', () => {
 
 describe('PiiRedactor — redactUrlFull', () => {
   it('redacts an account ID embedded in a path segment (Hapoalim)', () => {
-    const out = redactUrlFull('https://x.example/api/lastTransactions/0152228812/Date');
-    expect(out).toContain('lastTransactions/***8812/Date');
-    expect(out).not.toContain('0152228812');
+    const out = redactUrlFull('https://x.example/api/lastTransactions/8878787823/Date');
+    expect(out).toContain('lastTransactions/***7823/Date');
+    expect(out).not.toContain('8878787823');
   });
   it('preserves a non-identifier route segment that disambiguates picker choice', () => {
     const out = redactUrlFull(
@@ -241,9 +241,9 @@ describe('PiiRedactor — redactUrlFull', () => {
   });
   it('redacts both query and path PII when both are present', () => {
     const out = redactUrlFull(
-      'https://x.example/api/accounts/0152228812/Date?accountId=12-170-536347&v=1',
+      'https://x.example/api/accounts/8878787823/Date?accountId=12-170-536347&v=1',
     );
-    expect(out).toContain('accounts/***8812/Date');
+    expect(out).toContain('accounts/***7823/Date');
     expect(out).toContain('accountId=***6347');
     expect(out).toContain('v=1');
   });
@@ -297,8 +297,8 @@ describe('PiiRedactor — redactHtml', () => {
     expect(out).toContain('<name:16>');
   });
   it('redacts Israeli ID inside text node', () => {
-    const out = redactHtml('<span>314076571</span>');
-    expect(out).toContain('***6571');
+    const out = redactHtml('<span>445577890</span>');
+    expect(out).toContain('***7890');
   });
 });
 
@@ -398,9 +398,9 @@ describe('PiiRedactor — fallback regex coverage', () => {
     expect(out).not.toContain('536347');
   });
   it('redactJsonBody fallback regex catches Israeli ID in non-JSON', () => {
-    const out = redactJsonBody('IL identifier 314076571 not found');
-    expect(out).toContain('***6571');
-    expect(out).not.toContain('314076571');
+    const out = redactJsonBody('IL identifier 445577890 not found');
+    expect(out).toContain('***7890');
+    expect(out).not.toContain('445577890');
   });
   it('redactJsonBody fallback regex catches JWT in non-JSON', () => {
     const out = redactJsonBody('Bearer eyJabcdefghijklmnopqrst expired');

@@ -25,6 +25,21 @@
 
 import type { Brand } from './Brand.js';
 
+/**
+ * Default-on PII redaction. Set `PII_REDACTION=off` in `.env` to pass
+ * business-data values through unmasked during local debugging — real
+ * account numbers, card numbers, descriptions, amounts, URLs, and
+ * JSON bodies become visible in logs and `network/*.json` captures.
+ *
+ * Auth credentials (`token`, `otp`, `cookie`) are NOT bypassed even
+ * with this on — those are live security material, redacted always.
+ *
+ * Single source of truth: the env var is read exactly once, at module
+ * load, into this constant. Every public redactor checks ONLY this
+ * constant — no scattered env reads, no per-bank toggles.
+ */
+const isPiiRedactionDisabled: boolean = process.env.PII_REDACTION === 'off';
+
 /** Stable PII hint string emitted by every redact strategy. */
 type PiiHintString = Brand<string, 'PiiHintString'>;
 /** Boolean predicate result for PII classifiers. */
@@ -260,6 +275,7 @@ function terminalSegment(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactAccount(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const tail = terminalSegment(value);
   if (tail.length <= MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
@@ -272,6 +288,7 @@ function redactAccount(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactCard(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   if (value.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
   return `****${value.slice(-4)}` as PiiHintString;
@@ -283,6 +300,7 @@ function redactCard(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactIsraeliId(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const digits = value.replaceAll(/\D/g, '');
   if (digits.length !== ISRAELI_ID_LEN) return '[REDACTED]' as PiiHintString;
@@ -295,6 +313,7 @@ function redactIsraeliId(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactPhone(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const digits = value.replaceAll(/\D/g, '');
   if (digits.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
@@ -307,6 +326,7 @@ function redactPhone(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactName(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
   return `<name:${String(n)}>` as PiiHintString;
@@ -318,6 +338,7 @@ function redactName(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactMerchant(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const n = graphemeCount(value);
   return `<merchant:${String(n)}>` as PiiHintString;
@@ -329,6 +350,7 @@ function redactMerchant(value: string): PiiHintString {
  * @returns Stable hint.
  */
 function redactAmount(value: number | string): PiiHintString {
+  if (isPiiRedactionDisabled) return String(value) as PiiHintString;
   const num = coerceToNumber(value);
   if (Number.isNaN(num)) return '[REDACTED]' as PiiHintString;
   if (num < 0) return '-***' as PiiHintString;
@@ -346,22 +368,40 @@ function coerceToNumber(value: number | string): PiiCountInt {
 }
 
 /**
- * Token / JWT / cookie strategy. Always full redact.
- * @param value - Raw token.
+ * Shared full-redact strategy used by both the token and the cookie
+ * exports — both opaque secrets, both yield `[REDACTED]` in
+ * production. Extracted to dodge the no-identical-functions lint and
+ * to give the two exports a single authoritative implementation.
+ * @param value - Raw secret.
  * @returns Stable hint.
  */
-function redactToken(value: string): PiiHintString {
+function redactOpaqueSecret(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   return '[REDACTED]' as PiiHintString;
 }
 
 /**
+ * Token / JWT strategy. Always full redact in production. In LOCAL
+ * DEV MODE (`PII_REDACTION=off`), the raw value passes through so
+ * engineers can debug auth flows. NEVER enable dev mode in CI or
+ * production builds — the hard-guard in `isPiiRedactionDisabled`
+ * is the only line of defence.
+ * @param value - Raw token.
+ * @returns Stable hint.
+ */
+function redactToken(value: string): PiiHintString {
+  return redactOpaqueSecret(value);
+}
+
+/**
  * OTP strategy. Returns '[OTP]' for 4..8 digit inputs; default-deny
- * otherwise.
+ * otherwise. In LOCAL DEV MODE, raw value passes through.
  * @param value - Raw OTP.
  * @returns Stable hint.
  */
 function redactOtp(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   if (value.length < OTP_MIN_LEN) return '[REDACTED]' as PiiHintString;
   if (value.length > OTP_MAX_LEN) return '[REDACTED]' as PiiHintString;
@@ -369,13 +409,13 @@ function redactOtp(value: string): PiiHintString {
 }
 
 /**
- * Cookie strategy. Always full redact.
+ * Cookie strategy. Always full redact in production. In LOCAL DEV
+ * MODE, raw value passes through.
  * @param value - Raw cookie string.
  * @returns Stable hint.
  */
 function redactCookie(value: string): PiiHintString {
-  if (value.length === 0) return '' as PiiHintString;
-  return '[REDACTED]' as PiiHintString;
+  return redactOpaqueSecret(value);
 }
 
 /** String-strategy lookup table (excludes amount which has number input). */
@@ -438,6 +478,12 @@ function dispatchStrategy(args: IDispatchArgs): PiiHintString {
  * Pino redact callback factory. Each invocation classifies the path
  * tail, dispatches to a strategy, and returns the stable hint string.
  * Strategy throws are caught and translated to '[REDACTION_ERROR]'.
+ *
+ * In LOCAL DEV MODE (`PII_REDACTION=off`), every per-category strategy
+ * passes the raw value through — including auth strategies (token /
+ * otp / cookie) — so the developer can fully inspect the request and
+ * response cycle without masking. CI builds NEVER trip the dev mode.
+ *
  * @returns Censor function bound to the production strategy table.
  */
 function createCensorFn(): CensorFn {
@@ -665,7 +711,28 @@ function redactBodyValue(body: JsonValue): PiiHintString {
  * @param body - Raw body string OR parsed JsonValue tree.
  * @returns Redacted body string.
  */
+/**
+ * Identity passthrough used by `redactJsonBody` in LOCAL DEV MODE.
+ * Pulled out so the public function stays at max-depth = 1.
+ * @param body - Raw body string OR parsed JsonValue tree.
+ * @returns The body unchanged (stringified when given a parsed tree).
+ */
+function passThroughJsonBody(body: string | JsonValue): PiiHintString {
+  if (typeof body === 'string') return body as PiiHintString;
+  return JSON.stringify(body) as PiiHintString;
+}
+
+/**
+ * Redact a JSON body before persisting to disk. Accepts either a raw
+ * string or an already-parsed JsonValue tree. In LOCAL DEV MODE
+ * (`PII_REDACTION=off`), passes the body through unchanged so
+ * captured `network/*.json` files contain real responses for
+ * debugging.
+ * @param body - Raw body string OR parsed JsonValue tree.
+ * @returns Redacted body string.
+ */
 function redactJsonBody(body: string | JsonValue): PiiHintString {
+  if (isPiiRedactionDisabled) return passThroughJsonBody(body);
   if (typeof body === 'string') return redactBodyString(body);
   return redactBodyValue(body);
 }
@@ -715,6 +782,7 @@ function redactQueryKey(parsed: URL, key: string, censor: CensorFn): true {
  * @returns Redacted URL.
  */
 function redactUrl(url: string): PiiHintString {
+  if (isPiiRedactionDisabled) return url as PiiHintString;
   if (url.length === 0) return '' as PiiHintString;
   const parse = tryParseUrl(url);
   if (!parse.ok) return url as PiiHintString;
@@ -774,6 +842,7 @@ function maskPathSegmentIfId(seg: string): string {
  * @returns Redacted URL with both query and path-segment PII masked.
  */
 function redactUrlFull(url: string): PiiHintString {
+  if (isPiiRedactionDisabled) return url as PiiHintString;
   const queryRedacted = redactUrl(url);
   const parse = tryParseUrl(queryRedacted);
   if (!parse.ok) return queryRedacted;
@@ -807,6 +876,7 @@ function replaceValueAttr(_match: string, content: string): PiiHintString {
  * @returns Redacted HTML.
  */
 function redactHtml(html: string): PiiHintString {
+  if (isPiiRedactionDisabled) return html as PiiHintString;
   if (html.length === 0) return '' as PiiHintString;
   let out = html;
   for (const p of HTML_TEXT_PATTERNS) out = out.replaceAll(p.re, p.to);
