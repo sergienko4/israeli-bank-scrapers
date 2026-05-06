@@ -230,13 +230,17 @@ describe('NetworkDiscovery', () => {
   describe('buildTransactionUrl', () => {
     it('builds full transaction URL from captured forHomePage pattern', async () => {
       await simulateResponse({
-        url: 'https://bank.co.il/gatewayAPI/lastTransactions/transactions/0152228812/forHomePage?NumberOfTransactions=6',
+        url: 'https://bank.co.il/gatewayAPI/lastTransactions/transactions/8878787823/forHomePage?NumberOfTransactions=6',
         body: { data: [] },
       });
-      const txnUrl = discovery.buildTransactionUrl('0152228812', '20250101');
+      const txnUrl = discovery.buildTransactionUrl('8878787823', '20250101');
       expect(txnUrl).not.toBe(false);
       if (txnUrl) {
-        expect(txnUrl).toContain('lastTransactions/0152228812/Date');
+        // Preserve the full path between root and accountId — Discount
+        // uses /lastTransactions/transactions/<id>/, so the
+        // intermediate `transactions/` segment must survive into the
+        // reconstructed Date URL or the bank's API returns 404.
+        expect(txnUrl).toContain('lastTransactions/transactions/8878787823/Date');
         expect(txnUrl).toContain('FromDate=20250101');
       }
     });

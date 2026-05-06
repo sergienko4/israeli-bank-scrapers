@@ -30,6 +30,44 @@ describe('NetworkDiscovery — extractApiBaseFromUrl short-circuit paths', () =>
     const url = discovery.buildTransactionUrl('4718', '20240401');
     expect(typeof url === 'string' || !url).toBe(true);
   });
+
+  // Regression — Discount API added an intermediate `transactions/` path
+  // segment between `/lastTransactions/` and `<accountId>`. The earlier
+  // greedy `/\/lastTransactions.*/` strip ate that segment and produced
+  // `/lastTransactions/<accountId>/Date?...` which 404'd. The fix
+  // preserves the captured path structure verbatim so any number of
+  // intermediate segments survive.
+  it('buildTransactionUrl preserves multi-segment path between root and accountId (Discount shape)', async () => {
+    const page = makePage();
+    const discovery = createNetworkDiscovery(page);
+    await simulate({
+      url: 'https://bank.example/Titan/gatewayAPI/lastTransactions/transactions/8878787823/forHomePage?IsTransactionDetails=False&NumberOfTransactions=6',
+      body: { CurrentAccountLastTransactions: { OperationEntry: [] } },
+    });
+    const url = discovery.buildTransactionUrl('8878787823', '20240101');
+    expect(url).toBe(
+      'https://bank.example/Titan/gatewayAPI/lastTransactions/transactions/8878787823/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=20240101',
+    );
+  });
+
+  it('buildTransactionUrl ignores non-txn URLs that happen to contain accountId', async () => {
+    const page = makePage();
+    const discovery = createNetworkDiscovery(page);
+    // Non-txn URL captured FIRST with accountId embedded — picker must
+    // skip and look for a real txn-pattern URL further down the list.
+    await simulate({
+      url: 'https://bank.example/Titan/gatewayAPI/general/getUserPilotInfo/8878787823?v=1',
+      body: { ok: true },
+    });
+    await simulate({
+      url: 'https://bank.example/Titan/gatewayAPI/lastTransactions/transactions/8878787823/forHomePage',
+      body: { CurrentAccountLastTransactions: { OperationEntry: [] } },
+    });
+    const url = discovery.buildTransactionUrl('8878787823', '20240101');
+    expect(url).toBe(
+      'https://bank.example/Titan/gatewayAPI/lastTransactions/transactions/8878787823/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=20240101',
+    );
+  });
 });
 
 describe('NetworkDiscovery — dump session + POST intercept paths', () => {

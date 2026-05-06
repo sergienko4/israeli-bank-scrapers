@@ -758,34 +758,40 @@ const FULL_TXN_PARAMS = [
 ];
 
 /**
- * Find a captured URL containing the given account ID.
+ * Find the first captured endpoint that BOTH contains the account ID
+ * AND matches a WK transactions URL pattern. Filters out unrelated
+ * endpoints (e.g. `general/getUserPilotInfo/<accountId>`) that share
+ * the account ID by coincidence but are not transaction fetchers —
+ * picking such a URL produced malformed reconstructed URLs in the
+ * earlier implementation.
  * @param captured - Captured endpoints.
  * @param accountId - Account ID to search for in URLs.
- * @returns First matching endpoint or false.
+ * @returns First matching txn-pattern endpoint or false.
  */
-function findUrlWithAccountId(
+function findTxnUrlWithAccountId(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): IDiscoveredEndpoint | false {
-  const hit = captured.find((ep): boolean => ep.url.includes(accountId));
+  const txnPatterns = PIPELINE_WELL_KNOWN_API.transactions;
+  const hit = captured.find((ep): boolean => {
+    if (!ep.url.includes(accountId)) return false;
+    return txnPatterns.some((p): boolean => p.test(ep.url));
+  });
   return hit ?? false;
 }
 
 /**
- * Extract the API base from a captured URL (before the account-specific path).
- * @param url - Full URL with account ID.
- * @param accountId - Account ID to split on.
- * @returns Base URL or false.
- */
-function extractApiBaseFromUrl(url: string, accountId: string): string | false {
-  const parts = url.split(accountId);
-  if (parts.length < 2) return false;
-  const base = parts[0].replace(/\/lastTransactions.*/, '').replace(/\/accountDetails.*/, '');
-  return base;
-}
-
-/**
- * Build a full transaction URL from discovered API base + account ID + date.
+ * Build a full transaction URL from a captured txn endpoint that
+ * already contains the account ID. Preserves the captured path
+ * structure verbatim — everything up to the first occurrence of the
+ * accountId becomes the URL prefix, and `<accountId>/Date?<params>`
+ * is appended. PURE GENERIC across banks regardless of how many path
+ * segments sit between the API root and the account ID. Replaces an
+ * earlier greedy `lastTransactions` regex strip that assumed
+ * `/lastTransactions/<accountId>` was the canonical shape and lost
+ * intermediate path segments such as Discount's new
+ * `/lastTransactions/transactions/<accountId>/forHomePage`.
+ *
  * @param captured - Captured endpoints.
  * @param accountId - Account number.
  * @param startDate - Formatted start date.
@@ -796,12 +802,13 @@ function buildTxnUrlFromTraffic(
   accountId: string,
   startDate: string,
 ): string | false {
-  const hit = findUrlWithAccountId(captured, accountId);
+  const hit = findTxnUrlWithAccountId(captured, accountId);
   if (!hit) return false;
-  const base = extractApiBaseFromUrl(hit.url, accountId);
-  if (!base) return false;
+  const parts = hit.url.split(accountId);
+  if (parts.length < 2) return false;
+  const prefix = parts[0];
   const params = [...FULL_TXN_PARAMS, `FromDate=${startDate}`].join('&');
-  return `${base}/lastTransactions/${accountId}/Date?${params}`;
+  return `${prefix}${accountId}/Date?${params}`;
 }
 
 /**
