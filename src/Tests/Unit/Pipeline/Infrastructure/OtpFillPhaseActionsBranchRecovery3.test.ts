@@ -95,7 +95,7 @@ describe('OtpFillPhaseActions — branch recovery #3', () => {
         getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
       },
     };
-    const base = makeMockContext();
+    const base = makeMockContext({ accountDiscoveryAt: 'otp-fill' });
     const ctx = {
       ...base,
       mediator: some(mediator as unknown as Parameters<typeof some>[0]),

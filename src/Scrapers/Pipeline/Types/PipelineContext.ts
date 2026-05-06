@@ -205,6 +205,15 @@ export interface IActionContext {
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
   /** Pre-discovered accounts owned by LOGIN.FINAL / OTP-FILL.FINAL. */
   readonly accountDiscovery: Option<IAccountDiscovery>;
+  /**
+   * Builder-resolved pointer to the auth FINAL that OWNS the
+   * shared account-discovery handler call. Either `'login'`
+   * (non-OTP banks) or `'otp-fill'` (OTP banks); `'none'` for
+   * headless / no-login pipelines. NOT a pipeline phase — just a
+   * flag the two FINAL sub-steps read so the wait+discovery runs
+   * exactly once and OTP banks never double-wait.
+   */
+  readonly accountDiscoveryAt: AccountDiscoveryAt;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -251,7 +260,20 @@ interface IPipelineContext {
    * owns its data; no upstream rediscovery.
    */
   readonly accountDiscovery: Option<IAccountDiscovery>;
+  /** Builder-resolved pointer to the auth FINAL owning discovery. */
+  readonly accountDiscoveryAt: AccountDiscoveryAt;
 }
+
+/**
+ * Pointer to the auth FINAL stage that owns the shared
+ * account-discovery handler call (wait-for-traffic + extract).
+ * The builder picks `'otp-fill'` whenever an OTP-fill phase is
+ * configured (so OTP banks never double-wait), `'login'` for browser
+ * banks without OTP-fill, and `'none'` for headless / no-login
+ * pipelines. NOT a phase — just a single-source-of-truth flag the
+ * two FINAL sub-steps read at runtime.
+ */
+type AccountDiscoveryAt = 'login' | 'otp-fill' | 'none';
 
 /**
  * Pre-nav-derived account list owned by the auth FINAL stage.
@@ -323,6 +345,7 @@ export interface IBootstrapContext extends IActionContext {
 }
 
 export type {
+  AccountDiscoveryAt,
   ApiStrategyKind,
   IAccountDiscovery,
   IApiFetchContext,

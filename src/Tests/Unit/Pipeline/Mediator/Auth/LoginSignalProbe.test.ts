@@ -77,6 +77,13 @@ function makeMediator(opts: IMockMediatorOpts): IElementMediator {
        */
       discoverProxyEndpoint: (): string | false => opts.proxy,
       /**
+       * waitForTraffic — fast no-match so LOGIN.FINAL flows past the
+       * shared discovery handler immediately. Tests that need a
+       * specific match override this in their own stub.
+       * @returns Resolved false.
+       */
+      waitForTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
        * Empty pre-nav so PreNavReadiness skips (gate-not-yet-on path).
        * Tests that exercise the readiness FAIL path supply their own
        * mock with non-empty captures.
@@ -187,6 +194,7 @@ describe('executeLoginSignal', () => {
     const ctx = makeMockContext({
       login: { has: true, value: {} } as IPipelineContext['login'],
       mediator: { has: true, value: mediator } as IPipelineContext['mediator'],
+      accountDiscoveryAt: 'login',
     });
     const result = await executeLoginSignal(ctx);
     expect(result.success).toBe(false);

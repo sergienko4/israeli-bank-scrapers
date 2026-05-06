@@ -9,6 +9,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -26,6 +27,8 @@ import { createPromise } from '../Timing/TimingActions.js';
 
 /** Timeout for OTP submit settle. */
 const OTP_SETTLE_TIMEOUT = 10000;
+/** Max wait for the first WK-shaped accounts capture in OTP-FILL.FINAL. */
+const ACCOUNT_TRAFFIC_BUDGET_MS = 15_000;
 /** Settle delay before retriever prompt (ms). */
 const RETRIEVER_SETTLE_MS = 500;
 /** Default OTP timeout (ms) — 3 minutes. */
@@ -343,18 +346,13 @@ async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPip
     return succeedWithDiag(input, 'otp-fill-final (no mediator)');
   }
   const mediator = input.mediator.value;
-  // Readiness check — for OTP banks the trace gate flips ON at
-  // OTP-FILL entry, so by FINAL the dashboard render fetches have
-  // landed in pre-nav. Enforce that an account container is present
-  // before signalling readiness to DASHBOARD.PRE.
-  const readiness = verifyPreNavReadiness(input, 'OTP-FILL');
+  // Account discovery — for OTP banks the auth FINAL that owns the
+  // shared discovery handler is HERE (not LOGIN.FINAL). Skip the
+  // wait+discovery+readiness when the builder routed elsewhere
+  // (defensive — keeps the contract symmetric with LoginSignalProbe).
+  const accountDiscovery = await maybeOwnAccountDiscovery(input, mediator);
+  const readiness = enforceReadinessIfOwner(input);
   if (!isOk(readiness)) return readiness;
-  // Account discovery — auth boundary owns this for OTP banks. Same
-  // contract as LOGIN.FINAL (non-OTP path); SCRAPE.PRE never
-  // re-discovers against the global pool.
-  const preNav = mediator.network.getPreNavCaptures();
-  const accounts = discoverAccountsInPool(preNav);
-  const accountDiscovery = some({ ids: accounts.ids, records: accounts.records });
   const cookieCount = await countCookies(mediator);
   const currentUrl = mediator.getCurrentUrl();
   input.logger.debug({
@@ -363,6 +361,72 @@ async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPip
   const cookiesLabel = `otp-fill-final (cookies=${String(cookieCount)})`;
   const diag = { ...input.diagnostics, lastAction: cookiesLabel };
   return succeed({ ...input, diagnostics: diag, accountDiscovery });
+}
+
+/**
+ * Gate the shared account-discovery handler on the builder's
+ * `accountDiscoveryAt` pointer. Returns the existing
+ * `input.accountDiscovery` unchanged when this FINAL does NOT own
+ * the call (defensive — prevents double-wait if the builder routed
+ * elsewhere).
+ * @param input - Pipeline context.
+ * @param mediator - Element mediator (network surface owner).
+ * @returns Updated discovery option.
+ */
+async function maybeOwnAccountDiscovery(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+): Promise<IPipelineContext['accountDiscovery']> {
+  if (input.accountDiscoveryAt !== 'otp-fill') return input.accountDiscovery;
+  return runAccountDiscovery(mediator, input.logger);
+}
+
+/**
+ * Run pre-nav readiness ONLY when OTP-FILL.FINAL owns discovery.
+ * Returns a no-op success otherwise so the caller stays flat
+ * (max-depth budget).
+ * @param input - Pipeline context.
+ * @returns Readiness procedure or no-op success.
+ */
+function enforceReadinessIfOwner(input: IPipelineContext): Procedure<IPipelineContext> {
+  if (input.accountDiscoveryAt !== 'otp-fill') return succeed(input);
+  return verifyPreNavReadiness(input, 'OTP-FILL');
+}
+
+/**
+ * Label the wait result for diagnostics. `false` from
+ * `waitForTraffic` = budget timed out; otherwise an endpoint matched.
+ * @param matched - waitForTraffic return value.
+ * @returns Stable diagnostic label.
+ */
+function summarizeWait(matched: false | { url: string }): 'timeout' | 'matched' {
+  if (matched === false) return 'timeout';
+  return 'matched';
+}
+
+/**
+ * Wait for the first WK-shaped accounts capture, then call the
+ * shared `discoverAccountsInPool` handler. Replaces the implicit
+ * `waitForNetworkIdle` so late-arriving account responses don't
+ * slip past the picker. Mirrors `LoginSignalProbe.runAccountDiscovery`
+ * — the SAME shared handler invoked by both auth FINALs.
+ * @param mediator - Element mediator (network surface owner).
+ * @param log - Logger.
+ * @returns `some({ids, records})` whether or not a capture matched.
+ */
+async function runAccountDiscovery(
+  mediator: IElementMediator,
+  log: IPipelineContext['logger'],
+): Promise<IPipelineContext['accountDiscovery']> {
+  const matched = await mediator.network.waitForTraffic(
+    PIPELINE_WELL_KNOWN_API.accounts,
+    ACCOUNT_TRAFFIC_BUDGET_MS,
+  );
+  const waitOutcome = summarizeWait(matched);
+  log.debug({ message: `wk-accounts wait → ${waitOutcome}` });
+  const preNav = mediator.network.getPreNavCaptures();
+  const accounts = discoverAccountsInPool(preNav);
+  return some({ ids: accounts.ids, records: accounts.records });
 }
 
 /**

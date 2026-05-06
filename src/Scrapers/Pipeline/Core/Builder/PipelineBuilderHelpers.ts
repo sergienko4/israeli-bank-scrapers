@@ -7,6 +7,7 @@ import type { ScraperOptions } from '../../../Base/Interface.js';
 import { createNetworkTraceLifecycleInterceptor } from '../../Interceptors/NetworkTraceLifecycleInterceptor.js';
 import { createPopupInterceptor } from '../../Interceptors/PopupInterceptor.js';
 import type { IPipelineInterceptor } from '../../Types/Interceptor.js';
+import type { AccountDiscoveryAt } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
@@ -33,6 +34,30 @@ import {
  *                                       (gate ON at LOGIN entry)
  * - Non-OTP, no PRE-LOGIN:              boundary = `home`
  * - Headless / no login mode:           empty string (skip gate).
+ * @param state - Validated builder state.
+ * @returns Boundary phase name or empty string.
+ */
+/**
+ * Decide which auth FINAL owns the call to the shared
+ * account-discovery handler (wait-for-traffic + extract). OTP banks
+ * defer to OTP-FILL.FINAL so the wait runs exactly once (no double-
+ * wait at LOGIN.FINAL). Non-OTP browser banks own it at LOGIN.FINAL.
+ * Headless / no-login pipelines skip discovery entirely.
+ * @param state - Validated builder state.
+ * @returns Pointer to the FINAL that owns the wait + discovery.
+ */
+function resolveAccountDiscoveryAt(state: IBuilderState): AccountDiscoveryAt {
+  if (!state.hasBrowser) return 'none';
+  if (state.loginMode === 'none') return 'none';
+  if (state.hasOtpFill) return 'otp-fill';
+  return 'login';
+}
+
+/**
+ * Resolve the trace-gate boundary phase. Maps the builder state to
+ * the phase name AFTER which the network listener flips ON, so the
+ * pre-nav capture pool excludes login traffic but includes the
+ * dashboard render. Empty string for headless / no-login pipelines.
  * @param state - Validated builder state.
  * @returns Boundary phase name or empty string.
  */
@@ -85,16 +110,33 @@ interface IDescriptorParts {
 function assembleDescriptor(parts: IDescriptorParts): IPipelineDescriptor {
   const state = toBuilderState(parts.fields);
   const phases = assemblePhases(state);
-  const phaseNames = phases.map((p): string => p.name);
   const boundary = resolveTraceBoundaryPhase(state);
-  const interceptors = buildInterceptors(state, phaseNames, boundary);
   return {
     options: parts.options,
     phases,
-    interceptors,
+    interceptors: buildInterceptorsFor(state, phases, boundary),
     isHeadless: parts.fields.isHeadless,
     traceStartAfterPhase: boundary,
+    accountDiscoveryAt: resolveAccountDiscoveryAt(state),
   };
+}
+
+/**
+ * Wire interceptors against the resolved phase ordering and trace
+ * boundary. Inlined into `assembleDescriptor` would push that
+ * function over the per-function line budget.
+ * @param state - Builder state.
+ * @param phases - Ordered phases.
+ * @param boundary - Resolved trace boundary phase name.
+ * @returns Interceptor list.
+ */
+function buildInterceptorsFor(
+  state: IBuilderState,
+  phases: readonly { readonly name: string }[],
+  boundary: string,
+): readonly IPipelineInterceptor[] {
+  const phaseNames = phases.map((p): string => p.name);
+  return buildInterceptors(state, phaseNames, boundary);
 }
 
 /**
@@ -114,4 +156,9 @@ function buildDescriptor(
 }
 
 export type { ScrapeFn } from './PipelineBuilderValidation.js';
-export { buildDescriptor, buildInterceptors, resolveTraceBoundaryPhase };
+export {
+  buildDescriptor,
+  buildInterceptors,
+  resolveAccountDiscoveryAt,
+  resolveTraceBoundaryPhase,
+};

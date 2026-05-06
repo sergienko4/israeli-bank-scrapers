@@ -268,6 +268,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     dashboard: ctx.dashboard,
     scrapeDiscovery: ctx.scrapeDiscovery,
     accountDiscovery: ctx.accountDiscovery,
+    accountDiscoveryAt: ctx.accountDiscoveryAt,
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,
