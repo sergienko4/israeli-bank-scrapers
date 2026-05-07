@@ -69,7 +69,7 @@ describe('AccountScrapeStrategy — branch recovery #3', () => {
        */
       discoverTransactionsEndpoint: () => matrixEp,
     });
-    const fc = makeFc(api, network, '20260101');
+    const fc = makeFc(api, network, { startDate: '20260101' });
     const accountRecord = { cardUniqueId: 'CARD1' };
     const result = await scrapeOneAccountPost(fc, accountRecord, matrixEp);
     // Matrix path succeeded — returned an account procedure (not false).

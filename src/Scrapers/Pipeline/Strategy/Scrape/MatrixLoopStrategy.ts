@@ -99,7 +99,9 @@ async function fetchMatrixChunk(
 async function tryMatrixLoop(
   args: IMatrixLoopArgs,
 ): Promise<Procedure<ITransactionsAccount> | false> {
-  const txnEndpoint = args.fc.network.discoverTransactionsEndpoint();
+  // Phase 7e: SCRAPE consumes the endpoint DASHBOARD.FINAL committed via
+  // ctx.txnEndpoint (plumbed onto fc by SCRAPE.PRE). No network discovery here.
+  const txnEndpoint = args.fc.txnEndpoint ?? false;
   if (!txnEndpoint) return false;
   if (!txnEndpoint.postData) return false;
   if (!isMonthlyEndpoint(txnEndpoint.postData)) return false;

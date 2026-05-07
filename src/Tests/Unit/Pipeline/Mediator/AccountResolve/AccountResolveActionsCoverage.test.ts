@@ -10,6 +10,7 @@
  *   - The PRE/ACTION/FINAL stage handlers' edge cases.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   ACCOUNT_RESOLVE_BUDGET_MS,
   executeAccountResolveAction,
@@ -23,6 +24,7 @@ import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
 
 /**
  * Build a stub element mediator whose pool/wait surface is fully
@@ -41,7 +43,7 @@ function makeMediatorStub(
    */
   const stubWaitForFirstId = async (): Promise<true> => {
     await Promise.resolve();
-    if (waitOutcome === 'timeout') throw new Error('timeout (stub)');
+    if (waitOutcome === 'timeout') throw new ScraperError('timeout (stub)');
     return true;
   };
   return {
@@ -116,7 +118,8 @@ describe('ACCOUNT-RESOLVE.PRE — Phase 7d edge cases', () => {
 
 describe('ACCOUNT-RESOLVE.ACTION — sealed action context pass-through', () => {
   it('returns succeed(input) without touching the input', async () => {
-    const fakeActionCtx = { id: 'fake-action-ctx' } as never;
+    const baseCtx = makeMockContext();
+    const fakeActionCtx = toActionCtx(baseCtx, false);
     const result = await executeAccountResolveAction(fakeActionCtx);
     const wasOk = isOk(result);
     expect(wasOk).toBe(true);
@@ -223,10 +226,7 @@ describe('ACCOUNT-RESOLVE.FINAL — telemetry edge cases', () => {
         ids: ['FAKE-HEAD-ID', 'FAKE-OTHER-ID'],
         records: [{ accountId: 'FAKE-HEAD-ID' }, { accountId: 'FAKE-OTHER-ID' }],
         containers: {
-          cards: [
-            { accountId: 'FAKE-HEAD-ID' },
-            { accountId: 'FAKE-OTHER-ID' },
-          ],
+          cards: [{ accountId: 'FAKE-HEAD-ID' }, { accountId: 'FAKE-OTHER-ID' }],
         },
         endpointCaptureIndex: 7,
       }),

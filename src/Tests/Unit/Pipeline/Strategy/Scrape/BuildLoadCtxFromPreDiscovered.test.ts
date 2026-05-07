@@ -10,24 +10,18 @@
 import { buildLoadCtxFromPreDiscovered } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { makeApi, makeEndpoint, makeFc, makeNetwork } from '../StrategyTestHelpers.js';
 
-describe('buildLoadCtxFromPreDiscovered (Phase 7c — no fallback)', () => {
+describe('buildLoadCtxFromPreDiscovered (Phase 7e — txnEndpoint is supplied, not discovered)', () => {
   it('uses pre-discovered ids verbatim when supplied', () => {
     const api = makeApi();
     const txnEp = makeEndpoint({
       method: 'POST',
       postData: '{"cardUniqueId":"WOULD-BE-FALLBACK"}',
     });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       * @returns Test endpoint.
-       */
-      discoverTransactionsEndpoint: () => txnEp,
-    });
+    const network = makeNetwork({});
     const fc = makeFc(api, network);
     const result = buildLoadCtxFromPreDiscovered({
       fc,
-      network,
+      txnEndpoint: txnEp,
       ids: ['PRE-DISCOVERED-1'],
       records: [{ accountId: 'PRE-DISCOVERED-1' }],
     });
@@ -41,17 +35,11 @@ describe('buildLoadCtxFromPreDiscovered (Phase 7c — no fallback)', () => {
       method: 'POST',
       postData: '{"cardUniqueId":"NO-LONGER-USED"}',
     });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       * @returns Test endpoint.
-       */
-      discoverTransactionsEndpoint: () => txnEp,
-    });
+    const network = makeNetwork({});
     const fc = makeFc(api, network);
     const result = buildLoadCtxFromPreDiscovered({
       fc,
-      network,
+      txnEndpoint: txnEp,
       ids: [],
       records: [],
     });
@@ -61,17 +49,11 @@ describe('buildLoadCtxFromPreDiscovered (Phase 7c — no fallback)', () => {
 
   it('returns empty load context when txnEndpoint is also false', () => {
     const api = makeApi();
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       * @returns False (no txn endpoint discovered).
-       */
-      discoverTransactionsEndpoint: () => false,
-    });
+    const network = makeNetwork({});
     const fc = makeFc(api, network);
     const result = buildLoadCtxFromPreDiscovered({
       fc,
-      network,
+      txnEndpoint: false,
       ids: [],
       records: [],
     });

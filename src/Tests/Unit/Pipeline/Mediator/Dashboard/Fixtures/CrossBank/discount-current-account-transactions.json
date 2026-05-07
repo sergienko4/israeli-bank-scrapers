@@ -1,0 +1,26 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "shape": "current-account/transactions GET",
+    "expectedMethod": "GET",
+    "expectedDateField": "valueDate",
+    "expectedAmountField": "amount",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": false
+  },
+  "captures": [
+    {
+      "url": "https://api.discount.fake.example/Lobby/gatewayAPI/current-account/transactions?accountId=FAKE-DISCOUNT-001&fromDate=2026-01-01",
+      "method": "GET",
+      "captureIndex": 11,
+      "postData": "",
+      "responseBody": {
+        "transactions": [
+          { "valueDate": "2026-04-01T00:00:00", "amount": -25.5, "description": "FAKE-COFFEE", "currency": "ILS" },
+          { "valueDate": "2026-04-02T00:00:00", "amount": -10.0, "description": "FAKE-BUS", "currency": "ILS" }
+        ]
+      }
+    }
+  ]
+}

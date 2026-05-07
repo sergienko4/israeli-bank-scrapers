@@ -107,15 +107,15 @@ function extractDisplayIdFromRaw(body: Record<string, unknown>): DisplayIdFromRa
 
 /**
  * Extract transactions from captured response body (zero network cost).
- * Uses the captured getTransactionsAndGraphs response from DASHBOARD.
- * @param network - Network discovery with captured endpoints.
+ * Phase 7e: consumes the endpoint plumbed onto fc.txnEndpoint by
+ * SCRAPE.PRE — zero discovery calls in this strategy.
+ * @param txnEndpoint - Pre-resolved TXN endpoint or false.
  * @returns Extracted transactions + displayId from buffered response.
  */
-function extractBufferedTxns(network: IAccountFetchCtx['network']): IBufferedTxns {
-  const endpoint = network.discoverTransactionsEndpoint();
-  if (endpoint === false) return { txns: [], displayId: '', body: undefined };
-  if (!endpoint.responseBody) return { txns: [], displayId: '', body: undefined };
-  const body = endpoint.responseBody as Record<string, unknown>;
+function extractBufferedTxns(txnEndpoint: IAccountFetchCtx['txnEndpoint']): IBufferedTxns {
+  if (!txnEndpoint) return { txns: [], displayId: '', body: undefined };
+  if (!txnEndpoint.responseBody) return { txns: [], displayId: '', body: undefined };
+  const body = txnEndpoint.responseBody as Record<string, unknown>;
   const txns = extractTransactions(body);
   if (txns.length === 0) return { txns: [], displayId: '', body };
   const displayId = extractDisplayIdFromRaw(body);
@@ -136,7 +136,7 @@ async function scrapeViaFilterData(
   accountId: string,
   baseUrl: string,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const buffered = extractBufferedTxns(fc.network);
+  const buffered = extractBufferedTxns(fc.txnEndpoint);
   const allTxns: ITransaction[] = [...buffered.txns];
   const displayId = buffered.displayId || accountId;
   LOG.debug({ message: `buffered: ${String(buffered.txns.length)} txns, displayId=${displayId}` });

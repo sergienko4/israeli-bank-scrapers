@@ -61,12 +61,12 @@ describe('NetworkDiscovery — dashboard-click bucketing (live)', () => {
     expect(pre.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('getPostNavCaptures returns empty when no click marked (strict SRP)', async () => {
+  it('getPostNavCaptures widens to full pool when no click marked (Visacal-class banks)', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
     await simulate({ url: 'https://x.example/api/a', body: { ok: true } });
     const post = discovery.getPostNavCaptures();
-    expect(post.length).toBe(0);
+    expect(post.length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -169,22 +169,32 @@ describe('NetworkDiscovery — frozen network bucketing', () => {
     expect(post[0].url).toContain('random');
   });
 
-  it('getPostNavCaptures returns empty when no click marker has been set', () => {
+  it('getPostNavCaptures widens to full pool when no click marker has been set (Visacal-class)', () => {
     const eps: readonly IDiscoveredEndpoint[] = [
       makeEndpoint('https://x.example/api/getTransactions', 50, 'POST'),
     ];
     const frozen = createFrozenNetwork(eps, false, false);
     const post = frozen.getPostNavCaptures();
-    expect(post.length).toBe(0);
+    expect(post.length).toBe(1);
   });
 
   it('discoverTransactionsEndpoint uses post-nav pool', () => {
+    const postEp: IDiscoveredEndpoint = {
+      url: 'https://x.example/api/getTransactionsList',
+      method: 'POST',
+      postData: '{"cardUniqueId":"FAKE"}',
+      responseBody: { transactions: [{ date: '2026-01-01', amount: -10, description: 'FAKE' }] },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 500,
+    };
     const eps: readonly IDiscoveredEndpoint[] = [
       // pre-nav: dashboard widget that matches WK transactions but isn't
       // the real full-history endpoint
       makeEndpoint('https://x.example/api/getLatestTransactions', 100, 'POST'),
-      // post-nav: the real full-history endpoint
-      makeEndpoint('https://x.example/api/getTransactionsList', 500, 'POST'),
+      // post-nav: the real full-history endpoint with transaction shape
+      postEp,
     ];
     const frozen = createFrozenNetwork(eps, false, 200);
     const picked = frozen.discoverTransactionsEndpoint();

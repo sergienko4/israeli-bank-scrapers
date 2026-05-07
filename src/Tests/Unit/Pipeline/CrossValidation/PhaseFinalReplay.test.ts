@@ -166,7 +166,9 @@ const FIXTURES: readonly IBankFixture[] = [
       makeCapture({
         url: 'https://login.bankhapoalim.co.il/getTransactions/fake-acct-1',
         method: 'GET',
-        responseBody: { transactions: [] },
+        responseBody: {
+          transactions: [{ eventDate: 20260101, eventAmount: -10, description: 'FAKE' }],
+        },
         timestamp: 500,
       }),
     ],

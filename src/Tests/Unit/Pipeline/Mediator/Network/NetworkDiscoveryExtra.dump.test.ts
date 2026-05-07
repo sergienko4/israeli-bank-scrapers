@@ -93,16 +93,16 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/summary',
       body: { total: 0 },
     });
-    // Detail second (with txn array) — both URL and shape match
+    // Detail second (with proper txn array under WK txnContainers key)
     await simulate({
       url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/details',
-      body: { items: [{ id: 1 }] },
+      body: { transactions: [{ date: '2026-04-01', amount: -10, description: 'FAKE' }] },
     });
     const ep = discovery.discoverTransactionsEndpoint();
     expect(ep).not.toBe(false);
   });
 
-  it('falls back to first match when no body passes shape gate', async () => {
+  it('returns false when only URL match is a non-shape, non-replayable capture (Phase 7e strict)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
@@ -111,8 +111,9 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
       body: { total: 0 },
     });
     const ep = discovery.discoverTransactionsEndpoint();
-    // URL matches, no shape pass → fallback to first URL match.
-    expect(ep).not.toBe(false);
+    // Phase 7e: urlFallback tier removed — DASHBOARD.FINAL fails loud
+    // rather than picking a wrong URL whose body has zero records.
+    expect(ep).toBe(false);
   });
 });
 

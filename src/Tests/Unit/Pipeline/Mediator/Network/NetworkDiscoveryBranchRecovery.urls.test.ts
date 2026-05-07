@@ -203,18 +203,18 @@ describe('NetworkDiscovery — findCommonServicesUrl edges (L200, L251, L281)', 
     expect(url).toBe(false);
   });
 
-  it('discoverTransactionsEndpoint returns shape-pass over plain-url match', async () => {
+  it('discoverTransactionsEndpoint returns false when only URL match has no shape (Phase 7e)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
-    // First: URL matches but body lacks transactions array.
+    // URL matches but body lacks any transaction record.
     await simulate({
       url: 'https://api.bank.co.il/lastTransactions/1',
       body: { notTxnsArray: true },
     });
     const hit = discovery.discoverTransactionsEndpoint();
-    // urlMatches.length > 0, shapePass undefined → falls to urlMatches[0].
-    expect(hit).not.toBe(false);
+    // Phase 7e: urlFallback tier removed — returns false so DASHBOARD.FINAL halts.
+    expect(hit).toBe(false);
   });
 
   it('discoverByPatterns returns false when no pattern matches any captured URL (L281)', async () => {

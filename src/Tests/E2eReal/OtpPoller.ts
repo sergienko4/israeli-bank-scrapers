@@ -19,8 +19,16 @@ import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
 
 const POLL_INTERVAL_MS = 1000;
-/** Default OTP poll timeout — 2 minutes (user-typing budget). */
-const DEFAULT_POLL_TIMEOUT_MS = 120_000;
+/**
+ * Default OTP poll timeout — aligned to the pipeline OTP watchdog
+ * (`DEFAULT_OTP_TIMEOUT_MS = 180_000` in `OtpFillPhaseActions.ts`).
+ * The test poller MUST NOT cut off before the pipeline does, otherwise
+ * a code arriving in the [old_test_120s, pipeline_180s] window would
+ * surface as `OTP poll timeout` even though the pipeline would still
+ * have accepted it. The 2026-05-07 Beinleumi run reproduced exactly
+ * this race; see `OtpPollerPipelineTimeoutAlignment.test.ts`.
+ */
+const DEFAULT_POLL_TIMEOUT_MS = 180_000;
 
 /** Args bundle for createOtpPoller — respects the 3-param ceiling. */
 interface ICreateOtpPollerArgs {
@@ -153,5 +161,5 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   };
 }
 
-export { createOtpPoller };
+export { createOtpPoller, DEFAULT_POLL_TIMEOUT_MS };
 export default createOtpPoller;

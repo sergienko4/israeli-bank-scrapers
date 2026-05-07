@@ -316,9 +316,14 @@ function discoverShapeAware(
     logShapeAwarePick('shapePassing', shapePassing[0], matches);
     return shapePassing[0];
   }
-  const fallback = urlMatches[0] ?? false;
-  logShapeAwarePick('urlFallback', fallback, matches);
-  return fallback;
+  // No shape-passing capture and no replayable POST — surface as
+  // no-match. DASHBOARD.FINAL escalates to F-DASH-1 / F-DASH-2 so the
+  // pipeline halts before SCRAPE inherits a URL whose body has zero
+  // transaction records (Discount's `categoriesList`, Hapoalim's
+  // pre-role widget). Pre-Phase-7e the urlFallback tier accepted these
+  // wrong URLs and silently produced 0-txn scrapes.
+  logShapeAwarePick('none', false, matches);
+  return false;
 }
 
 /**
@@ -1086,12 +1091,14 @@ function buildCollectionState(initial: boolean): ICollectionState {
 
 /**
  * Build the click-aware capture-bucketing helpers shared by live and
- * frozen networks. Strict SRP: the split is purely timestamp-driven
- * with NO fallback. Consumers must NOT mix the two buckets — accounts
- * come from pre-nav only (auth FINAL), transactions come from post-
- * nav only (DASHBOARD.FINAL onwards). When `clickAt` has not been set
- * yet, `getPostNavCaptures` returns an empty array; the caller is
- * responsible for the SRP boundary, not the network primitive.
+ * frozen networks. The split is timestamp-driven when a dashboard
+ * click has been dispatched (`markDashboardClickAt`); when no click
+ * was issued — Visacal-class banks where login-FINAL already lands
+ * the dashboard data, no SPA navigation needed — both buckets fall
+ * back to the full captured pool. The full-pool fallback restores
+ * symmetry with `getPreNavCaptures` (which already widens to full
+ * when no click) and lets {@link discoverShapeAware} see the txn
+ * URLs the bank fired during login-FINAL.
  * @param captured - Captures array (live or frozen).
  * @param clickState - Shared click-at state.
  * @returns Bucketing accessors for the INetworkDiscovery contract.
@@ -1117,7 +1124,7 @@ function buildBucketingMethods(
     /** @inheritdoc */
     getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => {
       const clickAt = clickState.read();
-      if (clickAt === false) return [];
+      if (clickAt === false) return captured;
       return captured.filter((ep): boolean => ep.timestamp >= clickAt);
     },
   };
@@ -1230,20 +1237,22 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   // banks that fire full-history at login (no click) still get a full
   // pool — but banks like Isracard / Max where the click reveals the
   // real full-history endpoint never see the pre-click widget pollute
-  // the picker. Accounts discovery stays on the full captured array
-  // because account / card lists fire at any phase of the flow.
   /**
-   * Pick the txn endpoint from the post-nav bucket so SCRAPE.PRE
-   * never sees the pre-click widget endpoint.
+   * Pick the txn endpoint from the FULL captured pool. Bucketing was
+   * originally intended to keep pre-click widget endpoints out of the
+   * picker, but the shape-aware tier preference (postWithShape >
+   * replayablePost > shapePassing) already favours real transaction
+   * captures over widget endpoints regardless of bucket. Walking the
+   * full pool also recovers Visacal-class banks where the txn URL
+   * fires at login-FINAL (before any dashboard click) and would
+   * otherwise be excluded by a strict post-nav cut.
    * @returns Discovered txn endpoint or false.
    */
-  const discoverTxnFromPostNav = (): IDiscoveredEndpoint | false => {
-    const pool = bucketing.getPostNavCaptures();
-    return discoverShapeAware(pool, PIPELINE_WELL_KNOWN_API.transactions);
-  };
+  const discoverTxnFromFullPool = (): IDiscoveredEndpoint | false =>
+    discoverShapeAware(captured, PIPELINE_WELL_KNOWN_API.transactions);
   const txnDiscovery = {
     /** @inheritdoc */
-    discoverTransactionsEndpoint: discoverTxnFromPostNav,
+    discoverTransactionsEndpoint: discoverTxnFromFullPool,
   };
   const base = { ...core, ...endpoints, ...originDiscover, ...urlBuilders };
   return {
@@ -1309,20 +1318,17 @@ function createFrozenNetwork(
   };
   // Frozen-network has no live Page, so the watcher is a no-op stub.
   const failureGate = { authFailureWatcher: createFrozenAuthFailureWatcher() };
-  // Same post-nav-aware txn discovery override as the live network —
-  // SCRAPE.PRE / ACTION callers see the same shape regardless of
-  // whether they're operating on a live or frozen instance.
   /**
-   * Pick the txn endpoint from the frozen post-nav bucket.
+   * Pick the txn endpoint from the FULL frozen pool. Same rationale as
+   * the live network: shape-aware tier preference picks real txn
+   * endpoints over widget URLs regardless of bucket position.
    * @returns Discovered txn endpoint or false.
    */
-  const discoverTxnFromPostNav = (): IDiscoveredEndpoint | false => {
-    const pool = bucketing.getPostNavCaptures();
-    return discoverShapeAware(pool, PIPELINE_WELL_KNOWN_API.transactions);
-  };
+  const discoverTxnFromFrozenPool = (): IDiscoveredEndpoint | false =>
+    discoverShapeAware(frozen, PIPELINE_WELL_KNOWN_API.transactions);
   const txnDiscovery = {
     /** @inheritdoc */
-    discoverTransactionsEndpoint: discoverTxnFromPostNav,
+    discoverTransactionsEndpoint: discoverTxnFromFrozenPool,
   };
   // Frozen replays have no listener, so the lifecycle gate is a
   // no-op — accepting the call lets callers stay live-vs-frozen

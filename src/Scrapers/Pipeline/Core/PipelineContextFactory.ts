@@ -63,6 +63,7 @@ interface IResultSlots {
   readonly loginFieldDiscovery: IPipelineContext['loginFieldDiscovery'];
   readonly scrapeDiscovery: IPipelineContext['scrapeDiscovery'];
   readonly accountDiscovery: IPipelineContext['accountDiscovery'];
+  readonly txnEndpoint: IPipelineContext['txnEndpoint'];
 }
 
 /**
@@ -87,6 +88,7 @@ function emptyResultSlots(): IResultSlots {
     loginFieldDiscovery: none(),
     scrapeDiscovery: none(),
     accountDiscovery: none(),
+    txnEndpoint: none(),
   };
 }
 

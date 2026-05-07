@@ -11,23 +11,18 @@ import type { IAccountFetchCtx } from '../../../../../Scrapers/Pipeline/Strategy
 import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /**
- * Build a stub fetch context.
- * @param endpoint - Endpoint returned by discoverTransactionsEndpoint.
+ * Build a stub fetch context with a pre-resolved txnEndpoint (Phase 7e:
+ * SCRAPE consumes the endpoint plumbed onto fc by SCRAPE.PRE).
+ * @param endpoint - Pre-resolved txn endpoint (or false).
  * @returns IAccountFetchCtx.
  */
 function makeFc(endpoint: IDiscoveredEndpoint | false): IAccountFetchCtx {
-  const network = {
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
-    discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false => endpoint,
-  } as unknown as INetworkDiscovery;
+  const network = {} as unknown as INetworkDiscovery;
   return {
     api: {} as IApiFetchContext,
     network,
     startDate: '20260101',
+    txnEndpoint: endpoint,
   };
 }
 
@@ -86,12 +81,6 @@ describe('tryMatrixLoop', () => {
       api,
       network: {
         /**
-         * Test helper.
-         *
-         * @returns Result.
-         */
-        discoverTransactionsEndpoint: (): IDiscoveredEndpoint => ep,
-        /**
          * Empty endpoint list — exercises the 0-balance path.
          * @returns Empty array.
          */
@@ -103,6 +92,7 @@ describe('tryMatrixLoop', () => {
         buildBalanceUrl: (): false => false,
       },
       startDate: '20260101',
+      txnEndpoint: ep,
     } as unknown as IAccountFetchCtx;
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     // Matrix applied + iterated → returns Procedure with 0-txn account

@@ -7,7 +7,7 @@
 import type { BrowserContext, Frame, Page } from 'playwright-core';
 
 import type { CompanyTypes } from '../../../Definitions.js';
-import type { ITransactionsAccount } from '../../../Transactions.js';
+import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { IApiMediator } from '../Mediator/Api/ApiMediator.js';
 import type { IActionMediator, IElementMediator } from '../Mediator/Elements/ElementMediator.js';
@@ -203,6 +203,8 @@ export interface IActionContext {
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
   /** Account ids + records committed by ACCOUNT-RESOLVE.POST. */
   readonly accountDiscovery: Option<IAccountDiscovery>;
+  /** TXN endpoint committed by DASHBOARD.FINAL — Phase 7e contract. */
+  readonly txnEndpoint: Option<ITxnEndpoint>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -248,6 +250,13 @@ interface IPipelineContext {
    * rediscovery.
    */
   readonly accountDiscovery: Option<IAccountDiscovery>;
+  /**
+   * TXN endpoint resolved by DASHBOARD.FINAL. Phase 7e: the single
+   * source of truth for the per-account transactions API. SCRAPE
+   * consumes this option without re-discovering — and SCRAPE never
+   * imports `WK_API` or `WK_TXN`.
+   */
+  readonly txnEndpoint: Option<ITxnEndpoint>;
 }
 
 /**
@@ -275,6 +284,66 @@ interface IAccountDiscovery {
   readonly records: readonly Record<string, unknown>[];
   readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
   readonly endpointCaptureIndex: number;
+}
+
+/**
+ * Field-name aliases resolved once per run by DASHBOARD.FINAL via
+ * {@link resolveTxnEndpoint}. SCRAPE walks fresh per-account
+ * responses by these aliases instead of importing `WK_TXN`. Phase 7e
+ * shifts every TXN-side WK access into DASHBOARD's TxnParser; the
+ * resolved aliases ride along as part of `ctx.txnEndpoint`.
+ *
+ * <p>`originalAmount`, `processedDate`, `balance` are nullable
+ * (typed `string | false`) because not every bank exposes them
+ * (card-family banks omit `balance`; Discount-class banks omit
+ * `originalAmount`). Consumers test the boolean before walking.
+ */
+interface ITxnFieldMap {
+  readonly date: string;
+  readonly amount: string;
+  readonly description: string;
+  readonly currency: string;
+  readonly identifier: string;
+  readonly originalAmount: string | false;
+  readonly processedDate: string | false;
+  readonly balance: string | false;
+}
+
+/**
+ * TXN endpoint shape committed by DASHBOARD.FINAL. Carries every
+ * artifact SCRAPE could need to perform per-account replays without
+ * touching `WK_API` or `WK_TXN`:
+ *
+ * <ul>
+ *   <li>`url`/`method`/`captureIndex` — the resolved endpoint.</li>
+ *   <li>`templatePostData` — raw POST body for SCRAPE.PRE to clone
+ *     and substitute per-account ids; `false` for GET banks.</li>
+ *   <li>`responseBodySample` — raw captured body for the buffered-
+ *     account shortcut SCRAPE uses on the bank-supplied account.</li>
+ *   <li>`normalizedRecords` — pre-parsed `ITransaction[]` for the
+ *     buffered account so SCRAPE skips a redundant fetch.</li>
+ *   <li>`fieldMap` — resolved field-name aliases (date / amount / …)
+ *     so SCRAPE walks fresh responses without WK access.</li>
+ *   <li>`pendingUrl` — pre-resolved pending-transactions API URL (or
+ *     `false` when the bank doesn't expose pending). Lets
+ *     {@link fetchAndMergePending} run without importing
+ *     `WK_API.pending`.</li>
+ *   <li>`billingUrl` — pre-resolved billing-fallback URL (or `false`
+ *     when the bank's family doesn't carry the billing path). Lets
+ *     {@link tryBillingFallback} run without importing `WK_API` or
+ *     `WK_BILLING`.</li>
+ * </ul>
+ */
+interface ITxnEndpoint {
+  readonly url: string;
+  readonly method: 'GET' | 'POST';
+  readonly captureIndex: number;
+  readonly templatePostData: string | false;
+  readonly responseBodySample: Readonly<Record<string, unknown>>;
+  readonly normalizedRecords: readonly ITransaction[];
+  readonly fieldMap: ITxnFieldMap;
+  readonly pendingUrl: string | false;
+  readonly billingUrl: string | false;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */
@@ -345,5 +414,7 @@ export type {
   IPipelineContext,
   IScrapeDiscovery,
   IScrapeState,
+  ITxnEndpoint,
+  ITxnFieldMap,
 };
 export { API_STRATEGY };

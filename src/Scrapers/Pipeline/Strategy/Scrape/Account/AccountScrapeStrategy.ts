@@ -290,7 +290,10 @@ async function scrapeOneAccountViaUrl(
   fc: IAccountFetchCtx,
   accountId: string,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const rawEndpoint = fc.network.discoverTransactionsEndpoint();
+  // Phase 7e: read the pre-resolved endpoint plumbed onto fc by SCRAPE.PRE
+  // (sourced from ctx.txnEndpoint via TxnEndpointBridge). Strategies never
+  // call network.discoverTransactionsEndpoint() — DASHBOARD owns discovery.
+  const rawEndpoint = fc.txnEndpoint ?? false;
   const emptyUrl = String(false);
   const rawUrl = (rawEndpoint as IDiscoveredEndpoint | undefined)?.url ?? emptyUrl;
   if (rawEndpoint && isFilterDataUrl(rawUrl)) {

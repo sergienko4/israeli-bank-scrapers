@@ -9,10 +9,7 @@
  *   - The empty-path short-circuit.
  */
 
-import {
-  classifyKey,
-  createCensorFn,
-} from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
+import { classifyKey, createCensorFn } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 describe('PiiRedactor — censor function defensive branches', () => {
   it('empty path returns [REDACTED] sentinel', () => {

@@ -27,6 +27,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
+import { resolveTxnEndpoint } from '../Scrape/ScrapeAutoMapper.js';
 import {
   buildApiContext,
   countTxnTraffic,
@@ -881,6 +882,15 @@ function countEndpoints(ctx: IPipelineContext): string {
 /** WK transactions URL patterns used by FINAL's gatekeeper. */
 const FINAL_TXN_PATTERNS = PIPELINE_WELL_KNOWN_API.transactions;
 
+/**
+ * MOCK_MODE active flag — mirrors the ACCOUNT-RESOLVE.POST and
+ * OtpFillPhaseActions valves. Live E2E is the only environment where
+ * the DASHBOARD.FINAL fail-loud checks are enforceable; the offline
+ * snapshot suite has no captured network traffic.
+ */
+const isMockModeDashboardFinalActive =
+  process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
+
 /** Bundled bucket counts emitted on the `dashboard.signal.ready` event. */
 interface INavBucketCounts {
   readonly preNavCount: number;
@@ -927,33 +937,70 @@ function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
  * @param input - Pipeline context.
  * @returns Updated context with API + canonical signal, or fail.
  */
+/** Budget DASHBOARD.FINAL waits for the bank's first txn-pattern capture
+ *  to land before running the resolver. Drives the timing-race recovery —
+ *  Discount's `/current-account/transactions` arrives a few ms after the
+ *  dashboard mount XHR. Pre-Phase-7e the timing race silently produced 0
+ *  txns; Phase 7e binds the wait to FINAL so SCRAPE never starts before
+ *  the real txn URL is captured. */
+const DASHBOARD_FINAL_TXN_WAIT_MS = 8000;
+
+/**
+ * Wait until the post-nav pool exposes at least one WK-txn URL match.
+ * Returns immediately when a match is already present; otherwise polls
+ * the live network's traffic stream up to the budget. Returns `true` on
+ * any successful match within budget; `false` on timeout (FINAL escalates
+ * to F-DASH-1).
+ * @param input - Pipeline context.
+ * @returns True when a match landed (or was already present); false on timeout.
+ */
+async function waitForPostNavTxnMatch(input: IPipelineContext): Promise<boolean> {
+  if (!input.mediator.has) return true;
+  if (hasPostNavTxnMatch(input)) return true;
+  const hit = await input.mediator.value.network
+    .waitForTransactionsTraffic(DASHBOARD_FINAL_TXN_WAIT_MS)
+    .catch((): false => false);
+  return hit !== false;
+}
+
+/**
+ * FINAL: gate the phase, build API context, and emit the
+ * `dashboard.signal.ready` event for SCRAPE.PRE.
+ * @param input - Pipeline context.
+ * @returns Updated context with API + canonical signal, or fail.
+ */
 async function executeCollectAndSignal(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD FINAL: not ready');
-  // Gatekeeper — fail loud when SCRAPE.PRE would inherit an
-  // incomplete signal. The soft-fallback already widens postNav to
-  // the full pool when no nav-click was issued, so this only fires
-  // when NO captures across the entire run match a transactions
-  // pattern (broken login / dashboard / network). Only invoked when
-  // a real mediator is attached — mock contexts (unit tests, tools)
-  // skip the network-side check.
-  if (input.mediator.has && !hasPostNavTxnMatch(input)) {
+  // F-DASH-1: when the post-nav pool exposes no WK-txn match within the
+  // FINAL wait budget, DASHBOARD halts the pipeline. SCRAPE never starts
+  // on an empty contract — there is no bridge fallback, no soft
+  // re-discovery in SCRAPE. The wait absorbs the SPA timing race
+  // (Discount's BFF, Hapoalim's role-bound txn fetch).
+  const isMatched = await waitForPostNavTxnMatch(input);
+  if (input.mediator.has && !isMatched) {
     return fail(
       ScraperErrorTypes.Generic,
-      'DASHBOARD FINAL: no transactions endpoint captured — pre-nav and post-nav both empty of WK-txn matches',
+      'DASHBOARD FINAL: DASHBOARD_TXN_ENDPOINT_MISSING — post-nav pool empty of WK-txn matches after wait budget',
     );
   }
   const withApi = await maybeAttachApi(input);
-  const dashUrl = withApi.dashboard.has && withApi.dashboard.value.pageUrl;
-  const discoveredAuth = await extractAuthFromContext(withApi);
-  const diag = { ...withApi.diagnostics, finalUrl: some(dashUrl || ''), discoveredAuth };
+  const txnCommitted = await commitTxnEndpoint(withApi);
+  if (!txnCommitted.ok) return txnCommitted.failure;
+  const dashUrl = txnCommitted.ctx.dashboard.has && txnCommitted.ctx.dashboard.value.pageUrl;
+  const discoveredAuth = await extractAuthFromContext(txnCommitted.ctx);
+  const diag = {
+    ...txnCommitted.ctx.diagnostics,
+    finalUrl: some(dashUrl || ''),
+    discoveredAuth,
+  };
   const hasAuth = Boolean(discoveredAuth);
-  const epCount = countEndpoints(withApi);
+  const epCount = countEndpoints(txnCommitted.ctx);
   // Emit the canonical signal-ready event. preNavCount / postNavCount
   // form the materialised contract: SCRAPE.PRE consumes the post-nav
   // pool (already validated above) and never re-checks completeness.
-  const counts = countNavBuckets(withApi);
+  const counts = countNavBuckets(txnCommitted.ctx);
   const preNavCount = counts.preNavCount;
   const postNavCount = counts.postNavCount;
   withApi.logger.debug({
@@ -963,7 +1010,64 @@ async function executeCollectAndSignal(
     preNavCount,
     postNavCount,
   });
-  return succeed({ ...withApi, diagnostics: diag });
+  return succeed({ ...txnCommitted.ctx, diagnostics: diag });
+}
+
+/** Outcome of {@link commitTxnEndpoint} — discriminated success/fail. */
+interface ITxnCommitOutcome {
+  readonly ok: boolean;
+  readonly ctx: IPipelineContext;
+  readonly failure: Procedure<IPipelineContext>;
+}
+
+/**
+ * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
+ * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
+ * resolver cannot pick a date AND amount field. Mirrors the
+ * ACCOUNT-RESOLVE.POST contract: every successful run either commits
+ * the endpoint OR halts the pipeline before SCRAPE starts. The
+ * MOCK_MODE valve preserves the offline snapshot suite — no captured
+ * network traffic, no fail-loud applicable.
+ *
+ * @param ctx - Pipeline context after `maybeAttachApi`.
+ * @returns Outcome carrying the updated context (success) or the
+ *   fail-loud procedure to propagate.
+ */
+async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
+  await Promise.resolve();
+  if (!ctx.mediator.has) {
+    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
+  }
+  if (isMockModeDashboardFinalActive) {
+    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
+  }
+  const ep = resolveTxnEndpoint(ctx.mediator.value.network);
+  if (ep === false) {
+    // F-DASH-2: the picked TXN URL has no record exposing a date AND
+    // amount field WK_TXN recognises. DASHBOARD halts the pipeline —
+    // there is no bridge fallback in SCRAPE. The contract is binary:
+    // either DASHBOARD.FINAL commits a complete `ctx.txnEndpoint` or
+    // the run errors out. Never half-commit, never let SCRAPE
+    // re-discover.
+    const failure = fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
+        'TXN body missing date or amount field aliases',
+    );
+    return { ok: false, ctx, failure };
+  }
+  const updated: IPipelineContext = { ...ctx, txnEndpoint: some(ep) };
+  ctx.logger.debug({
+    event: 'dashboard.txnEndpoint.committed',
+    method: ep.method,
+    captureIndex: ep.captureIndex,
+    fieldMapDate: ep.fieldMap.date,
+    fieldMapAmount: ep.fieldMap.amount,
+    pendingUrlPresent: ep.pendingUrl !== false,
+    billingUrlPresent: ep.billingUrl !== false,
+    normalizedRecords: ep.normalizedRecords.length,
+  });
+  return { ok: true, ctx: updated, failure: fail(ScraperErrorTypes.Generic, '') };
 }
 
 export {

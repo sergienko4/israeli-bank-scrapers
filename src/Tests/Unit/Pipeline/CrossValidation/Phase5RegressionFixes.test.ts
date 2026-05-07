@@ -218,16 +218,19 @@ describe('Pattern 1 — sanity (wait/discover migrated to ACCOUNT-RESOLVE)', () 
   });
 });
 
-describe('Defect D1 — strict post-nav-only txn discovery (no fallback)', () => {
-  it('discoverTransactionsEndpoint returns false when post-nav has no WK-txn match', () => {
-    // VisaCal-shape: pre-nav contains a WK-txn match (filteredTransactions),
-    // post-nav has none. Strict gate: picker MUST return false.
-    // Pre-nav fallback would mask a broken click — D1 says fail loud.
+describe('Defect D1 — Phase 7e: shape-aware full-pool picker (no bucket constraint)', () => {
+  it('discoverTransactionsEndpoint picks shape-passing capture regardless of pre-/post-nav bucket', () => {
+    // Phase 7e: VisaCal-class banks fire the txn URL at login-FINAL,
+    // before any dashboard click. The picker walks the full captured
+    // pool and prefers shape-passing captures over noise — no
+    // pre-/post-nav bucket constraint. The fail-loud signal for
+    // broken-click banks is now "no shape-passing capture anywhere",
+    // not "no post-nav capture".
     const preNavTxn = makeCapture({
       url: 'https://api.cal-online.example/Transactions/api/filteredTransactions/getFilteredTransactions',
       method: 'POST',
-      responseBody: { transactions: [{ id: 1 }] },
-      postData: '{}',
+      responseBody: { transactions: [{ date: '2026-01-01', amount: -10, description: 'FAKE' }] },
+      postData: '{"cardUniqueId":"FAKE"}',
       timestamp: 100,
     });
     const postNavNoise = makeCapture({
@@ -238,6 +241,9 @@ describe('Defect D1 — strict post-nav-only txn discovery (no fallback)', () =>
     });
     const network = createFrozenNetwork([preNavTxn, postNavNoise], false, 200);
     const picked = network.discoverTransactionsEndpoint();
-    expect(picked).toBe(false);
+    expect(picked).not.toBe(false);
+    if (picked !== false) {
+      expect(picked.url).toContain('filteredTransactions');
+    }
   });
 });

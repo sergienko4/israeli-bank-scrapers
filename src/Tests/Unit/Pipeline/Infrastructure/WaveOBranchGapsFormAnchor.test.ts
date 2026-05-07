@@ -169,11 +169,6 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
       api,
       network: {
         /**
-         * Discover endpoint stub.
-         * @returns ep.
-         */
-        discoverTransactionsEndpoint: (): unknown => ep,
-        /**
          * Empty endpoint list — exercises the 0-balance path.
          * @returns Empty array.
          */
@@ -185,6 +180,7 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
         buildBalanceUrl: (): false => false,
       },
       startDate: '20260101',
+      txnEndpoint: ep,
     } as unknown as Parameters<typeof tryMatrixLoop>[0]['fc'];
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     // Matrix applied → returns Procedure with 0-txn account, NOT false.

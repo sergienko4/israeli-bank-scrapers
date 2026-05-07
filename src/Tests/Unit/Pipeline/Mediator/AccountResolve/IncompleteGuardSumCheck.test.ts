@@ -101,9 +101,7 @@ function makeCtxWithFixture(body: unknown): IPipelineContext {
  * @param containers - Per-WK container map.
  * @returns Sorted container names.
  */
-function sortedKeys(
-  containers: Readonly<Record<string, readonly unknown[]>>,
-): readonly string[] {
+function sortedKeys(containers: Readonly<Record<string, readonly unknown[]>>): readonly string[] {
   const keys = Object.keys(containers);
   return keys.sort((a, b): number => a.localeCompare(b));
 }

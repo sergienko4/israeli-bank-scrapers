@@ -107,15 +107,8 @@ describe('scrapeOneAccountViaUrl', () => {
     const api = makeApi({
       fetchGet: stubFetchGetOk({ result: { transactions: [] } }),
     });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      discoverTransactionsEndpoint: () => ep,
-    });
-    const fc = makeFc(api, network);
+    const network = makeNetwork();
+    const fc = makeFc(api, network, { txnEndpoint: ep });
     const result = await scrapeOneAccountViaUrl(fc, 'acc-1');
     const isOkResult8 = isOk(result);
     expect(isOkResult8).toBe(true);

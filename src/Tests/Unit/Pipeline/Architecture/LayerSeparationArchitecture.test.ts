@@ -34,16 +34,178 @@ interface ILayerRule {
 
 const RULES: readonly ILayerRule[] = [
   {
+    // R-ACCOUNT (Phase 7d).
     wk: 'PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS',
     owners: [
       path.join('Mediator', 'AccountResolve'),
       path.join('Phases', 'AccountResolve'),
       path.join('Mediator', 'Auth', 'AccountDiscovery.ts'),
+      // Phase 7e (Revision 2): the TXN parser stays at
+      // Mediator/Scrape/ScrapeAutoMapper.ts (rename reverted to keep
+      // the eslint Section 12 allowlist working). Allowlisted because
+      // the parser surfaces account ids while resolving the TXN-shape
+      // (the same way {@link AccountDiscovery} surfaces them while
+      // picking the ACCOUNT endpoint).
       path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+      // Strategy/Scrape/Account/* still surface account ids to display
+      // alongside transactions — bounded scope, kept under R-ACCOUNT.
+      path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
+      path.join('Strategy', 'Scrape', 'Account', 'AccountScrapeStrategy.ts'),
+      path.join('Strategy', 'Scrape', 'Account', 'FilterDataStrategy.ts'),
+      path.join('Strategy', 'Scrape', 'Account', 'PendingStrategy.ts'),
     ],
     forbidden: [path.join('Mediator', 'Dashboard'), path.join('Phases', 'Dashboard')],
   },
+  {
+    // R-API (Phase 7e). DASHBOARD owns TXN-side WK_API; SCRAPE consumes
+    // resolved values via ctx.txnEndpoint. The parser file is allowlisted
+    // because Phase 7e (Revision 2) kept it at Mediator/Scrape/.
+    wk: 'PIPELINE_WELL_KNOWN_API',
+    owners: [
+      path.join('Mediator', 'Dashboard'),
+      path.join('Phases', 'Dashboard'),
+      path.join('Mediator', 'Network'),
+      path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+      // Auth post-login probe still consumes WK_API.accounts as the
+      // landing-traffic gate (R-AUTH-CLEANUP only forbids transactions).
+      path.join('Mediator', 'Auth', 'PostLoginTrafficProbe.ts'),
+    ],
+    forbidden: [
+      path.join('Strategy', 'Scrape'),
+      path.join('Phases', 'Scrape'),
+      path.join('Mediator', 'AccountResolve'),
+      path.join('Phases', 'AccountResolve'),
+    ],
+  },
+  {
+    // R-BILLING (Phase 7e). The billing URL is pre-resolved by
+    // DASHBOARD.FINAL into ctx.txnEndpoint.billingUrl; SCRAPE consumes.
+    wk: 'PIPELINE_WELL_KNOWN_BILLING',
+    owners: [
+      path.join('Mediator', 'Dashboard'),
+      path.join('Phases', 'Dashboard'),
+      path.join('Mediator', 'Network'),
+      path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+    ],
+    forbidden: [
+      path.join('Strategy', 'Scrape'),
+      path.join('Phases', 'Scrape'),
+      path.join('Mediator', 'AccountResolve'),
+      path.join('Phases', 'AccountResolve'),
+      path.join('Mediator', 'Auth'),
+    ],
+  },
+  {
+    // R-TXN (Phase 7e). WK_TXN field aliases live in the parser only.
+    wk: 'PIPELINE_WELL_KNOWN_TXN_FIELDS',
+    owners: [
+      path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+      // Strategy/Scrape/Account/BalanceExtractor.ts and
+      // Strategy/Scrape/ScrapeChunking.ts/UrlDateRange.ts still touch
+      // WK_TXN for monthly chunking + balance extraction; allowlisted as
+      // a Phase-7f follow-up trim once parseFreshResponse lands.
+      path.join('Strategy', 'Scrape', 'Account', 'BalanceExtractor.ts'),
+      path.join('Strategy', 'Scrape', 'ScrapeChunking.ts'),
+      path.join('Mediator', 'Scrape', 'UrlDateRange.ts'),
+      path.join('Mediator', 'Scrape', 'TxnShape.ts'),
+    ],
+    forbidden: [
+      path.join('Mediator', 'Dashboard'),
+      path.join('Phases', 'Dashboard'),
+      path.join('Mediator', 'AccountResolve'),
+      path.join('Phases', 'AccountResolve'),
+      path.join('Mediator', 'Auth'),
+    ],
+  },
 ];
+
+/** A single forbidden-call detection — file path + grep'd line numbers. */
+interface IForbiddenCall {
+  readonly callee: string;
+  readonly relPath: string;
+  readonly lines: readonly number[];
+}
+
+/**
+ * Phase 7e F-ARCH-4: SCRAPE-side code MUST NOT call
+ * `network.discoverTransactionsEndpoint()` directly. The single legitimate
+ * call site is `Mediator/Scrape/TxnEndpointBridge.ts` — the adapter that
+ * fronts `ctx.txnEndpoint` (committed by DASHBOARD.FINAL) for the
+ * mock-mode bypass case.
+ */
+const SCRAPE_ZONES: readonly string[] = [
+  path.join('Strategy', 'Scrape'),
+  path.join('Phases', 'Scrape'),
+  path.join('Mediator', 'Scrape'),
+];
+
+/**
+ * Files inside SCRAPE_ZONES that are exempt from the F-ARCH-4 grep.
+ * Only the parser (which DASHBOARD.FINAL calls into via
+ * `resolveTxnEndpoint`) is allowed to touch
+ * `INetworkDiscovery.discoverTransactionsEndpoint`. The bridge does
+ * NOT call discovery — it reads `ctx.txnEndpoint` only. TxnShape
+ * imports the type for its own helpers; no runtime call.
+ */
+const SCRAPE_DISCOVERY_ALLOWLIST: readonly string[] = [
+  path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+  path.join('Mediator', 'Scrape', 'TxnShape.ts'),
+];
+
+/**
+ * Returns true when the file lives in a SCRAPE zone AND is NOT on the
+ * F-ARCH-4 allowlist.
+ * @param relPath - Path relative to PIPELINE_ROOT.
+ * @returns True when the file is subject to the F-ARCH-4 grep.
+ */
+function isScrapeZoneEnforced(relPath: string): boolean {
+  const isInZone = SCRAPE_ZONES.some((zone): boolean => relPathMatches(relPath, zone));
+  if (!isInZone) return false;
+  const isAllowlisted = SCRAPE_DISCOVERY_ALLOWLIST.some((entry): boolean =>
+    relPathMatches(relPath, entry),
+  );
+  return !isAllowlisted;
+}
+
+/**
+ * Find every line that calls `discoverTransactionsEndpoint(...)` (the
+ * call form, not type or comment references). Skips line-leading `//`
+ * comments and lines that begin with `*` (JSDoc continuation lines).
+ * @param text - Source file text.
+ * @returns Line numbers (1-based) carrying the call.
+ */
+function findDiscoverTxnCallLines(text: string): readonly number[] {
+  const callPattern = /\.discoverTransactionsEndpoint\s*\(/;
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (callPattern.test(line)) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan SCRAPE-zone files for forbidden discoverTransactionsEndpoint() calls.
+ * @returns Forbidden hits, empty when the boundary holds.
+ */
+function findForbiddenDiscoverTxnCalls(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (!isScrapeZoneEnforced(rel)) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findDiscoverTxnCallLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'discoverTransactionsEndpoint', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
 
 /**
  * Walk a directory recursively and yield every TypeScript source
@@ -211,11 +373,17 @@ describe('Phase 7d — layer-separation architecture validation', () => {
 
       it('no forbidden zone imports the WK', () => {
         const hits = findForbiddenImports(rule);
-        const summary = hits.map(
-          (h): string => `${h.relPath} @ lines ${h.lines.join(',')}`,
-        );
+        const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
         expect(summary).toEqual([]);
       });
     });
   }
+});
+
+describe('Phase 7e — F-ARCH-4: SCRAPE never calls discoverTransactionsEndpoint', () => {
+  it('no SCRAPE-zone file outside the bridge calls discoverTransactionsEndpoint()', () => {
+    const hits = findForbiddenDiscoverTxnCalls();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
 });

@@ -1,0 +1,65 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "shape": "bff-balancetransactions/api/v1/transactions/list POST (split credit/debit)",
+    "expectedMethod": "POST",
+    "expectedDateField": "dateOfRegistration",
+    "expectedAmountField": "creditAmount",
+    "expectedRecords": 3,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": false,
+    "_traceSource": "Mirrors prod shape captured under C:/tmp/runs/pipeline/beinleumi/07-05-2026_14363764/network/dashboard-FINAL/0061-POST-...transactions_list.json. All identifiers, amounts, and Hebrew descriptions are FAKE; only the field shape (dateOfRegistration / creditAmount / debitAmount / openingBalance / closingBalance) carries forward."
+  },
+  "captures": [
+    {
+      "url": "https://online.fibi.fake.example/appsng/bff-balancetransactions/api/v1/transactions/list",
+      "method": "POST",
+      "captureIndex": 9,
+      "postData": "{\"initialRequest\":{\"accountNumber\":111111,\"accountType\":105,\"branch\":\"099\",\"endDate\":\"2026-05-07\",\"startDate\":\"2025-11-07\",\"order\":1,\"language\":\"HEB\"}}",
+      "responseBody": {
+        "returncode": null,
+        "errorMessage": null,
+        "accountType": 105,
+        "transactions": [
+          {
+            "dateOfRegistration": "2026-05-05T00:00:00",
+            "dateOfBusinessDay": "2026-05-05T00:00:00",
+            "description": "FAKE-PAYMENT-A",
+            "creditAmount": 0,
+            "debitAmount": 100.0,
+            "reference": 99001,
+            "firstTransactionOfDay": true,
+            "lastTransactionOfDay": true,
+            "openingBalance": 1000.0,
+            "closingBalance": 900.0
+          },
+          {
+            "dateOfRegistration": "2026-05-01T00:00:00",
+            "dateOfBusinessDay": "2026-05-01T00:00:00",
+            "description": "FAKE-CREDIT-B",
+            "creditAmount": 250.0,
+            "debitAmount": 0,
+            "reference": 99002,
+            "firstTransactionOfDay": true,
+            "lastTransactionOfDay": true,
+            "openingBalance": 750.0,
+            "closingBalance": 1000.0
+          },
+          {
+            "dateOfRegistration": "2026-04-30T00:00:00",
+            "dateOfBusinessDay": "2026-04-30T00:00:00",
+            "description": "FAKE-PURCHASE-C",
+            "creditAmount": 0,
+            "debitAmount": 50.0,
+            "reference": 99003,
+            "firstTransactionOfDay": true,
+            "lastTransactionOfDay": true,
+            "openingBalance": 800.0,
+            "closingBalance": 750.0
+          }
+        ],
+        "pagingContext": "FAKE-PAGING-TOKEN"
+      }
+    }
+  ]
+}

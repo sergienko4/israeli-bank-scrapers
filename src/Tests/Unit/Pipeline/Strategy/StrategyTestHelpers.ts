@@ -170,19 +170,33 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
   return { ...base, ...overrides };
 }
 
+/** Optional extras for {@link makeFc}. */
+interface IMakeFcOpts {
+  readonly startDate?: string;
+  readonly txnEndpoint?: IDiscoveredEndpoint | false;
+}
+
 /**
- * Build an IAccountFetchCtx using provided stubs.
+ * Build an IAccountFetchCtx using provided stubs. Phase 7e: callers can
+ * supply the pre-resolved `txnEndpoint` via the opts bag — strategies
+ * read it from the fetch context instead of calling
+ * `network.discoverTransactionsEndpoint`.
  * @param api - API stub.
  * @param network - Network stub.
- * @param startDate - Start date (YYYYMMDD).
+ * @param opts - Optional startDate / txnEndpoint overrides.
  * @returns Fetch context.
  */
 export function makeFc(
   api: IApiFetchContext,
   network: INetworkDiscovery,
-  startDate = '20260101',
+  opts: IMakeFcOpts = {},
 ): IAccountFetchCtx {
-  return { api, network, startDate };
+  return {
+    api,
+    network,
+    startDate: opts.startDate ?? '20260101',
+    txnEndpoint: opts.txnEndpoint ?? false,
+  };
 }
 
 /**

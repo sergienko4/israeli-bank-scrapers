@@ -27,6 +27,24 @@ interface IAccountFetchCtx {
   readonly network: INetworkDiscovery;
   readonly startDate: string;
   readonly futureMonths?: number;
+  /**
+   * TXN endpoint resolved by DASHBOARD.FINAL and forwarded by SCRAPE.PRE.
+   * Phase 7e: SCRAPE strategies read this field instead of calling
+   * `network.discoverTransactionsEndpoint()` themselves — the architecture
+   * test enforces zero discovery calls outside DASHBOARD.
+   */
+  readonly txnEndpoint?: IDiscoveredEndpoint | false;
+  /**
+   * Pending-transactions API URL resolved by DASHBOARD.FINAL (Phase 7e
+   * R-API). `false` when the bank doesn't expose pending or DASHBOARD
+   * skipped the commit (mock-mode bypass).
+   */
+  readonly pendingUrl?: string | false;
+  /**
+   * Billing-fallback URL resolved by DASHBOARD.FINAL (Phase 7e R-API).
+   * `false` when the bank's family doesn't carry the billing path.
+   */
+  readonly billingUrl?: string | false;
 }
 
 /** Bundled options for fetching one account. */

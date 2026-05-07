@@ -57,7 +57,17 @@ const MOCK_TXN_ENDPOINT: IDiscoveredEndpoint = {
   url: 'https://test.example/api/getTransactions',
   method: 'POST',
   postData: '',
-  responseBody: { transactions: [] },
+  responseBody: {
+    transactions: [
+      {
+        date: '2026-05-01',
+        amount: 0,
+        description: 'mock-txn',
+        currency: 'ILS',
+        identifier: 'mock-1',
+      },
+    ],
+  },
   contentType: 'application/json',
   requestHeaders: {},
   responseHeaders: {},
@@ -567,10 +577,13 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        */
       discoverSpaUrl: (): false => false,
       /**
-       * No transactions in mock.
-       * @returns False.
+       * Synthetic txn endpoint so DASHBOARD.FINAL's Phase 7e
+       * resolver can build a complete `ITxnEndpoint` (with field
+       * map) by default. Tests that exercise the failure mode
+       * override this to return `false`.
+       * @returns Single-element synthetic txn endpoint.
        */
-      discoverTransactionsEndpoint: (): false => false,
+      discoverTransactionsEndpoint: (): IDiscoveredEndpoint => MOCK_TXN_ENDPOINT,
       /**
        * No balance in mock.
        * @returns False.

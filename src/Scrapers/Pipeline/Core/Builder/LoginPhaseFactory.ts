@@ -77,6 +77,7 @@ function buildStubFullContext(input: IActionContext): IPipelineContext {
     browser: { has: false },
     login: { has: false },
     scrape: { has: false },
+    txnEndpoint: { has: false },
   };
 }
 

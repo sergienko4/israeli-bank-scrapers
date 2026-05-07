@@ -6,12 +6,8 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
-import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
-import {
-  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
-  PIPELINE_WELL_KNOWN_API,
-} from '../../../Registry/WK/ScrapeWK.js';
+import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IApiFetchContext } from '../../../Types/PipelineContext.js';
@@ -61,53 +57,11 @@ function mapPendingTxn(raw: IPendingTxn): ITransaction {
   };
 }
 
-/**
- * Discover pending API URL from captured traffic or API origin.
- * @param network - Network discovery.
- * @returns Pending endpoint URL or false.
- */
-function discoverPendingUrl(network: INetworkDiscovery): string | false {
-  const ep = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
-  if (ep) return ep.url;
-  const origin = network.discoverApiOrigin();
-  LOG.debug({ message: `pending: apiOrigin=${String(origin)}` });
-  if (!origin) return false;
-  return `${origin}/Transactions/api/approvals/getClearanceRequests`;
-}
-
-/**
- * Extract cardUniqueId values from captured POST bodies.
- * @param network - Network discovery.
- * @returns Array of card unique IDs.
- */
-/** Regex for cardUniqueId in POST bodies. */
-const CARD_ID_REGEX = /"cardUniqueId"\s*:\s*"([^"]+)"/;
-
-/**
- * Extract one cardUniqueId from a POST body string.
- * @param postData - Raw POST body.
- * @returns Card ID or false.
- */
-function extractOneCardId(postData: string): string | false {
-  const match = CARD_ID_REGEX.exec(postData);
-  if (!match) return false;
-  return match[1];
-}
-
-/**
- * Extract cardUniqueId values from captured POST bodies.
- * @param network - Network discovery.
- * @returns Array of card unique IDs.
- */
-function extractCardUniqueIds(network: INetworkDiscovery): readonly string[] {
-  const allEps = network.getAllEndpoints();
-  const withPost = allEps.filter(ep => Boolean(ep.postData));
-  LOG.debug({ message: `pending: ${String(withPost.length)} POST eps to scan` });
-  const extracted = withPost.map(ep => extractOneCardId(ep.postData));
-  const valid = extracted.filter((id): id is string => id !== false);
-  LOG.debug({ message: `pending: ${String(valid.length)} cardIds found` });
-  return [...new Set(valid)];
-}
+// Phase 7e R-API: discoverPendingUrl + extractCardUniqueIds removed.
+// The pending URL is pre-resolved by DASHBOARD.FINAL via WK_API.pending
+// patterns and committed to ctx.txnEndpoint.pendingUrl. SCRAPE consumes
+// the resolved URL and reads the cardUniqueId list from the
+// ACCOUNT-RESOLVE.POST records — no WK_API import remains here.
 
 /**
  * Build a map from cardUniqueId to account display number (last4Digits).
@@ -203,28 +157,28 @@ function extractIdsFromRecords(
 /** Bundled args for pending fetch. */
 interface IPendingArgs {
   readonly api: IApiFetchContext;
-  readonly network: INetworkDiscovery;
   readonly accounts: readonly ITransactionsAccount[];
   readonly accountRecords: readonly Record<string, unknown>[];
+  /**
+   * Pending URL pre-resolved by DASHBOARD.FINAL (Phase 7e). `false` when
+   * the bank doesn't expose pending or DASHBOARD skipped the commit.
+   */
+  readonly pendingUrl: string | false;
 }
 
 /**
- * Fetch pending transactions and merge into existing accounts.
+ * Fetch pending transactions and merge into existing accounts. The
+ * pending URL is supplied by the caller (DASHBOARD.FINAL pre-resolves
+ * it into `ctx.txnEndpoint.pendingUrl`). The cardUniqueId list comes
+ * from the account records ACCOUNT-RESOLVE.POST committed to
+ * `ctx.accountDiscovery` — no traffic re-discovery, no WK access.
  * @param args - Bundled pending fetch arguments.
  * @returns Updated accounts with pending txns added.
  */
 async function fetchAndMergePending(args: IPendingArgs): Promise<readonly ITransactionsAccount[]> {
-  const { api, network, accounts, accountRecords } = args;
-  const pendingUrl = discoverPendingUrl(network);
-  if (!pendingUrl) return accounts;
-  const fromRecords = extractIdsFromRecords(accountRecords);
-  const fromTraffic = extractCardUniqueIds(network);
-  const hasRecordIds = fromRecords.length > 0;
-  const cardIdMap: Record<string, readonly string[]> = {
-    true: fromRecords,
-    false: fromTraffic,
-  };
-  const cardIds = cardIdMap[String(hasRecordIds)];
+  const { api, accounts, accountRecords, pendingUrl } = args;
+  if (pendingUrl === false) return accounts;
+  const cardIds = extractIdsFromRecords(accountRecords);
   if (cardIds.length === 0) return accounts;
   LOG.debug({ message: `pending POST: ${String(cardIds.length)} cards` });
   const body = { cardUniqueIDArray: cardIds };

@@ -1,0 +1,48 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "shape": "GetLatestTransactions POST",
+    "expectedMethod": "POST",
+    "expectedDateField": "fullPurchaseDate",
+    "expectedAmountField": "dealSum",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": "https://services.amex.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails"
+  },
+  "captures": [
+    {
+      "url": "https://services.amex.fake.example/Transactions/api/lastTransactions/GetLatestTransactions",
+      "method": "POST",
+      "captureIndex": 7,
+      "postData": "{\"cardUniqueId\":\"FAKE-AMEX-001\",\"month\":4,\"year\":2026}",
+      "responseBody": {
+        "Result": {
+          "BankAccounts": [
+            {
+              "Cards": [
+                {
+                  "CardUniqueID": "FAKE-AMEX-001",
+                  "CurrentCardTransactions": [
+                    {
+                      "Txn": [
+                        { "fullPurchaseDate": "2026-04-15", "dealSum": -200.0, "merchantName": "FAKE-AIRLINES", "moed": "1" },
+                        { "fullPurchaseDate": "2026-04-16", "dealSum": -75.0, "merchantName": "FAKE-HOTEL", "moed": "1" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "url": "https://services.amex.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails",
+      "method": "POST",
+      "captureIndex": 8,
+      "postData": "{\"cardUniqueId\":\"FAKE-AMEX-001\"}",
+      "responseBody": {}
+    }
+  ]
+}

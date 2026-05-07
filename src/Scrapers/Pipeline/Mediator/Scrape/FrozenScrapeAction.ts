@@ -20,7 +20,9 @@ import {
 } from '../../Types/PipelineContext.js';
 import { type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
-import { createFrozenNetwork, type INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+import { createFrozenNetwork } from '../Network/NetworkDiscovery.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
+import { readBillingUrl, readPendingUrl, readTxnEndpoint } from './TxnEndpointBridge.js';
 
 const LOG = createLogger('frozen-scrape');
 
@@ -74,14 +76,28 @@ async function runFrozenScrape(
   const api = await resolveFrozenApi(input);
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
-  const fc: IAccountFetchCtx = { api, network: frozen, startDate, futureMonths };
-  const loadCtx = buildFrozenLoadCtx(disc, fc, frozen);
+  // Phase 7e: source the TXN endpoint via the bridge — DASHBOARD.FINAL's
+  // ctx.txnEndpoint is preferred; the frozen network is only consulted if
+  // DASHBOARD skipped the commit (mock-mode bypass / FrozenScrape replay).
+  const txnEndpoint = readTxnEndpoint(input);
+  const pendingUrl = readPendingUrl(input);
+  const billingUrl = readBillingUrl(input);
+  const fc: IAccountFetchCtx = {
+    api,
+    network: frozen,
+    startDate,
+    futureMonths,
+    txnEndpoint,
+    pendingUrl,
+    billingUrl,
+  };
+  const loadCtx = buildFrozenLoadCtx(disc, fc, txnEndpoint);
   const rawAccounts = await scrapeAllAccounts(loadCtx);
   const withPending = await fetchAndMergePending({
     api,
-    network: frozen,
     accounts: rawAccounts,
     accountRecords: loadCtx.records,
+    pendingUrl,
   });
   const filterMs = parseStartDate(startDate).getTime();
   applyGlobalDateFilter(withPending, filterMs);
@@ -101,22 +117,41 @@ function resolveFrozenApi(input: IActionContext): Promise<IApiFetchContext> {
 }
 
 /**
- * Build the frozen load context from discovery.
+ * Build the frozen load context from discovery. Phase 7e: the TXN endpoint
+ * is supplied by the caller (read via {@link readTxnEndpoint}) — this helper
+ * never re-runs discovery.
  * @param disc - Scrape discovery state.
  * @param fc - Account fetch context.
- * @param frozen - Frozen network.
+ * @param txnEndpoint - TXN endpoint resolved upstream.
  * @returns Fetch-all-accounts context.
  */
 function buildFrozenLoadCtx(
   disc: IScrapeDiscovery,
   fc: IAccountFetchCtx,
-  frozen: INetworkDiscovery,
+  txnEndpoint: IDiscoveredEndpoint | false,
 ): IFetchAllAccountsCtx {
   const ids = disc.accountIds ?? disc.qualifiedCards;
   const records = disc.rawAccountRecords ?? [];
-  const txnEndpoint = disc.txnEndpoint ?? frozen.discoverTransactionsEndpoint();
+  const resolved = pickFrozenTxnEndpoint(txnEndpoint, disc.txnEndpoint ?? false);
   LOG.debug({ message: `[ACTION] frozen: ${String(ids.length)} accts` });
-  return { fc, ids, records, txnEndpoint };
+  return { fc, ids, records, txnEndpoint: resolved };
+}
+
+/**
+ * Pick the frozen-replay TXN endpoint: prefer the bridge-supplied value
+ * (sourced from `ctx.txnEndpoint`); fall back to the value frozen into
+ * `IScrapeDiscovery.txnEndpoint` at PRE time. Returns `false` only when
+ * both sources are absent.
+ * @param fromBridge - Value supplied by readTxnEndpoint via ctx.
+ * @param fromDiscovery - Value frozen onto IScrapeDiscovery at PRE.
+ * @returns Resolved endpoint or `false`.
+ */
+function pickFrozenTxnEndpoint(
+  fromBridge: IDiscoveredEndpoint | false,
+  fromDiscovery: IDiscoveredEndpoint | false,
+): IDiscoveredEndpoint | false {
+  if (fromBridge !== false) return fromBridge;
+  return fromDiscovery;
 }
 
 /**

@@ -27,14 +27,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 /** Bank id enum — closed list of pipeline browser banks today. */
-type FixtureBank =
-  | 'discount'
-  | 'max'
-  | 'hapoalim'
-  | 'visacal'
-  | 'amex'
-  | 'isracard'
-  | 'beinleumi';
+type FixtureBank = 'discount' | 'max' | 'hapoalim' | 'visacal' | 'amex' | 'isracard' | 'beinleumi';
 
 /** Fixture envelope schema — Phase 7d cross-bank coverage. */
 interface IFixtureEnvelope {

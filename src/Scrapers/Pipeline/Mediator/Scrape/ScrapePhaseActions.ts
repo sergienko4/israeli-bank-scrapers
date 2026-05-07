@@ -24,6 +24,7 @@ import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { triggerDashboardUi } from '../Dashboard/DashboardTrigger.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
 import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
+import { readBillingUrl, readPendingUrl, readTxnEndpoint } from './TxnEndpointBridge.js';
 
 const LOG = createLogger('scrape-phase');
 
@@ -94,19 +95,33 @@ async function executeDirectDiscovery(
   const network = input.mediator.value.network;
   const mediator = input.mediator.value;
 
-  await pivotToSpaIfNeeded(mediator, network);
+  // Phase 7e: SCRAPE consumes the TXN endpoint DASHBOARD.FINAL committed to
+  // ctx.txnEndpoint, plus the pre-resolved pendingUrl / billingUrl carried
+  // alongside it. The bridge falls back to the live network only when
+  // DASHBOARD skipped the commit (mock-mode bypass).
+  const txnEndpoint = readTxnEndpoint(input);
+  const pendingUrl = readPendingUrl(input);
+  const billingUrl = readBillingUrl(input);
+  await pivotToSpaIfNeeded({ mediator, network, txnEndpoint });
 
-  // Account discovery moved to LOGIN.FINAL / OTP-FILL.FINAL; SCRAPE.PRE
-  // consumes the pre-discovered list and runs ONLY transaction-endpoint
-  // discovery on the post-nav bucket. No global-pool rediscovery, no
-  // mixing of auth-side and dashboard-side data.
+  // Account discovery moved to ACCOUNT-RESOLVE.POST (Phase 7d); SCRAPE.PRE
+  // consumes the pre-discovered list. TXN-endpoint discovery moved to
+  // DASHBOARD.FINAL (Phase 7e); SCRAPE.PRE consumes ctx.txnEndpoint.
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
-  const fc: IAccountFetchCtx = { api, network, startDate, futureMonths };
+  const fc: IAccountFetchCtx = {
+    api,
+    network,
+    startDate,
+    futureMonths,
+    txnEndpoint,
+    pendingUrl,
+    billingUrl,
+  };
   const preDiscovered = readPreDiscoveredAccounts(input);
   const loadCtx = buildLoadCtxFromPreDiscovered({
     fc,
-    network,
+    txnEndpoint,
     ids: preDiscovered.ids,
     records: preDiscovered.records,
   });

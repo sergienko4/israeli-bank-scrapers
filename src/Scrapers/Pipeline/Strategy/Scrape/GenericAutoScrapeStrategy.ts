@@ -56,34 +56,29 @@ function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | 
 /** Bundled args for {@link buildLoadCtxFromPreDiscovered}. */
 interface IPreDiscoveredArgs {
   readonly fc: IAccountFetchCtx;
-  readonly network: INetworkDiscovery;
+  readonly txnEndpoint: IDiscoveredEndpoint | false;
   readonly ids: readonly string[];
   readonly records: readonly Record<string, unknown>[];
 }
 
 /**
  * Builds the SCRAPE per-account fetch context from the account list
- * ACCOUNT-RESOLVE.POST already committed to `ctx.accountDiscovery`.
+ * ACCOUNT-RESOLVE.POST already committed to `ctx.accountDiscovery`,
+ * paired with the TXN endpoint DASHBOARD.FINAL committed to
+ * `ctx.txnEndpoint` (Phase 7e). Strict SRP — never re-runs discovery
+ * here; the upstream phases own each contract.
  *
- * <p>Strict SRP: never re-runs account discovery. The pipeline
- * invariant from Phase 7+7b guarantees `args.ids.length > 0`
- * for any successful run; this helper trusts the invariant. The
- * transaction endpoint is discovered here because it belongs to
- * SCRAPE's own concern (txn replay templates), not to account
- * discovery.
- *
- * @param args - Bundled fetch context, network surface, account ids
- *   and records (the latter two from `ctx.accountDiscovery`).
+ * @param args - Bundled fetch context, account ids/records, and the
+ *   pre-resolved txn endpoint.
  * @returns Fetch-all context ready for the matrix loop.
  */
 function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccountsCtx {
-  const txnEndpoint = args.network.discoverTransactionsEndpoint();
-  logTxnEndpoint(txnEndpoint);
+  logTxnEndpoint(args.txnEndpoint);
   return {
     fc: args.fc,
     ids: [...args.ids],
     records: [...args.records],
-    txnEndpoint,
+    txnEndpoint: args.txnEndpoint,
   };
 }
 
@@ -92,38 +87,44 @@ function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccou
  * the browser currently sits on. Drives the SPA-pivot decision in
  * {@link pivotToSpaIfNeeded}: if the txn endpoint is hosted on the
  * current origin, no pivot is needed.
- * @param network - Network discovery.
+ * @param txnEndpoint - Pre-resolved TXN endpoint (or false).
  * @param currentOrigin - Current page origin.
  * @returns Branded boolean signal.
  */
 function isTxnHostedOnCurrentOrigin(
-  network: INetworkDiscovery,
+  txnEndpoint: IDiscoveredEndpoint | false,
   currentOrigin: string,
 ): IsTxnOnCurrentOrigin {
-  const txnEndpoint = network.discoverTransactionsEndpoint();
   if (!txnEndpoint) return false as IsTxnOnCurrentOrigin;
   return (new URL(txnEndpoint.url).origin === currentOrigin) as IsTxnOnCurrentOrigin;
+}
+
+/** Bundled args for {@link pivotToSpaIfNeeded}. */
+interface IPivotArgs {
+  readonly mediator: IElementMediator;
+  readonly network: INetworkDiscovery;
+  readonly txnEndpoint: IDiscoveredEndpoint | false;
 }
 
 /**
  * Navigates to the SPA origin when the API traffic was captured from
  * a different domain than the page is on, so subsequent fetch calls
  * carry the SPA's cookies and CORS context. Skips the pivot when the
- * txn endpoint is already hosted on the current origin.
- * @param mediator - Element mediator for navigation and URL access.
- * @param network - Network discovery with captured traffic.
+ * txn endpoint is already hosted on the current origin. SCRAPE consumes
+ * the pre-resolved `txnEndpoint`; only the SPA-URL probe stays on the
+ * network surface (DASHBOARD-side concern, transport substrate).
+ *
+ * @param args - Mediator, network, pre-resolved txnEndpoint.
  * @returns Procedure with true after pivot, false when no pivot.
  */
-async function pivotToSpaIfNeeded(
-  mediator: IElementMediator,
-  network: INetworkDiscovery,
-): Promise<Procedure<boolean>> {
+async function pivotToSpaIfNeeded(args: IPivotArgs): Promise<Procedure<boolean>> {
+  const { mediator, network, txnEndpoint } = args;
   const spaUrl = network.discoverSpaUrl();
   if (!spaUrl) return succeed(false);
   const currentOrigin = new URL(mediator.getCurrentUrl()).origin;
   const spaOrigin = new URL(spaUrl).origin;
   if (currentOrigin === spaOrigin) return succeed(false);
-  if (isTxnHostedOnCurrentOrigin(network, currentOrigin)) {
+  if (isTxnHostedOnCurrentOrigin(txnEndpoint, currentOrigin)) {
     LOG.debug({
       message:
         'SPA pivot: skip — current origin ' +

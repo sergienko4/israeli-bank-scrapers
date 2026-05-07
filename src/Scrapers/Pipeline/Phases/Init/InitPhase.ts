@@ -35,6 +35,7 @@ const INIT_STUBS = {
   api: none(),
   otpConfig: none(),
   loginAreaReady: false,
+  txnEndpoint: none(),
 };
 
 /**

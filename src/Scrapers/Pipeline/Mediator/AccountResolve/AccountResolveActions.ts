@@ -223,11 +223,7 @@ function executeAccountResolvePost(input: IPipelineContext): Promise<Procedure<I
   }
   const expected = poolMaxContainer(pool);
   if (result.ids.length < expected) {
-    const failure = failAccountResolutionIncomplete(
-      result.ids.length,
-      expected,
-      result.containers,
-    );
+    const failure = failAccountResolutionIncomplete(result.ids.length, expected, result.containers);
     return Promise.resolve(failure);
   }
   const captureIndex = resolveCaptureIndex(result.endpoint);
