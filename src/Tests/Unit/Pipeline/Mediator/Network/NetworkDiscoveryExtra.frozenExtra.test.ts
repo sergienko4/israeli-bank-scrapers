@@ -76,24 +76,6 @@ describe('NetworkDiscovery — live auth cache roundtrip', () => {
 });
 
 describe('NetworkDiscovery — frozen extra coverage', () => {
-  it('frozen discoverAccountsEndpoint matches WK pattern', () => {
-    const endpoints: IDiscoveredEndpoint[] = [
-      {
-        url: 'https://api.bank.co.il/userAccountsData/list',
-        method: 'GET',
-        postData: '',
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        responseBody: {},
-        timestamp: 0,
-      },
-    ];
-    const frozen = createFrozenNetwork(endpoints, false);
-    const ep = frozen.discoverAccountsEndpoint();
-    expect(ep).not.toBe(false);
-  });
-
   it('frozen findEndpoints filters by regex', () => {
     const endpoints: IDiscoveredEndpoint[] = [
       {

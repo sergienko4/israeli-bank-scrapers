@@ -5,25 +5,6 @@
 import type { Frame, Page, Response } from 'playwright-core';
 
 import { createNetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
-import { makePage, simulate } from './NetworkDiscoveryMoreHelpers.js';
-
-describe('NetworkDiscovery — content discovery field scanning', () => {
-  it('discoverEndpointByContent returns false with no responseBody', async () => {
-    await Promise.resolve();
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    const r = discovery.discoverEndpointByContent(['whatever']);
-    expect(r).toBe(false);
-  });
-
-  it('discoverEndpointByContent scans flat body', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({ url: 'https://api.bank.co.il/x', body: { foo: 'bar', nested: { inner: 1 } } });
-    const r = discovery.discoverEndpointByContent(['foo']);
-    expect(r).not.toBe(false);
-  });
-});
 
 /**
  * Build a Response mock that matches an isWkApi check (POST to authentication URL).

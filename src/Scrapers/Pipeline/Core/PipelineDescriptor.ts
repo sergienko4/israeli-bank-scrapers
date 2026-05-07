@@ -6,7 +6,6 @@
 import type { ScraperOptions } from '../../Base/Interface.js';
 import type { BasePhase } from '../Types/BasePhase.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
-import type { AccountDiscoveryAt } from '../Types/PipelineContext.js';
 
 /** Descriptor produced by PipelineBuilder, consumed by PipelineExecutor. */
 interface IPipelineDescriptor {
@@ -22,24 +21,14 @@ interface IPipelineDescriptor {
   readonly isHeadless?: boolean;
   /**
    * Boundary phase after which the network interceptor starts
-   * collecting captures. Auto-resolved by the builder to the last
-   * configured auth phase (`otp-fill` > `otp-trigger` > `login`) for
-   * every browser bank, so the discovery pool never sees pre-auth
-   * noise. Absent/empty for headless or test pipelines that don't
-   * gate the network. Carried for diagnostics only — the actual
-   * gating is owned by `NetworkTraceLifecycleInterceptor`.
+   * collecting captures. Phase 7 placed it BEFORE the auth phase
+   * (`pre-login` when configured, otherwise `home`) so the discovery
+   * pool admits id-bearing captures fired during `login.*` substeps.
+   * Absent/empty for headless or test pipelines that don't gate the
+   * network. Carried for diagnostics only — the actual gating is
+   * owned by `NetworkTraceLifecycleInterceptor`.
    */
   readonly traceStartAfterPhase?: string;
-  /**
-   * Pointer to the auth FINAL that owns the shared
-   * account-discovery handler call. Resolved by the builder:
-   * `'otp-fill'` for OTP banks (single wait — no double),
-   * `'login'` for browser banks without OTP, `'none'` for
-   * headless/no-login pipelines. Threaded into the initial context
-   * by `buildInitialContext` so each FINAL knows whether the
-   * wait+discovery is its job.
-   */
-  readonly accountDiscoveryAt?: AccountDiscoveryAt;
 }
 
 export default IPipelineDescriptor;

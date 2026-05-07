@@ -39,7 +39,10 @@ describe('resolveTraceBoundaryPhase', () => {
     expect(phase).toBe('');
   });
 
-  it('resolves to "otp-trigger" when full OTP chain is configured (gate ON at OTP-FILL entry)', () => {
+  it('resolves to "home" when full OTP chain is configured — Phase 7 dropped OTP-aware boundaries', () => {
+    // Phase 7 (2026-05-07) moved the gate ON earlier (pre-login/home)
+    // so id-bearing auth-side captures land in the discovery pool;
+    // OTP-FILL/OTP-TRIGGER no longer push the boundary later.
     const phase = resolveTraceBoundaryPhase({
       hasBrowser: true,
       loginMode: 'declarative',
@@ -47,10 +50,10 @@ describe('resolveTraceBoundaryPhase', () => {
       hasOtpTrigger: true,
       hasPreLogin: false,
     } as Parameters<typeof resolveTraceBoundaryPhase>[0]);
-    expect(phase).toBe('otp-trigger');
+    expect(phase).toBe('home');
   });
 
-  it('resolves to "login" for OTP-fill banks without a trigger phase', () => {
+  it('resolves to "home" for OTP-fill banks without trigger (Phase 7 unified)', () => {
     const phase = resolveTraceBoundaryPhase({
       hasBrowser: true,
       loginMode: 'declarative',
@@ -58,10 +61,10 @@ describe('resolveTraceBoundaryPhase', () => {
       hasOtpTrigger: false,
       hasPreLogin: false,
     } as Parameters<typeof resolveTraceBoundaryPhase>[0]);
-    expect(phase).toBe('login');
+    expect(phase).toBe('home');
   });
 
-  it('resolves to "login" for trigger-only banks (gate ON at OTP-TRIGGER entry)', () => {
+  it('resolves to "home" for trigger-only banks (Phase 7 unified)', () => {
     const phase = resolveTraceBoundaryPhase({
       hasBrowser: true,
       loginMode: 'declarative',
@@ -69,7 +72,7 @@ describe('resolveTraceBoundaryPhase', () => {
       hasOtpTrigger: true,
       hasPreLogin: false,
     } as Parameters<typeof resolveTraceBoundaryPhase>[0]);
-    expect(phase).toBe('login');
+    expect(phase).toBe('home');
   });
 
   it('resolves to "pre-login" for non-OTP banks with a PRE-LOGIN reveal step', () => {
@@ -107,7 +110,7 @@ describe('PipelineBuilder/traceStartAfterPhase descriptor field', () => {
     expect(result.value.traceStartAfterPhase).toBe('home');
   });
 
-  it('stamps "otp-trigger" for full OTP-chain banks', () => {
+  it('stamps "home" for full OTP-chain banks (Phase 7 unified the boundary)', () => {
     const result = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withBrowser()
@@ -117,7 +120,7 @@ describe('PipelineBuilder/traceStartAfterPhase descriptor field', () => {
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(result);
-    expect(result.value.traceStartAfterPhase).toBe('otp-trigger');
+    expect(result.value.traceStartAfterPhase).toBe('home');
   });
 
   it('emits the lifecycle interceptor on browser banks', () => {

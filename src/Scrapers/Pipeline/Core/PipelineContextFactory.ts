@@ -63,7 +63,6 @@ interface IResultSlots {
   readonly loginFieldDiscovery: IPipelineContext['loginFieldDiscovery'];
   readonly scrapeDiscovery: IPipelineContext['scrapeDiscovery'];
   readonly accountDiscovery: IPipelineContext['accountDiscovery'];
-  readonly accountDiscoveryAt: IPipelineContext['accountDiscoveryAt'];
 }
 
 /**
@@ -88,7 +87,6 @@ function emptyResultSlots(): IResultSlots {
     loginFieldDiscovery: none(),
     scrapeDiscovery: none(),
     accountDiscovery: none(),
-    accountDiscoveryAt: 'none',
   };
 }
 
@@ -107,10 +105,7 @@ function buildInitialContext(
   const diag = createDiagnostics(credKeyCount);
   const emptySlots = emptyPhaseSlots();
   const phases = wireHeadlessMediator(descriptor, emptySlots);
-  const results: IResultSlots = {
-    ...emptyResultSlots(),
-    accountDiscoveryAt: descriptor.accountDiscoveryAt ?? 'none',
-  };
+  const results: IResultSlots = emptyResultSlots();
   return { ...core, diagnostics: diag, ...phases, ...results, loginAreaReady: false };
 }
 

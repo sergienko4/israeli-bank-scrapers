@@ -16,9 +16,6 @@ import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/Pi
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
-/** Whether the buffer gate returned data. */
-type HasBuffered = boolean;
-
 /**
  * Build a mock endpoint with optional responseBody.
  * @param responseBody - Parsed JSON response body or null.
@@ -65,7 +62,6 @@ function mockApi(): IApiFetchContext & { readonly calls: string[] } {
       const result = succeed({} as T);
       return Promise.resolve(result);
     },
-    accountsUrl: false,
     transactionsUrl: false,
     balanceUrl: false,
     pendingUrl: false,
@@ -132,11 +128,6 @@ function mockFetchCtx(): IAccountFetchCtx {
        */
       discoverByPatterns: (): false => false,
       /**
-       * No accounts endpoint in mock.
-       * @returns False.
-       */
-      discoverAccountsEndpoint: (): false => false,
-      /**
        * No transactions endpoint in mock.
        * @returns False.
        */
@@ -187,6 +178,11 @@ function mockFetchCtx(): IAccountFetchCtx {
        */
       waitForTransactionsTraffic: (): Promise<false> => Promise.resolve(false),
       /**
+       * No id-bearing capture in mock — never resolves a match.
+       * @returns False.
+       */
+      waitForFirstId: (): Promise<false> => Promise.resolve(false),
+      /**
        * No auth cache in mock.
        * @returns False.
        */
@@ -197,10 +193,8 @@ function mockFetchCtx(): IAccountFetchCtx {
        */
       discoverApiOrigin: (): false => false,
       /**
-       * No content match in mock.
-       * @returns False.
+       * Frozen-network watcher stub.
        */
-      discoverEndpointByContent: (): false => false,
       authFailureWatcher: createFrozenAuthFailureWatcher(),
     },
     startDate: '20260101',
@@ -228,7 +222,7 @@ describe('tryBufferedResponse', () => {
 
     const result = await tryBufferedResponse(fc, { endpoint, postCtx: post });
 
-    const hasBuffered: HasBuffered = result !== false;
+    const hasBuffered: boolean = result !== false;
     expect(hasBuffered).toBe(false);
   });
 
@@ -239,7 +233,7 @@ describe('tryBufferedResponse', () => {
 
     const result = await tryBufferedResponse(fc, { endpoint, postCtx: post });
 
-    const hasBuffered: HasBuffered = result !== false;
+    const hasBuffered: boolean = result !== false;
     expect(hasBuffered).toBe(false);
   });
 
@@ -268,7 +262,7 @@ describe('tryBufferedResponse', () => {
 
     const result = await tryBufferedResponse(fc, { endpoint, postCtx: post });
 
-    const hasBuffered: HasBuffered = result !== false;
+    const hasBuffered: boolean = result !== false;
     expect(hasBuffered).toBe(true);
     if (result !== false) {
       expect(result.success).toBe(true);
@@ -312,10 +306,10 @@ describe('tryBufferedResponse', () => {
 
     const result = await tryBufferedResponse(fc, { endpoint, postCtx: emptyPost });
 
-    const hasBuffered: HasBuffered = result !== false;
+    const hasBuffered: boolean = result !== false;
     expect(hasBuffered).toBe(true);
     if (result !== false && result.success) {
-      const isTruthy: HasBuffered = Boolean(result.value.accountNumber);
+      const isTruthy = Boolean(result.value.accountNumber);
       expect(isTruthy).toBe(true);
       expect(result.value.txns.length).toBeGreaterThan(0);
     }

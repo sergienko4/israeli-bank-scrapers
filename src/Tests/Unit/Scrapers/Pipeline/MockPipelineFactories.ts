@@ -567,11 +567,6 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        */
       discoverSpaUrl: (): false => false,
       /**
-       * No accounts in mock.
-       * @returns False.
-       */
-      discoverAccountsEndpoint: (): false => false,
-      /**
        * No transactions in mock.
        * @returns False.
        */
@@ -623,6 +618,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        */
       waitForTransactionsTraffic: (): Promise<false> => Promise.resolve(false),
       /**
+       * No id-bearing capture in mock — never resolves a match.
+       * @returns False.
+       */
+      waitForFirstId: (): Promise<false> => Promise.resolve(false),
+      /**
        * No auth cache in mock.
        * @returns False.
        */
@@ -632,11 +632,6 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        * @returns False.
        */
       discoverApiOrigin: (): false => false,
-      /**
-       * No content match in mock.
-       * @returns False.
-       */
-      discoverEndpointByContent: (): false => false,
       authFailureWatcher: createFrozenAuthFailureWatcher(),
     },
   };

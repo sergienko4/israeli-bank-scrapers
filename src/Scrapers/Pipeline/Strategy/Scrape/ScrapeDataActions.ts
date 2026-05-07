@@ -11,6 +11,7 @@ import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscover
 import { findFieldValue, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
@@ -85,7 +86,7 @@ function txnHash(t: ITransaction): TxnHashKey {
 
 /** Lowercased WK account ID field names. */
 const TEMPLATE_KEYS = new Set(
-  WK.accountId.map((k): TemplateKeyLower => k.toLowerCase() as TemplateKeyLower),
+  WK_ACCT.id.map((k): TemplateKeyLower => k.toLowerCase() as TemplateKeyLower),
 );
 
 /**
@@ -133,7 +134,11 @@ function scalarEntries(record: Record<string, unknown>): readonly [string, strin
 const PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];
 
 /** Per-txn WK card-id alias union — same union used by the partition. */
-const PER_TXN_CARD_FIELDS: readonly string[] = [...WK.queryId, ...WK.displayId, ...MF.accountId];
+const PER_TXN_CARD_FIELDS: readonly string[] = [
+  ...WK_ACCT.queryId,
+  ...WK_ACCT.displayId,
+  ...MF.accountId,
+];
 
 /** Local alias for an opaque card-array entry — bypass `unknown` rule. */
 type CardEntry = Record<string, unknown> | string | number | boolean | null;

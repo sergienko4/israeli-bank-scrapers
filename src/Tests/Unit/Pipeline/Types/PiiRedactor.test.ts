@@ -389,6 +389,20 @@ describe('PiiRedactor — createCensorFn boolean + numeric paths', () => {
     const out = censor(123456, ['phoneNumber']);
     expect(out).toBe('***3456');
   });
+  it('string value on amount path: toAmountValue returns the string verbatim then redacts', () => {
+    // Coverage backfill — exercises the `return value` fallback in
+    // toAmountValue (the third branch beyond number / boolean).
+    const censor = createCensorFn();
+    const out = censor('1234.56', ['totalAmount']);
+    expect(typeof out).toBe('string');
+  });
+  it('boolean value on amount path: toAmountValue stringifies then redacts', () => {
+    // Hits the `typeof === "boolean"` branch in toAmountValue —
+    // ensures all three CensorValue type variants are exercised.
+    const censor = createCensorFn();
+    const out = censor(true, ['totalAmount']);
+    expect(typeof out).toBe('string');
+  });
 });
 
 describe('PiiRedactor — fallback regex coverage', () => {

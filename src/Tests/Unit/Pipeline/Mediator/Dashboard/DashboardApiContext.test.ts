@@ -49,7 +49,6 @@ describe('buildApiContext', () => {
     const counters: ICallCounters = { posts: 0, gets: 0 };
     const strategy = makeStrategy(counters);
     const ctx = await buildApiContext(network, strategy);
-    expect(ctx.accountsUrl).toBe(false);
     expect(ctx.transactionsUrl).toBe(false);
     expect(ctx.balanceUrl).toBe(false);
     expect(ctx.pendingUrl).toBe(false);
@@ -58,12 +57,6 @@ describe('buildApiContext', () => {
 
   it('discovers URLs from network endpoints', async () => {
     const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      discoverAccountsEndpoint: () => makeEndpoint({ url: 'https://a.example/accts' }),
       /**
        * Test helper.
        *
@@ -86,7 +79,6 @@ describe('buildApiContext', () => {
     const counters: ICallCounters = { posts: 0, gets: 0 };
     const makeStrategyResult1 = makeStrategy(counters);
     const ctx = await buildApiContext(network, makeStrategyResult1);
-    expect(ctx.accountsUrl).toBe('https://a.example/accts');
     expect(ctx.transactionsUrl).toBe('https://a.example/txn');
     expect(ctx.balanceUrl).toBe('https://a.example/bal');
     expect(ctx.pendingUrl).toBe('https://a.example/pend');

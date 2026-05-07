@@ -24,22 +24,9 @@
  */
 
 import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/Auth/AccountDiscovery.js';
-import executeLoginSignal from '../../../../Scrapers/Pipeline/Mediator/Auth/LoginSignalProbe.js';
-import { verifyPreNavReadiness } from '../../../../Scrapers/Pipeline/Mediator/Auth/PreNavReadiness.js';
 import { createFrozenNetwork } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
-import { executeFillFinal } from '../../../../Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
-import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockContext } from '../Infrastructure/MockFactories.js';
-
-/** Common shape for the auth-FINAL test contexts — both
- *  `executeLoginSignal` and `executeFillFinal` accept the same
- *  `IPipelineContext` shape; aliasing here lets tests skip the noisy
- *  `Parameters<typeof fn>[0]` cast inline (no nested-call lint error).
- */
-type IPipelineCtxLike = Parameters<typeof executeLoginSignal>[0];
 
 /** Args bundle for `makeCapture` — keeps the helper inside the param budget. */
 interface IMakeCaptureArgs {
@@ -149,7 +136,11 @@ function buildHighBreadthBody(): Record<string, unknown> {
 }
 
 describe('Defect B — recursive walker must not crash on adversarial pre-nav body', () => {
-  it('verifyPreNavReadiness does NOT throw on a Lottie-shaped pre-nav body', () => {
+  it('discoverAccountsInPool does NOT throw on a Lottie-shaped pre-nav body', () => {
+    // After Phase 7, ACCOUNT-RESOLVE.POST is the consumer. The
+    // recursive walker's stack-safety still matters because
+    // `discoverAccountsInPool` runs `extractAccountRecords` on every
+    // body in the pool — including adversarial Lottie animation JSON.
     const lottie = makeCapture({
       url: 'https://www.max.example/animations/cards.lottie.json',
       method: 'GET',
@@ -162,24 +153,17 @@ describe('Defect B — recursive walker must not crash on adversarial pre-nav bo
       responseBody: { cards: [{ cardUniqueId: 'fake-card-1' }] },
       timestamp: 100,
     });
-    const network = createFrozenNetwork([lottie, account], false, 200);
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: { network } },
-    } as unknown as ReturnType<typeof makeMockContext>;
+    const pool = [lottie, account];
     let didThrow = false;
-    let result;
+    let ids: readonly string[] = [];
     try {
-      result = verifyPreNavReadiness(ctx, 'LOGIN');
+      const result = discoverAccountsInPool(pool);
+      ids = result.ids;
     } catch {
       didThrow = true;
     }
     expect(didThrow).toBe(false);
-    if (result) {
-      const isResultOk = isOk(result);
-      expect(isResultOk).toBe(true);
-    }
+    expect(ids).toContain('fake-card-1');
   });
 });
 
@@ -222,202 +206,13 @@ describe('Defect C — request-side identifier extraction (method-specific)', ()
   });
 });
 
-/** Args for the wait-tracking mediator stub used by the late-capture tests. */
-interface IWaitMediatorArgs {
-  /** Captures available BEFORE waitForTraffic resolves. */
-  readonly preWaitCaptures: readonly IDiscoveredEndpoint[];
-  /** Captures available AFTER waitForTraffic resolves (simulates late arrival). */
-  readonly postWaitCaptures: readonly IDiscoveredEndpoint[];
-  /** Tracker the test uses to assert order of calls. */
-  readonly callLog: string[];
-}
-
-/**
- * Build a stub mediator whose `waitForTraffic` flips the captures
- * pool from `preWaitCaptures` (initial) to `postWaitCaptures` (after
- * the wait resolves). Lets the test assert that discovery sees the
- * LATE arrivals only when called AFTER the wait.
- * @param args - Wait stub args.
- * @returns Mediator-shaped stub.
- */
-function makeWaitMediator(args: IWaitMediatorArgs): unknown {
-  let captures: readonly IDiscoveredEndpoint[] = args.preWaitCaptures;
-  return {
-    /**
-     * No-op idle wait for the cookie audit step.
-     * @returns Resolved succeed.
-     */
-    waitForNetworkIdle: (): Promise<{ success: true; value: boolean }> =>
-      Promise.resolve({ success: true, value: true }),
-    /**
-     * Single-cookie stub so cookieCount > 0 (auth gate passes).
-     * @returns Mock cookie list.
-     */
-    getCookies: (): Promise<readonly { name: string; domain: string; value: string }[]> =>
-      Promise.resolve([{ name: 'SID', domain: 'bank.example', value: 'x' }]),
-    /**
-     * URL stub used in diagnostics.
-     * @returns Mock dashboard URL.
-     */
-    getCurrentUrl: (): string => 'https://bank.example/dashboard',
-    /**
-     * Stub for `probeDashboardReveal` — returns not-visible.
-     * @returns Resolved false.
-     */
-    resolveVisible: (): Promise<false> => Promise.resolve(false),
-    network: {
-      /**
-       * Flips the captures pool from `preWaitCaptures` to
-       * `postWaitCaptures` so subsequent `getPreNavCaptures` calls
-       * see the LATE arrival.
-       * @returns First post-wait capture or false.
-       */
-      waitForTraffic: (): Promise<IDiscoveredEndpoint | false> => {
-        args.callLog.push('waitForTraffic');
-        captures = args.postWaitCaptures;
-        return Promise.resolve(args.postWaitCaptures[0] ?? false);
-      },
-      /**
-       * Returns the current pool — pre-wait initially, post-wait
-       * after `waitForTraffic` resolves.
-       * @returns Current captures.
-       */
-      getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => {
-        const length = String(captures.length);
-        args.callLog.push(`getPreNavCaptures(${length})`);
-        return captures;
-      },
-      /**
-       * Mirror of `getPreNavCaptures` for the readiness fallback.
-       * @returns Current captures.
-       */
-      getAllEndpoints: (): readonly IDiscoveredEndpoint[] => captures,
-      /**
-       * Stub auth discovery — never finds a token.
-       * @returns Resolved false.
-       */
-      discoverAuthToken: (): Promise<string | false> => Promise.resolve(false),
-    },
-  };
-}
-
-describe('Pattern 1 — auth FINAL waits for account-shape capture before discovery', () => {
-  /**
-   * Builds a synthetic Isracard-style account capture (cardsList).
-   * @returns Late-arriving account capture.
-   */
-  function makeIsracardCardsCapture(): IDiscoveredEndpoint {
-    return makeCapture({
-      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
-      method: 'POST',
-      responseBody: {
-        data: {
-          cardsList: [
-            { cardSuffix: '0786', accountNumber: '203489', cardGuid: 'g1' },
-            { cardSuffix: '1314', accountNumber: '228812', cardGuid: 'g2' },
-          ],
-        },
-      },
-      postData: '{"companyCode":"99","cardSuffixLength":4}',
-      timestamp: 100,
-    });
-  }
-
-  it('LOGIN.FINAL — waits for WK accounts traffic when phase==="login", then discovers', async () => {
-    const callLog: string[] = [];
-    const lateAccountCapture = makeIsracardCardsCapture();
-    const mediator = makeWaitMediator({
-      preWaitCaptures: [],
-      postWaitCaptures: [lateAccountCapture],
-      callLog,
-    });
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      login: some({}),
-      mediator: { has: true, value: mediator },
-      accountDiscoveryAt: 'login',
-    } as unknown as IPipelineCtxLike;
-    const result = await executeLoginSignal(ctx);
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
-    // waitForTraffic must be called BEFORE getPreNavCaptures returns >0
-    const waitIdx = callLog.indexOf('waitForTraffic');
-    expect(waitIdx).toBeGreaterThanOrEqual(0);
-    if (isResultOk) {
-      expect(result.value.accountDiscovery.has).toBe(true);
-      if (result.value.accountDiscovery.has) {
-        expect(result.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it('LOGIN.FINAL — skips wait + discovery when phase==="otp-fill" (OTP banks defer to OTP-FILL)', async () => {
-    const callLog: string[] = [];
-    const mediator = makeWaitMediator({
-      preWaitCaptures: [],
-      postWaitCaptures: [makeIsracardCardsCapture()],
-      callLog,
-    });
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      login: some({}),
-      mediator: { has: true, value: mediator },
-      accountDiscoveryAt: 'otp-fill',
-    } as unknown as IPipelineCtxLike;
-    const result = await executeLoginSignal(ctx);
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
-    // Critical: NO waitForTraffic call (single-wait contract for OTP banks)
-    expect(callLog).not.toContain('waitForTraffic');
-  });
-
-  it('OTP-FILL.FINAL — waits + discovers when phase==="otp-fill"', async () => {
-    const callLog: string[] = [];
-    const lateAccountCapture = makeIsracardCardsCapture();
-    const mediator = makeWaitMediator({
-      preWaitCaptures: [],
-      postWaitCaptures: [lateAccountCapture],
-      callLog,
-    });
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: mediator },
-      accountDiscoveryAt: 'otp-fill',
-    } as unknown as IPipelineCtxLike;
-    const result = await executeFillFinal(ctx);
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
-    expect(callLog).toContain('waitForTraffic');
-    if (isResultOk) {
-      expect(result.value.accountDiscovery.has).toBe(true);
-      if (result.value.accountDiscovery.has) {
-        expect(result.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it('OTP-FILL.FINAL — skips wait + discovery when phase==="login" (defensive)', async () => {
-    const callLog: string[] = [];
-    const mediator = makeWaitMediator({
-      preWaitCaptures: [],
-      postWaitCaptures: [makeIsracardCardsCapture()],
-      callLog,
-    });
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: mediator },
-      accountDiscoveryAt: 'login',
-    } as unknown as IPipelineCtxLike;
-    const result = await executeFillFinal(ctx);
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
-    expect(callLog).not.toContain('waitForTraffic');
-  });
-
+describe('Pattern 1 — sanity (wait/discover migrated to ACCOUNT-RESOLVE)', () => {
+  // Phase 7 (2026-05-07) moved the wait-for-account-traffic and the
+  // discovery commit out of LOGIN.FINAL/OTP-FILL.FINAL into the
+  // dedicated ACCOUNT-RESOLVE phase. Regression coverage for the new
+  // owner lives in
+  // `src/Tests/Unit/Pipeline/Mediator/AccountResolve/AccountResolveActions.test.ts`.
+  // Only the WK-shape sanity check remains here.
   it('WK.accounts patterns are the canonical wait signal (sanity)', () => {
     expect(PIPELINE_WELL_KNOWN_API.accounts.length).toBeGreaterThan(0);
   });

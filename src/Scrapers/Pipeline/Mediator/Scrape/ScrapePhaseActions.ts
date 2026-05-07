@@ -11,13 +11,11 @@
 import moment from 'moment';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
 import {
-  applyCredentialFallback,
   buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
-import type { IAccountFetchCtx, IFetchAllAccountsCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
+import type { IAccountFetchCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import { type IActionContext, type IPipelineContext } from '../../Types/PipelineContext.js';
@@ -61,11 +59,11 @@ interface IPreDiscoveredAccounts {
 }
 
 /**
- * Read the pre-discovered account list set by LOGIN.FINAL /
- * OTP-FILL.FINAL. Returns empty arrays when the auth FINAL did not
- * populate the field — the caller's fallback chain
- * (`applyCredentialFallback` + `applyStorageHarvestPre`) covers that
- * case.
+ * Reads the account list ACCOUNT-RESOLVE.POST committed to
+ * `ctx.accountDiscovery`. Returns empty arrays when the option
+ * is absent — the pipeline invariant from Phase 7+7b prevents that
+ * case from reaching SCRAPE on a successful run, so an empty result
+ * here is a programming error rather than a recoverable state.
  * @param input - Pipeline context.
  * @returns Pre-discovered account ids + records (empties on miss).
  */
@@ -106,25 +104,20 @@ async function executeDirectDiscovery(
   const futureMonths = getFutureMonths(input.options);
   const fc: IAccountFetchCtx = { api, network, startDate, futureMonths };
   const preDiscovered = readPreDiscoveredAccounts(input);
-  let loadCtx = buildLoadCtxFromPreDiscovered({
+  const loadCtx = buildLoadCtxFromPreDiscovered({
     fc,
     network,
     ids: preDiscovered.ids,
     records: preDiscovered.records,
   });
-  loadCtx = applyCredentialFallback(loadCtx, input);
-  loadCtx = await applyStorageHarvestPre(loadCtx, input);
 
-  // Fail-fast only when traffic was observed but extraction couldn't
-  // resolve a usable identifier — that's the dangerous case (the silent
-  // 'default' bug). When no transaction endpoint was captured at all,
-  // upstream phases didn't reach that signal yet; let the empty-accounts
-  // result flow through so the assertSuccessfulScrape assertion fires
-  // its own (loud) regression message instead of masking it here.
+  // Defense-in-depth: ACCOUNT-RESOLVE.POST should never let an empty
+  // id list through (Phase 7+7b's contract), but if it somehow does,
+  // SCRAPE refuses to silently scrape a sentinel id like 'default'.
   if (loadCtx.ids.length === 0 && loadCtx.txnEndpoint !== false) {
     return fail(
       ScraperErrorTypes.Generic,
-      'scrape: no usable account identifier found in captured network',
+      'scrape: no usable account identifier in ctx.accountDiscovery',
     );
   }
 
@@ -166,24 +159,6 @@ async function executeDirectDiscovery(
     diagnostics: diag,
     scrapeDiscovery: some(disc),
   });
-}
-
-/**
- * Harvest accounts from sessionStorage (full context).
- * @param loadCtx - Current load context.
- * @param ctx - Pipeline context with browser.
- * @returns Updated load context with seeded IDs.
- */
-async function applyStorageHarvestPre(
-  loadCtx: IFetchAllAccountsCtx,
-  ctx: IPipelineContext,
-): Promise<IFetchAllAccountsCtx> {
-  if (loadCtx.ids.length > 0) return loadCtx;
-  if (!ctx.browser.has) return loadCtx;
-  const page = ctx.browser.value.page;
-  const result = await harvestAccountsFromStorage(page);
-  if (result.ids.length === 0) return loadCtx;
-  return { ...loadCtx, ids: [...result.ids], records: [...result.records] };
 }
 
 /**

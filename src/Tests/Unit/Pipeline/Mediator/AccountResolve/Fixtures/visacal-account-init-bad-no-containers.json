@@ -1,0 +1,20 @@
+{
+  "_fixture": {
+    "purpose": "BAD trace #3 — VisaCal account/init shape with NO WK named container (no cards/cardsList/accounts/bankAccounts) and no root array. Tests F1 fail-loud path: ACCOUNT_RESOLUTION_FAILED.",
+    "expected": "ACCOUNT-RESOLVE.POST: result.ids.length=0 → ACCOUNT_RESOLUTION_FAILED."
+  },
+  "result": {
+    "user": {
+      "firstName": "TEST",
+      "lastName": "USER",
+      "custFullName": "TEST USER",
+      "custExtId": "000000000"
+    },
+    "diagnostics": {
+      "renderTimestamp": "2026-05-07T10:00:00.000Z",
+      "feature": "no-account-data"
+    }
+  },
+  "statusDescription": "OK-FIXTURE",
+  "statusCode": 1
+}

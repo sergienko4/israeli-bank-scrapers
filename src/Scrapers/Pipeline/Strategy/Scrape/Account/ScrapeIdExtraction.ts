@@ -7,7 +7,7 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue, matchField } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
+import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
@@ -82,8 +82,8 @@ function resolveIdStrings(record: Record<string, unknown>): {
   displayId: string;
   accountId: string;
 } {
-  const displayResult = matchField(record, WK.displayId);
-  const queryResult = matchField(record, WK.queryId);
+  const displayResult = matchField(record, WK_ACCT.displayId);
+  const queryResult = matchField(record, WK_ACCT.queryId);
   const displayId = resolveStr(displayResult, '');
   const accountId = resolveStr(queryResult, displayId);
   return { displayId, accountId };
@@ -96,8 +96,8 @@ function resolveIdStrings(record: Record<string, unknown>): {
  */
 function extractIds(record: Record<string, unknown>): IExtractedIds {
   const { displayId, accountId } = resolveIdStrings(record);
-  const displayResult = matchField(record, WK.displayId);
-  const queryResult = matchField(record, WK.queryId);
+  const displayResult = matchField(record, WK_ACCT.displayId);
+  const queryResult = matchField(record, WK_ACCT.queryId);
   const queryReceipt = resolveReceipt(queryResult, displayId);
   const displayReceipt = resolveReceipt(displayResult, accountId);
   const ids: IExtractedIds = {
@@ -120,7 +120,7 @@ function extractCardId(record: Record<string, unknown>): string | false {
   const cards = record.cards ?? record.Cards;
   if (!Array.isArray(cards) || cards.length === 0) return false;
   const first = cards[0] as Record<string, unknown>;
-  const id = findFieldValue(first, WK.queryId);
+  const id = findFieldValue(first, WK_ACCT.queryId);
   if (!id) return false;
   return String(id);
 }
@@ -140,7 +140,7 @@ type JsonObject = Record<string, JsonValue>;
  */
 function extractDisplayFromBody(body: JsonValue): string | false {
   if (body === null || typeof body !== 'object') return false;
-  const hit = findFieldValue(body as JsonObject, WK.displayId);
+  const hit = findFieldValue(body as JsonObject, WK_ACCT.displayId);
   if (hit === false || typeof hit === 'boolean') return false;
   return String(hit);
 }

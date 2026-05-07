@@ -230,11 +230,6 @@ function makeMockMediator(): IElementMediator {
        */
       discoverSpaUrl: (): false => false,
       /**
-       * No accounts in mock.
-       * @returns False.
-       */
-      discoverAccountsEndpoint: (): false => false,
-      /**
        * No transactions in mock.
        * @returns False.
        */
@@ -286,6 +281,11 @@ function makeMockMediator(): IElementMediator {
        */
       waitForTransactionsTraffic: (): Promise<false> => Promise.resolve(false),
       /**
+       * No id-bearing capture in mock — never resolves a match.
+       * @returns False.
+       */
+      waitForFirstId: (): Promise<false> => Promise.resolve(false),
+      /**
        * No auth cache in mock.
        * @returns False.
        */
@@ -295,11 +295,6 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverApiOrigin: (): false => false,
-      /**
-       * No content match in mock.
-       * @returns False.
-       */
-      discoverEndpointByContent: (): false => false,
       // Frozen-network mock — watcher is a no-op stub (always reports
       // "not failed" / "timeout"). LoginPhase POST observes false here
       // and falls through to existing detectors unchanged.

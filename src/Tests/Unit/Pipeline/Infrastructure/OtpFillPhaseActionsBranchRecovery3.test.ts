@@ -71,41 +71,72 @@ describe('OtpFillPhaseActions — branch recovery #3', () => {
     expect(isOkResult).toBe(true);
   });
 
-  it('executeFillFinal: pre-nav lacks account container → readiness fail-loud', async () => {
-    // Build a mediator whose network exposes a non-empty pool with NO
-    // account container — exercises the `!isOk(readiness)` branch in
-    // executeFillFinal added when the pre-nav account container check
-    // moved out of DASHBOARD.FINAL into OTP-FILL.FINAL.
-    const baseMediator = makeMockMediator({});
-    const mediator = {
-      ...baseMediator,
-      network: {
-        ...(baseMediator as { network: object }).network,
-        /**
-         * Non-empty pre-nav with non-account body.
-         * @returns Single capture.
-         */
-        getPreNavCaptures: (): readonly { responseBody: unknown }[] => [
-          { responseBody: { unrelated: 'no-container' } },
-        ],
-        /**
-         * Non-zero pool so shouldSkipPreNavCheck returns false.
-         * @returns Single endpoint.
-         */
-        getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
-      },
-    };
-    const base = makeMockContext({ accountDiscoveryAt: 'otp-fill' });
+  it('executeFillFinal: succeeds with cookie audit only — no discovery branch', async () => {
+    // Phase 7 (2026-05-07) moved account discovery + readiness gating
+    // into the dedicated ACCOUNT-RESOLVE phase. OTP-FILL.FINAL is now
+    // a pure cookie-audit step; readiness/discovery failure modes are
+    // covered by AccountResolveActions.test.ts.
+    const mediator = makeMockMediator({
+      /**
+       * Returns one cookie so cookie-audit succeeds.
+       * @returns Mock cookie array.
+       */
+      getCookies: (): Promise<readonly { name: string; domain: string; value: string }[]> =>
+        Promise.resolve([{ name: 'SID', domain: 'bank.example.com', value: 'tok' }]),
+      /**
+       * URL getter.
+       * @returns Mock URL.
+       */
+      getCurrentUrl: (): string => 'https://bank.example.com/dashboard',
+    });
+    const base = makeMockContext();
     const ctx = {
       ...base,
-      mediator: some(mediator as unknown as Parameters<typeof some>[0]),
+      mediator: some(mediator),
     } as Parameters<typeof executeFillFinal>[0];
     const result = await executeFillFinal(ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorMessage).toContain('OTP-FILL');
-      expect(result.errorMessage).toContain('account/cards container');
-    }
+    expect(result.success).toBe(true);
+  });
+
+  it('executeFillPre: extractDeepPhoneHint runs page.evaluate body — covers inline arrow', async () => {
+    // The mock's `evaluate(fn)` actually invokes `fn` against a fake
+    // `globalThis.document` so the inline arrow inside
+    // extractHintFromFrame (`(): string => document.body.innerText`)
+    // is exercised — closes the last function-coverage gap on
+    // OtpFillPhaseActions per Phase 7 audit.
+    const page = makeScreenshotPage();
+    const evaluatingPage = {
+      ...page,
+      /**
+       * Synchronously invoke `fn` against a stub `document` to reach
+       * the arrow body. Returns a phone-hint-shaped string so the
+       * regex extractor also runs.
+       * @param fn - Inner page-evaluate function.
+       * @returns Promise resolving to the inner function's value.
+       */
+      evaluate: <T>(fn: () => T): Promise<T> => {
+        const docStub = { body: { innerText: 'Sending code to ****1234' } };
+        const prevGlobal = (globalThis as { document?: unknown }).document;
+        (globalThis as { document?: unknown }).document = docStub;
+        try {
+          const value = fn();
+          return Promise.resolve(value);
+        } finally {
+          (globalThis as { document?: unknown }).document = prevGlobal;
+        }
+      },
+      /**
+       * Single-frame stub — `frames()` must include something so the
+       * reduce loop fires at least once.
+       * @returns The page itself as the only frame.
+       */
+      frames: (): readonly (typeof page)[] => [page],
+    };
+    const browserPage = evaluatingPage as unknown as typeof page;
+    const ctx = makeContextWithBrowser(browserPage);
+    const result = await executeFillPre(ctx, false);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
   });
 
   it('executeFillPost: error detected → rejects path', async () => {

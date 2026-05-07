@@ -102,8 +102,6 @@ interface IApiFetchContext {
   fetchPost<T>(url: string, body: Record<string, string | object>): Promise<Procedure<T>>;
   /** Fetch GET with auto-injected auth + headers. Bank provides URL only. */
   fetchGet<T>(url: string): Promise<Procedure<T>>;
-  /** Discovered accounts endpoint URL (or false if not found in traffic). */
-  readonly accountsUrl: string | false;
   /** Discovered transactions endpoint URL (or false). */
   readonly transactionsUrl: string | false;
   /** Discovered balance endpoint URL (or false). */
@@ -203,17 +201,8 @@ export interface IActionContext {
   readonly dashboard: Option<IDashboardState>;
   /** Scrape discovery. */
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
-  /** Pre-discovered accounts owned by LOGIN.FINAL / OTP-FILL.FINAL. */
+  /** Account ids + records committed by ACCOUNT-RESOLVE.POST. */
   readonly accountDiscovery: Option<IAccountDiscovery>;
-  /**
-   * Builder-resolved pointer to the auth FINAL that OWNS the
-   * shared account-discovery handler call. Either `'login'`
-   * (non-OTP banks) or `'otp-fill'` (OTP banks); `'none'` for
-   * headless / no-login pipelines. NOT a pipeline phase — just a
-   * flag the two FINAL sub-steps read so the wait+discovery runs
-   * exactly once and OTP banks never double-wait.
-   */
-  readonly accountDiscoveryAt: AccountDiscoveryAt;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -251,40 +240,41 @@ interface IPipelineContext {
   /** Scrape.PRE qualification results — ACTION reads qualified targets only. */
   readonly scrapeDiscovery: Option<IScrapeDiscovery>;
   /**
-   * Account discovery owned by the auth FINAL stage (LOGIN.FINAL for
-   * non-OTP banks, OTP-FILL.FINAL for OTP banks). Populated from
-   * pre-nav captures BEFORE the dashboard navigation click — so the
-   * auth boundary is the contract for "we know the user's accounts".
-   * SCRAPE.PRE consumes this directly instead of re-running account
-   * discovery against the global capture pool. Strict SRP: each phase
-   * owns its data; no upstream rediscovery.
+   * Account discovery committed by ACCOUNT-RESOLVE.POST. After Phase 7
+   * the new dedicated phase is the single source of truth — runs after
+   * auth (LOGIN or OTP-FILL) and before DASHBOARD, so DASHBOARD/SCRAPE
+   * consume the option without re-running discovery against the global
+   * capture pool. Strict SRP: each phase owns its data; no upstream
+   * rediscovery.
    */
   readonly accountDiscovery: Option<IAccountDiscovery>;
-  /** Builder-resolved pointer to the auth FINAL owning discovery. */
-  readonly accountDiscoveryAt: AccountDiscoveryAt;
 }
 
 /**
- * Pointer to the auth FINAL stage that owns the shared
- * account-discovery handler call (wait-for-traffic + extract).
- * The builder picks `'otp-fill'` whenever an OTP-fill phase is
- * configured (so OTP banks never double-wait), `'login'` for browser
- * banks without OTP-fill, and `'none'` for headless / no-login
- * pipelines. NOT a phase — just a single-source-of-truth flag the
- * two FINAL sub-steps read at runtime.
- */
-type AccountDiscoveryAt = 'login' | 'otp-fill' | 'none';
-
-/**
- * Pre-nav-derived account list owned by the auth FINAL stage.
- * Format-stable so SCRAPE.PRE can consume it without bank-specific
- * coupling. `ids` are the qualified account / card identifiers; the
- * matching `records` carry the raw response payloads SCRAPE downstream
- * may need (display name, last-4, etc.).
+ * Account list committed by ACCOUNT-RESOLVE.POST. Format-stable so
+ * SCRAPE.PRE can consume it without bank-specific coupling.
+ *
+ * <ul>
+ *   <li>{@link ids} — qualified account / card identifiers, concat
+ *       across every WK container surfaced from the picked endpoint
+ *       (Phase 7d: VisaCal yields 4 cards + 3 bank accounts = 7
+ *       ids).</li>
+ *   <li>{@link records} — raw response payloads (display name,
+ *       last-4, etc.), concatenated across the same containers.</li>
+ *   <li>{@link containers} — per-WK-container split, e.g.
+ *       `{cards: [...4], bankAccounts: [...3]}`. Empty when the
+ *       picker fell back to root-array (Hapoalim shape) or to the
+ *       request-side path.</li>
+ *   <li>{@link endpointCaptureIndex} — diagnostic only. Identifies
+ *       which capture POST picked. `0` when no endpoint was
+ *       chosen (request-side fallback).</li>
+ * </ul>
  */
 interface IAccountDiscovery {
   readonly ids: readonly string[];
   readonly records: readonly Record<string, unknown>[];
+  readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+  readonly endpointCaptureIndex: number;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */
@@ -345,7 +335,6 @@ export interface IBootstrapContext extends IActionContext {
 }
 
 export type {
-  AccountDiscoveryAt,
   ApiStrategyKind,
   IAccountDiscovery,
   IApiFetchContext,

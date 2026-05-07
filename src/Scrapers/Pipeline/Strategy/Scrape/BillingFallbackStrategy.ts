@@ -12,9 +12,9 @@ import {
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_API,
   PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_TXN,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
@@ -63,7 +63,7 @@ const RATE_LIMIT_MS = 300;
  */
 function bodyCarriesCardId(postData: string): BodyCarriesCardId {
   if (!postData) return false as BodyCarriesCardId;
-  return WK_TXN.queryId.some(
+  return WK_ACCT.queryId.some(
     (alias): IsAliasMatch => postData.includes(alias) as IsAliasMatch,
   ) as BodyCarriesCardId;
 }

@@ -171,9 +171,10 @@ async function runDirectFor(
 }
 
 /** Pre-computed `[bank, selector]` table consumed by `it.each` below. */
-const BANK_PARITY_TABLE: readonly [string, string][] = BANK_TRIGGERS.map(
-  (b): [string, string] => [b.bank, b.selector],
-);
+const BANK_PARITY_TABLE: readonly [string, string][] = BANK_TRIGGERS.map((b): [string, string] => [
+  b.bank,
+  b.selector,
+]);
 
 describe('HOME.ACTION SRP — cross-bank parity (identity selectors only)', () => {
   it.each(BANK_PARITY_TABLE)(

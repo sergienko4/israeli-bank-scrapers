@@ -48,8 +48,18 @@ function traceNetworkDelta(
   return delta as EndpointDelta;
 }
 
-/** Only run before these phases — the 2 places popups appear. */
-const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'dashboard']);
+/**
+ * Only run before these phases — the 3 transitions where the bank
+ * may render a modal that blocks the next discovery / extraction.
+ *
+ * <p>`account-resolve` added 2026-05-07 (Phase 7d): VisaCal
+ * fires the new-card promo popup on the post-login render, exactly
+ * the wait window where ACCOUNT-RESOLVE.PRE blocks for the first
+ * id-bearing capture. Without dismissal the popup overlay can hold
+ * the SPA from firing the `account/init` request and ACCOUNT-RESOLVE
+ * times out empty.
+ */
+const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'account-resolve', 'dashboard']);
 
 /**
  * Attempt to dismiss one popup via WK_CLOSE_POPUP.

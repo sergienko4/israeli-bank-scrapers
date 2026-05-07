@@ -9,8 +9,8 @@ import { TransactionStatuses, TransactionTypes } from '../../../../../Transactio
 import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_API,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
@@ -134,7 +134,7 @@ function safeStr(val: FieldValue): SafeFieldStr {
  * @returns Display string or empty.
  */
 function extractDisplayFromRecord(record: Record<string, unknown>): DisplayFromRecord {
-  const val = findFieldValue(record, WK.displayId);
+  const val = findFieldValue(record, WK_ACCT.displayId);
   if (val !== false) return String(val) as DisplayFromRecord;
   return '' as DisplayFromRecord;
 }

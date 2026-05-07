@@ -1,22 +1,21 @@
 /**
- * Coverage for `buildLoadCtxFromPreDiscovered` — the helper SCRAPE.PRE
- * uses to build the matrix-loop context from pre-discovered accounts.
+ * Coverage for `buildLoadCtxFromPreDiscovered` — Phase 7c contract:
+ * SCRAPE consumes `ctx.accountDiscovery` from ACCOUNT-RESOLVE only.
  *
- * Three branches matter:
- * - `ids.length > 0` → use the pre-discovered list directly.
- * - `ids.length === 0` AND POST-body fallback hits → use fallback.
- * - `ids.length === 0` AND fallback misses → return empty ids.
+ * Two branches:
+ * - `ids` non-empty → pass-through; txn endpoint discovered separately.
+ * - `ids` empty → return empty load context (caller fail-fast).
  */
 
 import { buildLoadCtxFromPreDiscovered } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { makeApi, makeEndpoint, makeFc, makeNetwork } from '../StrategyTestHelpers.js';
 
-describe('buildLoadCtxFromPreDiscovered', () => {
-  it('uses pre-discovered ids when supplied (no rediscovery, no fallback)', () => {
+describe('buildLoadCtxFromPreDiscovered (Phase 7c — no fallback)', () => {
+  it('uses pre-discovered ids verbatim when supplied', () => {
     const api = makeApi();
     const txnEp = makeEndpoint({
       method: 'POST',
-      postData: '{"cardUniqueId":"FALLBACK-CARD"}',
+      postData: '{"cardUniqueId":"WOULD-BE-FALLBACK"}',
     });
     const network = makeNetwork({
       /**
@@ -33,37 +32,14 @@ describe('buildLoadCtxFromPreDiscovered', () => {
       records: [{ accountId: 'PRE-DISCOVERED-1' }],
     });
     expect(result.ids).toEqual(['PRE-DISCOVERED-1']);
-    expect(result.ids).not.toContain('FALLBACK-CARD');
+    expect(result.ids).not.toContain('WOULD-BE-FALLBACK');
   });
 
-  it('falls back to txn POST body when ids empty and POST body has cardUniqueId', () => {
+  it('returns empty load context when ids empty (no fallback path)', () => {
     const api = makeApi();
     const txnEp = makeEndpoint({
       method: 'POST',
-      postData: '{"cardUniqueId":"FALLBACK-CARD"}',
-    });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       * @returns Test endpoint.
-       */
-      discoverTransactionsEndpoint: () => txnEp,
-    });
-    const fc = makeFc(api, network);
-    const result = buildLoadCtxFromPreDiscovered({
-      fc,
-      network,
-      ids: [],
-      records: [],
-    });
-    expect(result.ids).toContain('FALLBACK-CARD');
-  });
-
-  it('returns empty ids when ids empty AND POST-body fallback misses', () => {
-    const api = makeApi();
-    const txnEp = makeEndpoint({
-      method: 'GET',
-      postData: '',
+      postData: '{"cardUniqueId":"NO-LONGER-USED"}',
     });
     const network = makeNetwork({
       /**
@@ -83,7 +59,7 @@ describe('buildLoadCtxFromPreDiscovered', () => {
     expect(result.records.length).toBe(0);
   });
 
-  it('still returns empty ids when txnEndpoint is false', () => {
+  it('returns empty load context when txnEndpoint is also false', () => {
     const api = makeApi();
     const network = makeNetwork({
       /**

@@ -11,6 +11,7 @@ import { TransactionStatuses, TransactionTypes } from '../../../../Transactions.
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import {
   KNOWN_DATE_FORMATS,
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
@@ -666,73 +667,18 @@ function traceRawShape(responseBody: ApiRecord): true {
 }
 
 /**
- * Check if a value is a plain object with at least one WK.accountId / .displayId field.
- * Used to recognize account-shape records that don't carry txn-signature fields
- * (e.g. Hapoalim's /general/accounts: [{bankNumber,branchNumber,accountNumber,...}]).
+ * Check if a value is a plain object with at least one
+ * `WK_ACCT.id` field (any of the queryId / displayId aliases).
+ * Used to recognize account-shape records that don't carry
+ * txn-signature fields (e.g. Hapoalim's /general/accounts:
+ * `[{bankNumber,branchNumber,accountNumber,…}]`).
  * @param v - Candidate value.
  * @returns True when v looks like an account record.
  */
 function looksLikeAccountRecord(v: UntypedValue): boolean {
   if (!isSearchableObject(v)) return false;
-  const hit = findFieldValue(v as ApiRecord, WK.accountId);
+  const hit = findFieldValue(v as ApiRecord, WK_ACCT.id);
   return hit !== false;
-}
-
-/**
- * Returns the array of account-shaped objects held under the first
- * matching key in `containerKeys`, or empty. Items must pass
- * `looksLikeAccountRecord` so auxiliary lists (e.g. the linked-credit-
- * cards array on a Beinleumi account-summary response) don't shadow
- * the primary account.
- * @param record - record to inspect.
- * @param containerKeys - candidate container key names.
- * @returns object array under the first matching key, or empty.
- */
-function tryContainerInRecord(
-  record: ApiRecord,
-  containerKeys: readonly string[],
-): readonly ApiRecord[] {
-  // Case-insensitive SUFFIX match — banks vary in casing AND in
-  // prefix compounding for the same semantic key (`accounts`,
-  // `Accounts`, `UserAccounts`, `myCards`, `BankAccounts`). A
-  // suffix check (`endsWith` after lowercase) catches every prefix
-  // variant while rejecting unrelated keys whose lowercased form
-  // *contains* the WK key as a substring (e.g. `accountSettings`
-  // → `accountsettings` — chars 0..7 are literally `accounts`,
-  // which a substring match would falsely accept; `endsWith`
-  // requires `accounts` to be the trailing word, which it isn't).
-  // `looksLikeAccountRecord` is the second-level filter that
-  // rejects non-account-shape arrays even if their key matches.
-  const originalKeys = Object.keys(record);
-  const lowerKeys = originalKeys.map((k): string => k.toLowerCase());
-  const hits = containerKeys.map((key): readonly ApiRecord[] => {
-    const wantedLower = key.toLowerCase();
-    const matchIdx = lowerKeys.findIndex((k): boolean => k.endsWith(wantedLower));
-    if (matchIdx < 0) return [];
-    const value = record[originalKeys[matchIdx]];
-    if (!Array.isArray(value) || value.length === 0) return [];
-    const objects = value.filter(looksLikeAccountRecord);
-    return objects.map((v): ApiRecord => v as ApiRecord);
-  });
-  return hits.find((arr): boolean => arr.length > 0) ?? [];
-}
-
-/**
- * Returns the first non-empty object array reachable from `responseBody`
- * under any of `containerKeys`. Used for named account containers
- * (cardsList, accounts, bankAccounts) so the extractor doesn't have to
- * score txn signatures on records that carry none.
- * @param responseBody - parsed JSON response body.
- * @param containerKeys - WK container key names.
- * @returns object array under the first matching container, or empty.
- */
-function findContainerArray(
-  responseBody: ApiRecord,
-  containerKeys: readonly string[],
-): readonly ApiRecord[] {
-  const allRecords = flattenObjectTree(responseBody);
-  const hits = allRecords.map((r): readonly ApiRecord[] => tryContainerInRecord(r, containerKeys));
-  return hits.find((arr): boolean => arr.length > 0) ?? [];
 }
 
 /**
@@ -752,27 +698,242 @@ function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
 }
 
 /**
- * Extract account records from API response. Logs the response shape at
- * trace level when zero items are found — exposes per-bank mapper gaps.
- * Tries three extractors in order:
- *   1. findContainerArray (named WK.accountContainers — cardsList,
- *      accounts, bankAccounts; covers card-family banks where the cards
- *      array carries no txn-signature fields)
- *   2. findFirstArray (txn-signature BFS — covers banks whose account
- *      response has txn preview arrays)
- *   3. rootAccountArray (root-level array of account-shaped records —
- *      covers Hapoalim's /general/accounts)
+ * Extracts every WK named container reachable from `responseBody` and
+ * returns them keyed by container name. Phase 7d adds this helper so
+ * ACCOUNT-RESOLVE.POST can commit BOTH `cards` AND `bankAccounts`
+ * found in the same VisaCal `account/init` payload (the legacy
+ * `findContainerArray` returned only the first match).
+ *
+ * <p>Container names that are absent from the body, or present but
+ * empty after the {@link looksLikeAccountRecord} filter, are omitted
+ * from the returned object entirely (so consumers can `Object.keys`
+ * for a clean per-container count without zero-length entries).
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Map of container-name → records. Empty when no WK
+ *   container surfaced any account-shape records.
+ */
+/** Per-record key index built once per record (preserves casing). */
+interface IRecordKeyIndex {
+  readonly originalKeys: readonly string[];
+  readonly lowerKeys: readonly string[];
+}
+
+/**
+ * Build a per-record key index — pairs original-case keys with
+ * lower-cased copies so each suffix probe avoids re-casing.
+ * @param record - Object whose keys to index.
+ * @returns Key index.
+ */
+function indexRecordKeys(record: ApiRecord): IRecordKeyIndex {
+  const originalKeys = Object.keys(record);
+  const lowerKeys = originalKeys.map((k): string => k.toLowerCase());
+  return { originalKeys, lowerKeys };
+}
+
+/**
+ * Filter the array under `record[originalKey]` to account-shape
+ * records only. Returns the empty array when the value is not a
+ * non-empty array of account-shape records — caller skips assigning.
+ * @param record - Parent record.
+ * @param originalKey - Key into the record.
+ * @returns Account-shape records, possibly empty.
+ */
+function pickAccountObjectsFromKey(
+  record: ApiRecord,
+  originalKey: string,
+): readonly ApiRecord[] {
+  const value = record[originalKey];
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const filtered = value.filter(looksLikeAccountRecord);
+  return filtered.map((v): ApiRecord => v as ApiRecord);
+}
+
+/** Per-WK probe outcome — successful claim or skip-with-reason. */
+interface IClaimAttempt {
+  readonly claimedLowerKey: string | false;
+  readonly objects: readonly ApiRecord[];
+}
+
+const NO_CLAIM: IClaimAttempt = { claimedLowerKey: false, objects: [] };
+
+/** Bundled args for {@link probeContainerForWk}. */
+interface IProbeArgs {
+  readonly record: ApiRecord;
+  readonly keys: IRecordKeyIndex;
+  readonly wantedLower: string;
+  readonly claimedLower: ReadonlySet<string>;
+}
+
+/**
+ * Probe one record for the longest-suffix match of `wantedLower`
+ * among unclaimed keys. Returns the claim metadata so the caller
+ * mutates `assigned` and `claimedKeys` in one place — keeps the
+ * loop body shallow per the project's max-depth=1 rule.
+ * @param args - Bundled probe args (record, keys, wantedLower, claimedLower).
+ * @returns Claim attempt metadata.
+ */
+function probeContainerForWk(args: IProbeArgs): IClaimAttempt {
+  const matchIdx = args.keys.lowerKeys.findIndex(
+    (lk): boolean => !args.claimedLower.has(lk) && lk.endsWith(args.wantedLower),
+  );
+  if (matchIdx < 0) return NO_CLAIM;
+  const originalKey = args.keys.originalKeys[matchIdx];
+  const objects = pickAccountObjectsFromKey(args.record, originalKey);
+  if (objects.length === 0) return NO_CLAIM;
+  return { claimedLowerKey: args.keys.lowerKeys[matchIdx], objects };
+}
+
+/**
+ * Walks `responseBody` once and assigns each PHYSICAL record-key
+ * to the LONGEST WK name that suffix-matches it. Returns the
+ * mutated `assigned` map so callers chain rather than rely on
+ * implicit mutation. Without longest-match-wins, the suffix-matcher
+ * in {@link tryContainerInRecord} would attribute the same
+ * `bankAccounts` array to BOTH `accounts` (suffix hit) AND
+ * `bankAccounts` (full hit), double-counting every record.
+ *
+ * @param record - One record from the body's flattened tree.
+ * @param wkNames - WK container names sorted longest-first.
+ * @param assigned - Per-WK-name records, mutated in place.
+ * @returns The same `assigned` object (chain-friendly).
+ */
+/** Bundled args for {@link applyClaimAttempt} so the call stays flat. */
+interface IApplyArgs {
+  readonly attempt: IClaimAttempt;
+  readonly wkName: string;
+  readonly assigned: Record<string, ApiRecord[]>;
+  readonly claimed: Set<string>;
+}
+
+/**
+ * Apply one probe outcome — claim the lower-cased key and append
+ * extracted records to the per-WK bucket. No-op when the attempt
+ * surfaced no claim. Pulled out so the per-WK loop in
+ * {@link assignContainersInRecord} stays flat (max-depth=1).
+ * @param args - Bundled apply args.
+ * @returns The same `assigned` map (chain-friendly).
+ */
+function applyClaimAttempt(args: IApplyArgs): Record<string, ApiRecord[]> {
+  if (args.attempt.claimedLowerKey === false) return args.assigned;
+  args.claimed.add(args.attempt.claimedLowerKey);
+  const bucket = args.assigned[args.wkName] ?? [];
+  bucket.push(...args.attempt.objects);
+  args.assigned[args.wkName] = bucket;
+  return args.assigned;
+}
+
+/**
+ * Walks `record` once and assigns each PHYSICAL key to the LONGEST
+ * WK name that suffix-matches it. Without longest-match-wins, the
+ * suffix-matcher would attribute the same `bankAccounts` array to
+ * BOTH `accounts` (suffix hit) AND `bankAccounts` (full hit),
+ * double-counting every record. Returns the mutated `assigned` map
+ * so callers can chain.
+ * @param record - One record from the body's flattened tree.
+ * @param wkNames - WK container names sorted longest-first.
+ * @param assigned - Per-WK-name records, mutated in place.
+ * @returns The same `assigned` object (chain-friendly).
+ */
+function assignContainersInRecord(
+  record: ApiRecord,
+  wkNames: readonly string[],
+  assigned: Record<string, ApiRecord[]>,
+): Record<string, ApiRecord[]> {
+  const keys = indexRecordKeys(record);
+  const claimed = new Set<string>();
+  for (const wkName of wkNames) {
+    const wantedLower = wkName.toLowerCase();
+    const attempt = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
+    applyClaimAttempt({ attempt, wkName, assigned, claimed });
+  }
+  return assigned;
+}
+
+/**
+ * Extracts every WK named container reachable from `responseBody`
+ * and returns them keyed by container name. Phase 7d adds this
+ * helper so ACCOUNT-RESOLVE.POST can commit BOTH `cards` AND
+ * `bankAccounts` found in the same VisaCal `account/init` payload
+ * (the legacy `findContainerArray` returned only the first match).
+ * @param responseBody - Parsed JSON response body.
+ * @returns Per-WK-name container map; absent containers omitted.
+ */
+function extractAllContainers(
+  responseBody: ApiRecord,
+): Readonly<Record<string, readonly ApiRecord[]>> {
+  const wkLongestFirst = [...WK_ACCT.containers].sort(
+    (a, b): number => b.length - a.length,
+  );
+  const assigned: Record<string, ApiRecord[]> = {};
+  const allRecords = flattenObjectTree(responseBody);
+  for (const r of allRecords) assignContainersInRecord(r, wkLongestFirst, assigned);
+  return assigned;
+}
+
+/**
+ * Extract account records from API response. Logs the response shape
+ * at trace level when zero items are found — exposes per-bank mapper
+ * gaps. Tries three extractors in order:
+ *
+ * <ol>
+ *   <li>{@link extractAllContainers} (named WK_ACCT.containers —
+ *       cardsList, cards, accounts, bankAccounts; covers card-family
+ *       banks where the cards array carries no txn-signature fields).
+ *       Concatenates ALL surfaced containers — Phase 7d change.</li>
+ *   <li>{@link findFirstArray} (txn-signature BFS — covers banks
+ *       whose account response has txn preview arrays).</li>
+ *   <li>{@link rootAccountArray} (root-level array of account-shaped
+ *       records — covers Hapoalim's /general/accounts).</li>
+ * </ol>
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Account records with all original fields.
+ */
+/**
+ * Concatenate every container's records and emit the per-container
+ * trace line. Extracted helper so {@link extractAccountRecords}
+ * stays inside the project's cognitive-complexity ceiling.
+ * @param containers - Per-WK-name container split.
+ * @returns Concatenated records across every container.
+ */
+function flattenContainersForLog(
+  containers: Readonly<Record<string, readonly ApiRecord[]>>,
+): readonly ApiRecord[] {
+  const containerNames = Object.keys(containers);
+  const concatenated: ApiRecord[] = [];
+  for (const name of containerNames) concatenated.push(...containers[name]);
+  LOG.debug({
+    message:
+      `extractAccountRecords: ${String(concatenated.length)} items ` +
+      `(${String(containerNames.length)} named containers: ${containerNames.join(',')})`,
+  });
+  return concatenated;
+}
+
+/**
+ * Extract account records from API response. Logs the response
+ * shape at trace level when zero items are found — exposes per-bank
+ * mapper gaps. Tries three extractors in order:
+ *
+ * <ol>
+ *   <li>{@link extractAllContainers} (named WK_ACCT.containers —
+ *       cardsList, cards, accounts, bankAccounts; covers card-family
+ *       banks where the cards array carries no txn-signature
+ *       fields). Concatenates ALL surfaced containers — Phase 7d
+ *       change.</li>
+ *   <li>{@link findFirstArray} (txn-signature BFS — covers banks
+ *       whose account response has txn preview arrays).</li>
+ *   <li>{@link rootAccountArray} (root-level array of account-shaped
+ *       records — covers Hapoalim's /general/accounts).</li>
+ * </ol>
+ *
  * @param responseBody - Parsed JSON response body.
  * @returns Account records with all original fields.
  */
 function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
-  const named = findContainerArray(responseBody, WK.accountContainers);
-  if (named.length > 0) {
-    LOG.debug({
-      message: `extractAccountRecords: ${String(named.length)} items (named container)`,
-    });
-    return named;
-  }
+  const containers = extractAllContainers(responseBody);
+  if (Object.keys(containers).length > 0) return flattenContainersForLog(containers);
   const items = findFirstArray(responseBody);
   if (items.length > 0) {
     LOG.debug({ message: `extractAccountRecords: ${String(items.length)} items` });
@@ -822,7 +983,7 @@ function isUsableIdentifier(id: string): boolean {
 
 /**
  * Resolves a single account record to a usable identifier by walking
- * `WK.accountId` (queryId fields first, displayId fields second) in
+ * `WK_ACCT.id` (queryId fields first, displayId fields second) in
  * priority order and returning the first value that passes
  * {@link isUsableIdentifier}.
  *
@@ -856,7 +1017,7 @@ function pickIdFromField(record: ApiRecord, field: string): string {
 
 /**
  * Resolves a single record to a usable identifier by walking
- * `WK.accountId` (queryId fields, then displayId fields) and
+ * `WK_ACCT.id` (queryId fields, then displayId fields) and
  * returning the first value that passes {@link isUsableIdentifier}.
  * Drives the queryId-then-displayId fallback that lets card-family
  * banks like Max yield `cardNumber` when `cardUniqueId` is absent.
@@ -865,7 +1026,7 @@ function pickIdFromField(record: ApiRecord, field: string): string {
  * @returns First usable identifier, or empty-string sentinel.
  */
 function extractValidIdentifier(record: ApiRecord): string {
-  const candidates = WK.accountId.map((field): string => pickIdFromField(record, field));
+  const candidates = WK_ACCT.id.map((field): string => pickIdFromField(record, field));
   return candidates.find(Boolean) ?? '';
 }
 
@@ -1064,9 +1225,9 @@ export {
   autoMapTransaction,
   extractAccountIds,
   extractAccountRecords,
+  extractAllContainers,
   extractTransactions,
   extractTransactionsForCard,
-  findContainerArray,
   findFieldValue,
   findFirstArray,
   isUsableIdentifier,

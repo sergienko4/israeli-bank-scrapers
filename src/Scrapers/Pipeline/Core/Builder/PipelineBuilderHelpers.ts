@@ -7,7 +7,6 @@ import type { ScraperOptions } from '../../../Base/Interface.js';
 import { createNetworkTraceLifecycleInterceptor } from '../../Interceptors/NetworkTraceLifecycleInterceptor.js';
 import { createPopupInterceptor } from '../../Interceptors/PopupInterceptor.js';
 import type { IPipelineInterceptor } from '../../Types/Interceptor.js';
-import type { AccountDiscoveryAt } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
@@ -20,53 +19,25 @@ import {
 } from './PipelineBuilderValidation.js';
 
 /**
- * Resolve the trace-gate boundary phase — the phase IMMEDIATELY
- * BEFORE the last auth phase, so the listener is recording while the
- * auth phase's POST stage waits for the dashboard initial render
- * (where account info lands as network traffic).
+ * Resolve the trace-gate boundary phase — the phase AFTER which the
+ * network interceptor flips ON. Phase 7 moved the boundary to BEFORE
+ * the auth phase (LOGIN/OTP-* etc.) because the new
+ * ACCOUNT-RESOLVE phase needs every auth-side capture (response
+ * containers AND id-bearing GETs / POST bodies) to make the discovery
+ * pool. Earlier boundaries that flipped the gate ON only after auth
+ * silently dropped Hapoalim-style id-bearing requests fired during
+ * `login.*` substeps.
  *
  * Mapping:
- * - OTP-fill bank, with trigger:        boundary = `otp-trigger`
- *                                       (gate ON at OTP-FILL entry)
- * - OTP-fill bank, no trigger (rare):   boundary = `login`
- * - OTP-trigger only (no fill):         boundary = `login`
- * - Non-OTP, with PRE-LOGIN form:       boundary = `pre-login`
- *                                       (gate ON at LOGIN entry)
- * - Non-OTP, no PRE-LOGIN:              boundary = `home`
- * - Headless / no login mode:           empty string (skip gate).
- * @param state - Validated builder state.
- * @returns Boundary phase name or empty string.
- */
-/**
- * Decide which auth FINAL owns the call to the shared
- * account-discovery handler (wait-for-traffic + extract). OTP banks
- * defer to OTP-FILL.FINAL so the wait runs exactly once (no double-
- * wait at LOGIN.FINAL). Non-OTP browser banks own it at LOGIN.FINAL.
- * Headless / no-login pipelines skip discovery entirely.
- * @param state - Validated builder state.
- * @returns Pointer to the FINAL that owns the wait + discovery.
- */
-function resolveAccountDiscoveryAt(state: IBuilderState): AccountDiscoveryAt {
-  if (!state.hasBrowser) return 'none';
-  if (state.loginMode === 'none') return 'none';
-  if (state.hasOtpFill) return 'otp-fill';
-  return 'login';
-}
-
-/**
- * Resolve the trace-gate boundary phase. Maps the builder state to
- * the phase name AFTER which the network listener flips ON, so the
- * pre-nav capture pool excludes login traffic but includes the
- * dashboard render. Empty string for headless / no-login pipelines.
+ * - PRE-LOGIN configured: boundary = `pre-login` (gate ON at LOGIN entry)
+ * - No PRE-LOGIN: boundary = `home` (gate ON at LOGIN entry)
+ * - Headless / no login mode: empty string (skip gate).
  * @param state - Validated builder state.
  * @returns Boundary phase name or empty string.
  */
 function resolveTraceBoundaryPhase(state: IBuilderState): string {
   if (!state.hasBrowser) return '';
   if (state.loginMode === 'none') return '';
-  if (state.hasOtpFill && state.hasOtpTrigger) return 'otp-trigger';
-  if (state.hasOtpFill) return 'login';
-  if (state.hasOtpTrigger) return 'login';
   if (state.hasPreLogin) return 'pre-login';
   return 'home';
 }
@@ -117,7 +88,6 @@ function assembleDescriptor(parts: IDescriptorParts): IPipelineDescriptor {
     interceptors: buildInterceptorsFor(state, phases, boundary),
     isHeadless: parts.fields.isHeadless,
     traceStartAfterPhase: boundary,
-    accountDiscoveryAt: resolveAccountDiscoveryAt(state),
   };
 }
 
@@ -156,9 +126,4 @@ function buildDescriptor(
 }
 
 export type { ScrapeFn } from './PipelineBuilderValidation.js';
-export {
-  buildDescriptor,
-  buildInterceptors,
-  resolveAccountDiscoveryAt,
-  resolveTraceBoundaryPhase,
-};
+export { buildDescriptor, buildInterceptors, resolveTraceBoundaryPhase };

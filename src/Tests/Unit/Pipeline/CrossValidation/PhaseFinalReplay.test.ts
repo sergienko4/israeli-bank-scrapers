@@ -27,14 +27,10 @@
  *   driven by deterministic fixture behaviour).
  */
 
-import {
-  hasAccountContainerInPreNav,
-  verifyPreNavReadiness,
-} from '../../../../Scrapers/Pipeline/Mediator/Auth/PreNavReadiness.js';
+import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/Auth/AccountDiscovery.js';
 import { createFrozenNetwork } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
 
 /** Bundled args for `makeCapture` — keeps the helper inside the param budget. */
@@ -305,10 +301,10 @@ function makeReplayBundle(fixture: IBankFixture): IReplayBundle {
  * @param fixture - Bank fixture.
  * @returns Pipeline context stub with no pre-nav account container.
  */
-function makeStrippedPreNavCtx(fixture: IBankFixture): ReturnType<typeof makeMockContext> {
+function makeStrippedPreNavCaptures(fixture: IBankFixture): readonly IDiscoveredEndpoint[] {
   // Replace pre-nav captures with a single non-account body so the
-  // pool is non-empty (skip-when-empty must NOT trigger), but no
-  // record matches the account container check.
+  // pool is non-empty but no record matches the account container
+  // check.
   const noAccountBody = makeCapture({
     url: 'https://example.invalid/api/no-account',
     method: 'GET',
@@ -317,33 +313,24 @@ function makeStrippedPreNavCtx(fixture: IBankFixture): ReturnType<typeof makeMoc
   });
   const merged = [noAccountBody, ...fixture.postNav];
   const network = createFrozenNetwork(merged, false, fixture.clickAtMs);
-  const baseCtx = makeMockContext();
-  return {
-    ...baseCtx,
-    mediator: { has: true, value: { network } },
-  } as unknown as ReturnType<typeof makeMockContext>;
+  return network.getPreNavCaptures();
 }
 
 describe('Cross-validation — phase FINAL replay (synthetic per-bank fixtures)', () => {
   for (const fixture of FIXTURES) {
-    it(`${fixture.label}: pre-nav account container present → readiness PASSES`, () => {
-      const { ctx } = makeReplayBundle(fixture);
-      const hasContainer = hasAccountContainerInPreNav(ctx);
-      expect(hasContainer).toBe(true);
-      const result = verifyPreNavReadiness(ctx, 'LOGIN');
-      const isResultOk = isOk(result);
-      expect(isResultOk).toBe(true);
+    it(`${fixture.label}: pre-nav holds account-id-bearing capture (ACCOUNT-RESOLVE input)`, () => {
+      const { network } = makeReplayBundle(fixture);
+      const preNav = network.getPreNavCaptures();
+      const result = discoverAccountsInPool(preNav);
+      expect(result.endpoint).not.toBe(false);
+      expect(result.ids.length).toBeGreaterThan(0);
     });
 
-    it(`${fixture.label}: pre-nav stripped of account container → readiness FAILS LOUD`, () => {
-      const ctx = makeStrippedPreNavCtx(fixture);
-      const result = verifyPreNavReadiness(ctx, 'OTP-FILL');
-      const isResultOk = isOk(result);
-      expect(isResultOk).toBe(false);
-      if (!result.success) {
-        expect(result.errorMessage).toContain('OTP-FILL');
-        expect(result.errorMessage).toContain('account/cards container');
-      }
+    it(`${fixture.label}: stripped pre-nav yields no ids — ACCOUNT-RESOLVE would fail loud`, () => {
+      const preNav = makeStrippedPreNavCaptures(fixture);
+      const result = discoverAccountsInPool(preNav);
+      expect(result.endpoint).toBe(false);
+      expect(result.ids.length).toBe(0);
     });
 
     it(`${fixture.label}: post-nav has WK transactions match`, () => {
@@ -367,7 +354,7 @@ describe('Cross-validation — phase FINAL replay (synthetic per-bank fixtures)'
 });
 
 describe('Cross-validation — pipeline must STOP when no data', () => {
-  it('readiness fails when mediator pool is non-empty but every body is unrelated', () => {
+  it('discovery returns empty when pre-nav pool is non-empty but every body is unrelated', () => {
     const noise = [
       makeCapture({
         url: 'https://x/noise/1',
@@ -384,25 +371,15 @@ describe('Cross-validation — pipeline must STOP when no data', () => {
       }),
     ];
     const network = createFrozenNetwork(noise, false, 50);
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: { network } },
-    } as unknown as ReturnType<typeof makeMockContext>;
-    const result = verifyPreNavReadiness(ctx, 'LOGIN');
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(false);
+    const preNav = network.getPreNavCaptures();
+    const result = discoverAccountsInPool(preNav);
+    expect(result.ids.length).toBe(0);
   });
 
-  it('readiness skips when no captures landed yet (gate-not-on path)', () => {
+  it('discovery returns empty on an empty pre-nav pool', () => {
     const network = createFrozenNetwork([], false, false);
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: { network } },
-    } as unknown as ReturnType<typeof makeMockContext>;
-    const result = verifyPreNavReadiness(ctx, 'LOGIN');
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
+    const preNav = network.getPreNavCaptures();
+    const result = discoverAccountsInPool(preNav);
+    expect(result.ids.length).toBe(0);
   });
 });

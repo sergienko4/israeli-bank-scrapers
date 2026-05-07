@@ -74,12 +74,6 @@ export function makeNetwork(overrides: Partial<INetworkDiscovery> = {}): INetwor
      *
      * @returns Result.
      */
-    discoverAccountsEndpoint: (): false => false,
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
     discoverTransactionsEndpoint: (): false => false,
     /**
      * Test helper.
@@ -134,12 +128,6 @@ export function makeNetwork(overrides: Partial<INetworkDiscovery> = {}): INetwor
      *
      * @returns Result.
      */
-    discoverEndpointByContent: (): false => false,
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
     discoverApiOrigin: (): false => false,
     /**
      * Test helper.
@@ -174,7 +162,6 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
       const failResult = fail(ScraperErrorTypes.Generic, 'no-stub');
       return Promise.resolve(failResult);
     },
-    accountsUrl: false as const,
     transactionsUrl: false as const,
     balanceUrl: false as const,
     pendingUrl: false as const,

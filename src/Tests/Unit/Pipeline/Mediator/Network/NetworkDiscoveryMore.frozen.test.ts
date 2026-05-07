@@ -87,20 +87,6 @@ describe('NetworkDiscovery — createFrozenNetwork', () => {
     expect(origin).toBe('https://api.bank.co.il');
   });
 
-  it('frozen — discoverEndpointByContent finds via body field', () => {
-    const frozen = createFrozenNetwork(
-      [
-        makeEndpoint({
-          url: 'https://api.bank.co.il/x',
-          responseBody: { accountId: '999' },
-        }),
-      ],
-      false,
-    );
-    const ep = frozen.discoverEndpointByContent(['accountId']);
-    expect(ep).not.toBe(false);
-  });
-
   it('frozen — buildTransactionUrl returns URL when base and account match', () => {
     const frozen = createFrozenNetwork(
       [

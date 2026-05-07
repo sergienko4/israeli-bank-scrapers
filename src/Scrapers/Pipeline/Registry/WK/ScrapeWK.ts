@@ -139,7 +139,9 @@ export const PIPELINE_WELL_KNOWN_HEADERS = {
   ]),
 } as const;
 
+export type { AccountContainerName } from './ScrapeFieldMappings.js';
 export {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS,
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS,
   PIPELINE_WELL_KNOWN_RESPONSE_FIELDS,
   PIPELINE_WELL_KNOWN_TXN_FIELDS,

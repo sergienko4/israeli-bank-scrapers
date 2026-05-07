@@ -11,8 +11,8 @@ import {
   generateMonthChunks,
 } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
@@ -100,7 +100,7 @@ function extractDisplayIdFromRaw(body: Record<string, unknown>): DisplayIdFromRa
   const txnArray = result.transactions as Record<string, unknown>[] | undefined;
   if (!Array.isArray(txnArray) || txnArray.length === 0) return '' as DisplayIdFromRaw;
   const first = txnArray[0];
-  const cardId = findFieldValue(first, WK.displayId);
+  const cardId = findFieldValue(first, WK_ACCT.displayId);
   if (cardId === false) return '' as DisplayIdFromRaw;
   return String(cardId) as DisplayIdFromRaw;
 }

@@ -40,11 +40,38 @@ export const PIPELINE_WELL_KNOWN_RESPONSE_FIELDS = {
   responseStatus: ['Status', 'status', 'HeaderStatus', 'responseStatus'],
 } satisfies Record<string, string[]>;
 
+/**
+ * WellKnown ACCOUNT-side field mappings — owned by ACCOUNT-RESOLVE
+ * and any SCRAPE caller that needs an account/card identifier.
+ *
+ * <p>Phase 7d split: every account-side field that was historically
+ * grouped under {@link PIPELINE_WELL_KNOWN_TXN_FIELDS} lives here so
+ * the two concerns no longer share a dictionary. ACCOUNT-RESOLVE
+ * imports this constant; SCRAPE keeps using the TXN dictionary for
+ * date/amount/description/etc.
+ */
+export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
+  /**
+   * Container key names that hold an array of account-shape records
+   * inside a discovered API response. Order matters for downstream
+   * iteration: card-level containers come first because the pipeline
+   * iterates per-card (POST replays carry card4Number, not
+   * bankAccountUniqueId). VisaCal regressed when `bankAccounts`
+   * was matched before `cards` — replays then targeted bank
+   * accounts and returned 0 txns. Bank-account-level containers stay
+   * last.
+   */
+  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts'],
+  /** Combined identifier list — query-style first, display-style second. */
+  id: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
+  /** Display identifiers (last-4 / short forms shown on the card). */
+  displayId: [...DISPLAY_ID_FIELDS],
+  /** Query identifiers (long unique ids the API uses on POST bodies). */
+  queryId: [...QUERY_ID_FIELDS],
+} satisfies Record<string, readonly string[]>;
+
 /** WellKnown transaction field name mappings — cross-bank BFS dictionary. */
 export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
-  accountId: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
-  displayId: [...DISPLAY_ID_FIELDS],
-  queryId: [...QUERY_ID_FIELDS],
   date: [
     'OperationDate',
     'trnPurchaseDate',
@@ -146,12 +173,6 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'pendingTransactions',
     'israelAbroadVouchersList',
   ],
-  // Order matters: card-level containers come first because the
-  // pipeline iterates per-card (POST replays carry card4Number, not
-  // bankAccountUniqueId). VisaCal regressed when `bankAccounts` was
-  // matched before `cards` — replays then targeted bank accounts and
-  // returned 0 txns. Bank-account-level containers stay last.
-  accountContainers: ['cardsList', 'cards', 'accounts', 'bankAccounts'],
   direction: ['creditDebit', 'direction', 'debitCreditIndicator'],
   voidIndicators: ['dealSumType'],
   voucherFields: ['voucherNumberRatz', 'voucherNumberRatzOutbound'],
@@ -162,3 +183,4 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
 
 export { PIPELINE_WELL_KNOWN_MONTHLY_FIELDS } from './ScrapeMonthlyFields.js';
 export { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS };
+export type AccountContainerName = (typeof PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS.containers)[number];

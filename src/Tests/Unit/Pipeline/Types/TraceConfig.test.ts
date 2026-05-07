@@ -149,6 +149,30 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
+  it('off-trace: getSubStepNetworkDumpDir returns empty string', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    const subDir = mod.getSubStepNetworkDumpDir('home', 'PRE');
+    expect(subDir).toBe('');
+  });
+
+  it('on-trace: getSubStepNetworkDumpDir creates a sub-folder under network/', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-substep');
+    process.env.LOG_LEVEL = 'trace';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
+    const subDir1 = mod.getSubStepNetworkDumpDir('home', 'PRE');
+    const subDir2 = mod.getSubStepNetworkDumpDir('home', 'PRE');
+    const didCreate = fs.existsSync(subDir1);
+    expect(subDir1).not.toBe('');
+    expect(didCreate).toBe(true);
+    expect(subDir2).toBe(subDir1);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
   it('on-trace: run folder name uses DDMMYY-HHMMSScc format under <bank>/', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-fmt');
     process.env.LOG_LEVEL = 'trace';

@@ -22,45 +22,40 @@
  *   `OtpFillPhaseActions.executeFillFinal` (OTP-FILL.FINAL).
  */
 
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_TXN } from '../../Registry/WK/ScrapeWK.js';
+import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../Registry/WK/ScrapeWK.js';
 import type { ApiPayload } from '../../Strategy/Scrape/ScrapeTypes.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import {
   extractAccountIds,
   extractAccountRecords,
-  findContainerArray,
+  extractAllContainers,
   findFieldValue,
 } from '../Scrape/ScrapeAutoMapper.js';
 
 /**
- * Result of `discoverAccountsInPool`. `endpoint` is `false` when no
- * capture in the pool exposed an account container; `ids` and
- * `records` are then empty.
+ * Result of {@link discoverAccountsInPool}.
+ *
+ * <ul>
+ *   <li>`endpoint` is `false` when no capture in the pool exposed an
+ *       account container.</li>
+ *   <li>`ids` and `records` are populated when the picker found a
+ *       body container OR the request-side fallback fired (Hapoalim
+ *       URL-query case).</li>
+ *   <li>`containers` holds the per-WK-name split (Phase 7d) when the
+ *       picked endpoint exposes named containers; empty otherwise
+ *       (root-array fallback or request-side fallback).</li>
+ * </ul>
  */
 interface IAccountDiscoveryResult {
   readonly endpoint: IDiscoveredEndpoint | false;
   readonly ids: readonly string[];
   readonly records: readonly Record<string, unknown>[];
-}
-
-/**
- * Returns true when the capture's response body holds a non-empty
- * `WK.accountContainers` array (`cardsList` / `cards` / `accounts` /
- * `bankAccounts`). Pure check, no extraction.
- * @param ep - Captured endpoint.
- * @returns True iff the body holds a named account container.
- */
-function hasNamedContainer(ep: IDiscoveredEndpoint): boolean {
-  const body = ep.responseBody;
-  if (body === null) return false;
-  if (typeof body !== 'object') return false;
-  const records = findContainerArray(body as ApiPayload, [...WK_TXN.accountContainers]);
-  return records.length > 0;
+  readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 }
 
 /**
  * Returns true when the FIRST element of a root-level array exposes
- * an account-id field (one of `WK_TXN.accountId`). Used as a strict
+ * an account-id field (one of `WK_ACCT.id`). Used as a strict
  * shape check for the Hapoalim `[{accountNumber,bankNumber,…}]`
  * pattern — DELIBERATELY ignores the loose `findFirstArray` tier so
  * a `{ transactions: [...] }` capture is NOT mistaken for an account
@@ -76,24 +71,194 @@ function hasRootAccountArray(ep: IDiscoveredEndpoint): boolean {
   if (arr.length === 0) return false;
   const first = arr[0];
   if (first === null || typeof first !== 'object') return false;
-  const fields = [...WK_TXN.accountId];
+  const fields = [...WK_ACCT.id];
   const hit = findFieldValue(first as Record<string, unknown>, fields);
   return hit !== false;
 }
 
 /**
- * Pick the first capture whose response body exposes account-shaped
- * records — preferring named containers (tier 1) over the root-array
- * fallback (tier 3). The 2-pass walk preserves ordering: named
- * containers always win when both exist in the same pool.
- * @param pool - Pre-nav captures supplied by the auth FINAL.
- * @returns First matching endpoint, or false.
+ * Returns the SUM of all WK named-container record counts reachable
+ * from this capture's response body. Phase 7d change: where the
+ * legacy helper returned the first-match container's size, the new
+ * implementation walks every WK container so payloads carrying both
+ * `cards` AND `bankAccounts` (VisaCal `account/init`) score the
+ * combined cardinality. Zero when the body has no named container
+ * or every record fails the {@link looksLikeAccountRecord} filter.
+ * Used by {@link pickAccountEndpoint} to score across the pool and
+ * by {@link poolMaxContainer} to drive the fail-loud guard in
+ * ACCOUNT-RESOLVE.POST.
+ * @param ep - Captured endpoint.
+ * @returns Total record count across all WK containers in the body,
+ *   or 0.
+ */
+function sumContainerRecords(ep: IDiscoveredEndpoint): number {
+  const body = ep.responseBody;
+  if (body === null) return 0;
+  if (typeof body !== 'object') return 0;
+  const containers = extractAllContainers(body as ApiPayload);
+  let total = 0;
+  for (const name of Object.keys(containers)) total += containers[name].length;
+  return total;
+}
+
+/**
+ * Possible JSON leaf or branch shapes a record's own value can take.
+ * Defined as a closed union so the tie-break helpers stay typed
+ * without leaking `unknown` across function boundaries.
+ */
+type FieldValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Readonly<Record<string, unknown>>
+  | readonly unknown[];
+
+/**
+ * Returns true when `value` carries information — non-empty string,
+ * any number/boolean, or a non-null object/array. Drives the field-
+ * richness tie-break in {@link firstRecordFieldRichness} so empty
+ * strings, nulls, and undefined contribute zero to the score.
+ * @param value - Field value to test.
+ * @returns True iff value carries information.
+ */
+function isPopulated(value: FieldValue): boolean {
+  if (value === null) return false;
+  if (value === undefined) return false;
+  if (typeof value === 'string') return value.length > 0;
+  return true;
+}
+
+/**
+ * Counts populated own keys on the FIRST record of the FIRST WK
+ * container reachable from this capture's body. Used as the
+ * deterministic tie-break when two candidate endpoints expose
+ * containers of identical size — the richer record wins so consumers
+ * see complete metadata (card name, owner, branch, etc.).
+ * @param ep - Captured endpoint.
+ * @returns Populated-field count of the first container record, or 0.
+ */
+function firstRecordFieldRichness(ep: IDiscoveredEndpoint): number {
+  const body = ep.responseBody;
+  if (body === null) return 0;
+  if (typeof body !== 'object') return 0;
+  const containers = extractAllContainers(body as ApiPayload);
+  const names = Object.keys(containers);
+  if (names.length === 0) return 0;
+  const firstRecord = containers[names[0]][0];
+  const entries = Object.entries(firstRecord) as readonly (readonly [string, FieldValue])[];
+  return entries.filter((entry): boolean => isPopulated(entry[1])).length;
+}
+
+/** Scoring tuple used to rank pool candidates for the picker. */
+interface IPoolCandidate {
+  readonly endpoint: IDiscoveredEndpoint;
+  readonly count: number;
+  readonly richness: number;
+}
+
+/**
+ * Builds a scoring tuple for one endpoint — bundles container size,
+ * field richness, and the original endpoint reference so the sort
+ * stays stable.
+ * @param ep - Captured endpoint.
+ * @returns Scoring tuple.
+ */
+function scoreCandidate(ep: IDiscoveredEndpoint): IPoolCandidate {
+  return {
+    endpoint: ep,
+    count: sumContainerRecords(ep),
+    richness: firstRecordFieldRichness(ep),
+  };
+}
+
+/**
+ * Compares two candidates for descending-cardinality sort. Primary
+ * key is container size (more records win), tie-break by metadata
+ * richness, final tie-break by capture order so the result is
+ * deterministic across runs.
+ * @param a - Left candidate.
+ * @param b - Right candidate.
+ * @returns Negative when a wins, positive when b wins.
+ */
+function compareCandidates(a: IPoolCandidate, b: IPoolCandidate): number {
+  const byCount = b.count - a.count;
+  if (byCount !== 0) return byCount;
+  const byRichness = b.richness - a.richness;
+  if (byRichness !== 0) return byRichness;
+  const aIdx = a.endpoint.captureIndex ?? 0;
+  const bIdx = b.endpoint.captureIndex ?? 0;
+  return aIdx - bIdx;
+}
+
+/**
+ * Picks the capture whose response body exposes the LARGEST WK
+ * named container reachable across the entire pool. Falls back to
+ * the root-array path (Hapoalim's bare `[{accountNumber,…}]`) when
+ * no endpoint exposes a named container.
+ *
+ * <p>Why max-cardinality: multi-card banks (Amex, Isracard) fire a
+ * partial-list endpoint (`GetDirectDebitList`) BEFORE the full-list
+ * endpoint (`GetCardList`). The legacy first-match picker stopped
+ * at the partial list and silently dropped cards. Scoring ALL
+ * candidates and picking the max prevents the regression. Tie-break
+ * by metadata richness keeps the response with the most complete
+ * card records.
+ *
+ * @param pool - Pre-nav captures supplied by ACCOUNT-RESOLVE.POST.
+ * @returns Endpoint with the richest container, root-array fallback, or false.
  */
 function pickAccountEndpoint(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
-  const named = pool.find(hasNamedContainer);
-  if (named) return named;
+  const candidates = pool.map(scoreCandidate).filter((c): boolean => c.count > 0);
+  if (candidates.length > 0) {
+    const sorted = [...candidates].sort(compareCandidates);
+    return sorted[0].endpoint;
+  }
   const rootShape = pool.find(hasRootAccountArray);
   return rootShape ?? false;
+}
+
+/**
+ * Picks the larger of two numbers. Pulled out to satisfy the
+ * project's no-nested-call lint rule when reducing across the pool.
+ * @param a - Left value.
+ * @param b - Right value.
+ * @returns Larger of {@link a} and {@link b}.
+ */
+function maxNumber(a: number, b: number): number {
+  if (a >= b) return a;
+  return b;
+}
+
+/**
+ * Reduces one pool entry into the running maximum sum-of-containers
+ * size. Extracted helper so {@link poolMaxContainer} stays linear.
+ * @param max - Running maximum.
+ * @param ep - Captured endpoint.
+ * @returns New running maximum.
+ */
+function reduceMaxContainer(max: number, ep: IDiscoveredEndpoint): number {
+  const sum = sumContainerRecords(ep);
+  return maxNumber(max, sum);
+}
+
+/**
+ * Returns the LARGEST sum-of-WK-containers seen across the pool.
+ * ACCOUNT-RESOLVE.POST consumes this to enforce the fail-loud
+ * incomplete guard: if the resolved id count is less than this
+ * value, the phase halts the run with `ACCOUNT_RESOLUTION_INCOMPLETE`
+ * so silent data loss is impossible. Phase 7d change: each pool
+ * entry contributes its SUM across all WK containers in its body
+ * (not the legacy first-match container size), so a payload with
+ * `cards: [4]` + `bankAccounts: [3]` scores 7 instead of 4.
+ * @param pool - Pre-nav captures supplied by ACCOUNT-RESOLVE.POST.
+ * @returns Maximum sum-of-WK-container records across the pool, or 0.
+ */
+function poolMaxContainer(pool: readonly IDiscoveredEndpoint[]): number {
+  let max = 0;
+  for (const ep of pool) max = reduceMaxContainer(max, ep);
+  return max;
 }
 
 /** Possible scalar shapes returned by `findFieldValue`. */
@@ -131,7 +296,7 @@ function extractAccountIdFromGetUrl(ep: IDiscoveredEndpoint): string | false {
   for (const [name, value] of parsed.searchParams.entries()) {
     queryRecord[name] = value;
   }
-  const hit = findFieldValue(queryRecord, [...WK_TXN.accountId]);
+  const hit = findFieldValue(queryRecord, [...WK_ACCT.id]);
   return asAccountId(hit);
 }
 
@@ -193,7 +358,7 @@ function extractAccountIdFromPostData(ep: IDiscoveredEndpoint): string | false {
   // Method-gating is the caller's job (see `extractAccountIdFromRequest`).
   const parsed = parsePostDataObject(ep.postData);
   if (!parsed.hasObject) return false;
-  const hit = findFieldValue(parsed.body, [...WK_TXN.accountId]);
+  const hit = findFieldValue(parsed.body, [...WK_ACCT.id]);
   return asAccountId(hit);
 }
 
@@ -227,12 +392,13 @@ function discoverAccountFromRequest(pool: readonly IDiscoveredEndpoint[]): IAcco
       return { ep, id };
     })
     .filter((entry): entry is { ep: IDiscoveredEndpoint; id: string } => entry !== false);
-  if (hits.length === 0) return { endpoint: false, ids: [], records: [] };
+  if (hits.length === 0) return { endpoint: false, ids: [], records: [], containers: {} };
   const winner = hits[0];
   return {
     endpoint: winner.ep,
     ids: [winner.id],
     records: [{ accountId: winner.id }],
+    containers: {},
   };
 }
 
@@ -256,10 +422,16 @@ function discoverAccountsInPool(pool: readonly IDiscoveredEndpoint[]): IAccountD
     const body = endpoint.responseBody as ApiPayload;
     const ids = extractAccountIds(body);
     const records = extractAccountRecords(body);
-    return { endpoint, ids: [...ids], records: [...records] };
+    const containers = extractAllContainers(body);
+    return {
+      endpoint,
+      ids: [...ids],
+      records: [...records],
+      containers,
+    };
   }
   return discoverAccountFromRequest(pool);
 }
 
 export type { IAccountDiscoveryResult };
-export { discoverAccountsInPool };
+export { discoverAccountsInPool, poolMaxContainer };

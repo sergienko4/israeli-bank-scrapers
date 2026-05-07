@@ -166,26 +166,28 @@ describe('executeLoginSignal', () => {
     expect(result.success).toBe(true);
   });
 
-  it('fails when pre-nav captures lack an account container (readiness fail-loud)', async () => {
+  it('succeeds with cookies present even when pre-nav lacks account container', async () => {
+    // Phase 7 (2026-05-07) moved the account-container readiness check
+    // out of LoginSignalProbe into the dedicated ACCOUNT-RESOLVE phase.
+    // LOGIN.FINAL is now a pure auth-signal probe — pre-nav shape is
+    // irrelevant here; AccountResolveActions.test.ts owns the failure
+    // mode.
     const cookies = [{ name: 'SID', domain: 'bank.co.il', value: 'abc' }];
     const baseMediator = makeMediator({ cookies, auth: false, proxy: false });
-    // Override network to expose a non-empty pool with NO account container —
-    // this exercises the readiness fail path inside executeLoginSignal.
     const mediator = {
       ...baseMediator,
       network: {
         ...(baseMediator.network as object),
         /**
          * Non-empty pre-nav with body that doesn't expose an account
-         * container — readiness check must fail loud.
+         * container — irrelevant after Phase 7.
          * @returns Single capture with unrelated body.
          */
         getPreNavCaptures: (): readonly { responseBody: unknown }[] => [
           { responseBody: { unrelated: true } },
         ],
         /**
-         * Same single endpoint — non-zero count flips
-         * `shouldSkipPreNavCheck` off so the check actually runs.
+         * Non-zero endpoint count.
          * @returns Single endpoint.
          */
         getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
@@ -194,14 +196,9 @@ describe('executeLoginSignal', () => {
     const ctx = makeMockContext({
       login: { has: true, value: {} } as IPipelineContext['login'],
       mediator: { has: true, value: mediator } as IPipelineContext['mediator'],
-      accountDiscoveryAt: 'login',
     });
     const result = await executeLoginSignal(ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorMessage).toContain('LOGIN');
-      expect(result.errorMessage).toContain('account/cards container');
-    }
+    expect(result.success).toBe(true);
   });
 
   it('succeeds with proxy-based strategy when proxy discovered', async () => {

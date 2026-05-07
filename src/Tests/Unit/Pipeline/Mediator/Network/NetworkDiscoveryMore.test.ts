@@ -59,28 +59,7 @@ describe('NetworkDiscovery cache auth hit path', () => {
   });
 });
 
-describe('NetworkDiscovery account/txn endpoints', () => {
-  it('discoverAccountsEndpoint matches accounts URL pattern', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({ url: 'https://api.bank.co.il/gatewayAPI/accounts', body: { items: [] } });
-    const ep = discovery.discoverAccountsEndpoint();
-    expect(ep === false || typeof ep === 'object').toBe(true);
-  });
-
-  it('discoverAccountsEndpoint matches GetCardList URL (Amex/Isracard family)', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({
-      url: 'https://web.americanexpress.co.il/ocp/transactions/DigitalV3.Transactions/GetCardList',
-      method: 'POST',
-      body: { data: { cardsList: [{ cardSuffix: '8912' }] } },
-    });
-    const ep = discovery.discoverAccountsEndpoint();
-    expect(ep).not.toBe(false);
-    if (ep) expect(ep.url).toContain('GetCardList');
-  });
-
+describe('NetworkDiscovery txn/balance endpoints', () => {
   it('discoverBalanceEndpoint matches balance URL pattern', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);

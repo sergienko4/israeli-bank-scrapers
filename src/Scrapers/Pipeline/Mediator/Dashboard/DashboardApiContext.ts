@@ -54,46 +54,35 @@ function urlOrFalse(hit: { url: string } | false): string | false {
   return hit.url;
 }
 
-/**
- * Discover all endpoint URLs from network traffic.
- * @param network - Network discovery.
- * @returns Discovered URLs object.
- */
-/** Discovered URL fields in API context. */
-type DiscoveredUrls = Pick<
-  IApiFetchContext,
-  'accountsUrl' | 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'
->;
+/** Discovered URL fields in API context (transactions / balance / pending). */
+type DiscoveredUrls = Pick<IApiFetchContext, 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'>;
 
 /**
- * Discover all endpoint URLs from network traffic.
+ * Discovers transaction-side endpoint URLs from captured traffic.
+ *
+ * <p>Phase 7c removed the `accountsUrl` field from
+ * {@link IApiFetchContext}: account discovery is owned by
+ * ACCOUNT-RESOLVE, so DASHBOARD's API context publishes only the
+ * txn-side URLs (transactions, balance, pending). The structured
+ * `api.context` log mirrors the surviving fields.
+ *
  * @param network - Network discovery.
  * @returns Discovered URLs object.
  */
 function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
-  const acctHit = network.discoverAccountsEndpoint();
   const txnHit = network.discoverTransactionsEndpoint();
   const balHit = network.discoverBalanceEndpoint();
   const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
   const urls: DiscoveredUrls = {
-    accountsUrl: urlOrFalse(acctHit),
     transactionsUrl: urlOrFalse(txnHit),
     balanceUrl: urlOrFalse(balHit),
     pendingUrl: urlOrFalse(pendHit),
   };
-  // Canonical `api.context` event: one structured log line carrying
-  // every URL the API context will hand to downstream phases. Lets a
-  // developer see at a glance which sibling endpoint was bound to
-  // each role at DASHBOARD.FINAL time, and join each entry to its
-  // capture file via the per-endpoint `captureIndex` already emitted
-  // in `discover.shapeAware` / `discover.accounts`.
   LOG.debug({
     event: 'api.context',
-    accountsUrl: urlHint(urls.accountsUrl),
     transactionsUrl: urlHint(urls.transactionsUrl),
     balanceUrl: urlHint(urls.balanceUrl),
     pendingUrl: urlHint(urls.pendingUrl),
-    accountsCapture: captureIndexOf(acctHit),
     transactionsCapture: captureIndexOf(txnHit),
     balanceCapture: captureIndexOf(balHit),
     pendingCapture: captureIndexOf(pendHit),

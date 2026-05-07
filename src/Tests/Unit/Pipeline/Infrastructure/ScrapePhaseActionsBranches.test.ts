@@ -206,6 +206,8 @@ describe('executeForensicPre DIRECT path edge cases', () => {
       accountDiscovery: some({
         ids: ['A-real-1234'],
         records: [{ accountId: 'A-real-1234' }],
+        containers: {},
+        endpointCaptureIndex: 0,
       }),
     };
     const result = await executeForensicPre(ctx);

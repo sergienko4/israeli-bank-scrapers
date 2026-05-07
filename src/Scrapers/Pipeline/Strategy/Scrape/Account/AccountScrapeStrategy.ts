@@ -15,8 +15,8 @@ import {
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeToUrlWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
@@ -151,7 +151,7 @@ interface IBufferedAttemptCtx {
 }
 
 /** WK field names that identify a per-card / per-account body parameter. */
-const ACCOUNT_BODY_KEYS: readonly string[] = [...WK.accountId, ...MF.accountId];
+const ACCOUNT_BODY_KEYS: readonly string[] = [...WK_ACCT.id, ...MF.accountId];
 
 /** Plural-array WK keys identifying multi-card request scopes. */
 const BUFFER_PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];

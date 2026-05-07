@@ -106,9 +106,5 @@ function createScrapePhase(actionExec?: ActionExecFn): ScrapePhase {
 export type { CustomScrapeFn } from '../../Types/ScrapeConfig.js';
 export default SCRAPE_STEP;
 export { SCRAPE_POST_STEP } from '../../Mediator/Scrape/ForensicAuditAction.js';
-export {
-  loadDiscovered as fetchDiscovered,
-  genericAutoScrape,
-} from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
 export { createScrapePhase, SCRAPE_STEP, ScrapePhase };
 export { createConfigScrapeStep, createCustomScrapeStep } from './ScrapeStepFactory.js';

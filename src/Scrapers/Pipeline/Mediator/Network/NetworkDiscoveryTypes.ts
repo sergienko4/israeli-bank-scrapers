@@ -131,9 +131,6 @@ interface INetworkDiscovery {
    */
   discoverByPatterns(patterns: readonly RegExp[]): IDiscoveredEndpoint | false;
 
-  /** Discover accounts endpoint via WellKnown patterns. */
-  discoverAccountsEndpoint(): IDiscoveredEndpoint | false;
-
   /** Discover transactions endpoint via WellKnown patterns. */
   discoverTransactionsEndpoint(): IDiscoveredEndpoint | false;
 
@@ -199,12 +196,17 @@ interface INetworkDiscovery {
   waitForTransactionsTraffic(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
 
   /**
-   * Content-First: find captured endpoint whose response body contains field names.
-   * Scans ALL captured JSON bodies for WK field signatures.
-   * @param fieldNames - WK field names to search for (e.g. WK.accountId).
-   * @returns First matching endpoint or false.
+   * Block until the captured pool yields a capture that surfaces an
+   * account identifier — via the same 3-source predicate the auth phase
+   * uses (response container, GET URL query, POST body). Used by the
+   * ACCOUNT-RESOLVE phase to guarantee at least one id-bearing capture
+   * has landed before discovery runs. Polls a closure-owned predicate
+   * every 250 ms; returns the first match, or `false` when the budget
+   * elapses with no match. Frozen networks return `false` immediately.
+   * @param timeoutMs - Max wait budget in ms.
+   * @returns First id-bearing endpoint or false on timeout.
    */
-  discoverEndpointByContent(fieldNames: readonly string[]): IDiscoveredEndpoint | false;
+  waitForFirstId(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
 
   /**
    * Discover API origin from captured traffic.

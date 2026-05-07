@@ -116,12 +116,14 @@ describe('extractAccountRecords', () => {
       expect(records[0].cardSuffix).toBe('8912');
     });
 
-    it('prefers `cards` over `bankAccounts` when both are present (VisaCal shape)', () => {
+    it('Phase 7d: surfaces BOTH `cards` AND `bankAccounts` when both live in the same body', () => {
       // VisaCal's account/init carries both: cards[] are card-level
       // (last4Digits like 3020/3308) and bankAccounts[] are bank-level
-      // (bankAccountNum like 190691). Iteration must target the cards
-      // because per-card POST replays use card identifiers, not the
-      // bank account UID — otherwise replays return 0 txns.
+      // (bankAccountNum like 190691). Phase 7d change: the multi-
+      // container walker concatenates every WK container in the
+      // chosen body so `accountDiscovery.records` carries the full
+      // graph. Downstream phases see both halves; SCRAPE iterates per-
+      // card (cards-first ordering preserved).
       const body = {
         result: {
           cards: [{ cardUniqueId: '11733...', last4Digits: '3308' }],
@@ -129,8 +131,10 @@ describe('extractAccountRecords', () => {
         },
       };
       const records = extractAccountRecords(body);
-      expect(records.length).toBe(1);
-      expect(records[0].last4Digits).toBe('3308');
+      expect(records.length).toBe(2);
+      const ids = records.map((r): unknown => r.last4Digits ?? r.bankAccountUniqueId);
+      expect(ids).toContain('3308');
+      expect(ids).toContain('31190691003093');
     });
   });
 });

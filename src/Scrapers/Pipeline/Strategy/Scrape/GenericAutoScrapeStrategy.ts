@@ -1,41 +1,30 @@
 /**
- * Generic auto-scrape strategy — zero bank code path.
- * Uses ctx.api + WellKnown for organic endpoint discovery.
+ * SCRAPE-side strategy helpers — SPA pivot navigation and the
+ * load-context builder that consumes ACCOUNT-RESOLVE's discovery.
+ *
+ * <p>Phase 7c deleted every account-discovery code path that lived
+ * here pre-Phase-7. After the deletion, the ONLY account-related
+ * logic is reading `ctx.accountDiscovery` (populated upstream
+ * by ACCOUNT-RESOLVE.POST). The remaining helpers handle SPA
+ * navigation and txn-endpoint discovery — neither touches account
+ * data.
  */
-
-import moment from 'moment';
 
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../Mediator/Network/NetworkDiscovery.js';
-import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
-import {
-  extractAccountIds,
-  extractAccountRecords,
-  findContainerArray,
-  findFieldValue,
-  isUsableIdentifier,
-} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { waitUntil } from '../../Mediator/Timing/Waiting.js';
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
-import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import { some } from '../../Types/Option.js';
-import { redactAccount, redactUrlFull } from '../../Types/PiiRedactor.js';
-import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, succeed } from '../../Types/Procedure.js';
+import { succeed } from '../../Types/Procedure.js';
+import type { IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
-type IsContainerEndpoint = Brand<boolean, 'IsContainerEndpoint'>;
-type HasAccountContainer = Brand<boolean, 'HasAccountContainer'>;
+/** Whether the txn endpoint URL hosts on the current page origin. */
 type IsTxnOnCurrentOrigin = Brand<boolean, 'IsTxnOnCurrentOrigin'>;
-import { getFutureMonths } from '../../Types/ScraperDefaults.js';
-import { applyGlobalDateFilter, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
-import type { ApiPayload, IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
 const LOG = createLogger('scrape-phase');
 
@@ -43,352 +32,12 @@ const LOG = createLogger('scrape-phase');
 const SPA_PIVOT_TIMEOUT_MS = 15_000;
 
 /**
- * Load data using the discovered endpoint's method (buffered or re-fetch).
- * @param api - API fetch context with headers.
- * @param endpoint - Discovered endpoint.
- * @returns Procedure with response body.
- */
-async function loadDiscovered<T>(
-  api: IApiFetchContext,
-  endpoint: IDiscoveredEndpoint,
-): Promise<Procedure<T>> {
-  if (endpoint.responseBody) {
-    LOG.debug({
-      message: 'Using buffered response (0ms network cost)',
-    });
-    return succeed(endpoint.responseBody as T);
-  }
-  LOG.debug({
-    event: 'autoScrape.reload',
-    method: endpoint.method,
-    picked: redactUrlFull(endpoint.url),
-    captureIndex: endpoint.captureIndex ?? 0,
-  });
-  if (endpoint.method === 'POST') {
-    const rawBody = endpoint.postData || '{}';
-    const body = JSON.parse(rawBody) as Record<string, string>;
-    return api.fetchPost<T>(endpoint.url, body);
-  }
-  return api.fetchGet<T>(endpoint.url);
-}
-
-/**
- * Returns the captured endpoint whose responseBody carries a non-empty
- * named-container of account-shaped records (cardsList / cards /
- * accounts / bankAccounts), or false. Used as a fallback when the
- * URL-pattern match (e.g. accountSummary) returns a body that lacks the
- * primary account list — Beinleumi's accountSummary holds linked credit
- * cards and a recent-txn preview, while the real account list lives on
- * a separate userData endpoint.
- * @param network - frozen or live network discovery.
- * @returns endpoint with a usable account container, or false.
- */
-function findEndpointWithAccountContainer(network: INetworkDiscovery): IDiscoveredEndpoint | false {
-  const endpoints = network.getAllEndpoints();
-  const hit = endpoints.find((ep): IsContainerEndpoint => {
-    if (!ep.responseBody) return false as IsContainerEndpoint;
-    const body = ep.responseBody as ApiPayload;
-    const records = findContainerArray(body, [...WK.accountContainers]);
-    return (records.length > 0) as IsContainerEndpoint;
-  });
-  return hit ?? false;
-}
-
-/**
- * Returns true when a captured response body holds a non-empty
- * `WK.accountContainers` array of account-shaped records.
- * @param body - parsed response body.
- * @returns true when an account container is present.
- */
-function bodyHasAccountContainer(body: ApiPayload): HasAccountContainer {
-  const records = findContainerArray(body, [...WK.accountContainers]);
-  return (records.length > 0) as HasAccountContainer;
-}
-
-/** Maximum time the post-fast-path poll waits before giving up. */
-const ACCOUNTS_POLL_BUDGET_MS = 3000;
-/** Delay between poll iterations during the post-fast-path wait. */
-const ACCOUNTS_POLL_INTERVAL_MS = 500;
-/** Terminal-state sentinel: container endpoint discovered within the budget. */
-const POLL_SUCCESS = 'success';
-/** Terminal-state sentinel: budget exhausted without a container hit. */
-const POLL_TIMEOUT = 'timeout';
-/** Outcome marker carried on the poll result. */
-type PollOutcome = typeof POLL_SUCCESS | typeof POLL_TIMEOUT;
-
-/** Result returned by {@link pollForAccountEndpoint}. */
-interface IPollResult {
-  readonly outcome: PollOutcome;
-  /** The discovered endpoint when {@link outcome} is {@link POLL_SUCCESS}. */
-  readonly endpoint: IDiscoveredEndpoint | false;
-  /** Wall-clock ms from poll start to terminal state. */
-  readonly waitedMs: number;
-}
-
-/** Tier label emitted on the canonical `discover.accounts` event. */
-type AccountsTier = 'none' | 'urlAndContainer' | 'container' | 'urlOnly' | 'content';
-
-/**
- * Emit the canonical `discover.accounts` structured event. PII-safe
- * via `redactUrlFull`; `captureIndex` lets the log line bridge to the
- * exact on-disk capture (`<runId>/network/NNNN-METHOD-…json`).
- * @param tier - Which discovery tier produced the pick.
- * @param picked - Endpoint chosen, or false for the no-match tier.
- * @returns True (placeholder for chaining).
- */
-function logAccountsPick(tier: AccountsTier, picked: IDiscoveredEndpoint | false): true {
-  if (!picked) {
-    LOG.debug({ event: 'discover.accounts', tier });
-    return true;
-  }
-  LOG.debug({
-    event: 'discover.accounts',
-    tier,
-    picked: redactUrlFull(picked.url),
-    method: picked.method,
-    captureIndex: picked.captureIndex ?? 0,
-  });
-  return true;
-}
-
-/**
- * Returns the first captured endpoint that satisfies any of the four
- * discovery tiers (URL match, container match, URL fallback, content
- * match). Shared between the fast path and the post-wait retry so both
- * apply identical match rules.
- *
- * Emits one canonical `discover.accounts` event per call so the tier
- * choice and selected URL are traceable from `pipeline.log` alone.
- *
- * @param network - Live or frozen network discovery.
- * @returns The matched endpoint, or `false` when no tier hits.
- */
-function tryDiscoverAccounts(network: INetworkDiscovery): IDiscoveredEndpoint | false {
-  const byUrl = network.discoverAccountsEndpoint();
-  if (byUrl && bodyHasAccountContainer(byUrl.responseBody as ApiPayload)) {
-    logAccountsPick('urlAndContainer', byUrl);
-    return byUrl;
-  }
-  const byContainer = findEndpointWithAccountContainer(network);
-  if (byContainer) {
-    logAccountsPick('container', byContainer);
-    return byContainer;
-  }
-  if (byUrl) {
-    logAccountsPick('urlOnly', byUrl);
-    return byUrl;
-  }
-  const byContent = network.discoverEndpointByContent([...WK.accountId]);
-  if (byContent) {
-    logAccountsPick('content', byContent);
-    return byContent;
-  }
-  logAccountsPick('none', false);
-  return false;
-}
-
-/**
- * Returns a predicate suitable for {@link waitUntil} that retries
- * {@link tryDiscoverAccounts} on each tick. Emits a per-tick log line so
- * the race window between scrape.PRE entry and late-arriving SPA
- * captures is visible in pipeline.log.
- * @param network - Live network discovery.
- * @returns Predicate that resolves with a hit or `false` to keep polling.
- */
-function buildPollPredicate(
-  network: INetworkDiscovery,
-): () => Promise<IDiscoveredEndpoint | false> {
-  return (): Promise<IDiscoveredEndpoint | false> => {
-    const endpointCount = network.getAllEndpoints().length;
-    const hit = tryDiscoverAccounts(network);
-    LOG.debug({
-      message: 'auto-discover: poll-tick',
-      endpointCount,
-      hit: hit !== false,
-    });
-    return Promise.resolve(hit);
-  };
-}
-
-/**
- * Waits for an account-bearing endpoint to appear in the live network
- * feed, bounded by {@link ACCOUNTS_POLL_BUDGET_MS}. Generic across banks:
- * delegates to the cross-bank {@link waitUntil} primitive and the
- * cross-bank `WK.accountContainers` dictionary — no per-bank
- * configuration.
- * @param network - Live network discovery; must NOT be frozen.
- * @returns Outcome + endpoint (when found) + wall-clock waitedMs.
- */
-async function pollForAccountEndpoint(network: INetworkDiscovery): Promise<IPollResult> {
-  const startMs = Date.now();
-  const predicate = buildPollPredicate(network);
-  const result = await waitUntil(predicate, 'auto-discover poll', {
-    timeout: ACCOUNTS_POLL_BUDGET_MS,
-    interval: ACCOUNTS_POLL_INTERVAL_MS,
-  })
-    .then(
-      (endpoint: IDiscoveredEndpoint | false): IPollResult => ({
-        outcome: POLL_SUCCESS,
-        endpoint,
-        waitedMs: Date.now() - startMs,
-      }),
-    )
-    .catch(
-      (): IPollResult => ({
-        outcome: POLL_TIMEOUT,
-        endpoint: false,
-        waitedMs: Date.now() - startMs,
-      }),
-    );
-  return result;
-}
-
-/**
- * Resolves the accounts-bearing endpoint and returns its parsed body.
- *
- * <p>Tries the fast path first. On a fast-path miss with a non-empty
- * capture set, polls the live network for up to
- * {@link ACCOUNTS_POLL_BUDGET_MS} for a container endpoint to arrive —
- * fixes the race where `api/registered/*` responses land just after
- * scrape.PRE entry on slower CI runners.
- *
- * <p>Each terminal state emits a single log line so triage is possible
- * from pipeline.log alone:
- * <ul>
- *   <li>`auto-discover: fast-path hit`     — already captured</li>
- *   <li>`auto-discover: zero captures`     — prior phase broken</li>
- *   <li>`auto-discover: poll succeeded`    — race resolved</li>
- *   <li>`auto-discover: poll timed out`    — escalate elsewhere</li>
- * </ul>
- *
- * @param api - API fetch context.
- * @param network - Live network discovery; freeze happens in the caller.
- * @returns Parsed accounts body, or `succeed({})` when nothing matches.
- */
-async function discoverAndLoadAccounts(
-  api: IApiFetchContext,
-  network: INetworkDiscovery,
-): Promise<Procedure<ApiPayload>> {
-  const fast = tryDiscoverAccounts(network);
-  if (fast) {
-    LOG.debug({
-      event: 'autoDiscover.fastPathHit',
-      picked: redactUrlFull(fast.url),
-      method: fast.method,
-      captureIndex: fast.captureIndex ?? 0,
-    });
-    return loadDiscovered<ApiPayload>(api, fast);
-  }
-  const epsAtStart = network.getAllEndpoints().length;
-  if (epsAtStart === 0) {
-    LOG.warn({
-      message: 'auto-discover: zero captures — prior phase issue, skipping wait',
-    });
-    return succeed({});
-  }
-  LOG.debug({
-    message: 'auto-discover: container not yet captured — polling',
-    endpointsAtStart: epsAtStart,
-    budgetMs: ACCOUNTS_POLL_BUDGET_MS,
-  });
-  const polled = await pollForAccountEndpoint(network);
-  if (polled.outcome === POLL_SUCCESS && polled.endpoint) {
-    LOG.debug({
-      event: 'autoDiscover.pollSucceeded',
-      picked: redactUrlFull(polled.endpoint.url),
-      method: polled.endpoint.method,
-      captureIndex: polled.endpoint.captureIndex ?? 0,
-      waitedMs: polled.waitedMs,
-    });
-    return loadDiscovered<ApiPayload>(api, polled.endpoint);
-  }
-  LOG.warn({
-    message: 'auto-discover: poll timed out — falling through to credential default',
-    waitedMs: polled.waitedMs,
-  });
-  return succeed({});
-}
-
-/** Parsed POST body with account info for fallback. */
-interface IPostBodyFallback {
-  readonly accountId: string;
-  readonly record: ApiPayload;
-}
-
-/**
- * Extract card ID from a nested cards array in a POST body.
- * @param body - Parsed POST body.
- * @returns Card ID string or false.
- */
-function extractCardIdFromArray(body: Record<string, unknown>): string | false {
-  const cards = body.cards ?? body.Cards;
-  if (!Array.isArray(cards) || cards.length === 0) return false;
-  const first = cards[0] as Record<string, unknown>;
-  const cardId = findFieldValue(first, WK.queryId);
-  if (!cardId) return false;
-  return String(cardId);
-}
-
-/**
- * Resolve account ID from parsed POST body (card array or top-level).
- * @param body - Parsed POST body.
- * @returns Account ID and record, or false.
- */
-function resolveAccountFromBody(body: ApiPayload): IPostBodyFallback | false {
-  const cardId = extractCardIdFromArray(body);
-  if (cardId) {
-    LOG.debug({
-      message: `account fallback: cardId=${cardId} from cards array`,
-    });
-    return { accountId: cardId, record: body };
-  }
-  const rawId = findFieldValue(body, WK.queryId);
-  if (!rawId) return false;
-  const accountId = String(rawId);
-  const acctLabel = redactAccount(accountId);
-  LOG.debug({
-    message: `account fallback: account=${acctLabel} from top level`,
-  });
-  return { accountId, record: body };
-}
-
-/**
- * Extract account ID from captured POST body when accounts endpoint returns 0.
- * @param postData - Captured POST body string.
- * @returns Account record or false.
- */
-function extractAccountFromPostBody(postData: string): IPostBodyFallback | false {
-  try {
-    const body = JSON.parse(postData) as ApiPayload;
-    return resolveAccountFromBody(body);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Try POST body fallback when no accounts found from endpoint.
- * @param txnEndpoint - Transaction endpoint.
- * @returns Fallback IDs and records, or false.
- */
-function tryPostBodyFallback(
-  txnEndpoint: IDiscoveredEndpoint | false,
-): { readonly ids: string[]; readonly records: ApiPayload[] } | false {
-  if (txnEndpoint === false) return false;
-  if (!txnEndpoint.postData) return false;
-  const fallback = extractAccountFromPostBody(txnEndpoint.postData);
-  if (!fallback) return false;
-  const acctLabel = redactAccount(fallback.accountId);
-  LOG.debug({
-    message: `account fallback from POST body: ${acctLabel}`,
-  });
-  return { ids: [fallback.accountId], records: [fallback.record] };
-}
-
-/**
- * Log discovered transaction endpoint info.
+ * Logs the discovered transaction endpoint URL so the canonical
+ * `autoScrape.txnEndpoint` line in `pipeline.log` pins
+ * which capture SCRAPE.PRE bound as the txn template. Pure
+ * pass-through; never mutates the endpoint.
  * @param ep - Endpoint or false.
- * @returns The same endpoint passthrough.
+ * @returns The same endpoint, unchanged.
  */
 function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | false {
   if (ep) {
@@ -404,32 +53,7 @@ function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | 
   return ep;
 }
 
-/**
- * Build fetch-all context from unwrapped dependencies.
- * @param fc - Account fetch context.
- * @param network - Network discovery.
- * @param rawAccounts - Raw accounts response data.
- * @returns Bundled fetch-all context.
- */
-function buildLoadAllCtx(
-  fc: IAccountFetchCtx,
-  network: INetworkDiscovery,
-  rawAccounts: Record<string, unknown>,
-): IFetchAllAccountsCtx {
-  let ids = extractAccountIds(rawAccounts);
-  let records = extractAccountRecords(rawAccounts);
-  const txnEndpoint = network.discoverTransactionsEndpoint();
-  logTxnEndpoint(txnEndpoint);
-  const hasMissingData = ids.length === 0 || records.length === 0;
-  const fallback = hasMissingData && tryPostBodyFallback(txnEndpoint);
-  if (fallback) {
-    ids = fallback.ids;
-    records = fallback.records;
-  }
-  return { fc, ids, records, txnEndpoint };
-}
-
-/** Bundled args for `buildLoadCtxFromPreDiscovered`. */
+/** Bundled args for {@link buildLoadCtxFromPreDiscovered}. */
 interface IPreDiscoveredArgs {
   readonly fc: IAccountFetchCtx;
   readonly network: INetworkDiscovery;
@@ -438,88 +62,39 @@ interface IPreDiscoveredArgs {
 }
 
 /**
- * Build fetch-all context when accounts have ALREADY been discovered
- * by the auth FINAL stage (LOGIN.FINAL / OTP-FILL.FINAL). SCRAPE.PRE
- * uses this entry point to enforce strict SRP: it never re-runs
- * account discovery against the global capture pool.
+ * Builds the SCRAPE per-account fetch context from the account list
+ * ACCOUNT-RESOLVE.POST already committed to `ctx.accountDiscovery`.
  *
- * The transaction endpoint is still discovered here — that's
- * SCRAPE.PRE's own responsibility. When the supplied account list is
- * empty, a single defensive fallback runs: try to extract a card id
- * from the discovered txn endpoint's POST body. Beyond that, the
- * caller (SCRAPE.PRE) chains `applyCredentialFallback` and
- * `applyStorageHarvest` for the genuinely-empty case.
- * @param args - Bundled args.
+ * <p>Strict SRP: never re-runs account discovery. The pipeline
+ * invariant from Phase 7+7b guarantees `args.ids.length > 0`
+ * for any successful run; this helper trusts the invariant. The
+ * transaction endpoint is discovered here because it belongs to
+ * SCRAPE's own concern (txn replay templates), not to account
+ * discovery.
+ *
+ * @param args - Bundled fetch context, network surface, account ids
+ *   and records (the latter two from `ctx.accountDiscovery`).
  * @returns Fetch-all context ready for the matrix loop.
  */
 function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccountsCtx {
   const txnEndpoint = args.network.discoverTransactionsEndpoint();
   logTxnEndpoint(txnEndpoint);
-  if (args.ids.length > 0) {
-    return {
-      fc: args.fc,
-      ids: [...args.ids],
-      records: [...args.records],
-      txnEndpoint,
-    };
-  }
-  const fallback = tryPostBodyFallback(txnEndpoint);
-  if (fallback) {
-    return {
-      fc: args.fc,
-      ids: fallback.ids,
-      records: fallback.records,
-      txnEndpoint,
-    };
-  }
   return {
     fc: args.fc,
-    ids: [],
-    records: [],
+    ids: [...args.ids],
+    records: [...args.records],
     txnEndpoint,
   };
 }
 
 /**
- * Promote a usable `creds.card6Digits` into the load context when
- * extraction produced no identifiers. Returns the context unchanged
- * (ids stay empty) when the credential is missing or doesn't pass
- * {@link isUsableIdentifier} — downstream callers must then fail-fast
- * rather than silently scrape with a sentinel like `'default'`, which
- * always produces 0-txn results and a misleading `success: true`.
- *
- * @param loadCtx - Load-all context from {@link buildLoadAllCtx}.
- * @param ctx - Pipeline context (carries credentials).
- * @returns Context with credential-promoted id, or the original
- *   context with ids still empty.
- */
-function applyCredentialFallback(
-  loadCtx: IFetchAllAccountsCtx,
-  ctx: IPipelineContext,
-): IFetchAllAccountsCtx {
-  if (loadCtx.ids.length > 0) return loadCtx;
-  if (loadCtx.txnEndpoint === false) return loadCtx;
-  if (!loadCtx.txnEndpoint.responseBody) return loadCtx;
-  const creds = ctx.credentials as Record<string, string>;
-  const cardId = creds.card6Digits;
-  if (typeof cardId !== 'string' || !isUsableIdentifier(cardId)) {
-    LOG.warn({
-      message: 'ids empty + no usable card6Digits credential — caller must fail-fast',
-    });
-    return loadCtx;
-  }
-  LOG.debug({
-    message: `ids empty — using credential card6Digits=${cardId}`,
-  });
-  const records = [loadCtx.txnEndpoint.responseBody as Record<string, unknown>];
-  return { ...loadCtx, ids: [cardId], records };
-}
-
-/**
- * Check if the current page already hosts the transaction endpoint.
+ * Returns true when the txn endpoint URL's origin matches the page
+ * the browser currently sits on. Drives the SPA-pivot decision in
+ * {@link pivotToSpaIfNeeded}: if the txn endpoint is hosted on the
+ * current origin, no pivot is needed.
  * @param network - Network discovery.
  * @param currentOrigin - Current page origin.
- * @returns True if current origin hosts the txn endpoint.
+ * @returns Branded boolean signal.
  */
 function isTxnHostedOnCurrentOrigin(
   network: INetworkDiscovery,
@@ -531,10 +106,13 @@ function isTxnHostedOnCurrentOrigin(
 }
 
 /**
- * SPA pivot: navigate to the SPA origin if the API traffic came from a different domain.
+ * Navigates to the SPA origin when the API traffic was captured from
+ * a different domain than the page is on, so subsequent fetch calls
+ * carry the SPA's cookies and CORS context. Skips the pivot when the
+ * txn endpoint is already hosted on the current origin.
  * @param mediator - Element mediator for navigation and URL access.
  * @param network - Network discovery with captured traffic.
- * @returns True after pivot check completes.
+ * @returns Procedure with true after pivot, false when no pivot.
  */
 async function pivotToSpaIfNeeded(
   mediator: IElementMediator,
@@ -561,84 +139,4 @@ async function pivotToSpaIfNeeded(
   return succeed(true);
 }
 
-/**
- * Bootstrap account IDs from Init API when 0 accounts discovered.
- * Uses apiOrigin + auth token to call Init, extracts cardUniqueId.
- * @param loadCtx - Current load context with 0 ids.
- * @param api - API fetch context with auth headers.
- * @param network - Network discovery for apiOrigin.
- * @returns Updated context with seeded IDs, or unchanged.
- */
-/**
- * Apply Init API bootstrap when 0 accounts discovered.
- * Delegates to Mediator's AccountBootstrap.
- * @param loadCtx - Current load context.
- * @param api - API fetch context.
- * @param network - Network discovery (mediator).
- * @returns Updated context with seeded IDs, or unchanged.
- */
-/**
- * Harvest accounts from sessionStorage when all other methods fail.
- * Uses Content-First scan via mediator — generic for all SPAs.
- * @param loadCtx - Current load context with 0 ids.
- * @param ctx - Pipeline context with browser page.
- * @returns Updated context with seeded IDs, or unchanged.
- */
-async function applyStorageHarvest(
-  loadCtx: IFetchAllAccountsCtx,
-  ctx: IPipelineContext,
-): Promise<IFetchAllAccountsCtx> {
-  if (loadCtx.ids.length > 0) return loadCtx;
-  if (!ctx.browser.has) return loadCtx;
-  const page = ctx.browser.value.page;
-  const result = await harvestAccountsFromStorage(page);
-  if (result.ids.length === 0) return loadCtx;
-  return { ...loadCtx, ids: [...result.ids], records: [...result.records] };
-}
-
-/**
- * Generic auto-scrape — DIRECT path. After .ashx removal there is no
- * PROXY branch; every bank flows through endpoint discovery + matrix
- * loop replay.
- * @param ctx - Pipeline context.
- * @returns Updated context with scraped accounts.
- */
-async function genericAutoScrape(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!ctx.api.has) return succeed(ctx);
-  if (!ctx.mediator.has) return succeed(ctx);
-  if (!ctx.browser.has) return succeed(ctx);
-  const api = ctx.api.value;
-  const network = ctx.mediator.value.network;
-  await pivotToSpaIfNeeded(ctx.mediator.value, network);
-  const rawAccounts = await discoverAndLoadAccounts(api, network);
-  if (!isOk(rawAccounts)) return rawAccounts;
-  await rateLimitPause(500);
-  const startDate = moment(ctx.options.startDate).format('YYYYMMDD');
-  const futureMonths = getFutureMonths(ctx.options);
-  const fc: IAccountFetchCtx = { api, network, startDate, futureMonths };
-  let loadCtx = buildLoadAllCtx(fc, network, rawAccounts.value);
-  loadCtx = applyCredentialFallback(loadCtx, ctx);
-  loadCtx = await applyStorageHarvest(loadCtx, ctx);
-  const idCount = String(loadCtx.ids.length);
-  const recCount = String(loadCtx.records.length);
-  LOG.debug({
-    message: `GenericAutoScrape: ${idCount} accounts, ${recCount} records`,
-  });
-  const accounts = await scrapeAllAccounts(loadCtx);
-  const startMs = parseStartDate(startDate).getTime();
-  applyGlobalDateFilter(accounts, startMs);
-  const acctCount = String(accounts.length);
-  const totalTxns = accounts.reduce((sum, a) => sum + a.txns.length, 0);
-  LOG.debug({ accounts: Number(acctCount), txns: totalTxns });
-  return succeed({ ...ctx, scrape: some({ accounts: [...accounts] }) });
-}
-
-export {
-  applyCredentialFallback,
-  buildLoadAllCtx,
-  buildLoadCtxFromPreDiscovered,
-  discoverAndLoadAccounts,
-  genericAutoScrape,
-  loadDiscovered,
-  pivotToSpaIfNeeded,
-};
+export { buildLoadCtxFromPreDiscovered, pivotToSpaIfNeeded };
