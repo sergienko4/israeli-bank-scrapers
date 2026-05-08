@@ -95,8 +95,26 @@ type TelegramSkipReason =
   | 'invalid-timeout'
   | 'invalid-regex';
 
-/** Default per-cycle long-poll budget (Telegram caps at 50 s). */
-const TELEGRAM_LONG_POLL_S = 10;
+/**
+ * Per-cycle long-poll budget (seconds). Capped well below Telegram's
+ * 50 s ceiling.
+ *
+ * The natural choice would be 10 s, but live measurement on PR #215
+ * (run 08-05-2026 23:54:11 → match at 23:56:13) showed the fetcher
+ * sees the user's reply ~52 s AFTER it landed in Telegram's queue —
+ * five 10-second cycles in which the reply was visible but the cycle
+ * had not yet returned. With a `offset=-N` (read-only) request,
+ * Telegram does NOT guarantee an early return on new data the way it
+ * does for positive-offset polling, so the per-cycle wait is the
+ * dominant component of detection latency.
+ *
+ * 2 s gives ~80 polls over the 180 s budget (well below Telegram's
+ * 30 req/s/bot ceiling) and caps worst-case match latency at ~2 s
+ * after the user's reply lands in the queue. Positive-offset polling
+ * would be more responsive but breaks parallel-fetcher safety in the
+ * matrix scenario (Hapoalim/Beinleumi/OneZero in one Group A run).
+ */
+const TELEGRAM_LONG_POLL_S = 2;
 /** HTTP client timeout — Telegram's long-poll + 5 s headroom. */
 const HTTP_TIMEOUT_MS = 15_000;
 
@@ -165,6 +183,45 @@ async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | fal
   } catch {
     return false;
   }
+}
+
+/** Bundled ack args — preserves the project's 3-param ceiling. */
+interface ISendAckArgs {
+  readonly botToken: string;
+  readonly chatId: string;
+  readonly text: string;
+  readonly replyToMessageId: number;
+}
+
+/**
+ * Post a follow-up acknowledgement message scoped to the original
+ * prompt via `reply_to_message_id`. Best-effort: failures resolve
+ * quietly so the OTP flow is never blocked by a chat-side error.
+ *
+ * @param args - Acknowledgement bundle.
+ * @returns True once the call settled (resolved or swallowed).
+ */
+async function sendAckMessage(args: ISendAckArgs): Promise<true> {
+  const url = `https://api.telegram.org/bot${args.botToken}/sendMessage`;
+  const body = JSON.stringify({
+    chat_id: args.chatId,
+    text: args.text,
+    parse_mode: 'Markdown',
+    reply_to_message_id: args.replyToMessageId,
+    allow_sending_without_reply: true,
+  });
+  const signal = AbortSignal.timeout(HTTP_TIMEOUT_MS);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal,
+    });
+  } catch {
+    // Best-effort UX message — never block the OTP flow on a chat error.
+  }
+  return true;
 }
 
 /**
@@ -415,8 +472,18 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     args.log.debug({ event: 'telegram.otp.fetch.skip', reason: skip }, 'Telegram OTP tier skipped');
     return false;
   }
-  // 1. Send the proactive prompt FIRST. Captures the bot's
-  //    sent message_id so we can scope subsequent reply matching.
+  // 1. Capture the per-fetcher update_id floor BEFORE the prompt
+  //    is sent. With a fast SMS-to-Telegram forwarder (the CI use
+  //    case described in the PR), the user's reply can land before
+  //    `readInitialUpdateId` returns, which would let the floor
+  //    swallow the very update we are waiting for. Reading the
+  //    floor first guarantees by construction that every reply to
+  //    our prompt has `update_id > minUpdateId`. Per-prompt
+  //    isolation comes from the `reply_to_message.message_id ===
+  //    promptMessageId` filter, not from this floor.
+  const minUpdateId = await readInitialUpdateId(args.botToken);
+  // 2. Send the proactive prompt and capture the bot's sent
+  //    `message_id` — the value the reply-scoped filter pins on.
   const promptMessageId = await sendPromptMessage(args);
   if (promptMessageId === false) {
     args.log.warn(
@@ -429,8 +496,6 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     );
     return false;
   }
-  // 2. Capture the per-fetcher update_id floor.
-  const minUpdateId = await readInitialUpdateId(args.botToken);
   args.log.info(
     {
       event: 'telegram.otp.fetch.start',
@@ -461,6 +526,12 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
       },
       'Telegram OTP fetch timed out — user did not reply within budget',
     );
+    await sendAckMessage({
+      botToken: args.botToken,
+      chatId: args.chatId,
+      text: `⚠️ *${args.bankName}* — no reply received within ${String(args.timeoutMs / 1000)}s. Re-run the pipeline to retry.`,
+      replyToMessageId: promptMessageId,
+    });
     return false;
   }
   args.log.info(
@@ -474,6 +545,12 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     },
     'Telegram OTP fetch — matched (reply-scoped, parallel-safe)',
   );
+  await sendAckMessage({
+    botToken: args.botToken,
+    chatId: args.chatId,
+    text: `✅ *${args.bankName}* — OTP received (${String(match.code.length)} digits). Continuing the scrape.`,
+    replyToMessageId: promptMessageId,
+  });
   return match.code;
 }
 

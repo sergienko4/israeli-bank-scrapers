@@ -77,6 +77,26 @@ function defaultPromptResponse(): Record<string, unknown> {
 }
 
 /**
+ * Custom error raised by {@link installFetch} when the fetcher
+ * targets an endpoint outside the two we explicitly mock
+ * (`/sendMessage` + `/getUpdates`). A custom class — instead of
+ * `throw new Error(...)` — satisfies the project's restriction
+ * on `Error` literals in tests.
+ */
+class InstallFetchUnexpectedEndpointError extends Error {
+  /**
+   * Build the unexpected-endpoint error.
+   * @param url - The offending URL we received.
+   */
+  constructor(url: string) {
+    super(
+      `installFetch: unexpected Telegram endpoint — only /sendMessage and /getUpdates are mocked. URL: ${url}`,
+    );
+    this.name = 'InstallFetchUnexpectedEndpointError';
+  }
+}
+
+/**
  * Replace `global.fetch` with a queue-driven mock that routes by
  * URL: `sendMessage` URLs pull from `queues.sendMessage`,
  * `getUpdates` URLs pull from `queues.getUpdates`. Both default
@@ -89,7 +109,13 @@ function installFetch(queues: IFetchQueues): jest.Mock {
   let sendCursor = 0;
   let getCursor = 0;
   /**
-   * Mock fetch implementation routes by URL pattern.
+   * Mock fetch implementation routes by URL pattern. The fetcher
+   * is expected to use ONLY two Telegram endpoints — `/sendMessage`
+   * (prompt + ack) and `/getUpdates` (poll) — so any other URL is
+   * a test bug or an unintended new fetcher path. Throwing here
+   * fail-fasts those scenarios instead of letting them fall into a
+   * default queue and masking the real call shape.
+   *
    * @param url - Telegram API URL.
    * @returns Response.
    */
@@ -102,12 +128,14 @@ function installFetch(queues: IFetchQueues): jest.Mock {
           ? queues.sendMessage[sendCursor]
           : defaultPromptResponse();
       sendCursor += 1;
-    } else {
+    } else if (u.includes('/getUpdates')) {
       body =
         getCursor < queues.getUpdates.length
           ? queues.getUpdates[getCursor]
           : { ok: true, result: [] };
       getCursor += 1;
+    } else {
+      throw new InstallFetchUnexpectedEndpointError(u);
     }
     const response = makeFetchResponse(body);
     return Promise.resolve(response);
@@ -131,6 +159,65 @@ function installFetchWithDefaultPrompt(
     sendMessage: [defaultPromptResponse()],
     getUpdates: getUpdatesQueue,
   });
+}
+
+/** Args tuple of a single fetch call (URL + RequestInit). */
+type IFetchCallArgs = readonly [unknown, unknown?];
+
+/** A typed view over `fetchSpy.mock.calls` — list of call-arg tuples. */
+type FetchCalls = readonly IFetchCallArgs[];
+
+/**
+ * Read `fetchSpy.mock.calls` as a typed call-list. Encapsulates the
+ * jest typing gap (`mock.calls` is `unknown[][]` at the boundary)
+ * so individual tests don't need to repeat the same cast.
+ *
+ * @param spy - The installed fetch spy.
+ * @returns Typed call list.
+ */
+function readFetchCalls(spy: jest.Mock): FetchCalls {
+  return spy.mock.calls as FetchCalls;
+}
+
+/**
+ * Extract the URL string from a single fetch-call args tuple.
+ *
+ * @param call - One row of `fetchSpy.mock.calls`.
+ * @returns URL string, or empty string when the call wasn't a
+ *   string-URL fetch (i.e. `Request` object form, never used here).
+ */
+function getCallUrl(call: IFetchCallArgs): string {
+  const url = call[0];
+  return typeof url === 'string' ? url : '';
+}
+
+/**
+ * Filter the spy's calls down to those targeting `/sendMessage`.
+ * @param spy - The installed fetch spy.
+ * @returns Subset of calls whose URL contains `/sendMessage`.
+ */
+function getSendMessageCalls(spy: jest.Mock): FetchCalls {
+  const all = readFetchCalls(spy);
+  return all.filter((call: IFetchCallArgs): boolean => {
+    const url = getCallUrl(call);
+    return url.includes('/sendMessage');
+  });
+}
+
+/**
+ * Parse the JSON body of a fetch RequestInit. Tests guard against
+ * missing-call cases by asserting `length` first, so this helper
+ * trusts the call exists.
+ *
+ * @param call - The fetch-call args (URL + RequestInit).
+ * @returns Decoded JSON body as a typed record.
+ */
+function parseFetchBody(call: IFetchCallArgs): Record<string, unknown> {
+  const initSlot = call[1];
+  const initShape = initSlot as { body?: string };
+  const raw = initShape.body ?? '{}';
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  return parsed;
 }
 
 /**
@@ -205,8 +292,8 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('654321');
-    // sendMessage + initial-offset probe + 1 poll cycle = 3 calls.
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // floor probe + sendMessage + 1 poll cycle + ack-on-match = 4 calls.
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
   it('TF-2 timeout — returns false when no reply within budget', async () => {
@@ -296,45 +383,34 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TF-5 missing token — returns false synchronously, no network call', async () => {
-    installFetchWithDefaultPrompt([]);
-    const args = makeArgs({ botToken: '' });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+  /**
+   * Skip-reason table — TF-5 .. TF-5d share the assertion (returns
+   * false synchronously, never touches the network); only ONE arg
+   * override differs per row. Adding a new skip reason means a
+   * single row in `SKIP_REASON_SCENARIOS`, not a new test block.
+   */
+  interface ISkipReasonScenario {
+    readonly label: string;
+    readonly overrides: Partial<ITelegramFetchArgs>;
+  }
 
-  it('TF-5b missing chatId — returns false synchronously', async () => {
-    installFetchWithDefaultPrompt([]);
-    const args = makeArgs({ chatId: '' });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+  const skipReasonScenarios: readonly ISkipReasonScenario[] = [
+    { label: 'TF-5 missing token', overrides: { botToken: '' } },
+    { label: 'TF-5b missing chatId', overrides: { chatId: '' } },
+    { label: 'TF-5b2 missing bankName', overrides: { bankName: '' } },
+    { label: 'TF-5c invalid regex (no capture group)', overrides: { bankRegex: /Beinleumi/ } },
+    { label: 'TF-5d invalid timeout (zero)', overrides: { timeoutMs: 0 } },
+  ];
 
-  it('TF-5b2 missing bankName — returns false synchronously', async () => {
-    installFetchWithDefaultPrompt([]);
-    const args = makeArgs({ bankName: '' });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('TF-5c invalid regex (no capture group) — returns false synchronously', async () => {
-    installFetchWithDefaultPrompt([]);
-    const args = makeArgs({ bankRegex: /Beinleumi/ });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('TF-5d invalid timeout (zero) — returns false synchronously', async () => {
-    installFetchWithDefaultPrompt([]);
-    const args = makeArgs({ timeoutMs: 0 });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+  for (const sc of skipReasonScenarios) {
+    it(`${sc.label} — returns false synchronously, no network call`, async () => {
+      installFetchWithDefaultPrompt([]);
+      const args = makeArgs(sc.overrides);
+      const result = await fetchOtpFromTelegram(args);
+      expect(result).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  }
 
   it('TF-6 wrong-chat — returns false; never picks the off-chat reply', async () => {
     installFetchWithDefaultPrompt([
@@ -362,14 +438,16 @@ describe('fetchOtpFromTelegram', () => {
   it('TF-7 prompt-failed — returns false when sendMessage fails', async () => {
     // Telegram returns ok:false on sendMessage → fetcher cannot
     // proceed (no message_id to scope replies against), aborts.
+    // The pre-prompt floor probe still runs because the
+    // race-free order captures `minUpdateId` BEFORE sending the
+    // prompt (TF-8).
     installFetch({
       sendMessage: [{ ok: false, description: 'bad token' }],
-      getUpdates: [],
+      getUpdates: [{ ok: true, result: [{ update_id: 1 }] }],
     });
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
-    // sendMessage was attempted; no getUpdates calls made.
     const allCalls: readonly unknown[][] = fetchSpy.mock.calls;
     const sendCount = allCalls.filter((c): boolean => {
       const u = typeof c[0] === 'string' ? c[0] : '';
@@ -380,6 +458,76 @@ describe('fetchOtpFromTelegram', () => {
       return u.includes('/getUpdates');
     }).length;
     expect(sendCount).toBe(1);
-    expect(getCount).toBe(0);
+    // Floor probe (1) + zero poll cycles (sendMessage failed before
+    // poll loop entered).
+    expect(getCount).toBe(1);
+  });
+
+  it('TF-8 race-free order — floor probe runs BEFORE sendMessage', async () => {
+    // Regression: with the OLD order (sendMessage → floor →
+    // poll), a fast SMS-to-Telegram forwarder could land its
+    // reply between sendMessage and the floor probe. The probe
+    // would then return that very reply's update_id as the
+    // floor, and the strict-greater filter (`update_id >
+    // minUpdateId`) would reject the reply we are waiting for.
+    // The fix is to capture the floor FIRST: any reply to our
+    // prompt is then guaranteed to have `update_id > floor` by
+    // construction. Per-prompt isolation comes from the
+    // `reply_to_message.message_id` filter (TF-4d), not from
+    // this floor.
+    installFetchWithDefaultPrompt([
+      // Floor probe — pre-prompt snapshot of the chat.
+      { ok: true, result: [{ update_id: 1000 }] },
+      // First poll cycle — forwarder's reply landed at update_id
+      // 1001 (which would have been the floor under the old
+      // order, causing the strict-greater filter to reject it).
+      { ok: true, result: [makeReplyUpdate(1001, '424242')] },
+    ]);
+    const args = makeArgs();
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe('424242');
+    const calls = readFetchCalls(fetchSpy);
+    const firstCall = calls[0];
+    const secondCall = calls[1];
+    const firstUrl = getCallUrl(firstCall);
+    const secondUrl = getCallUrl(secondCall);
+    expect(firstUrl).toContain('/getUpdates');
+    expect(secondUrl).toContain('/sendMessage');
+  });
+
+  it('TF-9 ack on match — sends a confirmation reply scoped to the prompt', async () => {
+    // UX: after a successful match the bot acknowledges receipt
+    // so the user knows their reply was consumed and the scrape
+    // is proceeding. Best-effort — failures must not affect the
+    // OTP flow (covered by TF-9b).
+    installFetchWithDefaultPrompt([
+      { ok: true, result: [{ update_id: 1 }] },
+      { ok: true, result: [makeReplyUpdate(2, '424242')] },
+    ]);
+    const args = makeArgs();
+    await fetchOtpFromTelegram(args);
+    const sendMessageCalls = getSendMessageCalls(fetchSpy);
+    // 1 prompt + 1 ack = 2 sendMessage calls.
+    expect(sendMessageCalls.length).toBe(2);
+    const ackCall = sendMessageCalls[1];
+    const ackBody = parseFetchBody(ackCall);
+    expect(ackBody.reply_to_message_id).toBe(DEFAULT_PROMPT_ID);
+    const ackText = typeof ackBody.text === 'string' ? ackBody.text : '';
+    expect(ackText).toMatch(/Beinleumi/);
+  });
+
+  it('TF-10 ack on timeout — sends a "no reply" message scoped to the prompt', async () => {
+    installFetchWithDefaultPrompt([{ ok: true, result: [{ update_id: 50 }] }]);
+    const args = makeArgs({ timeoutMs: 500 });
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    const sendMessageCalls = getSendMessageCalls(fetchSpy);
+    // 1 prompt + 1 timeout-ack.
+    expect(sendMessageCalls.length).toBe(2);
+    const ackCall = sendMessageCalls[1];
+    const ackBody = parseFetchBody(ackCall);
+    expect(ackBody.reply_to_message_id).toBe(DEFAULT_PROMPT_ID);
+    const ackText = typeof ackBody.text === 'string' ? ackBody.text : '';
+    expect(ackText).toMatch(/no reply/);
   });
 });

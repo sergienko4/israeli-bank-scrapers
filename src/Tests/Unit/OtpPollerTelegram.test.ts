@@ -27,6 +27,7 @@ jest.unstable_mockModule('../E2eReal/TelegramOtpFetcher.js', () => ({
 
 const POLLER_MODULE = await import('../E2eReal/OtpPoller.js');
 const CREATE_OTP_POLLER = POLLER_MODULE.createOtpPoller;
+const DEFAULT_POLL_TIMEOUT_MS = POLLER_MODULE.DEFAULT_POLL_TIMEOUT_MS;
 
 /**
  * Build a fresh stub logger that satisfies the full
@@ -151,6 +152,63 @@ async function runSkipScenario(args: IPollerArgs): Promise<true> {
   return true;
 }
 
+/**
+ * No-op env stage — used by TP-4 where the absence of Telegram
+ * env vars is itself the precondition. `beforeEach` already
+ * deletes both vars; this affirms the contract without doing
+ * additional setup.
+ * @returns Always true.
+ */
+function noEnvSetup(): true {
+  return true;
+}
+
+/**
+ * Env stage that mirrors TP-6 — Telegram secrets present, but
+ * the CI flag is unset to simulate a developer workstation.
+ * @returns True once the env is staged.
+ */
+function ciFlagUnsetEnvSetup(): true {
+  delete process.env.CI;
+  stageCiEnv();
+  return true;
+}
+
+/**
+ * Skip-scenario row — TP-3 .. TP-6 share the same assertion
+ * (MOCK_TELEGRAM never called); only the per-case env setup and
+ * args bundle differ. Adding a new skip reason means one row in
+ * `SKIP_SCENARIOS`, not a new test block.
+ */
+interface ISkipScenario {
+  readonly label: string;
+  readonly envSetup: () => true;
+  readonly argsBuilder: () => IPollerArgs;
+}
+
+const SKIP_SCENARIOS: readonly ISkipScenario[] = [
+  {
+    label: 'TP-3 skipped without bankRegex',
+    envSetup: stageCiEnv,
+    argsBuilder: buildArgsWithoutBankRegex,
+  },
+  {
+    label: 'TP-4 skipped without env vars (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)',
+    envSetup: noEnvSetup,
+    argsBuilder: buildFullArgs,
+  },
+  {
+    label: 'TP-5 skipped without bankName',
+    envSetup: stageCiEnv,
+    argsBuilder: buildArgsWithoutBankName,
+  },
+  {
+    label: 'TP-6 skipped when CI env unset — local-dev guard',
+    envSetup: ciFlagUnsetEnvSetup,
+    argsBuilder: buildFullArgs,
+  },
+];
+
 describe('createOtpPoller — Telegram tier', () => {
   it('TP-1 env var wins — Telegram is not consulted', async () => {
     process.env.BEINLEUMI_OTP = 'FROM_ENV';
@@ -173,28 +231,52 @@ describe('createOtpPoller — Telegram tier', () => {
     expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
   });
 
-  it('TP-3 skipped without bankRegex', async () => {
-    stageCiEnv();
-    const args = buildArgsWithoutBankRegex();
-    await runSkipScenario(args);
-  });
+  for (const sc of SKIP_SCENARIOS) {
+    it(sc.label, async () => {
+      sc.envSetup();
+      const args = sc.argsBuilder();
+      await runSkipScenario(args);
+    });
+  }
 
-  it('TP-4 skipped without env vars (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)', async () => {
-    // No stageCiEnv — TELEGRAM_BOT_TOKEN/CHAT_ID stay deleted.
+  it('TP-7 forwards full pipeline OTP watchdog as timeoutMs (≥ 180s)', async () => {
+    // Regression for PR #215 CI run 25569338073 (OneZero/Beinleumi
+    // failures): a 30 s Telegram budget is shorter than realistic
+    // human latency (read SMS, switch app, type reply) — the fetcher
+    // gave up before the user replied, then the file-poll fallback
+    // never sees Telegram replies. The test poller MUST hand the
+    // Telegram tier the same budget the pipeline OTP watchdog gives
+    // the retriever as a whole (180 s in OtpFillPhaseActions). Any
+    // smaller budget causes a guaranteed CI miss.
+    stageCiEnv();
+    MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');
     const args = buildFullArgs();
-    await runSkipScenario(args);
+    const retrieve = CREATE_OTP_POLLER(args);
+    await retrieve();
+    expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
+    const calls = MOCK_TELEGRAM.mock.calls as readonly (readonly [{ timeoutMs: number }])[];
+    const firstCall = calls[0];
+    const passedArgs = firstCall[0];
+    expect(passedArgs.timeoutMs).toBe(DEFAULT_POLL_TIMEOUT_MS);
   });
 
-  it('TP-5 skipped without bankName', async () => {
+  it('TP-8 engaged + empty → throws; never falls through to file/readline', async () => {
+    // Regression: with the old fall-through-on-empty design, an
+    // empty Telegram result triggered a 180 s file-poll on a file
+    // no human in CI is going to write to. Total budget grew to
+    // 360 s and the pipeline OTP watchdog (180 s) raced the
+    // retriever, surfacing as `OTP poll timeout after 180000ms`
+    // even though Telegram had already exhausted its window. The
+    // race-free design throws as soon as the Telegram tier
+    // returns empty when it was the configured channel — file
+    // and readline tiers stay reachable only when Telegram is
+    // opted out (CI guard / missing secrets / missing args).
     stageCiEnv();
-    const args = buildArgsWithoutBankName();
-    await runSkipScenario(args);
-  });
-
-  it('TP-6 skipped when CI env unset — local-dev guard', async () => {
-    delete process.env.CI;
-    stageCiEnv();
+    MOCK_TELEGRAM.mockResolvedValue(false);
     const args = buildFullArgs();
-    await runSkipScenario(args);
+    const retrieve = CREATE_OTP_POLLER(args);
+    const pending = retrieve();
+    await expect(pending).rejects.toThrow(/Telegram OTP tier exhausted/);
+    expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
   });
 });

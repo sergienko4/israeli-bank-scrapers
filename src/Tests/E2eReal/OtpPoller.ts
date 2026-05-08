@@ -63,8 +63,13 @@ interface ICreateOtpPollerArgs {
   readonly bankName?: string;
 }
 
-/** Default Telegram fetch timeout — ≪ pipeline OTP watchdog (180s). */
-const TELEGRAM_FETCH_TIMEOUT_MS = 30_000;
+// Telegram tier inherits the full poller budget (DEFAULT_POLL_TIMEOUT_MS
+// = 180 s, aligned to OtpFillPhaseActions.DEFAULT_OTP_TIMEOUT_MS). The
+// budget flows via the `timeoutMs` param of `tryTelegramTier`. There is
+// NO separate Telegram fetch timeout: a smaller budget would silently
+// drop OTPs that arrive late (SMS dispatch + forwarder hop + reply can
+// easily exceed 30 s), and a fall-through to file-poll would burn
+// another 180 s on a poll no human is going to satisfy in CI.
 
 /**
  * Read the poll file if present and non-empty, else empty string.
@@ -229,18 +234,42 @@ function shouldEngageTelegramTier(args: ICreateOtpPollerArgs): boolean {
   return true;
 }
 
+/** Telegram-tier outcome — distinguishes "skipped" from "engaged but empty". */
+interface ITelegramTierOutcome {
+  /**
+   * True when {@link shouldEngageTelegramTier} returned true AND
+   * {@link fetchOtpFromTelegram} ran to completion (regardless of
+   * whether it produced a code). The retriever uses this flag to
+   * decide whether to fall through to the file/readline tiers:
+   * when Telegram is engaged in CI, the file tier is dead-weight
+   * (no human writes to `/tmp/<bank>-otp.txt` on a CI runner) and
+   * the readline tier is non-TTY-skipped, so an empty result
+   * means the run cannot deliver an OTP and must fail loud
+   * immediately rather than burn another `timeoutMs` on a poll
+   * that will never see a file.
+   */
+  readonly engaged: boolean;
+  /** Captured digits, or empty string when the fetcher returned false. */
+  readonly code: string;
+}
+
 /**
  * Try the Telegram OTP tier when opted-in and configured. Returns
- * the captured digits on match, or empty string when the tier is
- * skipped or times out.
+ * an outcome that distinguishes the skip path (`engaged: false`)
+ * from the run-to-completion path (`engaged: true`, with `code`
+ * populated on match or empty on timeout / transport failure).
  *
  * @param args - Poller args (forward `bankRegex` + bankName + logger).
- * @returns Captured digits or empty string.
+ * @param timeoutMs - Budget granted to the Telegram fetcher.
+ * @returns Tier outcome.
  */
-async function tryTelegramTier(args: ICreateOtpPollerArgs): Promise<string> {
-  if (!shouldEngageTelegramTier(args)) return '';
+async function tryTelegramTier(
+  args: ICreateOtpPollerArgs,
+  timeoutMs: number,
+): Promise<ITelegramTierOutcome> {
+  if (!shouldEngageTelegramTier(args)) return { engaged: false, code: '' };
   const regex = args.bankRegex;
-  if (!regex) return '';
+  if (!regex) return { engaged: false, code: '' };
   const bankName = args.bankName ?? '';
   const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
   const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
@@ -249,10 +278,10 @@ async function tryTelegramTier(args: ICreateOtpPollerArgs): Promise<string> {
     chatId,
     bankName,
     bankRegex: regex,
-    timeoutMs: TELEGRAM_FETCH_TIMEOUT_MS,
+    timeoutMs,
     log: args.log,
   });
-  return result === false ? '' : result;
+  return { engaged: true, code: result === false ? '' : result };
 }
 
 /**
@@ -279,9 +308,18 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
       log.info({ phoneHint: phoneHint || 'unknown', envVar }, `Using ${envVar} env var`);
       return fromEnv;
     }
-    // Tier 2: Telegram bot (CI default; opt-in via bankRegex + env vars).
-    const fromTelegram = await tryTelegramTier(args);
-    if (fromTelegram.length > 0) return fromTelegram;
+    // Tier 2: Telegram bot (CI default; opt-in via bankRegex + env
+    // vars). When engaged, Telegram consumes the FULL `timeoutMs`
+    // budget — file/readline tiers are dead-weight in CI and a
+    // fall-through would only waste another `timeoutMs` on a poll
+    // that no one is going to satisfy.
+    const tg = await tryTelegramTier(args, timeoutMs);
+    if (tg.code.length > 0) return tg.code;
+    if (tg.engaged) {
+      throw new ScraperError(
+        `Telegram OTP tier exhausted ${String(timeoutMs)}ms — no reply received (or transport failure). File/readline tiers skipped because Telegram was the configured channel.`,
+      );
+    }
     // Tier 3: poll file (interactive local).
     if (!process.stdin.isTTY) {
       return pollForCode({ filePath, log, phoneHint, timeoutMs });

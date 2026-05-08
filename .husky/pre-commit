@@ -26,7 +26,13 @@ CACHE_DIR="node_modules/.cache/pre-commit"
 mkdir -p "$CACHE_DIR"
 
 cache_marker() {
-    echo "$CACHE_DIR/$1.$CACHE_KEY.passed"
+    # Gate names contain `:` (test:pipeline, test:mock, test:e2e:mock).
+    # On Windows NTFS, `:` is the Alternate Data Stream separator, so
+    # `touch foo:bar` writes to an ADS on `foo` and the subsequent
+    # `[ -f foo:bar ]` returns false — the cache speed-up silently
+    # disables for every Windows contributor. Replace `:` with `_`
+    # for the filename component to keep the markers portable.
+    echo "$CACHE_DIR/${1//:/_}.$CACHE_KEY.passed"
 }
 
 # ── Background-gate runner ────────────────────────────────────────────
