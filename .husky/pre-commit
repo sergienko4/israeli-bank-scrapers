@@ -3,7 +3,7 @@ set -o pipefail
 LOG_FILE=".pre-commit-output.log"
 : > "$LOG_FILE"
 
-# Skip for non-code changes
+# ── Skip for non-code changes ─────────────────────────────────────────
 STAGED_FILES=$(git diff --cached --name-only)
 CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)')
 if [ -z "$CODE_FILES" ]; then
@@ -15,18 +15,40 @@ log() { echo "$1" | tee -a "$LOG_FILE"; }
 FAIL_COUNT=0
 FAIL_NAMES=""
 
+# ── Cache infrastructure ──────────────────────────────────────────────
+# Each gate's pass/fail is cached against the SHA of the staged tree.
+# When the same content set has already passed a gate, skip it on the
+# next commit. The cache key is `git write-tree`, computed AFTER Phase
+# 1 prettier so whitespace fix-ups don't invalidate. Cache lives under
+# `node_modules/.cache/pre-commit/` so it inherits `node_modules/`'s
+# existing gitignore — no separate ignore entry needed.
+CACHE_DIR="node_modules/.cache/pre-commit"
+mkdir -p "$CACHE_DIR"
+
+cache_marker() {
+    echo "$CACHE_DIR/$1.$CACHE_KEY.passed"
+}
+
+# ── Background-gate runner ────────────────────────────────────────────
 declare -a BG_PIDS=()
 declare -a BG_NAMES=()
 declare -a BG_LOGS=()
+declare -a BG_CACHEABLE=()
 
 bg_gate() {
     local name="$1"; shift
+    local cacheable="$1"; shift
+    if [ "$cacheable" = "yes" ] && [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "$name")" ]; then
+        log "  ⚡ $name cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+        return 0
+    fi
     local logfile
     logfile=$(mktemp)
     ( "$@" > "$logfile" 2>&1 ) &
     BG_PIDS+=($!)
     BG_NAMES+=("$name")
     BG_LOGS+=("$logfile")
+    BG_CACHEABLE+=("$cacheable")
 }
 
 wait_all() {
@@ -38,11 +60,14 @@ wait_all() {
             log "  ❌ ${BG_NAMES[$i]} FAILED"
         else
             log "  ✅ ${BG_NAMES[$i]} passed"
+            if [ "${BG_CACHEABLE[$i]}" = "yes" ] && [ -n "$CACHE_KEY" ]; then
+                touch "$(cache_marker "${BG_NAMES[$i]}")"
+            fi
         fi
         cat "${BG_LOGS[$i]}" >> "$LOG_FILE"
         rm -f "${BG_LOGS[$i]}"
     done
-    BG_PIDS=(); BG_NAMES=(); BG_LOGS=()
+    BG_PIDS=(); BG_NAMES=(); BG_LOGS=(); BG_CACHEABLE=()
     if [ "$FAIL_COUNT" -gt 0 ]; then
         log "❌ FAILED GATES:$FAIL_NAMES"
         exit 1
@@ -53,7 +78,7 @@ log ""
 log "🛑  PIPELINE QUALITY GATE"
 log "══════════════════════════════════════════════════════"
 
-# ── Phase 1: Prettier ──
+# ── Phase 1: Prettier ─────────────────────────────────────────────────
 log "📝 Phase 1: Prettier format..."
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
@@ -61,109 +86,86 @@ if [ -n "$STAGED_SRC" ]; then
     echo "$STAGED_SRC" | xargs git add
 fi
 
-# ── Phase 2: Static Analysis (Parallel) ──
-log ""
-log "⚡ Phase 2: Static analysis + Architecture Check..."
-bg_gate "tsc"          npx tsc --noEmit
-bg_gate "eslint"       npx eslint src/Scrapers/Pipeline --max-warnings=0
-bg_gate "biome"        npx biome lint src --max-diagnostics=50
-bg_gate "audit"        npm audit --audit-level=high --omit=dev
+# Compute cache key from the tree AFTER Phase 1 fixed up whitespace.
+CACHE_KEY=$(git write-tree 2>/dev/null)
+if [ -n "$CACHE_KEY" ]; then
+    log "🔑 cache key: $CACHE_KEY"
+fi
 
-# 🚨 NEW: Architectural Guardrails (Rules #10, #14, #15)
-# The linter only applies rules to files under Scrapers/Pipeline/ and Phases/.
-# Pre-filter to those paths so (a) we don't waste work iterating test files,
-# and (b) we don't blow the Windows CreateProcess 32 KB command-line limit
-# when a large test-only commit stages hundreds of files.
+# Trim cache: keep only markers for the current key — older entries are
+# stale (they reference content that's no longer on disk anywhere).
+if [ -n "$CACHE_KEY" ]; then
+    find "$CACHE_DIR" -type f -name "*.passed" ! -name "*.$CACHE_KEY.passed" -delete 2>/dev/null
+fi
+
+# ── Phase 2 + 3 + 4 — every gate in parallel ──────────────────────────
+# All gates that have no inter-gate dependencies run concurrently. The
+# old layout chained Phase 3 (pipeline tests) and Phase 4 (mock + e2e
+# mock) sequentially after Phase 2 (static analysis), even though the
+# only real dependency was on Phase 1 prettier output. The longest
+# single gate (mock or e2e:mock at ~3 min) now sets the wall clock.
+log ""
+log "⚡ Phase 2: All gates parallel..."
+
+bg_gate "tsc"          "yes" npx tsc --noEmit
+bg_gate "eslint"       "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
+bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
+bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
+
+# Architectural Guardrails (Rules #10, #14, #15) — only fire on
+# Pipeline / Phases files. Pre-filter so we don't waste work iterating
+# test files, and so we don't blow Windows CreateProcess 32 KB
+# command-line limit on a large staged set.
 ARCH_FILES=$(echo "$CODE_FILES" | grep -E '(Scrapers/Pipeline/|/Phases/)' || true)
 if [ -n "$ARCH_FILES" ]; then
-    # When the staged file count is large (e.g. an architecture-wide refactor
-    # or a soft-reset squash), pass the Pipeline directory directly. Windows
-    # CreateProcess hard-caps the command line at 32 KB even when xargs tries
-    # to batch-split — `npm run lint:architecture` walks the whole Pipeline
-    # tree from a single argv path, identical analysis result.
     ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
     if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
         log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
-        bg_gate "architecture" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
+        bg_gate "architecture" "yes" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
     else
-        # Small staged set — pass the file list via xargs for per-file precision.
         ARCH_LIST=$(mktemp)
         echo "$ARCH_FILES" > "$ARCH_LIST"
-        bg_gate "architecture" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
+        bg_gate "architecture" "yes" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
     fi
 else
     log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
 fi
 
-bg_gate "build"        bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
-bg_gate "canaries"     npm run lint:canaries
+bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries"          "yes" npm run lint:canaries
+
+# Heavy gates — each runs Jest with its own worker pool. Capping each
+# pool to 2 workers keeps total concurrency on an 8-core box manageable
+# (≈ 5 gates × 2 workers + 7 light static gates ≈ within budget).
+JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
+
+bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=2"
+bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=2"
+bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=4"
+bg_gate "test:e2e:mock"     "yes" bash -c "npm run test:e2e:mock -- --maxWorkers=2"
 
 wait_all
 
-
-# ── Phase 3: Pipeline Tests ──
-JEST_CMD="node --experimental-vm-modules node_modules/jest/bin/jest.js"
-
+# ── Phase 3: e2e-factory-tests (network-bound, sequential) ────────────
+# Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
+# error-handling contract (invalid-creds rejection). The 180s
+# per-test timeout assumed an idle box — when this runs concurrent
+# with the browser-heavy test:mock + test:e2e:mock pools above, the
+# slow-path latency exceeds 180s. Sequencing this AFTER wait_all
+# returns the gate to its baseline timing budget.
 log ""
-log "🧪 Phase 3a: Pipeline Infrastructure & Core Logic"
-# Run unit tests and enforce coverage thresholds defined in jest.config
-npm run test:pipeline 2>&1 | tee -a "$LOG_FILE"
-
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Pipeline Core tests or Coverage threshold FAILED"
-    exit 1
-fi
-
-log ""
-log "🧪 Phase 3b: Automated Bank Test Discovery"
-# Automatically runs Unit/Pipeline/bank/Hapoalim, etc.
-$JEST_CMD --testPathPatterns='Unit/Pipeline/bank/' 2>&1 | tee -a "$LOG_FILE"
-
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ One or more Bank Unit Tests FAILED"
-    exit 1
-fi
-
-# ── Phase 4: Offline Mock Gate (snapshot-based replay, no network) ──
-# Runs all 7 pipeline banks against tests/snapshots/{bank}/*.html via MOCK_MODE.
-# Catches selector regressions, PIN-buffer regressions, modal regressions
-# in seconds — before we burn ~20 min of live E2E on a broken build.
-# Fails fast with stale-snapshot preflight if any snapshot is < 20 KB.
-log ""
-log "🎭 Phase 4.1: Mock replay (offline, all 7 banks)"
-npm run test:mock -- --parallel=6 2>&1 | tee -a "$LOG_FILE"
-
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Mock suite FAILED — fix before live E2E can even start"
-    exit 1
-fi
-
-
-
-log ""
-log "🎭 Phase 4.2: Mock factory mock"
-npm run test:e2e-factory-tests -- --parallel=6 2>&1 | tee -a "$LOG_FILE"
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Mock factory mock FAILED — fix before live E2E can even start"
-    exit 1
-fi
-
-
-# ── Phase 4b: Jest E2eMocked Gate (route-mocked, full pipeline coverage) ──
-# Runs all src/Tests/E2eMocked/*.test.ts. This is what CI's `Validate` job
-# runs via `npm run validate:all`, and what was silently red on master for
-# 24 days starting 2026-04-06 (PR #205 root cause investigation): pipeline-
-# only banks reaching BaseScraperWithBrowser.login() destructured undefined
-# legacy config because nobody ever ran the gate locally. Adding it here
-# makes local pre-commit equivalent to CI Validate. NEVER remove without
-# adding an equally-strict replacement.
-log ""
-log "🎭 Phase 4b: Jest E2eMocked (route-mocked, parity with CI Validate)"
-npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
-
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    log "❌ Jest E2eMocked FAILED — same gate that was red on master for 24 days"
-    exit 1
+log "🌐 Phase 3: e2e-factory-tests (network-bound, sequential)..."
+if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "e2e-factory-tests")" ]; then
+    log "  ⚡ e2e-factory-tests cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+else
+    npm run test:e2e-factory-tests 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ e2e-factory-tests FAILED"
+        exit 1
+    fi
+    if [ -n "$CACHE_KEY" ]; then
+        touch "$(cache_marker "e2e-factory-tests")"
+    fi
 fi
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
@@ -171,15 +173,12 @@ fi
 run-e2e-happy-path() {
     log ""
     log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
-    # Happy-path only — matches CI's e2e-real-group-a/b filter
     npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
-    
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         log "❌ Live E2E (happy-path) FAILED"
         exit 1
     fi
     log ""
-    
 }
 
 # run-e2e-happy-path
