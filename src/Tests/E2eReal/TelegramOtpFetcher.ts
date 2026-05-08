@@ -108,13 +108,16 @@ type TelegramSkipReason =
  * does for positive-offset polling, so the per-cycle wait is the
  * dominant component of detection latency.
  *
- * 2 s gives ~80 polls over the 180 s budget (well below Telegram's
- * 30 req/s/bot ceiling) and caps worst-case match latency at ~2 s
- * after the user's reply lands in the queue. Positive-offset polling
- * would be more responsive but breaks parallel-fetcher safety in the
- * matrix scenario (Hapoalim/Beinleumi/OneZero in one Group A run).
+ * 1 s gives the user a sub-second ack experience (worst case ~1 s
+ * after their reply lands in the queue) and stays at ~1 req/s over
+ * the 180 s budget — well below Telegram's per-bot rate ceiling.
+ * Going below 1 s would require explicit short-polling + a sleep
+ * loop, which adds code complexity for a small UX gain. Positive-
+ * offset polling would be even more responsive but breaks parallel-
+ * fetcher safety in the matrix scenario (Hapoalim/Beinleumi/OneZero
+ * in one Group A run).
  */
-const TELEGRAM_LONG_POLL_S = 2;
+const TELEGRAM_LONG_POLL_S = 1;
 /** HTTP client timeout — Telegram's long-poll + 5 s headroom. */
 const HTTP_TIMEOUT_MS = 15_000;
 

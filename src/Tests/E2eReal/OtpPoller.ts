@@ -164,21 +164,6 @@ function promptViaReadline(phoneHint: string): Promise<string> {
 }
 
 /**
- * Build a no-arg OTP retriever bound to the given env var + poll file.
- * The returned function is the shape expected by ScraperCredentials
- * (phone-hint is wrapped in via closure).
- * @param args - bank-specific env var, poll file basename, logger, timeout
- * @returns () => Promise<string> retriever
- */
-/**
- * Try the Telegram OTP tier when opted-in and configured. Returns
- * the captured digits on match, or empty string when the tier is
- * skipped (no regex, missing env vars) or times out.
- *
- * @param args - Poller args (forward `bankRegex` + logger).
- * @returns Captured digits or empty string.
- */
-/**
  * Are the caller-supplied args complete enough for the tier?
  * @param args - Poller args.
  * @returns True when bankRegex + bankName both present.
