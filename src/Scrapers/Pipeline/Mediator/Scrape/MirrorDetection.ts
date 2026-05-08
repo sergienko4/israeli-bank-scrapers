@@ -71,12 +71,22 @@ function computeFingerprint(account: IMirrorAccount): string {
 
 /**
  * Detect mirrored accounts — multiple accounts with identical fingerprints.
+ *
+ * <p>Accounts whose fingerprint is the empty string (zero transactions
+ * in the captured window) are excluded from the duplicate scan. Empty
+ * fingerprints naturally collide and would surface a false-positive
+ * `MIRROR_SUSPECT` whenever a card is dormant or fully closed inside
+ * the lookback window — confirmed live for Amex/Isracard inactive
+ * cards, where 3 zero-txn cards triggered an audit warning despite
+ * the active cards being fully unique.
+ *
  * @param accounts - All scraped accounts.
  * @returns Detection result with diagnostic message.
  */
 function detectMirroredAccounts(accounts: readonly IMirrorAccount[]): IMirrorResult {
   if (accounts.length < 2) return { isMirrored: false, message: 'single-account' };
-  const fingerprints = accounts.map(computeFingerprint);
+  const fingerprints = accounts.map(computeFingerprint).filter((fp): boolean => fp.length > 0);
+  if (fingerprints.length < 2) return { isMirrored: false, message: 'all-unique' };
   const uniqueCount = new Set(fingerprints).size;
   const totalCount = fingerprints.length;
   if (uniqueCount === totalCount) return { isMirrored: false, message: 'all-unique' };

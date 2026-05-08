@@ -429,6 +429,16 @@ interface IActionMediator {
    *  @returns True if captured (now or already), false on timeout. */
   waitForTxnEndpoint(timeoutMs: number): Promise<boolean>;
 
+  /** Stamp the dashboard navigation timestamp on the underlying network
+   *  state. Called by DASHBOARD.ACTION right before the click is
+   *  dispatched. The captured array on the network discovery uses this
+   *  timestamp to split the stream into pre-nav (login + dashboard
+   *  widget) vs post-nav (full-history) buckets. Bank-agnostic — every
+   *  bank's ACTION goes through this single funnel.
+   *  @param timestampMs - `Date.now()` at the click moment.
+   *  @returns True after the timestamp is recorded. */
+  markDashboardClickAt(timestampMs: number): true;
+
   // ── REMOVED: setActivePhase, setActiveStage, full network discovery ──
   // BasePhase.run() is the SOLE authority for stage transitions.
   // Discovery (resolveField, etc.) belongs in PRE, not ACTION.

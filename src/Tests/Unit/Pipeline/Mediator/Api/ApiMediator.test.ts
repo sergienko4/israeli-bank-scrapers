@@ -294,6 +294,49 @@ function thisDir(): string {
   return dirname(thisFile);
 }
 
+describe('ApiMediator — query-string append + GraphQL envelope edges', () => {
+  it('appendQuery merges with `&` when URL already carries `?key=v`', async () => {
+    registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token?lang=he');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    await mediator.apiPost('identity.deviceToken', { foo: 'bar' }, { query: { extra: '1' } });
+    expect(recorder.postCalls.length).toBe(1);
+    expect(recorder.postCalls[0].url).toContain('?lang=he&extra=1');
+  });
+
+  it('appendQuery returns URL unchanged when query map is empty', async () => {
+    registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    await mediator.apiPost('identity.deviceToken', { foo: 'bar' });
+    expect(recorder.postCalls[0].url).toBe('https://id.example/devices/token');
+  });
+
+  it('GraphQL envelope with empty errors[] surfaces "<unknown>" message label', async () => {
+    registerWkQuery('customer', HINT, 'query { me { id } }');
+    const recorder = makeRecorder();
+    const errorEnvelope = { errors: [{ message: '' }] };
+    recorder.queryResult = succeed(errorEnvelope);
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('customer', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('<unknown>');
+  });
+
+  it('GraphQL envelope with non-string error message surfaces "<unknown>"', async () => {
+    registerWkQuery('customer', HINT, 'query { me { id } }');
+    const recorder = makeRecorder();
+    const errorEnvelope = { errors: [{ message: 42 }] };
+    recorder.queryResult = succeed(errorEnvelope);
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('customer', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('<unknown>');
+  });
+});
+
 describe('ApiMediator/reuseContract', () => {
   it('source file contains zero bank-name literals', () => {
     const here = thisDir();

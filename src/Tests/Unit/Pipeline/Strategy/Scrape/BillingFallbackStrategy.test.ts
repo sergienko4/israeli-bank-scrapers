@@ -3,11 +3,15 @@
  */
 
 import { tryBillingFallback } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/BillingFallbackStrategy.js';
-import type {
-  IAccountFetchCtx,
-  IPostFetchCtx,
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountFetchCtx,
+  type IPostFetchCtx,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
-import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IApiFetchContext,
+  ITxnEndpoint,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeApi,
@@ -16,6 +20,18 @@ import {
   stubFetchPostFail,
   stubFetchPostOk,
 } from '../StrategyTestHelpers.js';
+
+/**
+ * Build a slim TXN endpoint with the supplied billingUrl — used by
+ * tests that exercise the BillingFallback strategy's billingUrl
+ * pathway.
+ *
+ * @param billingUrl - Billing URL string to expose on the slim endpoint.
+ * @returns Slim TXN endpoint with the supplied billingUrl.
+ */
+function withBillingUrl(billingUrl: string): ITxnEndpoint {
+  return { ...EMPTY_TXN_ENDPOINT, billingUrl };
+}
 
 /** Shared post context for tests. */
 const DEFAULT_POST: IPostFetchCtx = {
@@ -165,20 +181,19 @@ describe('tryBillingFallback', () => {
   });
 });
 
-describe('tryBillingFallback — pathFragment direct hit (transactionsDetails)', () => {
-  it('builds billing URL from captured transactionsDetails origin', async () => {
-    // Use the WK pathFragment so direct hit branch fires → buildBillingUrlFromOrigin.
-    const ep = makeEndpoint({
-      url: 'https://bank.example/Transactions/api/transactionsDetails/getCardTransactionsDetails',
-      method: 'POST',
-    });
+/** FAKE billing URL used by the Phase 7e tests below — mirrors the URL
+ *  shape DASHBOARD.FINAL would commit into ctx.txnEndpoint.billingUrl. */
+const FAKE_BILLING_URL_FOR_TESTS =
+  'https://bank.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails';
+
+describe('tryBillingFallback — Phase 7e: billingUrl supplied via fc', () => {
+  it('uses fc.billingUrl directly when DASHBOARD.FINAL pre-resolved it', async () => {
     const fetched: { url?: string; body?: unknown } = {};
     /**
-     * Test helper.
-     *
-     * @param url - Parameter.
-     * @param body - Parameter.
-     * @returns Result.
+     * fetchPost stub that records the URL + body and reports failure.
+     * @param url - The URL the strategy POSTed to.
+     * @param body - The request body.
+     * @returns Failure response so the test focuses on the call shape.
      */
     const loosePost = async (url: string, body: unknown): Promise<unknown> => {
       await Promise.resolve();
@@ -190,20 +205,13 @@ describe('tryBillingFallback — pathFragment direct hit (transactionsDetails)',
       api: makeApi({
         fetchPost: loosePost as unknown as IApiFetchContext['fetchPost'],
       }),
-      network: makeNetwork({
-        /**
-         * Test helper.
-         *
-         * @returns Result.
-         */
-        getAllEndpoints: () => [ep],
-      }),
+      network: makeNetwork(),
       startDate: '20260101',
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult5 = isOk(result);
     expect(isOkResult5).toBe(false);
-    // fetchPost was called with a URL built from ep.origin + WK billing path
     expect(fetched.url).toBeDefined();
     if (fetched.url) {
       expect(fetched.url).toContain('transactionsDetails');
@@ -213,16 +221,11 @@ describe('tryBillingFallback — pathFragment direct hit (transactionsDetails)',
   });
 
   it('iterates multiple month chunks in sequence with rate-limit pauses', async () => {
-    const ep = makeEndpoint({
-      url: 'https://bank.example/Transactions/api/transactionsDetails/getCardTransactionsDetails',
-      method: 'POST',
-    });
     const calls: string[] = [];
     /**
-     * Test helper.
-     *
-     * @param url - Parameter.
-     * @returns Result.
+     * fetchPost stub that records each invocation URL.
+     * @param url - The URL the strategy POSTed to.
+     * @returns Empty failure so collectBillingChunks keeps iterating.
      */
     const collectUrlPost = async (url: string): Promise<unknown> => {
       await Promise.resolve();
@@ -233,14 +236,7 @@ describe('tryBillingFallback — pathFragment direct hit (transactionsDetails)',
       api: makeApi({
         fetchPost: collectUrlPost as unknown as IApiFetchContext['fetchPost'],
       }),
-      network: makeNetwork({
-        /**
-         * Test helper.
-         *
-         * @returns Result.
-         */
-        getAllEndpoints: () => [ep],
-      }),
+      network: makeNetwork(),
       // Three months back from today to force generateMonthChunks into multi-chunk path.
       startDate: ((): string => {
         const d = new Date();
@@ -249,11 +245,11 @@ describe('tryBillingFallback — pathFragment direct hit (transactionsDetails)',
         const m = String(d.getMonth() + 1).padStart(2, '0');
         return `${String(y)}${m}01`;
       })(),
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult6 = isOk(result);
     expect(isOkResult6).toBe(false);
-    // Multi-month startDate → processBillingChunk + collectBillingChunks traversed.
     expect(calls.length).toBeGreaterThanOrEqual(2);
   }, 20000);
 });
@@ -353,40 +349,29 @@ describe('tryBillingFallback — chunk success with real transactions', () => {
   }, 15000);
 
   it('honours futureMonths when generating chunks', async () => {
-    const ep = makeEndpoint({
-      url: 'https://bank.example/Transactions/api/transactionsDetails/getCardTransactionsDetails',
-      method: 'POST',
-      postData: '{"cardUniqueId":"card-1"}',
-    });
     const calls: string[] = [];
     const today = new Date();
     const getFullYearResult10 = today.getFullYear();
     const startDate = `${String(getFullYearResult10)}${String(today.getMonth() + 1).padStart(2, '0')}01`;
     /**
-     * Test helper.
-     *
-     * @param url - Parameter.
-     * @returns Result.
+     * fetchPost stub that records each invocation URL — exposes the
+     * chunk count produced by `generateMonthChunks(futureMonths)`.
+     * @param url - The URL the strategy POSTed to.
+     * @returns Empty failure so the iteration continues.
      */
-    const collectUrlPost2 = async (url: string): Promise<unknown> => {
+    const collectFutureMonths = async (url: string): Promise<unknown> => {
       await Promise.resolve();
       calls.push(url);
-      return { success: false, error: { type: 'GENERIC', message: 'empty' } };
+      return { success: false, error: { type: 'GENERIC', message: 'futureMonths-stub' } };
     };
     const fc: IAccountFetchCtx = {
       api: makeApi({
-        fetchPost: collectUrlPost2 as unknown as IApiFetchContext['fetchPost'],
+        fetchPost: collectFutureMonths as unknown as IApiFetchContext['fetchPost'],
       }),
-      network: makeNetwork({
-        /**
-         * Test helper.
-         *
-         * @returns Result.
-         */
-        getAllEndpoints: () => [ep],
-      }),
+      network: makeNetwork(),
       startDate,
       futureMonths: 2,
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult11 = isOk(result);

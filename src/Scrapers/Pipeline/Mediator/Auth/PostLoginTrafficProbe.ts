@@ -12,11 +12,14 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 /** Max wait for organic SPA traffic after login. */
 const TRAFFIC_WAIT_TIMEOUT = 30000;
 
-/** Combined post-login traffic patterns via WK. */
-const POST_LOGIN_PATTERNS: readonly RegExp[] = [
-  ...PIPELINE_WELL_KNOWN_API.transactions,
-  ...PIPELINE_WELL_KNOWN_API.accounts,
-];
+/**
+ * Post-login traffic gate — Phase 7e R-AUTH-CLEANUP: no WK_API.transactions
+ * peek inside the auth boundary. The post-login signal is the bank's first
+ * authenticated dashboard fetch (account-init class endpoints), which fires
+ * before any transactions traffic on every observed bank. TXN-side
+ * discovery is owned by DASHBOARD.FINAL via {@link resolveTxnEndpoint}.
+ */
+const POST_LOGIN_PATTERNS: readonly RegExp[] = [...PIPELINE_WELL_KNOWN_API.accounts];
 
 /**
  * Wait for organic SPA traffic after login submit.

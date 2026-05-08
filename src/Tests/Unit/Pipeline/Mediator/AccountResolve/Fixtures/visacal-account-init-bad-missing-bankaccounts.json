@@ -1,0 +1,40 @@
+{
+  "_fixture": {
+    "purpose": "BAD trace #1 — VisaCal account/init shape with bankAccounts container STRIPPED. Tests that ACCOUNT-RESOLVE.POST treats single-container payloads correctly: containers={cards:4}, ids.length=4 must equal expected=4 → contract passes.",
+    "expected": "ACCOUNT-RESOLVE.POST: containers={cards:4}, ids.length=4, expected=4 → SUCCESS (only one container present, no incompleteness)."
+  },
+  "result": {
+    "user": {
+      "firstName": "TEST",
+      "lastName": "USER",
+      "custFullName": "TEST USER",
+      "custExtId": "000000000",
+      "custIntrId": "00000000",
+      "is2FAIdentification": false
+    },
+    "cards": [
+      {
+        "cardUniqueId": "FAKE-CARD-AAAA-0001",
+        "last4Digits": "1111",
+        "cardOwnerFullName": "TEST USER"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-BBBB-0002",
+        "last4Digits": "2222",
+        "cardOwnerFullName": "TEST USER"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-CCCC-0003",
+        "last4Digits": "3333",
+        "cardOwnerFullName": "TEST USER"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-DDDD-0004",
+        "last4Digits": "4444",
+        "cardOwnerFullName": "TEST USER"
+      }
+    ]
+  },
+  "statusDescription": "OK-FIXTURE",
+  "statusCode": 1
+}

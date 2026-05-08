@@ -13,6 +13,7 @@ import type { Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type {
@@ -26,6 +27,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
+import { resolveTxnEndpoint } from '../Scrape/ScrapeAutoMapper.js';
 import {
   buildApiContext,
   countTxnTraffic,
@@ -36,6 +38,7 @@ import {
   validateTrafficGate,
 } from './DashboardDiscovery.js';
 import checkChangePassword, { extractAuthFromContext } from './DashboardProbe.js';
+import { buildTxnHarvest } from './TxnParser.js';
 
 /** Timeout for SPA transaction link probe (15s for Angular SPAs). */
 const TRIGGER_PROBE_TIMEOUT = 15000;
@@ -45,6 +48,18 @@ const MENU_SETTLE_MS = 5000;
 const DASHBOARD_SETTLE_MS = 15000;
 /** Should force-click for hidden menu toggles. */
 const shouldForceMenuClick = true;
+
+/**
+ * Convert the click-at sentinel (`number | false`) to a numeric value
+ * suitable for logging. Returns 0 when no click was dispatched. Pulled
+ * out so the structured log fields stay free of ternaries.
+ * @param clickAt - The raw click-at value.
+ * @returns Click timestamp in ms, or 0 when absent.
+ */
+function clickAtForLog(clickAt: number | false): number {
+  if (clickAt === false) return 0;
+  return clickAt;
+}
 
 /**
  * Log the winning dashboard target for diagnostics.
@@ -551,14 +566,29 @@ async function executeHrefNav(
 async function executeDashboardNavigationSealed(
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
-  if (input.diagnostics.dashboardTrafficExists) {
-    input.logger.debug({ message: 'traffic exists -- skip click (DIRECT)' });
-    return succeed(input);
-  }
   if (!input.executor.has) {
     input.logger.debug({ message: 'no executor -- traffic from login' });
     return succeed(input);
   }
+  // Phase 7f follow-up: ALWAYS click when an executor is present.
+  // The pre-existing "traffic exists -- skip click" fast-path treated
+  // login-time API captures as sufficient, but those are PREVIEW
+  // shapes for Amex/Isracard (`GetLatestTransactions` 5-cap) — the
+  // real historical API only fires after the dashboard navigation.
+  // Skipping the click left those banks stuck on the preview cap;
+  // forcing the click is bank-agnostic (Discount/Hapoalim/etc.
+  // already clicked) and surfaces the post-nav captures the picker
+  // wants. PRE's resolved target stays load-bearing — no candidate,
+  // no click (executor.has guard above already handles that).
+  if (input.diagnostics.dashboardTrafficExists) {
+    input.logger.debug({ message: 'traffic exists -- still click for post-nav API' });
+  }
+  // Mark the navigation moment so DASHBOARD.POST and SCRAPE.PRE can
+  // split captures into pre-nav (login + dashboard widget) vs
+  // post-nav (full-history) buckets. PURE GENERIC — every bank's
+  // ACTION funnels through this entry point.
+  const clickAtMs = Date.now();
+  input.executor.value.markDashboardClickAt(clickAtMs);
   return runCandidateNavigation(input, input.executor.value);
 }
 
@@ -798,6 +828,22 @@ async function executeValidateTraffic(
   const isPrimed = validateTrafficGate(mediator.network, input.logger);
   const pageUrl = mediator.getCurrentUrl();
   input.logger.debug({ primed: isPrimed, url: maskVisibleText(pageUrl) });
+  // POST validates the traffic delta the click produced. The bucketing
+  // helpers compute pre-nav vs post-nav from the timestamp marker set
+  // by ACTION; emitting the counts here gives operators a single
+  // structured event to reason about whether the click revealed a
+  // new endpoint.
+  const network = mediator.network;
+  const preNavCount = network.getPreNavCaptures().length;
+  const postNavCount = network.getPostNavCaptures().length;
+  const rawClickAt = network.getDashboardClickAt();
+  const clickAt = clickAtForLog(rawClickAt);
+  input.logger.debug({
+    event: 'dashboard.post.delta',
+    preNavCount,
+    postNavCount,
+    clickAt,
+  });
   if (!isPrimed) {
     return fail(ScraperErrorTypes.Generic, 'DASHBOARD POST: no API traffic hasTxn');
   }
@@ -843,21 +889,255 @@ function countEndpoints(ctx: IPipelineContext): string {
  * @param input - Pipeline context.
  * @returns Updated context with api + auth in diagnostics.
  */
+/** WK transactions URL patterns used by FINAL's gatekeeper. */
+const FINAL_TXN_PATTERNS = PIPELINE_WELL_KNOWN_API.transactions;
+
+/**
+ * MOCK_MODE active flag — mirrors the ACCOUNT-RESOLVE.POST and
+ * OtpFillPhaseActions valves. Live E2E is the only environment where
+ * the DASHBOARD.FINAL fail-loud checks are enforceable; the offline
+ * snapshot suite has no captured network traffic.
+ */
+const isMockModeDashboardFinalActive =
+  process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
+
+/** Bundled bucket counts emitted on the `dashboard.signal.ready` event. */
+interface INavBucketCounts {
+  readonly preNavCount: number;
+  readonly postNavCount: number;
+}
+
+/**
+ * Count the pre-nav / post-nav capture buckets for the FINAL signal.
+ * Returns zeros when the mediator hasn't been attached. Pulled out
+ * to keep `executeCollectAndSignal` free of inline ternaries.
+ * @param ctx - Pipeline context.
+ * @returns Bucket counts.
+ */
+function countNavBuckets(ctx: IPipelineContext): INavBucketCounts {
+  if (!ctx.mediator.has) return { preNavCount: 0, postNavCount: 0 };
+  const network = ctx.mediator.value.network;
+  return {
+    preNavCount: network.getPreNavCaptures().length,
+    postNavCount: network.getPostNavCaptures().length,
+  };
+}
+
+/**
+ * Verify the post-nav bucket (with soft-fallback) carries at least
+ * one WK-transactions URL match. This is the architectural contract
+ * the user spec requires: DASHBOARD.FINAL hands SCRAPE.PRE a complete
+ * `{ preNavCaptures, postNavCaptures }` payload where postNav is
+ * known-good. SCRAPE.PRE then performs pure discovery without any
+ * re-validation.
+ * @param ctx - Pipeline context.
+ * @returns True iff a WK-transactions match exists in postNav.
+ */
+function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
+  if (!ctx.mediator.has) return false;
+  const postNav = ctx.mediator.value.network.getPostNavCaptures();
+  return postNav.some((ep): boolean =>
+    FINAL_TXN_PATTERNS.some((p: RegExp): boolean => p.test(ep.url)),
+  );
+}
+
+/**
+ * FINAL: gate the phase, build API context, and emit the
+ * `dashboard.signal.ready` event for SCRAPE.PRE.
+ * @param input - Pipeline context.
+ * @returns Updated context with API + canonical signal, or fail.
+ */
+/** Budget DASHBOARD.FINAL waits for the bank's first txn-pattern capture
+ *  to land before running the resolver. Drives the timing-race recovery —
+ *  Discount's `/current-account/transactions` arrives a few ms after the
+ *  dashboard mount XHR. Pre-Phase-7e the timing race silently produced 0
+ *  txns; Phase 7e binds the wait to FINAL so SCRAPE never starts before
+ *  the real txn URL is captured. */
+const DASHBOARD_FINAL_TXN_WAIT_MS = 8000;
+
+/**
+ * Wait until the post-nav pool exposes at least one WK-txn URL match.
+ * Returns immediately when a match is already present; otherwise polls
+ * the live network's traffic stream up to the budget. Returns `true` on
+ * any successful match within budget; `false` on timeout (FINAL escalates
+ * to F-DASH-1).
+ * @param input - Pipeline context.
+ * @returns True when a match landed (or was already present); false on timeout.
+ */
+async function waitForPostNavTxnMatch(input: IPipelineContext): Promise<boolean> {
+  if (!input.mediator.has) return true;
+  if (hasPostNavTxnMatch(input)) return true;
+  const hit = await input.mediator.value.network
+    .waitForTransactionsTraffic(DASHBOARD_FINAL_TXN_WAIT_MS)
+    .catch((): false => false);
+  return hit !== false;
+}
+
+/**
+ * FINAL: gate the phase, build API context, and emit the
+ * `dashboard.signal.ready` event for SCRAPE.PRE.
+ * @param input - Pipeline context.
+ * @returns Updated context with API + canonical signal, or fail.
+ */
 async function executeCollectAndSignal(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD FINAL: not ready');
+  // F-DASH-1: when the post-nav pool exposes no WK-txn match within the
+  // FINAL wait budget, DASHBOARD halts the pipeline. SCRAPE never starts
+  // on an empty contract — there is no bridge fallback, no soft
+  // re-discovery in SCRAPE. The wait absorbs the SPA timing race
+  // (Discount's BFF, Hapoalim's role-bound txn fetch).
+  const isMatched = await waitForPostNavTxnMatch(input);
+  if (input.mediator.has && !isMatched) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD FINAL: DASHBOARD_TXN_ENDPOINT_MISSING — post-nav pool empty of WK-txn matches after wait budget',
+    );
+  }
   const withApi = await maybeAttachApi(input);
-  const dashUrl = withApi.dashboard.has && withApi.dashboard.value.pageUrl;
-  const discoveredAuth = await extractAuthFromContext(withApi);
-  const diag = { ...withApi.diagnostics, finalUrl: some(dashUrl || ''), discoveredAuth };
+  const txnCommitted = await commitTxnEndpoint(withApi);
+  if (!txnCommitted.ok) return txnCommitted.failure;
+  const dashUrl = txnCommitted.ctx.dashboard.has && txnCommitted.ctx.dashboard.value.pageUrl;
+  const discoveredAuth = await extractAuthFromContext(txnCommitted.ctx);
+  const diag = {
+    ...txnCommitted.ctx.diagnostics,
+    finalUrl: some(dashUrl || ''),
+    discoveredAuth,
+  };
   const hasAuth = Boolean(discoveredAuth);
-  const epCount = countEndpoints(withApi);
+  const epCount = countEndpoints(txnCommitted.ctx);
+  // Emit the canonical signal-ready event. preNavCount / postNavCount
+  // form the materialised contract: SCRAPE.PRE consumes the post-nav
+  // pool (already validated above) and never re-checks completeness.
+  const counts = countNavBuckets(txnCommitted.ctx);
+  const preNavCount = counts.preNavCount;
+  const postNavCount = counts.postNavCount;
   withApi.logger.debug({
+    event: 'dashboard.signal.ready',
     authFound: hasAuth,
     endpoints: epCount,
+    preNavCount,
+    postNavCount,
   });
-  return succeed({ ...withApi, diagnostics: diag });
+  return succeed({ ...txnCommitted.ctx, diagnostics: diag });
+}
+
+/** Outcome of {@link commitTxnEndpoint} — discriminated success/fail. */
+interface ITxnCommitOutcome {
+  readonly ok: boolean;
+  readonly ctx: IPipelineContext;
+  readonly failure: Procedure<IPipelineContext>;
+}
+
+/**
+ * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
+ * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
+ * resolver cannot pick a date AND amount field. Mirrors the
+ * ACCOUNT-RESOLVE.POST contract: every successful run either commits
+ * the endpoint OR halts the pipeline before SCRAPE starts. The
+ * MOCK_MODE valve preserves the offline snapshot suite — no captured
+ * network traffic, no fail-loud applicable.
+ *
+ * @param ctx - Pipeline context after `maybeAttachApi`.
+ * @returns Outcome carrying the updated context (success) or the
+ *   fail-loud procedure to propagate.
+ */
+/**
+ * Read the count of accounts ACCOUNT-RESOLVE.POST committed onto
+ * `ctx.accountDiscovery.ids`. Returns 0 when the option is absent
+ * (mock-mode bypass / replay tests). Used by
+ * {@link commitTxnEndpoint} to feed the harvest's context-aware
+ * multi-scope decision.
+ *
+ * @param ctx - Pipeline context.
+ * @returns Number of resolved account ids, or 0 when absent.
+ */
+function readAccountIdCount(ctx: IPipelineContext): number {
+  if (!ctx.accountDiscovery.has) return 0;
+  return ctx.accountDiscovery.value.ids.length;
+}
+
+/**
+ * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
+ * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
+ * resolver cannot pick a date AND amount field. Mirrors the
+ * ACCOUNT-RESOLVE.POST contract: every successful run either commits
+ * the endpoint OR halts the pipeline before SCRAPE starts. The
+ * MOCK_MODE valve preserves the offline snapshot suite — no captured
+ * network traffic, no fail-loud applicable.
+ *
+ * @param ctx - Pipeline context after `maybeAttachApi`.
+ * @returns Outcome carrying the updated context (success) or the
+ *   fail-loud procedure to propagate.
+ */
+async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
+  await Promise.resolve();
+  if (!ctx.mediator.has) {
+    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
+  }
+  if (isMockModeDashboardFinalActive) {
+    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
+  }
+  const internal = resolveTxnEndpoint(ctx.mediator.value.network);
+  if (internal === false) {
+    // F-DASH-2: the picked TXN URL has no record exposing a date AND
+    // amount field WK_TXN recognises. DASHBOARD halts the pipeline —
+    // there is no bridge fallback in SCRAPE. The contract is binary:
+    // either DASHBOARD.FINAL commits a complete `ctx.txnEndpoint` or
+    // the run errors out. Never half-commit, never let SCRAPE
+    // re-discover.
+    ctx.logger.debug({
+      event: 'dashboard.txnEndpoint.failLoud',
+      code: 'DASHBOARD_TXN_FIELDMAP_INCOMPLETE',
+      reason: 'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases',
+    });
+    const failure = fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
+        'TXN body missing date or amount field aliases',
+    );
+    return { ok: false, ctx, failure };
+  }
+  // Phase 7f: commit ONLY the slim SCRAPE-facing endpoint to ctx.
+  // captureIndex / responseBodySample / pickerTier / capturedPreClick
+  // are DASHBOARD-internal artefacts that emit via telemetry but
+  // never travel on ctx. The pre-extracted records (and their scope)
+  // travel on ctx.dashboardTxnHarvest as a clean value type — the
+  // mirror of ACCOUNT-RESOLVE's IAccountDiscovery.records, so SCRAPE
+  // can consume the records DASHBOARD already saw without issuing a
+  // redundant fetch when the bank's anti-bot guard would otherwise
+  // 302 the second request. Pass ACCOUNT-RESOLVE's account count so
+  // the harvest's multi-scope decision becomes context-aware: an
+  // unscoped capture in a multi-account run is multi-scope unsafe
+  // (Amex/Isracard would otherwise mirror the captured 5 records
+  // across every card).
+  const accountIdCount = readAccountIdCount(ctx);
+  const harvest = buildTxnHarvest(internal, accountIdCount);
+  const updated: IPipelineContext = {
+    ...ctx,
+    txnEndpoint: some(internal.endpoint),
+    dashboardTxnHarvest: some(harvest),
+  };
+  ctx.logger.debug({
+    event: 'dashboard.txnEndpoint.committed',
+    method: internal.endpoint.method,
+    captureIndex: internal.captureIndex,
+    fieldMapDate: internal.endpoint.fieldMap.date,
+    fieldMapAmount: internal.endpoint.fieldMap.amount,
+    pendingUrlPresent: internal.endpoint.pendingUrl !== false,
+    billingUrlPresent: internal.endpoint.billingUrl !== false,
+    normalizedRecords: internal.normalizedRecords.length,
+    pickerTier: internal.pickerTier,
+    capturedPreClick: internal.capturedPreClick,
+  });
+  ctx.logger.debug({
+    event: 'dashboard.txnHarvest.committed',
+    records: harvest.records.length,
+    capturedAccountIdPresent: harvest.capturedAccountId !== false,
+    multiAccountScope: harvest.multiAccountScope,
+  });
+  return { ok: true, ctx: updated, failure: fail(ScraperErrorTypes.Generic, '') };
 }
 
 export {

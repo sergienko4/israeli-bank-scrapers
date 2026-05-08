@@ -345,7 +345,9 @@ async function executeFillFinal(input: IPipelineContext): Promise<Procedure<IPip
   input.logger.debug({
     message: `cookies=${String(cookieCount)} url=${maskVisibleText(currentUrl)}`,
   });
-  return succeedWithDiag(input, `otp-fill-final (cookies=${String(cookieCount)})`);
+  const cookiesLabel = `otp-fill-final (cookies=${String(cookieCount)})`;
+  const diag = { ...input.diagnostics, lastAction: cookiesLabel };
+  return succeed({ ...input, diagnostics: diag });
 }
 
 /**
@@ -369,4 +371,10 @@ function succeedWithDiag(input: IPipelineContext, action: string): Procedure<IPi
   return succeed({ ...input, diagnostics: diag });
 }
 
-export { executeFillAction, executeFillFinal, executeFillPost, executeFillPre };
+export {
+  DEFAULT_OTP_TIMEOUT_MS,
+  executeFillAction,
+  executeFillFinal,
+  executeFillPost,
+  executeFillPre,
+};

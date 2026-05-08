@@ -17,28 +17,6 @@ describe('NetworkDiscovery — content + auth + headers', () => {
     expect(discovery.findEndpoints(/nothing/).length).toBe(0);
   });
 
-  it('discoverEndpointByContent finds endpoint via body field match', async () => {
-    const page = makeMockPage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({
-      url: 'https://api.bank.co.il/x',
-      body: { accountNumber: '123', balance: 99 },
-    });
-    const found = discovery.discoverEndpointByContent(['accountNumber']);
-    expect(found).not.toBe(false);
-  });
-
-  it('discoverEndpointByContent returns false when field not in any body', async () => {
-    const page = makeMockPage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({
-      url: 'https://api.bank.co.il/x',
-      body: { other: 'stuff' },
-    });
-    const found = discovery.discoverEndpointByContent(['accountNumber']);
-    expect(found).toBe(false);
-  });
-
   it('discoverOrigin returns false with no captured headers', () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
@@ -63,13 +41,6 @@ describe('NetworkDiscovery — content + auth + headers', () => {
     const discovery = createNetworkDiscovery(page);
     const discoverSiteIdResult3 = discovery.discoverSiteId();
     expect(discoverSiteIdResult3).toBe(false);
-  });
-
-  it('discoverAccountsEndpoint returns false when no accounts endpoint captured', () => {
-    const page = makeMockPage();
-    const discovery = createNetworkDiscovery(page);
-    const discoverAccountsEndpointResult5 = discovery.discoverAccountsEndpoint();
-    expect(discoverAccountsEndpointResult5).toBe(false);
   });
 
   it('discoverTransactionsEndpoint returns false when no txn endpoint captured', () => {
@@ -185,11 +156,5 @@ describe('createFrozenNetwork', () => {
     const frozen = createFrozenNetwork(endpoints, false);
     const discoverApiOriginResult12 = frozen.discoverApiOrigin();
     expect(discoverApiOriginResult12).toBe('https://api.bank.co.il');
-  });
-
-  it('frozen discoverEndpointByContent returns false when body empty', () => {
-    const frozen = createFrozenNetwork([], false);
-    const discoverEndpointByContentResult13 = frozen.discoverEndpointByContent(['x']);
-    expect(discoverEndpointByContentResult13).toBe(false);
   });
 });

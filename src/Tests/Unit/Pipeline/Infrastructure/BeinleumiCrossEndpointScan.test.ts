@@ -184,9 +184,13 @@ describe('Beinleumi redacted-fixture cross-endpoint scan', () => {
     v !== null && typeof v === 'object' && !Array.isArray(v);
 
   it('balance scanner finds the balance value carried by the fixture', () => {
+    // Phase 7f follow-up: SCRAPE consumes a single alias from
+    // `ctx.txnEndpoint.fieldMap.balance` (DASHBOARD-resolved). The
+    // Beinleumi fixture uses `currentBalance` — test passes that
+    // explicitly to mirror what DASHBOARD.FINAL would resolve.
     const allBodies = dumps.map(asBody);
     const plainBodies = allBodies.filter(isPlainObj);
-    const result = resolveBalanceFromRecords(plainBodies);
+    const result = resolveBalanceFromRecords(plainBodies, ['currentBalance']);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
     if (isOk(result)) expect(result.value).toBe(expectedBalance);

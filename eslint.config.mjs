@@ -858,6 +858,7 @@ export default tseslint.config(
     ],
     rules: {
       // SonarJS — Sonar's own rules
+      "sonarjs/no-alphabetical-sort": "error", // S2871
       'sonarjs/redundant-type-aliases': 'error', // S6564
       'sonarjs/void-use': 'error', // S3735
       'sonarjs/no-invariant-returns': 'error', // S3516 BLOCKER

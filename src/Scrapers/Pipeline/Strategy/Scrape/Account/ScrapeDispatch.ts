@@ -7,13 +7,10 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { IDiscoveredEndpoint } from '../../../Mediator/Network/NetworkDiscovery.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
-
-type AccountIndexNum = Brand<number, 'AccountIndexNum'>;
 import type {
   ApiPayload,
   IAccountFetchCtx,
@@ -21,6 +18,8 @@ import type {
   IFetchAllAccountsCtx,
 } from '../ScrapeTypes.js';
 import { scrapeOneAccountPost, scrapeOneAccountViaUrl } from './AccountScrapeStrategy.js';
+
+type AccountIndexNum = Brand<number, 'AccountIndexNum'>;
 
 const LOG = getDebug(import.meta.url);
 
@@ -50,27 +49,26 @@ const PER_ACCOUNT_TIMEOUT_MS = 300_000;
  */
 const GLOBAL_SCRAPE_BUDGET_MS = 600_000;
 
-export { tryBufferedResponse } from './AccountScrapeStrategy.js';
-
 /**
- * Check if options indicate a POST endpoint is available.
+ * Check if options indicate a POST endpoint is available — Phase 7f
+ * reads the slim `ITxnEndpoint` from `opts.txnEndpoint`.
  * @param opts - Account fetch options.
- * @returns True if POST endpoint with account record exists.
+ * @returns True when POST template + account record both present.
  */
 function hasPostEndpoint(opts: IAccountFetchOpts): opts is IAccountFetchOpts & {
   readonly accountRecord: ApiPayload;
-  readonly txnEndpoint: IDiscoveredEndpoint;
 } {
   if (!opts.txnEndpoint) return false;
   if (opts.txnEndpoint.method !== 'POST') return false;
+  if (opts.txnEndpoint.url === '') return false;
   return Boolean(opts.accountRecord);
 }
 
 /**
  * Dispatch one account to the appropriate strategy.
- * @param fc - Fetch context.
+ * @param fc - Fetch context (carries the slim TXN endpoint).
  * @param accountId - Account number.
- * @param opts - Account record and endpoint.
+ * @param opts - Account record + slim TXN endpoint.
  * @returns Account with transactions.
  */
 async function dispatchOneAccount(
@@ -79,7 +77,7 @@ async function dispatchOneAccount(
   opts: IAccountFetchOpts,
 ): Promise<Procedure<ITransactionsAccount>> {
   if (!hasPostEndpoint(opts)) return scrapeOneAccountViaUrl(fc, accountId);
-  return scrapeOneAccountPost(fc, opts.accountRecord, opts.txnEndpoint);
+  return scrapeOneAccountPost(fc, opts.accountRecord);
 }
 
 /** Sentinel returned by the timeout arm of the Promise.race. */

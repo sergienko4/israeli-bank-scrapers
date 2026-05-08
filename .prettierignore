@@ -1,15 +1,6 @@
-src/Tests/E2eMocked/fixtures/
-src/Tests/Unit/Pipeline/Infrastructure/fixtures/
-
-# TypeDoc config and YAML workflows (no prettier-plugin-yaml installed)
-typedoc.json
+# YAML workflows (no prettier-plugin-yaml installed)
 *.yml
 *.yaml
 
 # Shell scripts — not JS/TS
 *.sh
-
-# Prettier v3 typescript-plugin crashes on JSON config files
-# (ReferenceError: convertToJson is not defined). This file is
-# hand-maintained and validated by the architecture gate already.
-src/Tests/Tools/architecture-allowlist.json

@@ -188,50 +188,27 @@ describe('executeForensicPre DIRECT path edge cases', () => {
     expect(isDiscoveryEmpty).toBe(true);
   });
 
-  it('proceeds past fail-fast when capture exposes a usable identifier', async () => {
-    // Exercises the post-fallback frozen-network setup path. The
-    // mediator's network mock returns an endpoint whose body has an
-    // `accounts` container with a real `accountId` — extractAccountIds
-    // yields a usable id directly, the fail-fast guard skips, and the
-    // remaining frozenEndpoints / cachedAuth / storageHarvest /
-    // logger.debug statements all execute.
+  it('proceeds past fail-fast when LOGIN.FINAL pre-discovered an account id', async () => {
+    // Architecture contract: SCRAPE.PRE no longer rediscovers accounts
+    // against the global pool. The auth FINAL stage (LOGIN.FINAL or
+    // OTP-FILL.FINAL) populates `ctx.accountDiscovery` from pre-nav
+    // captures. SCRAPE.PRE consumes that bundle directly. This test
+    // simulates the post-LOGIN state and asserts the fail-fast guard
+    // skips, plus the frozen-network setup path executes (the
+    // assertions on `accountIds` reaching `scrapeDiscovery` cover
+    // both halves of the contract).
     const page = makeScreenshotPage();
     const baseWithBrowser = makeContextWithBrowser(page);
     const apiCtx = makeApi();
-    const accountsEp = {
-      url: 'https://bank.example/api/accounts',
-      method: 'GET',
-      postData: '',
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      timestamp: 0,
-      responseBody: { accounts: [{ accountId: 'A-real-1234' }] },
-    };
-    const baseMediator = baseWithBrowser.mediator;
-    if (!baseMediator.has) throw Reflect.construct(Error, ['mediator missing']);
-    /**
-     * Returns the captured endpoint list with one usable account body.
-     * @returns Endpoints array.
-     */
-    const getAllEndpoints = (): readonly unknown[] => [accountsEp];
-    /**
-     * Reports the captured endpoint as the URL-matched accounts hit.
-     * @returns Single endpoint.
-     */
-    const discoverAccountsEndpoint = (): unknown => accountsEp;
-    const mediatorWithEndpoint = {
-      ...baseMediator.value,
-      network: {
-        ...baseMediator.value.network,
-        getAllEndpoints,
-        discoverAccountsEndpoint,
-      },
-    } as unknown as typeof baseMediator.value;
     const ctx = {
       ...baseWithBrowser,
       api: some(apiCtx),
-      mediator: some(mediatorWithEndpoint),
+      accountDiscovery: some({
+        ids: ['A-real-1234'],
+        records: [{ accountId: 'A-real-1234' }],
+        containers: {},
+        endpointCaptureIndex: 0,
+      }),
     };
     const result = await executeForensicPre(ctx);
     const wasOk = isOk(result);
@@ -258,7 +235,6 @@ describe('executeMatrixLoop branches', () => {
       ] as unknown as IScrapeDiscovery['frozenEndpoints'],
       accountIds: ['A1'],
       rawAccountRecords: [],
-      txnEndpoint: false,
       cachedAuth: false,
       storageHarvest: {},
     };

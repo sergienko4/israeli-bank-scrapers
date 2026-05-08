@@ -11,21 +11,30 @@ import { TransactionStatuses, TransactionTypes } from '../../../../Transactions.
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import {
   KNOWN_DATE_FORMATS,
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
+  PIPELINE_WELL_KNOWN_API as WK_API,
+  PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
+import type {
+  ITxnEndpoint,
+  ITxnEndpointInternal,
+  ITxnFieldMap,
+} from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 
-export type { IMonthChunk } from './ScrapeReplayAction.js';
+export type { IMonthChunk } from '../Scrape/ScrapeReplayAction.js';
 export {
   buildMonthBody,
   generateMonthChunks,
   isMonthlyEndpoint,
   isRangeIterable,
   replaceField,
-} from './ScrapeReplayAction.js';
+} from '../Scrape/ScrapeReplayAction.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -34,12 +43,19 @@ type ApiRecord = Record<string, unknown>;
 
 /**
  * Untyped value crossing module boundaries. The named alias is
- * required because the architecture ESLint rule (`no-restricted-syntax`)
- * forbids the literal `unknown` keyword in function signatures —
- * callers must reference a type identifier instead. Sonar S6564
- * flagging this one alias is an acknowledged tradeoff.
+ * required because the architecture ESLint rule
+ * (`no-restricted-syntax` selectors blocking `unknown` in function
+ * signatures, lines 373-380 of `eslint.config.mjs`) forces an alias.
+ * Sonar S6564 + `sonarjs/redundant-type-aliases` flagging the alias
+ * is an acknowledged tradeoff; the `eslint.config.mjs` Section 12
+ * file-scoped allowlist suppresses the redundant-alias rule on the
+ * sibling parser at `Mediator/Scrape/ScrapeAutoMapper.ts`. Phase 7e
+ * relocated the parser without expanding that allowlist (per the
+ * "do not modify eslint config" directive); the alias stays here
+ * because eliminating it would either fire the bare-`unknown` rule
+ * or require a 14-site closed-union refactor with type-narrowing
+ * casts at every boundary — out-of-scope for this commit.
  */
-// NOSONAR: typescript:S6564 — alias is required by `no-restricted-syntax`.
 type UntypedValue = unknown;
 
 /**
@@ -192,14 +208,13 @@ function enqueueChildren(
 ): boolean {
   if (depth >= MAX_SEARCH_DEPTH) return false;
   const nextDepth = depth + 1;
-  const children = Object.values(record)
-    .filter(isSearchableObject)
-    .map(
-      (child): ISearchItem => ({
-        value: child as Record<string, unknown>,
-        depth: nextDepth,
-      }),
-    );
+  const recordValues = Object.values(record) as readonly UntypedValue[];
+  const children = recordValues.filter(isSearchableObject).map(
+    (child): ISearchItem => ({
+      value: child as Record<string, unknown>,
+      depth: nextDepth,
+    }),
+  );
   queue.push(...children);
   return true;
 }
@@ -355,7 +370,8 @@ function pushObjectChildren(
  */
 function handleArrayNode(ctx: IArrayNodeCtx): boolean {
   if (ctx.node.length === 0) return false;
-  const score = scoreTxnSignature(ctx.node[0]);
+  const firstNode = ctx.node[0];
+  const score = scoreTxnSignature(firstNode);
   if (score < MIN_TXN_SCORE) {
     pushArrayChildren(ctx.stack, ctx.node, ctx.depth);
     return false;
@@ -405,24 +421,37 @@ function processStackEntry(
  * @returns True if stack is now empty.
  */
 function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolean {
-  if (stack.length === 0) return true;
-  const last = stack.length - 1;
-  const entry = stack[last];
-  stack.splice(last, 1);
+  // `Array.pop` returns `undefined` on an empty stack, consolidating the
+  // "stack is drained" signal into a single check.
+  const entry = stack.pop();
+  if (entry === undefined) return true;
   processStackEntry(entry, collected, stack);
   return stack.length === 0;
 }
 
+/** Hard cap on iterations — defends against pathological cycles. */
+const MAX_DRAIN_ITERATIONS = 1_000_000;
+
 /**
- * Recursive LIFO drain — processes stack entries until empty.
+ * LIFO drain — iterative loop via `Array.every` short-circuit.
+ * Processes every stack entry until `processOneLifo` reports the
+ * stack is empty. Iterative (was tail-recursive) so adversarial
+ * bodies with tens of thousands of nested items (e.g. Lottie
+ * animation JSON) cannot blow Node's stack budget.
  * @param stack - Mutable stack.
  * @param collected - Mutable accumulator.
  * @returns Collected items.
  */
 function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readonly UntypedValue[] {
-  const isDone = processOneLifo(stack, collected);
-  if (isDone) return collected;
-  return drainLifoStack(stack, collected);
+  // `every` short-circuits when the predicate returns false. Each
+  // step calls `processOneLifo`; when it returns true (stack drained)
+  // the negation short-circuits `every` and the loop ends.
+  const iterations: readonly number[] = Array.from(
+    { length: MAX_DRAIN_ITERATIONS },
+    (_unused, i): number => i,
+  );
+  iterations.every((): boolean => !processOneLifo(stack, collected));
+  return collected;
 }
 
 /**
@@ -653,57 +682,18 @@ function traceRawShape(responseBody: ApiRecord): true {
 }
 
 /**
- * Check if a value is a plain object with at least one WK.accountId / .displayId field.
- * Used to recognize account-shape records that don't carry txn-signature fields
- * (e.g. Hapoalim's /general/accounts: [{bankNumber,branchNumber,accountNumber,...}]).
+ * Check if a value is a plain object with at least one
+ * `WK_ACCT.id` field (any of the queryId / displayId aliases).
+ * Used to recognize account-shape records that don't carry
+ * txn-signature fields (e.g. Hapoalim's /general/accounts:
+ * `[{bankNumber,branchNumber,accountNumber,…}]`).
  * @param v - Candidate value.
  * @returns True when v looks like an account record.
  */
 function looksLikeAccountRecord(v: UntypedValue): boolean {
   if (!isSearchableObject(v)) return false;
-  const hit = findFieldValue(v as ApiRecord, WK.accountId);
+  const hit = findFieldValue(v as ApiRecord, WK_ACCT.id);
   return hit !== false;
-}
-
-/**
- * Returns the array of account-shaped objects held under the first
- * matching key in `containerKeys`, or empty. Items must pass
- * `looksLikeAccountRecord` so auxiliary lists (e.g. the linked-credit-
- * cards array on a Beinleumi account-summary response) don't shadow
- * the primary account.
- * @param record - record to inspect.
- * @param containerKeys - candidate container key names.
- * @returns object array under the first matching key, or empty.
- */
-function tryContainerInRecord(
-  record: ApiRecord,
-  containerKeys: readonly string[],
-): readonly ApiRecord[] {
-  const hits = containerKeys.map((key): readonly ApiRecord[] => {
-    const value = record[key];
-    if (!Array.isArray(value) || value.length === 0) return [];
-    const objects = value.filter(looksLikeAccountRecord);
-    return objects.map((v): ApiRecord => v as ApiRecord);
-  });
-  return hits.find((arr): boolean => arr.length > 0) ?? [];
-}
-
-/**
- * Returns the first non-empty object array reachable from `responseBody`
- * under any of `containerKeys`. Used for named account containers
- * (cardsList, accounts, bankAccounts) so the extractor doesn't have to
- * score txn signatures on records that carry none.
- * @param responseBody - parsed JSON response body.
- * @param containerKeys - WK container key names.
- * @returns object array under the first matching container, or empty.
- */
-function findContainerArray(
-  responseBody: ApiRecord,
-  containerKeys: readonly string[],
-): readonly ApiRecord[] {
-  const allRecords = flattenObjectTree(responseBody);
-  const hits = allRecords.map((r): readonly ApiRecord[] => tryContainerInRecord(r, containerKeys));
-  return hits.find((arr): boolean => arr.length > 0) ?? [];
 }
 
 /**
@@ -723,27 +713,237 @@ function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
 }
 
 /**
- * Extract account records from API response. Logs the response shape at
- * trace level when zero items are found — exposes per-bank mapper gaps.
- * Tries three extractors in order:
- *   1. findContainerArray (named WK.accountContainers — cardsList,
- *      accounts, bankAccounts; covers card-family banks where the cards
- *      array carries no txn-signature fields)
- *   2. findFirstArray (txn-signature BFS — covers banks whose account
- *      response has txn preview arrays)
- *   3. rootAccountArray (root-level array of account-shaped records —
- *      covers Hapoalim's /general/accounts)
+ * Extracts every WK named container reachable from `responseBody` and
+ * returns them keyed by container name. Phase 7d adds this helper so
+ * ACCOUNT-RESOLVE.POST can commit BOTH `cards` AND `bankAccounts`
+ * found in the same VisaCal `account/init` payload (the legacy
+ * `findContainerArray` returned only the first match).
+ *
+ * <p>Container names that are absent from the body, or present but
+ * empty after the {@link looksLikeAccountRecord} filter, are omitted
+ * from the returned object entirely (so consumers can `Object.keys`
+ * for a clean per-container count without zero-length entries).
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Map of container-name → records. Empty when no WK
+ *   container surfaced any account-shape records.
+ */
+/** Per-record key index built once per record (preserves casing). */
+interface IRecordKeyIndex {
+  readonly originalKeys: readonly string[];
+  readonly lowerKeys: readonly string[];
+}
+
+/**
+ * Build a per-record key index — pairs original-case keys with
+ * lower-cased copies so each suffix probe avoids re-casing.
+ * @param record - Object whose keys to index.
+ * @returns Key index.
+ */
+function indexRecordKeys(record: ApiRecord): IRecordKeyIndex {
+  const originalKeys = Object.keys(record);
+  const lowerKeys = originalKeys.map((k): string => k.toLowerCase());
+  return { originalKeys, lowerKeys };
+}
+
+/**
+ * Filter the array under `record[originalKey]` to account-shape
+ * records only. Returns the empty array when the value is not a
+ * non-empty array of account-shape records — caller skips assigning.
+ * @param record - Parent record.
+ * @param originalKey - Key into the record.
+ * @returns Account-shape records, possibly empty.
+ */
+function pickAccountObjectsFromKey(record: ApiRecord, originalKey: string): readonly ApiRecord[] {
+  const value = record[originalKey];
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const filtered = value.filter(looksLikeAccountRecord);
+  return filtered.map((v): ApiRecord => v as ApiRecord);
+}
+
+/** Per-WK probe outcome — successful claim or skip-with-reason. */
+interface IClaimAttempt {
+  readonly claimedLowerKey: string | false;
+  readonly objects: readonly ApiRecord[];
+}
+
+const NO_CLAIM: IClaimAttempt = { claimedLowerKey: false, objects: [] };
+
+/** Bundled args for {@link probeContainerForWk}. */
+interface IProbeArgs {
+  readonly record: ApiRecord;
+  readonly keys: IRecordKeyIndex;
+  readonly wantedLower: string;
+  readonly claimedLower: ReadonlySet<string>;
+}
+
+/**
+ * Probe one record for the longest-suffix match of `wantedLower`
+ * among unclaimed keys. Returns the claim metadata so the caller
+ * mutates `assigned` and `claimedKeys` in one place — keeps the
+ * loop body shallow per the project's max-depth=1 rule.
+ * @param args - Bundled probe args (record, keys, wantedLower, claimedLower).
+ * @returns Claim attempt metadata.
+ */
+function probeContainerForWk(args: IProbeArgs): IClaimAttempt {
+  const matchIdx = args.keys.lowerKeys.findIndex(
+    (lk): boolean => !args.claimedLower.has(lk) && lk.endsWith(args.wantedLower),
+  );
+  if (matchIdx < 0) return NO_CLAIM;
+  const originalKey = args.keys.originalKeys[matchIdx];
+  const objects = pickAccountObjectsFromKey(args.record, originalKey);
+  if (objects.length === 0) return NO_CLAIM;
+  return { claimedLowerKey: args.keys.lowerKeys[matchIdx], objects };
+}
+
+/**
+ * Walks `responseBody` once and assigns each PHYSICAL record-key
+ * to the LONGEST WK name that suffix-matches it. Returns the
+ * mutated `assigned` map so callers chain rather than rely on
+ * implicit mutation. Without longest-match-wins, the suffix-matcher
+ * in {@link tryContainerInRecord} would attribute the same
+ * `bankAccounts` array to BOTH `accounts` (suffix hit) AND
+ * `bankAccounts` (full hit), double-counting every record.
+ *
+ * @param record - One record from the body's flattened tree.
+ * @param wkNames - WK container names sorted longest-first.
+ * @param assigned - Per-WK-name records, mutated in place.
+ * @returns The same `assigned` object (chain-friendly).
+ */
+/** Bundled args for {@link applyClaimAttempt} so the call stays flat. */
+interface IApplyArgs {
+  readonly attempt: IClaimAttempt;
+  readonly wkName: string;
+  readonly assigned: Record<string, ApiRecord[]>;
+  readonly claimed: Set<string>;
+}
+
+/**
+ * Apply one probe outcome — claim the lower-cased key and append
+ * extracted records to the per-WK bucket. No-op when the attempt
+ * surfaced no claim. Pulled out so the per-WK loop in
+ * {@link assignContainersInRecord} stays flat (max-depth=1).
+ * @param args - Bundled apply args.
+ * @returns The same `assigned` map (chain-friendly).
+ */
+function applyClaimAttempt(args: IApplyArgs): Record<string, ApiRecord[]> {
+  if (args.attempt.claimedLowerKey === false) return args.assigned;
+  args.claimed.add(args.attempt.claimedLowerKey);
+  const bucket = args.assigned[args.wkName] ?? [];
+  bucket.push(...args.attempt.objects);
+  args.assigned[args.wkName] = bucket;
+  return args.assigned;
+}
+
+/**
+ * Walks `record` once and assigns each PHYSICAL key to the LONGEST
+ * WK name that suffix-matches it. Without longest-match-wins, the
+ * suffix-matcher would attribute the same `bankAccounts` array to
+ * BOTH `accounts` (suffix hit) AND `bankAccounts` (full hit),
+ * double-counting every record. Returns the mutated `assigned` map
+ * so callers can chain.
+ * @param record - One record from the body's flattened tree.
+ * @param wkNames - WK container names sorted longest-first.
+ * @param assigned - Per-WK-name records, mutated in place.
+ * @returns The same `assigned` object (chain-friendly).
+ */
+function assignContainersInRecord(
+  record: ApiRecord,
+  wkNames: readonly string[],
+  assigned: Record<string, ApiRecord[]>,
+): Record<string, ApiRecord[]> {
+  const keys = indexRecordKeys(record);
+  const claimed = new Set<string>();
+  for (const wkName of wkNames) {
+    const wantedLower = wkName.toLowerCase();
+    const attempt = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
+    applyClaimAttempt({ attempt, wkName, assigned, claimed });
+  }
+  return assigned;
+}
+
+/**
+ * Extracts every WK named container reachable from `responseBody`
+ * and returns them keyed by container name. Phase 7d adds this
+ * helper so ACCOUNT-RESOLVE.POST can commit BOTH `cards` AND
+ * `bankAccounts` found in the same VisaCal `account/init` payload
+ * (the legacy `findContainerArray` returned only the first match).
+ * @param responseBody - Parsed JSON response body.
+ * @returns Per-WK-name container map; absent containers omitted.
+ */
+function extractAllContainers(
+  responseBody: ApiRecord,
+): Readonly<Record<string, readonly ApiRecord[]>> {
+  const wkLongestFirst = [...WK_ACCT.containers].sort((a, b): number => b.length - a.length);
+  const assigned: Record<string, ApiRecord[]> = {};
+  const allRecords = flattenObjectTree(responseBody);
+  for (const r of allRecords) assignContainersInRecord(r, wkLongestFirst, assigned);
+  return assigned;
+}
+
+/**
+ * Extract account records from API response. Logs the response shape
+ * at trace level when zero items are found — exposes per-bank mapper
+ * gaps. Tries three extractors in order:
+ *
+ * <ol>
+ *   <li>{@link extractAllContainers} (named WK_ACCT.containers —
+ *       cardsList, cards, accounts, bankAccounts; covers card-family
+ *       banks where the cards array carries no txn-signature fields).
+ *       Concatenates ALL surfaced containers — Phase 7d change.</li>
+ *   <li>{@link findFirstArray} (txn-signature BFS — covers banks
+ *       whose account response has txn preview arrays).</li>
+ *   <li>{@link rootAccountArray} (root-level array of account-shaped
+ *       records — covers Hapoalim's /general/accounts).</li>
+ * </ol>
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Account records with all original fields.
+ */
+/**
+ * Concatenate every container's records and emit the per-container
+ * trace line. Extracted helper so {@link extractAccountRecords}
+ * stays inside the project's cognitive-complexity ceiling.
+ * @param containers - Per-WK-name container split.
+ * @returns Concatenated records across every container.
+ */
+function flattenContainersForLog(
+  containers: Readonly<Record<string, readonly ApiRecord[]>>,
+): readonly ApiRecord[] {
+  const containerNames = Object.keys(containers);
+  const concatenated: ApiRecord[] = [];
+  for (const name of containerNames) concatenated.push(...containers[name]);
+  LOG.debug({
+    message:
+      `extractAccountRecords: ${String(concatenated.length)} items ` +
+      `(${String(containerNames.length)} named containers: ${containerNames.join(',')})`,
+  });
+  return concatenated;
+}
+
+/**
+ * Extract account records from API response. Logs the response
+ * shape at trace level when zero items are found — exposes per-bank
+ * mapper gaps. Tries three extractors in order:
+ *
+ * <ol>
+ *   <li>{@link extractAllContainers} (named WK_ACCT.containers —
+ *       cardsList, cards, accounts, bankAccounts; covers card-family
+ *       banks where the cards array carries no txn-signature
+ *       fields). Concatenates ALL surfaced containers — Phase 7d
+ *       change.</li>
+ *   <li>{@link findFirstArray} (txn-signature BFS — covers banks
+ *       whose account response has txn preview arrays).</li>
+ *   <li>{@link rootAccountArray} (root-level array of account-shaped
+ *       records — covers Hapoalim's /general/accounts).</li>
+ * </ol>
+ *
  * @param responseBody - Parsed JSON response body.
  * @returns Account records with all original fields.
  */
 function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
-  const named = findContainerArray(responseBody, WK.accountContainers);
-  if (named.length > 0) {
-    LOG.debug({
-      message: `extractAccountRecords: ${String(named.length)} items (named container)`,
-    });
-    return named;
-  }
+  const containers = extractAllContainers(responseBody);
+  if (Object.keys(containers).length > 0) return flattenContainersForLog(containers);
   const items = findFirstArray(responseBody);
   if (items.length > 0) {
     LOG.debug({ message: `extractAccountRecords: ${String(items.length)} items` });
@@ -793,7 +993,7 @@ function isUsableIdentifier(id: string): boolean {
 
 /**
  * Resolves a single account record to a usable identifier by walking
- * `WK.accountId` (queryId fields first, displayId fields second) in
+ * `WK_ACCT.id` (queryId fields first, displayId fields second) in
  * priority order and returning the first value that passes
  * {@link isUsableIdentifier}.
  *
@@ -827,7 +1027,7 @@ function pickIdFromField(record: ApiRecord, field: string): string {
 
 /**
  * Resolves a single record to a usable identifier by walking
- * `WK.accountId` (queryId fields, then displayId fields) and
+ * `WK_ACCT.id` (queryId fields, then displayId fields) and
  * returning the first value that passes {@link isUsableIdentifier}.
  * Drives the queryId-then-displayId fallback that lets card-family
  * banks like Max yield `cardNumber` when `cardUniqueId` is absent.
@@ -836,7 +1036,7 @@ function pickIdFromField(record: ApiRecord, field: string): string {
  * @returns First usable identifier, or empty-string sentinel.
  */
 function extractValidIdentifier(record: ApiRecord): string {
-  const candidates = WK.accountId.map((field): string => pickIdFromField(record, field));
+  const candidates = WK_ACCT.id.map((field): string => pickIdFromField(record, field));
   return candidates.find(Boolean) ?? '';
 }
 
@@ -1031,16 +1231,341 @@ function extractTransactionsForCard(body: ApiRecord, cardId: string): readonly I
   return [];
 }
 
+// ── Phase 7e — DASHBOARD.FINAL TXN-endpoint resolver ──────────────────────────
+
+/**
+ * Resolve the first-found field-name alias for one TXN-side concern.
+ * Walks the WK alias list against the first record's keys (case-
+ * sensitive equality) and returns the first match. Pure check, no
+ * extraction. Used by {@link resolveTxnEndpoint} to build the per-
+ * run {@link ITxnFieldMap}.
+ * @param record - First record from the txn array.
+ * @param aliases - WK alias list.
+ * @returns First matching key, or empty string when no alias hits.
+ */
+function resolveAlias(record: ApiRecord, aliases: readonly string[]): string {
+  const present = aliases.find((alias): boolean => alias in record);
+  return present ?? '';
+}
+
+/**
+ * Same as {@link resolveAlias} but returns `false` instead of empty
+ * string when no alias hits. Used for the optional fields
+ * (`originalAmount`, `processedDate`, `balance`) that not every bank
+ * exposes — consumers test the boolean before walking.
+ * @param record - First record from the txn array.
+ * @param aliases - WK alias list.
+ * @returns First matching key, or `false` when absent.
+ */
+function resolveOptionalAlias(record: ApiRecord, aliases: readonly string[]): string | false {
+  const hit = aliases.find((alias): boolean => alias in record);
+  return hit ?? false;
+}
+
+/**
+ * Build the {@link ITxnFieldMap} for the first txn record in a
+ * captured response body. Date and amount are required (their
+ * absence trips DASHBOARD.FINAL's F-DASH-2 fail-loud). Other fields
+ * are optional.
+ * @param sample - First txn record from the captured response.
+ * @returns Resolved field map, or `false` when date or amount cannot
+ *   be resolved (caller fails the run with F-DASH-2).
+ */
+/**
+ * Pick the amount field alias from a sample record. Banks expose the
+ * amount in one of three shapes:
+ *
+ * <ol>
+ *   <li>Single signed amount under {@link WK.amount} (Discount / Max
+ *       /Hapoalim and most card-family backends).</li>
+ *   <li>Split credit + debit pair under {@link WK.creditAmount} +
+ *       {@link WK.debitAmount} (Beinleumi). The runtime
+ *       {@link autoMapTransaction} already nets the two sides, so this
+ *       helper returns whichever side is present so the field-map
+ *       check passes; downstream `parseFreshResponse` consumers must
+ *       look at both `creditAmount` and `debitAmount` aliases when
+ *       `WK.amount` does not match.</li>
+ *   <li>Neither shape — record is not a transaction; return ''.</li>
+ * </ol>
+ *
+ * @param sample - First record from the txn array.
+ * @returns Alias string, or '' when no match.
+ */
+function pickAmountAlias(sample: ApiRecord): string {
+  const direct = resolveAlias(sample, WK.amount);
+  if (direct !== '') return direct;
+  const credit = resolveAlias(sample, WK.creditAmount);
+  if (credit !== '') return credit;
+  return resolveAlias(sample, WK.debitAmount);
+}
+
+/**
+ * Build the per-run {@link ITxnFieldMap} from a sample record. Returns
+ * `false` when neither a date alias nor any amount alias resolves —
+ * DASHBOARD.FINAL escalates to F-DASH-2 in that case so SCRAPE never
+ * starts against a body whose schema is unrecognised.
+ * @param sample - First record from the txn array.
+ * @returns Resolved field map or `false`.
+ */
+function buildFieldMap(sample: ApiRecord): ITxnFieldMap | false {
+  const date = resolveAlias(sample, WK.date);
+  const amount = pickAmountAlias(sample);
+  if (date === '' || amount === '') return false;
+  return {
+    date,
+    amount,
+    description: resolveAlias(sample, WK.description),
+    currency: resolveAlias(sample, WK.currency),
+    identifier: resolveAlias(sample, WK.identifier),
+    originalAmount: resolveOptionalAlias(sample, WK.originalAmount),
+    processedDate: resolveOptionalAlias(sample, WK.processedDate),
+    balance: resolveOptionalAlias(sample, WK.balance),
+  };
+}
+
+/**
+ * Phase 7e — resolve the TXN endpoint from DASHBOARD's captures.
+ *
+ * <p>Combines the existing
+ * {@link INetworkDiscovery.discoverTransactionsEndpoint} URL pick
+ * with a per-run {@link ITxnFieldMap} resolution from the captured
+ * response body. The output is the single source of truth SCRAPE
+ * consumes — every artifact pre-resolved so SCRAPE imports zero WK.
+ *
+ * <p>Returns `false` in two cases:
+ * <ul>
+ *   <li>No capture in the network's pool matches `WK_API.transactions`
+ *       (DASHBOARD.FINAL escalates to F-DASH-1).</li>
+ *   <li>The picked capture's response body has no record exposing a
+ *       date OR amount field that `WK_TXN.date` / `WK_TXN.amount`
+ *       recognises (DASHBOARD.FINAL escalates to F-DASH-2).</li>
+ * </ul>
+ *
+ * @param network - Network surface exposing the pool of captures.
+ * @returns Resolved {@link ITxnEndpoint}, or `false`.
+ */
+/** Lookup table for the POST-template branch — replaces an inline ternary. */
+const TEMPLATE_POST_LOOKUP: Record<'true' | 'false', (postData: string) => string | false> = {
+  /**
+   * Captured POST body present.
+   * @param postData - Raw POST body.
+   * @returns Same string back.
+   */
+  true: (postData): string | false => postData,
+  /**
+   * No POST body (GET endpoint or empty body).
+   * @returns Sentinel false.
+   */
+  false: (): string | false => false,
+};
+
+/**
+ * Resolve the POST template for {@link ITxnEndpoint.templatePostData}
+ * — extracted so {@link resolveTxnEndpoint} stays inside the
+ * cyclomatic-complexity ceiling.
+ * @param method - HTTP method of the captured endpoint.
+ * @param postData - Raw POST body (empty string when not a POST).
+ * @returns The body when method=POST and body non-empty, false otherwise.
+ */
+function resolveTemplatePostData(method: 'GET' | 'POST', postData: string): string | false {
+  const hasPostBody = method === 'POST' && postData !== '';
+  const key = String(hasPostBody) as 'true' | 'false';
+  return TEMPLATE_POST_LOOKUP[key](postData);
+}
+
+/**
+ * Phase 7e — resolve the TXN endpoint from DASHBOARD's captures.
+ * Combines the existing
+ * {@link INetworkDiscovery.discoverTransactionsEndpoint} URL pick
+ * with a per-run {@link ITxnFieldMap} resolution from the captured
+ * response body. Returns `false` when the network has no captured
+ * TXN URL OR the picked body has no record exposing a date AND
+ * amount field — DASHBOARD.FINAL escalates each case to a distinct
+ * fail-loud error.
+ * @param network - Network surface exposing the pool of captures.
+ * @returns Resolved endpoint or `false`.
+ */
+/**
+ * Resolve the pending-transactions API URL from captured traffic, or
+ * fall back to constructing it under the discovered API origin using
+ * the canonical `Transactions/api/approvals/getClearanceRequests`
+ * path. Returns `false` when neither source resolves a URL — the
+ * bank simply does not expose pending in this run.
+ *
+ * <p>Phase 7e: this discovery moves out of {@link fetchAndMergePending}
+ * and into DASHBOARD.FINAL's {@link resolveTxnEndpoint} — SCRAPE
+ * consumes the pre-resolved URL via `ctx.txnEndpoint.pendingUrl` and
+ * imports zero `WK_API`.
+ *
+ * @param network - Network surface exposing the captured pool.
+ * @returns Pending URL string or `false`.
+ */
+function resolvePendingUrl(network: INetworkDiscovery): string | false {
+  const ep = network.discoverByPatterns(WK_API.pending);
+  if (ep) return ep.url;
+  const origin = network.discoverApiOrigin();
+  if (!origin) return false;
+  return `${origin}/Transactions/api/approvals/getClearanceRequests`;
+}
+
+/**
+ * Returns true when a captured POST body carries any
+ * {@link WK_ACCT.queryId} alias — i.e. the request is scoped per-card.
+ * Used to distinguish a billing endpoint (per-card POST) from other
+ * captures matching `WK_API.transactions`.
+ * @param postData - Captured POST body string.
+ * @returns True when at least one alias appears.
+ */
+function billingBodyCarriesCardId(postData: string): boolean {
+  if (!postData) return false;
+  return WK_ACCT.queryId.some((alias): boolean => postData.includes(alias));
+}
+
+/**
+ * Build the canonical billing URL under a discovered API origin using
+ * `WK_BILLING` path fragments. No hostname is hardcoded — the origin
+ * comes from a URL the bank's own SPA already touched.
+ * @param anyCapturedUrl - URL already captured on the target host.
+ * @returns Built billing URL string.
+ */
+function buildBillingUrlFromOrigin(anyCapturedUrl: string): string {
+  const origin = new URL(anyCapturedUrl).origin;
+  const { apiPrefix, pathFragment, actionName } = WK_BILLING;
+  return `${origin}${apiPrefix}/${pathFragment}/${actionName}`;
+}
+
+/**
+ * Resolve the billing-fallback URL from captured traffic. Priority:
+ * <ol>
+ *   <li>A captured URL already under {@link WK_BILLING.pathFragment}
+ *       — use its origin directly.</li>
+ *   <li>A captured `WK_API.transactions` URL whose POST body carries a
+ *       `WK_ACCT.queryId` alias — build a canonical billing URL
+ *       under that capture's origin.</li>
+ *   <li>No match — return `false` (bank doesn't expose the family).</li>
+ * </ol>
+ *
+ * <p>Phase 7e: this discovery moves out of
+ * {@link tryBillingFallback} and into DASHBOARD.FINAL's
+ * {@link resolveTxnEndpoint} — SCRAPE consumes the pre-resolved URL
+ * via `ctx.txnEndpoint.billingUrl` and imports zero
+ * `WK_API`/`WK_BILLING`.
+ *
+ * @param network - Network surface exposing the captured pool.
+ * @returns Built billing URL or `false`.
+ */
+function resolveBillingUrl(network: INetworkDiscovery): string | false {
+  const captured = network.getAllEndpoints();
+  const direct = captured.find((ep): boolean => ep.url.includes(WK_BILLING.pathFragment));
+  if (direct) return buildBillingUrlFromOrigin(direct.url);
+  const txnPatterns = WK_API.transactions;
+  const shaped = captured.find((ep): boolean => {
+    const isUrlMatch = txnPatterns.some((p): boolean => p.test(ep.url));
+    if (!isUrlMatch) return false;
+    return billingBodyCarriesCardId(ep.postData);
+  });
+  if (shaped) return buildBillingUrlFromOrigin(shaped.url);
+  return false;
+}
+
+/** Empty fieldMap returned when the picked capture has zero transaction
+ *  records (replayablePost tier — bank's session window has no recent
+ *  activity). The URL+method are still authoritative for SCRAPE replay;
+ *  per-account requests may yield non-empty bodies and `extractTransactions`
+ *  auto-discovers fields at parse time. */
+const EMPTY_FIELD_MAP: ITxnFieldMap = {
+  date: '',
+  amount: '',
+  description: '',
+  currency: '',
+  identifier: '',
+  originalAmount: false,
+  processedDate: false,
+  balance: false,
+};
+
+/**
+ * Resolve a fieldMap from the first transaction record, or fall back to
+ * the empty fieldMap when the body has zero records. SCRAPE re-fetches
+ * per-account, so the empty case is valid for `replayablePost` URLs.
+ * @param records - Records harvested by `huntTransactions`.
+ * @returns Resolved fieldMap (never `false`).
+ */
+function resolveFieldMapOrEmpty(records: readonly ApiRecord[]): ITxnFieldMap {
+  if (records.length === 0) return EMPTY_FIELD_MAP;
+  const sampleFieldMap = buildFieldMap(records[0]);
+  if (sampleFieldMap === false) return EMPTY_FIELD_MAP;
+  return sampleFieldMap;
+}
+
+/**
+ * Phase 7f — resolve the TXN endpoint from DASHBOARD's captures.
+ * Returns the wider {@link ITxnEndpointInternal} so DASHBOARD.FINAL
+ * can emit the `dashboard.txnEndpoint.committed` telemetry with the
+ * picker's diagnostics; DASHBOARD then unwraps `.endpoint` and
+ * commits ONLY the slim {@link ITxnEndpoint} to `ctx.txnEndpoint`.
+ * SCRAPE never sees `captureIndex`, `responseBodySample`,
+ * `normalizedRecords`, `pickerTier`, or `capturedPreClick`.
+ *
+ * <p>Returns `false` ONLY when the picker found no URL match or the
+ * body is malformed JSON. An empty body for a valid `replayablePost`
+ * URL is committed with an empty fieldMap — SCRAPE re-fetches per
+ * account and the per-account parse falls back to legacy
+ * auto-discovery for that one execution.
+ *
+ * @param network - Network surface exposing the pool of captures.
+ * @returns Resolved internal payload or `false`.
+ */
+function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpointInternal | false {
+  const ep = network.discoverTransactionsEndpoint();
+  if (ep === false) return false;
+  const body = ep.responseBody;
+  if (body === null) return false;
+  if (typeof body !== 'object') return false;
+  if (ep.method !== 'GET' && ep.method !== 'POST') return false;
+  const responseBody = body as ApiRecord;
+  const records = huntTransactions(responseBody);
+  const fieldMap = resolveFieldMapOrEmpty(records);
+  const method: 'GET' | 'POST' = ep.method;
+  const endpoint: ITxnEndpoint = {
+    url: ep.url,
+    method,
+    templatePostData: resolveTemplatePostData(method, ep.postData),
+    fieldMap,
+    pendingUrl: resolvePendingUrl(network),
+    billingUrl: resolveBillingUrl(network),
+  };
+  return {
+    endpoint,
+    captureIndex: ep.captureIndex ?? 0,
+    responseBodySample: responseBody,
+    normalizedRecords: extractTransactions(responseBody),
+    pickerTier: ep.pickerTier ?? 'shapePassing',
+    capturedPreClick: ep.capturedPreClick ?? false,
+  };
+}
+
+// Phase 7e checkpoint: `parseFreshResponse` and `buildPerAccountBody`
+// stubs were removed pending the SCRAPE migration that consumes them
+// (Phase 7e.5+). When SCRAPE.ACTION starts walking fresh per-account
+// responses via `ctx.txnEndpoint.fieldMap`, the helpers re-land here
+// alongside the per-WK ownership-test changes.
+
+export type {
+  ITxnEndpoint as TxnEndpoint,
+  ITxnFieldMap as TxnFieldMap,
+} from '../../Types/PipelineContext.js';
 export {
   autoMapTransaction,
   extractAccountIds,
   extractAccountRecords,
+  extractAllContainers,
   extractTransactions,
   extractTransactionsForCard,
-  findContainerArray,
   findFieldValue,
   findFirstArray,
   isUsableIdentifier,
   matchField,
   parseAutoDate,
+  resolveTxnEndpoint,
 };

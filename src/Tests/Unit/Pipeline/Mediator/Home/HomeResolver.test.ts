@@ -180,7 +180,10 @@ describe('resolveHomeStrategy', () => {
     expect(isOkResult12).toBe(true);
     if (result.success) {
       expect(result.value.strategy).toBe(NAV_STRATEGY.SEQUENTIAL);
-      expect(result.value.menuCandidates.length).toBeGreaterThanOrEqual(0);
+      // Phase 6: SEQUENTIAL no longer carries `menuCandidates`. The
+      // strategy is kept as a classification label but ACTION uses
+      // the same single-click path as DIRECT.
+      expect(result.value.triggerText.length).toBeGreaterThan(0);
     }
   });
 

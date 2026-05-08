@@ -237,6 +237,11 @@ function makeMockExecutor(pageUrl = 'https://test.bank.co.il/login'): IActionMed
      * @returns Resolved false.
      */
     waitForTxnEndpoint: (): Promise<boolean> => Promise.resolve(false),
+    /**
+     * No-op click marker stub.
+     * @returns True.
+     */
+    markDashboardClickAt: (): true => true,
   };
 }
 
@@ -262,6 +267,9 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     preLoginDiscovery: ctx.preLoginDiscovery,
     dashboard: ctx.dashboard,
     scrapeDiscovery: ctx.scrapeDiscovery,
+    accountDiscovery: ctx.accountDiscovery,
+    txnEndpoint: ctx.txnEndpoint,
+    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,

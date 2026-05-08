@@ -7,8 +7,8 @@ LOG_FILE=".pre-commit-output.log"
 STAGED_FILES=$(git diff --cached --name-only)
 CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)')
 if [ -z "$CODE_FILES" ]; then
-  echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
-  exit 0
+    echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
+    exit 0
 fi
 
 log() { echo "$1" | tee -a "$LOG_FILE"; }
@@ -20,33 +20,33 @@ declare -a BG_NAMES=()
 declare -a BG_LOGS=()
 
 bg_gate() {
-  local name="$1"; shift
-  local logfile
-  logfile=$(mktemp)
-  ( "$@" > "$logfile" 2>&1 ) &
-  BG_PIDS+=($!)
-  BG_NAMES+=("$name")
-  BG_LOGS+=("$logfile")
+    local name="$1"; shift
+    local logfile
+    logfile=$(mktemp)
+    ( "$@" > "$logfile" 2>&1 ) &
+    BG_PIDS+=($!)
+    BG_NAMES+=("$name")
+    BG_LOGS+=("$logfile")
 }
 
 wait_all() {
-  local i
-  for i in "${!BG_PIDS[@]}"; do
-    if ! wait "${BG_PIDS[$i]}"; then
-      FAIL_COUNT=$((FAIL_COUNT + 1))
-      FAIL_NAMES="$FAIL_NAMES ${BG_NAMES[$i]}"
-      log "  ❌ ${BG_NAMES[$i]} FAILED"
-    else
-      log "  ✅ ${BG_NAMES[$i]} passed"
+    local i
+    for i in "${!BG_PIDS[@]}"; do
+        if ! wait "${BG_PIDS[$i]}"; then
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            FAIL_NAMES="$FAIL_NAMES ${BG_NAMES[$i]}"
+            log "  ❌ ${BG_NAMES[$i]} FAILED"
+        else
+            log "  ✅ ${BG_NAMES[$i]} passed"
+        fi
+        cat "${BG_LOGS[$i]}" >> "$LOG_FILE"
+        rm -f "${BG_LOGS[$i]}"
+    done
+    BG_PIDS=(); BG_NAMES=(); BG_LOGS=()
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        log "❌ FAILED GATES:$FAIL_NAMES"
+        exit 1
     fi
-    cat "${BG_LOGS[$i]}" >> "$LOG_FILE"
-    rm -f "${BG_LOGS[$i]}"
-  done
-  BG_PIDS=(); BG_NAMES=(); BG_LOGS=()
-  if [ "$FAIL_COUNT" -gt 0 ]; then
-    log "❌ FAILED GATES:$FAIL_NAMES"
-    exit 1
-  fi
 }
 
 log ""
@@ -57,8 +57,8 @@ log "═════════════════════════
 log "📝 Phase 1: Prettier format..."
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
-  echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
-  echo "$STAGED_SRC" | xargs git add
+    echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
+    echo "$STAGED_SRC" | xargs git add
 fi
 
 # ── Phase 2: Static Analysis (Parallel) ──
@@ -76,23 +76,23 @@ bg_gate "audit"        npm audit --audit-level=high --omit=dev
 # when a large test-only commit stages hundreds of files.
 ARCH_FILES=$(echo "$CODE_FILES" | grep -E '(Scrapers/Pipeline/|/Phases/)' || true)
 if [ -n "$ARCH_FILES" ]; then
-  # When the staged file count is large (e.g. an architecture-wide refactor
-  # or a soft-reset squash), pass the Pipeline directory directly. Windows
-  # CreateProcess hard-caps the command line at 32 KB even when xargs tries
-  # to batch-split — `npm run lint:architecture` walks the whole Pipeline
-  # tree from a single argv path, identical analysis result.
-  ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
-  if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
-    log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
-    bg_gate "architecture" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
-  else
-    # Small staged set — pass the file list via xargs for per-file precision.
-    ARCH_LIST=$(mktemp)
-    echo "$ARCH_FILES" > "$ARCH_LIST"
-    bg_gate "architecture" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
-  fi
+    # When the staged file count is large (e.g. an architecture-wide refactor
+    # or a soft-reset squash), pass the Pipeline directory directly. Windows
+    # CreateProcess hard-caps the command line at 32 KB even when xargs tries
+    # to batch-split — `npm run lint:architecture` walks the whole Pipeline
+    # tree from a single argv path, identical analysis result.
+    ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
+    if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
+        log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
+        bg_gate "architecture" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
+    else
+        # Small staged set — pass the file list via xargs for per-file precision.
+        ARCH_LIST=$(mktemp)
+        echo "$ARCH_FILES" > "$ARCH_LIST"
+        bg_gate "architecture" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
+    fi
 else
-  log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
+    log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
 fi
 
 bg_gate "build"        bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
@@ -110,8 +110,8 @@ log "🧪 Phase 3a: Pipeline Infrastructure & Core Logic"
 npm run test:pipeline 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Pipeline Core tests or Coverage threshold FAILED"
-  exit 1
+    log "❌ Pipeline Core tests or Coverage threshold FAILED"
+    exit 1
 fi
 
 log ""
@@ -120,8 +120,8 @@ log "🧪 Phase 3b: Automated Bank Test Discovery"
 $JEST_CMD --testPathPatterns='Unit/Pipeline/bank/' 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ One or more Bank Unit Tests FAILED"
-  exit 1
+    log "❌ One or more Bank Unit Tests FAILED"
+    exit 1
 fi
 
 # ── Phase 4: Offline Mock Gate (snapshot-based replay, no network) ──
@@ -130,13 +130,24 @@ fi
 # in seconds — before we burn ~20 min of live E2E on a broken build.
 # Fails fast with stale-snapshot preflight if any snapshot is < 20 KB.
 log ""
-log "🎭 Phase 4: Mock replay (offline, all 7 banks)"
+log "🎭 Phase 4.1: Mock replay (offline, all 7 banks)"
 npm run test:mock -- --parallel=6 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Mock suite FAILED — fix before live E2E can even start"
-  exit 1
+    log "❌ Mock suite FAILED — fix before live E2E can even start"
+    exit 1
 fi
+
+
+
+log ""
+log "🎭 Phase 4.2: Mock factory mock"
+npm run test:e2e-factory-tests -- --parallel=6 2>&1 | tee -a "$LOG_FILE"
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log "❌ Mock factory mock FAILED — fix before live E2E can even start"
+    exit 1
+fi
+
 
 # ── Phase 4b: Jest E2eMocked Gate (route-mocked, full pipeline coverage) ──
 # Runs all src/Tests/E2eMocked/*.test.ts. This is what CI's `Validate` job
@@ -151,23 +162,28 @@ log "🎭 Phase 4b: Jest E2eMocked (route-mocked, parity with CI Validate)"
 npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Jest E2eMocked FAILED — same gate that was red on master for 24 days"
-  exit 1
+    log "❌ Jest E2eMocked FAILED — same gate that was red on master for 24 days"
+    exit 1
 fi
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
-log ""
-log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
-# Happy-path only — matches CI's e2e-real-group-a/b filter
-npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
+run-e2e-happy-path() {
+    log ""
+    log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
+    # Happy-path only — matches CI's e2e-real-group-a/b filter
+    npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
+    
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ Live E2E (happy-path) FAILED"
+        exit 1
+    fi
+    log ""
+    
+}
 
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Live E2E (happy-path) FAILED"
-  exit 1
-fi
+# run-e2e-happy-path
 
-log ""
 log "══════════════════════════════════════════════════════"
 log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
 log ""

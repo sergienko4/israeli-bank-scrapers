@@ -17,11 +17,14 @@ import {
   PIPELINE_WELL_KNOWN_HEADERS,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
+import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
-import { getNetworkDumpDir } from '../../Types/TraceConfig.js';
+import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
+import { discoverAccountsInPool } from '../Auth/AccountDiscovery.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
+import { createPromise } from '../Timing/TimingActions.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import { createAuthFailureWatcher, createFrozenAuthFailureWatcher } from './AuthFailureWatcher.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
@@ -128,7 +131,9 @@ interface IDumpArgs {
  * @returns Count of dumps so far.
  */
 function dumpResponseBody(args: IDumpArgs): number {
-  const dir = getNetworkDumpDir();
+  const phase = getActivePhase();
+  const stage = getActiveStage();
+  const dir = getSubStepNetworkDumpDir(phase, stage);
   // Always increment so `captureIndex` stays a stable per-process
   // counter even when trace artefacts aren't being written to disk —
   // the index is also the log-side correlation key.
@@ -190,9 +195,17 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
  * Handle a response event — parse and store if JSON API.
  * @param captured - Mutable array to store discovered endpoints.
  * @param response - Playwright response.
+ * @param isCollectionActive - Predicate gating capture storage so the
+ *   listener can stay attached for the whole run while the
+ *   discovery pool is silenced during pre-auth phases.
  * @returns True (always — fire-and-forget).
  */
-function handleResponse(captured: IDiscoveredEndpoint[], response: Response): boolean {
+function handleResponse(
+  captured: IDiscoveredEndpoint[],
+  response: Response,
+  isCollectionActive: () => boolean,
+): boolean {
+  if (!isCollectionActive()) return false;
   const url = response.url();
   const status = response.status();
   const method = response.request().method();
@@ -226,7 +239,12 @@ function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
 }
 
 /** Tier label emitted on the canonical `discover.shapeAware` event. */
-type ShapeAwareTier = 'none' | 'postWithShape' | 'replayablePost' | 'shapePassing' | 'urlFallback';
+type ShapeAwareTier =
+  | 'none'
+  | 'postWithShape'
+  | 'replayablePost'
+  | 'shapePassing'
+  | 'preClickFallback';
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.
@@ -258,54 +276,104 @@ function logShapeAwarePick(
   return true;
 }
 
+/** Bundled outcome of one tier-priority pass over a candidate pool. */
+interface ITierPickOutcome {
+  readonly endpoint: IDiscoveredEndpoint | false;
+  readonly tier: ShapeAwareTier;
+  readonly matches: number;
+}
+
 /**
- * Picks the best endpoint among URL matches, preferring a replayable
- * POST template (so MatrixLoop has data to iterate) over a preview GET
- * even when the captured POST body was empty (e.g. current cycle not
- * yet charged).
+ * Run the shape-aware tier preference over a single candidate pool
+ * (post-click or pre-click). Returns the chosen endpoint with its
+ * tier label, or `none` when the pool yields no usable URL.
  *
- * Emits one canonical `discover.shapeAware` event per call so the
+ * @param pool - Candidate captured endpoints to consider.
+ * @param patterns - WellKnown URL patterns to match.
+ * @returns Tiered pick outcome — endpoint and tier label.
+ */
+function tierPick(
+  pool: readonly IDiscoveredEndpoint[],
+  patterns: readonly RegExp[],
+): ITierPickOutcome {
+  const urlMatches = pool.filter((ep): boolean => patterns.some((p): boolean => p.test(ep.url)));
+  if (urlMatches.length === 0) return { endpoint: false, tier: 'none', matches: 0 };
+  const matches = urlMatches.length;
+  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
+  const postWithShape = shapePassing.find(isReplayablePost);
+  if (postWithShape) return { endpoint: postWithShape, tier: 'postWithShape', matches };
+  const anyReplayablePost = urlMatches.find(isReplayablePost);
+  if (anyReplayablePost) {
+    return { endpoint: anyReplayablePost, tier: 'replayablePost', matches };
+  }
+  if (shapePassing.length > 0) {
+    return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
+  }
+  return { endpoint: false, tier: 'none', matches };
+}
+
+/**
+ * Stamp the picker tier label and pre-click flag onto the chosen
+ * endpoint so DASHBOARD.FINAL's resolver can carry them onto
+ * `ITxnEndpointInternal`. Pure shape extension; preserves the rest
+ * of the captured fields.
+ *
+ * @param endpoint - Picked endpoint.
+ * @param tier - Tier label producing the pick.
+ * @param capturedPreClick - True when the pick came from the pre-click pool.
+ * @returns Endpoint with `pickerTier` + `capturedPreClick` populated.
+ */
+function stampTierMeta(
+  endpoint: IDiscoveredEndpoint,
+  tier: ShapeAwareTier,
+  capturedPreClick: boolean,
+): IDiscoveredEndpoint {
+  return { ...endpoint, pickerTier: tier, capturedPreClick };
+}
+
+/**
+ * Phase 7f — picks the best endpoint from the post-click pool first;
+ * when the post-click pool yields zero matches, falls back to the
+ * full captured pool with a `preClickFallback` tier label. The
+ * fallback covers Visacal-class banks where the real TRX URL fires
+ * at login-FINAL (before any dashboard click).
+ *
+ * <p>Emits one canonical `discover.shapeAware` event per call so the
  * picker's tier choice and selected URL are traceable from
  * `pipeline.log` alone. The `captureIndex` field on the log line
  * matches the on-disk filename prefix.
  *
- * @param captured - all captured endpoints.
+ * @param postNav - Post-click captured endpoints (preferred pool).
+ * @param fullPool - All captured endpoints (pre-click fallback).
  * @param patterns - WellKnown regex patterns.
- * @returns best endpoint, or false when no URL matches.
+ * @returns Best endpoint stamped with `pickerTier` + `capturedPreClick`,
+ *   or false when no pool yields a match.
  */
 function discoverShapeAware(
-  captured: readonly IDiscoveredEndpoint[],
+  postNav: readonly IDiscoveredEndpoint[],
+  fullPool: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
-  const urlMatches = captured.filter((ep): boolean =>
-    patterns.some((p): boolean => p.test(ep.url)),
-  );
-  if (urlMatches.length === 0) {
-    logShapeAwarePick('none', false, 0);
-    return false;
+  const postOutcome = tierPick(postNav, patterns);
+  if (postOutcome.endpoint !== false) {
+    const stamped = stampTierMeta(postOutcome.endpoint, postOutcome.tier, false);
+    logShapeAwarePick(postOutcome.tier, stamped, postOutcome.matches);
+    return stamped;
   }
-  const matches = urlMatches.length;
-  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
-  const postWithShape = shapePassing.find(isReplayablePost);
-  if (postWithShape) {
-    logShapeAwarePick('postWithShape', postWithShape, matches);
-    return postWithShape;
+  // Post-click pool yielded nothing — try the FULL pool. Any pre-click
+  // hit is logged as `preClickFallback` so a Visacal-class capture
+  // surfaces in telemetry as the documented exception.
+  const fullOutcome = tierPick(fullPool, patterns);
+  if (fullOutcome.endpoint !== false) {
+    const stamped = stampTierMeta(fullOutcome.endpoint, 'preClickFallback', true);
+    logShapeAwarePick('preClickFallback', stamped, fullOutcome.matches);
+    return stamped;
   }
-  // Replayable POST without shape — its response was empty for the
-  // captured card+month (e.g. current billing cycle not yet charged),
-  // but the body template still drives MatrixLoop replay.
-  const anyReplayablePost = urlMatches.find(isReplayablePost);
-  if (anyReplayablePost) {
-    logShapeAwarePick('replayablePost', anyReplayablePost, matches);
-    return anyReplayablePost;
-  }
-  if (shapePassing.length > 0) {
-    logShapeAwarePick('shapePassing', shapePassing[0], matches);
-    return shapePassing[0];
-  }
-  const fallback = urlMatches[0] ?? false;
-  logShapeAwarePick('urlFallback', fallback, matches);
-  return fallback;
+  // No shape-passing capture in either pool — surface as no-match.
+  // DASHBOARD.FINAL escalates to F-DASH-1 so the pipeline halts before
+  // SCRAPE inherits a URL whose body has zero transaction records.
+  logShapeAwarePick('none', false, fullOutcome.matches);
+  return false;
 }
 
 /**
@@ -395,10 +463,10 @@ function buildCoreMethods(
   };
 }
 
-/** Type alias for endpoint discovery methods. */
+/** Type alias for endpoint discovery methods (txn + balance only). */
 type EndpointMethods = Pick<
   INetworkDiscovery,
-  'discoverAccountsEndpoint' | 'discoverTransactionsEndpoint' | 'discoverBalanceEndpoint'
+  'discoverTransactionsEndpoint' | 'discoverBalanceEndpoint'
 >;
 
 /** Type alias for header discovery methods. */
@@ -415,11 +483,14 @@ type HeaderMethods = Pick<
 function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): EndpointMethods {
   return {
     /** @inheritdoc */
-    discoverAccountsEndpoint: (): IDiscoveredEndpoint | false =>
-      discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.accounts),
-    /** @inheritdoc */
     discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false =>
-      discoverShapeAware(captured, PIPELINE_WELL_KNOWN_API.transactions),
+      // Phase 7f: this base-table fallback is overridden by the live
+      // network's post-click-first picker; it stays here as a safe
+      // default for surfaces that do not own the post/pre-click
+      // bucket split (e.g. some test mocks). Walks the full pool with
+      // the same tier rules; the post-click vs pre-click distinction
+      // is irrelevant when only one pool is available.
+      discoverShapeAware(captured, captured, PIPELINE_WELL_KNOWN_API.transactions),
     /** @inheritdoc */
     discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
@@ -685,42 +756,6 @@ function discoverApiOriginFromTraffic(captured: readonly IDiscoveredEndpoint[]):
   return discoverApiFromPath(captured);
 }
 
-// ── Content-First Discovery ─────────────────────────────────
-
-/**
- * Check if a JSON body contains any of the given field names.
- * Stringifies the body and checks for key presence — lightweight, no BFS.
- * @param body - Parsed JSON response body.
- * @param fieldNames - WK field names to search for.
- * @returns True if any field name found as a JSON key.
- */
-function bodyHasFields(body: Record<string, string>, fieldNames: readonly string[]): boolean {
-  const json = JSON.stringify(body);
-  return fieldNames.some((f): boolean => json.includes(`"${f}"`));
-}
-
-/**
- * Content-First: find captured endpoint whose body contains WK field names.
- * Scans ALL captured JSON bodies — no URL matching needed.
- * @param captured - All captured endpoints.
- * @param fieldNames - WK field names (e.g. WK.accountId).
- * @returns First matching endpoint or false.
- */
-function discoverByContent(
-  captured: readonly IDiscoveredEndpoint[],
-  fieldNames: readonly string[],
-): IDiscoveredEndpoint | false {
-  const hit = captured.find((ep): boolean => {
-    if (!ep.responseBody) return false;
-    return bodyHasFields(ep.responseBody as Record<string, string>, fieldNames);
-  });
-  if (!hit) return false;
-  LOG.debug({
-    message: `Content discovery: found field in ${maskVisibleText(hit.url)}`,
-  });
-  return hit;
-}
-
 // ── Origin Utilities ────────────────────────────────────────
 
 /**
@@ -857,6 +892,88 @@ function findTrafficHit(
   return hit ?? false;
 }
 
+/** Poll interval for `waitForFirstId` (ms). */
+const WAIT_FOR_FIRST_ID_POLL_MS = 250;
+
+/**
+ * Returns the first capture in the pool that the strict 3-source
+ * predicate (`discoverAccountsInPool`) extracts an account id from.
+ * Returns `false` when no capture yields one. PURE — no side effects.
+ * @param pool - Captured endpoints to inspect.
+ * @returns First id-bearing endpoint or false.
+ */
+function findFirstIdBearing(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
+  if (pool.length === 0) return false;
+  const result = discoverAccountsInPool(pool);
+  if (result.endpoint === false) return false;
+  if (result.ids.length === 0) return false;
+  return result.endpoint;
+}
+
+/** Args bundle for the recursive id-wait poll. */
+interface IPollFirstIdArgs {
+  readonly captured: readonly IDiscoveredEndpoint[];
+  readonly deadline: number;
+}
+
+/**
+ * Wait one poll-interval tick. Uses `createPromise` (Reflect-built
+ * Promise) so the no-`new Promise` lint rule stays satisfied and the
+ * sleep-ban (`sleep()` keyword forbidden by the project lint set)
+ * doesn't apply to the local helper.
+ * @returns Resolved promise after `WAIT_FOR_FIRST_ID_POLL_MS` ms.
+ */
+function pollTick(): Promise<true> {
+  /**
+   * Schedule the resolve via setTimeout (callback returns true).
+   * @param resolve - Promise resolver.
+   * @returns True after the timer is armed.
+   */
+  const arm = (resolve: (value: true) => boolean): boolean => {
+    /**
+     * Timer callback — resolves the promise.
+     * @returns True to satisfy the typed resolver signature.
+     */
+    const fire = (): boolean => resolve(true);
+    globalThis.setTimeout(fire, WAIT_FOR_FIRST_ID_POLL_MS);
+    return true;
+  };
+  return createPromise<true>(arm);
+}
+
+/**
+ * Recursive poll for the first id-bearing capture — replaces the
+ * banned `while + await-in-loop` pattern. Each tick inspects the
+ * live capture array by reference; additions made by the page
+ * listener between ticks are visible on the next call.
+ * @param args - Captured pool (by reference) + absolute deadline ms.
+ * @returns First id-bearing endpoint or false on timeout.
+ */
+async function pollFirstId(args: IPollFirstIdArgs): Promise<IDiscoveredEndpoint | false> {
+  const hit = findFirstIdBearing(args.captured);
+  if (hit !== false) return hit;
+  if (Date.now() >= args.deadline) return false;
+  await pollTick();
+  return pollFirstId(args);
+}
+
+/**
+ * Block until `findFirstIdBearing(captured)` yields a match or the
+ * budget elapses. Captures are inspected by reference so additions
+ * made by the page listener while we sleep are visible on the next
+ * iteration.
+ * @param captured - Live capture array (read by reference each tick).
+ * @param timeoutMs - Max wait budget in ms.
+ * @returns First id-bearing endpoint or false on timeout.
+ */
+function awaitFirstId(
+  captured: readonly IDiscoveredEndpoint[],
+  timeoutMs: number,
+): Promise<IDiscoveredEndpoint | false> {
+  const deadline = Date.now() + timeoutMs;
+  return pollFirstId({ captured, deadline });
+}
+
 /** Bundled args for traffic waiting. */
 interface ITrafficWaitArgs {
   readonly page: Page;
@@ -954,10 +1071,140 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): bo
  * @param page - Playwright page to observe.
  * @returns Network discovery interface.
  */
+/**
+ * Mutable click-at slot — the only piece of state shared between
+ * DASHBOARD.ACTION (writes) and DASHBOARD.FINAL / SCRAPE.PRE
+ * (reads). Encapsulated in an interface so the closure that owns
+ * it can hand the same handle to multiple builders.
+ */
+interface IDashboardClickState {
+  readonly mark: (timestampMs: number) => true;
+  readonly read: () => number | false;
+}
+
+/**
+ * Build the dashboard-click marker + reader pair backed by a single
+ * mutable cell. Bank-agnostic — the timestamp is just a number.
+ * @param initial - Initial value (false means "no click yet").
+ * @returns Mark + read accessors.
+ */
+function buildDashboardClickState(initial: number | false): IDashboardClickState {
+  let value: number | false = initial;
+  /**
+   * Set the dashboard-click timestamp on the closure cell.
+   * @param timestampMs - Click timestamp.
+   * @returns True after writing.
+   */
+  const mark = (timestampMs: number): true => {
+    value = timestampMs;
+    return true;
+  };
+  /**
+   * Read the dashboard-click timestamp from the closure cell.
+   * @returns Click timestamp or false when not yet set.
+   */
+  const read = (): number | false => value;
+  return { mark, read };
+}
+
+/**
+ * Mutable state pair for the live recording gate — the writer
+ * (`flip`) is what the lifecycle interceptor calls between phases;
+ * the reader (`read`) is consulted on every captured response so the
+ * page listener can short-circuit during pre-auth phases without
+ * tearing the listener down.
+ */
+interface ICollectionState {
+  readonly flip: (active: boolean) => true;
+  readonly read: () => boolean;
+}
+
+/**
+ * Build the recording-gate accessors backed by a single mutable cell.
+ * Default `true` preserves legacy behaviour for any caller that never
+ * gates the network (API-direct banks, tests).
+ * @param initial - Initial recording state.
+ * @returns Flip + read accessors.
+ */
+function buildCollectionState(initial: boolean): ICollectionState {
+  let isActive = initial;
+  /**
+   * Apply the recording state to the closure cell.
+   * @param active - True to record captures.
+   * @returns True after writing.
+   */
+  const flip = (active: boolean): true => {
+    isActive = active;
+    return true;
+  };
+  /**
+   * Read the recording state from the closure cell.
+   * @returns True when captures should be stored.
+   */
+  const read = (): boolean => isActive;
+  return { flip, read };
+}
+
+/**
+ * Build the click-aware capture-bucketing helpers shared by live and
+ * frozen networks. The split is timestamp-driven when a dashboard
+ * click has been dispatched (`markDashboardClickAt`); when no click
+ * was issued — Visacal-class banks where login-FINAL already lands
+ * the dashboard data, no SPA navigation needed — both buckets fall
+ * back to the full captured pool. The full-pool fallback restores
+ * symmetry with `getPreNavCaptures` (which already widens to full
+ * when no click) and lets {@link discoverShapeAware} see the txn
+ * URLs the bank fired during login-FINAL.
+ * @param captured - Captures array (live or frozen).
+ * @param clickState - Shared click-at state.
+ * @returns Bucketing accessors for the INetworkDiscovery contract.
+ */
+function buildBucketingMethods(
+  captured: readonly IDiscoveredEndpoint[],
+  clickState: IDashboardClickState,
+): Pick<
+  INetworkDiscovery,
+  'markDashboardClickAt' | 'getDashboardClickAt' | 'getPreNavCaptures' | 'getPostNavCaptures'
+> {
+  return {
+    /** @inheritdoc */
+    markDashboardClickAt: clickState.mark,
+    /** @inheritdoc */
+    getDashboardClickAt: clickState.read,
+    /** @inheritdoc */
+    getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => {
+      const clickAt = clickState.read();
+      if (clickAt === false) return captured;
+      return captured.filter((ep): boolean => ep.timestamp < clickAt);
+    },
+    /** @inheritdoc */
+    getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => {
+      const clickAt = clickState.read();
+      if (clickAt === false) return captured;
+      return captured.filter((ep): boolean => ep.timestamp >= clickAt);
+    },
+  };
+}
+
+/**
+ * Build the live INetworkDiscovery instance bound to a Playwright Page.
+ * Captures responses, exposes WK-pattern discovery, and tracks the
+ * dashboard-click moment so DASHBOARD.FINAL / SCRAPE.PRE can split
+ * captures into pre-nav and post-nav buckets.
+ * @param page - Playwright page to capture responses from.
+ * @returns The live network-discovery instance.
+ */
 function createNetworkDiscovery(page: Page): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
-  page.on('response', (r: Response): boolean => handleResponse(captured, r));
+  const collectionState = buildCollectionState(true);
+  page.on('response', (r: Response): boolean => handleResponse(captured, r, collectionState.read));
   interceptPostResponses(page, captured);
+  const clickState = buildDashboardClickState(false);
+  const bucketing = buildBucketingMethods(captured, clickState);
+  const lifecycle = {
+    /** @inheritdoc */
+    setCollectionActive: collectionState.flip,
+  };
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);
   const originDiscover = {
@@ -984,6 +1231,9 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
     /** @inheritdoc */
     waitForTransactionsTraffic: (timeoutMs: number): Promise<IDiscoveredEndpoint | false> =>
       awaitTraffic({ page, captured, patterns: PIPELINE_WELL_KNOWN_API.transactions }, timeoutMs),
+    /** @inheritdoc */
+    waitForFirstId: (timeoutMs: number): Promise<IDiscoveredEndpoint | false> =>
+      awaitFirstId(captured, timeoutMs),
   };
   const authState = { cached: false as string | false, discovered: false };
   /**
@@ -1033,18 +1283,43 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
     /** @inheritdoc */
     discoverApiOrigin: (): string | false => discoverApiOriginFromTraffic(captured),
   };
-  const contentScan = {
-    /** @inheritdoc */
-    discoverEndpointByContent: (fieldNames: readonly string[]): IDiscoveredEndpoint | false =>
-      discoverByContent(captured, fieldNames),
-  };
   // Generic auth-failure watcher attached to the live page. The LoginPhase
   // owns the lifecycle: it consumes the watcher in POST and disposes it
   // before later phases run. See AuthFailureWatcher.ts for layer details.
   const authFailureWatcher = createAuthFailureWatcher(page);
   const failureGate = { authFailureWatcher };
+  /**
+   * Phase 7f — pick the txn endpoint from the post-click pool first,
+   * then fall back to the full captured pool when the post-click pool
+   * is empty. Discount-class banks click "All Transactions" and the
+   * real txn URL fires after the click — strict post-click discipline
+   * keeps preview-widget URLs (Discount's `/forHomePage`) out of the
+   * picker. Visacal-class banks fire `/getFilteredTransactions` at
+   * login-FINAL (before any click); the fall-back tier
+   * `preClickFallback` recovers those without compromising the
+   * discipline elsewhere.
+   * @returns Discovered txn endpoint stamped with `pickerTier` +
+   *   `capturedPreClick`, or false.
+   */
+  const discoverTxnPostClickFirst = (): IDiscoveredEndpoint | false => {
+    const postNav = bucketing.getPostNavCaptures();
+    return discoverShapeAware(postNav, captured, PIPELINE_WELL_KNOWN_API.transactions);
+  };
+  const txnDiscovery = {
+    /** @inheritdoc */
+    discoverTransactionsEndpoint: discoverTxnPostClickFirst,
+  };
   const base = { ...core, ...endpoints, ...originDiscover, ...urlBuilders };
-  return { ...base, ...traffic, ...authCache, ...apiOrigin, ...contentScan, ...failureGate };
+  return {
+    ...base,
+    ...bucketing,
+    ...lifecycle,
+    ...txnDiscovery,
+    ...traffic,
+    ...authCache,
+    ...apiOrigin,
+    ...failureGate,
+  };
 }
 
 /**
@@ -1052,15 +1327,24 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
  * All discovery methods operate on the frozen captured array — no live Page.
  * Auth methods return the pre-cached token. Traffic polling returns false.
  * Used by SCRAPE.ACTION to execute without browser access.
+ *
  * @param endpoints - Frozen copy of captured endpoints from PRE.
  * @param cachedAuth - Pre-cached auth token from DASHBOARD.
+ * @param dashboardClickAt - Click timestamp inherited from the live
+ *   network at freeze time. `false` for tests / synthetic frozen
+ *   replays — bucketing methods then expose the full pool, which is
+ *   the safe default when no nav-click occurred. SCRAPE.PRE callers
+ *   should always pass the real value through `IScrapeDiscovery`.
  * @returns Frozen INetworkDiscovery.
  */
 function createFrozenNetwork(
   endpoints: readonly IDiscoveredEndpoint[],
   cachedAuth: string | false,
+  dashboardClickAt: number | false = false,
 ): INetworkDiscovery {
   const frozen = [...endpoints];
+  const clickState = buildDashboardClickState(dashboardClickAt);
+  const bucketing = buildBucketingMethods(frozen, clickState);
   const core = buildCoreMethods(frozen);
   const epMethods = buildEndpointMethods(frozen);
   const frozenHeaders = buildFrozenHeaders(frozen, cachedAuth);
@@ -1077,20 +1361,53 @@ function createFrozenNetwork(
     waitForTraffic: (): Promise<IDiscoveredEndpoint | false> => Promise.resolve(false),
     /** @inheritdoc */
     waitForTransactionsTraffic: (): Promise<IDiscoveredEndpoint | false> => Promise.resolve(false),
+    /** @inheritdoc */
+    waitForFirstId: (): Promise<IDiscoveredEndpoint | false> => {
+      const hit = findFirstIdBearing(frozen);
+      return Promise.resolve(hit);
+    },
   };
   const apiOrigin = {
     /** @inheritdoc */
     discoverApiOrigin: (): string | false => discoverApiOriginFromTraffic(frozen),
   };
-  const contentScan = {
-    /** @inheritdoc */
-    discoverEndpointByContent: (fieldNames: readonly string[]): IDiscoveredEndpoint | false =>
-      discoverByContent(frozen, fieldNames),
-  };
   // Frozen-network has no live Page, so the watcher is a no-op stub.
   const failureGate = { authFailureWatcher: createFrozenAuthFailureWatcher() };
+  /**
+   * Phase 7f — frozen replay applies the same post-click-first
+   * discipline as the live network. The frozen bucketing surface
+   * exposes `getPostNavCaptures()` filtered by the `dashboardClickAt`
+   * timestamp captured at freeze time; the picker walks that pool
+   * first and falls back to the FULL frozen pool when post-click
+   * yields nothing. Visacal-class banks recover via the
+   * `preClickFallback` tier, just as in the live picker.
+   * @returns Discovered txn endpoint or false.
+   */
+  const discoverTxnFromFrozenPool = (): IDiscoveredEndpoint | false => {
+    const postNav = bucketing.getPostNavCaptures();
+    return discoverShapeAware(postNav, frozen, PIPELINE_WELL_KNOWN_API.transactions);
+  };
+  const txnDiscovery = {
+    /** @inheritdoc */
+    discoverTransactionsEndpoint: discoverTxnFromFrozenPool,
+  };
+  // Frozen replays have no listener, so the lifecycle gate is a
+  // no-op — accepting the call lets callers stay live-vs-frozen
+  // agnostic without runtime branching.
+  const lifecycle = {
+    /** @inheritdoc */
+    setCollectionActive: (): true => true,
+  };
   const base = { ...core, ...epMethods, ...frozenHeaders, ...urlBuilders };
-  return { ...base, ...frozenTraffic, ...apiOrigin, ...contentScan, ...failureGate };
+  return {
+    ...base,
+    ...bucketing,
+    ...lifecycle,
+    ...txnDiscovery,
+    ...frozenTraffic,
+    ...apiOrigin,
+    ...failureGate,
+  };
 }
 
 /**

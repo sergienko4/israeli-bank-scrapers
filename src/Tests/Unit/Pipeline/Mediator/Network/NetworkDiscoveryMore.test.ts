@@ -59,28 +59,7 @@ describe('NetworkDiscovery cache auth hit path', () => {
   });
 });
 
-describe('NetworkDiscovery account/txn endpoints', () => {
-  it('discoverAccountsEndpoint matches accounts URL pattern', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({ url: 'https://api.bank.co.il/gatewayAPI/accounts', body: { items: [] } });
-    const ep = discovery.discoverAccountsEndpoint();
-    expect(ep === false || typeof ep === 'object').toBe(true);
-  });
-
-  it('discoverAccountsEndpoint matches GetCardList URL (Amex/Isracard family)', async () => {
-    const page = makePage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({
-      url: 'https://web.americanexpress.co.il/ocp/transactions/DigitalV3.Transactions/GetCardList',
-      method: 'POST',
-      body: { data: { cardsList: [{ cardSuffix: '8912' }] } },
-    });
-    const ep = discovery.discoverAccountsEndpoint();
-    expect(ep).not.toBe(false);
-    if (ep) expect(ep.url).toContain('GetCardList');
-  });
-
+describe('NetworkDiscovery txn/balance endpoints', () => {
   it('discoverBalanceEndpoint matches balance URL pattern', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
@@ -92,6 +71,10 @@ describe('NetworkDiscovery account/txn endpoints', () => {
   it('discoverTransactionsEndpoint prefers POST over GET when both pass shape gate', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
+    // Strict SRP: txn discovery requires post-nav captures. Mark a
+    // click at t=0 so every simulated capture (Date.now() based)
+    // lands in the post-nav bucket.
+    discovery.markDashboardClickAt(0);
     // GET preview captured first, POST template captured second; both
     // match /getTransactions/i and both pass shape gate.
     await simulate({
@@ -121,6 +104,7 @@ describe('NetworkDiscovery account/txn endpoints', () => {
   it('discoverTransactionsEndpoint accepts replayable POST even with empty body', async () => {
     const page = makePage();
     const discovery = createNetworkDiscovery(page);
+    discovery.markDashboardClickAt(0);
     // GET preview is the only thing passing shape gate; POST returned
     // empty (current cycle not yet charged) but is still replayable.
     await simulate({

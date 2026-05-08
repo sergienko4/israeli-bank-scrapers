@@ -3,6 +3,7 @@
  * Step resolvers in StepResolvers.ts.
  */
 
+import { createAccountResolvePhase } from '../../Phases/AccountResolve/AccountResolvePhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../../Phases/Init/InitPhase.js';
@@ -40,6 +41,20 @@ function buildOtpPhases(state: IBuilderState): readonly BasePhase[] {
 }
 
 /**
+ * Build the ACCOUNT-RESOLVE phase — auto-bound for every browser bank.
+ * Single source of truth for `ctx.accountDiscovery`; the LOGIN /
+ * OTP-FILL FINALs are pure auth-signal probes after Phase 7. Empty
+ * array for headless / api-direct pipelines (no browser → no captures
+ * to inspect).
+ * @param state - Builder state.
+ * @returns ACCOUNT-RESOLVE phase array (0 or 1 element).
+ */
+function buildAccountResolvePhase(state: IBuilderState): readonly BasePhase[] {
+  if (!state.hasBrowser) return [];
+  return [createAccountResolvePhase()];
+}
+
+/**
  * Build dashboard phase if browser is enabled.
  * @param state - Builder state.
  * @returns Dashboard phase array (0 or 1 element).
@@ -62,12 +77,20 @@ function buildScrapePhaseArr(state: IBuilderState): readonly BasePhase[] {
 }
 
 /**
- * Build optional phases (otp, dashboard, scrape).
+ * Build optional phases (otp, account-resolve, dashboard, scrape).
+ * ACCOUNT-RESOLVE sits AFTER auth (LOGIN or OTP-FILL) and BEFORE
+ * DASHBOARD so the dashboard click never fires before account ids
+ * are committed to context.
  * @param state - Builder state.
  * @returns Optional phases array.
  */
 function optionalPhases(state: IBuilderState): readonly BasePhase[] {
-  return [...buildOtpPhases(state), ...buildDashPhase(state), ...buildScrapePhaseArr(state)];
+  return [
+    ...buildOtpPhases(state),
+    ...buildAccountResolvePhase(state),
+    ...buildDashPhase(state),
+    ...buildScrapePhaseArr(state),
+  ];
 }
 
 /**

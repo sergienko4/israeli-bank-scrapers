@@ -132,11 +132,16 @@ const MAX_VISIBLE_TEXT_LENGTH = 30;
 
 /**
  * Mask visible text for log safety — truncate to MAX_VISIBLE_TEXT_LENGTH.
+ * Honours `PII_REDACTION=off` for local-dev debugging: when the env
+ * flag explicitly disables redaction, the length cap is bypassed too,
+ * so logs show full URLs / values verbatim. Production / CI run
+ * without the flag and keep the 30-char cap intact.
  * @param text - Raw text to mask.
- * @returns Truncated text branded as MaskedText.
+ * @returns Truncated (or full) text branded as MaskedText.
  */
 function maskVisibleText(text: string): MaskedText {
   const trimmed = text.trim();
+  if (process.env.PII_REDACTION === 'off') return trimmed as MaskedText;
   if (trimmed.length <= MAX_VISIBLE_TEXT_LENGTH) return trimmed as MaskedText;
   return (trimmed.slice(0, MAX_VISIBLE_TEXT_LENGTH) + '...') as MaskedText;
 }

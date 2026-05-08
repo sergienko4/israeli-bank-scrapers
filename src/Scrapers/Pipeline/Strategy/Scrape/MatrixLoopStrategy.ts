@@ -7,9 +7,9 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import {
   buildMonthBody,
-  extractTransactions,
   generateMonthChunks,
   isMonthlyEndpoint,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
@@ -20,7 +20,11 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildAccountResult, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
 import { withTrace } from './ScrapeTraceWrapper.js';
-import type { IAccountAssemblyCtx, IAccountFetchCtx } from './ScrapeTypes.js';
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountAssemblyCtx,
+  type IAccountFetchCtx,
+} from './ScrapeTypes.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -82,7 +86,8 @@ async function fetchMatrixChunk(
     const patchedUrl = applyDateRangeToUrl(ctx.txnUrl, chunkDate, monthEnd);
     const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
     if (!isOk(raw)) return [];
-    return extractTransactions(raw.value);
+    const fieldMap = (ctx.args.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
+    return parseFreshResponse(raw.value, fieldMap);
   };
   return withTrace(ctx.args.accountId, month, fetch);
 }
@@ -99,11 +104,16 @@ async function fetchMatrixChunk(
 async function tryMatrixLoop(
   args: IMatrixLoopArgs,
 ): Promise<Procedure<ITransactionsAccount> | false> {
-  const txnEndpoint = args.fc.network.discoverTransactionsEndpoint();
-  if (!txnEndpoint) return false;
-  if (!txnEndpoint.postData) return false;
-  if (!isMonthlyEndpoint(txnEndpoint.postData)) return false;
-  const postDataLen = txnEndpoint.postData.length;
+  // Phase 7f: SCRAPE consumes the slim ITxnEndpoint DASHBOARD.FINAL
+  // committed via ctx.txnEndpoint (plumbed onto fc by SCRAPE.PRE).
+  // No network discovery here. `templatePostData` is the typed slim
+  // field; `false` means GET method (matrix loop is POST-only).
+  const txnEndpoint = args.fc.txnEndpoint;
+  if (!txnEndpoint || txnEndpoint.url === '') return false;
+  const template = txnEndpoint.templatePostData;
+  if (template === false || template === '') return false;
+  if (!isMonthlyEndpoint(template)) return false;
+  const postDataLen = template.length;
   LOG.debug({
     message:
       `MatrixLoop: activated — url=${maskVisibleText(txnEndpoint.url)} ` +
@@ -114,7 +124,7 @@ async function tryMatrixLoop(
   LOG.debug({
     message: `MatrixLoop: chunks=${String(chunks.length)} startDate=${args.fc.startDate}`,
   });
-  const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template: txnEndpoint.postData };
+  const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template };
   const allTxns: ITransaction[] = [];
   const seed = Promise.resolve(true as const);
   const chain = chunks.reduce(

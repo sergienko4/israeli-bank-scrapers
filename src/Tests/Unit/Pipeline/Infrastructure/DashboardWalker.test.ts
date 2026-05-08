@@ -279,11 +279,17 @@ describe('DASHBOARD ACTION walker — restoreUrlIfChanged (goback)', () => {
 });
 
 describe('DASHBOARD ACTION walker — diagnostic guards', () => {
-  it('returns input unchanged when dashboardTrafficExists is true (skip click)', async () => {
+  it('still clicks the resolved target when dashboardTrafficExists is true (post-nav API trigger)', async () => {
+    // Phase 7f follow-up: pre-existing "traffic exists -- skip click"
+    // fast path was bank-incorrect for Amex/Isracard whose login-time
+    // GetLatestTransactions returns a 5-cap PREVIEW shape. The real
+    // historical API only fires post-click. This test pins the new
+    // contract: even when traffic exists, the click happens so the
+    // picker sees the post-nav capture.
     let clicks = 0;
     const executor = makeMockActionExecutor({
       /**
-       * Should never be called.
+       * Counts each click so the test can assert the click happened.
        * @returns Resolved true.
        */
       clickElement: (): Promise<true> => {
@@ -300,7 +306,7 @@ describe('DASHBOARD ACTION walker — diagnostic guards', () => {
           dashboardTrafficExists: true,
           dashboardTarget: TARGET,
           dashboardFallbackSelector: FALLBACK,
-          dashboardCandidateCount: 2,
+          dashboardCandidateCount: 1,
         },
       },
       executor,
@@ -308,7 +314,7 @@ describe('DASHBOARD ACTION walker — diagnostic guards', () => {
     const result = await executeDashboardNavigationSealed(ctx);
     const isOk8 = isOk(result);
     expect(isOk8).toBe(true);
-    expect(clicks).toBe(0);
+    expect(clicks).toBeGreaterThan(0);
   });
 });
 

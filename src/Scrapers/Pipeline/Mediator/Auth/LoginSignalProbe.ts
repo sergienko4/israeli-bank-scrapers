@@ -1,6 +1,11 @@
 /**
  * Login signal probe — cookie audit + dashboard REVEAL via mediator.
  * Proves login succeeded by checking session cookies and dashboard state.
+ *
+ * Phase 7 (2026-05-07) moved account discovery + readiness gating into
+ * the dedicated ACCOUNT-RESOLVE phase. This probe is now a pure
+ * auth-signal step: cookie count > 0 AND dashboard markers visible.
+ * It never inspects the network pool for account ids.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -39,8 +44,9 @@ async function auditCookies(
 }
 
 /**
- * Execute LOGIN.SIGNAL: cookie audit + REVEAL probe. After the .ashx
- * removal, every bank flows through the DIRECT path — no PROXY branch.
+ * Execute LOGIN.SIGNAL: cookie audit + REVEAL probe. After Phase 7
+ * the account-discovery work moved to the dedicated ACCOUNT-RESOLVE
+ * phase, so this probe is a pure auth-signal step.
  * @param input - Pipeline context.
  * @returns Succeed with diagnostics or fail if no session.
  */

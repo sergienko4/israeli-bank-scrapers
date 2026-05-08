@@ -46,18 +46,26 @@ describe('DISCOUNT_LOGIN', () => {
 });
 
 describe('buildDiscountPipeline', () => {
-  it('returns descriptor with 6 phases (no pre-login)', () => {
+  it('returns descriptor with 7 phases (no pre-login; Phase 7 inserted account-resolve)', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(6);
+    expect(descriptor.phases).toHaveLength(7);
   });
 
-  it('phase names are init, home, login, dashboard, scrape, terminate', () => {
+  it('phase names: init, home, login, account-resolve, dashboard, scrape, terminate', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
     const names = descriptor.phases.map(p => p.name);
-    expect(names).toEqual(['init', 'home', 'login', 'dashboard', 'scrape', 'terminate']);
+    expect(names).toEqual([
+      'init',
+      'home',
+      'login',
+      'account-resolve',
+      'dashboard',
+      'scrape',
+      'terminate',
+    ]);
   });
 });

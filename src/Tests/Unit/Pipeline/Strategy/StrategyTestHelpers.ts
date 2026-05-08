@@ -9,7 +9,10 @@ import type {
   INetworkDiscovery,
 } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IAccountFetchCtx } from '../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
-import type { IApiFetchContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IApiFetchContext,
+  ITxnEndpoint,
+} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -74,12 +77,6 @@ export function makeNetwork(overrides: Partial<INetworkDiscovery> = {}): INetwor
      *
      * @returns Result.
      */
-    discoverAccountsEndpoint: (): false => false,
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
     discoverTransactionsEndpoint: (): false => false,
     /**
      * Test helper.
@@ -134,12 +131,6 @@ export function makeNetwork(overrides: Partial<INetworkDiscovery> = {}): INetwor
      *
      * @returns Result.
      */
-    discoverEndpointByContent: (): false => false,
-    /**
-     * Test helper.
-     *
-     * @returns Result.
-     */
     discoverApiOrigin: (): false => false,
     /**
      * Test helper.
@@ -174,7 +165,6 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
       const failResult = fail(ScraperErrorTypes.Generic, 'no-stub');
       return Promise.resolve(failResult);
     },
-    accountsUrl: false as const,
     transactionsUrl: false as const,
     balanceUrl: false as const,
     pendingUrl: false as const,
@@ -183,19 +173,79 @@ export function makeApi(overrides: Partial<IApiFetchContext> = {}): IApiFetchCon
   return { ...base, ...overrides };
 }
 
+/** Optional extras for {@link makeFc}. */
+interface IMakeFcOpts {
+  readonly startDate?: string;
+  /**
+   * Phase 7f: tests now supply the slim {@link ITxnEndpoint} the SCRAPE
+   * pipeline expects. Legacy callers passed `IDiscoveredEndpoint` or
+   * `false`; both are normalised to the EMPTY default here. Tests that
+   * exercise endpoint-driven branches override with the slim shape.
+   */
+  readonly txnEndpoint?: ITxnEndpoint | IDiscoveredEndpoint | false;
+}
+
+/** Default empty TXN endpoint for tests that don't exercise the field. */
+const EMPTY_TEST_TXN_ENDPOINT: ITxnEndpoint = {
+  url: '',
+  method: 'GET',
+  templatePostData: false,
+  fieldMap: {
+    date: '',
+    amount: '',
+    description: '',
+    currency: '',
+    identifier: '',
+    originalAmount: false,
+    processedDate: false,
+    balance: false,
+  },
+  pendingUrl: false,
+  billingUrl: false,
+};
+
 /**
- * Build an IAccountFetchCtx using provided stubs.
+ * Adapt a test-supplied endpoint into the slim {@link ITxnEndpoint}
+ * shape. Accepts either the slim type (passed through) or the legacy
+ * `IDiscoveredEndpoint` (only `url`, `method`, `postData` carry over).
+ * `false` and `undefined` collapse to the EMPTY default.
+ *
+ * @param raw - Test-supplied endpoint.
+ * @returns Slim TXN endpoint suitable for IAccountFetchCtx.
+ */
+function adaptTestTxnEndpoint(raw: ITxnEndpoint | IDiscoveredEndpoint | false): ITxnEndpoint {
+  if (raw === false) return EMPTY_TEST_TXN_ENDPOINT;
+  if ('fieldMap' in raw) return raw;
+  return {
+    ...EMPTY_TEST_TXN_ENDPOINT,
+    url: raw.url,
+    method: raw.method === 'PUT' ? 'GET' : raw.method,
+    templatePostData: raw.postData || false,
+  };
+}
+
+/**
+ * Build an IAccountFetchCtx using provided stubs. Phase 7f: the
+ * fetch context carries the slim {@link ITxnEndpoint} the SCRAPE
+ * strategies consume directly. Legacy `IDiscoveredEndpoint` mocks
+ * passed via `opts.txnEndpoint` are adapted automatically.
+ *
  * @param api - API stub.
  * @param network - Network stub.
- * @param startDate - Start date (YYYYMMDD).
+ * @param opts - Optional startDate / txnEndpoint overrides.
  * @returns Fetch context.
  */
 export function makeFc(
   api: IApiFetchContext,
   network: INetworkDiscovery,
-  startDate = '20260101',
+  opts: IMakeFcOpts = {},
 ): IAccountFetchCtx {
-  return { api, network, startDate };
+  return {
+    api,
+    network,
+    startDate: opts.startDate ?? '20260101',
+    txnEndpoint: adaptTestTxnEndpoint(opts.txnEndpoint ?? false),
+  };
 }
 
 /**

@@ -76,6 +76,26 @@ function makeMediator(opts: IMockMediatorOpts): IElementMediator {
        * @returns Mock proxy.
        */
       discoverProxyEndpoint: (): string | false => opts.proxy,
+      /**
+       * waitForTraffic — fast no-match so LOGIN.FINAL flows past the
+       * shared discovery handler immediately. Tests that need a
+       * specific match override this in their own stub.
+       * @returns Resolved false.
+       */
+      waitForTraffic: (): Promise<false> => Promise.resolve(false),
+      /**
+       * Empty pre-nav so PreNavReadiness skips (gate-not-yet-on path).
+       * Tests that exercise the readiness FAIL path supply their own
+       * mock with non-empty captures.
+       * @returns Empty array.
+       */
+      getPreNavCaptures: (): readonly [] => [],
+      /**
+       * Empty endpoint pool so PreNavReadiness sees zero captures →
+       * skip enforcement.
+       * @returns Empty array.
+       */
+      getAllEndpoints: (): readonly [] => [],
     },
   } as unknown as IElementMediator;
 }
@@ -143,6 +163,41 @@ describe('executeLoginSignal', () => {
     });
     const result = await executeLoginSignal(ctx);
     // Cookie count > 0 → succeeds even though waitForNetworkIdle rejected
+    expect(result.success).toBe(true);
+  });
+
+  it('succeeds with cookies present even when pre-nav lacks account container', async () => {
+    // Phase 7 (2026-05-07) moved the account-container readiness check
+    // out of LoginSignalProbe into the dedicated ACCOUNT-RESOLVE phase.
+    // LOGIN.FINAL is now a pure auth-signal probe — pre-nav shape is
+    // irrelevant here; AccountResolveActions.test.ts owns the failure
+    // mode.
+    const cookies = [{ name: 'SID', domain: 'bank.co.il', value: 'abc' }];
+    const baseMediator = makeMediator({ cookies, auth: false, proxy: false });
+    const mediator = {
+      ...baseMediator,
+      network: {
+        ...(baseMediator.network as object),
+        /**
+         * Non-empty pre-nav with body that doesn't expose an account
+         * container — irrelevant after Phase 7.
+         * @returns Single capture with unrelated body.
+         */
+        getPreNavCaptures: (): readonly { responseBody: unknown }[] => [
+          { responseBody: { unrelated: true } },
+        ],
+        /**
+         * Non-zero endpoint count.
+         * @returns Single endpoint.
+         */
+        getAllEndpoints: (): readonly object[] => [{ responseBody: { unrelated: true } }],
+      },
+    } as unknown as IElementMediator;
+    const ctx = makeMockContext({
+      login: { has: true, value: {} } as IPipelineContext['login'],
+      mediator: { has: true, value: mediator } as IPipelineContext['mediator'],
+    });
+    const result = await executeLoginSignal(ctx);
     expect(result.success).toBe(true);
   });
 

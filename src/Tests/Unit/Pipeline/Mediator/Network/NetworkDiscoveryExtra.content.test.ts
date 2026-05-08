@@ -2,47 +2,8 @@
  * NetworkDiscoveryExtra — content scan + discoverApiOrigin + SPA filters (split).
  */
 
-import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
-import {
-  createFrozenNetwork,
-  createNetworkDiscovery,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
+import { createNetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { makeMockPage, simulate } from './NetworkDiscoveryExtraHelpers.js';
-
-describe('NetworkDiscovery — content scan branches', () => {
-  it('bodyHasFields returns false for endpoint missing responseBody', async () => {
-    await Promise.resolve();
-    const endpoints: IDiscoveredEndpoint[] = [
-      {
-        url: 'https://api.bank.co.il/x',
-        method: 'GET',
-        postData: '',
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        responseBody: 0,
-        timestamp: 0,
-      },
-    ];
-    const frozen = createFrozenNetwork(endpoints, false);
-    // responseBody is 0 → !ep.responseBody → skip
-    const discoverEndpointByContentResult25 = frozen.discoverEndpointByContent(['foo']);
-    expect(discoverEndpointByContentResult25).toBe(false);
-  });
-
-  it('discoverEndpointByContent finds body containing field name as JSON key', async () => {
-    const page = makeMockPage();
-    const discovery = createNetworkDiscovery(page);
-    await simulate({
-      url: 'https://api.bank.co.il/a',
-      body: { someField: 'value', otherField: 123 },
-    });
-    const discoverEndpointByContentResult26 = discovery.discoverEndpointByContent(['someField']);
-    expect(discoverEndpointByContentResult26).not.toBe(false);
-    const discoverEndpointByContentResult27 = discovery.discoverEndpointByContent(['notPresent']);
-    expect(discoverEndpointByContentResult27).toBe(false);
-  });
-});
 
 describe('NetworkDiscovery — discoverApiOrigin tier fallbacks', () => {
   it('Tier 1 (config body) wins when URL contains settings', async () => {

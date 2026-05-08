@@ -11,20 +11,23 @@
 import moment from 'moment';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { harvestAccountsFromStorage } from '../../Mediator/Scrape/AccountBootstrap.js';
 import {
-  applyCredentialFallback,
-  buildLoadAllCtx,
-  discoverAndLoadAccounts,
+  buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
-import type { IAccountFetchCtx, IFetchAllAccountsCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
+import { EMPTY_TXN_ENDPOINT, type IAccountFetchCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
-import { type IActionContext, type IPipelineContext } from '../../Types/PipelineContext.js';
-import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
+import {
+  type IActionContext,
+  type IDashboardTxnHarvest,
+  type IPipelineContext,
+  type ITxnEndpoint,
+} from '../../Types/PipelineContext.js';
+import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { triggerDashboardUi } from '../Dashboard/DashboardTrigger.js';
+import { EMPTY_TXN_HARVEST } from '../Dashboard/TxnParser.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
 import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
 
@@ -55,6 +58,84 @@ async function maybeForensicPrime(input: IPipelineContext): Promise<Procedure<bo
   return triggerDashboardUi(input.mediator.value, input.logger);
 }
 
+/** Pre-discovered account list bundle (or empty when missing). */
+interface IPreDiscoveredAccounts {
+  readonly ids: readonly string[];
+  readonly records: readonly Record<string, unknown>[];
+}
+
+/**
+ * Reads the account list ACCOUNT-RESOLVE.POST committed to
+ * `ctx.accountDiscovery`. Returns empty arrays when the option
+ * is absent — the pipeline invariant from Phase 7+7b prevents that
+ * case from reaching SCRAPE on a successful run, so an empty result
+ * here is a programming error rather than a recoverable state.
+ * @param input - Pipeline context.
+ * @returns Pre-discovered account ids + records (empties on miss).
+ */
+function readPreDiscoveredAccounts(input: IPipelineContext): IPreDiscoveredAccounts {
+  if (!input.accountDiscovery.has) return { ids: [], records: [] };
+  return {
+    ids: input.accountDiscovery.value.ids,
+    records: input.accountDiscovery.value.records,
+  };
+}
+
+/**
+ * Reads the TXN endpoint DASHBOARD.FINAL committed to
+ * `ctx.txnEndpoint`. Mirror of {@link readPreDiscoveredAccounts} —
+ * pure read, no adapter, no network surface. Returns
+ * {@link EMPTY_TXN_ENDPOINT} when the option is absent so callers
+ * never branch on `Option.has` themselves.
+ *
+ * <p>Phase 7f replaces the deleted `TxnEndpointBridge.readTxnEndpoint`.
+ * The bridge re-shaped the typed `ITxnEndpoint` into the legacy
+ * `IDiscoveredEndpoint` runtime shape so SCRAPE could keep its old
+ * types — that was a back door. The new reader returns the typed
+ * contract directly; SCRAPE strategies consume `ITxnEndpoint` fields
+ * by name and never see `IDiscoveredEndpoint`.
+ *
+ * @param input - Pipeline context.
+ * @returns Slim TXN endpoint (or EMPTY_TXN_ENDPOINT on miss).
+ */
+function readPreDiscoveredTxn(input: IPipelineContext | IActionContext): ITxnEndpoint {
+  // Defensive: legacy test mocks build IActionContext without
+  // `txnEndpoint`; the production type guarantees the field, but
+  // mocks predate Phase 7e. Optional-chain reads the option's `has`
+  // flag through both possible miss paths in one expression.
+  const opt = (input as { readonly txnEndpoint?: IPipelineContext['txnEndpoint'] }).txnEndpoint;
+  if (!opt?.has) return EMPTY_TXN_ENDPOINT;
+  return opt.value;
+}
+
+/**
+ * Reads the DASHBOARD-side harvest committed by DASHBOARD.FINAL on
+ * `ctx.dashboardTxnHarvest`. Mirror of {@link readPreDiscoveredTxn}
+ * and {@link readPreDiscoveredAccounts} — pure read, no adapter.
+ * Returns {@link EMPTY_TXN_HARVEST} when the option is absent so
+ * callers (SCRAPE strategies, tests, mock contexts) never branch on
+ * `Option.has`.
+ *
+ * <p>SCRAPE consumes the harvest's `records` (a clean
+ * `readonly ITransaction[]`) when the iteration's accountId matches
+ * the captured scope — recovering the per-account fast path that
+ * tryBufferedResponse provided pre-Phase-7f, but as a typed value
+ * pass instead of a network-surface back door.
+ *
+ * @param input - Pipeline context.
+ * @returns Harvest payload (empty when DASHBOARD did not commit).
+ */
+function readDashboardTxnHarvest(input: IPipelineContext | IActionContext): IDashboardTxnHarvest {
+  const opt = (input as { readonly dashboardTxnHarvest?: IPipelineContext['dashboardTxnHarvest'] })
+    .dashboardTxnHarvest;
+  if (!opt?.has) return EMPTY_TXN_HARVEST;
+  return opt.value;
+}
+
+export { EMPTY_TXN_ENDPOINT } from '../../Strategy/Scrape/ScrapeTypes.js';
+export { EMPTY_TXN_HARVEST } from '../Dashboard/TxnParser.js';
+export { readDashboardTxnHarvest, readPreDiscoveredTxn };
+
 /**
  * DIRECT path: discover endpoints + load accounts + freeze network.
  * Runs SPA pivot, endpoint discovery, account loading, storage harvest.
@@ -74,33 +155,63 @@ async function executeDirectDiscovery(
   const network = input.mediator.value.network;
   const mediator = input.mediator.value;
 
-  await pivotToSpaIfNeeded(mediator, network);
-  const rawResult = await discoverAndLoadAccounts(api, network);
-  if (!isOk(rawResult)) return fail(rawResult.errorType, rawResult.errorMessage);
+  // Phase 7f: SCRAPE consumes the slim ITxnEndpoint DASHBOARD.FINAL
+  // committed to ctx.txnEndpoint. Pure read, no adapter, no fallback
+  // to network re-discovery — the architecture invariant guarantees
+  // the commit landed before SCRAPE starts (DASHBOARD halts otherwise
+  // via F-DASH-1/2/3). pendingUrl / billingUrl live nested inside the
+  // slim endpoint; sibling fields removed from IAccountFetchCtx.
+  const txnEndpoint = readPreDiscoveredTxn(input);
+  // Phase 7f follow-up: DASHBOARD-side harvest carries the pre-extracted
+  // records DASHBOARD already saw. SCRAPE consumes them via tryFirstWave
+  // when the iteration's accountId matches the captured scope, avoiding
+  // the redundant per-account fetch that bank anti-bot guards reject
+  // with 302 (Hapoalim-class regression).
+  const harvest = readDashboardTxnHarvest(input);
+  await pivotToSpaIfNeeded({ mediator, network, txnEndpoint });
 
+  // Account discovery moved to ACCOUNT-RESOLVE.POST (Phase 7d); SCRAPE.PRE
+  // consumes the pre-discovered list. TXN-endpoint discovery moved to
+  // DASHBOARD.FINAL (Phase 7e); SCRAPE.PRE consumes ctx.txnEndpoint.
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
-  const fc: IAccountFetchCtx = { api, network, startDate, futureMonths };
-  let loadCtx = buildLoadAllCtx(fc, network, rawResult.value);
-  loadCtx = applyCredentialFallback(loadCtx, input);
-  loadCtx = await applyStorageHarvestPre(loadCtx, input);
+  const fc: IAccountFetchCtx = {
+    api,
+    network,
+    startDate,
+    futureMonths,
+    txnEndpoint,
+    dashboardTxnHarvest: harvest,
+  };
+  const preDiscovered = readPreDiscoveredAccounts(input);
+  const loadCtx = buildLoadCtxFromPreDiscovered({
+    fc,
+    txnEndpoint,
+    harvest,
+    ids: preDiscovered.ids,
+    records: preDiscovered.records,
+  });
 
-  // Fail-fast only when traffic was observed but extraction couldn't
-  // resolve a usable identifier — that's the dangerous case (the silent
-  // 'default' bug). When no transaction endpoint was captured at all,
-  // upstream phases didn't reach that signal yet; let the empty-accounts
-  // result flow through so the assertSuccessfulScrape assertion fires
-  // its own (loud) regression message instead of masking it here.
-  if (loadCtx.ids.length === 0 && loadCtx.txnEndpoint !== false) {
+  // Defense-in-depth: ACCOUNT-RESOLVE.POST should never let an empty
+  // id list through (Phase 7+7b's contract), but if it somehow does,
+  // SCRAPE refuses to silently scrape a sentinel id like 'default'.
+  if (loadCtx.ids.length === 0 && (loadCtx.txnEndpoint?.url ?? '') !== '') {
     return fail(
       ScraperErrorTypes.Generic,
-      'scrape: no usable account identifier found in captured network',
+      'scrape: no usable account identifier in ctx.accountDiscovery',
     );
   }
 
   const frozenEndpoints = network.getAllEndpoints();
   const cachedAuth = await network.discoverAuthToken();
   const storageHarvest = await collectStorageSafe(input);
+  // Carry the dashboard-click timestamp into the frozen replay so
+  // SCRAPE.ACTION's frozen network sees the same pre-nav / post-nav
+  // split that the live network used during DASHBOARD.FINAL
+  // validation. Without this the frozen network has no click marker
+  // and falls back to the full pool, which would re-introduce the
+  // pre-click widget pollution we just removed.
+  const dashboardClickAt = network.getDashboardClickAt();
 
   const idCount = String(loadCtx.ids.length);
   const recCount = String(loadCtx.records.length);
@@ -121,6 +232,7 @@ async function executeDirectDiscovery(
     txnEndpoint: loadCtx.txnEndpoint,
     cachedAuth,
     storageHarvest,
+    dashboardClickAt,
   };
 
   return succeed({
@@ -128,24 +240,6 @@ async function executeDirectDiscovery(
     diagnostics: diag,
     scrapeDiscovery: some(disc),
   });
-}
-
-/**
- * Harvest accounts from sessionStorage (full context).
- * @param loadCtx - Current load context.
- * @param ctx - Pipeline context with browser.
- * @returns Updated load context with seeded IDs.
- */
-async function applyStorageHarvestPre(
-  loadCtx: IFetchAllAccountsCtx,
-  ctx: IPipelineContext,
-): Promise<IFetchAllAccountsCtx> {
-  if (loadCtx.ids.length > 0) return loadCtx;
-  if (!ctx.browser.has) return loadCtx;
-  const page = ctx.browser.value.page;
-  const result = await harvestAccountsFromStorage(page);
-  if (result.ids.length === 0) return loadCtx;
-  return { ...loadCtx, ids: [...result.ids], records: [...result.records] };
 }
 
 /**

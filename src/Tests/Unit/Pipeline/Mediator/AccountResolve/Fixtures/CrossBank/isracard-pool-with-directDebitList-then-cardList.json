@@ -1,0 +1,45 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "trap-directDebitList-then-cardList",
+    "expectedIds": 8,
+    "expectedContainers": ["cardsList"]
+  },
+  "captures": [
+    {
+      "url": "https://web.isracard.example/ocp/StatusPage/api/AccountInfo/GetDirectDebitList",
+      "method": "GET",
+      "captureIndex": 187,
+      "responseBody": {
+        "data": {
+          "cards": [
+            { "cardNumber": "1010", "cardName": "FAKE PARTIAL A" },
+            { "cardNumber": "2020", "cardName": "FAKE PARTIAL B" },
+            { "cardNumber": "3030", "cardName": "FAKE PARTIAL C" }
+          ]
+        },
+        "Status": "OK-FIXTURE-PARTIAL"
+      }
+    },
+    {
+      "url": "https://web.isracard.example/ocp/StatusPage/api/AccountInfo/GetCardList",
+      "method": "POST",
+      "captureIndex": 188,
+      "responseBody": {
+        "data": {
+          "cardsList": [
+            { "cardSuffix": "1010", "accountNumber": "FAKE-ISR-A", "cardName": "FAKE A" },
+            { "cardSuffix": "2020", "accountNumber": "FAKE-ISR-B", "cardName": "FAKE B" },
+            { "cardSuffix": "3030", "accountNumber": "FAKE-ISR-C", "cardName": "FAKE C" },
+            { "cardSuffix": "4040", "accountNumber": "FAKE-ISR-D", "cardName": "FAKE D" },
+            { "cardSuffix": "5050", "accountNumber": "FAKE-ISR-E", "cardName": "FAKE E" },
+            { "cardSuffix": "6060", "accountNumber": "FAKE-ISR-F", "cardName": "FAKE F" },
+            { "cardSuffix": "7070", "accountNumber": "FAKE-ISR-G", "cardName": "FAKE G" },
+            { "cardSuffix": "8080", "accountNumber": "FAKE-ISR-H", "cardName": "FAKE H" }
+          ]
+        },
+        "Status": "OK-FIXTURE"
+      }
+    }
+  ]
+}

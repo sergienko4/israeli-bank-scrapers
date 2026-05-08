@@ -32,10 +32,87 @@ interface IDiscoveredEndpoint {
    * was synthesised without a dump (frozen replay, tests).
    */
   readonly captureIndex?: number;
+  /**
+   * Phase 7f — set by `discoverShapeAware` so DASHBOARD's resolver can
+   * record which tier produced the pick. Ordered from cleanest to
+   * loosest match: `postWithShape` (real txns in body) >
+   * `replayablePost` (POST template, body may be empty) >
+   * `shapePassing` (shape gate passed but tier indeterminate) >
+   * `preClickFallback` (post-click pool yielded nothing; pre-click
+   * capture matched). Optional: undefined when synthesised in tests.
+   */
+  readonly pickerTier?:
+    | 'postWithShape'
+    | 'replayablePost'
+    | 'shapePassing'
+    | 'preClickFallback'
+    | 'none';
+  /**
+   * Phase 7f — true when the picker fell back to the pre-click pool
+   * because the post-click pool had no `WK_API.transactions` match.
+   * Visacal-class banks where the real TRX URL fires at login-FINAL.
+   * Optional: undefined when not set.
+   */
+  readonly capturedPreClick?: boolean;
 }
 
 /** Network discovery interface — captures and queries API traffic. */
 interface INetworkDiscovery {
+  /**
+   * Lifecycle gate — controls whether the live response listener stores
+   * incoming captures. The pipeline interceptor flips this off during
+   * INIT/HOME/LOGIN/OTP-* and on once the auth boundary is crossed,
+   * so the post-auth discovery pool is never polluted by login or
+   * SMS-trigger traffic. Idempotent; safe to call repeatedly. Frozen
+   * networks accept the call as a no-op so callers can stay agnostic.
+   * @param active - True to record captures, false to drop them.
+   * @returns True after the state is applied.
+   */
+  setCollectionActive(active: boolean): true;
+
+  /**
+   * Mark the moment DASHBOARD.ACTION dispatched its navigation click.
+   * Used by `getPreNavCaptures` / `getPostNavCaptures` to split the
+   * captured stream into the pre-nav (login + dashboard-landing
+   * widget) bucket and the post-nav (full-history) bucket. Bank-
+   * agnostic — every bank's dashboard click executor calls this once.
+   * @param timestampMs - `Date.now()` at the moment of click.
+   * @returns True after the timestamp is stored.
+   */
+  markDashboardClickAt(timestampMs: number): true;
+
+  /**
+   * Read the dashboard-click timestamp set by `markDashboardClickAt`.
+   * Returns `false` when the click hasn't been dispatched yet, or
+   * when the discovery instance is a frozen replay that wasn't
+   * primed with a click time.
+   * @returns Click timestamp in ms-since-epoch, or false.
+   */
+  getDashboardClickAt(): number | false;
+
+  /**
+   * All captures whose `timestamp` is strictly less than the
+   * dashboard-click moment — login + dashboard-landing traffic.
+   * Returns the empty array when no click has been marked, or all
+   * captures when the click marker is in the future.
+   * @returns Captures captured before the dashboard nav click.
+   */
+  getPreNavCaptures(): readonly IDiscoveredEndpoint[];
+
+  /**
+   * Captures whose `timestamp` is at or after the dashboard-click
+   * moment — the full-history traffic the SPA fires once the user
+   * navigates to the all-transactions view. When that subset has
+   * NO transaction-pattern URL match (banks like Hapoalim that fire
+   * full-history on login already), this returns the FULL captured
+   * array instead, so the consumer always sees a complete pool.
+   * The fallback is the soft-copy contract: SCRAPE.PRE never has to
+   * ask "is post-nav empty?" — DASHBOARD.FINAL guarantees it isn't.
+   * @returns Captures captured after the dashboard nav click, with
+   *   pre-nav fallback when no post-nav txn matches exist.
+   */
+  getPostNavCaptures(): readonly IDiscoveredEndpoint[];
+
   /**
    * Find all captured endpoints matching a URL pattern.
    * @param pattern - Regex to match against endpoint URLs.
@@ -75,9 +152,6 @@ interface INetworkDiscovery {
    * @returns First matching endpoint or false.
    */
   discoverByPatterns(patterns: readonly RegExp[]): IDiscoveredEndpoint | false;
-
-  /** Discover accounts endpoint via WellKnown patterns. */
-  discoverAccountsEndpoint(): IDiscoveredEndpoint | false;
 
   /** Discover transactions endpoint via WellKnown patterns. */
   discoverTransactionsEndpoint(): IDiscoveredEndpoint | false;
@@ -144,12 +218,17 @@ interface INetworkDiscovery {
   waitForTransactionsTraffic(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
 
   /**
-   * Content-First: find captured endpoint whose response body contains field names.
-   * Scans ALL captured JSON bodies for WK field signatures.
-   * @param fieldNames - WK field names to search for (e.g. WK.accountId).
-   * @returns First matching endpoint or false.
+   * Block until the captured pool yields a capture that surfaces an
+   * account identifier — via the same 3-source predicate the auth phase
+   * uses (response container, GET URL query, POST body). Used by the
+   * ACCOUNT-RESOLVE phase to guarantee at least one id-bearing capture
+   * has landed before discovery runs. Polls a closure-owned predicate
+   * every 250 ms; returns the first match, or `false` when the budget
+   * elapses with no match. Frozen networks return `false` immediately.
+   * @param timeoutMs - Max wait budget in ms.
+   * @returns First id-bearing endpoint or false on timeout.
    */
-  discoverEndpointByContent(fieldNames: readonly string[]): IDiscoveredEndpoint | false;
+  waitForFirstId(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
 
   /**
    * Discover API origin from captured traffic.

@@ -64,7 +64,7 @@ describe('GenericCanonicalStringBuilder.buildCanonical — happy paths', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value).toContain(String.raw`\%path`);
-      expect(result.value).toContain(String.raw`%%11.5.5%%`);
+      expect(result.value).toContain('%%11.5.5%%');
     }
   });
 });

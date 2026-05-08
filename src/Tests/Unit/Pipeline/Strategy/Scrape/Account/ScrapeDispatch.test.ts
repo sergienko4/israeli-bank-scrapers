@@ -14,12 +14,32 @@ import {
   __processOrSkip,
   scrapeAllAccounts,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeDispatch.js';
-import type {
-  IAccountFetchCtx,
-  IFetchAllAccountsCtx,
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountFetchCtx,
+  type IFetchAllAccountsCtx,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
+import type { ITxnEndpoint } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { ITransactionsAccount } from '../../../../../../Transactions.js';
 import { makeApi, makeEndpoint, makeNetwork, stubFetchGetOk } from '../../StrategyTestHelpers.js';
+
+/**
+ * Adapt a captured `IDiscoveredEndpoint` mock into the slim
+ * {@link ITxnEndpoint} shape SCRAPE consumes — Phase 7f. Tests pass
+ * captured-style mocks via `makeEndpoint`; the adapter unwraps the
+ * fields the slim contract carries (url, method, templatePostData).
+ *
+ * @param ep - Endpoint produced by makeEndpoint().
+ * @returns Slim TXN endpoint suitable for IAccountFetchCtx.
+ */
+function adaptToSlim(ep: IDiscoveredEndpoint): ITxnEndpoint {
+  return {
+    ...EMPTY_TXN_ENDPOINT,
+    url: ep.url,
+    method: ep.method === 'PUT' ? 'GET' : ep.method,
+    templatePostData: ep.method === 'POST' ? ep.postData || '{}' : false,
+  };
+}
 
 /**
  * Build an empty fetch-all ctx that loops over zero accounts.
@@ -34,7 +54,6 @@ function makeEmptyCtx(): IFetchAllAccountsCtx {
     },
     ids: [],
     records: [],
-    txnEndpoint: false,
   };
 }
 
@@ -68,7 +87,6 @@ function makeCtx(overrides: Partial<IFetchAllAccountsCtx> = {}): IFetchAllAccoun
     fc,
     ids: ['a1'],
     records: [{ accountId: 'a1' }],
-    txnEndpoint: false,
   };
   return { ...base, ...overrides };
 }
@@ -80,8 +98,8 @@ describe('scrapeAllAccounts', () => {
     expect(accounts).toEqual([]);
   });
 
-  it('routes via URL when txnEndpoint is false (no POST endpoint)', async () => {
-    const ctx = makeCtx({ txnEndpoint: false });
+  it('routes via URL when txnEndpoint is undefined (no POST endpoint)', async () => {
+    const ctx = makeCtx({});
     const accounts = await scrapeAllAccounts(ctx);
     const isArrayResult1 = Array.isArray(accounts);
     expect(isArrayResult1).toBe(true);
@@ -93,7 +111,7 @@ describe('scrapeAllAccounts', () => {
       method: 'GET',
       responseBody: {},
     });
-    const ctx = makeCtx({ txnEndpoint: ep });
+    const ctx = makeCtx({ txnEndpoint: adaptToSlim(ep) });
     const accounts = await scrapeAllAccounts(ctx);
     const isArrayResult2 = Array.isArray(accounts);
     expect(isArrayResult2).toBe(true);
@@ -108,7 +126,7 @@ describe('scrapeAllAccounts', () => {
     });
     const ctx = makeCtx({
       records: [undefined as unknown as Record<string, unknown>],
-      txnEndpoint: ep,
+      txnEndpoint: adaptToSlim(ep),
     });
     const accounts = await scrapeAllAccounts(ctx);
     const isArrayResult3 = Array.isArray(accounts);
@@ -137,7 +155,7 @@ describe('scrapeAllAccounts', () => {
       fc: { api, network, startDate: '20260101' },
       ids: ['a1'],
       records: [{ accountId: 'a1' }],
-      txnEndpoint: ep,
+      txnEndpoint: adaptToSlim(ep),
     };
     const accounts = await scrapeAllAccounts(ctx);
     const isArrayResult4 = Array.isArray(accounts);
@@ -162,7 +180,6 @@ describe('scrapeAllAccounts', () => {
       fc: { api, network, startDate: '20260101' },
       ids: ['a1', 'a2'],
       records: [{ accountId: 'a1' }, { accountId: 'a2' }],
-      txnEndpoint: false,
     };
     const accounts = await scrapeAllAccounts(ctx);
     expect(accounts.length).toBeGreaterThan(0);
@@ -202,7 +219,6 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
       fc: { api, network, startDate: '20260101' },
       ids: ['a1'],
       records: [{ accountId: 'a1' }],
-      txnEndpoint: false,
     };
     const out: ITransactionsAccount[] = [];
     const pastDeadline = Date.now() - 1;
@@ -245,7 +261,7 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
     const result = await __dispatchWithTimeout({
       fc,
       accountId: 'a1',
-      opts: { accountRecord: { accountId: 'a1' }, txnEndpoint: false },
+      opts: { accountRecord: { accountId: 'a1' } },
       timeoutMs: 25,
     });
     expect(result.success).toBe(false);

@@ -1,0 +1,32 @@
+{
+  "_fixture": {
+    "purpose": "BAD trace #2 — VisaCal account/init shape with cards=[] (empty) but bankAccounts populated. Tests that the extractor surfaces only the populated container.",
+    "expected": "ACCOUNT-RESOLVE.POST: containers={bankAccounts:3}, ids.length=3, expected=3 → SUCCESS."
+  },
+  "result": {
+    "user": { "firstName": "TEST", "lastName": "USER" },
+    "cards": [],
+    "bankAccounts": [
+      {
+        "bankAccountUniqueId": "FAKE-BANK-AAAA",
+        "bankBranchNum": "001",
+        "bankAccountNum": "0001111",
+        "bankName": "Test Bank A"
+      },
+      {
+        "bankAccountUniqueId": "FAKE-BANK-BBBB",
+        "bankBranchNum": "002",
+        "bankAccountNum": "0002222",
+        "bankName": "Test Bank B"
+      },
+      {
+        "bankAccountUniqueId": "FAKE-BANK-CCCC",
+        "bankBranchNum": "003",
+        "bankAccountNum": "0003333",
+        "bankName": "Test Bank C"
+      }
+    ]
+  },
+  "statusDescription": "OK-FIXTURE",
+  "statusCode": 1
+}

@@ -91,7 +91,7 @@ jobs:
       - name: Prettier check
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@07035fd053f7be764496c0f8d8f9f41f98305101 # v22
+        uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0
         with:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
@@ -389,7 +389,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+      # Pinned to main HEAD pending v4.10.0 release: v4.9.0 still
+      # targets `node20` (deprecated 2025-09-19); main has `node24`.
+      - uses: actions/dependency-review-action@9ae8e67b9f0be9e9903db0d81c2580dbc9570216 # main 2026-05-08
         with:
           fail-on-severity: moderate
           allow-licenses: >-

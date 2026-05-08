@@ -180,6 +180,31 @@ function makeMockMediator(): IElementMediator {
     addCookies: (): Promise<void> => Promise.resolve(),
     network: {
       /**
+       * No-op recording gate in mock.
+       * @returns True.
+       */
+      setCollectionActive: (): true => true,
+      /**
+       * No-op click marker in mock.
+       * @returns True.
+       */
+      markDashboardClickAt: (): true => true,
+      /**
+       * No click in mock.
+       * @returns False.
+       */
+      getDashboardClickAt: (): false => false,
+      /**
+       * Empty pre-nav captures in mock.
+       * @returns Empty array.
+       */
+      getPreNavCaptures: (): readonly [] => [],
+      /**
+       * Empty post-nav captures in mock.
+       * @returns Empty array.
+       */
+      getPostNavCaptures: (): readonly [] => [],
+      /**
        * No endpoints in mock.
        * @returns Empty array.
        */
@@ -204,11 +229,6 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverSpaUrl: (): false => false,
-      /**
-       * No accounts in mock.
-       * @returns False.
-       */
-      discoverAccountsEndpoint: (): false => false,
       /**
        * No transactions in mock.
        * @returns False.
@@ -261,6 +281,11 @@ function makeMockMediator(): IElementMediator {
        */
       waitForTransactionsTraffic: (): Promise<false> => Promise.resolve(false),
       /**
+       * No id-bearing capture in mock — never resolves a match.
+       * @returns False.
+       */
+      waitForFirstId: (): Promise<false> => Promise.resolve(false),
+      /**
        * No auth cache in mock.
        * @returns False.
        */
@@ -270,11 +295,6 @@ function makeMockMediator(): IElementMediator {
        * @returns False.
        */
       discoverApiOrigin: (): false => false,
-      /**
-       * No content match in mock.
-       * @returns False.
-       */
-      discoverEndpointByContent: (): false => false,
       // Frozen-network mock — watcher is a no-op stub (always reports
       // "not failed" / "timeout"). LoginPhase POST observes false here
       // and falls through to existing detectors unchanged.

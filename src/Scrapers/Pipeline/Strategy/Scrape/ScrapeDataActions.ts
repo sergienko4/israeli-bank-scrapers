@@ -11,10 +11,13 @@ import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscover
 import { findFieldValue, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import {
+  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
+import { getDebug as createLogger } from '../../Types/Debug.js';
+import { redactAccount } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -81,11 +84,15 @@ function txnHash(t: ITransaction): TxnHashKey {
   return `${t.date}|${t.description}|${amt}` as TxnHashKey;
 }
 
+// ── Logger ───────────────────────────────────────────
+
+const LOG = createLogger('scrape-data');
+
 // ── Templating ───────────────────────────────────────────
 
 /** Lowercased WK account ID field names. */
 const TEMPLATE_KEYS = new Set(
-  WK.accountId.map((k): TemplateKeyLower => k.toLowerCase() as TemplateKeyLower),
+  WK_ACCT.id.map((k): TemplateKeyLower => k.toLowerCase() as TemplateKeyLower),
 );
 
 /**
@@ -133,7 +140,11 @@ function scalarEntries(record: Record<string, unknown>): readonly [string, strin
 const PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];
 
 /** Per-txn WK card-id alias union — same union used by the partition. */
-const PER_TXN_CARD_FIELDS: readonly string[] = [...WK.queryId, ...WK.displayId, ...MF.accountId];
+const PER_TXN_CARD_FIELDS: readonly string[] = [
+  ...WK_ACCT.queryId,
+  ...WK_ACCT.displayId,
+  ...MF.accountId,
+];
 
 /** Local alias for an opaque card-array entry — bypass `unknown` rule. */
 type CardEntry = Record<string, unknown> | string | number | boolean | null;
@@ -397,29 +408,94 @@ function projectEndpointBody(ep: IDiscoveredEndpoint): CapturedRecords {
 }
 
 /**
+ * Resolve the balance-alias list to scan with. Phase 7f follow-up:
+ * SCRAPE consumes `fc.txnEndpoint.fieldMap.balance` — the alias
+ * DASHBOARD.FINAL resolved from the picked TXN body. Empty list when
+ * DASHBOARD's fieldMap had no balance alias (replayablePost path with
+ * EMPTY_FIELD_MAP). The architecture rule R-TXN-NOWK forbids SCRAPE-
+ * zone code from importing `WK_TXN.balance` directly.
+ *
+ * @param ctx - Assembly context.
+ * @returns Balance aliases to scan, or empty list when none.
+ */
+function balanceAliasesFor(ctx: IAccountAssemblyCtx): readonly string[] {
+  const balanceAlias = ctx.fc.txnEndpoint?.fieldMap.balance ?? false;
+  if (balanceAlias === false) return [];
+  return [balanceAlias];
+}
+
+/**
+ * Render the alias list for the `balance.miss` diagnostic — `(none)`
+ * when DASHBOARD didn't resolve a balance alias, otherwise the
+ * comma-joined list. Pulled out so the warn-emitter stays free of
+ * inline ternaries (architecture rule no-restricted-syntax).
+ *
+ * @param aliases - Resolved balance aliases.
+ * @returns Human-readable label.
+ */
+function aliasesToLabel(aliases: readonly string[]): string {
+  if (aliases.length === 0) return '(none)';
+  return aliases.join(',');
+}
+
+/**
  * Scan every captured endpoint's responseBody for a balance match.
  * Generic: no bank routing. Used when the primary txn record yields
  * no balance but a sibling endpoint (e.g. /accountSummary, /balances)
  * carries one. Rule #15: returns Procedure.
+ *
+ * <p>Phase 7f follow-up: balance aliases come from
+ * `ctx.txnEndpoint.fieldMap.balance` (DASHBOARD-resolved single
+ * alias), not `WK_TXN.balance`. Banks whose balance lives under a
+ * sibling endpoint with a different alias return fail — the caller
+ * `resolveBalance` then signals via the URL fallback's failure path
+ * rather than silently returning 0.
+ *
  * @param network - Network discovery with all captured endpoints.
+ * @param aliases - Resolved balance aliases.
  * @returns Procedure wrapping the balance value, or fail when no match.
  */
-function resolveBalanceFromCapturedEndpoints(network: INetworkDiscovery): Procedure<number> {
+function resolveBalanceFromCapturedEndpoints(
+  network: INetworkDiscovery,
+  aliases: readonly string[],
+): Procedure<number> {
   const bodies = network.getAllEndpoints().flatMap(projectEndpointBody);
-  return resolveBalanceFromRecords(bodies);
+  return resolveBalanceFromRecords(bodies, aliases);
 }
 
 /**
  * Resolve balance: record first (free), cross-endpoint scan, URL fallback.
+ *
+ * <p>Phase 7f follow-up: when no source yields a value, log a WARN-
+ * level diagnostic so silent zero balances surface in pipeline.log.
+ * Each phase's own output (DASHBOARD's `fieldMap.balance`) drives the
+ * scan; failure of all three paths is a signal that the captured pool
+ * has no balance under that alias, not a generic "0 balance".
+ *
  * @param ctx - Assembly context.
- * @returns Balance number (0 when no source yields a value).
+ * @returns Balance number (0 when no source yields a value, with warn).
  */
 async function resolveBalance(ctx: IAccountAssemblyCtx): Promise<number> {
-  const fromRecord = resolveRecordBalance(ctx.rawRecord);
+  const aliases = balanceAliasesFor(ctx);
+  const fromRecord = resolveRecordBalance(ctx.rawRecord, aliases);
   if (typeof fromRecord === 'number') return fromRecord;
-  const fromStore = resolveBalanceFromCapturedEndpoints(ctx.fc.network);
+  const fromStore = resolveBalanceFromCapturedEndpoints(ctx.fc.network, aliases);
   if (isOk(fromStore)) return fromStore.value;
-  return lookupBalance(ctx.fc.api, ctx.fc.network, ctx.accountId);
+  const fromUrl = await lookupBalance(ctx.fc.api, ctx.fc.network, ctx.accountId);
+  if (fromUrl !== 0) return fromUrl;
+  // Signal-loud diagnostic — every prior path missed AND the URL
+  // fallback returned 0. Either the bank has a literal zero balance
+  // (legitimate) or our captured pool / fieldMap has no balance under
+  // the resolved alias (data-loss). PII-redacted: account is masked.
+  const aliasLabel = aliasesToLabel(aliases);
+  const accountLabel = redactAccount(ctx.accountId);
+  LOG.warn({
+    event: 'balance.miss',
+    account: accountLabel,
+    fieldMapAlias: aliasLabel,
+    message: 'balance unresolved across record/cross-endpoint/url paths — fallback to 0',
+  });
+  return 0;
 }
 
 export { applyGlobalDateFilter, scrapeWithMonthlyChunking } from './ScrapeChunking.js';

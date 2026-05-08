@@ -32,7 +32,6 @@ function makeDisc(frozenCount: number): IScrapeDiscovery {
     frozenEndpoints: endpoints,
     accountIds: [],
     rawAccountRecords: [],
-    txnEndpoint: false,
     cachedAuth: false,
     storageHarvest: {},
   };

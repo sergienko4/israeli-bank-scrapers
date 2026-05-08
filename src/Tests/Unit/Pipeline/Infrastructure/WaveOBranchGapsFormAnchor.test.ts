@@ -152,8 +152,19 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
     const ep = {
       url: 'https://bank.example/api/txn',
       method: 'POST',
-      postData: JSON.stringify(body),
-      responseBody: {},
+      templatePostData: JSON.stringify(body),
+      fieldMap: {
+        date: '',
+        amount: '',
+        description: '',
+        currency: '',
+        identifier: '',
+        originalAmount: false,
+        processedDate: false,
+        balance: false,
+      },
+      pendingUrl: false,
+      billingUrl: false,
     };
     const api = {
       /**
@@ -169,11 +180,6 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
       api,
       network: {
         /**
-         * Discover endpoint stub.
-         * @returns ep.
-         */
-        discoverTransactionsEndpoint: (): unknown => ep,
-        /**
          * Empty endpoint list — exercises the 0-balance path.
          * @returns Empty array.
          */
@@ -185,6 +191,7 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
         buildBalanceUrl: (): false => false,
       },
       startDate: '20260101',
+      txnEndpoint: ep,
     } as unknown as Parameters<typeof tryMatrixLoop>[0]['fc'];
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     // Matrix applied → returns Procedure with 0-txn account, NOT false.

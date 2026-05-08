@@ -5,138 +5,37 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import {
-  extractTransactions,
-  generateMonthChunks,
-} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
-import {
-  PIPELINE_WELL_KNOWN_API,
-  PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_TXN,
-} from '../../Registry/WK/ScrapeWK.js';
-import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
-
-/** POST-body carries-card-id predicate. */
-type BodyCarriesCardId = Brand<boolean, 'BodyCarriesCardId'>;
-/** WK queryId alias-match predicate. */
-type IsAliasMatch = Brand<boolean, 'IsAliasMatch'>;
-/** Billing-candidate predicate. */
-type IsBillingCandidate = Brand<boolean, 'IsBillingCandidate'>;
-/** WK transactions URL-match predicate. */
-type IsUrlPatternMatch = Brand<boolean, 'IsUrlPatternMatch'>;
-/** Built billing URL string. */
-type BillingUrlStr = Brand<string, 'BillingUrlStr'>;
-/** Direct-hit endpoint predicate (URL contains WK billing path fragment). */
-type IsDirectBillingHit = Brand<boolean, 'IsDirectBillingHit'>;
-/** Shaped-hit endpoint predicate (URL matches transactions + card-id body). */
-type IsShapedBillingHit = Brand<boolean, 'IsShapedBillingHit'>;
 import {
   buildAccountResult,
   deduplicateTxns,
   parseStartDate,
   rateLimitPause,
 } from './ScrapeDataActions.js';
-import type {
-  IAccountAssemblyCtx,
-  IAccountFetchCtx,
-  IBillingChunkCtx,
-  IPostFetchCtx,
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountAssemblyCtx,
+  type IAccountFetchCtx,
+  type IBillingChunkCtx,
+  type IPostFetchCtx,
 } from './ScrapeTypes.js';
 
 const LOG = createLogger('scrape-billing');
 const RATE_LIMIT_MS = 300;
 
-/**
- * Check whether the captured POST body mentions any WK.queryId alias
- * (cardUniqueId, cardUniqueID, accountId …). Banks use these identifiers
- * to scope the billing POST per-card; its presence distinguishes the
- * billing endpoint from other WK.transactions-matching endpoints that
- * return shared filtered-transaction views.
- * @param postData - Captured POST body string.
- * @returns True when any WK.queryId alias appears in the body.
- */
-function bodyCarriesCardId(postData: string): BodyCarriesCardId {
-  if (!postData) return false as BodyCarriesCardId;
-  return WK_TXN.queryId.some(
-    (alias): IsAliasMatch => postData.includes(alias) as IsAliasMatch,
-  ) as BodyCarriesCardId;
-}
-
-/** Probe of a single captured endpoint for billing-fallback fitness. */
-interface ICandidateProbe {
-  readonly url: string;
-  readonly postData: string;
-}
-
-/**
- * URL matches WK.transactions AND POST body carries a card identifier.
- * @param probe - Captured endpoint (url + postData).
- * @param patterns - WK.transactions regex list.
- * @returns True when both conditions hold.
- */
-function isBillingCandidate(
-  probe: ICandidateProbe,
-  patterns: readonly RegExp[],
-): IsBillingCandidate {
-  const isUrlMatch = patterns.some(
-    (p): IsUrlPatternMatch => p.test(probe.url) as IsUrlPatternMatch,
-  );
-  if (!isUrlMatch) return false as IsBillingCandidate;
-  return bodyCarriesCardId(probe.postData) as unknown as IsBillingCandidate;
-}
-
-/**
- * Build the canonical billing URL under a discovered API origin using
- * WK.billing path fragments. No hostname hardcoded — the origin comes
- * from whatever endpoint the bank's own SPA already touched.
- * @param anyCapturedUrl - Any URL already captured on the target host.
- * @returns Full billing URL.
- */
-function buildBillingUrlFromOrigin(anyCapturedUrl: string): BillingUrlStr {
-  const origin = new URL(anyCapturedUrl).origin;
-  const { apiPrefix, pathFragment, actionName } = WK_BILLING;
-  const path = `${apiPrefix}/${pathFragment}/${actionName}`;
-  return `${origin}${path}` as BillingUrlStr;
-}
-
-/**
- * Find the billing fallback target URL.
- * Priority:
- *   1. A captured URL already under WK_BILLING.pathFragment — use it directly.
- *   2. A captured WK.transactions URL whose POST body carries a WK.queryId
- *      alias (card-scoped endpoint) — build canonical billing URL from its
- *      origin using WK_BILLING path fragments.
- *   3. No match — return false (bank doesn't expose the billing family).
- * Zero hardcoded full URLs; zero hostname knowledge.
- * @param fc - Fetch context exposing network.getAllEndpoints().
- * @returns Captured/built URL or false when family isn't present.
- */
-function findCapturedBillingUrl(fc: IAccountFetchCtx): BillingUrlStr | false {
-  const patterns = PIPELINE_WELL_KNOWN_API.transactions;
-  const captured = fc.network.getAllEndpoints();
-  const directHit = captured.find(
-    (ep): IsDirectBillingHit => ep.url.includes(WK_BILLING.pathFragment) as IsDirectBillingHit,
-  );
-  if (directHit) return buildBillingUrlFromOrigin(directHit.url);
-  /**
-   * Probe one captured endpoint for shaped-billing fitness (URL + body).
-   * @param ep - Captured endpoint.
-   * @returns Branded predicate.
-   */
-  const isShapedHit = (ep: ICandidateProbe): IsShapedBillingHit => {
-    const candidate = isBillingCandidate(ep, patterns);
-    return Boolean(candidate) as IsShapedBillingHit;
-  };
-  const shaped = captured.find(isShapedHit);
-  if (shaped) return buildBillingUrlFromOrigin(shaped.url);
-  return false;
-}
+// Phase 7e R-API: bodyCarriesCardId / isBillingCandidate /
+// buildBillingUrlFromOrigin / findCapturedBillingUrl removed. The
+// billing URL is pre-resolved by DASHBOARD.FINAL via WK_BILLING +
+// WK_API.transactions patterns and committed to
+// `ctx.txnEndpoint.billingUrl`. SCRAPE consumes the resolved URL —
+// zero WK_API / WK_BILLING / WK_ACCT imports remain in this file.
 
 /**
  * Extract month and year strings from a chunk start date.
@@ -173,7 +72,8 @@ async function scrapeOneBillingChunk(
   });
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
   if (!isOk(raw)) return [];
-  const txns = extractTransactions(raw.value);
+  const fieldMap = (ctx.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
+  const txns = parseFreshResponse(raw.value, fieldMap);
   LOG.debug({
     card: ctx.accountId,
     month: `${month}/${year}`,
@@ -257,12 +157,12 @@ async function tryBillingFallback(
   fc: IAccountFetchCtx,
   post: IPostFetchCtx,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const billingUrl = findCapturedBillingUrl(fc);
+  const billingUrl = fc.txnEndpoint?.billingUrl ?? false;
   if (billingUrl === false) {
-    LOG.debug({ message: 'billing skipped — no WK.transactions endpoint was captured' });
+    LOG.debug({ message: 'billing skipped — no billing URL pre-resolved by DASHBOARD.FINAL' });
     return fail(ScraperErrorTypes.Generic, 'Billing: endpoint not captured, skipping');
   }
-  LOG.debug({ message: `billing url=${billingUrl}` });
+  LOG.debug({ message: `billing url=${maskVisibleText(billingUrl)}` });
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
   const ctx: IBillingChunkCtx = { fc, billingUrl, accountId: post.accountId };

@@ -1,0 +1,81 @@
+{
+  "_fixture": {
+    "purpose": "GOOD trace — VisaCal POST /Authentication/api/account/init shape, ALL PII fakified. Synthesized from 2026-05-07 manual probe; identifiers replaced with synthetic test values that conform to the same field shapes (length, character class) but match no real account.",
+    "expected": "Phase 7d ACCOUNT-RESOLVE.POST: containers={cards:4, bankAccounts:3}, ids.length=7, contract passes."
+  },
+  "result": {
+    "user": {
+      "firstName": "TEST",
+      "lastName": "USER",
+      "custFullName": "TEST USER",
+      "custExtId": "000000000",
+      "custIntrId": "00000000",
+      "is2FAIdentification": false,
+      "email": "test@example.invalid",
+      "cellularPhoneNumber": "0500000000"
+    },
+    "cards": [
+      {
+        "cardUniqueId": "FAKE-CARD-AAAA-0001",
+        "last4Digits": "1111",
+        "cardNumType": 33,
+        "companyDescription": "TestCard",
+        "cardType": "TestPlatinum",
+        "cardOwnerFullName": "TEST USER",
+        "bankAccountUniqueId": "FAKE-BANK-AAAA"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-BBBB-0002",
+        "last4Digits": "2222",
+        "cardNumType": 1,
+        "companyDescription": "TestCard",
+        "cardType": "TestGold",
+        "cardOwnerFullName": "TEST USER",
+        "bankAccountUniqueId": "FAKE-BANK-BBBB"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-CCCC-0003",
+        "last4Digits": "3333",
+        "cardNumType": 1,
+        "companyDescription": "TestCard",
+        "cardType": "TestBusiness",
+        "cardOwnerFullName": "TEST USER",
+        "bankAccountUniqueId": "FAKE-BANK-CCCC"
+      },
+      {
+        "cardUniqueId": "FAKE-CARD-DDDD-0004",
+        "last4Digits": "4444",
+        "cardNumType": 1,
+        "companyDescription": "TestCard",
+        "cardType": "TestPlatinum",
+        "cardOwnerFullName": "TEST USER",
+        "bankAccountUniqueId": "FAKE-BANK-CCCC"
+      }
+    ],
+    "bankAccounts": [
+      {
+        "bankAccountUniqueId": "FAKE-BANK-AAAA",
+        "bankBranchNum": "001",
+        "bankAccountNum": "0001111",
+        "bankName": "Test Bank A",
+        "isDefault": true
+      },
+      {
+        "bankAccountUniqueId": "FAKE-BANK-BBBB",
+        "bankBranchNum": "002",
+        "bankAccountNum": "0002222",
+        "bankName": "Test Bank B",
+        "isDefault": false
+      },
+      {
+        "bankAccountUniqueId": "FAKE-BANK-CCCC",
+        "bankBranchNum": "003",
+        "bankAccountNum": "0003333",
+        "bankName": "Test Bank C",
+        "isDefault": false
+      }
+    ]
+  },
+  "statusDescription": "OK-FIXTURE",
+  "statusCode": 1
+}

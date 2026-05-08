@@ -16,6 +16,7 @@ type PhaseName =
   | 'otp-trigger'
   | 'otp-fill'
   | 'api-direct-call'
+  | 'account-resolve'
   | 'dashboard'
   | 'scrape'
   | 'terminate';

@@ -145,6 +145,9 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     preLoginDiscovery: none(),
     loginFieldDiscovery: none(),
     scrapeDiscovery: none(),
+    accountDiscovery: none(),
+    txnEndpoint: none(),
+    dashboardTxnHarvest: none(),
   };
   return { ...defaults, ...overrides };
 }

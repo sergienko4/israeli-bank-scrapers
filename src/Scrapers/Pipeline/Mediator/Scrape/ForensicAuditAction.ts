@@ -5,14 +5,12 @@
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
-import { redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
+import { redactAccount, redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { detectMirroredAccounts } from './MirrorDetection.js';
 
-/** Show last N digits of account number for identification. */
-const ACCOUNT_VISIBLE_DIGITS = 5;
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
   readonly accountNumber: string;
@@ -34,14 +32,15 @@ const LOG = createLogger('scrape-phase');
  * @returns True after logging.
  */
 /**
- * Show last N digits of an account/card number.
+ * Show an account/card number for the AUDIT log line. Delegates to
+ * the central `redactAccount` so the local dev-mode toggle
+ * (`PII_REDACTION=off`) controls audit output the same way it
+ * controls every other redacted field — single source of truth.
  * @param acctNum - Full account number string.
- * @returns Last 5 digits or full string if shorter.
+ * @returns Stable hint (or raw value when redaction is disabled).
  */
 function showLastDigits(acctNum: string): string {
-  if (acctNum.length <= ACCOUNT_VISIBLE_DIGITS) return acctNum;
-  const visible = acctNum.slice(-ACCOUNT_VISIBLE_DIGITS);
-  return `***${visible}`;
+  return redactAccount(acctNum);
 }
 
 /**
@@ -101,8 +100,43 @@ function logTxnPreview(acct: IAuditAccount): boolean {
  * @param accounts - Scraped accounts for txn count lookup.
  * @returns True after logging.
  */
+/**
+ * Bidirectional suffix-compatibility check between an account number
+ * and a qualified-card identifier. Returns true when one is a suffix
+ * of the other (or they're equal). Generalises across short-form
+ * `last4Digits` and long-form `cardUniqueId` representations of the
+ * same card without bank-specific branches.
+ *
+ * @param accountNumber - Final account.accountNumber from SCRAPE.
+ * @param card - Qualified-card identifier from scrapeDiscovery.
+ * @returns True when the two ids represent the same card.
+ */
+function isAccountIdMatch(accountNumber: string, card: string): boolean {
+  if (accountNumber === card) return true;
+  if (accountNumber === '' || card === '') return false;
+  return accountNumber.endsWith(card) || card.endsWith(accountNumber);
+}
+
+/**
+ * Emit one `[AUDIT] | <card> | QUALIFIED | API Success | <N> txns |`
+ * line per qualified card. Looks up the matching account via
+ * {@link isAccountIdMatch} so VisaCal-class banks (long-form
+ * `cardUniqueId` qualified, short-form `last4Digits` accountNumber)
+ * report the right txn count instead of always 0.
+ *
+ * @param card - Qualified-card identifier from scrapeDiscovery.
+ * @param accounts - Scraped accounts for txn-count lookup.
+ * @returns True after logging.
+ */
 function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): boolean {
-  const acct = accounts.find((a): boolean => a.accountNumber === card);
+  // Bidirectional suffix match — VisaCal-class banks expose long-form
+  // `cardUniqueId` (e.g. `198302041582022213`) on `qualifiedCards`
+  // while the resolved `account.accountNumber` is the short last4
+  // form (`3020`). Pre-fix the audit always reported 0 txns for those
+  // banks because `accountNumber === card` never held; the bidirectional
+  // suffix-match generalises across both directions without bank-
+  // specific branches.
+  const acct = accounts.find((a): boolean => isAccountIdMatch(a.accountNumber, card));
   let txnCount = '0';
   if (acct) {
     txnCount = String(acct.txns.length);
