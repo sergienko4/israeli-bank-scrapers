@@ -11,7 +11,7 @@ import {
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
-import { createOtpPoller } from './OtpPoller.js';
+import { createBankOtpPoller } from './OtpPoller.js';
 import { createTokenCache } from './TokenCache.js';
 
 dotenv.config();
@@ -40,12 +40,7 @@ DESCRIBE_IF('E2E: OneZero (real credentials, config-driven)', () => {
       log: LOG,
     });
     const cachedToken = await cache.read();
-    const retrieve = createOtpPoller({
-      envVar: 'ONEZERO_OTP',
-      fileName: 'onezero-otp.txt',
-      log: LOG,
-      bankRegex: /OneZero\D*(\d{4,8})/i,
-    });
+    const retrieve = createBankOtpPoller('OneZero', LOG);
     // Always include phoneNumber + retriever so mediator's retryOn401
     // → primeFresh can run a fresh SMS flow when cached token is stale.
     const warmCreds = {

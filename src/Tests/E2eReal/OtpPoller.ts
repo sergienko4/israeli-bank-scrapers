@@ -42,16 +42,25 @@ interface ICreateOtpPollerArgs {
   /** Optional custom timeout (ms) — defaults to 120s. */
   readonly timeoutMs?: number;
   /**
-   * Optional per-bank regex enabling the Telegram OTP tier in CI.
-   * When set AND `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` env vars
-   * are populated, the poller consults Telegram between the env-var
-   * tier and the poll-file tier. MUST contain exactly one capture
-   * group that matches the OTP digits (e.g.
-   * `/Beinleumi[^\d]*(\d{6})/`). When omitted (or env vars unset),
-   * the poller's behaviour is byte-identical to the pre-extension
-   * env → file → readline ladder.
+   * Optional digits-extraction regex used against the user's reply
+   * text in the Telegram tier. When set AND `TELEGRAM_BOT_TOKEN` +
+   * `TELEGRAM_CHAT_ID` env vars are populated AND `bankName` is set,
+   * the poller consults Telegram between the env-var tier and the
+   * poll-file tier. MUST contain exactly one capture group that
+   * matches the OTP digits — typically `/(\d{4,8})/` since the
+   * fetcher relies on `reply_to_message_id` for attribution, not
+   * regex content. When omitted (or env vars unset), the poller's
+   * behaviour is byte-identical to the pre-extension env → file →
+   * readline ladder.
    */
   readonly bankRegex?: RegExp;
+  /**
+   * Display name surfaced to the user when the bot sends the
+   * proactive prompt ("🔔 [bankName] CI is waiting for OTP …").
+   * Required when the Telegram tier engages — without it the tier
+   * silently skips with reason `'missing-bank-name'`.
+   */
+  readonly bankName?: string;
 }
 
 /** Default Telegram fetch timeout — ≪ pipeline OTP watchdog (180s). */
@@ -164,15 +173,81 @@ function promptViaReadline(phoneHint: string): Promise<string> {
  * @param args - Poller args (forward `bankRegex` + logger).
  * @returns Captured digits or empty string.
  */
-async function tryTelegramTier(args: ICreateOtpPollerArgs): Promise<string> {
-  const regex = args.bankRegex;
-  if (!regex) return '';
+/**
+ * Are the caller-supplied args complete enough for the tier?
+ * @param args - Poller args.
+ * @returns True when bankRegex + bankName both present.
+ */
+function hasTelegramArgs(args: ICreateOtpPollerArgs): boolean {
+  if (!args.bankRegex) return false;
+  if ((args.bankName ?? '').length === 0) return false;
+  return true;
+}
+
+/**
+ * Is the runtime environment a CI runner? GitHub Actions / GitLab
+ * CI / CircleCI / Travis all set `CI=true`. Never set on a
+ * developer workstation unless explicitly opted-in via
+ * `CI=true npm run test:e2e:real`.
+ * @returns True when running on a CI runner.
+ */
+function isCiEnvironment(): boolean {
+  const ciFlag = process.env.CI ?? '';
+  return ciFlag === 'true' || ciFlag === '1';
+}
+
+/**
+ * Are the Telegram secrets populated in the environment?
+ * @returns True when both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+ *   are non-empty.
+ */
+function hasTelegramSecrets(): boolean {
   const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
   const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
-  if (botToken.length === 0 || chatId.length === 0) return '';
+  return botToken.length > 0 && chatId.length > 0;
+}
+
+/**
+ * Pre-flight check for the Telegram tier. Returns `true` when the
+ * tier MAY engage; returns `false` to short-circuit silently.
+ * Extracted so {@link tryTelegramTier} stays inside the project's
+ * cyclomatic-complexity budget (10).
+ *
+ * @param args - Poller args.
+ * @returns True to proceed with the fetch.
+ */
+function shouldEngageTelegramTier(args: ICreateOtpPollerArgs): boolean {
+  if (!hasTelegramArgs(args)) return false;
+  if (!isCiEnvironment()) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'not-ci', bankName: args.bankName },
+      'Telegram OTP tier skipped — not running in CI',
+    );
+    return false;
+  }
+  if (!hasTelegramSecrets()) return false;
+  return true;
+}
+
+/**
+ * Try the Telegram OTP tier when opted-in and configured. Returns
+ * the captured digits on match, or empty string when the tier is
+ * skipped or times out.
+ *
+ * @param args - Poller args (forward `bankRegex` + bankName + logger).
+ * @returns Captured digits or empty string.
+ */
+async function tryTelegramTier(args: ICreateOtpPollerArgs): Promise<string> {
+  if (!shouldEngageTelegramTier(args)) return '';
+  const regex = args.bankRegex;
+  if (!regex) return '';
+  const bankName = args.bankName ?? '';
+  const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+  const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
   const result = await fetchOtpFromTelegram({
     botToken,
     chatId,
+    bankName,
     bankRegex: regex,
     timeoutMs: TELEGRAM_FETCH_TIMEOUT_MS,
     log: args.log,
@@ -216,5 +291,38 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   };
 }
 
-export { createOtpPoller, DEFAULT_POLL_TIMEOUT_MS };
+/** Digits-only regex used by every bank — attribution comes from the
+ *  Telegram reply-id, not from per-bank text matching. */
+const DIGITS_ONLY_REGEX = /(\d{4,8})/;
+
+/**
+ * Factory wrapper around {@link createOtpPoller} that derives the
+ * `envVar` (`<UPPER>_OTP`) and `fileName` (`<lower>-otp.txt`) from
+ * the bank name, sets the standard `bankRegex`, and forwards the
+ * `bankName` to the Telegram tier. Every E2E Real bank test that
+ * needs OTP delivery uses this — saves ~6 lines per bank vs the
+ * raw `createOtpPoller` form.
+ *
+ * @param bankName - Display name used in the Telegram prompt
+ *   (e.g. "Beinleumi"). Becomes the env-var prefix (uppercased)
+ *   and the poll-file basename (lowercased).
+ * @param log - Pino-shaped logger.
+ * @returns OTP retriever (`(hint?) => Promise<string>`).
+ */
+function createBankOtpPoller(
+  bankName: string,
+  log: ScraperLogger,
+): (hint?: string) => Promise<string> {
+  const upper = bankName.toUpperCase();
+  const lower = bankName.toLowerCase();
+  return createOtpPoller({
+    envVar: `${upper}_OTP`,
+    fileName: `${lower}-otp.txt`,
+    log,
+    bankName,
+    bankRegex: DIGITS_ONLY_REGEX,
+  });
+}
+
+export { createBankOtpPoller, createOtpPoller, DEFAULT_POLL_TIMEOUT_MS };
 export default createOtpPoller;

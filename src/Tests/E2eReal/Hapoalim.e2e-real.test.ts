@@ -12,7 +12,7 @@ import {
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
-import { createOtpPoller } from './OtpPoller.js';
+import { createBankOtpPoller } from './OtpPoller.js';
 
 dotenv.config();
 
@@ -27,12 +27,7 @@ DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
   });
 
   it('scrapes transactions successfully', async () => {
-    const retrieve = createOtpPoller({
-      envVar: 'HAPOALIM_OTP',
-      fileName: 'hapoalim-otp.txt',
-      log: LOG,
-      bankRegex: /(?:Hapoalim|הפועלים)\D*(\d{4,8})/,
-    });
+    const retrieve = createBankOtpPoller('Hapoalim', LOG);
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,
       startDate: defaultStartDate(),

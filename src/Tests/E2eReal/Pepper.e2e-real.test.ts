@@ -11,7 +11,7 @@ import {
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
-import { createOtpPoller } from './OtpPoller.js';
+import { createBankOtpPoller } from './OtpPoller.js';
 import { createTokenCache } from './TokenCache.js';
 
 dotenv.config();
@@ -49,12 +49,7 @@ DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
       log: LOG,
     });
     const cachedToken = await cache.read();
-    const retrieve = createOtpPoller({
-      envVar: 'PEPPER_OTP',
-      fileName: 'pepper-otp.txt',
-      log: LOG,
-      bankRegex: /Pepper\D*(\d{4,8})/i,
-    });
+    const retrieve = createBankOtpPoller('Pepper', LOG);
     const warmCreds = {
       phoneNumber,
       password,

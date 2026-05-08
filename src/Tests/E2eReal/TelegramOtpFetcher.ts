@@ -39,7 +39,18 @@ interface ITelegramFetchArgs {
   readonly botToken: string;
   /** Chat id (numeric or `@channel`); empty disables the tier. */
   readonly chatId: string;
-  /** Per-bank regex; MUST contain exactly one capture group (digits). */
+  /**
+   * Display name surfaced to the user in the prompt
+   * (e.g. "Hapoalim", "Beinleumi"). Cannot be empty.
+   */
+  readonly bankName: string;
+  /**
+   * Digits-extraction regex used against the user's reply text.
+   * MUST contain exactly one capture group. Default in callers is
+   * `/(\d{4,8})/` — any 4-8 digit run. Per-bank attribution is
+   * handled by `reply_to_message_id` (Telegram Reply feature),
+   * not by the regex.
+   */
   readonly bankRegex: RegExp;
   /** Hard deadline for the resolve loop (ms). */
   readonly timeoutMs: number;
@@ -55,7 +66,19 @@ interface ITelegramUpdate {
     readonly text?: string;
     /** Message epoch (seconds) — present on text messages. */
     readonly date: number;
+    /**
+     * Set when the user used Telegram's Reply feature on a
+     * specific message. Carries the message_id of the bot's
+     * prompt that the user is replying to.
+     */
+    readonly reply_to_message?: { readonly message_id: number };
   };
+}
+
+/** Telegram sendMessage response envelope. */
+interface ITelegramSendMessageResponse {
+  readonly ok: boolean;
+  readonly result?: { readonly message_id: number };
 }
 
 /** Telegram getUpdates response envelope. */
@@ -65,7 +88,12 @@ interface ITelegramGetUpdatesResponse {
 }
 
 /** Skip-reason enum — closed list. */
-type TelegramSkipReason = 'missing-token' | 'missing-chat' | 'invalid-timeout' | 'invalid-regex';
+type TelegramSkipReason =
+  | 'missing-token'
+  | 'missing-chat'
+  | 'missing-bank-name'
+  | 'invalid-timeout'
+  | 'invalid-regex';
 
 /** Default per-cycle long-poll budget (Telegram caps at 50 s). */
 const TELEGRAM_LONG_POLL_S = 10;
@@ -92,9 +120,51 @@ function tailMask(value: string): string {
 function detectSkipReason(args: ITelegramFetchArgs): TelegramSkipReason | false {
   if (args.botToken.length === 0) return 'missing-token';
   if (args.chatId.length === 0) return 'missing-chat';
+  if (args.bankName.length === 0) return 'missing-bank-name';
   if (args.timeoutMs <= 0) return 'invalid-timeout';
   if (!args.bankRegex.source.includes('(')) return 'invalid-regex';
   return false;
+}
+
+/**
+ * Send the proactive prompt that tells the user "[bank] is waiting
+ * for OTP — reply to THIS message with the code". The returned
+ * message_id is what the fetcher matches against on every
+ * subsequent reply (`reply_to_message.message_id`), so each
+ * parallel fetcher's prompts and replies stay isolated.
+ *
+ * @param args - Fetcher input bundle.
+ * @returns Bot's sent message_id, or `false` on transport failure.
+ */
+async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | false> {
+  const url = `https://api.telegram.org/bot${args.botToken}/sendMessage`;
+  const promptHeader = `🔔 *${args.bankName}* CI run is waiting for an OTP code.\n\n`;
+  const promptBody =
+    'Please *reply to this message* with the code from the SMS ' +
+    "(e.g. '123456'). The reply MUST use Telegram's Reply feature " +
+    'so the right CI job picks it up.';
+  const text = `${promptHeader}${promptBody}`;
+  const body = JSON.stringify({
+    chat_id: args.chatId,
+    text,
+    parse_mode: 'Markdown',
+    reply_markup: { force_reply: true, selective: true },
+  });
+  const signal = AbortSignal.timeout(HTTP_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal,
+    });
+    if (!res.ok) return false;
+    const parsed = (await res.json()) as ITelegramSendMessageResponse;
+    if (!parsed.ok || !parsed.result) return false;
+    return parsed.result.message_id;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -150,17 +220,27 @@ interface IInspectArgs {
   readonly bankRegex: RegExp;
   /** Update_id floor — only updates with `update_id > this` qualify. */
   readonly minUpdateId: number;
+  /**
+   * The bot's prompt `message_id`. Only updates whose
+   * `reply_to_message.message_id` matches this value are accepted.
+   * This is the parallel-safety mechanism: each fetcher's prompt
+   * has a unique `message_id`, so concurrent fetchers' replies
+   * stay isolated even on a shared chat.
+   */
+  readonly promptMessageId: number;
 }
 
 /**
- * Inspect a single update for an OTP match. Strictly rejects any
- * update with `update_id <= minUpdateId` — the per-fetcher floor
- * captured at fetcher start. `update_id` is per-bot monotonic,
- * collision-free, and resilient to clock skew (unlike message
- * date-seconds). Combined with the per-bank regex this is the
- * strict attribution mechanism: each parallel fetcher sees the
- * shared chat, but only OTPs that arrived after THAT fetcher
- * started AND that match THAT bank's regex are accepted.
+ * Inspect a single update for an OTP match. Three filters apply:
+ *  1. `update_id > minUpdateId` (per-fetcher floor)
+ *  2. `chat.id === targetChat` (cross-chat protection)
+ *  3. `reply_to_message.message_id === promptMessageId`
+ *     (per-prompt isolation — Telegram Reply feature)
+ *
+ * The fourth filter is the digits-extraction `bankRegex` against
+ * the user's reply text. Per-bank attribution is now handled by
+ * the reply-id, so the regex serves only to extract the digits
+ * (callers typically use `/(\d{4,8})/`).
  *
  * @param args - Bundled inspection inputs.
  * @returns Match payload or `false`.
@@ -170,6 +250,7 @@ function inspectUpdate(args: IInspectArgs): MatchResult {
   const msg = args.upd.message;
   if (!msg) return false;
   if (msg.chat.id !== args.targetChat) return false;
+  if (msg.reply_to_message?.message_id !== args.promptMessageId) return false;
   const text = msg.text ?? '';
   const match = args.bankRegex.exec(text);
   if (!match) return false;
@@ -197,11 +278,13 @@ interface IFindOtpMatchArgs {
   readonly chatId: string;
   readonly bankRegex: RegExp;
   readonly minUpdateId: number;
+  readonly promptMessageId: number;
 }
 
 /**
  * Walk a batch of updates newest-first and return the first one
- * matching the per-bank regex (strictly newer than minUpdateId).
+ * that's strictly newer than `minUpdateId`, in the right chat,
+ * AND a reply to our prompt (`promptMessageId`).
  * @param args - Match inputs.
  * @returns Match payload or `false`.
  */
@@ -214,6 +297,7 @@ function findOtpMatch(args: IFindOtpMatchArgs): MatchResult {
       targetChat,
       bankRegex: args.bankRegex,
       minUpdateId: args.minUpdateId,
+      promptMessageId: args.promptMessageId,
     });
     if (found !== false) return found;
   }
@@ -252,6 +336,11 @@ interface IPollState {
    * fetcher has its own `minUpdateId` based on when IT started).
    */
   readonly minUpdateId: number;
+  /**
+   * The bot's prompt `message_id`. Replies to this prompt are the
+   * only updates the fetcher accepts.
+   */
+  readonly promptMessageId: number;
 }
 
 /**
@@ -294,6 +383,7 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
     chatId: state.args.chatId,
     bankRegex: state.args.bankRegex,
     minUpdateId: state.minUpdateId,
+    promptMessageId: state.promptMessageId,
   });
 }
 
@@ -325,21 +415,39 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     args.log.debug({ event: 'telegram.otp.fetch.skip', reason: skip }, 'Telegram OTP tier skipped');
     return false;
   }
+  // 1. Send the proactive prompt FIRST. Captures the bot's
+  //    sent message_id so we can scope subsequent reply matching.
+  const promptMessageId = await sendPromptMessage(args);
+  if (promptMessageId === false) {
+    args.log.warn(
+      {
+        event: 'telegram.otp.fetch.prompt-failed',
+        chatIdSuffix: tailMask(args.chatId),
+        bankName: args.bankName,
+      },
+      'Telegram sendMessage failed — cannot prompt user; aborting fetcher',
+    );
+    return false;
+  }
+  // 2. Capture the per-fetcher update_id floor.
   const minUpdateId = await readInitialUpdateId(args.botToken);
   args.log.info(
     {
       event: 'telegram.otp.fetch.start',
       chatIdSuffix: tailMask(args.chatId),
-      bankRegexSource: args.bankRegex.source,
-      timeoutMs: args.timeoutMs,
+      bankName: args.bankName,
+      promptMessageId,
       minUpdateId,
+      timeoutMs: args.timeoutMs,
     },
-    'Telegram OTP fetch — polling (read-only window)',
+    'Telegram OTP fetch — prompt sent; polling for reply',
   );
+  // 3. Poll until a reply to our prompt arrives or deadline passes.
   const state: IPollState = {
     args,
     deadline: Date.now() + args.timeoutMs,
     minUpdateId,
+    promptMessageId,
   };
   const match = await runPollLoop(state);
   if (match === false) {
@@ -347,10 +455,11 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
       {
         event: 'telegram.otp.fetch.timeout',
         chatIdSuffix: tailMask(args.chatId),
+        bankName: args.bankName,
+        promptMessageId,
         waitedMs: args.timeoutMs,
-        minUpdateId,
       },
-      'Telegram OTP fetch timed out',
+      'Telegram OTP fetch timed out — user did not reply within budget',
     );
     return false;
   }
@@ -358,10 +467,12 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     {
       event: 'telegram.otp.fetch.match',
       chatIdSuffix: tailMask(args.chatId),
+      bankName: args.bankName,
+      promptMessageId,
       codeLength: match.code.length,
       updateId: match.updateId,
     },
-    'Telegram OTP fetch — matched (no global ack — parallel-safe)',
+    'Telegram OTP fetch — matched (reply-scoped, parallel-safe)',
   );
   return match.code;
 }

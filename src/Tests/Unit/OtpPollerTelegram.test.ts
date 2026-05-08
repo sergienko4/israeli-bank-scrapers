@@ -50,6 +50,10 @@ beforeEach((): void => {
   delete process.env.BEINLEUMI_OTP;
   delete process.env.TELEGRAM_BOT_TOKEN;
   delete process.env.TELEGRAM_CHAT_ID;
+  // Telegram tier is CI-only (skips silently otherwise). The unit
+  // tests below assert the tier's behaviour, so we opt in
+  // explicitly to bypass the dev-machine guard.
+  process.env.CI = 'true';
   MOCK_TELEGRAM.mockReset();
 });
 
@@ -57,71 +61,140 @@ afterAll((): void => {
   process.env = ORIGINAL_ENV;
 });
 
+/** Concrete poller-args type alias — exact shape the factory builds. */
+type IPollerArgs = Parameters<typeof CREATE_OTP_POLLER>[0];
+
+const ENV_VAR_DEFAULT = 'BEINLEUMI_OTP';
+const FILE_NAME_DEFAULT = 'beinleumi-otp.txt';
+const BANK_NAME_DEFAULT = 'Beinleumi';
+const BANK_REGEX_DEFAULT = /(\d{4,8})/;
+
+/**
+ * Build a fully-populated poller args bundle (used by TP-1, TP-2,
+ * TP-4, TP-6 — the cases that don't omit any field).
+ * @returns Complete args.
+ */
+function buildFullArgs(): IPollerArgs {
+  return {
+    envVar: ENV_VAR_DEFAULT,
+    fileName: FILE_NAME_DEFAULT,
+    log: makeLogger(),
+    bankName: BANK_NAME_DEFAULT,
+    bankRegex: BANK_REGEX_DEFAULT,
+  };
+}
+
+/**
+ * Variant: full args minus `bankRegex`. Used by TP-3.
+ * Constructed as a complete object literal — no destructuring so
+ * the field is absent at runtime (not just `undefined`-valued).
+ * @returns Args without bankRegex.
+ */
+function buildArgsWithoutBankRegex(): IPollerArgs {
+  return {
+    envVar: ENV_VAR_DEFAULT,
+    fileName: FILE_NAME_DEFAULT,
+    log: makeLogger(),
+    bankName: BANK_NAME_DEFAULT,
+  };
+}
+
+/**
+ * Variant: full args minus `bankName`. Used by TP-5.
+ * @returns Args without bankName.
+ */
+function buildArgsWithoutBankName(): IPollerArgs {
+  return {
+    envVar: ENV_VAR_DEFAULT,
+    fileName: FILE_NAME_DEFAULT,
+    log: makeLogger(),
+    bankRegex: BANK_REGEX_DEFAULT,
+  };
+}
+
+/**
+ * Set the env vars that would normally be present in CI.
+ * @returns True once the env is staged.
+ */
+function stageCiEnv(): true {
+  process.env.TELEGRAM_BOT_TOKEN = 'tok';
+  process.env.TELEGRAM_CHAT_ID = '-100';
+  return true;
+}
+
+/**
+ * Fire the retriever, swallow any rejection (e.g. 180s file-poll
+ * timeout), and yield once so the Telegram-tier microtask had a
+ * chance to run.
+ * @param retrieve - Result of `CREATE_OTP_POLLER(...)`.
+ * @returns Resolves once the microtask flushed.
+ */
+async function fireAndYield(retrieve: () => Promise<string>): Promise<true> {
+  const pending = retrieve();
+  pending.catch((): true => true);
+  await Promise.resolve();
+  return true;
+}
+
+/**
+ * Skip-tier scenarios — every case asserts MOCK_TELEGRAM is
+ * never called. The shared assertion is in `runSkipScenario`.
+ *
+ * @param args - Args bundle for this scenario.
+ * @returns True once the scenario completed.
+ */
+async function runSkipScenario(args: IPollerArgs): Promise<true> {
+  MOCK_TELEGRAM.mockResolvedValue('NEVER_RETURNED');
+  const retrieve = CREATE_OTP_POLLER(args);
+  await fireAndYield(retrieve);
+  expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
+  return true;
+}
+
 describe('createOtpPoller — Telegram tier', () => {
   it('TP-1 env var wins — Telegram is not consulted', async () => {
     process.env.BEINLEUMI_OTP = 'FROM_ENV';
-    process.env.TELEGRAM_BOT_TOKEN = 'tok';
-    process.env.TELEGRAM_CHAT_ID = '-100';
+    stageCiEnv();
     MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');
-    const retrieve = CREATE_OTP_POLLER({
-      envVar: 'BEINLEUMI_OTP',
-      fileName: 'beinleumi-otp.txt',
-      log: makeLogger(),
-      bankRegex: /Beinleumi\D*(\d{4,8})/,
-    });
+    const args = buildFullArgs();
+    const retrieve = CREATE_OTP_POLLER(args);
     const code = await retrieve();
     expect(code).toBe('FROM_ENV');
     expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
   });
 
   it('TP-2 Telegram wins — when env unset and Telegram returns code', async () => {
-    process.env.TELEGRAM_BOT_TOKEN = 'tok';
-    process.env.TELEGRAM_CHAT_ID = '-100';
+    stageCiEnv();
     MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');
-    const retrieve = CREATE_OTP_POLLER({
-      envVar: 'BEINLEUMI_OTP',
-      fileName: 'beinleumi-otp.txt',
-      log: makeLogger(),
-      bankRegex: /Beinleumi\D*(\d{4,8})/,
-    });
+    const args = buildFullArgs();
+    const retrieve = CREATE_OTP_POLLER(args);
     const code = await retrieve();
     expect(code).toBe('FROM_TELEGRAM');
     expect(MOCK_TELEGRAM).toHaveBeenCalledTimes(1);
   });
 
-  it('TP-3 Telegram skipped without bankRegex — no fetcher call', async () => {
-    process.env.TELEGRAM_BOT_TOKEN = 'tok';
-    process.env.TELEGRAM_CHAT_ID = '-100';
-    MOCK_TELEGRAM.mockResolvedValue('FROM_TELEGRAM');
-    // bankRegex omitted → Telegram tier MUST be skipped.
-    const retrieve = CREATE_OTP_POLLER({
-      envVar: 'BEINLEUMI_OTP',
-      fileName: 'beinleumi-otp.txt',
-      log: makeLogger(),
-    });
-    // No env, no Telegram, non-TTY → falls through to poll-file
-    // which times out fast in this test (we don't await it).
-    // Verify only that Telegram wasn't called.
-    // Fire-and-forget; we assert the call sequence after a microtask
-    // flush. The retrieve() promise is allowed to settle on its own.
-    const pending3 = retrieve();
-    pending3.catch((): null => null);
-    await Promise.resolve();
-    expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
+  it('TP-3 skipped without bankRegex', async () => {
+    stageCiEnv();
+    const args = buildArgsWithoutBankRegex();
+    await runSkipScenario(args);
   });
 
-  it('TP-4 Telegram skipped without env vars — no fetcher call', async () => {
-    // bankRegex set BUT envs missing → Telegram tier MUST short-circuit.
-    MOCK_TELEGRAM.mockResolvedValue('NEVER_RETURNED');
-    const retrieve = CREATE_OTP_POLLER({
-      envVar: 'BEINLEUMI_OTP',
-      fileName: 'beinleumi-otp.txt',
-      log: makeLogger(),
-      bankRegex: /Beinleumi\D*(\d{4,8})/,
-    });
-    const pending4 = retrieve();
-    pending4.catch((): null => null);
-    await Promise.resolve();
-    expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
+  it('TP-4 skipped without env vars (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)', async () => {
+    // No stageCiEnv — TELEGRAM_BOT_TOKEN/CHAT_ID stay deleted.
+    const args = buildFullArgs();
+    await runSkipScenario(args);
+  });
+
+  it('TP-5 skipped without bankName', async () => {
+    stageCiEnv();
+    const args = buildArgsWithoutBankName();
+    await runSkipScenario(args);
+  });
+
+  it('TP-6 skipped when CI env unset — local-dev guard', async () => {
+    delete process.env.CI;
+    stageCiEnv();
+    const args = buildFullArgs();
+    await runSkipScenario(args);
   });
 });
