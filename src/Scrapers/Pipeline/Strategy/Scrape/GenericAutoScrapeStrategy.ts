@@ -11,14 +11,12 @@
  */
 
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
-import type {
-  IDiscoveredEndpoint,
-  INetworkDiscovery,
-} from '../../Mediator/Network/NetworkDiscovery.js';
+import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactUrlFull } from '../../Types/PiiRedactor.js';
+import type { IDashboardTxnHarvest, ITxnEndpoint } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
@@ -32,20 +30,19 @@ const LOG = createLogger('scrape-phase');
 const SPA_PIVOT_TIMEOUT_MS = 15_000;
 
 /**
- * Logs the discovered transaction endpoint URL so the canonical
- * `autoScrape.txnEndpoint` line in `pipeline.log` pins
- * which capture SCRAPE.PRE bound as the txn template. Pure
+ * Logs the resolved transaction endpoint URL so the canonical
+ * `autoScrape.txnEndpoint` line in `pipeline.log` pins which
+ * capture DASHBOARD.FINAL committed as the txn template. Pure
  * pass-through; never mutates the endpoint.
- * @param ep - Endpoint or false.
+ * @param ep - Slim endpoint committed by DASHBOARD.FINAL.
  * @returns The same endpoint, unchanged.
  */
-function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | false {
-  if (ep) {
+function logTxnEndpoint(ep: ITxnEndpoint): ITxnEndpoint {
+  if (ep.url !== '') {
     LOG.debug({
       event: 'autoScrape.txnEndpoint',
       picked: redactUrlFull(ep.url),
       method: ep.method,
-      captureIndex: ep.captureIndex ?? 0,
     });
     return ep;
   }
@@ -56,7 +53,8 @@ function logTxnEndpoint(ep: IDiscoveredEndpoint | false): IDiscoveredEndpoint | 
 /** Bundled args for {@link buildLoadCtxFromPreDiscovered}. */
 interface IPreDiscoveredArgs {
   readonly fc: IAccountFetchCtx;
-  readonly txnEndpoint: IDiscoveredEndpoint | false;
+  readonly txnEndpoint: ITxnEndpoint;
+  readonly harvest: IDashboardTxnHarvest;
   readonly ids: readonly string[];
   readonly records: readonly Record<string, unknown>[];
 }
@@ -65,20 +63,23 @@ interface IPreDiscoveredArgs {
  * Builds the SCRAPE per-account fetch context from the account list
  * ACCOUNT-RESOLVE.POST already committed to `ctx.accountDiscovery`,
  * paired with the TXN endpoint DASHBOARD.FINAL committed to
- * `ctx.txnEndpoint` (Phase 7e). Strict SRP — never re-runs discovery
- * here; the upstream phases own each contract.
+ * `ctx.txnEndpoint` and the DASHBOARD-side harvest committed to
+ * `ctx.dashboardTxnHarvest` (Phase 7f). Strict SRP — never re-runs
+ * discovery here; the upstream phases own each contract.
  *
- * @param args - Bundled fetch context, account ids/records, and the
- *   pre-resolved txn endpoint.
+ * @param args - Bundled fetch context, account ids/records, the
+ *   pre-resolved slim txn endpoint, and the DASHBOARD harvest.
  * @returns Fetch-all context ready for the matrix loop.
  */
 function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccountsCtx {
   logTxnEndpoint(args.txnEndpoint);
+  const fc: IAccountFetchCtx = { ...args.fc, dashboardTxnHarvest: args.harvest };
   return {
-    fc: args.fc,
+    fc,
     ids: [...args.ids],
     records: [...args.records],
     txnEndpoint: args.txnEndpoint,
+    dashboardTxnHarvest: args.harvest,
   };
 }
 
@@ -87,15 +88,15 @@ function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccou
  * the browser currently sits on. Drives the SPA-pivot decision in
  * {@link pivotToSpaIfNeeded}: if the txn endpoint is hosted on the
  * current origin, no pivot is needed.
- * @param txnEndpoint - Pre-resolved TXN endpoint (or false).
+ * @param txnEndpoint - Pre-resolved slim TXN endpoint.
  * @param currentOrigin - Current page origin.
  * @returns Branded boolean signal.
  */
 function isTxnHostedOnCurrentOrigin(
-  txnEndpoint: IDiscoveredEndpoint | false,
+  txnEndpoint: ITxnEndpoint,
   currentOrigin: string,
 ): IsTxnOnCurrentOrigin {
-  if (!txnEndpoint) return false as IsTxnOnCurrentOrigin;
+  if (txnEndpoint.url === '') return false as IsTxnOnCurrentOrigin;
   return (new URL(txnEndpoint.url).origin === currentOrigin) as IsTxnOnCurrentOrigin;
 }
 
@@ -103,7 +104,7 @@ function isTxnHostedOnCurrentOrigin(
 interface IPivotArgs {
   readonly mediator: IElementMediator;
   readonly network: INetworkDiscovery;
-  readonly txnEndpoint: IDiscoveredEndpoint | false;
+  readonly txnEndpoint: ITxnEndpoint;
 }
 
 /**

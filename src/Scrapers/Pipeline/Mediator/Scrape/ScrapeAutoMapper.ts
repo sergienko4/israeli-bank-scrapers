@@ -18,7 +18,11 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
-import type { ITxnEndpoint, ITxnFieldMap } from '../../Types/PipelineContext.js';
+import type {
+  ITxnEndpoint,
+  ITxnEndpointInternal,
+  ITxnFieldMap,
+} from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
@@ -1495,24 +1499,24 @@ function resolveFieldMapOrEmpty(records: readonly ApiRecord[]): ITxnFieldMap {
 }
 
 /**
- * Phase 7e — resolve the TXN endpoint from DASHBOARD's captures.
- * Combines the existing
- * {@link INetworkDiscovery.discoverTransactionsEndpoint} URL pick with
- * a per-run {@link ITxnFieldMap} resolution from the captured response
- * body (when records are present), plus the sibling pending and billing
- * URLs that SCRAPE consumes.
+ * Phase 7f — resolve the TXN endpoint from DASHBOARD's captures.
+ * Returns the wider {@link ITxnEndpointInternal} so DASHBOARD.FINAL
+ * can emit the `dashboard.txnEndpoint.committed` telemetry with the
+ * picker's diagnostics; DASHBOARD then unwraps `.endpoint` and
+ * commits ONLY the slim {@link ITxnEndpoint} to `ctx.txnEndpoint`.
+ * SCRAPE never sees `captureIndex`, `responseBodySample`,
+ * `normalizedRecords`, `pickerTier`, or `capturedPreClick`.
  *
  * <p>Returns `false` ONLY when the picker found no URL match or the
  * body is malformed JSON. An empty body for a valid `replayablePost`
  * URL is committed with an empty fieldMap — SCRAPE re-fetches per
- * account and `extractTransactions` auto-discovers fields per fresh
- * response. This keeps DASHBOARD.FINAL strict on URL/method
- * resolution while tolerating bank sessions with zero recent activity.
+ * account and the per-account parse falls back to legacy
+ * auto-discovery for that one execution.
  *
  * @param network - Network surface exposing the pool of captures.
- * @returns Resolved endpoint or `false`.
+ * @returns Resolved internal payload or `false`.
  */
-function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpoint | false {
+function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpointInternal | false {
   const ep = network.discoverTransactionsEndpoint();
   if (ep === false) return false;
   const body = ep.responseBody;
@@ -1523,16 +1527,21 @@ function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpoint | false {
   const records = huntTransactions(responseBody);
   const fieldMap = resolveFieldMapOrEmpty(records);
   const method: 'GET' | 'POST' = ep.method;
-  return {
+  const endpoint: ITxnEndpoint = {
     url: ep.url,
     method,
-    captureIndex: ep.captureIndex ?? 0,
     templatePostData: resolveTemplatePostData(method, ep.postData),
-    responseBodySample: responseBody,
-    normalizedRecords: extractTransactions(responseBody),
     fieldMap,
     pendingUrl: resolvePendingUrl(network),
     billingUrl: resolveBillingUrl(network),
+  };
+  return {
+    endpoint,
+    captureIndex: ep.captureIndex ?? 0,
+    responseBodySample: responseBody,
+    normalizedRecords: extractTransactions(responseBody),
+    pickerTier: ep.pickerTier ?? 'shapePassing',
+    capturedPreClick: ep.capturedPreClick ?? false,
   };
 }
 

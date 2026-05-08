@@ -38,6 +38,7 @@ import {
   validateTrafficGate,
 } from './DashboardDiscovery.js';
 import checkChangePassword, { extractAuthFromContext } from './DashboardProbe.js';
+import { buildTxnHarvest } from './TxnParser.js';
 
 /** Timeout for SPA transaction link probe (15s for Angular SPAs). */
 const TRIGGER_PROBE_TIMEOUT = 15000;
@@ -565,13 +566,22 @@ async function executeHrefNav(
 async function executeDashboardNavigationSealed(
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
-  if (input.diagnostics.dashboardTrafficExists) {
-    input.logger.debug({ message: 'traffic exists -- skip click (DIRECT)' });
-    return succeed(input);
-  }
   if (!input.executor.has) {
     input.logger.debug({ message: 'no executor -- traffic from login' });
     return succeed(input);
+  }
+  // Phase 7f follow-up: ALWAYS click when an executor is present.
+  // The pre-existing "traffic exists -- skip click" fast-path treated
+  // login-time API captures as sufficient, but those are PREVIEW
+  // shapes for Amex/Isracard (`GetLatestTransactions` 5-cap) — the
+  // real historical API only fires after the dashboard navigation.
+  // Skipping the click left those banks stuck on the preview cap;
+  // forcing the click is bank-agnostic (Discount/Hapoalim/etc.
+  // already clicked) and surfaces the post-nav captures the picker
+  // wants. PRE's resolved target stays load-bearing — no candidate,
+  // no click (executor.has guard above already handles that).
+  if (input.diagnostics.dashboardTrafficExists) {
+    input.logger.debug({ message: 'traffic exists -- still click for post-nav API' });
   }
   // Mark the navigation moment so DASHBOARD.POST and SCRAPE.PRE can
   // split captures into pre-nav (login + dashboard widget) vs
@@ -1033,6 +1043,34 @@ interface ITxnCommitOutcome {
  * @returns Outcome carrying the updated context (success) or the
  *   fail-loud procedure to propagate.
  */
+/**
+ * Read the count of accounts ACCOUNT-RESOLVE.POST committed onto
+ * `ctx.accountDiscovery.ids`. Returns 0 when the option is absent
+ * (mock-mode bypass / replay tests). Used by
+ * {@link commitTxnEndpoint} to feed the harvest's context-aware
+ * multi-scope decision.
+ *
+ * @param ctx - Pipeline context.
+ * @returns Number of resolved account ids, or 0 when absent.
+ */
+function readAccountIdCount(ctx: IPipelineContext): number {
+  if (!ctx.accountDiscovery.has) return 0;
+  return ctx.accountDiscovery.value.ids.length;
+}
+
+/**
+ * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
+ * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
+ * resolver cannot pick a date AND amount field. Mirrors the
+ * ACCOUNT-RESOLVE.POST contract: every successful run either commits
+ * the endpoint OR halts the pipeline before SCRAPE starts. The
+ * MOCK_MODE valve preserves the offline snapshot suite — no captured
+ * network traffic, no fail-loud applicable.
+ *
+ * @param ctx - Pipeline context after `maybeAttachApi`.
+ * @returns Outcome carrying the updated context (success) or the
+ *   fail-loud procedure to propagate.
+ */
 async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
   await Promise.resolve();
   if (!ctx.mediator.has) {
@@ -1041,14 +1079,19 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
   if (isMockModeDashboardFinalActive) {
     return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
   }
-  const ep = resolveTxnEndpoint(ctx.mediator.value.network);
-  if (ep === false) {
+  const internal = resolveTxnEndpoint(ctx.mediator.value.network);
+  if (internal === false) {
     // F-DASH-2: the picked TXN URL has no record exposing a date AND
     // amount field WK_TXN recognises. DASHBOARD halts the pipeline —
     // there is no bridge fallback in SCRAPE. The contract is binary:
     // either DASHBOARD.FINAL commits a complete `ctx.txnEndpoint` or
     // the run errors out. Never half-commit, never let SCRAPE
     // re-discover.
+    ctx.logger.debug({
+      event: 'dashboard.txnEndpoint.failLoud',
+      code: 'DASHBOARD_TXN_FIELDMAP_INCOMPLETE',
+      reason: 'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases',
+    });
     const failure = fail(
       ScraperErrorTypes.Generic,
       'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
@@ -1056,16 +1099,43 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
     );
     return { ok: false, ctx, failure };
   }
-  const updated: IPipelineContext = { ...ctx, txnEndpoint: some(ep) };
+  // Phase 7f: commit ONLY the slim SCRAPE-facing endpoint to ctx.
+  // captureIndex / responseBodySample / pickerTier / capturedPreClick
+  // are DASHBOARD-internal artefacts that emit via telemetry but
+  // never travel on ctx. The pre-extracted records (and their scope)
+  // travel on ctx.dashboardTxnHarvest as a clean value type — the
+  // mirror of ACCOUNT-RESOLVE's IAccountDiscovery.records, so SCRAPE
+  // can consume the records DASHBOARD already saw without issuing a
+  // redundant fetch when the bank's anti-bot guard would otherwise
+  // 302 the second request. Pass ACCOUNT-RESOLVE's account count so
+  // the harvest's multi-scope decision becomes context-aware: an
+  // unscoped capture in a multi-account run is multi-scope unsafe
+  // (Amex/Isracard would otherwise mirror the captured 5 records
+  // across every card).
+  const accountIdCount = readAccountIdCount(ctx);
+  const harvest = buildTxnHarvest(internal, accountIdCount);
+  const updated: IPipelineContext = {
+    ...ctx,
+    txnEndpoint: some(internal.endpoint),
+    dashboardTxnHarvest: some(harvest),
+  };
   ctx.logger.debug({
     event: 'dashboard.txnEndpoint.committed',
-    method: ep.method,
-    captureIndex: ep.captureIndex,
-    fieldMapDate: ep.fieldMap.date,
-    fieldMapAmount: ep.fieldMap.amount,
-    pendingUrlPresent: ep.pendingUrl !== false,
-    billingUrlPresent: ep.billingUrl !== false,
-    normalizedRecords: ep.normalizedRecords.length,
+    method: internal.endpoint.method,
+    captureIndex: internal.captureIndex,
+    fieldMapDate: internal.endpoint.fieldMap.date,
+    fieldMapAmount: internal.endpoint.fieldMap.amount,
+    pendingUrlPresent: internal.endpoint.pendingUrl !== false,
+    billingUrlPresent: internal.endpoint.billingUrl !== false,
+    normalizedRecords: internal.normalizedRecords.length,
+    pickerTier: internal.pickerTier,
+    capturedPreClick: internal.capturedPreClick,
+  });
+  ctx.logger.debug({
+    event: 'dashboard.txnHarvest.committed',
+    records: harvest.records.length,
+    capturedAccountIdPresent: harvest.capturedAccountId !== false,
+    multiAccountScope: harvest.multiAccountScope,
   });
   return { ok: true, ctx: updated, failure: fail(ScraperErrorTypes.Generic, '') };
 }

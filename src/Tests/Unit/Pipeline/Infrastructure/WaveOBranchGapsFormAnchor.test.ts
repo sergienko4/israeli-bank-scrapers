@@ -152,8 +152,19 @@ describe('MatrixLoopStrategy 0-txn branch', () => {
     const ep = {
       url: 'https://bank.example/api/txn',
       method: 'POST',
-      postData: JSON.stringify(body),
-      responseBody: {},
+      templatePostData: JSON.stringify(body),
+      fieldMap: {
+        date: '',
+        amount: '',
+        description: '',
+        currency: '',
+        identifier: '',
+        originalAmount: false,
+        processedDate: false,
+        balance: false,
+      },
+      pendingUrl: false,
+      billingUrl: false,
     };
     const api = {
       /**

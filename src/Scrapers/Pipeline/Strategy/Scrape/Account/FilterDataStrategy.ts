@@ -5,23 +5,13 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
-import {
-  extractTransactions,
-  findFieldValue,
-  generateMonthChunks,
-} from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
-import {
-  PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
-  PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY,
-} from '../../../Registry/WK/ScrapeWK.js';
+import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
+import { generateMonthChunks } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk } from '../../../Types/Procedure.js';
-
-type IsPathMatch = Brand<boolean, 'IsPathMatch'>;
-type IsFilterDataUrl = Brand<boolean, 'IsFilterDataUrl'>;
-type DisplayIdFromRaw = Brand<string, 'DisplayIdFromRaw'>;
 import {
   buildAccountResult,
   buildFilterDataUrl,
@@ -29,7 +19,10 @@ import {
   parseStartDate,
   rateLimitPause,
 } from '../ScrapeDataActions.js';
-import type { IAccountFetchCtx } from '../ScrapeTypes.js';
+import { EMPTY_TXN_ENDPOINT, type IAccountFetchCtx } from '../ScrapeTypes.js';
+
+type IsPathMatch = Brand<boolean, 'IsPathMatch'>;
+type IsFilterDataUrl = Brand<boolean, 'IsFilterDataUrl'>;
 
 const LOG = createLogger('scrape-filter');
 
@@ -82,50 +75,16 @@ export function isFilterDataUrl(url: string): IsFilterDataUrl {
   return pathOrRawIncludes(url, parsed, keyLower) as unknown as IsFilterDataUrl;
 }
 
-/** Buffered txn extraction result. */
-interface IBufferedTxns {
-  readonly txns: readonly ITransaction[];
-  readonly displayId: string;
-  readonly body: Record<string, unknown> | undefined;
-}
-
-/**
- * Extract displayId from raw response by scanning for shortCardNumber in arrays.
- * @param body - Raw parsed response body.
- * @returns Card number or empty string.
- */
-function extractDisplayIdFromRaw(body: Record<string, unknown>): DisplayIdFromRaw {
-  const result = body.result as Record<string, unknown> | undefined;
-  if (!result) return '' as DisplayIdFromRaw;
-  const txnArray = result.transactions as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(txnArray) || txnArray.length === 0) return '' as DisplayIdFromRaw;
-  const first = txnArray[0];
-  const cardId = findFieldValue(first, WK_ACCT.displayId);
-  if (cardId === false) return '' as DisplayIdFromRaw;
-  return String(cardId) as DisplayIdFromRaw;
-}
-
-/**
- * Extract transactions from captured response body (zero network cost).
- * Phase 7e: consumes the endpoint plumbed onto fc.txnEndpoint by
- * SCRAPE.PRE — zero discovery calls in this strategy.
- * @param txnEndpoint - Pre-resolved TXN endpoint or false.
- * @returns Extracted transactions + displayId from buffered response.
- */
-function extractBufferedTxns(txnEndpoint: IAccountFetchCtx['txnEndpoint']): IBufferedTxns {
-  if (!txnEndpoint) return { txns: [], displayId: '', body: undefined };
-  if (!txnEndpoint.responseBody) return { txns: [], displayId: '', body: undefined };
-  const body = txnEndpoint.responseBody as Record<string, unknown>;
-  const txns = extractTransactions(body);
-  if (txns.length === 0) return { txns: [], displayId: '', body };
-  const displayId = extractDisplayIdFromRaw(body);
-  return { txns, displayId, body };
-}
-
 /**
  * Monthly GET iteration with filterData JSON (MAX pattern).
  * Constructs URL per month with date in filterData, fetches sequentially.
- * Uses buffered response for current month (zero cost), fresh GETs for others.
+ *
+ * <p>Phase 7f: SCRAPE consumes the slim `ITxnEndpoint` typed contract;
+ * the buffered-response shortcut that depended on
+ * `IDiscoveredEndpoint.responseBody` is removed (R-NET-SCRAPE: zero
+ * `IDiscoveredEndpoint` surface in SCRAPE). Every month is a fresh
+ * GET — the deliberate perf cost of strict separation.
+ *
  * @param fc - Fetch context.
  * @param accountId - Account ID.
  * @param baseUrl - Base transaction API URL (without filterData).
@@ -136,10 +95,7 @@ async function scrapeViaFilterData(
   accountId: string,
   baseUrl: string,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const buffered = extractBufferedTxns(fc.txnEndpoint);
-  const allTxns: ITransaction[] = [...buffered.txns];
-  const displayId = buffered.displayId || accountId;
-  LOG.debug({ message: `buffered: ${String(buffered.txns.length)} txns, displayId=${displayId}` });
+  const allTxns: ITransaction[] = [];
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
   const seed = Promise.resolve(true as const);
@@ -153,7 +109,8 @@ async function scrapeViaFilterData(
         LOG.debug({ message: `GET filterData: ${chunk.start}` });
         const raw = await fc.api.fetchGet<Record<string, unknown>>(url);
         if (isOk(raw)) {
-          const txns = extractTransactions(raw.value);
+          const fieldMap = (fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
+          const txns = parseFreshResponse(raw.value, fieldMap);
           allTxns.push(...txns);
         }
         return rateLimitPause(GET_RATE_LIMIT_MS);
@@ -164,7 +121,7 @@ async function scrapeViaFilterData(
   const startMs = startDate.getTime();
   const unique = deduplicateTxns(allTxns, startMs);
   LOG.debug({ message: `${String(unique.length)} txns after dedup` });
-  return buildAccountResult({ fc, accountId, displayId, rawRecord: buffered.body }, unique);
+  return buildAccountResult({ fc, accountId, displayId: accountId }, unique);
 }
 
 export default scrapeViaFilterData;

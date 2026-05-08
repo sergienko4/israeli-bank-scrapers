@@ -37,6 +37,7 @@
     "test:e2e:real:single": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
     "test:snapshot": "cross-env DUMP_SNAPSHOTS=1 npx tsx scripts/run-mock-suite.ts",
     "test:mock": "cross-env MOCK_MODE=1 npx tsx scripts/run-mock-suite.ts",
+    "test:e2e-factory-tests": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\\.test' --verbose --forceExit",
     "test:full": "npm run test:mock && npm run test:unit",
     "capture:invalid-login": "npx tsx src/Tests/E2eReal/tools/CaptureInvalidLogin.ts",
     "test:gate": "npm run test:mock && npm run test:unit",

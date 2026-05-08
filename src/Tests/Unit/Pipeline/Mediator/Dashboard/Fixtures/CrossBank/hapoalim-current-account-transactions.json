@@ -17,8 +17,18 @@
       "postData": "",
       "responseBody": {
         "transactions": [
-          { "eventDate": 20260401, "eventAmount": -42.5, "description": "FAKE-RESTAURANT", "currency": "ILS" },
-          { "eventDate": 20260402, "eventAmount": -7.25, "description": "FAKE-PARKING", "currency": "ILS" }
+          {
+            "eventDate": 20260401,
+            "eventAmount": -42.5,
+            "description": "FAKE-RESTAURANT",
+            "currency": "ILS"
+          },
+          {
+            "eventDate": 20260402,
+            "eventAmount": -7.25,
+            "description": "FAKE-PARKING",
+            "currency": "ILS"
+          }
         ]
       }
     }

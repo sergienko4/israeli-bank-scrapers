@@ -137,9 +137,9 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(result.method).toBe('POST');
-      expect(result.fieldMap.date).toBe('');
-      expect(result.fieldMap.amount).toBe('');
+      expect(result.endpoint.method).toBe('POST');
+      expect(result.endpoint.fieldMap.date).toBe('');
+      expect(result.endpoint.fieldMap.amount).toBe('');
       expect(result.normalizedRecords.length).toBe(0);
     }
   });
@@ -155,8 +155,8 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(result.fieldMap.date).toBe('');
-      expect(result.fieldMap.amount).toBe('');
+      expect(result.endpoint.fieldMap.date).toBe('');
+      expect(result.endpoint.fieldMap.amount).toBe('');
     }
   });
 
@@ -170,7 +170,7 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(result.pendingUrl).toBe('https://bank.fake.example/api/pending-widget');
+      expect(result.endpoint.pendingUrl).toBe('https://bank.fake.example/api/pending-widget');
     }
   });
 
@@ -180,9 +180,9 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(typeof result.pendingUrl).toBe('string');
-      if (result.pendingUrl !== false) {
-        expect(result.pendingUrl).toContain('https://api.bank.fake.example');
+      expect(typeof result.endpoint.pendingUrl).toBe('string');
+      if (result.endpoint.pendingUrl !== false) {
+        expect(result.endpoint.pendingUrl).toContain('https://api.bank.fake.example');
       }
     }
   });
@@ -196,9 +196,9 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(typeof result.billingUrl).toBe('string');
-      if (result.billingUrl !== false) {
-        expect(result.billingUrl).toContain('transactionsDetails');
+      expect(typeof result.endpoint.billingUrl).toBe('string');
+      if (result.endpoint.billingUrl !== false) {
+        expect(result.endpoint.billingUrl).toContain('transactionsDetails');
       }
     }
   });
@@ -210,7 +210,7 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     const result = resolveTxnEndpoint(network);
     expect(result).not.toBe(false);
     if (result !== false) {
-      expect(result.billingUrl).toBe(false);
+      expect(result.endpoint.billingUrl).toBe(false);
     }
   });
 });

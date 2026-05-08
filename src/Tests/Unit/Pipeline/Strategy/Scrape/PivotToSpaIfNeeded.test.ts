@@ -15,6 +15,7 @@
  * Tests use FAKE URLs only (https://api.fake.example, etc.).
  */
 
+import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Mediator/Dashboard/TxnParser.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type {
   IDiscoveredEndpoint,
@@ -24,7 +25,11 @@ import {
   buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
-import type { IAccountFetchCtx } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountFetchCtx,
+} from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
+import type { ITxnEndpoint } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**
@@ -91,22 +96,19 @@ interface IRecordingMediator {
 }
 
 /**
- * Build a stub IDiscoveredEndpoint from a URL string, or return false.
- * Mirrors the synthesis previously done inside `makeNetwork`.
+ * Build a slim {@link ITxnEndpoint} from a URL string, or return the
+ * EMPTY default. Phase 7f: SCRAPE consumes the typed slim contract;
+ * `false` is no longer valid — callers pass the EMPTY default to
+ * signal "no endpoint".
  * @param url - Endpoint URL or false.
- * @returns Stub endpoint or false.
+ * @returns Slim TXN endpoint stub.
  */
-function makeStubTxnEndpoint(url: string | false): IDiscoveredEndpoint | false {
-  if (url === false) return false;
+function makeStubTxnEndpoint(url: string | false): ITxnEndpoint {
+  if (url === false) return EMPTY_TXN_ENDPOINT;
   return {
+    ...EMPTY_TXN_ENDPOINT,
     url,
     method: 'POST',
-    postData: '',
-    contentType: 'application/json',
-    requestHeaders: {},
-    responseHeaders: {},
-    responseBody: {},
-    timestamp: 0,
   };
 }
 
@@ -215,22 +217,22 @@ describe('buildLoadCtxFromPreDiscovered — txn endpoint logging branches', () =
     const ctx = buildLoadCtxFromPreDiscovered({
       fc: makeStubFetchCtx(),
       txnEndpoint,
+      harvest: EMPTY_TXN_HARVEST,
       ids: ['FAKE-ID-1'],
       records: [{ accountId: 'FAKE-ID-1' }],
     });
     expect(ctx.ids).toEqual(['FAKE-ID-1']);
-    if (ctx.txnEndpoint !== false) {
-      expect(ctx.txnEndpoint.url).toBe('https://api.fake.example/txns');
-    }
+    expect(ctx.txnEndpoint?.url).toBe('https://api.fake.example/txns');
   });
 
-  it('logs the "none" branch when txnEndpoint is false', () => {
+  it('logs the "none" branch when txnEndpoint url is empty (EMPTY default)', () => {
     const ctx = buildLoadCtxFromPreDiscovered({
       fc: makeStubFetchCtx(),
-      txnEndpoint: false,
+      txnEndpoint: EMPTY_TXN_ENDPOINT,
+      harvest: EMPTY_TXN_HARVEST,
       ids: ['FAKE-ID-2'],
       records: [{ accountId: 'FAKE-ID-2' }],
     });
-    expect(ctx.txnEndpoint).toBe(false);
+    expect(ctx.txnEndpoint?.url).toBe('');
   });
 });

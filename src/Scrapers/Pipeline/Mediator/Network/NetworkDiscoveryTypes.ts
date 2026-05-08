@@ -32,6 +32,28 @@ interface IDiscoveredEndpoint {
    * was synthesised without a dump (frozen replay, tests).
    */
   readonly captureIndex?: number;
+  /**
+   * Phase 7f — set by `discoverShapeAware` so DASHBOARD's resolver can
+   * record which tier produced the pick. Ordered from cleanest to
+   * loosest match: `postWithShape` (real txns in body) >
+   * `replayablePost` (POST template, body may be empty) >
+   * `shapePassing` (shape gate passed but tier indeterminate) >
+   * `preClickFallback` (post-click pool yielded nothing; pre-click
+   * capture matched). Optional: undefined when synthesised in tests.
+   */
+  readonly pickerTier?:
+    | 'postWithShape'
+    | 'replayablePost'
+    | 'shapePassing'
+    | 'preClickFallback'
+    | 'none';
+  /**
+   * Phase 7f — true when the picker fell back to the pre-click pool
+   * because the post-click pool had no `WK_API.transactions` match.
+   * Visacal-class banks where the real TRX URL fires at login-FINAL.
+   * Optional: undefined when not set.
+   */
+  readonly capturedPreClick?: boolean;
 }
 
 /** Network discovery interface — captures and queries API traffic. */

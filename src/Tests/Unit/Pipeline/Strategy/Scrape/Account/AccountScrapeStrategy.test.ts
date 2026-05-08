@@ -1,14 +1,15 @@
 /**
  * Unit tests for Strategy/Scrape/Account/AccountScrapeStrategy.
- * Covers scrapeOneAccountPost, scrapeOneAccountViaUrl, tryBufferedResponse.
+ * Phase 7f: covers scrapeOneAccountPost (typed-contract migration; 2-arg
+ * signature) and scrapeOneAccountViaUrl. The legacy `tryBufferedResponse`
+ * shortcut was removed for 100% SCRAPE/network separation — its test
+ * suite is removed accordingly.
  */
 
 import {
   scrapeOneAccountPost,
   scrapeOneAccountViaUrl,
-  tryBufferedResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/AccountScrapeStrategy.js';
-import type { IPostFetchCtx } from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeApi,
@@ -20,28 +21,6 @@ import {
   stubFetchPostFail,
   stubFetchPostOk,
 } from '../../StrategyTestHelpers.js';
-
-describe('tryBufferedResponse', () => {
-  it('returns false when endpoint has no responseBody', async () => {
-    const makeNetworkResult2 = makeNetwork();
-    const makeApiResult1 = makeApi();
-    const fc = makeFc(makeApiResult1, makeNetworkResult2);
-    const endpoint = makeEndpoint({ responseBody: undefined });
-    const postCtx: IPostFetchCtx = { baseBody: {}, url: 'u', displayId: '1', accountId: 'a' };
-    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
-    expect(result).toBe(false);
-  });
-
-  it('returns false when buffered response yields 0 transactions', async () => {
-    const makeNetworkResult4 = makeNetwork();
-    const makeApiResult3 = makeApi();
-    const fc = makeFc(makeApiResult3, makeNetworkResult4);
-    const endpoint = makeEndpoint({ responseBody: { foo: 'bar' } });
-    const postCtx: IPostFetchCtx = { baseBody: {}, url: 'u', displayId: '1', accountId: 'a' };
-    const result = await tryBufferedResponse(fc, { endpoint, postCtx });
-    expect(result).toBe(false);
-  });
-});
 
 describe('scrapeOneAccountViaUrl', () => {
   it('fails when no transaction URL can be resolved', async () => {
@@ -140,9 +119,9 @@ describe('scrapeOneAccountPost', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
+    const fc = makeFc(api, network, { txnEndpoint: ep });
     const record = { cardUniqueId: 'card-1' };
-    const result = await scrapeOneAccountPost(fc, record, ep);
+    const result = await scrapeOneAccountPost(fc, record);
     // Billing yielded 0 txns → range → direct. Any isOk result is fine.
     expect(typeof result).toBe('object');
   });
@@ -171,8 +150,8 @@ describe('scrapeOneAccountPost', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
-    const result = await scrapeOneAccountPost(fc, { accountId: 'a1' }, ep);
+    const fc = makeFc(api, network, { txnEndpoint: ep });
+    const result = await scrapeOneAccountPost(fc, { accountId: 'a1' });
     const isOkResult9 = isOk(result);
     expect(isOkResult9).toBe(true);
   });
@@ -201,8 +180,8 @@ describe('scrapeOneAccountPost', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
-    const result = await scrapeOneAccountPost(fc, { accountId: 'a1' }, ep);
+    const fc = makeFc(api, network, { txnEndpoint: ep });
+    const result = await scrapeOneAccountPost(fc, { accountId: 'a1' });
     const isOkResult10 = isOk(result);
     expect(isOkResult10).toBe(false);
   });
@@ -231,12 +210,12 @@ describe('scrapeOneAccountPost', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
-    const result = await scrapeOneAccountPost(
-      fc,
-      { accountId: 'a1', fromDate: '2024-01-01', toDate: '2024-12-31' },
-      ep,
-    );
+    const fc = makeFc(api, network, { txnEndpoint: ep });
+    const result = await scrapeOneAccountPost(fc, {
+      accountId: 'a1',
+      fromDate: '2024-01-01',
+      toDate: '2024-12-31',
+    });
     // Regardless of eventual outcome we just want to hit the range branch
     expect(typeof result.success).toBe('boolean');
   });

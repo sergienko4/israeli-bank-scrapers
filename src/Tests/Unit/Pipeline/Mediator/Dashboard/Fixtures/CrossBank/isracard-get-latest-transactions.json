@@ -25,8 +25,18 @@
                   "CurrentCardTransactions": [
                     {
                       "Txn": [
-                        { "fullPurchaseDate": "2026-04-20", "dealSum": -180.0, "merchantName": "FAKE-RESTAURANT", "moed": "1" },
-                        { "fullPurchaseDate": "2026-04-21", "dealSum": -29.9, "merchantName": "FAKE-PETROL", "moed": "1" }
+                        {
+                          "fullPurchaseDate": "2026-04-20",
+                          "dealSum": -180.0,
+                          "merchantName": "FAKE-RESTAURANT",
+                          "moed": "1"
+                        },
+                        {
+                          "fullPurchaseDate": "2026-04-21",
+                          "dealSum": -29.9,
+                          "merchantName": "FAKE-PETROL",
+                          "moed": "1"
+                        }
                       ]
                     }
                   ]

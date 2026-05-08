@@ -108,4 +108,96 @@ describe('detectMirroredAccounts', () => {
     const result = detectMirroredAccounts(accounts);
     expect(result.isMirrored).toBe(true);
   });
+
+  // ── Empty-fingerprint exclusion (Phase 7f follow-up live-E2E finding) ──
+
+  it('reports all-unique when every account is empty (no fingerprints to compare)', () => {
+    // Three dormant cards — all produce the empty fingerprint. Without
+    // the empty-skip rule the detector flagged MIRROR_SUSPECT (false
+    // positive observed live on Amex/Isracard inactive cards).
+    const accounts: IFingerAccount[] = [
+      { accountNumber: 'A1', txns: [] },
+      { accountNumber: 'A2', txns: [] },
+      { accountNumber: 'A3', txns: [] },
+    ];
+    const result = detectMirroredAccounts(accounts);
+    expect(result.isMirrored).toBe(false);
+    expect(result.message).toBe('all-unique');
+  });
+
+  it('reports all-unique when only one non-empty account survives the empty filter', () => {
+    // Two empty cards plus one with real data. After filtering empties
+    // the survivor count is 1 — no pair to compare → all-unique.
+    const accounts: IFingerAccount[] = [
+      { accountNumber: 'A1', txns: [] },
+      { accountNumber: 'A2', txns: [] },
+      {
+        accountNumber: 'A3',
+        txns: [{ date: '2026-01-01', chargedAmount: -100, description: 'Coffee' }],
+      },
+    ];
+    const result = detectMirroredAccounts(accounts);
+    expect(result.isMirrored).toBe(false);
+    expect(result.message).toBe('all-unique');
+  });
+
+  it('still flags real mirroring even when empty cards are mixed in', () => {
+    // Two non-empty cards with identical txns + one empty. The empty
+    // is filtered out; the two real cards still collide → MIRROR_SUSPECT.
+    const sameTxns: IFingerTxn[] = [
+      { date: '2026-02-15', chargedAmount: -42, description: 'Bookstore' },
+    ];
+    const accounts: IFingerAccount[] = [
+      { accountNumber: 'A1', txns: sameTxns },
+      { accountNumber: 'A2', txns: sameTxns },
+      { accountNumber: 'A3', txns: [] },
+    ];
+    const result = detectMirroredAccounts(accounts);
+    expect(result.isMirrored).toBe(true);
+    expect(result.message).toContain('MIRROR_SUSPECT');
+  });
+
+  it('reproduces the live Amex/Isracard 3-of-8 false positive and now passes', () => {
+    // Live audit shape from 2026-05-08 run: 5 active cards (one with
+    // 0 active txns this window) + 3 fully empty cards → previously
+    // reported `MIRROR_SUSPECT: 3 of 8`. Under the new rule the empties
+    // drop out and the 5 active fingerprints stay unique.
+    const dates: readonly string[] = [
+      '2026-04-01',
+      '2026-04-05',
+      '2026-04-12',
+      '2026-04-18',
+      '2026-04-25',
+    ];
+    /**
+     * Construct a non-empty card whose txn count + descriptions vary so
+     * each card's fingerprint is unique.
+     * @param cardId - Card identifier.
+     * @param count - Number of FAKE txns to attach.
+     * @returns Mirror-detection account row.
+     */
+    const makeCard = (cardId: string, count: number): IFingerAccount => ({
+      accountNumber: cardId,
+      txns: dates.slice(0, count).map(
+        (d, i): IFingerTxn => ({
+          date: d,
+          chargedAmount: -((i + 1) * 11) - (cardId.codePointAt(0) ?? 0),
+          description: `${cardId}-FAKE-${String(i)}`,
+        }),
+      ),
+    });
+    const accounts: IFingerAccount[] = [
+      makeCard('CARD-A', 22),
+      makeCard('CARD-B', 23),
+      makeCard('CARD-C', 25),
+      makeCard('CARD-D', 6),
+      makeCard('CARD-E', 0),
+      { accountNumber: 'CARD-F', txns: [] },
+      { accountNumber: 'CARD-G', txns: [] },
+      { accountNumber: 'CARD-H', txns: [] },
+    ];
+    const result = detectMirroredAccounts(accounts);
+    expect(result.isMirrored).toBe(false);
+    expect(result.message).toBe('all-unique');
+  });
 });

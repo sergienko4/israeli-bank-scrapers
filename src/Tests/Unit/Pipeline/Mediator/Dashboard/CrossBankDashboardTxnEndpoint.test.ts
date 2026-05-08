@@ -166,15 +166,15 @@ describe('Phase 7e — cross-bank TXN-endpoint coverage', () => {
       const network = makeFixtureNetwork(envelope);
       const result = resolveTxnEndpoint(network);
       if (result === false) throw new ScraperError('resolveTxnEndpoint returned false');
-      expect(result.method).toBe(envelope._fixture.expectedMethod);
+      expect(result.endpoint.method).toBe(envelope._fixture.expectedMethod);
     });
 
     it('resolved fieldMap.date and fieldMap.amount match the fixture aliases', () => {
       const network = makeFixtureNetwork(envelope);
       const result = resolveTxnEndpoint(network);
       if (result === false) throw new ScraperError('resolveTxnEndpoint returned false');
-      expect(result.fieldMap.date).toBe(envelope._fixture.expectedDateField);
-      expect(result.fieldMap.amount).toBe(envelope._fixture.expectedAmountField);
+      expect(result.endpoint.fieldMap.date).toBe(envelope._fixture.expectedDateField);
+      expect(result.endpoint.fieldMap.amount).toBe(envelope._fixture.expectedAmountField);
     });
 
     it('resolved normalizedRecords carries the expected record count', () => {
@@ -188,14 +188,214 @@ describe('Phase 7e — cross-bank TXN-endpoint coverage', () => {
       const network = makeFixtureNetwork(envelope);
       const result = resolveTxnEndpoint(network);
       if (result === false) throw new ScraperError('resolveTxnEndpoint returned false');
-      expect(result.billingUrl).toBe(envelope._fixture.expectedBillingUrl);
+      expect(result.endpoint.billingUrl).toBe(envelope._fixture.expectedBillingUrl);
     });
 
     it('resolved pendingUrl matches the fixture expectation', () => {
       const network = makeFixtureNetwork(envelope);
       const result = resolveTxnEndpoint(network);
       if (result === false) throw new ScraperError('resolveTxnEndpoint returned false');
-      expect(result.pendingUrl).toBe(envelope._fixture.expectedPendingUrl);
+      expect(result.endpoint.pendingUrl).toBe(envelope._fixture.expectedPendingUrl);
+    });
+  });
+});
+
+// ── False-positive scenarios — guard the failure paths ──────────────────
+
+/**
+ * Stub-method bag — `INetworkDiscovery` carries 10+ helpers and the
+ * false-positive driver only exercises `discoverTransactionsEndpoint`
+ * + `getAllEndpoints`. Every other helper returns the inert `false /
+ * empty / Promise<false>` value real callers ignore in this driver.
+ *
+ * @param eps - Endpoints to expose through the pre/post pools.
+ * @returns Inert stub bag for the un-exercised methods.
+ */
+function makeInertNetworkParts(eps: readonly IDiscoveredEndpoint[]): Record<string, unknown> {
+  return {
+    /**
+     * URL-pattern probe — never matches in this driver.
+     * @returns False.
+     */
+    discoverByPatterns: (): false => false,
+    /**
+     * API-origin probe — never matches in this driver.
+     * @returns False.
+     */
+    discoverApiOrigin: (): false => false,
+    /**
+     * Pre-click capture pool — exposes the supplied endpoints.
+     * @returns Endpoints.
+     */
+    getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => eps,
+    /**
+     * Post-click capture pool — exposes the supplied endpoints.
+     * @returns Endpoints.
+     */
+    getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => eps,
+    /**
+     * Dashboard-click timestamp — never set by this driver.
+     * @returns False.
+     */
+    getDashboardClickAt: (): false => false,
+    /**
+     * Async auth-token probe — never resolves to a token.
+     * @returns Promise resolving to false.
+     */
+    discoverAuthToken: (): Promise<false> => Promise.resolve(false),
+    /**
+     * SPA-URL probe — never matches in this driver.
+     * @returns False.
+     */
+    discoverSpaUrl: (): false => false,
+    /**
+     * Transaction-URL builder — never invoked in this driver.
+     * @returns False.
+     */
+    buildTransactionUrl: (): false => false,
+    /**
+     * Idempotent click-timestamp marker — accepted as a no-op.
+     * @returns True.
+     */
+    markDashboardClickAt: (): true => true,
+  };
+}
+
+/**
+ * Build a stub network surface that the picker rejects. The capture
+ * pool is reduced to one entry, mutated with the supplied override.
+ * Reused by every false-positive case so the table stays compact.
+ *
+ * @param envelope - Source fixture (drives the URL pattern).
+ * @param overrideBody - Body to splice in over the source body.
+ * @returns Network stub returning the mutated capture.
+ */
+function makeFixtureNetworkWithBody(
+  envelope: IFixtureEnvelope,
+  overrideBody: unknown,
+): INetworkDiscovery {
+  const first = envelope.captures[0];
+  const mutated: IDiscoveredEndpoint = {
+    ...captureToEndpoint(first),
+    responseBody: overrideBody,
+  };
+  return {
+    /**
+     * Returns the mutated capture as the resolved txn endpoint.
+     * @returns Mutated endpoint.
+     */
+    discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false => mutated,
+    /**
+     * Returns the mutated capture as the only entry.
+     * @returns Single-entry pool.
+     */
+    getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [mutated],
+    ...makeInertNetworkParts([mutated]),
+  } as unknown as INetworkDiscovery;
+}
+
+/**
+ * Empty network stub — `discoverTransactionsEndpoint` returns `false`
+ * exactly like the real network when no URL pattern matches.
+ */
+const EMPTY_NETWORK: INetworkDiscovery = {
+  /**
+   * No txn endpoint resolves from an empty pool.
+   * @returns False.
+   */
+  discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false => false,
+  /**
+   * No captures in this driver.
+   * @returns Empty pool.
+   */
+  getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [],
+  ...makeInertNetworkParts([]),
+} as unknown as INetworkDiscovery;
+
+/** Empty fieldMap shape — mirrors the `EMPTY_FIELD_MAP` constant
+ *  inside ScrapeAutoMapper. Asserted on the `replayablePost`
+ *  recovery path. */
+const EMPTY_FIELD_MAP_SHAPE = {
+  date: '',
+  amount: '',
+  description: '',
+  currency: '',
+  identifier: '',
+  originalAmount: false,
+  processedDate: false,
+  balance: false,
+} as const;
+
+describe('Phase 7f follow-up — cross-bank DASHBOARD false-positive coverage', () => {
+  // ── Hard-reject tier — `resolveTxnEndpoint` MUST return false ──────
+
+  it('returns false when no captured endpoint matches the WK_API.transactions pattern', () => {
+    const result = resolveTxnEndpoint(EMPTY_NETWORK);
+    expect(result).toBe(false);
+  });
+
+  describe.each(ALL_FIXTURES)('$name (hard reject)', ({ envelope }) => {
+    it('returns false when the captured body is null (F-DASH-3 malformed response)', () => {
+      const network = makeFixtureNetworkWithBody(envelope, null);
+      const result = resolveTxnEndpoint(network);
+      expect(result).toBe(false);
+    });
+
+    it('returns false when the captured body is a primitive string (non-object body)', () => {
+      const network = makeFixtureNetworkWithBody(envelope, 'not-an-object');
+      const result = resolveTxnEndpoint(network);
+      expect(result).toBe(false);
+    });
+
+    it('returns false when the captured body is a number (non-object body)', () => {
+      const network = makeFixtureNetworkWithBody(envelope, 42);
+      const result = resolveTxnEndpoint(network);
+      expect(result).toBe(false);
+    });
+  });
+
+  // ── Soft-commit tier — replayablePost recovery (EMPTY_FIELD_MAP) ──
+
+  describe.each(ALL_FIXTURES)('$name (replayablePost recovery)', ({ envelope }) => {
+    it('commits with EMPTY_FIELD_MAP when the txn array is present but empty', () => {
+      // Empty txn arrays are valid for replayablePost banks: the URL
+      // and method remain authoritative; SCRAPE re-fetches per-account
+      // and parseFreshResponse falls back to legacy auto-discovery
+      // for that one call. NOT a hard reject.
+      const network = makeFixtureNetworkWithBody(envelope, {
+        result: { transactions: [] },
+      });
+      const result = resolveTxnEndpoint(network);
+      if (result === false) throw new ScraperError('expected replayablePost commit');
+      expect(result.endpoint.fieldMap).toEqual(EMPTY_FIELD_MAP_SHAPE);
+      expect(result.normalizedRecords).toEqual([]);
+    });
+
+    it('commits with EMPTY_FIELD_MAP when records lack date+amount aliases', () => {
+      // Records present but only carry unrelated fields — buildFieldMap
+      // returns false → resolveFieldMapOrEmpty returns EMPTY_FIELD_MAP.
+      // Same recovery path as the empty-array case.
+      const network = makeFixtureNetworkWithBody(envelope, {
+        result: {
+          transactions: [{ id: 'FAKE-1', someUnrelatedField: 'x' }],
+        },
+      });
+      const result = resolveTxnEndpoint(network);
+      if (result === false) throw new ScraperError('expected replayablePost commit');
+      expect(result.endpoint.fieldMap).toEqual(EMPTY_FIELD_MAP_SHAPE);
+    });
+
+    it('commits with EMPTY_FIELD_MAP when the body has no transaction array shape', () => {
+      // Generic non-txn object — passes the body type gate (object,
+      // not null), but huntTransactions returns no records.
+      const network = makeFixtureNetworkWithBody(envelope, {
+        meta: { generated: '2026-05-08' },
+        result: { ok: true, message: 'no transactions in this window' },
+      });
+      const result = resolveTxnEndpoint(network);
+      if (result === false) throw new ScraperError('expected replayablePost commit');
+      expect(result.endpoint.fieldMap).toEqual(EMPTY_FIELD_MAP_SHAPE);
+      expect(result.normalizedRecords).toEqual([]);
     });
   });
 });

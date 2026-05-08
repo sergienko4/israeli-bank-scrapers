@@ -18,8 +18,18 @@
       "responseBody": {
         "result": {
           "transArr": [
-            { "trnPurchaseDate": "2026-04-10", "trnAmt": -90.0, "merchantName": "FAKE-FUEL", "trnCurrencySymbol": "ILS" },
-            { "trnPurchaseDate": "2026-04-11", "trnAmt": -55.0, "merchantName": "FAKE-PHARMACY", "trnCurrencySymbol": "ILS" }
+            {
+              "trnPurchaseDate": "2026-04-10",
+              "trnAmt": -90.0,
+              "merchantName": "FAKE-FUEL",
+              "trnCurrencySymbol": "ILS"
+            },
+            {
+              "trnPurchaseDate": "2026-04-11",
+              "trnAmt": -55.0,
+              "merchantName": "FAKE-PHARMACY",
+              "trnCurrencySymbol": "ILS"
+            }
           ]
         }
       }

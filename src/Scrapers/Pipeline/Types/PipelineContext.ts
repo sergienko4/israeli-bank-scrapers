@@ -205,6 +205,15 @@ export interface IActionContext {
   readonly accountDiscovery: Option<IAccountDiscovery>;
   /** TXN endpoint committed by DASHBOARD.FINAL — Phase 7e contract. */
   readonly txnEndpoint: Option<ITxnEndpoint>;
+  /**
+   * DASHBOARD-side TXN harvest committed by DASHBOARD.FINAL on a
+   * separate ctx field — Phase 7f post-Hapoalim-regression follow-up.
+   * Carries the pre-extracted records DASHBOARD captured during
+   * ACTION + their scope so SCRAPE consumes the records directly when
+   * the iteration's account matches, without re-fetching. Symmetric
+   * to ACCOUNT-RESOLVE's IAccountDiscovery.records.
+   */
+  readonly dashboardTxnHarvest: Option<IDashboardTxnHarvest>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -257,6 +266,19 @@ interface IPipelineContext {
    * imports `WK_API` or `WK_TXN`.
    */
   readonly txnEndpoint: Option<ITxnEndpoint>;
+  /**
+   * Pre-extracted TXN records harvested by DASHBOARD.FINAL during its
+   * own POST/GET capture. Phase 7f follow-up: lets SCRAPE consume the
+   * records DASHBOARD already saw without issuing a redundant fetch.
+   * Mirrors {@link IAccountDiscovery.records} — the phase that
+   * captured the response also normalizes and commits the records.
+   *
+   * <p>SCRAPE checks {@link IDashboardTxnHarvest.capturedAccountId}
+   * vs the iteration's accountId before reusing; multi-account scopes
+   * (`multiAccountScope: true`) are refused so each card iterates
+   * its own fresh fetch.
+   */
+  readonly dashboardTxnHarvest: Option<IDashboardTxnHarvest>;
 }
 
 /**
@@ -310,40 +332,98 @@ interface ITxnFieldMap {
 }
 
 /**
- * TXN endpoint shape committed by DASHBOARD.FINAL. Carries every
- * artifact SCRAPE could need to perform per-account replays without
- * touching `WK_API` or `WK_TXN`:
+ * TXN endpoint contract committed by DASHBOARD.FINAL onto
+ * `ctx.txnEndpoint`. Phase 7f: this is the slim, SCRAPE-facing
+ * payload — only the fields SCRAPE actually consumes. Mirrors how
+ * `IAccountDiscovery` carries only the SCRAPE-facing payload (ids,
+ * records, containers).
  *
  * <ul>
- *   <li>`url`/`method`/`captureIndex` — the resolved endpoint.</li>
+ *   <li>`url`/`method` — the resolved endpoint (template URL).</li>
  *   <li>`templatePostData` — raw POST body for SCRAPE.PRE to clone
  *     and substitute per-account ids; `false` for GET banks.</li>
- *   <li>`responseBodySample` — raw captured body for the buffered-
- *     account shortcut SCRAPE uses on the bank-supplied account.</li>
- *   <li>`normalizedRecords` — pre-parsed `ITransaction[]` for the
- *     buffered account so SCRAPE skips a redundant fetch.</li>
  *   <li>`fieldMap` — resolved field-name aliases (date / amount / …)
  *     so SCRAPE walks fresh responses without WK access.</li>
  *   <li>`pendingUrl` — pre-resolved pending-transactions API URL (or
- *     `false` when the bank doesn't expose pending). Lets
- *     {@link fetchAndMergePending} run without importing
- *     `WK_API.pending`.</li>
+ *     `false` when the bank doesn't expose pending).</li>
  *   <li>`billingUrl` — pre-resolved billing-fallback URL (or `false`
- *     when the bank's family doesn't carry the billing path). Lets
- *     {@link tryBillingFallback} run without importing `WK_API` or
- *     `WK_BILLING`.</li>
+ *     when the bank's family doesn't carry the billing path).</li>
  * </ul>
+ *
+ * <p>DASHBOARD-internal artefacts (`captureIndex`,
+ * `responseBodySample`, `normalizedRecords`, `pickerTier`,
+ * `capturedPreClick`) live on {@link ITxnEndpointInternal} which
+ * never travels on `ctx`; they emit via the
+ * `dashboard.txnEndpoint.committed` telemetry event only.
  */
 interface ITxnEndpoint {
   readonly url: string;
   readonly method: 'GET' | 'POST';
-  readonly captureIndex: number;
   readonly templatePostData: string | false;
-  readonly responseBodySample: Readonly<Record<string, unknown>>;
-  readonly normalizedRecords: readonly ITransaction[];
   readonly fieldMap: ITxnFieldMap;
   readonly pendingUrl: string | false;
   readonly billingUrl: string | false;
+}
+
+/**
+ * DASHBOARD-internal type returned by `resolveTxnEndpoint` and
+ * consumed only inside `Mediator/Dashboard/`. Carries the slim
+ * SCRAPE-facing `endpoint` plus the diagnostic / telemetry artefacts
+ * that DASHBOARD needs to log but SCRAPE must not see.
+ *
+ * <p>`captureIndex` is the index of the picked capture inside the
+ * network pool. `responseBodySample` is the raw captured body that
+ * resolved the field-map. `normalizedRecords` is the pre-parsed
+ * sample (used for buffered-account shortcuts inside DASHBOARD only).
+ * `pickerTier` records which tier the picker picked from
+ * (postWithShape / replayablePost / shapePassing / preClickFallback /
+ * none). `capturedPreClick` is true when the resolver fell back to
+ * the pre-click pool because the post-click pool was empty.
+ */
+interface ITxnEndpointInternal {
+  readonly endpoint: ITxnEndpoint;
+  readonly captureIndex: number;
+  readonly responseBodySample: Readonly<Record<string, unknown>>;
+  readonly normalizedRecords: readonly ITransaction[];
+  readonly pickerTier: PickerTier;
+  readonly capturedPreClick: boolean;
+}
+
+/**
+ * Picker tier preference name. The picker walks the captured pool in
+ * tier order and emits one of these labels per `discover.shapeAware`
+ * event so the chosen URL's provenance is traceable from logs.
+ */
+type PickerTier = 'postWithShape' | 'replayablePost' | 'shapePassing' | 'preClickFallback' | 'none';
+
+/**
+ * DASHBOARD harvest committed by DASHBOARD.FINAL on a separate
+ * `ctx.dashboardTxnHarvest` field — clean value-type pass of the
+ * pre-extracted records. Mirrors `IAccountDiscovery.records`: the
+ * phase that captured the response also normalizes the records and
+ * commits them; downstream phases consume `readonly ITransaction[]`
+ * without touching the captured body or `IDiscoveredEndpoint`.
+ *
+ * <p>Scope semantics:
+ * <ul>
+ *   <li>{@link capturedAccountId} = string — the captured request was
+ *     scoped to one accountId (e.g. Hapoalim's
+ *     `accountId=12-170-536347` URL param). SCRAPE applies the
+ *     records only when the iteration's accountId is compatible
+ *     (suffix match — handles raw-vs-display id formats).</li>
+ *   <li>{@link capturedAccountId} = `false` — the captured request
+ *     was unscoped (no per-account id in URL/body); applies to the
+ *     single-account bank as a whole.</li>
+ *   <li>{@link multiAccountScope} = true — the captured body bundled
+ *     records for many accounts (`cards: [...]`, `accounts: [...]`).
+ *     SCRAPE refuses reuse and falls through to per-account fetches
+ *     so each card's records are correctly attributed.</li>
+ * </ul>
+ */
+interface IDashboardTxnHarvest {
+  readonly records: readonly ITransaction[];
+  readonly capturedAccountId: string | false;
+  readonly multiAccountScope: boolean;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */
@@ -374,7 +454,7 @@ interface IScrapeDiscovery {
   /** Discovered account IDs from accounts endpoint. */
   readonly accountIds?: readonly string[];
   /** Transaction endpoint for account iteration. */
-  readonly txnEndpoint?: IDiscoveredEndpoint | false;
+  readonly txnEndpoint?: ITxnEndpoint;
   /** Pre-cached auth token from DASHBOARD. */
   readonly cachedAuth?: string | false;
   /**
@@ -409,12 +489,15 @@ export type {
   IApiFetchContext,
   IBrowserState,
   IDashboardState,
+  IDashboardTxnHarvest,
   IDiagnosticsState,
   ILoginState,
   IPipelineContext,
   IScrapeDiscovery,
   IScrapeState,
   ITxnEndpoint,
+  ITxnEndpointInternal,
   ITxnFieldMap,
+  PickerTier,
 };
 export { API_STRATEGY };

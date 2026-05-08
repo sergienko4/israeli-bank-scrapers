@@ -4,12 +4,9 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import {
-  extractTransactions,
-  generateMonthChunks,
-  replaceField,
-} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { generateMonthChunks, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
@@ -22,7 +19,7 @@ import {
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
-import type { IAccountAssemblyCtx, IChunkingCtx } from './ScrapeTypes.js';
+import { EMPTY_TXN_ENDPOINT, type IAccountAssemblyCtx, type IChunkingCtx } from './ScrapeTypes.js';
 
 type IsAfterStart = Brand<boolean, 'IsAfterStart'>;
 
@@ -50,7 +47,8 @@ async function scrapeOneChunk(
     body as Record<string, string | object>,
   );
   if (!isOk(raw)) return [];
-  return extractTransactions(raw.value);
+  const fieldMap = (ctx.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
+  return parseFreshResponse(raw.value, fieldMap);
 }
 
 /**

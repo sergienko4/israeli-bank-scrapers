@@ -69,7 +69,6 @@ function makeDiscovery(overrides: Partial<IScrapeDiscovery> = {}): IScrapeDiscov
     ] as unknown as IScrapeDiscovery['frozenEndpoints'],
     accountIds: [],
     rawAccountRecords: [],
-    txnEndpoint: false,
     cachedAuth: false,
     storageHarvest: {},
   };
@@ -160,12 +159,19 @@ describe('executeFrozenDirectScrape — branch paths', () => {
       txnEndpoint: {
         method: 'POST',
         url: 'https://bank.example.com/txn',
-        postData: '{"accountNumber":"A1"}',
-        responseBody: {},
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: 0,
+        templatePostData: '{"accountNumber":"A1"}',
+        fieldMap: {
+          date: '',
+          amount: '',
+          description: '',
+          currency: '',
+          identifier: '',
+          originalAmount: false,
+          processedDate: false,
+          balance: false,
+        },
+        pendingUrl: false,
+        billingUrl: false,
       } as unknown as IScrapeDiscovery['txnEndpoint'],
     });
     const makeApiResult14 = makeApi();

@@ -14,15 +14,46 @@
         "result": {
           "user": { "firstName": "TEST", "lastName": "USER" },
           "cards": [
-            { "cardUniqueId": "FAKE-VC-CARD-AAAA", "last4Digits": "1111", "cardOwnerFullName": "TEST USER" },
-            { "cardUniqueId": "FAKE-VC-CARD-BBBB", "last4Digits": "2222", "cardOwnerFullName": "TEST USER" },
-            { "cardUniqueId": "FAKE-VC-CARD-CCCC", "last4Digits": "3333", "cardOwnerFullName": "TEST USER" },
-            { "cardUniqueId": "FAKE-VC-CARD-DDDD", "last4Digits": "4444", "cardOwnerFullName": "TEST USER" }
+            {
+              "cardUniqueId": "FAKE-VC-CARD-AAAA",
+              "last4Digits": "1111",
+              "cardOwnerFullName": "TEST USER"
+            },
+            {
+              "cardUniqueId": "FAKE-VC-CARD-BBBB",
+              "last4Digits": "2222",
+              "cardOwnerFullName": "TEST USER"
+            },
+            {
+              "cardUniqueId": "FAKE-VC-CARD-CCCC",
+              "last4Digits": "3333",
+              "cardOwnerFullName": "TEST USER"
+            },
+            {
+              "cardUniqueId": "FAKE-VC-CARD-DDDD",
+              "last4Digits": "4444",
+              "cardOwnerFullName": "TEST USER"
+            }
           ],
           "bankAccounts": [
-            { "bankAccountUniqueId": "FAKE-VC-BANK-AAAA", "bankBranchNum": "001", "bankAccountNum": "0001111", "bankName": "Test Bank A" },
-            { "bankAccountUniqueId": "FAKE-VC-BANK-BBBB", "bankBranchNum": "002", "bankAccountNum": "0002222", "bankName": "Test Bank B" },
-            { "bankAccountUniqueId": "FAKE-VC-BANK-CCCC", "bankBranchNum": "003", "bankAccountNum": "0003333", "bankName": "Test Bank C" }
+            {
+              "bankAccountUniqueId": "FAKE-VC-BANK-AAAA",
+              "bankBranchNum": "001",
+              "bankAccountNum": "0001111",
+              "bankName": "Test Bank A"
+            },
+            {
+              "bankAccountUniqueId": "FAKE-VC-BANK-BBBB",
+              "bankBranchNum": "002",
+              "bankAccountNum": "0002222",
+              "bankName": "Test Bank B"
+            },
+            {
+              "bankAccountUniqueId": "FAKE-VC-BANK-CCCC",
+              "bankBranchNum": "003",
+              "bankAccountNum": "0003333",
+              "bankName": "Test Bank C"
+            }
           ]
         },
         "statusDescription": "OK-FIXTURE"

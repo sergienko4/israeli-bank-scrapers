@@ -239,7 +239,12 @@ function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
 }
 
 /** Tier label emitted on the canonical `discover.shapeAware` event. */
-type ShapeAwareTier = 'none' | 'postWithShape' | 'replayablePost' | 'shapePassing' | 'urlFallback';
+type ShapeAwareTier =
+  | 'none'
+  | 'postWithShape'
+  | 'replayablePost'
+  | 'shapePassing'
+  | 'preClickFallback';
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.
@@ -271,58 +276,103 @@ function logShapeAwarePick(
   return true;
 }
 
+/** Bundled outcome of one tier-priority pass over a candidate pool. */
+interface ITierPickOutcome {
+  readonly endpoint: IDiscoveredEndpoint | false;
+  readonly tier: ShapeAwareTier;
+  readonly matches: number;
+}
+
 /**
- * Picks the best endpoint among URL matches, preferring a replayable
- * POST template (so MatrixLoop has data to iterate) over a preview GET
- * even when the captured POST body was empty (e.g. current cycle not
- * yet charged).
+ * Run the shape-aware tier preference over a single candidate pool
+ * (post-click or pre-click). Returns the chosen endpoint with its
+ * tier label, or `none` when the pool yields no usable URL.
  *
- * Emits one canonical `discover.shapeAware` event per call so the
+ * @param pool - Candidate captured endpoints to consider.
+ * @param patterns - WellKnown URL patterns to match.
+ * @returns Tiered pick outcome — endpoint and tier label.
+ */
+function tierPick(
+  pool: readonly IDiscoveredEndpoint[],
+  patterns: readonly RegExp[],
+): ITierPickOutcome {
+  const urlMatches = pool.filter((ep): boolean => patterns.some((p): boolean => p.test(ep.url)));
+  if (urlMatches.length === 0) return { endpoint: false, tier: 'none', matches: 0 };
+  const matches = urlMatches.length;
+  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
+  const postWithShape = shapePassing.find(isReplayablePost);
+  if (postWithShape) return { endpoint: postWithShape, tier: 'postWithShape', matches };
+  const anyReplayablePost = urlMatches.find(isReplayablePost);
+  if (anyReplayablePost) {
+    return { endpoint: anyReplayablePost, tier: 'replayablePost', matches };
+  }
+  if (shapePassing.length > 0) {
+    return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
+  }
+  return { endpoint: false, tier: 'none', matches };
+}
+
+/**
+ * Stamp the picker tier label and pre-click flag onto the chosen
+ * endpoint so DASHBOARD.FINAL's resolver can carry them onto
+ * `ITxnEndpointInternal`. Pure shape extension; preserves the rest
+ * of the captured fields.
+ *
+ * @param endpoint - Picked endpoint.
+ * @param tier - Tier label producing the pick.
+ * @param capturedPreClick - True when the pick came from the pre-click pool.
+ * @returns Endpoint with `pickerTier` + `capturedPreClick` populated.
+ */
+function stampTierMeta(
+  endpoint: IDiscoveredEndpoint,
+  tier: ShapeAwareTier,
+  capturedPreClick: boolean,
+): IDiscoveredEndpoint {
+  return { ...endpoint, pickerTier: tier, capturedPreClick };
+}
+
+/**
+ * Phase 7f — picks the best endpoint from the post-click pool first;
+ * when the post-click pool yields zero matches, falls back to the
+ * full captured pool with a `preClickFallback` tier label. The
+ * fallback covers Visacal-class banks where the real TRX URL fires
+ * at login-FINAL (before any dashboard click).
+ *
+ * <p>Emits one canonical `discover.shapeAware` event per call so the
  * picker's tier choice and selected URL are traceable from
  * `pipeline.log` alone. The `captureIndex` field on the log line
  * matches the on-disk filename prefix.
  *
- * @param captured - all captured endpoints.
+ * @param postNav - Post-click captured endpoints (preferred pool).
+ * @param fullPool - All captured endpoints (pre-click fallback).
  * @param patterns - WellKnown regex patterns.
- * @returns best endpoint, or false when no URL matches.
+ * @returns Best endpoint stamped with `pickerTier` + `capturedPreClick`,
+ *   or false when no pool yields a match.
  */
 function discoverShapeAware(
-  captured: readonly IDiscoveredEndpoint[],
+  postNav: readonly IDiscoveredEndpoint[],
+  fullPool: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
-  const urlMatches = captured.filter((ep): boolean =>
-    patterns.some((p): boolean => p.test(ep.url)),
-  );
-  if (urlMatches.length === 0) {
-    logShapeAwarePick('none', false, 0);
-    return false;
+  const postOutcome = tierPick(postNav, patterns);
+  if (postOutcome.endpoint !== false) {
+    const stamped = stampTierMeta(postOutcome.endpoint, postOutcome.tier, false);
+    logShapeAwarePick(postOutcome.tier, stamped, postOutcome.matches);
+    return stamped;
   }
-  const matches = urlMatches.length;
-  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
-  const postWithShape = shapePassing.find(isReplayablePost);
-  if (postWithShape) {
-    logShapeAwarePick('postWithShape', postWithShape, matches);
-    return postWithShape;
+  // Post-click pool yielded nothing — try the FULL pool. Any pre-click
+  // hit is logged as `preClickFallback` so a Visacal-class capture
+  // surfaces in telemetry as the documented exception.
+  const fullOutcome = tierPick(fullPool, patterns);
+  if (fullOutcome.endpoint !== false) {
+    const stamped = stampTierMeta(fullOutcome.endpoint, 'preClickFallback', true);
+    logShapeAwarePick('preClickFallback', stamped, fullOutcome.matches);
+    return stamped;
   }
-  // Replayable POST without shape — its response was empty for the
-  // captured card+month (e.g. current billing cycle not yet charged),
-  // but the body template still drives MatrixLoop replay.
-  const anyReplayablePost = urlMatches.find(isReplayablePost);
-  if (anyReplayablePost) {
-    logShapeAwarePick('replayablePost', anyReplayablePost, matches);
-    return anyReplayablePost;
-  }
-  if (shapePassing.length > 0) {
-    logShapeAwarePick('shapePassing', shapePassing[0], matches);
-    return shapePassing[0];
-  }
-  // No shape-passing capture and no replayable POST — surface as
-  // no-match. DASHBOARD.FINAL escalates to F-DASH-1 / F-DASH-2 so the
-  // pipeline halts before SCRAPE inherits a URL whose body has zero
-  // transaction records (Discount's `categoriesList`, Hapoalim's
-  // pre-role widget). Pre-Phase-7e the urlFallback tier accepted these
-  // wrong URLs and silently produced 0-txn scrapes.
-  logShapeAwarePick('none', false, matches);
+  // No shape-passing capture in either pool — surface as no-match.
+  // DASHBOARD.FINAL escalates to F-DASH-1 so the pipeline halts before
+  // SCRAPE inherits a URL whose body has zero transaction records.
+  logShapeAwarePick('none', false, fullOutcome.matches);
   return false;
 }
 
@@ -434,7 +484,13 @@ function buildEndpointMethods(captured: readonly IDiscoveredEndpoint[]): Endpoin
   return {
     /** @inheritdoc */
     discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false =>
-      discoverShapeAware(captured, PIPELINE_WELL_KNOWN_API.transactions),
+      // Phase 7f: this base-table fallback is overridden by the live
+      // network's post-click-first picker; it stays here as a safe
+      // default for surfaces that do not own the post/pre-click
+      // bucket split (e.g. some test mocks). Walks the full pool with
+      // the same tier rules; the post-click vs pre-click distinction
+      // is irrelevant when only one pool is available.
+      discoverShapeAware(captured, captured, PIPELINE_WELL_KNOWN_API.transactions),
     /** @inheritdoc */
     discoverBalanceEndpoint: (): IDiscoveredEndpoint | false =>
       discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.balance),
@@ -1232,27 +1288,26 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
   // before later phases run. See AuthFailureWatcher.ts for layer details.
   const authFailureWatcher = createAuthFailureWatcher(page);
   const failureGate = { authFailureWatcher };
-  // Override the txn-endpoint discovery to operate on POST-NAV captures
-  // by default. With the soft-fallback inside `getPostNavCaptures`,
-  // banks that fire full-history at login (no click) still get a full
-  // pool — but banks like Isracard / Max where the click reveals the
-  // real full-history endpoint never see the pre-click widget pollute
   /**
-   * Pick the txn endpoint from the FULL captured pool. Bucketing was
-   * originally intended to keep pre-click widget endpoints out of the
-   * picker, but the shape-aware tier preference (postWithShape >
-   * replayablePost > shapePassing) already favours real transaction
-   * captures over widget endpoints regardless of bucket. Walking the
-   * full pool also recovers Visacal-class banks where the txn URL
-   * fires at login-FINAL (before any dashboard click) and would
-   * otherwise be excluded by a strict post-nav cut.
-   * @returns Discovered txn endpoint or false.
+   * Phase 7f — pick the txn endpoint from the post-click pool first,
+   * then fall back to the full captured pool when the post-click pool
+   * is empty. Discount-class banks click "All Transactions" and the
+   * real txn URL fires after the click — strict post-click discipline
+   * keeps preview-widget URLs (Discount's `/forHomePage`) out of the
+   * picker. Visacal-class banks fire `/getFilteredTransactions` at
+   * login-FINAL (before any click); the fall-back tier
+   * `preClickFallback` recovers those without compromising the
+   * discipline elsewhere.
+   * @returns Discovered txn endpoint stamped with `pickerTier` +
+   *   `capturedPreClick`, or false.
    */
-  const discoverTxnFromFullPool = (): IDiscoveredEndpoint | false =>
-    discoverShapeAware(captured, PIPELINE_WELL_KNOWN_API.transactions);
+  const discoverTxnPostClickFirst = (): IDiscoveredEndpoint | false => {
+    const postNav = bucketing.getPostNavCaptures();
+    return discoverShapeAware(postNav, captured, PIPELINE_WELL_KNOWN_API.transactions);
+  };
   const txnDiscovery = {
     /** @inheritdoc */
-    discoverTransactionsEndpoint: discoverTxnFromFullPool,
+    discoverTransactionsEndpoint: discoverTxnPostClickFirst,
   };
   const base = { ...core, ...endpoints, ...originDiscover, ...urlBuilders };
   return {
@@ -1319,13 +1374,19 @@ function createFrozenNetwork(
   // Frozen-network has no live Page, so the watcher is a no-op stub.
   const failureGate = { authFailureWatcher: createFrozenAuthFailureWatcher() };
   /**
-   * Pick the txn endpoint from the FULL frozen pool. Same rationale as
-   * the live network: shape-aware tier preference picks real txn
-   * endpoints over widget URLs regardless of bucket position.
+   * Phase 7f — frozen replay applies the same post-click-first
+   * discipline as the live network. The frozen bucketing surface
+   * exposes `getPostNavCaptures()` filtered by the `dashboardClickAt`
+   * timestamp captured at freeze time; the picker walks that pool
+   * first and falls back to the FULL frozen pool when post-click
+   * yields nothing. Visacal-class banks recover via the
+   * `preClickFallback` tier, just as in the live picker.
    * @returns Discovered txn endpoint or false.
    */
-  const discoverTxnFromFrozenPool = (): IDiscoveredEndpoint | false =>
-    discoverShapeAware(frozen, PIPELINE_WELL_KNOWN_API.transactions);
+  const discoverTxnFromFrozenPool = (): IDiscoveredEndpoint | false => {
+    const postNav = bucketing.getPostNavCaptures();
+    return discoverShapeAware(postNav, frozen, PIPELINE_WELL_KNOWN_API.transactions);
+  };
   const txnDiscovery = {
     /** @inheritdoc */
     discoverTransactionsEndpoint: discoverTxnFromFrozenPool,

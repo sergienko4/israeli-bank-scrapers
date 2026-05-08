@@ -102,10 +102,36 @@ function isInCooldown(lastRunMs: number): IsInCooldown {
   return (Date.now() - lastRunMs < POPUP_COOLDOWN_MS) as IsInCooldown;
 }
 
+/** Bundled probe args — keeps `tryDismiss` under the per-fn line cap. */
+interface IProbeArgs {
+  readonly mediator: IElementMediator;
+  readonly logger: ScraperLogger;
+  readonly nextPhase: string;
+}
+
+/**
+ * Run the dismissal probe once and emit before/after diagnostics.
+ * Phase 7f follow-up: emits `popup.probe` / `popup.probe.done` even
+ * when no popup is found so binding is verifiable from pipeline.log.
+ *
+ * @param args - Mediator + logger + next phase name.
+ * @returns True after the probe completes (always succeeds).
+ */
+async function runDismissProbe(args: IProbeArgs): Promise<true> {
+  const { mediator, logger, nextPhase } = args;
+  logger.debug({ event: 'popup.probe', phase: nextPhase });
+  const eps = mediator.network.getAllEndpoints().length;
+  const dismissed = await dismissPopups(mediator, logger);
+  const delta = traceNetworkDelta(mediator, eps, logger);
+  logger.debug({ event: 'popup.probe.done', phase: nextPhase, dismissed, networkDelta: delta });
+  return true as const;
+}
+
 /**
  * Dismiss popups if cooldown elapsed and phase is in whitelist.
+ *
  * @param ctx - Current pipeline context.
- * @param lastRunMs - Last probe timestamp wrapper (mutated).
+ * @param lastRunMs - Last probe timestamp wrapper (mutated in place).
  * @param lastRunMs.value - Epoch-ms of last probe.
  * @param nextPhase - Name of the phase about to run.
  * @returns Succeed always — popup absence is valid.
@@ -116,12 +142,12 @@ async function tryDismiss(
   nextPhase: string,
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.mediator.has || !POPUP_PHASES.has(nextPhase)) return succeed(ctx);
-  if (isInCooldown(lastRunMs.value)) return succeed(ctx);
+  if (isInCooldown(lastRunMs.value)) {
+    ctx.logger.debug({ event: 'popup.skip', phase: nextPhase, reason: 'cooldown' });
+    return succeed(ctx);
+  }
   lastRunMs.value = Date.now();
-  const mediator = ctx.mediator.value;
-  const eps = mediator.network.getAllEndpoints().length;
-  await dismissPopups(mediator, ctx.logger);
-  traceNetworkDelta(mediator, eps, ctx.logger);
+  await runDismissProbe({ mediator: ctx.mediator.value, logger: ctx.logger, nextPhase });
   return succeed(ctx);
 }
 

@@ -188,6 +188,61 @@ describe('logForensicAudit', () => {
     const didLogForensicAuditResult4 = logForensicAudit(ctx);
     expect(didLogForensicAuditResult4).toBe(true);
   });
+
+  it('logQualifiedCard matches via suffix when account.accountNumber differs from card (long vs short form)', () => {
+    // VisaCal-class regression — qualifiedCards holds long-form
+    // `cardUniqueId` (e.g. `198302041582022213`) while the resolved
+    // accountNumber is the short last4 form (`3020`). The audit must
+    // attribute txns to the right card via bidirectional suffix match.
+    const disc = makeDiscovery(['198302041582022213'], []);
+    const acct = makeAccount('3020', 12);
+    const ctx = makeMockContext({
+      scrapeDiscovery: some(disc),
+      scrape: some({ accounts: [acct] }),
+    });
+    const didLog = logForensicAudit(ctx);
+    expect(didLog).toBe(true);
+  });
+
+  it('logQualifiedCard matches via reverse suffix (account longer than card)', () => {
+    // Hapoalim-class — accountNumber `12-170-536347` is longer than
+    // qualified card `536347`; reverse suffix-match exercises the
+    // accountNumber.endsWith(card) branch.
+    const disc = makeDiscovery(['536347'], []);
+    const acct = makeAccount('12-170-536347', 1);
+    const ctx = makeMockContext({
+      scrapeDiscovery: some(disc),
+      scrape: some({ accounts: [acct] }),
+    });
+    const didLog = logForensicAudit(ctx);
+    expect(didLog).toBe(true);
+  });
+
+  it('logQualifiedCard reports 0 txns when no account is compatible with the card id', () => {
+    // Empty-account / no-match path — neither equality nor suffix
+    // match holds; the audit reports 0 txns for the card.
+    const disc = makeDiscovery(['CARD-UNRELATED'], []);
+    const acct = makeAccount('OTHER-ACCT', 5);
+    const ctx = makeMockContext({
+      scrapeDiscovery: some(disc),
+      scrape: some({ accounts: [acct] }),
+    });
+    const didLog = logForensicAudit(ctx);
+    expect(didLog).toBe(true);
+  });
+
+  it('logQualifiedCard treats empty card or empty accountNumber as no-match', () => {
+    // Defensive — empty strings on either side return false from
+    // isAccountIdMatch; the audit reports 0 txns.
+    const disc = makeDiscovery([''], []);
+    const acct = makeAccount('A1', 3);
+    const ctx = makeMockContext({
+      scrapeDiscovery: some(disc),
+      scrape: some({ accounts: [acct] }),
+    });
+    const didLog = logForensicAudit(ctx);
+    expect(didLog).toBe(true);
+  });
 });
 
 describe('scrapePostDiagnostics', () => {

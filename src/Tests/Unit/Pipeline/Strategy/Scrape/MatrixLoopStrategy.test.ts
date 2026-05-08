@@ -7,16 +7,25 @@ import type {
   INetworkDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { tryMatrixLoop } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.js';
-import type { IAccountFetchCtx } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
-import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountFetchCtx,
+} from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
+import type {
+  IApiFetchContext,
+  ITxnEndpoint,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /**
- * Build a stub fetch context with a pre-resolved txnEndpoint (Phase 7e:
- * SCRAPE consumes the endpoint plumbed onto fc by SCRAPE.PRE).
- * @param endpoint - Pre-resolved txn endpoint (or false).
+ * Build a stub fetch context with a pre-resolved slim txnEndpoint
+ * (Phase 7f: SCRAPE consumes the typed contract plumbed onto fc by
+ * SCRAPE.PRE).
+ *
+ * @param endpoint - Slim TXN endpoint; pass `EMPTY_TXN_ENDPOINT` when
+ *   the test wants the no-endpoint default.
  * @returns IAccountFetchCtx.
  */
-function makeFc(endpoint: IDiscoveredEndpoint | false): IAccountFetchCtx {
+function makeFc(endpoint: ITxnEndpoint): IAccountFetchCtx {
   const network = {} as unknown as INetworkDiscovery;
   return {
     api: {} as IApiFetchContext,
@@ -26,45 +35,54 @@ function makeFc(endpoint: IDiscoveredEndpoint | false): IAccountFetchCtx {
   };
 }
 
+/**
+ * Build a slim TXN endpoint stub from a partial override; defaults to
+ * EMPTY for fields the test doesn't care about.
+ *
+ * @param overrides - Partial override fields.
+ * @returns Slim TXN endpoint.
+ */
+function stubTxn(overrides: Partial<ITxnEndpoint>): ITxnEndpoint {
+  return { ...EMPTY_TXN_ENDPOINT, ...overrides };
+}
+
 describe('tryMatrixLoop', () => {
   it('returns false when no txn endpoint discovered', async () => {
+    const fc = makeFc(EMPTY_TXN_ENDPOINT);
     const result = await tryMatrixLoop({
-      fc: makeFc(false),
+      fc,
       accountId: 'a',
       displayId: '1',
     });
     expect(result).toBe(false);
   });
 
-  it('returns false when txn endpoint has no postData', async () => {
-    const ep = { url: 'u', method: 'POST', postData: '', responseBody: {} };
-    const result = await tryMatrixLoop({
-      fc: makeFc(ep as unknown as IDiscoveredEndpoint),
-      accountId: 'a',
-      displayId: '1',
-    });
+  it('returns false when txn endpoint has no templatePostData', async () => {
+    const ep = stubTxn({ url: 'https://bank.fake/api', method: 'POST', templatePostData: '' });
+    const fc = makeFc(ep);
+    const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     expect(result).toBe(false);
   });
 
-  it('returns false when postData is not a monthly endpoint', async () => {
-    const ep = { url: 'u', method: 'POST', postData: '{"foo":"bar"}', responseBody: {} };
-    const result = await tryMatrixLoop({
-      fc: makeFc(ep as unknown as IDiscoveredEndpoint),
-      accountId: 'a',
-      displayId: '1',
+  it('returns false when templatePostData is not a monthly endpoint', async () => {
+    const ep = stubTxn({
+      url: 'https://bank.fake/api',
+      method: 'POST',
+      templatePostData: '{"foo":"bar"}',
     });
+    const fc = makeFc(ep);
+    const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     expect(result).toBe(false);
   });
 
   it('resolves to a 0-txn account when the monthly endpoint yields no rows', async () => {
     // Include monthly WK keys so isMonthlyEndpoint returns true.
     const body = { month: 1, year: 2026, accountId: 'a' };
-    const ep = {
+    const ep = stubTxn({
       url: 'https://bank.example/api/txn',
       method: 'POST',
-      postData: JSON.stringify(body),
-      responseBody: {},
-    } as unknown as IDiscoveredEndpoint;
+      templatePostData: JSON.stringify(body),
+    });
     const api = {
       /**
        * Test helper.

@@ -46,7 +46,8 @@ export function isPlainRecord(v: JsonValue): v is JsonObject {
 }
 
 /**
- * Check if a record carries a non-empty array under a WK.txnContainers key.
+ * Check if a record carries a non-empty array under a WK.txnContainers
+ * key (fast-path).
  * @param record - Record to inspect.
  * @returns True when any container key holds a non-empty Array.
  */
@@ -55,6 +56,34 @@ function recordCarriesTxnArray(record: JsonObject): boolean {
     .map((key): JsonValue => record[key])
     .find((v): v is readonly JsonValue[] => Array.isArray(v) && v.length > 0);
   return hit !== undefined;
+}
+
+/**
+ * Phase 7f deepened gate: returns true when the record carries any
+ * non-empty array whose first element exposes BOTH a date alias and
+ * an amount alias from `WK_FIELDS`. Recognises bank-specific shapes
+ * outside the canonical txnContainers list (e.g. Discount's
+ * `CurrentAccountLastTransactions.OperationEntry[]` with
+ * `OperationDate` + `OperationAmount`) without leaking bank tokens
+ * into the txnContainers fast-path.
+ *
+ * @param record - Record to inspect.
+ * @returns True when any nested array holds records exposing date AND
+ *   amount aliases.
+ */
+function recordCarriesShapedArray(record: JsonObject): boolean {
+  return Object.values(record).some((value): boolean => {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    const first: JsonValue = value[0];
+    if (!isPlainRecord(first)) return false;
+    const head = first;
+    const hasDate = WK_FIELDS.date.some((key): boolean => head[key] !== undefined);
+    const hasAmount =
+      WK_FIELDS.amount.some((key): boolean => head[key] !== undefined) ||
+      WK_FIELDS.creditAmount.some((key): boolean => head[key] !== undefined) ||
+      WK_FIELDS.debitAmount.some((key): boolean => head[key] !== undefined);
+    return hasDate && hasAmount;
+  });
 }
 
 /**
@@ -83,7 +112,7 @@ interface IBfsFrontier {
 function bfsStep(state: IBfsFrontier): IBfsFrontier {
   if (state.found || state.level.length === 0) return state;
   const records = state.level.filter(isPlainRecord);
-  const isHit = records.some(recordCarriesTxnArray);
+  const isHit = records.some(recordCarriesTxnArray) || records.some(recordCarriesShapedArray);
   const next = state.level.flatMap(expandForBfs);
   return { level: next, found: isHit };
 }

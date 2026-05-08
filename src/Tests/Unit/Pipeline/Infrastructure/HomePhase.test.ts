@@ -269,6 +269,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     scrapeDiscovery: ctx.scrapeDiscovery,
     accountDiscovery: ctx.accountDiscovery,
     txnEndpoint: ctx.txnEndpoint,
+    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,

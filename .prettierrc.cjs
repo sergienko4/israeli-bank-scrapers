@@ -8,5 +8,4 @@ module.exports = {
   tabWidth: 2,
   useTabs: false,
   arrowParens: 'avoid',
-  parser: 'typescript', // Since this is a TypeScript project
 };

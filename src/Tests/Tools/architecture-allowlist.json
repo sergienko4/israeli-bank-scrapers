@@ -1,4 +1,5 @@
 {
   "src/Tests/Unit/Tools/LintAndValidate.test.ts": ["PII-Log"],
-  "src/Tests/Unit/Tools/PiiLogBypassPrevention.test.ts": ["PII-Log"]
+  "src/Tests/Unit/Tools/PiiLogBypassPrevention.test.ts": ["PII-Log"],
+  "src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts": ["S6564-Canary"]
 }

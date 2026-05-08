@@ -5,11 +5,9 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import {
-  extractTransactions,
-  generateMonthChunks,
-} from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
@@ -21,11 +19,12 @@ import {
   parseStartDate,
   rateLimitPause,
 } from './ScrapeDataActions.js';
-import type {
-  IAccountAssemblyCtx,
-  IAccountFetchCtx,
-  IBillingChunkCtx,
-  IPostFetchCtx,
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountAssemblyCtx,
+  type IAccountFetchCtx,
+  type IBillingChunkCtx,
+  type IPostFetchCtx,
 } from './ScrapeTypes.js';
 
 const LOG = createLogger('scrape-billing');
@@ -73,7 +72,8 @@ async function scrapeOneBillingChunk(
   });
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
   if (!isOk(raw)) return [];
-  const txns = extractTransactions(raw.value);
+  const fieldMap = (ctx.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
+  const txns = parseFreshResponse(raw.value, fieldMap);
   LOG.debug({
     card: ctx.accountId,
     month: `${month}/${year}`,
@@ -157,7 +157,7 @@ async function tryBillingFallback(
   fc: IAccountFetchCtx,
   post: IPostFetchCtx,
 ): Promise<Procedure<ITransactionsAccount>> {
-  const billingUrl = fc.billingUrl ?? false;
+  const billingUrl = fc.txnEndpoint?.billingUrl ?? false;
   if (billingUrl === false) {
     LOG.debug({ message: 'billing skipped — no billing URL pre-resolved by DASHBOARD.FINAL' });
     return fail(ScraperErrorTypes.Generic, 'Billing: endpoint not captured, skipping');

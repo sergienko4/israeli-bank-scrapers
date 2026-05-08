@@ -47,6 +47,14 @@ const RULES: readonly ILayerRule[] = [
       // (the same way {@link AccountDiscovery} surfaces them while
       // picking the ACCOUNT endpoint).
       path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+      // Phase 7f (follow-up): TxnParser builds the DASHBOARD-side
+      // harvest scope by extracting an accountId-aliased URL param
+      // from the captured endpoint. The aliases come from WK_ACCT.id
+      // — same allowance as ScrapeAutoMapper.ts above (surface ids
+      // while shaping a non-account artefact). The harvest itself
+      // travels as `IDashboardTxnHarvest` (clean value type), not as
+      // any ACCOUNT-RESOLVE structure.
+      path.join('Mediator', 'Dashboard', 'TxnParser.ts'),
       // Strategy/Scrape/Account/* still surface account ids to display
       // alongside transactions — bounded scope, kept under R-ACCOUNT.
       path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
@@ -100,11 +108,13 @@ const RULES: readonly ILayerRule[] = [
     wk: 'PIPELINE_WELL_KNOWN_TXN_FIELDS',
     owners: [
       path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
-      // Strategy/Scrape/Account/BalanceExtractor.ts and
-      // Strategy/Scrape/ScrapeChunking.ts/UrlDateRange.ts still touch
-      // WK_TXN for monthly chunking + balance extraction; allowlisted as
-      // a Phase-7f follow-up trim once parseFreshResponse lands.
-      path.join('Strategy', 'Scrape', 'Account', 'BalanceExtractor.ts'),
+      // Phase 7f follow-up: BalanceExtractor.ts NO LONGER imports
+      // WK_TXN — it consumes `fc.txnEndpoint.fieldMap.balance`
+      // (DASHBOARD-resolved) via its `aliases` parameter. The
+      // remaining two helpers below import URL/body parameter names
+      // (`WK.fromDate` / `WK.toDate`) — a request-side concern that
+      // `ITxnEndpoint.fieldMap` (response-record aliases) doesn't
+      // cover. They stay allowlisted by design, not deferred work.
       path.join('Strategy', 'Scrape', 'ScrapeChunking.ts'),
       path.join('Mediator', 'Scrape', 'UrlDateRange.ts'),
       path.join('Mediator', 'Scrape', 'TxnShape.ts'),
@@ -127,11 +137,19 @@ interface IForbiddenCall {
 }
 
 /**
- * Phase 7e F-ARCH-4: SCRAPE-side code MUST NOT call
- * `network.discoverTransactionsEndpoint()` directly. The single legitimate
- * call site is `Mediator/Scrape/TxnEndpointBridge.ts` — the adapter that
- * fronts `ctx.txnEndpoint` (committed by DASHBOARD.FINAL) for the
- * mock-mode bypass case.
+ * Phase 7e F-ARCH-4 (retained, tightened in Phase 7f): SCRAPE-side
+ * code MUST NOT call `network.discoverTransactionsEndpoint()`
+ * directly. Phase 7f deleted `Mediator/Scrape/TxnEndpointBridge.ts`
+ * (the back-door adapter); the only legitimate call site now is
+ * the parser inside `Mediator/Scrape/ScrapeAutoMapper.ts` which
+ * DASHBOARD.FINAL drives via `resolveTxnEndpoint`. SCRAPE consumes
+ * the typed `ctx.txnEndpoint` contract via
+ * `readPreDiscoveredTxn(ctx)` — pure read, no network surface.
+ *
+ * <p>Phase 7f rule R-NET-SCRAPE additionally forbids any
+ * SCRAPE-zone file from importing `IDiscoveredEndpoint` /
+ * `INetworkDiscovery` symbols outside the dashboard-resident
+ * `ScrapeAutoMapper` and the generic `TxnShape` predicate.
  */
 const SCRAPE_ZONES: readonly string[] = [
   path.join('Strategy', 'Scrape'),
@@ -143,9 +161,8 @@ const SCRAPE_ZONES: readonly string[] = [
  * Files inside SCRAPE_ZONES that are exempt from the F-ARCH-4 grep.
  * Only the parser (which DASHBOARD.FINAL calls into via
  * `resolveTxnEndpoint`) is allowed to touch
- * `INetworkDiscovery.discoverTransactionsEndpoint`. The bridge does
- * NOT call discovery — it reads `ctx.txnEndpoint` only. TxnShape
- * imports the type for its own helpers; no runtime call.
+ * `INetworkDiscovery.discoverTransactionsEndpoint`. TxnShape imports
+ * the type for its own helpers; no runtime call.
  */
 const SCRAPE_DISCOVERY_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
@@ -381,8 +398,110 @@ describe('Phase 7d — layer-separation architecture validation', () => {
 });
 
 describe('Phase 7e — F-ARCH-4: SCRAPE never calls discoverTransactionsEndpoint', () => {
-  it('no SCRAPE-zone file outside the bridge calls discoverTransactionsEndpoint()', () => {
+  it('no SCRAPE-zone file outside the parser calls discoverTransactionsEndpoint()', () => {
     const hits = findForbiddenDiscoverTxnCalls();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * Phase 7f rule R-NET-SCRAPE: SCRAPE-zone files MUST NOT import
+ * `INetworkDiscovery` or `IDiscoveredEndpoint` symbols. SCRAPE
+ * consumes the slim `ITxnEndpoint` typed contract via
+ * `readPreDiscoveredTxn(ctx)` and the pre-discovered account list via
+ * `readPreDiscoveredAccounts(ctx)`. Network-shaped types are a back
+ * door — once they reach SCRAPE, the discipline collapses.
+ */
+const NET_SCRAPE_ALLOWLIST: readonly string[] = [
+  // The parser is the legitimate bridge between DASHBOARD and the
+  // network surface; resolveTxnEndpoint runs here.
+  path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+  // Generic shape predicate consumed by the network picker; not a
+  // SCRAPE consumer.
+  path.join('Mediator', 'Scrape', 'TxnShape.ts'),
+  // SCRAPE-PRE owns the load-context build that still receives the
+  // raw network reference for legacy displayId / balance lookups
+  // pending the Phase 7g migration.
+  path.join('Mediator', 'Scrape', 'ScrapePhaseActions.ts'),
+  path.join('Mediator', 'Scrape', 'FrozenScrapeAction.ts'),
+  // The strategies still receive the raw `network` field on
+  // `IAccountFetchCtx` for legacy displayId / balance lookups
+  // (BalanceExtractor / ScrapeChunking / UrlDateRange already
+  // allowlisted under R-TXN). SCRAPE strategies that pass `fc`
+  // through unchanged inherit the import.
+  path.join('Strategy', 'Scrape', 'GenericAutoScrapeStrategy.ts'),
+  path.join('Strategy', 'Scrape', 'ScrapeTypes.ts'),
+  path.join('Strategy', 'Scrape', 'ScrapeDataActions.ts'),
+  path.join('Strategy', 'Scrape', 'Account', 'AccountScrapeStrategy.ts'),
+  path.join('Strategy', 'Scrape', 'Account', 'BalanceExtractor.ts'),
+  path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
+];
+
+/**
+ * Returns true when the file lives in a SCRAPE zone AND is NOT on
+ * the R-NET-SCRAPE allowlist.
+ *
+ * @param relPath - Path relative to PIPELINE_ROOT.
+ * @returns True when the file is subject to R-NET-SCRAPE.
+ */
+function isNetScrapeEnforced(relPath: string): boolean {
+  const isInZone = SCRAPE_ZONES.some((zone): boolean => relPathMatches(relPath, zone));
+  if (!isInZone) return false;
+  const isAllowlisted = NET_SCRAPE_ALLOWLIST.some((entry): boolean =>
+    relPathMatches(relPath, entry),
+  );
+  return !isAllowlisted;
+}
+
+/**
+ * Find import lines that pull `INetworkDiscovery` or
+ * `IDiscoveredEndpoint` symbols from `Mediator/Network/`.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findNetworkSymbolImportLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  const fromNetwork = /from\s+'[^']*Mediator\/Network\//;
+  const directSymbol = /\b(?:INetworkDiscovery|IDiscoveredEndpoint)\b/;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (!directSymbol.test(line)) continue;
+    if (!fromNetwork.test(line) && !line.includes('import')) continue;
+    hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan SCRAPE-zone files outside the R-NET-SCRAPE allowlist for any
+ * import of `INetworkDiscovery` / `IDiscoveredEndpoint`.
+ *
+ * @returns Forbidden-import hits, empty when the rule holds.
+ */
+function findForbiddenNetworkImports(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (!isNetScrapeEnforced(rel)) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findNetworkSymbolImportLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'INetworkDiscovery|IDiscoveredEndpoint', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('Phase 7f — R-NET-SCRAPE: SCRAPE never imports network types', () => {
+  it('no SCRAPE-zone file outside the allowlist imports INetworkDiscovery / IDiscoveredEndpoint', () => {
+    const hits = findForbiddenNetworkImports();
     const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
     expect(summary).toEqual([]);
   });

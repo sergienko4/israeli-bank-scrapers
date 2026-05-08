@@ -3,11 +3,15 @@
  */
 
 import { tryBillingFallback } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/BillingFallbackStrategy.js';
-import type {
-  IAccountFetchCtx,
-  IPostFetchCtx,
+import {
+  EMPTY_TXN_ENDPOINT,
+  type IAccountFetchCtx,
+  type IPostFetchCtx,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
-import type { IApiFetchContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IApiFetchContext,
+  ITxnEndpoint,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeApi,
@@ -16,6 +20,18 @@ import {
   stubFetchPostFail,
   stubFetchPostOk,
 } from '../StrategyTestHelpers.js';
+
+/**
+ * Build a slim TXN endpoint with the supplied billingUrl — used by
+ * tests that exercise the BillingFallback strategy's billingUrl
+ * pathway.
+ *
+ * @param billingUrl - Billing URL string to expose on the slim endpoint.
+ * @returns Slim TXN endpoint with the supplied billingUrl.
+ */
+function withBillingUrl(billingUrl: string): ITxnEndpoint {
+  return { ...EMPTY_TXN_ENDPOINT, billingUrl };
+}
 
 /** Shared post context for tests. */
 const DEFAULT_POST: IPostFetchCtx = {
@@ -191,7 +207,7 @@ describe('tryBillingFallback — Phase 7e: billingUrl supplied via fc', () => {
       }),
       network: makeNetwork(),
       startDate: '20260101',
-      billingUrl: FAKE_BILLING_URL_FOR_TESTS,
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult5 = isOk(result);
@@ -229,7 +245,7 @@ describe('tryBillingFallback — Phase 7e: billingUrl supplied via fc', () => {
         const m = String(d.getMonth() + 1).padStart(2, '0');
         return `${String(y)}${m}01`;
       })(),
-      billingUrl: FAKE_BILLING_URL_FOR_TESTS,
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult6 = isOk(result);
@@ -355,7 +371,7 @@ describe('tryBillingFallback — chunk success with real transactions', () => {
       network: makeNetwork(),
       startDate,
       futureMonths: 2,
-      billingUrl: FAKE_BILLING_URL_FOR_TESTS,
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
     };
     const result = await tryBillingFallback(fc, DEFAULT_POST);
     const isOkResult11 = isOk(result);

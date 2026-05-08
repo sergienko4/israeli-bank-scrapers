@@ -13,9 +13,7 @@
       "responseBody": {
         "result": {
           "user": { "firstName": "TEST", "lastName": "USER" },
-          "cards": [
-            { "cardNumber": "9999", "cardName": "FAKE-MAX-CARD", "ownerName": "TEST USER" }
-          ]
+          "cards": [{ "cardNumber": "9999", "cardName": "FAKE-MAX-CARD", "ownerName": "TEST USER" }]
         },
         "statusDescription": "OK-FIXTURE"
       }

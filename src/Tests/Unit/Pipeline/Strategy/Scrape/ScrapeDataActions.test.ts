@@ -350,7 +350,29 @@ describe('buildAccountResult', () => {
   it('builds account with balance from raw record', async () => {
     const api = makeApi();
     const network = makeNetwork();
-    const fc = makeFc(api, network);
+    // Phase 7f follow-up: the SCRAPE-side balance scan consumes
+    // `fc.txnEndpoint.fieldMap.balance` (the alias DASHBOARD.FINAL
+    // resolved). The test supplies a slim ITxnEndpoint with the
+    // matching alias so the balance value lands in the result.
+    const fc = makeFc(api, network, {
+      txnEndpoint: {
+        url: '',
+        method: 'GET',
+        templatePostData: false,
+        fieldMap: {
+          date: '',
+          amount: '',
+          description: '',
+          currency: '',
+          identifier: '',
+          originalAmount: false,
+          processedDate: false,
+          balance: 'balance',
+        },
+        pendingUrl: false,
+        billingUrl: false,
+      },
+    });
     const ctx: IAccountAssemblyCtx = {
       fc,
       accountId: 'a',

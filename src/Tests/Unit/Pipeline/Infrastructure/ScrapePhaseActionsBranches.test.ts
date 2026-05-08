@@ -235,7 +235,6 @@ describe('executeMatrixLoop branches', () => {
       ] as unknown as IScrapeDiscovery['frozenEndpoints'],
       accountIds: ['A1'],
       rawAccountRecords: [],
-      txnEndpoint: false,
       cachedAuth: false,
       storageHarvest: {},
     };

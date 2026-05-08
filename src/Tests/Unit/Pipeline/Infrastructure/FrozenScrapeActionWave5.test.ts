@@ -71,7 +71,6 @@ function makeDiscovery(overrides: Partial<IScrapeDiscovery> = {}): IScrapeDiscov
     ] as unknown as IScrapeDiscovery['frozenEndpoints'],
     accountIds: [],
     rawAccountRecords: [],
-    txnEndpoint: false,
     cachedAuth: false,
     storageHarvest: {},
   };
