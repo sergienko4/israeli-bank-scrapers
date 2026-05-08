@@ -62,9 +62,34 @@ function createCapture(): { stream: Writable; output: () => string } {
 }
 
 /**
- * Captures info-level log output for a given scraper result.
+ * Reduce a pino JSON line to just its `msg` payload — strips out the
+ * runtime metadata (`time`, `pid`, `hostname`, `level`) so PII-leak
+ * assertions only inspect the human-rendered text. Without this,
+ * `time`'s epoch-ms (e.g. `1778247987644`) can incidentally contain
+ * a substring like `9876` and flake the test on certain clock
+ * boundaries.
+ *
+ * @param raw - One pino JSON log line.
+ * @returns The `msg` value, or the raw line on parse failure.
+ */
+function extractMsg(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { msg?: unknown };
+    if (typeof parsed.msg === 'string') return parsed.msg;
+  } catch {
+    // Non-JSON line — return as-is so callers can still inspect it.
+  }
+  return raw;
+}
+
+/**
+ * Captures info-level log output for a given scraper result. Returns
+ * only the `msg` payload of each line — runtime metadata like
+ * `time`/`pid`/`hostname` is stripped so PII assertions test the
+ * rendered text, not pino's own framing fields.
+ *
  * @param result - the scraper result to log
- * @returns the captured log output string
+ * @returns the captured log output string (msg-only, newline-joined)
  */
 function captureInfoOutput(result: IScraperScrapingResult): string {
   const { stream, output } = createCapture();
@@ -73,7 +98,12 @@ function captureInfoOutput(result: IScraperScrapingResult): string {
   for (const line of lines) {
     logger.info(line);
   }
-  return output();
+  const raw = output();
+  return raw
+    .split('\n')
+    .filter((entry): boolean => entry.length > 0)
+    .map(extractMsg)
+    .join('\n');
 }
 
 describe('ResultFormatter — PII masking', () => {
