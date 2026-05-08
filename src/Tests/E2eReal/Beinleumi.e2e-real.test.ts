@@ -32,6 +32,7 @@ DESCRIBE_IF('E2E: Beinleumi (real credentials)', () => {
       envVar: 'BEINLEUMI_OTP',
       fileName: 'beinleumi-otp.txt',
       log: LOG,
+      bankRegex: /(?:Beinleumi|בינלאומי)\D*(\d{4,8})/,
     });
     const scraper = createScraper({
       companyId: CompanyTypes.Beinleumi,

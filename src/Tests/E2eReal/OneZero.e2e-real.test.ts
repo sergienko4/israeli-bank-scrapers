@@ -44,6 +44,7 @@ DESCRIBE_IF('E2E: OneZero (real credentials, config-driven)', () => {
       envVar: 'ONEZERO_OTP',
       fileName: 'onezero-otp.txt',
       log: LOG,
+      bankRegex: /OneZero\D*(\d{4,8})/i,
     });
     // Always include phoneNumber + retriever so mediator's retryOn401
     // → primeFresh can run a fresh SMS flow when cached token is stale.

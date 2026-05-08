@@ -263,9 +263,19 @@ jobs:
           - VisaCal
           - Discount
           - Max
-          # Hapoalim — OTP not supported in CI yet (no retriever wired).
-          # Run via workflow_dispatch only. Smoke matrix still covers
-          # invalid-credentials on every PR.
+          - Hapoalim
+          - Beinleumi
+          - OneZero
+          # Hapoalim / Beinleumi / OneZero require OTP — supplied via
+          # the Telegram bot tier in `OtpPoller` (see
+          # TELEGRAM_BOT_TOKEN/CHAT_ID env below). The retriever consults
+          # Telegram between env-var (tier 1) and poll-file (tier 3) and
+          # silently skips the tier when either secret is missing.
+          # Pepper deliberately omitted — its test file is opt-in via
+          # `PEPPER_E2E_OPT_IN=1` due to Play Integrity attestation
+          # gating (see comment in Pepper.e2e-real.test.ts). Bank-regex
+          # is wired in code; adding to matrix is one-line when the
+          # Play Integrity work lands.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -299,6 +309,24 @@ jobs:
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
           MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
           MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+          # OTP-gated banks — credentials only; OTPs flow via Telegram.
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
+          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
+          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
+          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+
+          # Telegram bot — sole CI OTP delivery channel for the four
+          # OTP-gated banks (Hapoalim / Beinleumi / OneZero / Pepper).
+          # Per ci-quality-hardening plan §C-4, CI does NOT inject
+          # `*_OTP` env vars; Telegram is the only CI channel. The
+          # env-var tier in `OtpPoller` stays in code for local dev.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
         # and 'fails with invalid credentials' (already covered by smoke

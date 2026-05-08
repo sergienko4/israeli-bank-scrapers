@@ -17,6 +17,7 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import { fetchOtpFromTelegram } from './TelegramOtpFetcher.js';
 
 const POLL_INTERVAL_MS = 1000;
 /**
@@ -40,7 +41,21 @@ interface ICreateOtpPollerArgs {
   readonly log: ScraperLogger;
   /** Optional custom timeout (ms) — defaults to 120s. */
   readonly timeoutMs?: number;
+  /**
+   * Optional per-bank regex enabling the Telegram OTP tier in CI.
+   * When set AND `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` env vars
+   * are populated, the poller consults Telegram between the env-var
+   * tier and the poll-file tier. MUST contain exactly one capture
+   * group that matches the OTP digits (e.g.
+   * `/Beinleumi[^\d]*(\d{6})/`). When omitted (or env vars unset),
+   * the poller's behaviour is byte-identical to the pre-extension
+   * env → file → readline ladder.
+   */
+  readonly bankRegex?: RegExp;
 }
+
+/** Default Telegram fetch timeout — ≪ pipeline OTP watchdog (180s). */
+const TELEGRAM_FETCH_TIMEOUT_MS = 30_000;
 
 /**
  * Read the poll file if present and non-empty, else empty string.
@@ -141,6 +156,40 @@ function promptViaReadline(phoneHint: string): Promise<string> {
  * @param args - bank-specific env var, poll file basename, logger, timeout
  * @returns () => Promise<string> retriever
  */
+/**
+ * Try the Telegram OTP tier when opted-in and configured. Returns
+ * the captured digits on match, or empty string when the tier is
+ * skipped (no regex, missing env vars) or times out.
+ *
+ * @param args - Poller args (forward `bankRegex` + logger).
+ * @returns Captured digits or empty string.
+ */
+async function tryTelegramTier(args: ICreateOtpPollerArgs): Promise<string> {
+  const regex = args.bankRegex;
+  if (!regex) return '';
+  const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+  const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
+  if (botToken.length === 0 || chatId.length === 0) return '';
+  const result = await fetchOtpFromTelegram({
+    botToken,
+    chatId,
+    bankRegex: regex,
+    timeoutMs: TELEGRAM_FETCH_TIMEOUT_MS,
+    log: args.log,
+  });
+  return result === false ? '' : result;
+}
+
+/**
+ * Build a no-arg OTP retriever bound to the given env var, poll
+ * file basename, and (optional) per-bank Telegram regex. The
+ * returned function is the shape expected by `ScraperCredentials`
+ * (phone-hint is wrapped in via closure).
+ *
+ * @param args - bank-specific env var, poll file basename, logger,
+ *   timeout, and optional bankRegex enabling the Telegram tier.
+ * @returns `(hint?) => Promise<string>` retriever.
+ */
 function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise<string> {
   const tmp = os.tmpdir();
   const filePath = path.join(tmp, args.fileName);
@@ -149,14 +198,20 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   const timeoutMs = args.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
   return async (hint?: string): Promise<string> => {
     const phoneHint = hint ?? '';
+    // Tier 1: env var (CI preset / local override).
     const fromEnv = process.env[envVar];
     if (fromEnv && fromEnv.length > 0) {
       log.info({ phoneHint: phoneHint || 'unknown', envVar }, `Using ${envVar} env var`);
       return fromEnv;
     }
+    // Tier 2: Telegram bot (CI default; opt-in via bankRegex + env vars).
+    const fromTelegram = await tryTelegramTier(args);
+    if (fromTelegram.length > 0) return fromTelegram;
+    // Tier 3: poll file (interactive local).
     if (!process.stdin.isTTY) {
       return pollForCode({ filePath, log, phoneHint, timeoutMs });
     }
+    // Tier 4: readline TTY.
     return promptViaReadline(phoneHint);
   };
 }

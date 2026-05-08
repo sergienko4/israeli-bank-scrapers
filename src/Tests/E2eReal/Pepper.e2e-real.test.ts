@@ -53,6 +53,7 @@ DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
       envVar: 'PEPPER_OTP',
       fileName: 'pepper-otp.txt',
       log: LOG,
+      bankRegex: /Pepper\D*(\d{4,8})/i,
     });
     const warmCreds = {
       phoneNumber,
