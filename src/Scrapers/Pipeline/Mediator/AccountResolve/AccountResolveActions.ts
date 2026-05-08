@@ -120,6 +120,25 @@ function failAccountResolutionFailed(poolSize: number): Procedure<IPipelineConte
   return fail(ScraperErrorTypes.Generic, msg);
 }
 
+/** Three-way comparison sentinel returned by {@link compareLocale}. */
+type CompareSign = -1 | 0 | 1;
+
+/**
+ * Locale-aware comparator wrapping `String.localeCompare`. Sonar S2871
+ * requires sorts on strings to use an explicit locale-aware comparator;
+ * Rule #15 forbids primitive number returns from Pipeline functions, so
+ * the result is narrowed to a {@link CompareSign} sentinel via
+ * `Math.sign` — single expression, no branch coverage cost.
+ *
+ * @param a - First string.
+ * @param b - Second string.
+ * @returns -1 when a < b, 0 when equal, 1 when a > b.
+ */
+function compareLocale(a: string, b: string): CompareSign {
+  const cmp = a.localeCompare(b);
+  return Math.sign(cmp) as CompareSign;
+}
+
 /**
  * Render a per-container count map as a stable diagnostic string.
  * Used by {@link failAccountResolutionIncomplete} so the F2 error
@@ -134,7 +153,7 @@ function failAccountResolutionFailed(poolSize: number): Procedure<IPipelineConte
 function renderContainerCounts(
   containers: Readonly<Record<string, readonly Record<string, unknown>[]>>,
 ): string {
-  const names = Object.keys(containers).sort();
+  const names = Object.keys(containers).sort(compareLocale);
   if (names.length === 0) return 'none';
   return names.map((name): string => `${name}:${String(containers[name].length)}`).join(',');
 }
