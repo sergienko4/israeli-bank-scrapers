@@ -1,25 +1,35 @@
 /**
- * Account discovery — owned by the auth FINAL stage (LOGIN.FINAL for
- * non-OTP banks, OTP-FILL.FINAL for OTP banks). Operates on the
- * caller-supplied pool (always `getPreNavCaptures()`), so the
- * boundary between auth-side concerns and dashboard/scrape concerns
- * stays bright.
+ * Account discovery from a captured network pool — pure helper.
  *
- * Contract:
- * - Input is a list of captures the auth phase saw before any
- *   dashboard navigation click.
- * - Output is `{ endpoint, ids, records }`. `endpoint` is the capture
- *   we picked as the account source (kept for diagnostic logging);
- *   `ids` and `records` are populated via `extractAccountIds` /
- *   `extractAccountRecords` so SCRAPE.PRE consumes a stable shape
- *   regardless of which bank produced the data.
+ * <p>Co-located with `Mediator/Network/` after M1+ (was
+ * `Mediator/Auth/AccountDiscovery.ts`). Network owns the captured-
+ * endpoint shape; this helper walks the pool with a
+ * WK_ACCT-driven predicate to identify which captures carry account
+ * information. ACCOUNT-RESOLVE.POST consumes the result via
+ * downward dependency on the Network surface; no phase-mediator
+ * imports it.
  *
- * Why a separate helper (not a method on `INetworkDiscovery`):
- * - The network surface stays a black box that returns raw captures.
- *   Account-extraction is a domain concern owned by the auth phase,
- *   not by the network primitive.
- * - Reused identically by `LoginSignalProbe` (LOGIN.FINAL) and
- *   `OtpFillPhaseActions.executeFillFinal` (OTP-FILL.FINAL).
+ * <p>Contract:
+ * <ul>
+ *   <li>Input: a list of captures the auth phase saw before any
+ *       dashboard navigation click (always `getPreNavCaptures()`).</li>
+ *   <li>Output: `{ endpoint, ids, records, containers }`.
+ *       `endpoint` is the capture picked as the account source
+ *       (diagnostic only); `ids`/`records`/`containers` come from
+ *       `extractAccountIds` / `extractAccountRecords` so SCRAPE.PRE
+ *       consumes a stable shape regardless of which bank produced
+ *       the data.</li>
+ * </ul>
+ *
+ * <p>Why a separate helper (not a method on `INetworkDiscovery`):
+ * <ul>
+ *   <li>The network surface stays a black box that returns raw
+ *       captures.</li>
+ *   <li>Account-extraction shape predicate (WK_ACCT) is content-
+ *       aware; keeping it out of the network primitive lets future
+ *       phases plug in their own pool-walkers without coupling to
+ *       the network surface.</li>
+ * </ul>
  */
 
 import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../Registry/WK/ScrapeWK.js';

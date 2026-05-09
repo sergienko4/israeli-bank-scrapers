@@ -15,7 +15,6 @@
  * Tests use FAKE URLs only (https://api.fake.example, etc.).
  */
 
-import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Mediator/Dashboard/TxnParser.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type {
   IDiscoveredEndpoint,
@@ -30,6 +29,7 @@ import {
   type IAccountFetchCtx,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import type { ITxnEndpoint } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**

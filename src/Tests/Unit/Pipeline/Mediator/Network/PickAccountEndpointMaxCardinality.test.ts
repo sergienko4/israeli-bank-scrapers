@@ -12,7 +12,7 @@
  * 2026-05-07 confirmed the same trap on Isracard.
  */
 
-import { discoverAccountsInPool } from '../../../../../Scrapers/Pipeline/Mediator/Auth/AccountDiscovery.js';
+import { discoverAccountsInPool } from '../../../../../Scrapers/Pipeline/Mediator/Network/AccountFromPool.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 
 /** Args for `makeCapture`. */

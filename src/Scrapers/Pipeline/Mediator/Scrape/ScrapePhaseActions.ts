@@ -19,6 +19,7 @@ import { EMPTY_TXN_ENDPOINT, type IAccountFetchCtx } from '../../Strategy/Scrape
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import {
+  EMPTY_TXN_HARVEST,
   type IActionContext,
   type IDashboardTxnHarvest,
   type IPipelineContext,
@@ -26,10 +27,9 @@ import {
 } from '../../Types/PipelineContext.js';
 import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
-import { triggerDashboardUi } from '../Dashboard/DashboardTrigger.js';
-import { EMPTY_TXN_HARVEST } from '../Dashboard/TxnParser.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
 import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
+import { triggerDashboardUi } from './ScrapeUiTrigger.js';
 
 const LOG = createLogger('scrape-phase');
 
@@ -133,7 +133,7 @@ function readDashboardTxnHarvest(input: IPipelineContext | IActionContext): IDas
 }
 
 export { EMPTY_TXN_ENDPOINT } from '../../Strategy/Scrape/ScrapeTypes.js';
-export { EMPTY_TXN_HARVEST } from '../Dashboard/TxnParser.js';
+export { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
 export { readDashboardTxnHarvest, readPreDiscoveredTxn };
 
 /**

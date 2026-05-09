@@ -2,11 +2,11 @@
  * Unit tests for DashboardTrigger — best-effort UI click trigger.
  */
 
-import { triggerDashboardUi } from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardTrigger.js';
 import type {
   IElementMediator,
   IRaceResult,
 } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { triggerDashboardUi } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeUiTrigger.js';
 import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeFlushableLogger } from './TestHelpers.js';

@@ -270,6 +270,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     accountDiscovery: ctx.accountDiscovery,
     txnEndpoint: ctx.txnEndpoint,
     dashboardTxnHarvest: ctx.dashboardTxnHarvest,
+    authDiscovery: ctx.authDiscovery,
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,

@@ -17,7 +17,7 @@ import type { ILoginFieldDiscovery, IResolvedTarget } from '../../Types/Pipeline
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
-import { reduceField, validateCredentials } from '../Login/LoginFillStep.js';
+import { reduceField, validateCredentials } from './LoginFormFill.js';
 import { type IFillAccum, type IFillContext, passwordFirst } from './LoginScopeResolver.js';
 
 /** Fill result with resolved frame scope. */

@@ -214,6 +214,16 @@ export interface IActionContext {
    * to ACCOUNT-RESOLVE's IAccountDiscovery.records.
    */
   readonly dashboardTxnHarvest: Option<IDashboardTxnHarvest>;
+  /**
+   * Auth-discovery snapshot committed by AUTH-DISCOVERY.FINAL —
+   * Mission 1 (CI quality hardening plan). Single source of truth
+   * for "the run is ready to scrape": holds the auth token, origin,
+   * site id, fetch headers, dashboard-readiness boolean, and session
+   * cookie names. LOGIN/OTP-FILL no longer probe these signals
+   * themselves (sealed by Missions 2/3); DASHBOARD/SCRAPE consume
+   * the option via reads.
+   */
+  readonly authDiscovery: Option<IAuthDiscovery>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -279,6 +289,19 @@ interface IPipelineContext {
    * its own fresh fetch.
    */
   readonly dashboardTxnHarvest: Option<IDashboardTxnHarvest>;
+  /**
+   * Auth-discovery snapshot committed by AUTH-DISCOVERY.FINAL —
+   * Mission 1 of the CI quality hardening plan. Single source of
+   * truth for "we are authenticated AND on the dashboard": carries
+   * the auth token, origin, site id, fetch headers, dashboard-
+   * readiness boolean, and session cookie names. Replaces the work
+   * previously scattered across LOGIN.FINAL (LoginSignalProbe) and
+   * OTP-FILL.PRE (maybeFastPathSuccess); LOGIN/OTP-FILL/OTP-TRIGGER
+   * are sealed in Missions 2/3/4 and consume nothing from this
+   * field — DASHBOARD/SCRAPE/ACCOUNT-RESOLVE read it as additive
+   * input.
+   */
+  readonly authDiscovery: Option<IAuthDiscovery>;
 }
 
 /**
@@ -307,6 +330,82 @@ interface IAccountDiscovery {
   readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
   readonly endpointCaptureIndex: number;
 }
+
+/**
+ * Auth-discovery snapshot committed by AUTH-DISCOVERY.FINAL —
+ * Mission 1 of the CI quality hardening plan.
+ *
+ * <p>Single source of truth for "we are authenticated AND on the
+ * dashboard". Replaces the auth-token + dashboard-reveal work
+ * previously scattered across LOGIN.FINAL (LoginSignalProbe) and
+ * OTP-FILL.PRE (maybeFastPathSuccess). The phase mirrors
+ * ACCOUNT-RESOLVE: PRE inventories, ACTION collects, POST
+ * validates, FINAL emits this slim value type.
+ *
+ * <p>Fields:
+ * <ul>
+ *   <li>{@link authToken} — bearer token discovered in headers /
+ *       response bodies / sessionStorage. `false` for banks that
+ *       authenticate via cookies only (Discount, Hapoalim, …).</li>
+ *   <li>{@link origin} — origin URL captured from request headers
+ *       (e.g. `https://www.fibi.co.il`). `false` when no captures
+ *       have an Origin header set.</li>
+ *   <li>{@link siteId} — site-id header value (X-Site-Id, etc.).
+ *       `false` when no bank-specific site-id is exposed.</li>
+ *   <li>{@link headers} — full discovered fetch-header bag built
+ *       from in-flight traffic; ready to pass to fetchStrategy.
+ *       Empty object when no captures were available.</li>
+ *   <li>{@link dashboardReady} — `true` when AUTH-DISCOVERY's reveal
+ *       probe found at least one dashboard marker; `false` when the
+ *       probe budget elapsed with no reveal.</li>
+ *   <li>{@link sessionCookieNames} — names (not values) of session
+ *       cookies present at AUTH-DISCOVERY entry. Used for telemetry
+ *       only — never logged with values.</li>
+ * </ul>
+ */
+interface IAuthDiscovery {
+  readonly authToken: string | false;
+  readonly origin: string | false;
+  readonly siteId: string | false;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly dashboardReady: boolean;
+  readonly sessionCookieNames: readonly string[];
+}
+
+/**
+ * Fail-loud codes emitted by AUTH-DISCOVERY.POST. Closed list,
+ * exhaustive — every fail path uses one of these values.
+ */
+type AuthDiscoveryFailCode =
+  | 'AUTH_DISCOVERY_SESSION_INVALID'
+  | 'AUTH_DISCOVERY_DASHBOARD_NOT_READY'
+  | 'AUTH_DISCOVERY_TOKEN_REQUIRED_AND_MISSING';
+
+/**
+ * Empty default for test paths. Mirrors EMPTY_AUTH_DISCOVERY's role
+ * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
+ */
+const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
+  authToken: false,
+  origin: false,
+  siteId: false,
+  headers: {},
+  dashboardReady: false,
+  sessionCookieNames: [],
+};
+
+/**
+ * Empty-harvest sentinel for SCRAPE consumers when DASHBOARD did
+ * not commit a harvest (no captured TXN body or harvest scope was
+ * multi-account and the iteration's account doesn't match). Lives
+ * next to {@link IDashboardTxnHarvest} so SCRAPE consumes it from
+ * Types — kills the prior cross-zone SCRAPE → Dashboard import.
+ */
+const EMPTY_TXN_HARVEST: IDashboardTxnHarvest = {
+  records: [],
+  capturedAccountId: false,
+  multiAccountScope: false,
+};
 
 /**
  * Field-name aliases resolved once per run by DASHBOARD.FINAL via
@@ -485,8 +584,10 @@ export interface IBootstrapContext extends IActionContext {
 
 export type {
   ApiStrategyKind,
+  AuthDiscoveryFailCode,
   IAccountDiscovery,
   IApiFetchContext,
+  IAuthDiscovery,
   IBrowserState,
   IDashboardState,
   IDashboardTxnHarvest,
@@ -500,4 +601,4 @@ export type {
   ITxnFieldMap,
   PickerTier,
 };
-export { API_STRATEGY };
+export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_TXN_HARVEST };

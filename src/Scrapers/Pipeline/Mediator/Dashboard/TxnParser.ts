@@ -294,13 +294,6 @@ function buildTxnHarvest(
   };
 }
 
-/** Empty-harvest sentinel for tests / mock paths that bypass DASHBOARD. */
-const EMPTY_TXN_HARVEST: IDashboardTxnHarvest = {
-  records: [],
-  capturedAccountId: false,
-  multiAccountScope: false,
-};
-
 /**
  * JSON-shaped value the multi-scope DFS may walk over. Named alias so
  * the helpers stay free of bare `unknown` (architecture rule
@@ -320,7 +313,6 @@ export {
   buildPerAccountBody,
   buildTxnHarvest,
   detectMultiAccountScope,
-  EMPTY_TXN_HARVEST,
   extractAccountIdFromUrl,
   parseFreshResponse,
 };

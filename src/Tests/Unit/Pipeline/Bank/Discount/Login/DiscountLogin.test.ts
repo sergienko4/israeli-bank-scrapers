@@ -46,14 +46,14 @@ describe('DISCOUNT_LOGIN', () => {
 });
 
 describe('buildDiscountPipeline', () => {
-  it('returns descriptor with 7 phases (no pre-login; Phase 7 inserted account-resolve)', () => {
+  it('returns descriptor with 8 phases (Mission 1 inserted auth-discovery before account-resolve)', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(7);
+    expect(descriptor.phases).toHaveLength(8);
   });
 
-  it('phase names: init, home, login, account-resolve, dashboard, scrape, terminate', () => {
+  it('phase names: init, home, login, auth-discovery, account-resolve, dashboard, scrape, terminate', () => {
     const result = buildDiscountPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
@@ -62,6 +62,7 @@ describe('buildDiscountPipeline', () => {
       'init',
       'home',
       'login',
+      'auth-discovery',
       'account-resolve',
       'dashboard',
       'scrape',

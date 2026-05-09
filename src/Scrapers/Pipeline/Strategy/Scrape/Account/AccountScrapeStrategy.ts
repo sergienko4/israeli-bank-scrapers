@@ -9,7 +9,7 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { EMPTY_TXN_HARVEST, parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
+import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeToUrlWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
@@ -17,6 +17,7 @@ import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
 import type { IDashboardTxnHarvest, ITxnEndpoint } from '../../../Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
 import { tryBillingFallback } from '../BillingFallbackStrategy.js';

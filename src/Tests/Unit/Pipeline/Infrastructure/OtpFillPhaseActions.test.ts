@@ -80,13 +80,13 @@ describe('executeFillAction', () => {
     expect(isOkResult6).toBe(true);
   });
 
-  it('honors fast-path-skip from PRE diagnostics', async () => {
+  it('honors optional-skip from PRE diagnostics (M1+ replaces fast-path)', async () => {
     const base = makeMockContext();
     const makeMockActionExecutorResult7 = makeMockActionExecutor();
     const ctx: IActionContext = toActionCtx(
       {
         ...base,
-        diagnostics: { ...base.diagnostics, lastAction: 'otp-fill-pre (fast-path-skip)' },
+        diagnostics: { ...base.diagnostics, lastAction: 'otp-fill-pre (optional-skip)' },
       },
       makeMockActionExecutorResult7,
     );
@@ -172,6 +172,29 @@ describe('executeFillAction', () => {
   });
 });
 
+describe('executeFillPre — MOCK_MODE bypass', () => {
+  it('emits the mock-bypass diagnostic when MOCK_MODE=1 and OTP form not found', async () => {
+    const original = process.env.MOCK_MODE;
+    process.env.MOCK_MODE = '1';
+    try {
+      const makeScreenshotPageResult = makeScreenshotPage();
+      const ctx = makeContextWithBrowser(makeScreenshotPageResult);
+      const result = await executeFillPre(ctx);
+      const wasOk = isOk(result);
+      expect(wasOk).toBe(true);
+      if (isOk(result)) {
+        expect(result.value.diagnostics.lastAction).toContain('mock-bypass');
+      }
+    } finally {
+      if (original === undefined) {
+        delete process.env.MOCK_MODE;
+      } else {
+        process.env.MOCK_MODE = original;
+      }
+    }
+  });
+});
+
 describe('executeFillPost', () => {
   it('succeeds when no mediator', async () => {
     const ctx = makeMockContext();
@@ -239,7 +262,8 @@ describe('executeFillPre — fast-path & mock-bypass', () => {
     const isOkResult22 = isOk(result);
     expect(isOkResult22).toBe(true);
     if (isOk(result)) {
-      // Either fast-path-skip (dashboard visible) OR OTP found successfully.
+      // M1+ removed the fast-path probe — PRE writes either an OTP-discovery
+      // diagnostic or the optional-skip stamp; both prefix with 'otp-fill-pre'.
       expect(result.value.diagnostics.lastAction).toMatch(/otp-fill-pre/);
     }
   });

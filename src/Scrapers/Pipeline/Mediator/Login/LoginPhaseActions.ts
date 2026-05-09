@@ -29,7 +29,6 @@ import {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { waitForPostLoginTraffic } from '../Auth/PostLoginTrafficProbe.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
@@ -37,6 +36,7 @@ import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
 import { waitUntil } from '../Timing/Waiting.js';
+import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
 
 /** Timeout for post-login redirect settle. */
 const REDIRECT_SETTLE_MS = 15000;
@@ -921,7 +921,7 @@ async function ensureDashboardRedirect(
   return true;
 }
 
-export { executeLoginSignal } from '../Auth/LoginSignalProbe.js';
+export { executeLoginSignal } from './LoginCookieAudit.js';
 export { executeDiscoverForm, executeFillAndSubmitFromDiscovery, executeValidateLogin };
 // Internal helpers exposed only for focused unit tests. Do NOT import
 // outside of src/Tests/Unit/**. Safe to change without deprecation.

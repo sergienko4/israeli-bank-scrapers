@@ -7,7 +7,7 @@
  * than this value.
  */
 
-import { poolMaxContainer } from '../../../../../Scrapers/Pipeline/Mediator/Auth/AccountDiscovery.js';
+import { poolMaxContainer } from '../../../../../Scrapers/Pipeline/Mediator/Network/AccountFromPool.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 
 /** Args for `makeCapture`. */

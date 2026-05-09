@@ -44,10 +44,10 @@ describe('buildIsracardPipeline', () => {
     assertOk(result);
   });
 
-  it('returns descriptor with 8 phases (Phase 7 inserted account-resolve)', () => {
+  it('returns descriptor with 9 phases (Mission 1 inserted auth-discovery before account-resolve)', () => {
     const result = buildIsracardPipeline(MOCK_OPTIONS);
     assertOk(result);
-    expect(result.value.phases).toHaveLength(8);
+    expect(result.value.phases).toHaveLength(9);
   });
 
   it('phase names follow the canonical pipeline chain', () => {
@@ -59,6 +59,7 @@ describe('buildIsracardPipeline', () => {
       'home',
       'pre-login',
       'login',
+      'auth-discovery',
       'account-resolve',
       'dashboard',
       'scrape',

@@ -155,7 +155,8 @@ async function resolveDashboardTargets(
   const txnResult = await mediator
     .resolveVisible(txnWk, TRIGGER_PROBE_TIMEOUT)
     .catch((): false => false);
-  if (!txnResult || !txnResult.locator || !txnResult.candidate || !txnResult.context) {
+  if (txnResult === false) return resolveMenuFallback(mediator, page);
+  if (!txnResult.locator || !txnResult.candidate || !txnResult.context) {
     return resolveMenuFallback(mediator, page);
   }
   const identityTarget = raceResultToTarget(txnResult, page);
