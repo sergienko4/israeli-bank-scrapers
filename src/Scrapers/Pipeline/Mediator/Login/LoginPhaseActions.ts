@@ -24,7 +24,6 @@ import {
   type ILoginState,
   type IPipelineContext,
   type IResolvedTarget,
-  LOGIN_FIELDS,
   type LoginFieldKey,
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -766,29 +765,111 @@ function buildScopedFormPresenceSelector(
 }
 
 /**
- * Build the async predicate that the form-presence poll evaluates each
- * tick. The predicate resolves to `true` once the count drops to 0
- * (the login form has fully unmounted) and `false` while the form is
- * still in the DOM. `waitUntil` returns the first truthy value, so
- * returning `true` is what releases the poll.
+ * Probe a single selector and emit the per-tick diagnostic log line.
  * @param mediator - Element mediator with `countBySelector`.
- * @param scopedSelector - Scoped or unscoped password selector.
+ * @param selector - Scoped or unscoped selector for one tracked field.
+ * @param logger - Pipeline logger for per-tick diagnostics.
+ * @returns Number of matched elements at this tick.
+ */
+async function probeSelectorCount(
+  mediator: IElementMediator,
+  selector: string,
+  logger: IPipelineContext['logger'],
+): Promise<number> {
+  const count = await mediator.countBySelector(selector);
+  const masked = maskVisibleText(selector);
+  logger.debug({
+    message: `POST: form-presence tick — selector ${masked} count=${String(count)}`,
+  });
+  return count;
+}
+
+/**
+ * Build the async predicate that the form-presence poll evaluates each
+ * tick. The predicate resolves to `true` once ANY tracked field's
+ * count drops to 0 (login form torn down) and `false` while every
+ * field is still in the DOM.
+ *
+ * <p>Why OR-gate (PR #215 round 4): Hapoalim's OTP screen retains
+ * a `#password` masked-input for digit entry but drops `#userCode`.
+ * Probing only the password field looped on count=1 forever and
+ * surfaced the OTP-screen transition as a false-positive
+ * `InvalidPassword`, even though the bank dispatched the OTP SMS
+ * (banks do NOT dispatch OTPs on rejected logins). Probing every
+ * field PRE captured releases the gate the moment any
+ * discriminating field disappears, while preserving the
+ * `InvalidPassword` signal for the genuine "creds rejected,
+ * everything still mounted" path.
+ *
+ * @param mediator - Element mediator with `countBySelector`.
+ * @param scopedSelectors - One scoped selector per field PRE captured.
  * @param logger - Pipeline logger for per-tick diagnostics.
  * @returns Async predicate suitable for `waitUntil`.
  */
 function buildPollTick(
   mediator: IElementMediator,
-  scopedSelector: string,
+  scopedSelectors: readonly string[],
   logger: IPipelineContext['logger'],
 ): () => Promise<boolean> {
-  const masked = maskVisibleText(scopedSelector);
-  return async (): Promise<boolean> => {
-    const stillPresent = await mediator.countBySelector(scopedSelector);
-    logger.debug({
-      message: `POST: form-presence tick — selector ${masked} count=${String(stillPresent)}`,
-    });
-    return stillPresent === 0;
+  /**
+   * Run one probe per selector in parallel and decide whether the
+   * login form has been torn down for this tick.
+   * @returns True the moment any tracked field's count is 0.
+   */
+  const tickFn = async (): Promise<boolean> => {
+    const probes = scopedSelectors.map(
+      (s: string): Promise<number> => probeSelectorCount(mediator, s, logger),
+    );
+    const counts = await Promise.all(probes);
+    return counts.includes(0);
   };
+  return tickFn;
+}
+
+/**
+ * Reduce one discovery target into the running scoped-selector list,
+ * de-duplicating against entries already collected. Extracted so
+ * {@link collectScopedFormPresenceSelectors} stays inside the
+ * project's max-depth budget (1 level of nesting).
+ * @param accum - Selectors already accumulated on prior iterations.
+ * @param target - Discovery target to fold into the accumulator.
+ * @param formAnchor - PRE-captured form anchor (forwarded to scoping).
+ * @returns Accumulator extended with target's scoped selector when novel.
+ */
+function foldScopedSelector(
+  accum: readonly string[],
+  target: IResolvedTarget,
+  formAnchor: ILoginFieldDiscovery['formAnchor'],
+): readonly string[] {
+  const scoped = buildScopedFormPresenceSelector(target.selector, formAnchor);
+  if (scoped.length === 0) return accum;
+  if (accum.includes(scoped)) return accum;
+  return [...accum, scoped];
+}
+
+/**
+ * Build the list of scoped selectors the form-presence poll probes —
+ * one per field PRE captured. The original implementation only
+ * checked `password`, which false-positived on OTP screens that
+ * retain a `#password`-id masked-input for digit entry (Hapoalim).
+ * Probing every captured field — typically `password` + `userCode`
+ * or `password` + `username` — releases the gate as soon as the
+ * login form's discriminating field disappears, while preserving
+ * the InvalidPassword signal for the genuine "creds rejected,
+ * everything still mounted" path.
+ *
+ * @param discovery - Login-field discovery from PRE.
+ * @returns Scoped selectors for every captured field (deduped).
+ */
+function collectScopedFormPresenceSelectors(discovery: ILoginFieldDiscovery): readonly string[] {
+  const targetIter = discovery.targets.values();
+  const targets = Array.from(targetIter);
+  const seed: readonly string[] = [];
+  return targets.reduce<readonly string[]>(
+    (accum: readonly string[], target: IResolvedTarget): readonly string[] =>
+      foldScopedSelector(accum, target, discovery.formAnchor),
+    seed,
+  );
 }
 
 /**
@@ -797,28 +878,32 @@ function buildPollTick(
  *
  * <p>A successful submit destroys the entire login form (the SPA renders
  * the next view — OTP step or dashboard); a rejected submit leaves the
- * form intact with the same password element the PRE stage resolved.
- * Probing for that exact element gives a generic, cross-bank failure
- * signal that doesn't depend on URL pathnames, error-text dictionaries,
- * or auth-API URL patterns.
+ * form intact with the same fields the PRE stage resolved.
  *
- * <p>Two compounding regressions were observed after the initial check
- * shipped in commit `d9636d8e`:
+ * <p>Three compounding regressions shaped this implementation:
  *  - Generic password selectors (`xpath=//input[@type="password"]`)
  *    matched the OTP step's password input on banks like Isracard,
- *    producing a false-positive InvalidPassword on a successful login.
+ *    producing a false-positive InvalidPassword on a successful
+ *    login (commit `d9636d8e`).
  *  - SPA frameworks (Angular/React) tear down the login view
- *    asynchronously after the URL flips. A 9 ms gap between redirect
- *    and a single-shot probe was not enough — the dying-frame login
- *    form was still mounted.
+ *    asynchronously after the URL flips, so a single-shot probe
+ *    was not enough — the dying-frame login form was still mounted.
+ *  - Hapoalim's OTP screen retains a `#password`-id masked-input
+ *    for digit entry but drops `#userCode`. Probing only the
+ *    password field looped forever on count=1 and surfaced the
+ *    OTP-screen transition as InvalidPassword even though the
+ *    bank-side flow succeeded (PR #215 round 4 — confirmed by
+ *    user receiving Hapoalim OTP SMS, which the bank does NOT
+ *    dispatch on rejected logins).
  *
- * <p>The fix scopes the probe to the trustworthy form anchor PRE
- * recorded (same predicate used to scope the submit click) AND polls
- * for up to {@link FORM_PRESENCE_POLL_BUDGET_MS} so the SPA has time
- * to finish its component teardown. A genuine invalid-credentials
- * path keeps the form mounted for the entire budget → loud
- * `fail(InvalidPassword)` — the same signal Hapoalim's gate test
- * relies on.
+ * <p>The fix scopes each probe to the trustworthy form anchor PRE
+ * recorded AND probes EVERY field PRE captured AND polls for up to
+ * {@link FORM_PRESENCE_POLL_BUDGET_MS} so the SPA has time to
+ * finish its component teardown. The OR-gate releases the moment
+ * ANY tracked field disappears. A genuine invalid-credentials path
+ * keeps EVERY field mounted for the full budget → loud
+ * `fail(InvalidPassword)` — the same signal Hapoalim's invalid-
+ * creds gate test relies on.
  *
  * @param mediator - Element mediator (for `countBySelector`).
  * @param input - Pipeline context carrying `loginFieldDiscovery` from PRE.
@@ -830,13 +915,9 @@ async function detectLoginFormStillPresent(
 ): Promise<Procedure<IPipelineContext> | false> {
   if (!input.loginFieldDiscovery.has) return false;
   const discovery = input.loginFieldDiscovery.value;
-  const passwordTarget = discovery.targets.get(LOGIN_FIELDS.PASSWORD);
-  if (!passwordTarget) return false;
-  const scopedSelector = buildScopedFormPresenceSelector(
-    passwordTarget.selector,
-    discovery.formAnchor,
-  );
-  const tick = buildPollTick(mediator, scopedSelector, input.logger);
+  const scopedSelectors = collectScopedFormPresenceSelectors(discovery);
+  if (scopedSelectors.length === 0) return false;
+  const tick = buildPollTick(mediator, scopedSelectors, input.logger);
   const isFormGone = await waitUntil(tick, 'login.POST form-presence poll', {
     timeout: FORM_PRESENCE_POLL_BUDGET_MS,
     interval: FORM_PRESENCE_POLL_INTERVAL_MS,
@@ -844,7 +925,8 @@ async function detectLoginFormStillPresent(
     .then((): true => true)
     .catch((): false => false);
   if (isFormGone) return false;
-  const masked = maskVisibleText(scopedSelector);
+  const joinedSelectors = scopedSelectors.join(' & ');
+  const masked = maskVisibleText(joinedSelectors);
   const budgetMs = String(FORM_PRESENCE_POLL_BUDGET_MS);
   input.logger.debug({
     message: `POST: form still present after ${budgetMs}ms — ${masked}`,
