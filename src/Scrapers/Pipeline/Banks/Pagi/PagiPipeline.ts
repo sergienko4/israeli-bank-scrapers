@@ -36,4 +36,4 @@ function buildPagiPipeline(options: ScraperOptions): Procedure<IPipelineDescript
 }
 
 export default buildPagiPipeline;
-export { buildPagiPipeline };
+export { buildPagiPipeline, PAGI_LOGIN };

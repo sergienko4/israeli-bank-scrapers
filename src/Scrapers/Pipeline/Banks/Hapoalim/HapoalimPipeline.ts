@@ -35,4 +35,4 @@ function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildHapoalimPipeline;
-export { buildHapoalimPipeline };
+export { buildHapoalimPipeline, HAPOALIM_LOGIN };
