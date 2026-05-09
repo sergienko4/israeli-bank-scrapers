@@ -85,8 +85,8 @@ function makeCapture(args: IMakeCaptureArgs): IDiscoveredEndpoint {
 }
 
 describe('ACCOUNT_RESOLVE_BUDGET_MS', () => {
-  it('is the configured 10-second wait budget (TIMING mission tightened from 20s)', () => {
-    expect(ACCOUNT_RESOLVE_BUDGET_MS).toBe(10_000);
+  it('is the configured 20-second wait budget (post-cumulative-cut bump, see Mediator JSDoc)', () => {
+    expect(ACCOUNT_RESOLVE_BUDGET_MS).toBe(20_000);
   });
 });
 

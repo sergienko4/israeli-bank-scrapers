@@ -20,8 +20,8 @@ import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe
 import { OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import { createPromise } from '../Timing/TimingActions.js';
 
-/** Timeout for OTP submit settle. */
-const OTP_SETTLE_TIMEOUT = 10000;
+/** Timeout ceiling for OTP submit settle — early-exit via waitForNetworkIdle. */
+const OTP_SETTLE_TIMEOUT = 5000;
 /** Settle delay before retriever prompt (ms). */
 const RETRIEVER_SETTLE_MS = 500;
 /** Default OTP timeout (ms) — 3 minutes. */

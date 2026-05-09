@@ -806,10 +806,12 @@ const FIXED_WAIT_15S_ALLOWLIST: readonly string[] = [
 ];
 
 /**
- * Match `*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000` constant
- * declarations on a single line. Captures both `15000` and `15_000`.
+ * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000` constant
+ * declarations on a single line. Captures both `15000` and `15_000`. The
+ * `_TIMEOUT` alternative (without `_MS` suffix) catches names like
+ * `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
  */
-const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS|_WAIT_MS|_BUDGET_MS)\s*=\s*15_?000\b/;
+const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)\s*=\s*15_?000\b/;
 
 /**
  * Find lines declaring a 15s fixed-wait constant.

@@ -22,8 +22,8 @@ import { OTP_FALLBACK, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
 /** Last 1-4 digits extractor. */
 const PHONE_LAST_DIGITS = /(\d{1,4})$/;
-/** Timeout for OTP page settle after trigger click. */
-const OTP_SETTLE_TIMEOUT = 10000;
+/** Timeout ceiling for OTP page settle after trigger click — early-exit via waitForNetworkIdle. */
+const OTP_SETTLE_TIMEOUT = 5000;
 
 // ── PRE: Passive Discovery (Rule #20) ──────────────────────────────
 

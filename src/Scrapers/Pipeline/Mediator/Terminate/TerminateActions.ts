@@ -18,9 +18,21 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { createPromise } from '../Timing/TimingActions.js';
 
 /** Type alias for the cleanup function signature from IBrowserState. */
 type CleanupFn = IBrowserState['cleanups'][number];
+
+/**
+ * Wall-clock ceiling for a single cleanup function. Live Isracard run
+ * `10-05-2026_02023248` hung in TERMINATE.POST for ~9 min because
+ * Playwright's `page.close()` cleanup waits for the network to go
+ * idle and Isracard's frontend JavaScript keeps firing keepAlive POSTs
+ * every 30 s — the page never settles. Each cleanup gets the budget
+ * via `Promise.race`; on timeout we surface a fail-loud Procedure and
+ * the LIFO walk continues so other cleanups still run.
+ */
+const CLEANUP_BUDGET_MS = 5000;
 
 /**
  * Log a cleanup failure if the result is not OK.
@@ -38,17 +50,57 @@ function logCleanupResult(
 }
 
 /**
- * Run a single cleanup handler, swallowing any error.
+ * Build a wall-clock guard that resolves to a fail-loud Procedure when
+ * the budget elapses. Uses the project's `createPromise` helper so the
+ * no-`new`-Promise rule stays satisfied. Every callback returns truthy
+ * to satisfy the no-`void` architecture rule.
+ *
+ * @param ms - Wall-clock budget for the cleanup.
+ * @returns Promise that resolves to a fail Procedure after `ms`.
+ */
+function cleanupTimeoutGuard(ms: number): Promise<Procedure<void>> {
+  /**
+   * Promise executor — schedules the deadline.
+   *
+   * @param resolve - Promise resolver.
+   * @returns True after the timer is armed.
+   */
+  const arm = (resolve: (value: Procedure<void>) => boolean): boolean => {
+    /**
+     * Timer fire — resolves with the timeout fail.
+     *
+     * @returns True after resolving the guard promise.
+     */
+    const fire = (): boolean => {
+      const timeoutFail = fail(
+        ScraperErrorTypes.Generic,
+        `cleanup: budget elapsed after ${String(ms)}ms`,
+      );
+      return resolve(timeoutFail);
+    };
+    globalThis.setTimeout(fire, ms);
+    return true;
+  };
+  return createPromise<Procedure<void>>(arm);
+}
+
+/**
+ * Run a single cleanup handler with a wall-clock budget. Swallows any
+ * error. The budget protects against a hung cleanup blocking the
+ * pipeline (live Isracard regression — see `CLEANUP_BUDGET_MS`).
+ *
  * @param cleanup - The cleanup function returning Procedure<void>.
  * @param logger - Logger for error reporting.
- * @returns Succeed if cleanup passed, fail if it failed or threw.
+ * @returns Succeed if cleanup passed within budget, fail otherwise.
  */
 async function runCleanup(
   cleanup: CleanupFn,
   logger: IPipelineContext['logger'],
 ): Promise<Procedure<void>> {
   try {
-    const result = await cleanup();
+    const cleanupCall = cleanup();
+    const guard = cleanupTimeoutGuard(CLEANUP_BUDGET_MS);
+    const result = await Promise.race([cleanupCall, guard]);
     return logCleanupResult(result, logger);
   } catch (error) {
     const msg = toErrorMessage(error as Error).slice(0, 80);
