@@ -5,14 +5,11 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule(
-  '../../../../../Scrapers/Pipeline/Mediator/Login/LoginFillStep.js',
-  () => ({
-    fillOneField: jest.fn(),
-    validateCredentials: jest.fn(),
-    reduceField: jest.fn(),
-  }),
-);
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormFill.js', () => ({
+  fillOneField: jest.fn(),
+  validateCredentials: jest.fn(),
+  reduceField: jest.fn(),
+}));
 
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Form/LoginScopeResolver.js',
@@ -22,7 +19,7 @@ jest.unstable_mockModule(
   }),
 );
 
-const FILL_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Login/LoginFillStep.js');
+const FILL_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormFill.js');
 const LFA_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormActions.js');
 const FACTORY = await import('../MockPipelineFactories.js');
 
@@ -73,10 +70,6 @@ const SUCCEED_FOUND: Procedure<IRaceResult> = succeed(FOUND_RESULT);
 /** Resolved promise of succeed found — avoids nested calls. */
 const RESOLVED_FOUND: Promise<Procedure<IRaceResult>> = Promise.resolve(SUCCEED_FOUND);
 
-/**
- * Setup mocks so fillAndSubmit reaches the submit-click path.
- * @returns True when setup is complete.
- */
 /** Whether test setup completed. */
 type DidSetup = boolean;
 

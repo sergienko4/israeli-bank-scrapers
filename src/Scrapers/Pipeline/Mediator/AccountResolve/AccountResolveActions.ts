@@ -29,8 +29,8 @@ import { some } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { discoverAccountsInPool, poolMaxContainer } from '../Auth/AccountDiscovery.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { discoverAccountsInPool, poolMaxContainer } from '../Network/AccountFromPool.js';
 
 /** Wait budget for the first id-bearing capture (ms). */
 const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;

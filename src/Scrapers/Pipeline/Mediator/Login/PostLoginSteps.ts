@@ -12,9 +12,9 @@ import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { waitForPostLoginTraffic } from '../Auth/PostLoginTrafficProbe.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
+import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
 
 const SETTLE_TIMEOUT = 15000;
 
@@ -84,6 +84,6 @@ function createPostLoginStep(
   };
 }
 
-export { executeLoginSignal } from '../Auth/LoginSignalProbe.js';
+export { executeLoginSignal } from './LoginCookieAudit.js';
 
 export { createPostLoginStep };

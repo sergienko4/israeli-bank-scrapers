@@ -7,10 +7,10 @@
  * - `ids` empty → return empty load context (caller fail-fast).
  */
 
-import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Mediator/Dashboard/TxnParser.js';
 import { buildLoadCtxFromPreDiscovered } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.js';
 import { EMPTY_TXN_ENDPOINT } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import type { ITxnEndpoint } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeApi, makeFc, makeNetwork } from '../StrategyTestHelpers.js';
 
 const STUB_TXN_ENDPOINT: ITxnEndpoint = {

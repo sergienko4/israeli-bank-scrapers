@@ -1,9 +1,28 @@
 /**
- * Pipeline assembly — phase ordering and resolution logic.
- * Step resolvers in StepResolvers.ts.
+ * Pipeline assembly — declarative phase chain composition.
+ *
+ * <p>Single source of truth for the order of pipeline phases. The
+ * 11-slot chain below pairs each phase factory with a one-line
+ * predicate against {@link IBuilderState}; {@link assemblePhases}
+ * walks the chain once and returns the BasePhase list.
+ *
+ * <p>This file imports ONLY the per-phase factory functions
+ * (`create*Phase`) and the shared {@link buildLoginPhase} +
+ * {@link resolveScrapeExec} helpers from {@link StepResolvers}. It
+ * does NOT import any phase-mediator action handler — phase logic
+ * stays sealed behind each phase's `BasePhase.run()` method.
+ * Architecture rules R-AUTH-DISCOVERY-OWN (Mission 1) and
+ * R-LOGIN-SEAL / R-OTP-*-SEAL (Missions 2/3/4) enforce that seal
+ * at compile time.
+ *
+ * <p>No hidden cross-phase backdoors: phases never reach into each
+ * other's mediator zones, never share WK dictionaries beyond the
+ * existing phase-7d/7e/7f rules, and communicate only via the slim
+ * value-typed `Option<...>` fields on {@link IPipelineContext}.
  */
 
 import { createAccountResolvePhase } from '../../Phases/AccountResolve/AccountResolvePhase.js';
+import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscoveryPhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../../Phases/Init/InitPhase.js';
@@ -15,122 +34,219 @@ import { createTerminatePhase } from '../../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
 import { buildLoginPhase, type IBuilderState, resolveScrapeExec } from './StepResolvers.js';
 
+/** Factory + predicate pair for a single phase slot in the chain. */
+interface IPhaseSlot {
+  readonly factory: (state: IBuilderState) => BasePhase;
+  readonly enabled: (state: IBuilderState) => boolean;
+}
+
+// ── Predicates ───────────────────────────────────────────────────
+
 /**
- * Build browser init phases — Init + Home are always-on for browser
- * banks. PRE-LOGIN is opt-in via `.withPreLogin()` on the builder.
- * @param state - Builder state (for hasPreLogin flag).
- * @returns Init, Home, [PreLogin?] phases.
+ * Predicate: every browser-only phase (INIT/HOME/AUTH-DISCOVERY/
+ * ACCOUNT-RESOLVE/DASHBOARD/TERMINATE).
+ *
+ * @param state - Builder state.
+ * @returns True for browser-mode pipelines.
  */
-function browserInitPhases(state: IBuilderState): readonly BasePhase[] {
-  const initPhase = createInitPhase();
-  const homePhase = createHomePhase();
-  const preLoginPhases = state.hasPreLogin && [createPreLoginPhase()];
-  return [initPhase, homePhase, ...(preLoginPhases || [])];
+function ifBrowser(state: IBuilderState): boolean {
+  return state.hasBrowser;
 }
 
 /**
- * Build OTP phases — trigger (optional) + fill.
- * Trigger phase only added when builder chain includes withOtpTrigger().
+ * Predicate: PRE-LOGIN — opt-in flag plus browser path.
+ *
  * @param state - Builder state.
- * @returns OTP phase array (0, 1, or 2 elements).
+ * @returns True when the user opted into PRE-LOGIN AND is on the
+ *   browser path.
  */
-function buildOtpPhases(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasOtpFill) return [];
-  const trigger = state.hasOtpTrigger && [createOtpTriggerPhase()];
-  return [...(trigger || []), createOtpFillPhase(state.otpFillRequired)];
+function ifBrowserAndPreLogin(state: IBuilderState): boolean {
+  return state.hasBrowser && state.hasPreLogin;
 }
 
 /**
- * Build the ACCOUNT-RESOLVE phase — auto-bound for every browser bank.
- * Single source of truth for `ctx.accountDiscovery`; the LOGIN /
- * OTP-FILL FINALs are pure auth-signal probes after Phase 7. Empty
- * array for headless / api-direct pipelines (no browser → no captures
- * to inspect).
- * @param state - Builder state.
- * @returns ACCOUNT-RESOLVE phase array (0 or 1 element).
+ * Predicate: LOGIN — always present. {@link buildLoginPhase}
+ * selects declarative vs API-direct internally.
+ *
+ * @returns Always true.
  */
-function buildAccountResolvePhase(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasBrowser) return [];
-  return [createAccountResolvePhase()];
+function ifLoginAlways(): boolean {
+  return true;
 }
 
 /**
- * Build dashboard phase if browser is enabled.
+ * Predicate: OTP-TRIGGER — both OTP-FILL and OTP-TRIGGER opt-ins
+ * must be set.
+ *
  * @param state - Builder state.
- * @returns Dashboard phase array (0 or 1 element).
+ * @returns True when both OTP flags are set.
  */
-function buildDashPhase(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasBrowser) return [];
-  return [createDashboardPhase()];
+function ifOtpFillAndTrigger(state: IBuilderState): boolean {
+  return state.hasOtpFill && state.hasOtpTrigger;
 }
 
 /**
- * Build scrape phase if any scraper is configured.
+ * Predicate: OTP-FILL — opt-in flag.
+ *
  * @param state - Builder state.
- * @returns Scrape phase array (0 or 1 element).
+ * @returns True when OTP-FILL is enabled.
  */
-function buildScrapePhaseArr(state: IBuilderState): readonly BasePhase[] {
-  const hasScraper = state.scrapeFn || state.hasBrowser;
-  if (!hasScraper) return [];
+function ifOtpFill(state: IBuilderState): boolean {
+  return state.hasOtpFill;
+}
+
+/**
+ * Predicate: SCRAPE — any configured scraper (browser-mode OR
+ * declarative scrapeFn).
+ *
+ * @param state - Builder state.
+ * @returns True when any scraper is configured.
+ */
+function ifAnyScraper(state: IBuilderState): boolean {
+  return state.hasBrowser || Boolean(state.scrapeFn);
+}
+
+// ── Factories ────────────────────────────────────────────────────
+
+/**
+ * Build the INIT phase instance.
+ *
+ * @returns INIT phase.
+ */
+function makeInit(): BasePhase {
+  return createInitPhase();
+}
+
+/**
+ * Build the HOME phase instance.
+ *
+ * @returns HOME phase.
+ */
+function makeHome(): BasePhase {
+  return createHomePhase();
+}
+
+/**
+ * Build the PRE-LOGIN phase instance.
+ *
+ * @returns PRE-LOGIN phase.
+ */
+function makePreLogin(): BasePhase {
+  return createPreLoginPhase();
+}
+
+/**
+ * Build the LOGIN phase instance — variant selected by builder
+ * state (declarative vs API-direct).
+ *
+ * @param state - Builder state.
+ * @returns LOGIN phase.
+ */
+function makeLogin(state: IBuilderState): BasePhase {
+  return buildLoginPhase(state);
+}
+
+/**
+ * Build the OTP-TRIGGER phase instance.
+ *
+ * @returns OTP-TRIGGER phase.
+ */
+function makeOtpTrigger(): BasePhase {
+  return createOtpTriggerPhase();
+}
+
+/**
+ * Build the OTP-FILL phase instance with the required-flag from
+ * builder state.
+ *
+ * @param state - Builder state.
+ * @returns OTP-FILL phase.
+ */
+function makeOtpFill(state: IBuilderState): BasePhase {
+  return createOtpFillPhase(state.otpFillRequired);
+}
+
+/**
+ * Build the AUTH-DISCOVERY phase instance — Mission 1.
+ *
+ * @returns AUTH-DISCOVERY phase.
+ */
+function makeAuthDiscovery(): BasePhase {
+  return createAuthDiscoveryPhase();
+}
+
+/**
+ * Build the ACCOUNT-RESOLVE phase instance.
+ *
+ * @returns ACCOUNT-RESOLVE phase.
+ */
+function makeAccountResolve(): BasePhase {
+  return createAccountResolvePhase();
+}
+
+/**
+ * Build the DASHBOARD phase instance.
+ *
+ * @returns DASHBOARD phase.
+ */
+function makeDashboard(): BasePhase {
+  return createDashboardPhase();
+}
+
+/**
+ * Build the SCRAPE phase instance with the executor resolved from
+ * builder state.
+ *
+ * @param state - Builder state.
+ * @returns SCRAPE phase.
+ */
+function makeScrape(state: IBuilderState): BasePhase {
   const scrapeExec = resolveScrapeExec(state);
-  return [createScrapePhase(scrapeExec)];
+  return createScrapePhase(scrapeExec);
 }
 
 /**
- * Build optional phases (otp, account-resolve, dashboard, scrape).
- * ACCOUNT-RESOLVE sits AFTER auth (LOGIN or OTP-FILL) and BEFORE
- * DASHBOARD so the dashboard click never fires before account ids
- * are committed to context.
- * @param state - Builder state.
- * @returns Optional phases array.
+ * Build the TERMINATE phase instance.
+ *
+ * @returns TERMINATE phase.
  */
-function optionalPhases(state: IBuilderState): readonly BasePhase[] {
-  return [
-    ...buildOtpPhases(state),
-    ...buildAccountResolvePhase(state),
-    ...buildDashPhase(state),
-    ...buildScrapePhaseArr(state),
-  ];
+function makeTerminate(): BasePhase {
+  return createTerminatePhase();
 }
 
-/**
- * Assemble all phases in order.
- * @param state - Builder state.
- * @returns Ordered phase array.
- */
-/**
- * Build the leading browser-init slice (Init/Home/PreLogin) for browser
- * pipelines, or empty for headless ones. Pulled out to keep
- * `assemblePhases` flat and ternary-free per the project lint rules.
- * @param state - Builder state.
- * @returns Init slice — empty when `hasBrowser` is false.
- */
-function leadingInit(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasBrowser) return [];
-  return browserInitPhases(state);
-}
+// ── Phase chain ──────────────────────────────────────────────────
 
 /**
- * Build the trailing terminate slice for browser pipelines, or empty.
- * @param state - Builder state.
- * @returns Terminate slice — empty when `hasBrowser` is false.
+ * The 11-slot phase chain — single, linear, declarative source of
+ * truth. Order matters: PRE-LOGIN before LOGIN, OTP-TRIGGER before
+ * OTP-FILL, AUTH-DISCOVERY between OTP-FILL (when present) and
+ * ACCOUNT-RESOLVE.
  */
-function trailingTerminate(state: IBuilderState): readonly BasePhase[] {
-  if (!state.hasBrowser) return [];
-  return [createTerminatePhase()];
-}
+const PHASE_CHAIN: readonly IPhaseSlot[] = [
+  { factory: makeInit, enabled: ifBrowser },
+  { factory: makeHome, enabled: ifBrowser },
+  { factory: makePreLogin, enabled: ifBrowserAndPreLogin },
+  { factory: makeLogin, enabled: ifLoginAlways },
+  { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },
+  { factory: makeOtpFill, enabled: ifOtpFill },
+  { factory: makeAuthDiscovery, enabled: ifBrowser },
+  { factory: makeAccountResolve, enabled: ifBrowser },
+  { factory: makeDashboard, enabled: ifBrowser },
+  { factory: makeScrape, enabled: ifAnyScraper },
+  { factory: makeTerminate, enabled: ifBrowser },
+];
 
 /**
  * Assemble the ordered phase list from the validated builder state.
+ * Pure composition: filter the declarative chain by predicate, map
+ * each enabled slot through its factory.
+ *
  * @param state - Builder state.
  * @returns Ordered phase array.
  */
 function assemblePhases(state: IBuilderState): BasePhase[] {
-  const init = leadingInit(state);
-  const loginPhase = buildLoginPhase(state);
-  const optional = optionalPhases(state);
-  const terminate = trailingTerminate(state);
-  return [...init, loginPhase, ...optional, ...terminate];
+  const enabled = PHASE_CHAIN.filter((slot): boolean => slot.enabled(state));
+  return enabled.map((slot): BasePhase => slot.factory(state));
 }
 
 export type { IBuilderState, LoginFn, StepExecFn } from './StepResolvers.js';

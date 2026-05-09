@@ -13,7 +13,6 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
@@ -86,73 +85,49 @@ async function extractDeepPhoneHint(input: IPipelineContext): Promise<string> {
 // ── PRE: Discover Code Input + Submit (Rule #20) ──────────────────
 
 /**
- * Detect the "device-remembered" fast-path: bank skipped OTP because it
- * trusts this device. Returns true if the dashboard is already visible.
- * @param mediator - Element mediator.
- * @returns True if dashboard markers are currently visible.
+ * True when MOCK_MODE is active — lets OTP-PRE short-circuit. Read
+ * every call so unit tests can flip the env var per test case
+ * (mirrors the AUTH-DISCOVERY pattern in `AuthDiscoveryActions.ts`).
+ *
+ * @returns Whether MOCK_MODE selects the offline snapshot bypass.
  */
-async function isDashboardAlreadyVisible(mediator: IElementMediator): Promise<boolean> {
-  const reveal = await probeDashboardReveal(mediator);
-  return reveal !== 'no reveal';
+function isMockModeOtpActive(): boolean {
+  return process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
 }
 
 /**
- * Apply the fast-path when OTP input is missing but `required=false`.
- * Check the dashboard marker — if it's visible, the bank remembered this
- * device and skipped the OTP challenge entirely.
- * @param input - Pipeline context.
- * @param required - Whether OTP is mandatory (false enables fast-path).
- * @returns Success with fast-path diagnostic, or false to preserve fail.
- */
-async function maybeFastPathSuccess(
-  input: IPipelineContext,
-  required: boolean,
-): Promise<Procedure<IPipelineContext> | false> {
-  if (required) return false;
-  if (!input.mediator.has) return false;
-  const isVisible = await isDashboardAlreadyVisible(input.mediator.value);
-  if (!isVisible) return false;
-  input.logger.info({
-    message: '>>> OTP skipped — fast-path / device-remembered detected',
-  });
-  const diag = { ...input.diagnostics, lastAction: 'otp-fill-pre (fast-path-skip)' };
-  return succeed({ ...input, diagnostics: diag });
-}
-
-/**
- * Handle the "OTP input not found" case — route through the fast-path
- * check first, fall back to hard fail when OTP is required.
- * @param input - Pipeline context at PRE time.
- * @returns Fast-path success or hard fail.
- */
-/** True when MOCK_MODE is active — lets OTP-PRE short-circuit. */
-const isMockModeOtpActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-
-/**
- * Handle the "OTP input not found" case — route through the fast-path
- * check first; fall back to MOCK_MODE safety valve or hard fail.
+ * Handle the "OTP input not found" case.
+ *
+ * <p>M1+ (CI quality hardening) removed the dashboard-reveal fast-path
+ * (`isDashboardAlreadyVisible` / `maybeFastPathSuccess`): OTP-FILL no
+ * longer imports `probeDashboardReveal` from the Dashboard zone.
+ * Dashboard-readiness is owned by AUTH-DISCOVERY (Mission 1, runs after
+ * OTP-FILL in the pipeline chain) — `ctx.authDiscovery.dashboardReady`
+ * carries the boolean. OTP-FILL with `required=false` and no form found
+ * emits the optional-skip diagnostic and succeeds; AUTH-DISCOVERY's
+ * downstream probe handles the device-remembered case.
+ *
  * @param input - Pipeline context at PRE time.
  * @param required - Whether OTP is mandatory (false soft-skips on miss).
- * @returns Procedure with input carrying a mock-bypass marker.
+ * @returns Procedure with the appropriate diagnostic stamp.
  */
-async function handleMissingOtpInput(
+function handleMissingOtpInput(
   input: IPipelineContext,
   required: boolean,
-): Promise<Procedure<IPipelineContext>> {
-  const fastPath = await maybeFastPathSuccess(input, required);
-  if (fastPath) return fastPath;
+): Procedure<IPipelineContext> {
   // MOCK_MODE safety valve — the selectors are proven in live E2E; mock
   // only validates pipeline flow. Let OTP-FILL PRE succeed when running
   // against static snapshots so the suite covers the scraper logic end-
   // to-end. ACTION/POST/FINAL remain skipped under MockPhasePolicy.
-  if (isMockModeOtpActive) {
+  if (isMockModeOtpActive()) {
     const diag = { ...input.diagnostics, lastAction: 'otp-fill-pre (mock-bypass)' };
     return succeed({ ...input, diagnostics: diag });
   }
   // Optional-OTP safety valve — banks like Hapoalim flag OTP as optional
   // (.withOtpFill(false)). When the OTP input cannot be found, proceed to
-  // DASHBOARD/SCRAPE rather than hard-failing the run; if the bank truly
-  // blocked us, the downstream phases will return zero accounts.
+  // AUTH-DISCOVERY/DASHBOARD/SCRAPE rather than hard-failing the run.
+  // AUTH-DISCOVERY's `dashboardReady` boolean replaces the legacy fast-
+  // path probe.
   if (!required) {
     input.logger.info({
       message: '>>> OTP input missing — withOtpFill(required=false), soft-skipping OTP-FILL',
@@ -252,10 +227,12 @@ function createTimeoutPromise(ms: number): Promise<string> {
  */
 async function executeFillAction(input: IActionContext): Promise<Procedure<IActionContext>> {
   if (!input.executor.has) return succeed(input);
-  // Fast-path from PRE: dashboard already visible, OTP skipped by the bank.
-  // PRE wrote 'fast-path-skip' into diagnostics — honor it and exit cleanly.
-  if (input.diagnostics.lastAction.includes('fast-path-skip')) {
-    input.logger.debug({ message: 'OTP_FILL.ACTION skipped — fast-path honored from PRE' });
+  // Optional-skip from PRE: bank skipped the OTP challenge (e.g. Hapoalim's
+  // device-remembered path) and PRE wrote `optional-skip` into diagnostics —
+  // honor it and exit cleanly. Dashboard-readiness is verified downstream by
+  // AUTH-DISCOVERY (Mission 1) via `ctx.authDiscovery.dashboardReady`.
+  if (input.diagnostics.lastAction.includes('optional-skip')) {
+    input.logger.debug({ message: 'OTP_FILL.ACTION skipped — optional-skip honored from PRE' });
     return succeed(input);
   }
   const retriever = input.options.otpCodeRetriever;

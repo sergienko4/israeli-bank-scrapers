@@ -46,14 +46,14 @@ describe('VISACAL_LOGIN', () => {
 });
 
 describe('buildVisaCalPipeline', () => {
-  it('returns descriptor with 8 phases (Phase 7 inserted account-resolve)', () => {
+  it('returns descriptor with 9 phases (Mission 1 inserted auth-discovery before account-resolve)', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
-    expect(descriptor.phases).toHaveLength(8);
+    expect(descriptor.phases).toHaveLength(9);
   });
 
-  it('phase names: init, home, pre-login, login, account-resolve, dashboard, scrape, terminate', () => {
+  it('phase names: init, home, pre-login, login, auth-discovery, account-resolve, dashboard, scrape, terminate', () => {
     const result = buildVisaCalPipeline(MOCK_OPTIONS);
     assertOk(result);
     const descriptor = result.value;
@@ -63,6 +63,7 @@ describe('buildVisaCalPipeline', () => {
       'home',
       'pre-login',
       'login',
+      'auth-discovery',
       'account-resolve',
       'dashboard',
       'scrape',

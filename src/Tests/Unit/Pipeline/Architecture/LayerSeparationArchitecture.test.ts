@@ -39,7 +39,9 @@ const RULES: readonly ILayerRule[] = [
     owners: [
       path.join('Mediator', 'AccountResolve'),
       path.join('Phases', 'AccountResolve'),
-      path.join('Mediator', 'Auth', 'AccountDiscovery.ts'),
+      // M1+ moved AccountDiscovery into Network zone (downward
+      // dependency to shared infra) — kills the Auth-zone owner.
+      path.join('Mediator', 'Network', 'AccountFromPool.ts'),
       // Phase 7e (Revision 2): the TXN parser stays at
       // Mediator/Scrape/ScrapeAutoMapper.ts (rename reverted to keep
       // the eslint Section 12 allowlist working). Allowlisted because
@@ -74,9 +76,11 @@ const RULES: readonly ILayerRule[] = [
       path.join('Phases', 'Dashboard'),
       path.join('Mediator', 'Network'),
       path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
-      // Auth post-login probe still consumes WK_API.accounts as the
-      // landing-traffic gate (R-AUTH-CLEANUP only forbids transactions).
-      path.join('Mediator', 'Auth', 'PostLoginTrafficProbe.ts'),
+      // LOGIN's post-login probe still consumes WK_API.accounts as
+      // the landing-traffic gate. M1+ moved the file from
+      // `Mediator/Auth/` to `Mediator/Login/` (its semantic owner)
+      // — kills the cross-zone Login → Auth import.
+      path.join('Mediator', 'Login', 'PostLoginTrafficProbe.ts'),
     ],
     forbidden: [
       path.join('Strategy', 'Scrape'),
@@ -100,7 +104,6 @@ const RULES: readonly ILayerRule[] = [
       path.join('Phases', 'Scrape'),
       path.join('Mediator', 'AccountResolve'),
       path.join('Phases', 'AccountResolve'),
-      path.join('Mediator', 'Auth'),
     ],
   },
   {
@@ -124,7 +127,6 @@ const RULES: readonly ILayerRule[] = [
       path.join('Phases', 'Dashboard'),
       path.join('Mediator', 'AccountResolve'),
       path.join('Phases', 'AccountResolve'),
-      path.join('Mediator', 'Auth'),
     ],
   },
 ];
@@ -502,6 +504,107 @@ function findForbiddenNetworkImports(): readonly IForbiddenCall[] {
 describe('Phase 7f — R-NET-SCRAPE: SCRAPE never imports network types', () => {
   it('no SCRAPE-zone file outside the allowlist imports INetworkDiscovery / IDiscoveredEndpoint', () => {
     const hits = findForbiddenNetworkImports();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * Mission 1 (CI quality hardening plan) — R-AUTH-DISCOVERY-OWN.
+ *
+ * <p>AUTH-DISCOVERY is the single owner of the auth-token discovery
+ * + dashboard-readiness probe + session-cookie audit. The phase
+ * mediator at `Mediator/AuthDiscovery/` is the only place outside
+ * `Mediator/Network/` (which defines them) and the existing
+ * Dashboard-zone callers (allowlisted; tightening tracked in plan
+ * §O-4) that may invoke any of:
+ * <ul>
+ *   <li>`mediator.network.discoverAuthToken()`</li>
+ *   <li>`mediator.network.discoverOrigin()`</li>
+ *   <li>`mediator.network.discoverSiteId()`</li>
+ *   <li>`mediator.network.buildDiscoveredHeaders()`</li>
+ *   <li>`probeDashboardReveal()` (from Dashboard zone)</li>
+ * </ul>
+ *
+ * <p>Forbidden zones: `Mediator/Login/`, `Mediator/OtpTrigger/`,
+ * `Mediator/OtpFill/`, `Mediator/Auth/`, plus their `Phases/`
+ * counterparts. The two existing leaks
+ * (`LoginSignalProbe.ts` in M2, `OtpFillPhaseActions.ts` in M3)
+ * carry `M2_DELETES` / `M3_STRIPS` allowlist entries that come out
+ * with their respective missions.
+ */
+const AUTH_DISCOVERY_FORBIDDEN_ZONES: readonly string[] = [
+  path.join('Mediator', 'Login'),
+  path.join('Mediator', 'OtpTrigger'),
+  path.join('Mediator', 'OtpFill'),
+  path.join('Phases', 'Login'),
+  path.join('Phases', 'OtpTrigger'),
+  path.join('Phases', 'OtpFill'),
+];
+
+/**
+ * Returns true when the file lives in an AUTH-DISCOVERY forbidden
+ * zone. M1+ achieved 100% separation — there is no temporary
+ * allowlist; any forbidden-zone hit is a regression.
+ *
+ * @param relPath - Path relative to PIPELINE_ROOT.
+ * @returns True when the file is subject to R-AUTH-DISCOVERY-OWN.
+ */
+function isAuthDiscoveryEnforced(relPath: string): boolean {
+  return AUTH_DISCOVERY_FORBIDDEN_ZONES.some((zone): boolean => relPathMatches(relPath, zone));
+}
+
+/**
+ * Find every line that calls one of the AUTH-DISCOVERY-owned
+ * helpers. Skips comment lines and JSDoc continuations so a doc
+ * reference doesn't trip the rule.
+ *
+ * @param text - Source file text.
+ * @returns Line numbers (1-based).
+ */
+function findAuthDiscoveryHelperLines(text: string): readonly number[] {
+  const callPattern =
+    /\b(?:probeDashboardReveal|discoverAuthToken|discoverOrigin|discoverSiteId|buildDiscoveredHeaders)\s*\(/;
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (callPattern.test(line)) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan forbidden-zone files for calls to AUTH-DISCOVERY-owned
+ * helpers.
+ *
+ * @returns Hit list, empty when the rule holds.
+ */
+function findForbiddenAuthDiscoveryCalls(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (!isAuthDiscoveryEnforced(rel)) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findAuthDiscoveryHelperLines(text);
+    if (lines.length > 0) {
+      hits.push({
+        callee: 'auth-discovery-owned helper',
+        relPath: rel,
+        lines,
+      });
+    }
+  }
+  return hits;
+}
+
+describe('Mission 1 — R-AUTH-DISCOVERY-OWN: only AUTH-DISCOVERY calls auth/dashboard helpers', () => {
+  it('no Login/OtpTrigger/OtpFill/Auth-zone file calls discoverAuthToken / probeDashboardReveal / discoverOrigin / discoverSiteId / buildDiscoveredHeaders', () => {
+    const hits = findForbiddenAuthDiscoveryCalls();
     const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
     expect(summary).toEqual([]);
   });

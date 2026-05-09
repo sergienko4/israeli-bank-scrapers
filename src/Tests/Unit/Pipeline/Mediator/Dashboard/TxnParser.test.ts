@@ -19,7 +19,6 @@ import {
   buildPerAccountBody,
   buildTxnHarvest,
   detectMultiAccountScope,
-  EMPTY_TXN_HARVEST,
   extractAccountIdFromUrl,
   parseFreshResponse,
 } from '../../../../../Scrapers/Pipeline/Mediator/Dashboard/TxnParser.js';
@@ -28,6 +27,7 @@ import type {
   ITxnEndpointInternal,
   ITxnFieldMap,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 
 const FIELD_MAP: ITxnFieldMap = EMPTY_TXN_ENDPOINT.fieldMap;

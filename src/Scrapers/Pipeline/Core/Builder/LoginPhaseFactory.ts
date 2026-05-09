@@ -4,7 +4,7 @@
  */
 
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import executeLoginSignal from '../../Mediator/Auth/LoginSignalProbe.js';
+import executeLoginSignal from '../../Mediator/Login/LoginCookieAudit.js';
 import { createLoginPhase } from '../../Mediator/Login/LoginSteps.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
 import type { PhaseName } from '../../Types/Phase.js';

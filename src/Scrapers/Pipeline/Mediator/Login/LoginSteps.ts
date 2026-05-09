@@ -16,7 +16,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { createLoginActionStep } from './LoginSubmitStep.js';
 import { createPostLoginStep } from './PostLoginSteps.js';
 
-export type { IFillOpts } from './LoginFillStep.js';
+export type { IFillOpts } from '../Form/LoginFormFill.js';
 export { createLoginActionStep } from './LoginSubmitStep.js';
 export { createPostLoginStep, waitForSubmitToSettle } from './PostLoginSteps.js';
 

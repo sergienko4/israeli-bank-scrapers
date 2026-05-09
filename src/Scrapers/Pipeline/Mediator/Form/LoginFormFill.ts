@@ -15,8 +15,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { deepFillInput } from '../Elements/ElementsInteractions.js';
-import { fillFieldStep, type IFillAccum, type IFillContext } from '../Form/LoginScopeResolver.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
+import { fillFieldStep, type IFillAccum, type IFillContext } from './LoginScopeResolver.js';
 
 /** Options for filling a single credential field. */
 export interface IFillOpts {
