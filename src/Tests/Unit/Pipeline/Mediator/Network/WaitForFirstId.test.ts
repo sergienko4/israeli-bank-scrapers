@@ -1,19 +1,39 @@
 /**
- * Phase 7 — `network.waitForFirstId(timeoutMs)` primitive contract.
+ * Phase 7 — `network.waitForFirstId(timeoutMs, predicate)` primitive
+ * contract.
  *
- * Operates on captures inspected by the same 3-source predicate
- * (`discoverAccountsInPool`) used by ACCOUNT-RESOLVE.POST. Frozen
- * networks are exercised here because `createFrozenNetwork` lets the
- * test pre-seed an immutable pool — no Page mocking needed.
+ * <p>M2 (CI quality hardening) inverted the dependency: Network owns
+ * the polling primitive; ACCOUNT-RESOLVE owns the shape predicate.
+ * These tests pass the same `discoverAccountsInPool`-wrapping
+ * predicate ACCOUNT-RESOLVE injects in production. Frozen networks
+ * are exercised here because `createFrozenNetwork` lets the test
+ * pre-seed an immutable pool — no Page mocking needed.
  */
 
 import type { Page } from 'playwright-core';
 
+import { discoverAccountsInPool } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountFromPool.js';
 import {
   createFrozenNetwork,
   createNetworkDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+
+/**
+ * Production-shape predicate: wraps {@link discoverAccountsInPool}
+ * into the `(pool) => endpoint | false` signature
+ * `INetworkDiscovery.waitForFirstId` accepts.
+ *
+ * @param pool - Captured endpoints.
+ * @returns First id-bearing endpoint or false.
+ */
+function findFirstIdInPool(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
+  if (pool.length === 0) return false;
+  const result = discoverAccountsInPool(pool);
+  if (result.endpoint === false) return false;
+  if (result.ids.length === 0) return false;
+  return result.endpoint;
+}
 
 /** Args for `makeCapture`. */
 interface IMakeCaptureArgs {
@@ -49,7 +69,7 @@ describe('waitForFirstId', () => {
       responseBody: { ok: true },
     });
     const network = createFrozenNetwork([idCapture], false, false);
-    const matched = await network.waitForFirstId(20_000);
+    const matched = await network.waitForFirstId(20_000, findFirstIdInPool);
     expect(matched).not.toBe(false);
     if (matched !== false) {
       expect(matched.url).toContain('accountId=12-170-536347');
@@ -63,13 +83,13 @@ describe('waitForFirstId', () => {
       responseBody: { ok: true },
     });
     const network = createFrozenNetwork([noiseCapture], false, false);
-    const matched = await network.waitForFirstId(50);
+    const matched = await network.waitForFirstId(50, findFirstIdInPool);
     expect(matched).toBe(false);
   });
 
   it('returns false on empty pool (frozen)', async () => {
     const network = createFrozenNetwork([], false, false);
-    const matched = await network.waitForFirstId(50);
+    const matched = await network.waitForFirstId(50, findFirstIdInPool);
     expect(matched).toBe(false);
   });
 
@@ -91,7 +111,7 @@ describe('waitForFirstId', () => {
       waitForResponse: (): Promise<false> => Promise.race([]),
     } as unknown as Page;
     const network = createNetworkDiscovery(fakePage);
-    const matched = await network.waitForFirstId(300);
+    const matched = await network.waitForFirstId(300, findFirstIdInPool);
     expect(matched).toBe(false);
   });
 });

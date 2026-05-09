@@ -20,7 +20,7 @@
  * Synthetic-only fixtures: no PII, no real bank IDs.
  */
 
-import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/Network/AccountFromPool.js';
+import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountFromPool.js';
 import { createFrozenNetwork } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 

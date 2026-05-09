@@ -35,11 +35,7 @@ import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
-import { waitUntil } from '../Timing/Waiting.js';
 import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
-
-/** Timeout for post-login redirect settle. */
-const REDIRECT_SETTLE_MS = 15000;
 
 /**
  * Run checkReadiness if configured — returns failure Procedure or false.
@@ -617,7 +613,10 @@ async function executeValidateLogin(
   await waitForPostLoginTraffic(mediator, input.logger);
   const cbResult = await runPostCallback(page, config, input);
   if (!cbResult.success) return cbResult;
-  await ensureDashboardRedirect(mediator, input);
+  // M2: dashboard-redirect orchestration removed. AUTH-DISCOVERY
+  // (which runs after LOGIN/OTP-FILL) owns dashboard-readiness via
+  // its FINAL-stage probe and emits `ctx.authDiscovery.dashboardReady`.
+  // LOGIN.POST validates ONLY the action's scope from here on.
   // Late-fire path: SPA banks whose auth API returns AFTER the loading
   // gate (delayed XHR, retried challenge, late SPA hydration). Same
   // generic mechanism, second checkpoint.
@@ -647,8 +646,8 @@ async function runLatePostChecks(
   mediator: IElementMediator,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const formStillThere = await detectLoginFormStillPresent(mediator, input);
-  if (formStillThere !== false) return formStillThere;
+  const scopeIntact = await validateActionScopeIntact(mediator, input);
+  if (scopeIntact !== false) return scopeIntact;
   const bounce = detectLoginBounce(mediator, input);
   if (bounce !== false) return bounce;
   return succeed(input);
@@ -737,121 +736,63 @@ function loginPathOf(url: string): string {
   return '/';
 }
 
-/** Maximum wall-clock budget for the form-presence poll. */
-const FORM_PRESENCE_POLL_BUDGET_MS = 5000;
-/** Per-tick interval for the form-presence poll. */
-const FORM_PRESENCE_POLL_INTERVAL_MS = 500;
-
 /**
- * Build the selector used to probe for the login form's password input.
- * <p>When PRE recorded a trustworthy form-anchor selector (id-based,
- * class-based, or `[name="…"]` — the same predicate `extractFormAnchorSelector`
- * uses for the submit button), chain it in front of the password
- * selector so the query matches only descendants of the original login
- * form. Without scoping, banks that recorded a generic xpath
- * (`//input[@type="password"]`) accidentally match the OTP step's
- * password input or any cached login DOM elsewhere on the page —
- * Isracard's regression in commit `d9636d8e`.
- * @param passwordSelector - Selector recorded by login.PRE.
- * @param formAnchor - Optional form anchor option from discovery.
- * @returns Scoped selector when anchor is trustworthy, else passthrough.
+ * M2 (CI quality hardening) — scope-bound LOGIN.POST validation.
+ *
+ * <p>Replaces the deleted `detectLoginFormStillPresent`. The legacy
+ * helper polled the password selector for up to 5–10 s and failed
+ * loud when the form persisted. That signal is wrong on SPA banks
+ * whose post-submit screen retains the same field elements: Hapoalim's
+ * OTP screen keeps both `#password` and `#userCode` for ~5 s after
+ * submit, producing a false-positive `INVALID_PASSWORD` on every
+ * device-remembered login. CI evidence: run 25590782956, job
+ * 75128327913 — both fields stayed at count=1 throughout the entire
+ * 10 s budget.
+ *
+ * <p>The new check combines TWO signals to fail loud:
+ * <ul>
+ *   <li>URL still on the login pathname (no redirect happened) — the
+ *       success case for Hapoalim is URL changes to `/otp` or
+ *       `/dashboard`, so this branch returns `false` immediately and
+ *       never probes the form.</li>
+ *   <li>The original password element from PRE is still resolvable
+ *       in the DOM — combined with the URL guard, this catches the
+ *       genuine invalid-creds case where the SPA stays on the login
+ *       URL and re-renders the form (no error banner triggered, no
+ *       URL bounce).</li>
+ * </ul>
+ *
+ * <p>This validation runs AFTER `detectAuthApiFailure` and
+ * `detectAsyncLoginErrors`, so banks that emit explicit auth errors
+ * fail through those channels first. `validateActionScopeIntact` is
+ * the safety net for SPA banks that silently re-render with no
+ * structured error signal.
+ *
+ * @param mediator - Element mediator (for URL + countBySelector).
+ * @param input - Pipeline context carrying `loginFieldDiscovery` from
+ *   PRE and `diagnostics.loginUrl` from HOME.
+ * @returns Failure procedure when the action's scope is still intact
+ *   AND URL hasn't changed; `false` (keep going) otherwise.
  */
-function buildScopedFormPresenceSelector(
-  passwordSelector: string,
-  formAnchor: ILoginFieldDiscovery['formAnchor'],
-): string {
-  const anchorSelector = extractFormAnchorSelector(formAnchor);
-  if (anchorSelector.length === 0) return passwordSelector;
-  return `${anchorSelector} ${passwordSelector}`;
-}
-
-/**
- * Build the async predicate that the form-presence poll evaluates each
- * tick. The predicate resolves to `true` once the count drops to 0
- * (the login form has fully unmounted) and `false` while the form is
- * still in the DOM. `waitUntil` returns the first truthy value, so
- * returning `true` is what releases the poll.
- * @param mediator - Element mediator with `countBySelector`.
- * @param scopedSelector - Scoped or unscoped password selector.
- * @param logger - Pipeline logger for per-tick diagnostics.
- * @returns Async predicate suitable for `waitUntil`.
- */
-function buildPollTick(
-  mediator: IElementMediator,
-  scopedSelector: string,
-  logger: IPipelineContext['logger'],
-): () => Promise<boolean> {
-  const masked = maskVisibleText(scopedSelector);
-  return async (): Promise<boolean> => {
-    const stillPresent = await mediator.countBySelector(scopedSelector);
-    logger.debug({
-      message: `POST: form-presence tick — selector ${masked} count=${String(stillPresent)}`,
-    });
-    return stillPresent === 0;
-  };
-}
-
-/**
- * Confirms the LOGIN ACTION did its job by checking the login form is
- * gone after the redirect.
- *
- * <p>A successful submit destroys the entire login form (the SPA renders
- * the next view — OTP step or dashboard); a rejected submit leaves the
- * form intact with the same password element the PRE stage resolved.
- * Probing for that exact element gives a generic, cross-bank failure
- * signal that doesn't depend on URL pathnames, error-text dictionaries,
- * or auth-API URL patterns.
- *
- * <p>Two compounding regressions were observed after the initial check
- * shipped in commit `d9636d8e`:
- *  - Generic password selectors (`xpath=//input[@type="password"]`)
- *    matched the OTP step's password input on banks like Isracard,
- *    producing a false-positive InvalidPassword on a successful login.
- *  - SPA frameworks (Angular/React) tear down the login view
- *    asynchronously after the URL flips. A 9 ms gap between redirect
- *    and a single-shot probe was not enough — the dying-frame login
- *    form was still mounted.
- *
- * <p>The fix scopes the probe to the trustworthy form anchor PRE
- * recorded (same predicate used to scope the submit click) AND polls
- * for up to {@link FORM_PRESENCE_POLL_BUDGET_MS} so the SPA has time
- * to finish its component teardown. A genuine invalid-credentials
- * path keeps the form mounted for the entire budget → loud
- * `fail(InvalidPassword)` — the same signal Hapoalim's gate test
- * relies on.
- *
- * @param mediator - Element mediator (for `countBySelector`).
- * @param input - Pipeline context carrying `loginFieldDiscovery` from PRE.
- * @returns Failure procedure when the login form persists, false otherwise.
- */
-async function detectLoginFormStillPresent(
+async function validateActionScopeIntact(
   mediator: IElementMediator,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext> | false> {
+  if (!hasStayedOnLoginUrl(mediator, input)) return false;
   if (!input.loginFieldDiscovery.has) return false;
   const discovery = input.loginFieldDiscovery.value;
   const passwordTarget = discovery.targets.get(LOGIN_FIELDS.PASSWORD);
   if (!passwordTarget) return false;
-  const scopedSelector = buildScopedFormPresenceSelector(
-    passwordTarget.selector,
-    discovery.formAnchor,
-  );
-  const tick = buildPollTick(mediator, scopedSelector, input.logger);
-  const isFormGone = await waitUntil(tick, 'login.POST form-presence poll', {
-    timeout: FORM_PRESENCE_POLL_BUDGET_MS,
-    interval: FORM_PRESENCE_POLL_INTERVAL_MS,
-  })
-    .then((): true => true)
-    .catch((): false => false);
-  if (isFormGone) return false;
-  const masked = maskVisibleText(scopedSelector);
-  const budgetMs = String(FORM_PRESENCE_POLL_BUDGET_MS);
+  const stillPresent = await mediator.countBySelector(passwordTarget.selector);
+  if (stillPresent === 0) return false;
+  const masked = maskVisibleText(passwordTarget.selector);
+  const countStr = String(stillPresent);
   input.logger.debug({
-    message: `POST: form still present after ${budgetMs}ms — ${masked}`,
+    message: `POST: scope intact + URL unchanged — selector ${masked} count=${countStr}`,
   });
   return fail(
     ScraperErrorTypes.InvalidPassword,
-    `LOGIN POST: form still present after ${budgetMs}ms — credentials likely invalid`,
+    'LOGIN POST: scope intact + URL unchanged — credentials likely invalid',
   );
 }
 
@@ -883,42 +824,6 @@ function detectLoginBounce(
     ScraperErrorTypes.InvalidPassword,
     `LOGIN POST: bounced back to login path ${loginPath}`,
   );
-}
-
-/**
- * Wait for post-login redirect to the authenticated dashboard.
- * After iframe login, the parent page auto-redirects. Just wait for it.
- * The wait is best-effort — a timeout does not fail the phase; POST's
- * subsequent traffic + URL gates make the actual decision.
- * @param mediator - Element mediator for URL access.
- * @param input - Pipeline context with browser + diagnostics.
- * @returns True when the redirect wait actually ran, false when the page
- * was already off the login URL or no browser was available (no-op skip).
- */
-async function ensureDashboardRedirect(
-  mediator: IElementMediator,
-  input: IPipelineContext,
-): Promise<boolean> {
-  const currentUrl = mediator.getCurrentUrl();
-  const loginUrl = input.diagnostics.loginUrl;
-  const isStillOnLogin = currentUrl === loginUrl || currentUrl === `${loginUrl}#`;
-  if (!isStillOnLogin) return false;
-  if (!input.browser.has) return false;
-  input.logger.debug({
-    message: 'POST: waiting for dashboard redirect',
-  });
-  const page = input.browser.value.page;
-  const loginHash = `${currentUrl}#`;
-  await page
-    .waitForURL((url: URL): boolean => url.href !== currentUrl && url.href !== loginHash, {
-      timeout: REDIRECT_SETTLE_MS,
-    })
-    .catch((): false => false);
-  const urlAfterWait = mediator.getCurrentUrl();
-  input.logger.debug({
-    message: `POST redirect → ${maskVisibleText(urlAfterWait)}`,
-  });
-  return true;
 }
 
 export { executeLoginSignal } from './LoginCookieAudit.js';

@@ -218,17 +218,30 @@ interface INetworkDiscovery {
   waitForTransactionsTraffic(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
 
   /**
-   * Block until the captured pool yields a capture that surfaces an
-   * account identifier — via the same 3-source predicate the auth phase
-   * uses (response container, GET URL query, POST body). Used by the
-   * ACCOUNT-RESOLVE phase to guarantee at least one id-bearing capture
-   * has landed before discovery runs. Polls a closure-owned predicate
-   * every 250 ms; returns the first match, or `false` when the budget
-   * elapses with no match. Frozen networks return `false` immediately.
+   * Block until the captured pool yields a capture matching the
+   * caller-supplied predicate. Used by ACCOUNT-RESOLVE.PRE to wait
+   * for an id-bearing capture (the predicate calls
+   * `discoverAccountsInPool` from the AccountResolve zone). Polls
+   * the live capture array (by reference) every 250 ms; returns the
+   * first matching endpoint, or `false` when the budget elapses
+   * with no match. Frozen networks evaluate the predicate once
+   * against their snapshot.
+   *
+   * <p>The predicate parameter inverts the dependency direction:
+   * Network owns the polling primitive; the caller (ACCOUNT-RESOLVE)
+   * owns the shape predicate. Network has zero AccountResolve
+   * imports.
+   *
    * @param timeoutMs - Max wait budget in ms.
-   * @returns First id-bearing endpoint or false on timeout.
+   * @param predicate - Caller-supplied shape detector. Receives the
+   *   live capture array; returns the first matching endpoint or
+   *   `false`. Pure (no side effects).
+   * @returns First matching endpoint or false on timeout.
    */
-  waitForFirstId(timeoutMs: number): Promise<IDiscoveredEndpoint | false>;
+  waitForFirstId(
+    timeoutMs: number,
+    predicate: (pool: readonly IDiscoveredEndpoint[]) => IDiscoveredEndpoint | false,
+  ): Promise<IDiscoveredEndpoint | false>;
 
   /**
    * Discover API origin from captured traffic.

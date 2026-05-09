@@ -30,7 +30,8 @@ import type { IActionContext, IPipelineContext } from '../../Types/PipelineConte
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { discoverAccountsInPool, poolMaxContainer } from '../Network/AccountFromPool.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
+import { discoverAccountsInPool, poolMaxContainer } from './AccountFromPool.js';
 
 /** Wait budget for the first id-bearing capture (ms). */
 const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;
@@ -52,19 +53,39 @@ const WAIT_OUTCOME: Record<'true' | 'false', 'matched' | 'timeout'> = {
 };
 
 /**
- * Wait for the first id-bearing capture and log the outcome. Pulled
- * out so PRE stays inside the per-function line budget. Run during
- * PRE because that's the only stage with `mediator` access — ACTION
- * receives a sealed context.
+ * Caller-owned shape predicate for {@link INetworkDiscovery.waitForFirstId}.
+ * Wraps {@link discoverAccountsInPool} into the
+ * `(pool) => endpoint | false` shape the network primitive consumes.
+ *
+ * <p>This indirection is the dependency-inversion seam: ACCOUNT-RESOLVE
+ * owns the shape detector; Network owns the polling primitive.
+ * Network has zero AccountResolve imports.
+ *
+ * @param pool - Captured endpoints from the pre-nav pool.
+ * @returns First id-bearing endpoint or false.
+ */
+function findFirstIdInPool(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
+  if (pool.length === 0) return false;
+  const result = discoverAccountsInPool(pool);
+  if (result.endpoint === false) return false;
+  if (result.ids.length === 0) return false;
+  return result.endpoint;
+}
+
+/**
+ * Block on `network.waitForFirstId` and emit telemetry for the
+ * outcome. Pulled out of `executeAccountResolvePre` so that handler
+ * stays inside the per-function line budget.
+ *
  * @param mediator - Element mediator (network surface owner).
- * @param log - Logger.
+ * @param log - Pipeline logger.
  * @returns True after telemetry is emitted.
  */
 async function awaitAndLog(
   mediator: IElementMediator,
   log: IPipelineContext['logger'],
 ): Promise<true> {
-  const waitPromise = mediator.network.waitForFirstId(ACCOUNT_RESOLVE_BUDGET_MS);
+  const waitPromise = mediator.network.waitForFirstId(ACCOUNT_RESOLVE_BUDGET_MS, findFirstIdInPool);
   const matched = await waitPromise.catch((): false => false);
   const matchedKey = String(matched !== false) as 'true' | 'false';
   const outcome = WAIT_OUTCOME[matchedKey];
