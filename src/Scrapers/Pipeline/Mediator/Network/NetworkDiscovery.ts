@@ -24,7 +24,6 @@ import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedacto
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
 import { createPromise } from '../Timing/TimingActions.js';
-import { discoverAccountsInPool } from './AccountFromPool.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import { createAuthFailureWatcher, createFrozenAuthFailureWatcher } from './AuthFailureWatcher.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
@@ -895,25 +894,14 @@ function findTrafficHit(
 /** Poll interval for `waitForFirstId` (ms). */
 const WAIT_FOR_FIRST_ID_POLL_MS = 250;
 
-/**
- * Returns the first capture in the pool that the strict 3-source
- * predicate (`discoverAccountsInPool`) extracts an account id from.
- * Returns `false` when no capture yields one. PURE — no side effects.
- * @param pool - Captured endpoints to inspect.
- * @returns First id-bearing endpoint or false.
- */
-function findFirstIdBearing(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
-  if (pool.length === 0) return false;
-  const result = discoverAccountsInPool(pool);
-  if (result.endpoint === false) return false;
-  if (result.ids.length === 0) return false;
-  return result.endpoint;
-}
+/** Predicate signature — caller-owned shape detector. */
+type FirstIdPredicate = (pool: readonly IDiscoveredEndpoint[]) => IDiscoveredEndpoint | false;
 
 /** Args bundle for the recursive id-wait poll. */
 interface IPollFirstIdArgs {
   readonly captured: readonly IDiscoveredEndpoint[];
   readonly deadline: number;
+  readonly predicate: FirstIdPredicate;
 }
 
 /**
@@ -950,7 +938,7 @@ function pollTick(): Promise<true> {
  * @returns First id-bearing endpoint or false on timeout.
  */
 async function pollFirstId(args: IPollFirstIdArgs): Promise<IDiscoveredEndpoint | false> {
-  const hit = findFirstIdBearing(args.captured);
+  const hit = args.predicate(args.captured);
   if (hit !== false) return hit;
   if (Date.now() >= args.deadline) return false;
   await pollTick();
@@ -958,20 +946,25 @@ async function pollFirstId(args: IPollFirstIdArgs): Promise<IDiscoveredEndpoint 
 }
 
 /**
- * Block until `findFirstIdBearing(captured)` yields a match or the
- * budget elapses. Captures are inspected by reference so additions
- * made by the page listener while we sleep are visible on the next
- * iteration.
+ * Block until `predicate(captured)` yields a match or the budget
+ * elapses. Captures are inspected by reference so additions made
+ * by the page listener while we sleep are visible on the next
+ * iteration. The predicate is caller-supplied (typically
+ * AccountResolve's wrapper around `discoverAccountsInPool`) so
+ * Network has zero AccountResolve knowledge.
+ *
  * @param captured - Live capture array (read by reference each tick).
  * @param timeoutMs - Max wait budget in ms.
- * @returns First id-bearing endpoint or false on timeout.
+ * @param predicate - Caller-owned shape detector.
+ * @returns First matching endpoint or false on timeout.
  */
 function awaitFirstId(
   captured: readonly IDiscoveredEndpoint[],
   timeoutMs: number,
+  predicate: FirstIdPredicate,
 ): Promise<IDiscoveredEndpoint | false> {
   const deadline = Date.now() + timeoutMs;
-  return pollFirstId({ captured, deadline });
+  return pollFirstId({ captured, deadline, predicate });
 }
 
 /** Bundled args for traffic waiting. */
@@ -1232,8 +1225,10 @@ function createNetworkDiscovery(page: Page): INetworkDiscovery {
     waitForTransactionsTraffic: (timeoutMs: number): Promise<IDiscoveredEndpoint | false> =>
       awaitTraffic({ page, captured, patterns: PIPELINE_WELL_KNOWN_API.transactions }, timeoutMs),
     /** @inheritdoc */
-    waitForFirstId: (timeoutMs: number): Promise<IDiscoveredEndpoint | false> =>
-      awaitFirstId(captured, timeoutMs),
+    waitForFirstId: (
+      timeoutMs: number,
+      predicate: FirstIdPredicate,
+    ): Promise<IDiscoveredEndpoint | false> => awaitFirstId(captured, timeoutMs, predicate),
   };
   const authState = { cached: false as string | false, discovered: false };
   /**
@@ -1362,8 +1357,11 @@ function createFrozenNetwork(
     /** @inheritdoc */
     waitForTransactionsTraffic: (): Promise<IDiscoveredEndpoint | false> => Promise.resolve(false),
     /** @inheritdoc */
-    waitForFirstId: (): Promise<IDiscoveredEndpoint | false> => {
-      const hit = findFirstIdBearing(frozen);
+    waitForFirstId: (
+      _timeoutMs: number,
+      predicate: FirstIdPredicate,
+    ): Promise<IDiscoveredEndpoint | false> => {
+      const hit = predicate(frozen);
       return Promise.resolve(hit);
     },
   };

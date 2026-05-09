@@ -39,9 +39,11 @@ const RULES: readonly ILayerRule[] = [
     owners: [
       path.join('Mediator', 'AccountResolve'),
       path.join('Phases', 'AccountResolve'),
-      // M1+ moved AccountDiscovery into Network zone (downward
-      // dependency to shared infra) — kills the Auth-zone owner.
-      path.join('Mediator', 'Network', 'AccountFromPool.ts'),
+      // M2 relocated AccountFromPool back into AccountResolve zone
+      // (per "100% separation" — shape predicate is AccountResolve's
+      // concern; Network's `waitForFirstId` accepts the predicate via
+      // dependency inversion). Bare directory entry above already
+      // covers this file; explicit listing kept for traceability.
       // Phase 7e (Revision 2): the TXN parser stays at
       // Mediator/Scrape/ScrapeAutoMapper.ts (rename reverted to keep
       // the eslint Section 12 allowlist working). Allowlisted because
@@ -605,6 +607,92 @@ function findForbiddenAuthDiscoveryCalls(): readonly IForbiddenCall[] {
 describe('Mission 1 — R-AUTH-DISCOVERY-OWN: only AUTH-DISCOVERY calls auth/dashboard helpers', () => {
   it('no Login/OtpTrigger/OtpFill/Auth-zone file calls discoverAuthToken / probeDashboardReveal / discoverOrigin / discoverSiteId / buildDiscoveredHeaders', () => {
     const hits = findForbiddenAuthDiscoveryCalls();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * Mission 2 (CI quality hardening plan) — R-LOGIN-SEAL.
+ *
+ * <p>Forbids the LOGIN zone (`Mediator/Login/*`, `Phases/Login/*`)
+ * from importing other phase mediator zones. LOGIN is sealed: PRE
+ * detects login fields, ACTION fills + submits, POST validates the
+ * action's scope (URL change + form-presence guard), FINAL audits
+ * the cookie count. Every phase-internal helper LOGIN needs lives
+ * inside `Mediator/Login/`; downstream phases (AUTH-DISCOVERY,
+ * ACCOUNT-RESOLVE, DASHBOARD, SCRAPE) consume LOGIN's emit through
+ * `ctx.login` only — never via direct import of LOGIN-zone files.
+ *
+ * <p>R-AUTH-DISCOVERY-OWN (Mission 1, shipped) already grep-forbids
+ * the helper-call list (`probeDashboardReveal` / `discoverAuthToken`
+ * / `discoverOrigin` / `discoverSiteId` / `buildDiscoveredHeaders`)
+ * from LOGIN. R-LOGIN-SEAL adds file-level import enforcement:
+ * any new `import … from '../Dashboard/'` or
+ * `import … from '../AuthDiscovery/'` from a LOGIN-zone file fails
+ * the build.
+ */
+const LOGIN_FORBIDDEN_ZONES: readonly string[] = [
+  path.join('Mediator', 'Login'),
+  path.join('Phases', 'Login'),
+];
+
+const LOGIN_FORBIDDEN_IMPORTS: readonly string[] = [
+  path.join('Mediator', 'Dashboard'),
+  path.join('Mediator', 'AuthDiscovery'),
+  path.join('Mediator', 'OtpTrigger'),
+  path.join('Mediator', 'OtpFill'),
+];
+
+/**
+ * Find import lines in a LOGIN-zone file that pull from any
+ * forbidden phase-mediator zone.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findLoginForbiddenImportLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (!line.includes('import')) continue;
+    const isForbidden = LOGIN_FORBIDDEN_IMPORTS.some((zone): boolean => {
+      const fwd = zone.replace(/\\/g, '/');
+      return line.includes(`/${fwd}/`) || line.includes(`'${fwd}/`);
+    });
+    if (isForbidden) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan LOGIN-zone files for cross-phase mediator imports.
+ *
+ * @returns Forbidden-import hits, empty when the rule holds.
+ */
+function findForbiddenLoginImports(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    const isInZone = LOGIN_FORBIDDEN_ZONES.some((zone): boolean => relPathMatches(rel, zone));
+    if (!isInZone) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findLoginForbiddenImportLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'login-zone forbidden import', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('Mission 2 — R-LOGIN-SEAL: LOGIN imports nothing from Dashboard / AuthDiscovery / OtpTrigger / OtpFill', () => {
+  it('no Login-zone file imports from a forbidden cross-phase mediator zone', () => {
+    const hits = findForbiddenLoginImports();
     const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
     expect(summary).toEqual([]);
   });

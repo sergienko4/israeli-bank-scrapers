@@ -38,11 +38,21 @@ function makeMediatorStub(
   waitOutcome: 'matched' | 'timeout',
 ): IElementMediator {
   /**
-   * Stub waitForFirstId that resolves with the configured outcome.
+   * Stub waitForFirstId that exercises the caller-supplied predicate
+   * (the M2 dependency-inversion seam) before returning the
+   * configured outcome. Invoking the predicate covers the
+   * `findFirstIdInPool` shape detector when `captures` is non-empty.
+   *
+   * @param _timeoutMs - Ignored — the stub resolves synchronously.
+   * @param predicate - The shape detector ACCOUNT-RESOLVE injects.
    * @returns Promise of true (matched) or rejection (timeout).
    */
-  const stubWaitForFirstId = async (): Promise<true> => {
+  const stubWaitForFirstId = async (
+    _timeoutMs: number,
+    predicate: (pool: readonly IDiscoveredEndpoint[]) => IDiscoveredEndpoint | false,
+  ): Promise<IDiscoveredEndpoint | true> => {
     await Promise.resolve();
+    predicate(captures);
     if (waitOutcome === 'timeout') throw new ScraperError('timeout (stub)');
     return true;
   };
@@ -106,6 +116,41 @@ describe('ACCOUNT-RESOLVE.PRE — Phase 7d edge cases', () => {
   it('logs the wait outcome label "timeout" when waitForFirstId rejects', async () => {
     const baseCtx = makeMockContext();
     const stubMediator = makeMediatorStub([], 'timeout');
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      mediator: some(stubMediator),
+    };
+    const result = await executeAccountResolvePre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('drives findFirstIdInPool with a non-empty noise pool — predicate returns false', async () => {
+    const noiseCapture = makeCapture({ ok: true, banner: 'marketing' }, 0);
+    const baseCtx = makeMockContext();
+    const stubMediator = makeMediatorStub([noiseCapture], 'matched');
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      mediator: some(stubMediator),
+    };
+    const result = await executeAccountResolvePre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('drives findFirstIdInPool with an id-bearing pool — predicate returns the endpoint', async () => {
+    const idCapture: IDiscoveredEndpoint = {
+      url: 'https://login.bank.example/Authorizations?accountId=12-170-536347',
+      method: 'GET',
+      postData: '',
+      responseBody: { ok: true },
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 100,
+    };
+    const baseCtx = makeMockContext();
+    const stubMediator = makeMediatorStub([idCapture], 'matched');
     const ctx: IPipelineContext = {
       ...baseCtx,
       mediator: some(stubMediator),

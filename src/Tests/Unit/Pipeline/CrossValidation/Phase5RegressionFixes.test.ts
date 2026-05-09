@@ -23,7 +23,7 @@
  *       false (no fallback). Confirms the strict gate stays.
  */
 
-import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/Network/AccountFromPool.js';
+import { discoverAccountsInPool } from '../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountFromPool.js';
 import { createFrozenNetwork } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
