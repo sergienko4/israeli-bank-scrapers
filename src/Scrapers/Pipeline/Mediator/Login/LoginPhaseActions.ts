@@ -736,8 +736,22 @@ function loginPathOf(url: string): string {
   return '/';
 }
 
-/** Maximum wall-clock budget for the form-presence poll. */
-const FORM_PRESENCE_POLL_BUDGET_MS = 5000;
+/**
+ * Maximum wall-clock budget for the form-presence poll.
+ *
+ * <p>The 5 s value originally shipped with the heuristic but the
+ * 09-05-2026 Hapoalim CI run 25588938082 (job 75123259585) showed
+ * Hapoalim's Angular SPA tearing down the login view at 5046 ms —
+ * 46 ms after the legacy budget elapsed. The pipeline.log evidence
+ * is a stage-level smoking gun: every tick at t=[0..5000) returned
+ * `#password count=1 AND #userCode count=1`; the very NEXT tick at
+ * t=5046 returned `count=0 AND count=0`. The OR-gate predicate
+ * would have released cleanly with 50 ms more budget. 10 s gives
+ * 2× headroom over the observed teardown time and aligns with the
+ * order-of-magnitude of other SPA-aware budgets in the pipeline
+ * (DASHBOARD_FINAL_TXN_WAIT_MS = 8000, REDIRECT_SETTLE_MS = 15000).
+ */
+const FORM_PRESENCE_POLL_BUDGET_MS = 10000;
 /** Per-tick interval for the form-presence poll. */
 const FORM_PRESENCE_POLL_INTERVAL_MS = 500;
 

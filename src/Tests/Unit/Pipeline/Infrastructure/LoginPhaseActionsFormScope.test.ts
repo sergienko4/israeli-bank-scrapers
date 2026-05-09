@@ -355,6 +355,45 @@ describe('detectLoginFormStillPresent — form-anchor scoping (Isracard regressi
   });
 });
 
+describe('detectLoginFormStillPresent — budget covers slow SPA teardown (PR #215 round 4 follow-up)', () => {
+  it('LOG-POST-4 form-presence budget exceeds Hapoalim observed 5046ms teardown', async () => {
+    // Hapoalim CI run 25588938082 evidence: every tick at
+    // t=[0..5000) returned `#password count=1 AND #userCode
+    // count=1`; the NEXT tick at t=5046 returned
+    // `count=0 AND count=0`. The OR-gate predicate would have
+    // released with 50 ms more budget. The test exercises the
+    // exact race-window behaviour: a probe that returns 1 for
+    // the first ~5 s of polling and 0 thereafter MUST resolve
+    // to `succeed(input)` — i.e. the budget MUST be > 5046 ms.
+    const startMs = Date.now();
+    /**
+     * Mock countBySelector that simulates Hapoalim's actual
+     * SPA teardown timing: returns 1 for the first 5046 ms,
+     * then 0. Validates the budget is wide enough to catch
+     * the teardown moment.
+     * @returns 1 (form still mounted) until 5046ms have
+     *   elapsed since the test started; 0 thereafter.
+     */
+    const countBySelector = (): Promise<number> => {
+      const elapsed = Date.now() - startMs;
+      if (elapsed < 5046) return Promise.resolve(1);
+      return Promise.resolve(0);
+    };
+    const mediator = makeMockMediator({ countBySelector });
+    const discovery = makeDiscoveryHapoalim('#password', '#userCode', 'form');
+    const ctx = buildCtxWithDiscovery(mediator, discovery);
+
+    const result = await executeValidateLogin(
+      TEST_CONFIG as unknown as ILoginConfig,
+      mediator,
+      ctx,
+    );
+
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  }, 30000);
+});
+
 describe('detectLoginFormStillPresent — polling for SPA teardown', () => {
   it('resolves successfully once the count drops to 0 within the budget', async () => {
     let callCount = 0;
