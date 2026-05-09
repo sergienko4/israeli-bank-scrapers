@@ -1007,7 +1007,7 @@ async function awaitTraffic(
  * @returns Network discovery interface.
  */
 /** Timeout for fire-and-forget POST interceptor (ms). */
-const POST_INTERCEPT_TIMEOUT = 120_000;
+const POST_INTERCEPT_TIMEOUT = 30_000;
 
 /**
  * Intercept POST responses matching WellKnown patterns from any frame.

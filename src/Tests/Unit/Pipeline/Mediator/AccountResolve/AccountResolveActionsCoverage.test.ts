@@ -89,8 +89,8 @@ function makeCapture(body: unknown, captureIndex: number): IDiscoveredEndpoint {
 }
 
 describe('ACCOUNT-RESOLVE.PRE — Phase 7d edge cases', () => {
-  it('exposes the 20s budget constant', () => {
-    expect(ACCOUNT_RESOLVE_BUDGET_MS).toBe(20_000);
+  it('exposes the 10s budget constant (TIMING mission tightened from 20s)', () => {
+    expect(ACCOUNT_RESOLVE_BUDGET_MS).toBe(10_000);
   });
 
   it('fails fast with no-mediator message when ctx.mediator is none', async () => {

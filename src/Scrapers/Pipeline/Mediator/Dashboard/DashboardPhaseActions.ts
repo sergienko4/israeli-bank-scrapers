@@ -45,7 +45,7 @@ const TRIGGER_PROBE_TIMEOUT = 15000;
 /** Timeout for menu settle after toggle click. */
 const MENU_SETTLE_MS = 5000;
 /** Timeout for post-login redirect settle before probing dashboard. */
-const DASHBOARD_SETTLE_MS = 15000;
+const DASHBOARD_SETTLE_MS = 5000;
 /** Should force-click for hidden menu toggles. */
 const shouldForceMenuClick = true;
 

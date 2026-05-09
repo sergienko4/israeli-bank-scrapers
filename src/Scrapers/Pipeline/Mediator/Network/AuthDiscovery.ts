@@ -350,7 +350,7 @@ async function discoverFromAllStorageKeys(page: Page): Promise<string | false> {
 // ── Tier 4: Poll auth-module across all frames ───────
 
 /** Max polling time for auth-module to appear (ms). */
-const AUTH_POLL_TIMEOUT = 10_000;
+const AUTH_POLL_TIMEOUT = 3_000;
 /** Poll interval (ms). */
 const AUTH_POLL_INTERVAL = 100;
 

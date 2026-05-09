@@ -34,7 +34,7 @@ import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { discoverAccountsInPool, poolMaxContainer } from './AccountFromPool.js';
 
 /** Wait budget for the first id-bearing capture (ms). */
-const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;
+const ACCOUNT_RESOLVE_BUDGET_MS = 10_000;
 
 /**
  * True when MOCK_MODE is active — lets ACCOUNT-RESOLVE skip its
