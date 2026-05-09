@@ -85,6 +85,62 @@ function makeExecutor(): {
   return { executor, calls };
 }
 
+/**
+ * Stage-isolation regression: live E2E showed Hapoalim/Amex/Isracard
+ * crash mid-HOME.ACTION when Playwright's locator.click throws on a
+ * 15s timeout (CDN slow under 6-bank parallel load). The handler
+ * must absorb clickElement rejection the same way MODAL does — let
+ * settleAfterClick + POST decide success via URL change. Both DIRECT
+ * and SEQUENTIAL exercise the same `.catch` path; deduplicated via
+ * `it.each` per the project's table-driven test convention
+ * (LoginFactoryTest, OtpFillFactoryTest, AuthDiscoveryFactoryTest).
+ */
+interface IRejectionStrategyCase {
+  readonly strategy: 'DIRECT' | 'SEQUENTIAL';
+  readonly label: 'DIRECT' | 'SEQUENTIAL';
+}
+
+const REJECTION_STRATEGY_CASES: readonly IRejectionStrategyCase[] = [
+  { strategy: 'DIRECT', label: 'DIRECT' },
+  { strategy: 'SEQUENTIAL', label: 'SEQUENTIAL' },
+];
+
+/**
+ * Build an executor whose `clickElement` rejects with a Playwright
+ * timeout signature; URL never changes; waits resolve cleanly.
+ * Shared between the DIRECT and SEQUENTIAL rejection cases.
+ *
+ * @param stableUrl - URL the executor reports throughout the run.
+ * @returns Action mediator stub matching `IActionMediator`.
+ */
+function makeRejectingClickExecutor(stableUrl: string): IActionMediator {
+  return {
+    /**
+     * URL never changes — click never lands navigation.
+     * @returns Stable URL.
+     */
+    getCurrentUrl: (): string => stableUrl,
+    /**
+     * Reject with the Playwright click() timeout signature.
+     * @returns Rejected promise.
+     */
+    clickElement: (): Promise<never> =>
+      Promise.reject(new Error('locator.click: Timeout 15000ms exceeded')),
+    /**
+     * Idle resolves succeed; settleAfterClick still runs.
+     * @returns Resolved succeed(true).
+     */
+    waitForNetworkIdle: (): Promise<{ success: true; value: boolean }> =>
+      Promise.resolve({ success: true, value: true }),
+    /**
+     * URL wait resolves false (no navigation occurred).
+     * @returns Resolved succeed(false).
+     */
+    waitForURL: (): Promise<{ success: true; value: boolean }> =>
+      Promise.resolve({ success: true, value: false }),
+  } as unknown as IActionMediator;
+}
+
 describe('tryClickLoginLink (Phase 7 backfill)', () => {
   it('delegates resolveAndClick to the mediator', async () => {
     const calls: string[] = [];
@@ -254,81 +310,18 @@ describe('executeModalClick (Phase 7 backfill)', () => {
     expect(didNavigate).toBe(true);
   });
 
-  it('executeHomeNavigation: DIRECT clickElement rejection resolves false (no unhandled crash)', async () => {
-    // Stage-isolation regression: live E2E showed Hapoalim/Amex/Isracard
-    // crash mid-HOME.ACTION when Playwright's locator.click throws on a
-    // 15s timeout (CDN slow under 6-bank parallel load). The handler
-    // must absorb clickElement rejection the same way MODAL does — let
-    // settleAfterClick + POST decide success via URL change.
-    const stableUrl = 'https://bank.example.com/home';
-    const rejectingClickExecutor = {
-      /**
-       * URL never changes — click never completed.
-       * @returns Stable URL.
-       */
-      getCurrentUrl: (): string => stableUrl,
-      /**
-       * Reject to simulate Playwright click() timeout under CDN slowness.
-       * @returns Rejected promise.
-       */
-      clickElement: (): Promise<never> =>
-        Promise.reject(new Error('locator.click: Timeout 15000ms exceeded')),
-      /**
-       * Idle still resolves; settleAfterClick must run.
-       * @returns Resolved succeed.
-       */
-      waitForNetworkIdle: (): Promise<{ success: true; value: boolean }> =>
-        Promise.resolve({ success: true, value: true }),
-      /**
-       * URL wait resolves false (URL didn't change).
-       * @returns Resolved succeed(false).
-       */
-      waitForURL: (): Promise<{ success: true; value: boolean }> =>
-        Promise.resolve({ success: true, value: false }),
-    } as unknown as IActionMediator;
-    const discovery = {
-      strategy: 'DIRECT' as const,
-      triggerTarget: { contextId: 'main', selector: 'a[href="/login"]' },
-    } as unknown as Parameters<typeof executeHomeNavigation>[1];
-    const didNavigate = await executeHomeNavigation(rejectingClickExecutor, discovery, NOOP_LOGGER);
-    expect(didNavigate).toBe(false);
-  });
-
-  it('executeHomeNavigation: SEQUENTIAL clickElement rejection resolves false (no unhandled crash)', async () => {
-    // Same stage-isolation regression for SEQUENTIAL banks.
-    const stableUrl = 'https://bank.example.com/home';
-    const rejectingClickExecutor = {
-      /**
-       * Stable URL — click never lands navigation.
-       * @returns Stable URL.
-       */
-      getCurrentUrl: (): string => stableUrl,
-      /**
-       * Reject with Playwright timeout signature.
-       * @returns Rejected promise.
-       */
-      clickElement: (): Promise<never> =>
-        Promise.reject(new Error('locator.click: Timeout 15000ms exceeded')),
-      /**
-       * Idle resolves succeed; settleAfterClick must run.
-       * @returns Resolved succeed(true).
-       */
-      waitForNetworkIdle: (): Promise<{ success: true; value: boolean }> =>
-        Promise.resolve({ success: true, value: true }),
-      /**
-       * URL wait resolves false (no navigation).
-       * @returns Resolved succeed(false).
-       */
-      waitForURL: (): Promise<{ success: true; value: boolean }> =>
-        Promise.resolve({ success: true, value: false }),
-    } as unknown as IActionMediator;
-    const discovery = {
-      strategy: 'SEQUENTIAL' as const,
-      triggerTarget: { contextId: 'main', selector: 'a[href="/login"]' },
-    } as unknown as Parameters<typeof executeHomeNavigation>[1];
-    const didNavigate = await executeHomeNavigation(rejectingClickExecutor, discovery, NOOP_LOGGER);
-    expect(didNavigate).toBe(false);
-  });
+  it.each(REJECTION_STRATEGY_CASES)(
+    'executeHomeNavigation: $label clickElement rejection resolves false (no unhandled crash)',
+    async ({ strategy }) => {
+      const executor = makeRejectingClickExecutor('https://bank.example.com/home');
+      const discovery = {
+        strategy,
+        triggerTarget: { contextId: 'main', selector: 'a[href="/login"]' },
+      } as unknown as Parameters<typeof executeHomeNavigation>[1];
+      const didNavigate = await executeHomeNavigation(executor, discovery, NOOP_LOGGER);
+      expect(didNavigate).toBe(false);
+    },
+  );
 
   it('executeStoreLoginSignal: stamps loginUrl into diagnostics', async () => {
     // Coverage backfill — Phase 7 squeezed margins so this exported
