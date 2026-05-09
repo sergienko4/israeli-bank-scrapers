@@ -243,6 +243,61 @@ describe('executeFillPre — fast-path & mock-bypass', () => {
       expect(result.value.diagnostics.lastAction).toMatch(/otp-fill-pre/);
     }
   });
+
+  it('OTP-FAST-1 hoisted fast-path probes dashboard BEFORE OTP discovery (PR #215 round 4)', async () => {
+    // Regression for the round-4 hoist: when bank skipped OTP for a
+    // trusted device, `maybeFastPathSuccess` MUST run BEFORE
+    // `detectOtpForm`/`detectOtpSubmit`. The legacy order ran the
+    // OTP discovery first (15s timeout) THEN checked dashboard
+    // markers — burning 30+ s on a path that should resolve in
+    // 1-2 s. The hoist cuts the device-remembered Hapoalim path
+    // from ~38 s to ~2 s.
+    //
+    // Mock returns `found: true` AND a populated `candidate` so
+    // `probeDashboardReveal` resolves to a non-empty match string
+    // (it requires both fields to be set). With the hoist, the
+    // dashboard marker probe fires first → fast-path success.
+    const { makeMockMediator } = await import('../../Scrapers/Pipeline/MockPipelineFactories.js');
+    const { NOT_FOUND_RESULT: notFoundResult } =
+      await import('../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js');
+    const fakeCandidate = {
+      kind: 'textContent' as const,
+      value: 'יתרה בחשבון',
+    };
+    const mediator = makeMockMediator({
+      /**
+       * Return found=true with a candidate so `probeDashboardReveal`
+       * resolves positive (dashboard visible).
+       * @returns Race result with found=true + candidate.
+       */
+      resolveVisible: () =>
+        Promise.resolve({
+          ...notFoundResult,
+          found: true as const,
+          candidate: fakeCandidate,
+        }),
+    });
+    const makeScreenshotPageResult23 = makeScreenshotPage();
+    const base = makeContextWithBrowser(makeScreenshotPageResult23);
+    const ctx = {
+      ...base,
+      mediator: some(mediator),
+      config: { ...base.config, otp: { enabled: true, required: false } },
+    };
+
+    // Pass required=false (Hapoalim's `withOtpFill(false)` shape).
+    const result = await executeFillPre(ctx, false);
+
+    const isOkResult24 = isOk(result);
+    expect(isOkResult24).toBe(true);
+    if (isOk(result)) {
+      // The hoisted fast-path emits this exact diagnostic. With the
+      // legacy order, OTP discovery would have run first and emitted
+      // `otp-fill-pre (input=...)`. Pinning the exact lastAction
+      // proves the hoist ran.
+      expect(result.value.diagnostics.lastAction).toBe('otp-fill-pre (fast-path-skip)');
+    }
+  });
 });
 
 describe('executeFillPost — error detection', () => {

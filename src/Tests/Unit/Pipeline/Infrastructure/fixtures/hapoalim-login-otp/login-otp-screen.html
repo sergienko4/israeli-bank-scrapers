@@ -1,0 +1,119 @@
+<!--
+SYNTHESIZED Hapoalim OTP-screen fixture — derived from
+PR #215 round 4 CI run 25588938082 (Hapoalim job 75123259585)
+pipeline.log evidence at runId 09-05-2026_02255326.
+
+Provenance / how to reproduce capture
+─────────────────────────────────────
+The form-presence poll in login.POST emitted these element-shape
+markers tick-by-tick during the bank's transition from login
+form → OTP screen → dashboard:
+
+  POST: form-presence tick — selector #password count=1
+  POST: form-presence tick — selector #userCode count=1
+  ... (10 ticks over 5046 ms; both fields present throughout)
+  POST: form-presence tick — selector #password count=0
+  POST: form-presence tick — selector #userCode count=0
+  ... (after t=5046 ms; SPA finished tearing down login view)
+
+login.PRE earlier captured the live DOM attributes:
+
+  password input — elementId="password",
+    elementClasses="form-control password-control password-astrix
+                    ng-valid mm-field-input ng-dirty ng-touched"
+    outerHtml=<input autocomplete="off" id="password"
+              formcontrolname="password" inputmode="text"
+              autocapitalize="none" autocorrect="off"
+              spellcheck="false"
+              class="form-control password-control password-astrix
+                     ng-untouched ng-pristine ng-valid mm-field-input"
+              type="text" aria-invalid="false">
+
+  userCode input — elementId="userCode",
+    elementClasses="form-control user-code-ctrl ng-valid
+                    mm-field-input ng-dirty ng-touched"
+
+  form anchor — bare <form> tag (rejected by
+    extractFormAnchorSelector as untrustworthy → unscoped
+    fallback)
+
+  submit button — `<button type="submit"
+    class="red-coloring-btn login-btn">כניסה</button>`
+
+Redaction rules (matches src/Tests/Unit/Pipeline/Infrastructure/
+fixtures/hapoalim-dashboard/dashboard.html convention)
+─────────────────────────────────────
+- No real account ids / session GUIDs / tokens.
+- The synthesized form is the simplest DOM that exhibits the
+  Hapoalim OTP-screen behavior:
+    • Both `#password` AND `#userCode` inputs persist on the
+      OTP screen (Angular's component teardown is async; for
+      ~5046 ms post-submit they remain in the DOM, dirty/touched).
+    • A bare `<form>` ancestor (no id, no class, no name=).
+    • Submit button discoverable via xpath
+      `//button[@type="submit"]`.
+- This snapshot is ALSO valid as a model of the LOGIN form
+  itself (pre-submit state). The teardown race is captured by
+  toggling element visibility in the JSDOM-based regression
+  test — see LOG-POST-* unit tests.
+
+How to refresh from a live capture
+─────────────────────────────────────
+1. Run on a CI runner (fresh IP) OR locally with VPN to defeat
+   bank-side IP recognition.
+2. Set DUMP_SNAPSHOTS=1 + CI=true.
+3. Inject `await page.content()` capture at login.POST entry
+   (see scripts/capture-hapoalim-login-otp-snapshot.local.ts —
+   to be added in round-5).
+4. Redact account ids, GUIDs, tokens. Replace with placeholders
+   matching the dashboard fixture's convention
+   (77-777-777777 / deadbeef-1337-…).
+5. Replace this file. Re-run unit tests; selectors should
+   match if Hapoalim hasn't redesigned the form.
+-->
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bank Hapoalim — Login (OTP transition state)</title>
+  </head>
+  <body>
+    <!--
+    Bare <form> ancestor — matches Hapoalim's actual DOM shape.
+    `extractFormAnchorSelector` rejects this as untrustworthy
+    (no id, no class, no [name="..."]), so the form-presence
+    probe falls back to unscoped `#password` AND `#userCode`.
+  -->
+    <form>
+      <label for="userCode">קוד משתמש</label>
+      <input
+        autocomplete="off"
+        id="userCode"
+        formcontrolname="userCode"
+        inputmode="text"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        class="form-control user-code-ctrl ng-valid mm-field-input ng-dirty ng-touched"
+        type="text"
+        aria-invalid="false"
+      />
+
+      <label for="password">סיסמה</label>
+      <input
+        autocomplete="off"
+        id="password"
+        formcontrolname="password"
+        inputmode="text"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        class="form-control password-control password-astrix ng-valid mm-field-input ng-dirty ng-touched"
+        type="text"
+        aria-invalid="false"
+      />
+
+      <button type="submit" class="red-coloring-btn login-btn" aria-disabled="false">כניסה</button>
+    </form>
+  </body>
+</html>

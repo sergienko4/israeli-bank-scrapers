@@ -166,6 +166,19 @@ async function handleMissingOtpInput(
 /**
  * PRE: Discover OTP code input + submit button — 100% passive.
  * Uses full mediator resolveVisible for post-transition DOM.
+ *
+ * <p>Order matters: when the bank skipped the OTP challenge for a
+ * trusted device (Hapoalim's `withOtpFill(false)` path), the page
+ * is already on the dashboard. The cheap dashboard-marker probe
+ * resolves in 1-2 s, while the OTP-input + OTP-submit discovery
+ * pair would otherwise burn 30+ s on locator timeouts (and can
+ * even false-positive on dashboard buttons that look like OTP
+ * submits — Hapoalim's homepage `אישור` link). Probing the fast-
+ * path FIRST cuts the device-remembered Hapoalim path from ~38 s
+ * to ~2 s and eliminates the false-positive submit detection
+ * (PR #215 round 4 — pipeline.log evidence from runId
+ * 09-05-2026_05490181).
+ *
  * @param input - Pipeline context.
  * @param required - Whether OTP is mandatory (default true).
  * @returns Updated context with input+submit targets in diagnostics.
@@ -176,6 +189,11 @@ async function executeFillPre(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   if (!input.browser.has) return succeed(input);
+  // Fast-path probe FIRST — cheap dashboard-marker check. When the
+  // bank skipped OTP for a trusted device, this returns success in
+  // 1-2 s and we skip the expensive OTP discovery entirely.
+  const fastPath = await maybeFastPathSuccess(input, required);
+  if (fastPath) return fastPath;
   const mediator = input.mediator.value;
   const page = input.browser.value.page;
   const inputResult = unwrapProbe(await detectOtpForm(mediator).catch(OTP_FALLBACK));

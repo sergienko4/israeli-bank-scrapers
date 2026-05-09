@@ -24,17 +24,67 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
 
 /**
- * Cold-Start protocol — when DUMP_SNAPSHOTS=1, strip every cookie so
- * device-remembered banks (Hapoalim) present the full OTP challenge.
- * Needed to capture a high-fidelity otp-fill.html with PIN inputs visible.
+ * Storage-clearing init script body. Passed to `addInitScript` as
+ * a literal string so it runs in the browser-context closure
+ * BEFORE any site scripts (Playwright IPC-serialises and injects
+ * it). Storing the body as a string instead of a function expr
+ * keeps Node-side coverage instrumentation OFF the unreachable
+ * browser code (Node never executes this body — only Camoufox /
+ * Firefox does, after the page navigates to the bank).
+ *
+ * <p>Each clear is wrapped in try/catch — some origins (e.g.
+ * `data:` pages before first navigation) throw SecurityError
+ * when storage APIs are read, and we want the hook to be
+ * best-effort. The IndexedDB clear is async; we don't await it
+ * here because the script returns synchronously and the deletes
+ * race against page-script storage writes regardless.
+ */
+const COLD_START_STORAGE_CLEAR = `
+  try { localStorage.clear(); } catch (e) { /* best-effort */ }
+  try { sessionStorage.clear(); } catch (e) { /* best-effort */ }
+  try {
+    indexedDB.databases().then(function (dbs) {
+      dbs.forEach(function (db) {
+        if (db.name) indexedDB.deleteDatabase(db.name);
+      });
+    }).catch(function () { /* best-effort */ });
+  } catch (e) { /* best-effort */ }
+`;
+
+/**
+ * Cold-Start protocol — when DUMP_SNAPSHOTS=1, strip every client-
+ * side recognition signal so device-remembered banks (Hapoalim)
+ * present the full OTP challenge.
+ *
+ * <p>Round 4 (PR #215) extended the protocol from cookies-only to
+ * full storage clearing after empirical CI evidence (run
+ * 25588938082) showed `clearCookies` alone is insufficient to force
+ * the OTP path on Hapoalim. Suspected channels:
+ *  - HTTP cookies (already cleared via `clearCookies`).
+ *  - localStorage / sessionStorage (now cleared via init script).
+ *  - IndexedDB (now cleared via init script — best-effort, async).
+ *  - Permissions (now cleared).
+ *  - **IP address** — bank-side recognition by source IP. NOT
+ *    addressable from the browser side. CI runners get fresh IPs
+ *    per run, so the OTP path always engages there. Local
+ *    developer boxes from a stable IP may still be device-
+ *    remembered after a recent successful login. This is a
+ *    bank-side signal and the cold-start cannot override it.
+ *
+ * <p>Used for capturing high-fidelity HTML snapshots
+ * (`otp-fill.html` with PIN inputs visible) AND for forcing the
+ * full OTP flow when validating round-4 changes locally.
+ *
  * @param context - Browser context to sanitise.
- * @returns True when DUMP_SNAPSHOTS was active and cookies were cleared,
- * false when the dump flag was off and the call was a no-op.
+ * @returns True when DUMP_SNAPSHOTS was active and the protocol
+ *   ran; false when the dump flag was off and the call was a no-op.
  */
 async function coldStartIfDumping(context: BrowserContext): Promise<boolean> {
   const isDumping = process.env.DUMP_SNAPSHOTS === '1' || process.env.DUMP_SNAPSHOTS === 'true';
   if (!isDumping) return false;
   await context.clearCookies().catch((): false => false);
+  await context.clearPermissions().catch((): false => false);
+  await context.addInitScript({ content: COLD_START_STORAGE_CLEAR }).catch((): false => false);
   return true;
 }
 
@@ -131,3 +181,6 @@ function executeWireComponents(input: IPipelineContext): Procedure<IPipelineCont
 }
 
 export { executeLaunchBrowser, executeNavigateToBank, executeValidatePage, executeWireComponents };
+// Internal helper exposed only for focused unit tests. Do NOT import
+// outside of `src/Tests/Unit/**`. Safe to change without deprecation.
+export { coldStartIfDumping };

@@ -196,3 +196,110 @@ describe('executeWireComponents', () => {
     }
   });
 });
+
+/**
+ * Build an instrumented mock `BrowserContext` for cold-start
+ * tests. Each method records its name into the shared log and
+ * resolves successfully — the protocol's behaviour under partial
+ * failures is covered by the inline `.catch()` handlers, not
+ * by these unit tests.
+ *
+ * @param log - Mutable cleanup-call log, in call order.
+ * @returns Mock context typed as `BrowserContext`.
+ */
+function makeColdStartContext(log: string[]): BrowserContext {
+  const fakeContext = {
+    /**
+     * Record the cookies-clear call.
+     * @returns Resolved void.
+     */
+    clearCookies: (): Promise<void> => {
+      log.push('clearCookies');
+      return Promise.resolve();
+    },
+    /**
+     * Record the permissions-clear call.
+     * @returns Resolved void.
+     */
+    clearPermissions: (): Promise<void> => {
+      log.push('clearPermissions');
+      return Promise.resolve();
+    },
+    /**
+     * Record the addInitScript call (storage-clear hook).
+     * @returns Resolved void.
+     */
+    addInitScript: (): Promise<void> => {
+      log.push('addInitScript');
+      return Promise.resolve();
+    },
+  };
+  return fakeContext as unknown as BrowserContext;
+}
+
+/**
+ * Cold-start protocol regression coverage — PR #215 round 4.
+ *
+ * <p>The protocol strips every client-side recognition signal so
+ * device-remembered banks (Hapoalim) present the full OTP challenge.
+ * Round 4 extended `clearCookies` to also clear localStorage,
+ * sessionStorage, IndexedDB, and permissions. The tests below use
+ * an instrumented mock `BrowserContext` that records every cleanup
+ * call and asserts the protocol fires the expected channels in
+ * the expected order. The init-script body itself runs in the
+ * browser-side closure and is not exercised in Node — coverage
+ * for that block is provided by live E2E runs with
+ * `DUMP_SNAPSHOTS=1`.
+ */
+describe('coldStartIfDumping', () => {
+  /** Capture the original env so each test starts from the same state. */
+  const originalDumpFlag = process.env.DUMP_SNAPSHOTS;
+
+  afterEach((): void => {
+    if (originalDumpFlag === undefined) {
+      delete process.env.DUMP_SNAPSHOTS;
+    } else {
+      process.env.DUMP_SNAPSHOTS = originalDumpFlag;
+    }
+  });
+
+  it('CS-1 returns false and runs no cleanup when DUMP_SNAPSHOTS is unset', async () => {
+    delete process.env.DUMP_SNAPSHOTS;
+    const log: string[] = [];
+    const context = makeColdStartContext(log);
+    const { coldStartIfDumping } =
+      await import('../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js');
+
+    const wasFired = await coldStartIfDumping(context);
+
+    expect(wasFired).toBe(false);
+    expect(log.length).toBe(0);
+  });
+
+  it('CS-2 fires every cleanup channel when DUMP_SNAPSHOTS=1', async () => {
+    process.env.DUMP_SNAPSHOTS = '1';
+    const log: string[] = [];
+    const context = makeColdStartContext(log);
+    const { coldStartIfDumping } =
+      await import('../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js');
+
+    const wasFired = await coldStartIfDumping(context);
+
+    expect(wasFired).toBe(true);
+    const expected: readonly string[] = ['clearCookies', 'clearPermissions', 'addInitScript'];
+    expect(log).toEqual(expected);
+  });
+
+  it('CS-3 also accepts DUMP_SNAPSHOTS="true"', async () => {
+    process.env.DUMP_SNAPSHOTS = 'true';
+    const log: string[] = [];
+    const context = makeColdStartContext(log);
+    const { coldStartIfDumping } =
+      await import('../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js');
+
+    const wasFired = await coldStartIfDumping(context);
+
+    expect(wasFired).toBe(true);
+    expect(log.length).toBe(3);
+  });
+});
