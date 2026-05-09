@@ -32,7 +32,7 @@ import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/Pi
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
-/** Browser-flow bank enum for M1 fixture coverage. */
+/** Browser-flow bank enum for cross-bank fixture coverage. */
 type FixtureBank =
   | 'discount'
   | 'hapoalim'
@@ -41,7 +41,11 @@ type FixtureBank =
   | 'visacal'
   | 'amex'
   | 'isracard'
-  | 'onezero';
+  | 'onezero'
+  | 'massad'
+  | 'otsarHahayal'
+  | 'pagi'
+  | 'mercantile';
 
 /** Inline per-bank fixture — code-defined for M1. */
 interface IBankFixture {
@@ -126,6 +130,42 @@ const BANK_FIXTURES: readonly IBankFixture[] = [
     origin: 'https://app.onezerobank.com',
     siteId: false,
     headers: { Authorization: 'Bearer fake-bearer-onezero' },
+    dashboardRevealed: true,
+  },
+  {
+    bank: 'massad',
+    cookieNames: ['JSESSIONID', 'sessionId'],
+    authToken: false,
+    origin: 'https://www.bankmassad.example',
+    siteId: '14',
+    headers: { 'X-Site-Id': '14', Accept: 'application/json' },
+    dashboardRevealed: true,
+  },
+  {
+    bank: 'otsarHahayal',
+    cookieNames: ['JSESSIONID', 'sessionId'],
+    authToken: false,
+    origin: 'https://www.bankotsar.example',
+    siteId: '14',
+    headers: { 'X-Site-Id': '14', Accept: 'application/json' },
+    dashboardRevealed: true,
+  },
+  {
+    bank: 'pagi',
+    cookieNames: ['JSESSIONID', 'sessionId'],
+    authToken: false,
+    origin: 'https://www.bankpagi.example',
+    siteId: '14',
+    headers: { 'X-Site-Id': '14', Accept: 'application/json' },
+    dashboardRevealed: true,
+  },
+  {
+    bank: 'mercantile',
+    cookieNames: ['JSESSIONID', 'TS01abc'],
+    authToken: false,
+    origin: 'https://www.mercantile.example',
+    siteId: false,
+    headers: { Accept: 'application/json' },
     dashboardRevealed: true,
   },
 ];
@@ -251,6 +291,10 @@ describe('Mission 1 — AuthDiscoveryFactoryTest cross-bank coverage', () => {
       'amex',
       'isracard',
       'onezero',
+      'massad',
+      'otsarHahayal',
+      'pagi',
+      'mercantile',
     ];
     for (const bank of required) {
       const isPresent = banks.has(bank);

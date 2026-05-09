@@ -177,18 +177,27 @@ async function executeModalClick(
 
 /**
  * Click a pre-resolved target via executor.
+ *
+ * Mirrors the MODAL pattern at executeModalClick: a click that throws
+ * (Playwright auto-wait timeout when navigation hangs under CDN load)
+ * is absorbed and surfaced as a `false` return so settleAfterClick +
+ * POST validation can decide success via URL change. Without the
+ * catch, a hung click rejects unhandled and crashes HOME.ACTION before
+ * any logging — the rotating-bank flakiness signature.
  * @param executor - Sealed action mediator.
  * @param target - Pre-resolved target from PRE.
  * @param isForce - Force click for hidden toggles.
- * @returns True if clicked.
+ * @returns True if click resolved cleanly, false if executor rejected.
  */
 async function clickResolvedTarget(
   executor: IActionMediator,
   target: IResolvedTarget,
   isForce?: boolean,
 ): Promise<boolean> {
-  await executor.clickElement({ contextId: target.contextId, selector: target.selector, isForce });
-  return true;
+  return executor
+    .clickElement({ contextId: target.contextId, selector: target.selector, isForce })
+    .then((): true => true)
+    .catch((): false => false);
 }
 
 /**

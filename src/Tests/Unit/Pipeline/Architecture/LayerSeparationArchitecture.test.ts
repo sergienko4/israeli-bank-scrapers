@@ -697,3 +697,88 @@ describe('Mission 2 — R-LOGIN-SEAL: LOGIN imports nothing from Dashboard / Aut
     expect(summary).toEqual([]);
   });
 });
+
+/**
+ * Mission 3 (CI quality hardening plan) — R-OTP-FILL-SEAL.
+ *
+ * <p>Forbids the OTP-FILL zone (`Mediator/OtpFill/*`,
+ * `Phases/OtpFill/*`) from importing other phase mediator zones.
+ * OTP-FILL is sealed: PRE discovers the OTP form, ACTION fills +
+ * submits the code, POST validates the form is gone or fails on
+ * an error banner, FINAL stamps the cookie count. Every helper
+ * OTP-FILL needs lives inside `Mediator/OtpFill/`; downstream
+ * phases (AUTH-DISCOVERY / DASHBOARD / SCRAPE) read the slim
+ * `ctx.otpFill` emit only.
+ *
+ * <p>R-AUTH-DISCOVERY-OWN (Mission 1, shipped) already grep-
+ * forbids the auth/dashboard helper call list from OTP-FILL.
+ * R-OTP-FILL-SEAL adds file-level import enforcement: any new
+ * `import … from '../Dashboard/'`, `'../AuthDiscovery/'`,
+ * `'../Login/'`, or `'../OtpTrigger/'` from an OTP-FILL-zone
+ * file fails the build.
+ */
+const OTP_FILL_FORBIDDEN_ZONES: readonly string[] = [
+  path.join('Mediator', 'OtpFill'),
+  path.join('Phases', 'OtpFill'),
+];
+
+const OTP_FILL_FORBIDDEN_IMPORTS: readonly string[] = [
+  path.join('Mediator', 'Dashboard'),
+  path.join('Mediator', 'AuthDiscovery'),
+  path.join('Mediator', 'Login'),
+  path.join('Mediator', 'OtpTrigger'),
+];
+
+/**
+ * Find import lines in an OTP-FILL-zone file that pull from any
+ * forbidden phase-mediator zone.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findOtpFillForbiddenImportLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (!line.includes('import')) continue;
+    const isForbidden = OTP_FILL_FORBIDDEN_IMPORTS.some((zone): boolean => {
+      const fwd = zone.replace(/\\/g, '/');
+      return line.includes(`/${fwd}/`) || line.includes(`'${fwd}/`);
+    });
+    if (isForbidden) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan OTP-FILL-zone files for cross-phase mediator imports.
+ *
+ * @returns Forbidden-import hits, empty when the rule holds.
+ */
+function findForbiddenOtpFillImports(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    const isInZone = OTP_FILL_FORBIDDEN_ZONES.some((zone): boolean => relPathMatches(rel, zone));
+    if (!isInZone) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findOtpFillForbiddenImportLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'otp-fill-zone forbidden import', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard / AuthDiscovery / Login / OtpTrigger', () => {
+  it('no OtpFill-zone file imports from a forbidden cross-phase mediator zone', () => {
+    const hits = findForbiddenOtpFillImports();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});

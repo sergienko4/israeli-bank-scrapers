@@ -36,4 +36,4 @@ function buildOtsarHahayalPipeline(options: ScraperOptions): Procedure<IPipeline
 }
 
 export default buildOtsarHahayalPipeline;
-export { buildOtsarHahayalPipeline };
+export { buildOtsarHahayalPipeline, OTSAR_HAHAYAL_LOGIN };

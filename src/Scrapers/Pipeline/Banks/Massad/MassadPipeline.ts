@@ -36,4 +36,4 @@ function buildMassadPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildMassadPipeline;
-export { buildMassadPipeline };
+export { buildMassadPipeline, MASSAD_LOGIN };
