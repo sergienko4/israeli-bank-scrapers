@@ -67,6 +67,7 @@ interface IResultSlots {
   readonly dashboardTxnHarvest: IPipelineContext['dashboardTxnHarvest'];
   readonly authDiscovery: IPipelineContext['authDiscovery'];
   readonly otpTrigger: IPipelineContext['otpTrigger'];
+  readonly otpFill: IPipelineContext['otpFill'];
 }
 
 /**
@@ -91,8 +92,8 @@ type DiscoveryOptions = Pick<
   | 'dashboardTxnHarvest'
 >;
 
-/** Phase-emit Options (auth-discovery / otp-trigger). */
-type PhaseEmitOptions = Pick<IResultSlots, 'authDiscovery' | 'otpTrigger'>;
+/** Phase-emit Options (auth-discovery / otp-trigger / otp-fill). */
+type PhaseEmitOptions = Pick<IResultSlots, 'authDiscovery' | 'otpTrigger' | 'otpFill'>;
 
 /**
  * Phase-state slots — one Option per visible phase output.
@@ -124,7 +125,7 @@ function emptyDiscoveryOptions(): DiscoveryOptions {
  * @returns Phase-emit Options set to none().
  */
 function emptyPhaseEmitOptions(): PhaseEmitOptions {
-  return { authDiscovery: none(), otpTrigger: none() };
+  return { authDiscovery: none(), otpTrigger: none(), otpFill: none() };
 }
 
 /**

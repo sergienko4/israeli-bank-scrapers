@@ -78,6 +78,13 @@ function makePage(script: {
      */
     waitForResponse: (): Promise<never> => Promise.race([]),
     /**
+     * waitForLoadState — INIT.FINAL awaits the `load` event before
+     * wiring components. Mock resolves immediately (load already
+     * fired in the test fixture).
+     * @returns Resolved void.
+     */
+    waitForLoadState: (): Promise<void> => Promise.resolve(undefined),
+    /**
      * context — bag with on/off hooks.
      * @returns Self.
      */
@@ -143,56 +150,81 @@ describe('executeNavigateToBank', () => {
 });
 
 describe('executeValidatePage', () => {
-  it('fails when no browser', async () => {
+  it('fails when no browser', () => {
     const makeMockContextResult4 = makeMockContext();
-    const result = await executeValidatePage(makeMockContextResult4);
+    const result = executeValidatePage(makeMockContextResult4);
     const isOkResult5 = isOk(result);
     expect(isOkResult5).toBe(false);
   });
 
-  it('succeeds when page URL is not about:blank', async () => {
+  it('succeeds when page URL is not about:blank', () => {
     const page = makePage({ url: 'https://bank.co.il/login' });
     const ctxWithPageResult6 = ctxWithPage(page);
-    const result = await executeValidatePage(ctxWithPageResult6);
+    const result = executeValidatePage(ctxWithPageResult6);
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);
   });
 
-  it('fails when page URL is about:blank', async () => {
+  it('fails when page URL is about:blank', () => {
     const page = makePage({ url: 'about:blank' });
     const ctxWithPageResult8 = ctxWithPage(page);
-    const result = await executeValidatePage(ctxWithPageResult8);
+    const result = executeValidatePage(ctxWithPageResult8);
     const isOkResult9 = isOk(result);
     expect(isOkResult9).toBe(false);
   });
 
-  it('gracefully handles title() rejection (uses empty string fallback)', async () => {
+  it('returns success regardless of title — POST is URL-only, no HTML scan', () => {
     const page = makePage({ url: 'https://bank.co.il', titleThrows: true });
     const ctxWithPageResult10 = ctxWithPage(page);
-    const result = await executeValidatePage(ctxWithPageResult10);
+    const result = executeValidatePage(ctxWithPageResult10);
     const isOkResult11 = isOk(result);
     expect(isOkResult11).toBe(true);
   });
 });
 
 describe('executeWireComponents', () => {
-  it('fails when no browser', () => {
+  it('fails when no browser', async () => {
     const makeMockContextResult12 = makeMockContext();
-    const result = executeWireComponents(makeMockContextResult12);
+    const result = await executeWireComponents(makeMockContextResult12);
     const isOkResult13 = isOk(result);
     expect(isOkResult13).toBe(false);
   });
 
-  it('succeeds with mediator + fetchStrategy + loginUrl in diagnostics', () => {
+  it('succeeds with mediator + fetchStrategy + loginUrl in diagnostics', async () => {
     const page = makePage({ url: 'https://bank.co.il/login' });
     const ctxWithPageResult14 = ctxWithPage(page);
-    const result = executeWireComponents(ctxWithPageResult14);
+    const result = await executeWireComponents(ctxWithPageResult14);
     const isOkResult15 = isOk(result);
     expect(isOkResult15).toBe(true);
     if (result.success) {
       expect(result.value.mediator.has).toBe(true);
       expect(result.value.fetchStrategy.has).toBe(true);
       expect(result.value.diagnostics.loginUrl).toBe('https://bank.co.il/login');
+    }
+  });
+
+  it('fails loud when domcontentloaded never fires within INIT_DOM_READY_TIMEOUT_MS', async () => {
+    // Mission M4.F1 follow-up — INIT.FINAL must signal LOUD when
+    // the page never reached DOMContentLoaded. We make
+    // `waitForLoadState` reject (Playwright's TimeoutError shape)
+    // and assert the failure surfaces with the new error code.
+    const page = makePage({ url: 'https://bank.co.il/login' });
+    /**
+     * Simulates Playwright's TimeoutError when DOMContentLoaded
+     * never fires within the budget — INIT.FINAL must surface
+     * this loud.
+     *
+     * @returns Rejected promise with a TimeoutError-shaped message.
+     */
+    const rejectingWait = (): Promise<void> =>
+      Promise.reject(new Error('TimeoutError: dcl never fired'));
+    (page as unknown as { waitForLoadState: () => Promise<void> }).waitForLoadState = rejectingWait;
+    const ctxWithPageResult16 = ctxWithPage(page);
+    const result = await executeWireComponents(ctxWithPageResult16);
+    const isOkResult17 = isOk(result);
+    expect(isOkResult17).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('domcontentloaded not observed');
     }
   });
 });

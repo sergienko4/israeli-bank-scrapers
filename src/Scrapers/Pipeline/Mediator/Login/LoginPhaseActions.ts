@@ -423,7 +423,11 @@ async function executeDiscoverForm(
   const frameResult = await runPreAction(config, page);
   if (!frameResult.success) return frameResult;
   const activeFrame = frameResult.value;
-  const loginState: ILoginState = { activeFrame, persistentOtpToken: none() };
+  const loginState: ILoginState = {
+    activeFrame,
+    persistentOtpToken: none(),
+    urlBeforeSubmit: page.url(),
+  };
   input.logger.debug({
     message: maskVisibleText(`activeFrame=${activeFrame.url()}`),
   });

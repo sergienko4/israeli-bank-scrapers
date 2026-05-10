@@ -20,6 +20,7 @@ import type {
   IAuthDiscovery,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeMockLoginState } from '../../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 describe('AuthDiscoveryActions — focused branch coverage', () => {
@@ -132,6 +133,243 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       sessionCookieNames: ['JSESSIONID', 'PSEK'],
     };
     const ctx = { ...baseCtx, authDiscovery: some(snap) };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  // ── M4.F1 — dashboard-gate (REVEAL + URL changed from login) ──────
+  // Forcing function: PR #221 / Isracard CI run `25633964342`,
+  // runId `10-05-2026_16381614`. AUTH-DISCOVERY.POST already had
+  // `dashboardReady=false` but FINAL did nothing with it; DASHBOARD.PRE
+  // then failed with the cryptic "no navigation target found" message
+  // after 122 s. The two-signal gate moves the failure to
+  // AUTH-DISCOVERY.FINAL with a clear domain fail-code.
+
+  it('FINAL fails loud AUTH_DISCOVERY_DASHBOARD_NOT_READY when REVEAL did not match (snap.dashboardReady=false)', async () => {
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.isracard.co.il',
+      siteId: false,
+      headers: {},
+      dashboardReady: false,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const ctx = { ...baseCtx, authDiscovery: some(snap) };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('AUTH_DISCOVERY_DASHBOARD_NOT_READY');
+    }
+  });
+
+  it('FINAL fails loud AUTH_DISCOVERY_DASHBOARD_NOT_READY when URL never changed from the pre-auth baton', async () => {
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.isracard.co.il',
+      siteId: false,
+      headers: {},
+      dashboardReady: true,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const fakeMediator = {
+      /**
+       * Stubs the URL probe — returns the same string the pre-auth
+       * baton holds so the URL-change gate fails (mirror of the
+       * Isracard CI flow where the SPA stuck on the redirect page).
+       *
+       * @returns Pre-auth URL unchanged.
+       */
+      getCurrentUrl: (): string => 'https://web.isracard.co.il/Login',
+      /**
+       * No-op settle wait — FINAL awaits this before reading the URL
+       * so the gate compares against the FINAL post-auth URL.
+       *
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
+    } as unknown as IElementMediator;
+    const ctx = {
+      ...baseCtx,
+      authDiscovery: some(snap),
+      mediator: { has: true as const, value: fakeMediator },
+      login: some({ ...makeMockLoginState(), urlBeforeSubmit: 'https://web.isracard.co.il/Login' }),
+    };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('AUTH_DISCOVERY_DASHBOARD_NOT_READY');
+    }
+  });
+
+  it('FINAL settle wait swallows waitForNetworkIdle rejections without cascading (covers the .catch path)', async () => {
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.isracard.co.il',
+      siteId: false,
+      headers: {},
+      dashboardReady: true,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const fakeMediator = {
+      /**
+       * URL probe — returns a dashboard URL distinct from LOGIN.PRE
+       * emit so the URL-change gate would pass.
+       *
+       * @returns Distinct dashboard URL.
+       */
+      getCurrentUrl: (): string => 'https://web.isracard.co.il/Site/Dashboard',
+      /**
+       * Stub the settle wait as REJECTING. FINAL must swallow this
+       * (page may be transient mid-redirect) and proceed to read
+       * the URL anyway. Test asserts the rejection does not cascade.
+       *
+       * @returns Rejected promise.
+       */
+      waitForNetworkIdle: () => Promise.reject(new Error('settle aborted')),
+    } as unknown as IElementMediator;
+    const ctx = {
+      ...baseCtx,
+      authDiscovery: some(snap),
+      mediator: { has: true as const, value: fakeMediator },
+      login: some({ ...makeMockLoginState(), urlBeforeSubmit: 'https://web.isracard.co.il/Login' }),
+    };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('FINAL precedence: ctx.otpFill emit wins over ctx.otpTrigger and ctx.login when all three are present', async () => {
+    // 5 auth-ladder flows supported. This test pins the precedence:
+    // otpFill > otpTrigger > login. The OTP-FILL emit is always set
+    // when OTP-FILL ran (form-found / soft-skip / MOCK_MODE), so it
+    // is the freshest baton available.
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.bank',
+      siteId: false,
+      headers: {},
+      dashboardReady: true,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const fakeMediator = {
+      /**
+       * URL probe returns the OTP-FILL emit's URL — proves the gate
+       * read otpFill (not login or otpTrigger) and therefore failed
+       * the URL-change check.
+       * @returns OTP-FILL's emitted URL (gate must compare against this).
+       */
+      getCurrentUrl: (): string => 'https://web.bank/otp',
+      /**
+       * No-op settle wait.
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
+    } as unknown as IElementMediator;
+    const ctx = {
+      ...baseCtx,
+      authDiscovery: some(snap),
+      mediator: { has: true as const, value: fakeMediator },
+      login: some({ ...makeMockLoginState(), urlBeforeSubmit: 'https://web.bank/login' }),
+      otpTrigger: some({
+        phoneHint: '',
+        triggered: false,
+        scopeValidated: false,
+        urlBeforeSubmit: 'https://web.bank/otp-trigger',
+      }),
+      otpFill: some({ urlBeforeSubmit: 'https://web.bank/otp' }),
+    };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('AUTH_DISCOVERY_DASHBOARD_NOT_READY');
+    }
+  });
+
+  it('FINAL precedence: ctx.otpTrigger wins over ctx.login when otpFill is none', async () => {
+    // Flow 2: LOGIN → OTP-TRIGGER → AUTH-DISCOVERY (no OTP-FILL).
+    // OTP-TRIGGER carried LOGIN's urlBeforeSubmit forward; the gate
+    // must read it (not LOGIN's directly).
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.bank',
+      siteId: false,
+      headers: {},
+      dashboardReady: true,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const fakeMediator = {
+      /**
+       * URL probe — matches OTP-TRIGGER's carried URL so the gate
+       * fails on URL-stuck (proves otpTrigger was read).
+       * @returns OTP-TRIGGER's emit URL.
+       */
+      getCurrentUrl: (): string => 'https://web.bank/login',
+      /**
+       * No-op settle wait.
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
+    } as unknown as IElementMediator;
+    const ctx = {
+      ...baseCtx,
+      authDiscovery: some(snap),
+      mediator: { has: true as const, value: fakeMediator },
+      login: some({ ...makeMockLoginState(), urlBeforeSubmit: 'https://web.bank/login' }),
+      otpTrigger: some({
+        phoneHint: '',
+        triggered: true,
+        scopeValidated: true,
+        urlBeforeSubmit: 'https://web.bank/login',
+      }),
+    };
+    const result = await executeAuthDiscoveryFinal(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('AUTH_DISCOVERY_DASHBOARD_NOT_READY');
+    }
+  });
+
+  it('FINAL passes through when REVEAL matched AND URL changed from the pre-auth baton (happy-path regression guard)', async () => {
+    const baseCtx = makeMockContext();
+    const snap: IAuthDiscovery = {
+      authToken: 'fake-bearer',
+      origin: 'https://web.isracard.co.il',
+      siteId: false,
+      headers: {},
+      dashboardReady: true,
+      sessionCookieNames: ['JSESSIONID'],
+    };
+    const fakeMediator = {
+      /**
+       * Stubs the URL probe — returns a dashboard URL distinct from
+       * what LOGIN emitted so the URL-change gate passes.
+       *
+       * @returns Dashboard URL distinct from LOGIN's emit.
+       */
+      getCurrentUrl: (): string => 'https://web.isracard.co.il/Site/Dashboard',
+      /**
+       * No-op settle wait — FINAL awaits this before reading the URL.
+       *
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
+    } as unknown as IElementMediator;
+    const ctx = {
+      ...baseCtx,
+      authDiscovery: some(snap),
+      mediator: { has: true as const, value: fakeMediator },
+      login: some({ ...makeMockLoginState(), urlBeforeSubmit: 'https://web.isracard.co.il/Login' }),
+    };
     const result = await executeAuthDiscoveryFinal(ctx);
     const wasOk = isOk(result);
     expect(wasOk).toBe(true);

@@ -36,6 +36,7 @@ const INIT_STUBS = {
   otpConfig: none(),
   loginAreaReady: false,
   txnEndpoint: none(),
+  otpFill: none(),
 };
 
 /**
@@ -74,12 +75,13 @@ class InitPhase extends BasePhase {
   }
 
   /** @inheritdoc */
-  public async post(
+  public post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'init.post' });
-    return executeValidatePage(input);
+    const validated = executeValidatePage(input);
+    return Promise.resolve(validated);
   }
 
   /** @inheritdoc */

@@ -30,6 +30,33 @@ export const HUMAN_DELAY_MIN_MS = 300;
 /** Maximum human-like delay for general interactions (ms). */
 export const HUMAN_DELAY_MAX_MS = 1200;
 
+// ── INIT phase ─────────────────────────────────────────────────────
+
+/**
+ * INIT.ACTION navigation commit ceiling — Mission M4.F1 follow-up.
+ * Replaces Playwright's 30 s default with a 15 s commit-only wait.
+ * `page.goto(url, { waitUntil: 'commit' })` returns as soon as the
+ * server responds with the first byte (TLS done + HTTP headers
+ * received). Camoufox-isolated probe (2026-05-10) measured every
+ * browser-flow bank below 1 s for `commit`; the 15 s ceiling
+ * absorbs the 10× slowdown observed when the pre-commit hook runs
+ * 6 banks in parallel and Camoufox launches contend for bandwidth.
+ */
+export const INIT_NAV_COMMIT_TIMEOUT_MS = 15_000;
+
+/**
+ * INIT.FINAL `domcontentloaded` ceiling — Mission M4.F1 follow-up.
+ * `page.waitForLoadState('domcontentloaded')` resolves when the
+ * HTML parser finishes — DOM is usable. We deliberately do NOT
+ * wait for the `load` event because half the browser-flow banks
+ * (max / amex / isracard) take 12–15 s to fire `load` (analytics,
+ * marketing scripts, fonts) — work the framework never reads.
+ * Camoufox-isolated probe measured every bank under 3.5 s for
+ * `domcontentloaded`; the 10 s ceiling absorbs parallel-run
+ * variance.
+ */
+export const INIT_DOM_READY_TIMEOUT_MS = 10_000;
+
 // ── HOME phase ─────────────────────────────────────────────────────
 
 /** HOME settle ceiling after click — TIMING mission cut from 15000. */
@@ -131,6 +158,16 @@ export const AUTH_POLL_TIMEOUT_MS = 3_000;
  * bank empirically requires it.
  */
 export const AUTH_DISCOVERY_PRE_SETTLE_MS = 3_000;
+
+/**
+ * AUTH-DISCOVERY.FINAL settle ceiling — Mission M4.F1. Before FINAL
+ * reads `mediator.getCurrentUrl()` to compare against the URL
+ * LOGIN.PRE emitted, give the page one more event-driven idle wait
+ * (1 s ceiling) so the URL we compare against is the FINAL post-auth
+ * URL, not a transient redirect intermediate. Fast banks pay 0 ms;
+ * banks with a slow last redirect pay up to the ceiling.
+ */
+export const AUTH_DISCOVERY_FINAL_SETTLE_MS = 1_000;
 
 // ── ACCOUNT-RESOLVE phase ──────────────────────────────────────────
 

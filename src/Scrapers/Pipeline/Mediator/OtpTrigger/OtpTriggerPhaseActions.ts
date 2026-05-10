@@ -78,11 +78,13 @@ async function executeTriggerPre(input: IPipelineContext): Promise<Procedure<IPi
   if (!hasTrigger && !isMockMode) {
     return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
   }
+  const otpTriggerPreUrl = mediator.getCurrentUrl();
   const diag = {
     ...input.diagnostics,
     lastAction: `otp-trigger-pre (found=${String(hasTrigger)})`,
     otpTriggerTarget: triggerTarget,
     otpPhoneHint: phoneHint,
+    otpTriggerPreUrl,
   };
   return succeed({ ...input, diagnostics: diag });
 }
@@ -296,17 +298,22 @@ function readPhoneHint(diag: IPipelineContext['diagnostics']): string {
 
 /**
  * Build the slim {@link IOtpTrigger} snapshot from the accumulated
- * diagnostics. Pure — no side effects.
+ * diagnostics. Pure — no side effects. SOLID: OTP-TRIGGER captures
+ * its OWN `urlBeforeSubmit` at PRE entry (via `mediator.getCurrentUrl()`
+ * in `executeTriggerPre`) — does NOT inherit from `ctx.login`,
+ * because LOGIN.ACTION may have navigated the page (login form →
+ * OTP form) before OTP-TRIGGER ran. Each phase owns its inputs.
  *
- * @param diag - Pipeline diagnostics record.
+ * @param input - Pipeline context (carries OTP-TRIGGER.PRE captures).
  * @returns Slim OTP-TRIGGER value snapshot.
  */
-function buildOtpTriggerSnapshot(diag: IPipelineContext['diagnostics']): IOtpTrigger {
-  const target = readDiagTarget(diag, 'otpTriggerTarget');
+function buildOtpTriggerSnapshot(input: IPipelineContext): IOtpTrigger {
+  const target = readDiagTarget(input.diagnostics, 'otpTriggerTarget');
   return {
-    phoneHint: readPhoneHint(diag),
+    phoneHint: readPhoneHint(input.diagnostics),
     triggered: target !== false,
-    scopeValidated: readScopeValidated(diag),
+    scopeValidated: readScopeValidated(input.diagnostics),
+    urlBeforeSubmit: input.diagnostics.otpTriggerPreUrl ?? '',
   };
 }
 
@@ -342,7 +349,7 @@ function commitOtpTrigger(
  * @returns Updated context with `otpTrigger` populated.
  */
 function executeTriggerFinal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const snapshot = buildOtpTriggerSnapshot(input.diagnostics);
+  const snapshot = buildOtpTriggerSnapshot(input);
   const committed = commitOtpTrigger(input, snapshot);
   return Promise.resolve(committed);
 }

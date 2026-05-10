@@ -255,6 +255,15 @@ function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
      * @returns Resolved succeed.
      */
     waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
+    /**
+     * Synchronous URL probe — AUTH-DISCOVERY.FINAL reads it during
+     * the M4.F1 dashboard gate. Empty string is the "test path"
+     * sentinel: the predicate disables the URL-change check when
+     * either side is `''`, so the gate decides on REVEAL alone here.
+     *
+     * @returns Empty string — opts the fixture out of the URL gate.
+     */
+    getCurrentUrl: (): string => '',
   } as unknown as IElementMediator;
 }
 

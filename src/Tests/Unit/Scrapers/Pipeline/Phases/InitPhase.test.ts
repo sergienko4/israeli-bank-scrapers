@@ -53,9 +53,6 @@ const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/Init
 
 // ── Helpers ────────────────────────────────────────────────
 
-/** URL returned by mock page. */
-type MockUrl = string;
-
 /** Mock browser stack returned by MAKE_BROWSER_MOCK. */
 interface IMockBrowserStack {
   readonly mockBrowser: { newContext: jest.Mock; close: jest.Mock };
@@ -81,7 +78,7 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
      * Mock URL getter.
      * @returns Test bank URL string.
      */
-    url: (): MockUrl => 'https://test.bank',
+    url: (): string => 'https://test.bank',
     /**
      * Mock title getter.
      * @returns Test page title.
@@ -89,6 +86,7 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
     title: (): Promise<string> => Promise.resolve('Test Bank'),
     goto: jest.fn().mockResolvedValue(null),
     locator: jest.fn().mockReturnValue({ first: jest.fn().mockReturnValue({ click: jest.fn() }) }),
+    waitForLoadState: jest.fn().mockResolvedValue(undefined),
   };
   const mockContext = {
     newPage: jest.fn().mockResolvedValue(mockPage),

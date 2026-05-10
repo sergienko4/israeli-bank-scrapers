@@ -33,6 +33,15 @@ interface IBrowserState {
 interface ILoginState {
   readonly activeFrame: Page | Frame;
   readonly persistentOtpToken: Option<string>;
+  /**
+   * URL captured at LOGIN.PRE entry — the page where credentials are
+   * about to be submitted. Threaded forward through OTP-TRIGGER /
+   * OTP-FILL emits (each phase carries the latest value on its own
+   * slim contract). AUTH-DISCOVERY.FINAL reads the LATEST slot's
+   * value to compare against the post-auth current URL (Mission M4.F1
+   * dashboard gate). Empty string ⇒ test / mock paths only.
+   */
+  readonly urlBeforeSubmit: string;
 }
 
 /** Dashboard phase result context. */
@@ -94,6 +103,13 @@ interface IDiagnosticsState {
   readonly submitMethod?: 'enter' | 'click' | 'both';
   /** API strategy discovered in LOGIN.FINAL — single value (DIRECT) post .ashx removal. */
   readonly apiStrategy?: ApiStrategyKind;
+  /**
+   * URL captured at OTP-TRIGGER.PRE entry — Mission M4.F1 baton.
+   * OTP-TRIGGER.FINAL reads this to build its own slim emit's
+   * `urlBeforeSubmit` field. Empty / absent ⇒ OTP-TRIGGER did not
+   * run (test paths or non-OTP banks).
+   */
+  readonly otpTriggerPreUrl?: string;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */
@@ -319,6 +335,13 @@ interface IPipelineContext {
    * {@link IAuthDiscovery} and {@link IAccountDiscovery}.
    */
   readonly otpTrigger: Option<IOtpTrigger>;
+  /**
+   * OTP-FILL emit — Mission M4.F1. Populated by OTP-FILL.PRE
+   * (whether the form was found, soft-skipped, or MOCK-bypassed).
+   * Carries `urlBeforeSubmit` as a baton so AUTH-DISCOVERY.FINAL
+   * reads the SAME shape across all 5 auth-ladder flows.
+   */
+  readonly otpFill: Option<IOtpFill>;
 }
 
 /**
@@ -433,6 +456,14 @@ interface IOtpTrigger {
    * `triggerClickedAt`.
    */
   readonly scopeValidated: boolean;
+  /**
+   * URL baton (Mission M4.F1) — copied forward from
+   * `ctx.login.value.urlBeforeSubmit` so AUTH-DISCOVERY.FINAL reads
+   * one consistent contract regardless of which auth phase ran last.
+   * OTP-TRIGGER does not re-capture the URL; it preserves the value
+   * the previous phase emitted.
+   */
+  readonly urlBeforeSubmit: string;
 }
 
 /**
@@ -443,7 +474,30 @@ const EMPTY_OTP_TRIGGER: IOtpTrigger = {
   phoneHint: '',
   triggered: false,
   scopeValidated: false,
+  urlBeforeSubmit: '',
 };
+
+/**
+ * OTP-FILL slim emit — Mission M4.F1. Always populated when OTP-FILL
+ * ran (whether it actually filled an OTP, soft-skipped because
+ * `required=false`, or bypassed under MOCK_MODE). Carries
+ * {@link urlBeforeSubmit} as a baton so AUTH-DISCOVERY.FINAL reads
+ * the same field regardless of which auth-ladder shape the bank
+ * needed (5 supported flows: LOGIN-only, +OTP-TRIGGER,
+ * +OTP-TRIGGER+OTP-FILL, +OTP-FILL, +optional-OTP-FILL).
+ */
+interface IOtpFill {
+  /**
+   * URL baton — captured at OTP-FILL.PRE entry when the OTP form
+   * was found, OR copied forward from
+   * {@link IOtpTrigger.urlBeforeSubmit} / {@link ILoginState.urlBeforeSubmit}
+   * when OTP-FILL soft-skipped.
+   */
+  readonly urlBeforeSubmit: string;
+}
+
+/** Empty default for test paths. */
+const EMPTY_OTP_FILL: IOtpFill = { urlBeforeSubmit: '' };
 
 /**
  * Empty-harvest sentinel for SCRAPE consumers when DASHBOARD did
@@ -644,6 +698,7 @@ export type {
   IDashboardTxnHarvest,
   IDiagnosticsState,
   ILoginState,
+  IOtpFill,
   IOtpTrigger,
   IPipelineContext,
   IScrapeDiscovery,
@@ -653,4 +708,4 @@ export type {
   ITxnFieldMap,
   PickerTier,
 };
-export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };
+export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };

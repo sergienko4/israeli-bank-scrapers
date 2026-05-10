@@ -150,6 +150,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     dashboardTxnHarvest: none(),
     authDiscovery: none(),
     otpTrigger: none(),
+    otpFill: none(),
   };
   return { ...defaults, ...overrides };
 }

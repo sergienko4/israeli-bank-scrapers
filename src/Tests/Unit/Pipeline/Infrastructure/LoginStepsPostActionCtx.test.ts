@@ -327,6 +327,7 @@ function makeMockLoginState(page: Page): ILoginState {
   const state: ILoginState = {
     activeFrame: page,
     persistentOtpToken: none(),
+    urlBeforeSubmit: '',
   };
   return state;
 }
