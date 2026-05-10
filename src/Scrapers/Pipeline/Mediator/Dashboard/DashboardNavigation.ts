@@ -16,7 +16,7 @@ import { extractTransactionHref } from './DashboardHrefExtraction.js';
 export { buildApiContext } from '../Dashboard/DashboardApiContext.js';
 
 const LOG = createLogger('dashboard-nav');
-const ORGANIC_IDLE_MS = 15000;
+const ORGANIC_IDLE_MS = 3000;
 const DATE_FILTER_TIMEOUT_MS = 5000;
 
 /**

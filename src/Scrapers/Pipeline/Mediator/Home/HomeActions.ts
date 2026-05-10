@@ -31,11 +31,11 @@ import type {
 import type { IHomeDiscovery } from './HomeResolver.js';
 import { NAV_STRATEGY } from './HomeResolver.js';
 
-/** Timeout for settle after click. */
-const SETTLE_TIMEOUT = 15000;
+/** Timeout ceiling for settle after click — early-exit via waitForNetworkIdle. */
+const SETTLE_TIMEOUT = 8000;
 
-/** Timeout for waiting for login link in POST. */
-const ENTRY_TIMEOUT = 15000;
+/** Timeout ceiling for login-link/form-gate probe in POST — early-exit via resolveVisible. */
+const ENTRY_TIMEOUT = 5000;
 
 /** Timeout for SPA URL change after click (Angular routing delay). */
 const SPA_NAV_TIMEOUT = 10000;

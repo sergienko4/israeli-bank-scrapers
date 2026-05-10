@@ -45,7 +45,7 @@ const TRIGGER_PROBE_TIMEOUT = 15000;
 /** Timeout for menu settle after toggle click. */
 const MENU_SETTLE_MS = 5000;
 /** Timeout for post-login redirect settle before probing dashboard. */
-const DASHBOARD_SETTLE_MS = 15000;
+const DASHBOARD_SETTLE_MS = 5000;
 /** Should force-click for hidden menu toggles. */
 const shouldForceMenuClick = true;
 
@@ -384,14 +384,55 @@ async function buildApiIfAvailable(
 }
 
 /**
- * Dump all visible clickable text on the page for WK forensic discovery.
- * Used when no target found -- logs text so we can add correct WK candidates.
- * @param input - Pipeline context with browser.
- * @returns True when the dump emitted at least one masked log line, false
- * when no browser was attached or the underlying $$eval failed silently.
+ * URL substrings that indicate the bank served a redirect interstitial
+ * instead of the real dashboard. Observed in live E2E (Isracard
+ * `/StatusPage` mobile-app push, run `10-05-2026_01163762`). Each
+ * pattern is matched via `String.includes` against the page URL —
+ * cheap and case-sensitive against the bank's actual route names.
  */
-async function dumpDashboardText(input: IPipelineContext): Promise<boolean> {
-  if (!input.browser.has) return false;
+const BANK_REDIRECT_URL_MARKERS: readonly string[] = ['/StatusPage'];
+
+/**
+ * Visible-text markers on bank-redirect interstitials. The string IS
+ * what the user would read on the page — Hebrew "to the app" CTA on
+ * Isracard's mobile-redirect interstitial. Match is exact (Set-based).
+ */
+const BANK_REDIRECT_TEXT_MARKERS: readonly string[] = ['לאפליקציה'];
+
+/**
+ * Distinguish a bank-served redirect interstitial from a real DOM-
+ * rendering failure. Pure predicate — no side effects, no IO. Returns
+ * true when the page URL or the visible clickable texts match a known
+ * interstitial signature.
+ *
+ * @param currentUrl - Page URL at DASHBOARD.PRE attempt.
+ * @param visibleTexts - Visible clickable texts dumped by the
+ *   forensic helper (cleaned, deduplicated).
+ * @returns True when this is a known bank-redirect interstitial.
+ */
+function detectBankRedirectInterstitial(
+  currentUrl: string,
+  visibleTexts: readonly string[],
+): boolean {
+  const hasUrlMatch = BANK_REDIRECT_URL_MARKERS.some((marker): boolean =>
+    currentUrl.includes(marker),
+  );
+  if (hasUrlMatch) return true;
+  const textSet = new Set<string>(visibleTexts);
+  return BANK_REDIRECT_TEXT_MARKERS.some((marker): boolean => textSet.has(marker));
+}
+
+/**
+ * Dump all visible clickable text on the page for WK forensic discovery
+ * AND return them so the caller can run the bank-redirect detector
+ * without a second page round-trip.
+ *
+ * @param input - Pipeline context with browser.
+ * @returns The collected visible texts; empty array when no browser
+ *   was attached or `$$eval` failed silently.
+ */
+async function dumpDashboardTextAndCollect(input: IPipelineContext): Promise<readonly string[]> {
+  if (!input.browser.has) return [];
   try {
     const page = input.browser.value.page;
     const sel = 'a, button, [role="tab"], [role="link"], [role="button"]';
@@ -403,10 +444,10 @@ async function dumpDashboardText(input: IPipelineContext): Promise<boolean> {
     input.logger.debug({
       message: `VISIBLE CLICKABLE TEXT: [${texts.join(' | ')}]`,
     });
-    return true;
+    return texts;
   } catch {
     /* test mock or closed page */
-    return false;
+    return [];
   }
 }
 
@@ -417,6 +458,40 @@ interface IPreDiscoveryResult {
   readonly hasAny: boolean;
   readonly apiCtx: IApiFetchContext | false;
   readonly hasExistingTraffic: boolean;
+}
+
+/**
+ * Build the fail-loud Procedure for the "no nav target" PRE outcome.
+ * Distinguishes a known bank-redirect interstitial (specific code
+ * `DASHBOARD_BANK_REDIRECT`) from a real DOM-rendering failure
+ * (specific code `DASHBOARD_NO_NAV_TARGET`). Caller already verified
+ * `input.mediator.has === true`.
+ *
+ * @param input - Pipeline context.
+ * @param mediator - Unwrapped element mediator (caller-narrowed from
+ *   `input.mediator.value`); used to read the current page URL for
+ *   the redirect detector without re-checking the option wrapper.
+ * @returns Failure Procedure with the specific code in the message.
+ */
+async function failNoNavTarget(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+): Promise<Procedure<IPipelineContext>> {
+  const visibleTexts = await dumpDashboardTextAndCollect(input);
+  const currentUrl = mediator.getCurrentUrl();
+  const isRedirect = detectBankRedirectInterstitial(currentUrl, visibleTexts);
+  if (isRedirect) {
+    input.logger.debug({
+      event: 'dashboard.pre.bank-redirect',
+      url: maskVisibleText(currentUrl),
+      message: 'DASHBOARD_BANK_REDIRECT — bank served interstitial page',
+    });
+    return fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD_BANK_REDIRECT: bank served interstitial page (mobile-app push or status redirect)',
+    );
+  }
+  return fail(ScraperErrorTypes.Generic, 'DASHBOARD_NO_NAV_TARGET: no navigation target found');
 }
 
 /**
@@ -461,10 +536,7 @@ async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<I
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no browser');
   const disc = await discoverDashboard(input, input.mediator.value, input.browser.value.page);
   logWinningTarget(input, disc.targets);
-  if (!disc.hasAny) {
-    await dumpDashboardText(input);
-    return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no navigation target found');
-  }
+  if (!disc.hasAny) return failNoNavTarget(input, input.mediator.value);
   const diag = {
     ...input.diagnostics,
     lastAction: `dashboard-pre (${disc.matchInfo})`,
@@ -1142,7 +1214,10 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
 }
 
 export {
+  BANK_REDIRECT_TEXT_MARKERS,
+  BANK_REDIRECT_URL_MARKERS,
   buildDropdownToggleSelector,
+  detectBankRedirectInterstitial,
   executeCollectAndSignal,
   executeDashboardNavigationSealed,
   executePreLocateNav,

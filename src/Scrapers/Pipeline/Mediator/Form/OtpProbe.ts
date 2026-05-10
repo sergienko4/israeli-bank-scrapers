@@ -39,8 +39,8 @@ async function detectOtpTrigger(mediator: IElementMediator): Promise<Procedure<I
   return succeed(result);
 }
 
-/** Timeout for discovering OTP submit after trigger. */
-const OTP_SUBMIT_TIMEOUT = 15000;
+/** Timeout ceiling for OTP submit probe — early-exit via resolveVisible. */
+const OTP_SUBMIT_TIMEOUT = 5000;
 
 /**
  * Detect OTP submit button — scoped to the same context as the OTP input.

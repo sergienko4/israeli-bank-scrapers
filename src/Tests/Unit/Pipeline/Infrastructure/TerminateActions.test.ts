@@ -138,6 +138,47 @@ describe('executeRunCleanupsFromContext (POST)', () => {
     const isOkResult10 = isOk(result);
     expect(isOkResult10).toBe(true);
   });
+
+  it('returns within budget when a cleanup hangs (Isracard /Logout regression)', async () => {
+    // Stage-isolation regression: live Isracard run 10-05-2026_02023248
+    // hung in TERMINATE.POST for ~9 min because Playwright's page.close()
+    // cleanup waits for network-idle and Isracard's frontend JavaScript
+    // keeps firing keepAlive POSTs every 30s — the page never settles.
+    // The cleanup budget protects the pipeline so the LIFO walk continues
+    // even when one cleanup hangs.
+    const cleanups: IBrowserState['cleanups'] = [
+      /**
+       * Hung cleanup — never resolves. Proves the budget kicks in.
+       *
+       * @returns Never-resolving promise.
+       */
+      (): Promise<Procedure<void>> => {
+        /**
+         * No-op executor: never invokes resolve/reject so the promise
+         * stays pending forever — the budget guard is the only escape.
+         *
+         * @returns True (satisfies the no-`void` lint rule).
+         */
+        const noopExecutor = (): boolean => true;
+        return Reflect.construct(Promise, [noopExecutor]) as Promise<Procedure<void>>;
+      },
+    ];
+    const browserState = makeMockBrowserState(undefined, cleanups);
+    const ctx = makeMockContext({ browser: some(browserState) });
+    const startedAt = Date.now();
+    const result = await executeRunCleanupsFromContext(ctx);
+    const elapsedMs = Date.now() - startedAt;
+    const isOkResult11 = isOk(result);
+    // Pipeline never crashes — POST always succeeds; the budget surfaces
+    // as a fail Procedure inside runCleanup that the LIFO walk swallows.
+    expect(isOkResult11).toBe(true);
+    // Without the budget, this hangs past jest's 5s default test timeout.
+    // The budget caps each cleanup at ~5s; the test must return well
+    // under jest's per-test ceiling. 10s gives a comfortable margin
+    // against CPU contention while still failing loud if the budget
+    // regresses.
+    expect(elapsedMs).toBeLessThan(10_000);
+  }, 15_000);
 });
 
 describe('executeLogResults / executeSignalDone', () => {

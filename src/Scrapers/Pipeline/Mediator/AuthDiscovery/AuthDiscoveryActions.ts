@@ -53,7 +53,7 @@ import {
 } from './AuthDiscoveryProbes.js';
 
 /** Wait budget for the dashboard reveal probe (ms). Phase-internal. */
-const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 8000;
+const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 3000;
 
 /**
  * MOCK_MODE safety valve — lets AUTH-DISCOVERY skip its network-

@@ -10,7 +10,7 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 
 /** Max wait for organic SPA traffic after login. */
-const TRAFFIC_WAIT_TIMEOUT = 30000;
+const TRAFFIC_WAIT_TIMEOUT = 10000;
 
 /**
  * Post-login traffic gate — Phase 7e R-AUTH-CLEANUP: no WK_API.transactions

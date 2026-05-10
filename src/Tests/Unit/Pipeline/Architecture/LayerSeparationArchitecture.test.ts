@@ -782,3 +782,83 @@ describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard
     expect(summary).toEqual([]);
   });
 });
+
+/**
+ * TIMING mission (CI quality hardening plan) — R-NO-FIXED-WAIT-15S.
+ *
+ * <p>Drift prevention: every fixed-wait constant of 15_000 ms (or
+ * `15000` / `15_000` numeric literal) under
+ * `src/Scrapers/Pipeline/Mediator/` outside the documented allowlist
+ * fails the build. The TIMING mission converted seven such waits to
+ * `pollWithBudget` early-exit or to lower ceilings; this rule blocks
+ * regressions where a future commit silently re-introduces the same
+ * fixed-wait pattern.
+ *
+ * <p>Allowlist: `ActionExecutors.ts` (`CLICK_TIMEOUT_MS` — Playwright
+ * auto-wait), `SelectorResolverConfig.ts` (`CANDIDATE_TIMEOUT_MS` —
+ * per-locator), `ElementsInteractionConfig.ts`
+ * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe).
+ */
+const FIXED_WAIT_15S_ALLOWLIST: readonly string[] = [
+  path.join('Mediator', 'Elements', 'ActionExecutors.ts'),
+  path.join('Mediator', 'Selector', 'SelectorResolverConfig.ts'),
+  path.join('Mediator', 'Elements', 'ElementsInteractionConfig.ts'),
+];
+
+/**
+ * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000` constant
+ * declarations on a single line. Captures both `15000` and `15_000`. The
+ * `_TIMEOUT` alternative (without `_MS` suffix) catches names like
+ * `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
+ */
+const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)\s*=\s*15_?000\b/;
+
+/**
+ * Find lines declaring a 15s fixed-wait constant.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findFixedWait15sLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (FIXED_WAIT_15S_REGEX.test(line)) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan all `Mediator/` files (outside the allowlist) for fixed-wait
+ * 15-second constants.
+ *
+ * @returns Forbidden-constant hits, empty when the rule holds.
+ */
+function findFixedWait15sConstants(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  const mediatorZone = path.join('Mediator');
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (!relPathMatches(rel, mediatorZone)) continue;
+    if (FIXED_WAIT_15S_ALLOWLIST.some((allowed): boolean => relPathMatches(rel, allowed))) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findFixedWait15sLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'fixed 15s wait', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constants in Mediator/ outside allowlist', () => {
+  it('no Mediator file declares a 15s _TIMEOUT_MS / _WAIT_MS / _BUDGET_MS outside the allowlist', () => {
+    const hits = findFixedWait15sConstants();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});

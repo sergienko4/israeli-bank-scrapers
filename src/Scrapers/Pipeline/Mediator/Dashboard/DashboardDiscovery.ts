@@ -16,10 +16,10 @@ import { buildDateCandidates } from './DashboardDateCandidates.js';
 
 export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
 
-/** Timeout for SUCCESS probe. */
-const DASHBOARD_TIMEOUT = 30000;
-/** Timeout for REVEAL probe. */
-const REVEAL_TIMEOUT_MS = 15000;
+/** Timeout ceiling for SUCCESS probe — early-exit via resolveVisible. */
+const DASHBOARD_TIMEOUT = 8000;
+/** Timeout ceiling for REVEAL probe — early-exit via resolveVisible (winner typically at index 0). */
+const REVEAL_TIMEOUT_MS = 3000;
 
 /**
  * Filter endpoints that arrived after a given timestamp.

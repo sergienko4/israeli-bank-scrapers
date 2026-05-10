@@ -89,7 +89,7 @@ function makeCapture(body: unknown, captureIndex: number): IDiscoveredEndpoint {
 }
 
 describe('ACCOUNT-RESOLVE.PRE — Phase 7d edge cases', () => {
-  it('exposes the 20s budget constant', () => {
+  it('exposes the 20s budget constant (post-cumulative-cut bump, see Mediator JSDoc)', () => {
     expect(ACCOUNT_RESOLVE_BUDGET_MS).toBe(20_000);
   });
 

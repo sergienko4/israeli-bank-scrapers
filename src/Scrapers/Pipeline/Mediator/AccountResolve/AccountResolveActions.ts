@@ -33,7 +33,16 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { discoverAccountsInPool, poolMaxContainer } from './AccountFromPool.js';
 
-/** Wait budget for the first id-bearing capture (ms). */
+/**
+ * Wait budget for the first id-bearing capture (ms). Bumped from
+ * 10s to 20s after live Discount run 10-05-2026_02325569 timed out
+ * with `pool=1` while the previous run on the same code path had
+ * `pool=72`. The TIMING cuts to upstream phases (HOME, LOGIN,
+ * AUTH-DISCOVERY) shifted ACCOUNT-RESOLVE earlier in absolute time,
+ * so the bank's id endpoint occasionally hasn't fired by the 10s
+ * mark. The 20s ceiling absorbs cumulative-cut slack while keeping
+ * the original TIMING-mission gain on every other phase.
+ */
 const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;
 
 /**
