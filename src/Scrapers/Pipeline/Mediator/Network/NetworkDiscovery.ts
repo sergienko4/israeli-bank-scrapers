@@ -22,7 +22,7 @@ import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
-import { hasTxnArray } from '../Scrape/TxnShape.js';
+import { hasTxnArray, isTxnWidgetUrl } from '../Scrape/TxnShape.js';
 import { createPromise } from '../Timing/TimingActions.js';
 import {
   NETWORK_POST_INTERCEPT_TIMEOUT_MS,
@@ -298,6 +298,8 @@ interface ITierPickOutcome {
  * Run the shape-aware tier preference over a single candidate pool
  * (post-click or pre-click). Returns the chosen endpoint with its
  * tier label, or `none` when the pool yields no usable URL.
+ * Rejects dashboard-widget URLs (M4.F2) via {@link isTxnWidgetUrl}
+ * before scoring so widgets never reach SCRAPE.
  *
  * @param pool - Candidate captured endpoints to consider.
  * @param patterns - WellKnown URL patterns to match.
@@ -307,7 +309,9 @@ function tierPick(
   pool: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): ITierPickOutcome {
-  const urlMatches = pool.filter((ep): boolean => patterns.some((p): boolean => p.test(ep.url)));
+  const urlMatches = pool.filter(
+    (ep): boolean => patterns.some((p): boolean => p.test(ep.url)) && !isTxnWidgetUrl(ep.url),
+  );
   if (urlMatches.length === 0) return { endpoint: false, tier: 'none', matches: 0 };
   const matches = urlMatches.length;
   const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));

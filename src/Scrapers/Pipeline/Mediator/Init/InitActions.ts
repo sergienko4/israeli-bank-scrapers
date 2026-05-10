@@ -22,7 +22,11 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
-import { INIT_DOM_READY_TIMEOUT_MS, INIT_NAV_COMMIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import waitForDomReady from '../Elements/PageReadiness.js';
+import {
+  ELEMENTS_DOM_READY_TIMEOUT_MS,
+  INIT_NAV_COMMIT_TIMEOUT_MS,
+} from '../Timing/TimingConfig.js';
 
 /**
  * Cold-Start protocol — when DUMP_SNAPSHOTS=1, strip every cookie so
@@ -145,10 +149,7 @@ async function executeWireComponents(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT FINAL: no browser');
   const page = input.browser.value.page;
-  const wasReady = await page
-    .waitForLoadState('domcontentloaded', { timeout: INIT_DOM_READY_TIMEOUT_MS })
-    .then((): true => true)
-    .catch((): false => false);
+  const wasReady = await waitForDomReady(page, ELEMENTS_DOM_READY_TIMEOUT_MS);
   if (!wasReady) {
     return fail(ScraperErrorTypes.Generic, 'INIT FINAL: domcontentloaded not observed');
   }

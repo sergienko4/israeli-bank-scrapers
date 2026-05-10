@@ -46,16 +46,28 @@ export const INIT_NAV_COMMIT_TIMEOUT_MS = 15_000;
 
 /**
  * INIT.FINAL `domcontentloaded` ceiling — Mission M4.F1 follow-up.
- * `page.waitForLoadState('domcontentloaded')` resolves when the
- * HTML parser finishes — DOM is usable. We deliberately do NOT
- * wait for the `load` event because half the browser-flow banks
- * (max / amex / isracard) take 12–15 s to fire `load` (analytics,
- * marketing scripts, fonts) — work the framework never reads.
- * Camoufox-isolated probe measured every bank under 3.5 s for
- * `domcontentloaded`; the 10 s ceiling absorbs parallel-run
- * variance.
+ *
+ * @deprecated Mission M4.F2.0: use {@link ELEMENTS_DOM_READY_TIMEOUT_MS}.
+ *   The wait pattern is shared by INIT.FINAL and LOGIN.PRE (both use
+ *   {@link "../Elements/PageReadiness.js"} `waitForDomReady`) so the
+ *   constant moved to the cross-phase ELEMENTS namespace. Re-exported
+ *   here only so external callers do not break in a single commit.
  */
 export const INIT_DOM_READY_TIMEOUT_MS = 10_000;
+
+/**
+ * `domcontentloaded` lifecycle ceiling — shared cross-phase primitive.
+ *
+ * <p>Both INIT.FINAL and LOGIN.PRE call `waitForDomReady` from
+ * {@link "../Elements/PageReadiness.js"} on the same ceiling. The HTML
+ * parser typically finishes under 3.5 s on every browser-flow bank
+ * (Camoufox-isolated probe, 2026-05-10); the 10 s budget absorbs the
+ * 3× slowdown observed when the pre-commit hook runs six banks in
+ * parallel and Camoufox launches contend for bandwidth. Waiting for
+ * the `load` event would block 12–15 s on Max / Amex / Isracard
+ * (analytics, marketing scripts) — work the framework never reads.
+ */
+export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
 
 // ── HOME phase ─────────────────────────────────────────────────────
 

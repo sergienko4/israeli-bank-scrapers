@@ -31,11 +31,16 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import waitForDomReady from '../Elements/PageReadiness.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
+import { detectOtpForm, detectOtpTrigger } from '../Form/OtpProbe.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
-import { LOGIN_PER_FRAME_SCAN_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import {
+  ELEMENTS_DOM_READY_TIMEOUT_MS,
+  LOGIN_PER_FRAME_SCAN_TIMEOUT_MS,
+} from '../Timing/TimingConfig.js';
 import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
 
 /**
@@ -431,6 +436,14 @@ async function executeDiscoverForm(
   input.logger.debug({
     message: maskVisibleText(`activeFrame=${activeFrame.url()}`),
   });
+  // Mission M4.F2.0: SPA-render wait — without it, fast SPAs that
+  // navigate via push-state after `preAction` (Visacal, Amex, Max
+  // observed today 2026-05-11) reach `executeDiscoverFields` before
+  // the password input is parsed, and the resolver reports
+  // "no password field". Best-effort wait — the per-frame scan
+  // retry absorbs slow SPAs, so a timeout is non-fatal.
+  const wasReady = await waitForDomReady(activeFrame, ELEMENTS_DOM_READY_TIMEOUT_MS);
+  input.logger.debug({ message: `LOGIN PRE: domReady=${String(wasReady)}` });
   const discovery = await executeDiscoverFields({
     mediator: input.mediator.value,
     config,
@@ -754,17 +767,25 @@ function loginPathOf(url: string): string {
  * 75128327913 — both fields stayed at count=1 throughout the entire
  * 10 s budget.
  *
- * <p>The new check combines TWO signals to fail loud:
+ * <p>The new check combines THREE signals:
  * <ul>
  *   <li>URL still on the login pathname (no redirect happened) — the
  *       success case for Hapoalim is URL changes to `/otp` or
  *       `/dashboard`, so this branch returns `false` immediately and
  *       never probes the form.</li>
  *   <li>The original password element from PRE is still resolvable
- *       in the DOM — combined with the URL guard, this catches the
- *       genuine invalid-creds case where the SPA stays on the login
- *       URL and re-renders the form (no error banner triggered, no
- *       URL bounce).</li>
+ *       in the DOM — combined with the URL guard, this is AMBIGUOUS
+ *       (could be invalid creds OR Hapoalim's OTP transition where
+ *       the password input lingers).</li>
+ *   <li>Mission M4.F2.0: on the ambiguous branch, probe for an OTP
+ *       trigger or OTP-input element. Its presence is the bank's
+ *       definitive "credentials accepted, awaiting second factor"
+ *       signal — fall through to the OTP-TRIGGER phase rather than
+ *       firing a false-positive `INVALID_PASSWORD`. Cross-validated
+ *       against Hapoalim run `11-05-2026_02331101` where the auth
+ *       POST `/authenticate/init` returned successfully but the SPA
+ *       kept the password input visible while rendering the OTP
+ *       screen.</li>
  * </ul>
  *
  * <p>This validation runs AFTER `detectAuthApiFailure` and
@@ -773,11 +794,12 @@ function loginPathOf(url: string): string {
  * the safety net for SPA banks that silently re-render with no
  * structured error signal.
  *
- * @param mediator - Element mediator (for URL + countBySelector).
+ * @param mediator - Element mediator (URL + selector count + OTP probes).
  * @param input - Pipeline context carrying `loginFieldDiscovery` from
  *   PRE and `diagnostics.loginUrl` from HOME.
- * @returns Failure procedure when the action's scope is still intact
- *   AND URL hasn't changed; `false` (keep going) otherwise.
+ * @returns Failure procedure when the action's scope is still intact,
+ *   URL hasn't changed, AND no OTP screen rendered; `false` (keep
+ *   going) otherwise.
  */
 async function validateActionScopeIntact(
   mediator: IElementMediator,
@@ -790,6 +812,11 @@ async function validateActionScopeIntact(
   if (!passwordTarget) return false;
   const stillPresent = await mediator.countBySelector(passwordTarget.selector);
   if (stillPresent === 0) return false;
+  const isOtpRendered = await otpScreenVisible(mediator);
+  if (isOtpRendered) {
+    input.logger.debug({ message: 'POST: scope intact but OTP screen rendered — fall through' });
+    return false;
+  }
   const masked = maskVisibleText(passwordTarget.selector);
   const countStr = String(stillPresent);
   input.logger.debug({
@@ -799,6 +826,31 @@ async function validateActionScopeIntact(
     ScraperErrorTypes.InvalidPassword,
     'LOGIN POST: scope intact + URL unchanged — credentials likely invalid',
   );
+}
+
+/**
+ * Probes the post-submit DOM for an OTP-trigger or OTP-input element.
+ *
+ * <p>Mission M4.F2.0 disambiguator for {@link validateActionScopeIntact}:
+ * when the URL is unchanged AND the password element still resolves
+ * (Hapoalim's known SPA pattern), the presence of an OTP element is
+ * the bank's confirmation that credentials were accepted and the run
+ * should proceed to OTP-TRIGGER instead of failing as
+ * `INVALID_PASSWORD`. Probes run in parallel so the worst-case wait
+ * is one `OTP_FORM_PROBE_TIMEOUT_MS` ceiling, not two.
+ *
+ * @param mediator - Element mediator passed through to OTP probes.
+ * @returns True when an OTP-trigger or OTP-input element is visible
+ *   in the active context; false otherwise.
+ */
+async function otpScreenVisible(mediator: IElementMediator): Promise<boolean> {
+  const [triggerResult, formResult] = await Promise.all([
+    detectOtpTrigger(mediator),
+    detectOtpForm(mediator),
+  ]);
+  const isTriggerVisible = triggerResult.success && triggerResult.value.found;
+  const isFormVisible = formResult.success && formResult.value.found;
+  return isTriggerVisible || isFormVisible;
 }
 
 /**
@@ -841,4 +893,5 @@ export {
   extractFormAnchorSelector,
   hasStayedOnLoginUrl,
   safeScanFrame,
+  validateActionScopeIntact,
 };

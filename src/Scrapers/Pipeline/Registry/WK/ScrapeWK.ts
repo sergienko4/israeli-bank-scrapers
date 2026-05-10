@@ -62,6 +62,19 @@ export const PIPELINE_WELL_KNOWN_API = {
     // preference (no broader risk than the original pattern).
     /get\w*Transactions/i,
   ],
+  // Negative patterns — URL paths that MATCH the `transactions` list
+  // above but actually serve dashboard-PREVIEW / status-page WIDGET
+  // data (capped at "latest N" records per card). Backbase-style banks
+  // (Amex, Isracard) expose `/ocp/statuspage/...` modules whose
+  // endpoint names (`GetLatestTransactions`) match the affirmative
+  // pattern but truncate records. Mission M4.F2: live Isracard run
+  // `10-05-2026_23355229` lost 17–20 historical txns per card to this
+  // 5-record cap. Picker rejects any URL matching one of these so
+  // widgets never reach SCRAPE; real per-card APIs (under
+  // `/ocp/transactions/...`) keep passing. Pure path-segment match —
+  // bank-agnostic; `/statuspage/` is the SPA module name, not a bank
+  // identity.
+  transactionWidgets: [/\/statuspage\//i],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
   // Auth endpoint patterns — cover every migrated bank's credentials
   // submission URL. Verified against real network captures in
