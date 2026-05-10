@@ -27,6 +27,7 @@ import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 import {
   buildFrameRegistry,
   clickElementImpl,
+  ELEMENTS_LOADING_DELAY_MS,
   fillInputImpl,
   pressEnterImpl,
   resolveFrame,
@@ -161,9 +162,6 @@ function buildDiscoverErrors(): IElementMediator['discoverErrors'] {
   };
 }
 
-/** Delay between loading indicator checks in milliseconds. */
-const LOADING_DELAY_MS = 2000;
-
 /**
  * Check if any WellKnown loading indicator is currently visible.
  * Probes all candidates in parallel via Promise.all.
@@ -193,12 +191,12 @@ async function waitOnceForLoading(
 ): Promise<Procedure<boolean>> {
   const loadingResult = await isAnyLoadingVisible(frame);
   if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
-  const delayStr = String(LOADING_DELAY_MS);
+  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
   const attemptStr = String(attempt);
   LOG.debug({
     message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
   });
-  await frame.waitForTimeout(LOADING_DELAY_MS);
+  await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
   return succeed(false);
 }
 

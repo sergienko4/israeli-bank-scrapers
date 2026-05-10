@@ -35,6 +35,7 @@ import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
+import { LOGIN_PER_FRAME_SCAN_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
 
 /**
@@ -483,10 +484,10 @@ const FRAMES_NO_ERRORS: IFramesScanResult = { hasErrors: false, summary: '' };
  * script) are treated as clean so the Promise.all fan-out does not
  * block the entire login validation indefinitely.
  *
- * 3000ms matches the typical per-frame DOM scan latency on the slowest
- * SPA banks (cal-online, max) plus a 2x safety margin.
+ * The 3 s value matches the typical per-frame DOM scan latency on
+ * the slowest SPA banks (cal-online, max) plus a 2x safety margin —
+ * sourced from the central {@link LOGIN_PER_FRAME_SCAN_TIMEOUT_MS}.
  */
-const PER_FRAME_SCAN_TIMEOUT_MS = 3000;
 
 /**
  * Produce a Promise that resolves to FRAMES_NO_ERRORS after ms elapses.
@@ -512,7 +513,7 @@ async function safeScanFrame(
   frame: Page | Frame,
 ): Promise<IFramesScanResult> {
   const discover = mediator.discoverErrors(frame).catch((): IFramesScanResult => FRAMES_NO_ERRORS);
-  const budget = budgetFrameScan(PER_FRAME_SCAN_TIMEOUT_MS);
+  const budget = budgetFrameScan(LOGIN_PER_FRAME_SCAN_TIMEOUT_MS);
   const scan = await Promise.race([discover, budget]);
   if (!scan.hasErrors) return FRAMES_NO_ERRORS;
   return { hasErrors: true, summary: scan.summary };

@@ -8,11 +8,9 @@ import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 
 const LOG = createLogger('dashboard-href');
-
-/** SPA render timeout for href extraction. */
-const TRIGGER_RENDER_TIMEOUT_MS = 10000;
 /** Sentinel for "no href found". */
 const NO_HREF = '';
 
@@ -62,7 +60,7 @@ async function extractHrefLayer1(
   const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
   if (ariaOnly.length === 0) return NO_HREF;
   const hrefCandidates = ariaOnly.map(withHrefTarget);
-  const timeout = TRIGGER_RENDER_TIMEOUT_MS;
+  const timeout = DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS;
   const race = await mediator.resolveVisible(hrefCandidates, timeout);
   const rawHref = (race.found && race.value) || NO_HREF;
   const href = filterByTxnPattern(rawHref);
@@ -86,7 +84,7 @@ async function extractHrefLayer2(
   candidates: readonly SelectorCandidate[],
 ): Promise<string> {
   const hrefCandidates = candidates.map(withHrefTarget);
-  const timeout = TRIGGER_RENDER_TIMEOUT_MS;
+  const timeout = DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS;
   const race = await mediator.resolveVisible(hrefCandidates, timeout);
   const rawHref = (race.found && race.value) || NO_HREF;
   const href = filterByTxnPattern(rawHref);

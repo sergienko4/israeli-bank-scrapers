@@ -23,9 +23,7 @@ import { API_STRATEGY } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { ICookieSnapshot } from '../Elements/ElementMediator.js';
-
-/** Network-idle wait budget before reading cookies (ms). */
-const COOKIE_AUDIT_NETWORK_IDLE_MS = 10_000;
+import { LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS } from '../Timing/TimingConfig.js';
 
 /**
  * LOGIN.FINAL: cookie-only audit. Succeeds when ≥ 1 session
@@ -38,7 +36,7 @@ async function executeLoginSignal(input: IPipelineContext): Promise<Procedure<IP
   if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
   if (!input.mediator.has) return succeed(input);
   const mediator = input.mediator.value;
-  await mediator.waitForNetworkIdle(COOKIE_AUDIT_NETWORK_IDLE_MS).catch((): false => false);
+  await mediator.waitForNetworkIdle(LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS).catch((): false => false);
   const cookies = await mediator.getCookies();
   const cookieCount = cookies.length;
   logCookieAudit(input, cookies);

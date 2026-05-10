@@ -52,9 +52,6 @@ import {
   probeDashboardSignal,
 } from './AuthDiscoveryProbes.js';
 
-/** Wait budget for the dashboard reveal probe (ms). Phase-internal. */
-const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 3000;
-
 /**
  * MOCK_MODE safety valve — lets AUTH-DISCOVERY skip its network-
  * driven probes for the offline snapshot suite, which has no
@@ -226,8 +223,8 @@ function executeAuthDiscoveryFinal(input: IPipelineContext): Promise<Procedure<I
   return Promise.resolve(passThrough);
 }
 
+export { AUTH_DISCOVERY_DASHBOARD_WAIT_MS } from '../Timing/TimingConfig.js';
 export {
-  AUTH_DISCOVERY_DASHBOARD_WAIT_MS,
   executeAuthDiscoveryAction,
   executeAuthDiscoveryFinal,
   executeAuthDiscoveryPost,

@@ -89,6 +89,7 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
     txnEndpoint: ctx.txnEndpoint,
     dashboardTxnHarvest: ctx.dashboardTxnHarvest,
     authDiscovery: ctx.authDiscovery,
+    otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
     browser: ctx.browser,
@@ -123,6 +124,7 @@ function buildActionContext(ctx: IPipelineContext): IActionContext {
     txnEndpoint: ctx.txnEndpoint,
     dashboardTxnHarvest: ctx.dashboardTxnHarvest,
     authDiscovery: ctx.authDiscovery,
+    otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
   };

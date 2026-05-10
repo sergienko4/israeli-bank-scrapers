@@ -8,9 +8,7 @@ import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-
-/** Max wait for organic SPA traffic after login. */
-const TRAFFIC_WAIT_TIMEOUT = 10000;
+import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 
 /**
  * Post-login traffic gate — Phase 7e R-AUTH-CLEANUP: no WK_API.transactions
@@ -32,7 +30,10 @@ async function waitForPostLoginTraffic(
   mediator: IElementMediator,
   logger?: ScraperLogger,
 ): Promise<boolean> {
-  const hit = await mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, TRAFFIC_WAIT_TIMEOUT);
+  const hit = await mediator.network.waitForTraffic(
+    POST_LOGIN_PATTERNS,
+    LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
+  );
   if (hit) {
     logger?.trace({ hasTraffic: true, url: maskVisibleText(hit.url) });
     return true;

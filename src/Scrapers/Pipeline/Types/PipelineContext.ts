@@ -224,6 +224,13 @@ export interface IActionContext {
    * the option via reads.
    */
   readonly authDiscovery: Option<IAuthDiscovery>;
+  /**
+   * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4.
+   * Populated only when the OTP-TRIGGER phase ran (OTP-gated banks).
+   * Carries `phoneHint`, `triggered`, `scopeValidated`. See
+   * {@link IOtpTrigger} for the value shape.
+   */
+  readonly otpTrigger: Option<IOtpTrigger>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -302,6 +309,16 @@ interface IPipelineContext {
    * input.
    */
   readonly authDiscovery: Option<IAuthDiscovery>;
+  /**
+   * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4
+   * of the CI quality hardening plan. Populated only when the
+   * OTP-TRIGGER phase ran (OTP-gated banks: Beinleumi, Hapoalim,
+   * OneZero, Pepper). Carries the masked phone hint, the boolean
+   * `triggered` signal that the click landed, and the scope-bound
+   * validation outcome. Mirrors the slim value-type shape of
+   * {@link IAuthDiscovery} and {@link IAccountDiscovery}.
+   */
+  readonly otpTrigger: Option<IOtpTrigger>;
 }
 
 /**
@@ -392,6 +409,40 @@ const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
   headers: {},
   dashboardReady: false,
   sessionCookieNames: [],
+};
+
+/**
+ * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4 of
+ * the CI quality hardening plan. Carries the masked phone hint, the
+ * boolean signal that the trigger click landed, and the scope-bound
+ * validation outcome (target gone OR auth-domain HTTP 2xx since the
+ * click). Mirrors the slim value-type shape used by
+ * {@link IAccountDiscovery} and {@link IAuthDiscovery}: only fields
+ * downstream consumers need; phase-internal artefacts emit via
+ * telemetry events but do NOT travel on `ctx`.
+ */
+interface IOtpTrigger {
+  /** Last 1-4 digits surfaced by PRE's phone-hint extractor. */
+  readonly phoneHint: string;
+  /** True when ACTION's clickElement resolved without throwing. */
+  readonly triggered: boolean;
+  /**
+   * True when POST verified the trigger's scope-bound effect: the
+   * trigger target either disappeared after the click OR a 2xx HTTP
+   * response from the bank's auth domain landed since
+   * `triggerClickedAt`.
+   */
+  readonly scopeValidated: boolean;
+}
+
+/**
+ * Empty default for test paths. Mirrors EMPTY_AUTH_DISCOVERY's role
+ * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
+ */
+const EMPTY_OTP_TRIGGER: IOtpTrigger = {
+  phoneHint: '',
+  triggered: false,
+  scopeValidated: false,
 };
 
 /**
@@ -593,6 +644,7 @@ export type {
   IDashboardTxnHarvest,
   IDiagnosticsState,
   ILoginState,
+  IOtpTrigger,
   IPipelineContext,
   IScrapeDiscovery,
   IScrapeState,
@@ -601,4 +653,4 @@ export type {
   ITxnFieldMap,
   PickerTier,
 };
-export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_TXN_HARVEST };
+export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };

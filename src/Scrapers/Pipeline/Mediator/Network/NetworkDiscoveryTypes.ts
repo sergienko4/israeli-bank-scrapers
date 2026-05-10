@@ -54,6 +54,13 @@ interface IDiscoveredEndpoint {
    * Optional: undefined when not set.
    */
   readonly capturedPreClick?: boolean;
+  /**
+   * Mission 4 — HTTP status code from the bank's response. Lets
+   * OTP-TRIGGER.POST scope-bound validation distinguish a 2xx
+   * SMS-trigger ACK from a 4xx/5xx server error since the click.
+   * Optional: undefined when synthesised in tests or replays.
+   */
+  readonly status?: number;
 }
 
 /** Network discovery interface — captures and queries API traffic. */

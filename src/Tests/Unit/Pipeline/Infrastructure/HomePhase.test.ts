@@ -271,6 +271,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     txnEndpoint: ctx.txnEndpoint,
     dashboardTxnHarvest: ctx.dashboardTxnHarvest,
     authDiscovery: ctx.authDiscovery,
+    otpTrigger: ctx.otpTrigger,
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,

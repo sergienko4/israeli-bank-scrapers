@@ -19,13 +19,11 @@ import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe.js';
 import { OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import { createPromise } from '../Timing/TimingActions.js';
-
-/** Timeout ceiling for OTP submit settle — early-exit via waitForNetworkIdle. */
-const OTP_SETTLE_TIMEOUT = 5000;
-/** Settle delay before retriever prompt (ms). */
-const RETRIEVER_SETTLE_MS = 500;
-/** Default OTP timeout (ms) — 3 minutes. */
-const DEFAULT_OTP_TIMEOUT_MS = 180_000;
+import {
+  DEFAULT_OTP_TIMEOUT_MS,
+  OTP_PHASE_SETTLE_TIMEOUT_MS,
+  OTP_RETRIEVER_SETTLE_MS,
+} from '../Timing/TimingConfig.js';
 /** Full masked phone pattern (e.g. *****1234 or ******0). */
 const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
 /** Last 1-4 digits extractor. */
@@ -245,7 +243,7 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
   const executor = input.executor.value;
   const hint: string = readDiagString(input.diagnostics, 'otpPhoneHint');
   input.logger.flush();
-  await executor.waitForNetworkIdle(RETRIEVER_SETTLE_MS).catch((): false => false);
+  await executor.waitForNetworkIdle(OTP_RETRIEVER_SETTLE_MS).catch((): false => false);
   const timeoutMs = input.options.otpTimeoutMs ?? DEFAULT_OTP_TIMEOUT_MS;
   input.logger.info({
     message: `>>> OTP challenge: hint=${hint}. Waiting ${String(timeoutMs)}ms...`,
@@ -275,7 +273,7 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
       message: `clicked ${submitTarget.kind}="${submitTarget.candidateValue}"`,
     });
   }
-  await executor.waitForNetworkIdle(OTP_SETTLE_TIMEOUT).catch((): false => false);
+  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
   input.logger.debug({ message: 'submit complete' });
   return succeed(input);
 }

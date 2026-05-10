@@ -797,21 +797,26 @@ describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard
  * <p>Allowlist: `ActionExecutors.ts` (`CLICK_TIMEOUT_MS` — Playwright
  * auto-wait), `SelectorResolverConfig.ts` (`CANDIDATE_TIMEOUT_MS` —
  * per-locator), `ElementsInteractionConfig.ts`
- * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe).
+ * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe), and
+ * `Timing/TimingConfig.ts` (the centralized owner).
  */
 const FIXED_WAIT_15S_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Elements', 'ActionExecutors.ts'),
   path.join('Mediator', 'Selector', 'SelectorResolverConfig.ts'),
   path.join('Mediator', 'Elements', 'ElementsInteractionConfig.ts'),
+  path.join('Mediator', 'Timing', 'TimingConfig.ts'),
 ];
 
 /**
- * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000` constant
- * declarations on a single line. Captures both `15000` and `15_000`. The
- * `_TIMEOUT` alternative (without `_MS` suffix) catches names like
- * `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
+ * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000`
+ * constant declarations on a single line. Captures both `15000` and
+ * `15_000`. The optional `(?::\s*\w+)?` segment lets the regex match
+ * declarations that carry an explicit type annotation, e.g.
+ * `const X: number = 15000` — without it, those slip past the rule.
+ * The `_TIMEOUT` alternative (without `_MS` suffix) catches names
+ * like `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
  */
-const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)\s*=\s*15_?000\b/;
+const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)(?:\s*:\s*\w+)?\s*=\s*15_?000\b/;
 
 /**
  * Find lines declaring a 15s fixed-wait constant.
@@ -858,6 +863,96 @@ function findFixedWait15sConstants(): readonly IForbiddenCall[] {
 describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constants in Mediator/ outside allowlist', () => {
   it('no Mediator file declares a 15s _TIMEOUT_MS / _WAIT_MS / _BUDGET_MS outside the allowlist', () => {
     const hits = findFixedWait15sConstants();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * Mission 4 (CI quality hardening plan) — R-OTP-TRIGGER-SEAL.
+ *
+ * <p>Forbids the OTP-TRIGGER zone (`Mediator/OtpTrigger/*`,
+ * `Phases/OtpTrigger/*`) from importing other phase mediator zones.
+ * OTP-TRIGGER is sealed: PRE detects the trigger button + phone
+ * hint, ACTION clicks the trigger and stamps `triggerClickedAt`,
+ * POST validates the scope-bound effect (target gone OR HTTP 2xx
+ * since the click), FINAL emits `ctx.otpTrigger`. Every helper
+ * OTP-TRIGGER needs lives inside `Mediator/OtpTrigger/`,
+ * `Mediator/Otp/OtpShared.ts` (allowlisted shared utilities),
+ * `Mediator/Form/OtpProbe.ts` (form-detection helper), or
+ * `Mediator/Network/` (read-only capture/discovery surface).
+ * Downstream phases (OTP-FILL / AUTH-DISCOVERY / DASHBOARD)
+ * read the slim `ctx.otpTrigger` emit only.
+ *
+ * <p>R-AUTH-DISCOVERY-OWN (Mission 1, shipped) already grep-
+ * forbids the auth/dashboard helper call list from OTP-TRIGGER.
+ * R-OTP-TRIGGER-SEAL adds file-level import enforcement: any new
+ * `import … from '../Dashboard/'`, `'../AuthDiscovery/'`,
+ * `'../Login/'`, `'../OtpFill/'`, or `'../Auth/'` from an
+ * OTP-TRIGGER-zone file fails the build.
+ */
+const OTP_TRIGGER_FORBIDDEN_ZONES: readonly string[] = [
+  path.join('Mediator', 'OtpTrigger'),
+  path.join('Phases', 'OtpTrigger'),
+];
+
+const OTP_TRIGGER_FORBIDDEN_IMPORTS: readonly string[] = [
+  path.join('Mediator', 'Dashboard'),
+  path.join('Mediator', 'AuthDiscovery'),
+  path.join('Mediator', 'Login'),
+  path.join('Mediator', 'OtpFill'),
+  path.join('Mediator', 'Auth'),
+];
+
+/**
+ * Find import lines in an OTP-TRIGGER-zone file that pull from any
+ * forbidden phase-mediator zone.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findOtpTriggerForbiddenImportLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (!line.includes('import')) continue;
+    const isForbidden = OTP_TRIGGER_FORBIDDEN_IMPORTS.some((zone): boolean => {
+      const fwd = zone.replace(/\\/g, '/');
+      return line.includes(`/${fwd}/`) || line.includes(`'${fwd}/`);
+    });
+    if (isForbidden) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan OTP-TRIGGER-zone files for cross-phase mediator imports.
+ *
+ * @returns Forbidden-import hits, empty when the rule holds.
+ */
+function findForbiddenOtpTriggerImports(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    const isInZone = OTP_TRIGGER_FORBIDDEN_ZONES.some((zone): boolean => relPathMatches(rel, zone));
+    if (!isInZone) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findOtpTriggerForbiddenImportLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'otp-trigger-zone forbidden import', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('Mission 4 — R-OTP-TRIGGER-SEAL: OTP-TRIGGER imports nothing from Dashboard / AuthDiscovery / Login / OtpFill / Auth', () => {
+  it('no OtpTrigger-zone file imports from a forbidden cross-phase mediator zone', () => {
+    const hits = findForbiddenOtpTriggerImports();
     const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
     expect(summary).toEqual([]);
   });

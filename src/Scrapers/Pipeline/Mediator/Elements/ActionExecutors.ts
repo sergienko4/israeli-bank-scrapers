@@ -8,7 +8,14 @@ import type { Frame, Locator, Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { ContextId, IResolvedTarget } from '../../Types/PipelineContext.js';
+import {
+  ELEMENTS_CLICK_TIMEOUT_MS,
+  ELEMENTS_EVALUATE_TIMEOUT_MS,
+  ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS,
+} from '../Timing/TimingConfig.js';
 import { humanDelay } from '../Timing/Waiting.js';
+
+export { ELEMENTS_LOADING_DELAY_MS } from '../Timing/TimingConfig.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -16,14 +23,8 @@ import type { IElementIdentity, IRaceResult } from './ElementMediator.js';
 import { deepFillInput } from './ElementsInputActions.js';
 import { computeContextId } from './FrameRegistry.js';
 
-/** Timeout for click actions (ms). */
-const CLICK_TIMEOUT_MS = 15_000;
 /** Max chars of outerHTML to surface in click forensics (forensic snippet). */
 const CLICK_OUTER_HTML_MAX = 300;
-/** Cap for the forensics evaluate — short so we never add real latency.
- *  If a locator can't resolve in 1.5s, drop to UNKNOWN sentinel and let the
- *  real click proceed with its own 15s timeout. */
-const FORENSICS_EVAL_TIMEOUT_MS = 1_500;
 
 /** Tier label identifying which click strategy succeeded/failed. */
 type TierLabel = 'force-1' | 'natural-1' | 'dispatch-2' | 'evaluate-3' | 'aria-4';
@@ -86,7 +87,7 @@ async function captureClickForensics(
         clickedOuterHtml: (el.outerHTML || '').slice(0, max),
       }),
       CLICK_OUTER_HTML_MAX,
-      { timeout: FORENSICS_EVAL_TIMEOUT_MS },
+      { timeout: ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS },
     )
     .then((dom): IClickForensics => ({ ...dom, preClickUrl }))
     .catch((): IClickForensics => ({ ...UNKNOWN_FORENSICS, preClickUrl }));
@@ -198,7 +199,7 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
   if (!isForce) return clickNaturalPath(locator, selector, frame);
   const forensics = await captureClickForensics(locator, frame);
   const didForceClick = await locator
-    .click({ force: true, timeout: CLICK_TIMEOUT_MS })
+    .click({ force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS })
     .then((): true => true)
     .catch((): false => false);
   if (didForceClick) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
@@ -227,7 +228,7 @@ async function clickNaturalPath(
   frame: Page | Frame,
 ): Promise<true> {
   const forensics = await captureClickForensics(locator, frame);
-  await locator.click({ timeout: CLICK_TIMEOUT_MS });
+  await locator.click({ timeout: ELEMENTS_CLICK_TIMEOUT_MS });
   return emitClickForensics({ tier: 'natural-1', selector, frame, forensics });
 }
 
@@ -238,9 +239,6 @@ async function clickNaturalPath(
  * @param selector - Selector string for logging.
  * @returns True after JS click.
  */
-/** Timeout for Tier 3 JS evaluate (shorter than locator default). */
-const EVALUATE_TIMEOUT_MS = 5_000;
-
 /**
  * Tier 3: JS-level el.click() — bypasses coordinates entirely.
  * Uses short timeout. If locator.evaluate fails, falls back to
@@ -274,7 +272,7 @@ async function evaluateJsClick(
         return true;
       },
       null,
-      { timeout: EVALUATE_TIMEOUT_MS },
+      { timeout: ELEMENTS_EVALUATE_TIMEOUT_MS },
     )
     .then((): true => true)
     .catch((): false => false);

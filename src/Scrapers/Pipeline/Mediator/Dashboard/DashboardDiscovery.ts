@@ -12,14 +12,13 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
+import {
+  DASHBOARD_REVEAL_TIMEOUT_MS,
+  DASHBOARD_SUCCESS_TIMEOUT_MS,
+} from '../Timing/TimingConfig.js';
 import { buildDateCandidates } from './DashboardDateCandidates.js';
 
 export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
-
-/** Timeout ceiling for SUCCESS probe — early-exit via resolveVisible. */
-const DASHBOARD_TIMEOUT = 8000;
-/** Timeout ceiling for REVEAL probe — early-exit via resolveVisible (winner typically at index 0). */
-const REVEAL_TIMEOUT_MS = 3000;
 
 /**
  * Filter endpoints that arrived after a given timestamp.
@@ -101,7 +100,7 @@ function resolveAbsoluteHref(href: string, pageUrl: string): string {
 async function probeSuccessIndicators(mediator: IElementMediator): Promise<string> {
   const successCandidates = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
   const result = await mediator
-    .resolveVisible(successCandidates, DASHBOARD_TIMEOUT)
+    .resolveVisible(successCandidates, DASHBOARD_SUCCESS_TIMEOUT_MS)
     .catch((): false => false);
   if (result === false) return 'no indicator';
   if (!result.found || !result.candidate) return 'no indicator';
@@ -139,7 +138,7 @@ async function safeResolveVisible(
  */
 async function probeDashboardReveal(mediator: IElementMediator): Promise<string> {
   const allCandidates = buildRevealCandidates();
-  const result = await safeResolveVisible(mediator, allCandidates, REVEAL_TIMEOUT_MS);
+  const result = await safeResolveVisible(mediator, allCandidates, DASHBOARD_REVEAL_TIMEOUT_MS);
   if (result === false) return 'no reveal';
   if (!result.found || !result.candidate) return 'no reveal';
   return `reveal: ${result.candidate.value}`;
