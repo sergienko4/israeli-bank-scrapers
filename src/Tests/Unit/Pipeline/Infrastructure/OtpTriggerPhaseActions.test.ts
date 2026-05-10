@@ -2,6 +2,8 @@
  * Unit tests for OtpTriggerPhaseActions — PRE/ACTION/POST/FINAL orchestration.
  */
 
+import { jest } from '@jest/globals';
+
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   executeTriggerAction,
@@ -10,7 +12,10 @@ import {
   executeTriggerPre,
 } from '../../../../Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IResolvedTarget } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IPipelineContext,
+  IResolvedTarget,
+} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeContextWithBrowser,
@@ -110,7 +115,294 @@ describe('executeTriggerAction', () => {
     const isOkResult14 = isOk(result);
     expect(isOkResult14).toBe(false);
   });
+
+  it('A.1 — stamps triggerClickedAt BEFORE waitForNetworkIdle starts (race fix)', async () => {
+    // PR #221 review finding A.1: today triggerClickedAt is recorded
+    // AFTER waitForNetworkIdle() returns, so any OTP ACK landing during
+    // that settle window has timestamp < triggerClickedAt and is
+    // filtered as "pre-click" by isPostClickAck() → false negative on
+    // fast banks. The stamp MUST happen immediately after the click
+    // succeeds, before the settle wait, so the wait window is INSIDE
+    // the post-click window.
+    // Use Jest fake timers so the settle-wait → click-stamp ordering
+    // assertion is deterministic (no real-clock dependency). The
+    // production code stamps `triggerClickedAt = Date.now()` BEFORE
+    // calling `waitForNetworkIdle`; if the stamp ever moves AFTER
+    // the wait, this test fails.
+    jest.useFakeTimers({ doNotFake: ['performance'] });
+    try {
+      let waitStartMs = 0;
+      let didStampBeforeWait = true;
+      const slowSettleExec = makeMockActionExecutor({
+        /**
+         * Records the wall-clock instant when settle wait was invoked.
+         * Resolves immediately — the assertion is on temporal
+         * ordering vs `triggerClickedAt`, not duration.
+         *
+         * @returns Resolved succeed.
+         */
+        waitForNetworkIdle: () => {
+          waitStartMs = Date.now();
+          const okVoid = { success: true as const, value: undefined };
+          return Promise.resolve(okVoid);
+        },
+      });
+      const baseCtx = makeMockContext();
+      const ctx = toActionCtx(baseCtx, slowSettleExec, { otpTriggerTarget: MOCK_TARGET });
+      const pending = executeTriggerAction(ctx);
+      // Advance the fake clock so that any setTimeout-driven settle
+      // resolves; without the stamp-before-wait fix `triggerClickedAt`
+      // would land AFTER `waitStartMs` (i.e. > waitStartMs).
+      await jest.advanceTimersByTimeAsync(50);
+      const result = await pending;
+      const wasOk = isOk(result);
+      expect(wasOk).toBe(true);
+      if (result.success) {
+        const diag = result.value.diagnostics as { triggerClickedAt?: unknown };
+        const stamp = diag.triggerClickedAt;
+        const isStampNumber = typeof stamp === 'number';
+        expect(isStampNumber).toBe(true);
+        if (isStampNumber) {
+          didStampBeforeWait = stamp <= waitStartMs;
+        }
+      }
+      expect(didStampBeforeWait).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
+
+// ── A.5: shared helpers + scenario table for executeTriggerPost ──
+
+/** Discoverable shape used in test stubs. */
+interface IRaceLikeResult {
+  readonly found: boolean;
+  readonly value?: string;
+}
+
+/** Scenario row for the `executeTriggerPost` scope-validation table. */
+interface IPostScopeScenario {
+  /** Test label as `it(...)` name. */
+  readonly label: string;
+  /** Captures returned by the stubbed `getAllEndpoints`. */
+  readonly captures: readonly unknown[];
+  /** Stub for `mediator.resolveVisible` — return resolved or rejected. */
+  readonly resolveVisible: () => Promise<IRaceLikeResult>;
+  /** Diagnostics overlay merged on top of the standard `MOCK_TARGET` ctx. */
+  readonly diagOverrides: Record<string, unknown>;
+  /** Expected `triggerScopeValidated` value after `executeTriggerPost`. */
+  readonly expectedScopeValidated: boolean;
+}
+
+/**
+ * Build a stubbed `IElementMediator` that exposes the canned
+ * captures pool + resolveVisible behaviour. No real network or
+ * Playwright dependency.
+ *
+ * @param scenario - Scenario row with captures + resolveVisible.
+ * @returns Stubbed mediator typed as `IElementMediator`.
+ */
+function makeStubMediator(scenario: IPostScopeScenario): IElementMediator {
+  return {
+    network: {
+      /**
+       * Return the canned captures pool.
+       *
+       * @returns Captures array.
+       */
+      getAllEndpoints: (): readonly unknown[] => scenario.captures,
+    },
+    resolveVisible: scenario.resolveVisible,
+  } as unknown as IElementMediator;
+}
+
+/**
+ * Build the `executeTriggerPost` test context for the table-driven
+ * scope-validation cases. Standardises base ctx + mediator + the
+ * default `otpTriggerTarget` diagnostic, layering scenario-specific
+ * overrides on top. The diagnostics block carries `otpTriggerTarget`
+ * which is not on `IDiagnosticsState` — assigned via a typed local
+ * variable so TypeScript's excess-property check on the outer
+ * literal does not fire (production code reads it through the
+ * wider-shape-tolerant `readDiagTarget` helper).
+ *
+ * @param scenario - Scenario row.
+ * @returns Pipeline context ready for `executeTriggerPost`.
+ */
+function makeScopeValidationCtx(scenario: IPostScopeScenario): IPipelineContext {
+  const screenshotPage = makeScreenshotPage();
+  const baseCtx = makeContextWithBrowser(screenshotPage);
+  const enrichedDiagnostics = {
+    ...baseCtx.diagnostics,
+    otpTriggerTarget: MOCK_TARGET,
+    ...scenario.diagOverrides,
+  } as IPipelineContext['diagnostics'];
+  const stubMediator = makeStubMediator(scenario);
+  return {
+    ...baseCtx,
+    mediator: some(stubMediator),
+    diagnostics: enrichedDiagnostics,
+  };
+}
+
+/** Single auth-domain 2xx capture (Hapoalim-class sendOtp endpoint). */
+const ACK_CAPTURE = {
+  url: 'https://login.bankhapoalim.example/sendOtp',
+  method: 'POST',
+  postData: '',
+  responseBody: { ok: true },
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 1000,
+  status: 200,
+} as const;
+
+/** Non-auth dashboard 2xx capture — must NOT promote to ACK (A.2). */
+const NON_AUTH_2XX_CAPTURE = {
+  url: 'https://api.bank.example/dashboard/transactions',
+  method: 'POST',
+  postData: '',
+  responseBody: { items: [] },
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 1000,
+  status: 200,
+} as const;
+
+/** Mixed-status pool exercising every `isPostClickAck` rejection branch. */
+const MIXED_STATUS_CAPTURES = [
+  // status=undefined → early-return (line `ep.status === undefined`).
+  {
+    url: 'https://login.bank.example/missing-status',
+    method: 'POST',
+    postData: '',
+    responseBody: {},
+    contentType: 'application/json',
+    requestHeaders: {},
+    responseHeaders: {},
+    timestamp: 100,
+  },
+  // 5xx → upper-bound rejection branch.
+  {
+    url: 'https://login.bank.example/server-error',
+    method: 'POST',
+    postData: '',
+    responseBody: {},
+    contentType: 'application/json',
+    requestHeaders: {},
+    responseHeaders: {},
+    timestamp: 100,
+    status: 500,
+  },
+  // 1xx → lower-bound rejection branch.
+  {
+    url: 'https://login.bank.example/informational',
+    method: 'POST',
+    postData: '',
+    responseBody: {},
+    contentType: 'application/json',
+    requestHeaders: {},
+    responseHeaders: {},
+    timestamp: 100,
+    status: 100,
+  },
+  // Pre-click 2xx → `timestamp < sinceMs` early-return branch.
+  {
+    url: 'https://login.bank.example/pre-click-ok',
+    method: 'POST',
+    postData: '',
+    responseBody: {},
+    contentType: 'application/json',
+    requestHeaders: {},
+    responseHeaders: {},
+    timestamp: 50,
+    status: 200,
+  },
+] as const;
+
+/**
+ * Stubbed resolveVisible: target is GONE (found=false).
+ *
+ * @returns Resolved race-like result with `found=false`.
+ */
+const STUB_RESOLVE_GONE = (): Promise<IRaceLikeResult> => Promise.resolve({ found: false });
+
+/**
+ * Stubbed resolveVisible: target STILL VISIBLE (found=true).
+ *
+ * @returns Resolved race-like result with `found=true`.
+ */
+const STUB_RESOLVE_VISIBLE = (): Promise<IRaceLikeResult> =>
+  Promise.resolve({ found: true, value: 'still-visible' });
+
+/**
+ * Stubbed resolveVisible: REJECTS — caller's `.catch` should fire.
+ *
+ * @returns Rejected promise with a representative frame-detach error.
+ */
+const STUB_RESOLVE_REJECT = (): Promise<IRaceLikeResult> =>
+  Promise.reject(new Error('frame detached'));
+
+const POST_SCOPE_SCENARIOS: readonly IPostScopeScenario[] = [
+  {
+    label: 'stamps triggerScopeValidated=true when a post-click 2xx ACK was captured (M4)',
+    captures: [ACK_CAPTURE],
+    resolveVisible: STUB_RESOLVE_GONE,
+    diagOverrides: { triggerClickedAt: 500 },
+    expectedScopeValidated: true,
+  },
+  {
+    label:
+      'A.2 — does NOT promote a non-auth 2xx to ACK (analytics/dashboard false-positive guard)',
+    captures: [NON_AUTH_2XX_CAPTURE],
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    diagOverrides: { triggerClickedAt: 500 },
+    expectedScopeValidated: false,
+  },
+  {
+    label: 'stamps triggerScopeValidated=true when no ACK fired but target is gone (M4)',
+    captures: [],
+    resolveVisible: STUB_RESOLVE_GONE,
+    diagOverrides: { triggerClickedAt: 0 },
+    expectedScopeValidated: true,
+  },
+  {
+    label: 'skips captures with non-2xx status when validating ACK (M4 coverage)',
+    captures: MIXED_STATUS_CAPTURES,
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    diagOverrides: { triggerClickedAt: 100 },
+    expectedScopeValidated: false,
+  },
+  {
+    label: 'treats resolveVisible rejection as "target gone" (catch arrow) (M4 coverage)',
+    captures: [],
+    resolveVisible: STUB_RESOLVE_REJECT,
+    diagOverrides: { triggerClickedAt: 0 },
+    expectedScopeValidated: true,
+  },
+  {
+    label:
+      'reads triggerClickedAt=0 when diagnostics value is non-numeric (M4 coverage) — A.4 asserts stamped value',
+    captures: [],
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    // Deliberately wrong type — exercises the `typeof !== number`
+    // early-return branch in readTriggerClickedAt. Cast so the
+    // override value type-conforms while preserving the intentional
+    // mistype.
+    diagOverrides: { triggerClickedAt: 'not a number' },
+    expectedScopeValidated: false,
+  },
+  {
+    label: 'stamps triggerScopeValidated=false when no ACK fired and target is still visible (M4)',
+    captures: [],
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    diagOverrides: { triggerClickedAt: 0 },
+    expectedScopeValidated: false,
+  },
+];
 
 describe('executeTriggerPost', () => {
   it('always succeeds without browser', async () => {
@@ -142,304 +434,27 @@ describe('executeTriggerPost', () => {
     }
   });
 
-  it('stamps triggerScopeValidated=true when a post-click 2xx ACK was captured (M4)', async () => {
-    const ackTimestamp = 1000;
-    const triggerClickedAt = 500;
-    const captures = [
-      {
-        url: 'https://login.bankhapoalim.example/sendOtp',
-        method: 'POST',
-        postData: '',
-        responseBody: { ok: true },
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: ackTimestamp,
-        status: 200,
-      },
-    ];
-    const mediator = {
-      network: {
-        /**
-         * Stub: returns the canned 2xx capture so the predicate fires.
-         *
-         * @returns Captures array.
-         */
-        getAllEndpoints: (): readonly unknown[] => captures,
-      },
-      /**
-       * Stub: visibility re-probe (unused when ACK fires first).
-       *
-       * @returns Resolved race result.
-       */
-      resolveVisible: (): Promise<{ readonly found: false }> => Promise.resolve({ found: false }),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: { ...baseCtx.diagnostics, otpTriggerTarget: MOCK_TARGET, triggerClickedAt },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (isOk(result)) {
-      const diag = result.value.diagnostics as unknown as {
-        readonly triggerScopeValidated?: boolean;
-      };
-      expect(diag.triggerScopeValidated).toBe(true);
-    }
-  });
-
-  it('stamps triggerScopeValidated=true when no ACK fired but target is gone (M4)', async () => {
-    const mediator = {
-      network: {
-        /**
-         * Stub: empty capture pool (no ACK).
-         *
-         * @returns Empty array.
-         */
-        getAllEndpoints: (): readonly unknown[] => [],
-      },
-      /**
-       * Stub: visibility re-probe returns NOT_FOUND so target-gone fires.
-       *
-       * @returns Resolved race result with found=false.
-       */
-      resolveVisible: (): Promise<{ readonly found: false }> => Promise.resolve({ found: false }),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: {
-        ...baseCtx.diagnostics,
-        otpTriggerTarget: MOCK_TARGET,
-        triggerClickedAt: 0,
-      },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (isOk(result)) {
-      const diag = result.value.diagnostics as unknown as {
-        readonly triggerScopeValidated?: boolean;
-      };
-      expect(diag.triggerScopeValidated).toBe(true);
-    }
-  });
-
-  it('skips captures with non-2xx status when validating ACK (M4 coverage)', async () => {
-    // Cover the `status < HTTP_2XX_LO || > HTTP_2XX_HI` branch and
-    // the `status === undefined` early-return branch in
-    // `isPostClickAck` — neither yields a hit, so the validator
-    // falls through to the visibility re-probe (which returns
-    // visible here, so scopeValidated=false).
-    const captures = [
-      // Capture without status field — exercises the
-      // `status === undefined` early-return branch.
-      {
-        url: 'https://login.bank.example/missing-status',
-        method: 'POST',
-        postData: '',
-        responseBody: {},
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: 100,
-      },
-      // 5xx capture — exercises the `status > HTTP_2XX_HI` branch.
-      {
-        url: 'https://login.bank.example/server-error',
-        method: 'POST',
-        postData: '',
-        responseBody: {},
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: 100,
-        status: 500,
-      },
-      // 1xx capture — exercises the `status < HTTP_2XX_LO` branch.
-      {
-        url: 'https://login.bank.example/informational',
-        method: 'POST',
-        postData: '',
-        responseBody: {},
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: 100,
-        status: 100,
-      },
-      // Pre-click 2xx — exercises the `timestamp < sinceMs` early-return.
-      {
-        url: 'https://login.bank.example/pre-click-ok',
-        method: 'POST',
-        postData: '',
-        responseBody: {},
-        contentType: 'application/json',
-        requestHeaders: {},
-        responseHeaders: {},
-        timestamp: 50,
-        status: 200,
-      },
-    ];
-    const mediator = {
-      network: {
-        /**
-         * Returns the curated mixed-status capture pool.
-         *
-         * @returns Captures array.
-         */
-        getAllEndpoints: (): readonly unknown[] => captures,
-      },
-      /**
-       * Stub: visibility re-probe returns FOUND so scopeValidated stays false.
-       *
-       * @returns Resolved race result with found=true.
-       */
-      resolveVisible: (): Promise<{ readonly found: true }> => Promise.resolve({ found: true }),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: {
-        ...baseCtx.diagnostics,
-        otpTriggerTarget: MOCK_TARGET,
-        triggerClickedAt: 100,
-      },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (isOk(result)) {
-      const diag = result.value.diagnostics as unknown as {
-        readonly triggerScopeValidated?: boolean;
-      };
-      expect(diag.triggerScopeValidated).toBe(false);
-    }
-  });
-
-  it('treats resolveVisible rejection as "target gone" (catch arrow) (M4 coverage)', async () => {
-    // Cover the `.catch((): false => false)` branch in probeTriggerScope.
-    const mediator = {
-      network: {
-        /**
-         * Empty capture pool so visibility re-probe runs.
-         *
-         * @returns Empty array.
-         */
-        getAllEndpoints: (): readonly unknown[] => [],
-      },
-      /**
-       * Reject so the .catch arrow fires.
-       *
-       * @returns Rejected promise.
-       */
-      resolveVisible: (): Promise<never> => Promise.reject(new Error('frame detached')),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: {
-        ...baseCtx.diagnostics,
-        otpTriggerTarget: MOCK_TARGET,
-        triggerClickedAt: 0,
-      },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (isOk(result)) {
-      const diag = result.value.diagnostics as unknown as {
-        readonly triggerScopeValidated?: boolean;
-      };
-      // Rejection treated as target-gone → scopeValidated=true.
-      expect(diag.triggerScopeValidated).toBe(true);
-    }
-  });
-
-  it('reads triggerClickedAt=0 when diagnostics value is non-numeric (M4 coverage)', async () => {
-    // Cover the `typeof raw !== 'number'` early-return in
-    // readTriggerClickedAt.
-    const mediator = {
-      network: {
-        /**
-         * Empty pool — no ACK candidates.
-         *
-         * @returns Empty array.
-         */
-        getAllEndpoints: (): readonly unknown[] => [],
-      },
-      /**
-       * Visibility probe returns FOUND so scopeValidated stays false.
-       *
-       * @returns Resolved race result with found=true.
-       */
-      resolveVisible: (): Promise<{ readonly found: true }> => Promise.resolve({ found: true }),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: {
-        ...baseCtx.diagnostics,
-        otpTriggerTarget: MOCK_TARGET,
-        // Deliberately wrong type — exercises the `typeof !== number` branch.
-        triggerClickedAt: 'not a number' as unknown as number,
-      },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-  });
-
-  it('stamps triggerScopeValidated=false when no ACK fired and target is still visible (M4)', async () => {
-    const mediator = {
-      network: {
-        /**
-         * Stub: empty capture pool.
-         *
-         * @returns Empty array.
-         */
-        getAllEndpoints: (): readonly unknown[] => [],
-      },
-      /**
-       * Stub: visibility re-probe returns FOUND so target is still on the page.
-       *
-       * @returns Resolved race result with found=true.
-       */
-      resolveVisible: (): Promise<{ readonly found: true }> => Promise.resolve({ found: true }),
-    } as unknown as IElementMediator;
-    const basePage = makeScreenshotPage();
-    const baseCtx = makeContextWithBrowser(basePage);
-    const ctx = {
-      ...baseCtx,
-      mediator: some(mediator),
-      diagnostics: {
-        ...baseCtx.diagnostics,
-        otpTriggerTarget: MOCK_TARGET,
-        triggerClickedAt: 0,
-      },
-    };
-    const result = await executeTriggerPost(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
-    if (isOk(result)) {
-      const diag = result.value.diagnostics as unknown as {
-        readonly triggerScopeValidated?: boolean;
-      };
-      expect(diag.triggerScopeValidated).toBe(false);
-    }
-  });
+  // ── A.5: Table-driven POST scope-validation cases ─────────────
+  // PR #221 review finding A.5: every POST scope-validation case
+  // shared the same baseCtx/mediator/diagnostics harness with only
+  // captures, probe outcome, and expected flag changing. Per project
+  // coding rule "Use config arrays mapped with `.map()` — no
+  // duplication", the cases are now driven by POST_SCOPE_SCENARIOS.
+  // `for...of` over the table avoids the eslint/biome conflict
+  // between `forEach((scenario): void)` (eslint bans void) and
+  // `forEach((scenario): true)` (biome flags the unused return).
+  for (const scenario of POST_SCOPE_SCENARIOS) {
+    it(scenario.label, async () => {
+      const ctx = makeScopeValidationCtx(scenario);
+      const result = await executeTriggerPost(ctx);
+      const wasOk = isOk(result);
+      expect(wasOk).toBe(true);
+      if (result.success) {
+        const diag = result.value.diagnostics as { readonly triggerScopeValidated?: boolean };
+        expect(diag.triggerScopeValidated).toBe(scenario.expectedScopeValidated);
+      }
+    });
+  }
 });
 
 describe('executeTriggerFinal', () => {

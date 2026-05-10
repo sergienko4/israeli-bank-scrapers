@@ -112,11 +112,14 @@ async function executeTriggerAction(input: IActionContext): Promise<Procedure<IA
   if (!didClick) {
     return fail(ScraperErrorTypes.Generic, 'OTP trigger failed — SMS not sent');
   }
-  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
   // M4 — capture the wall-clock deadline for the POST scope-bound
-  // validator. POST filters network captures whose `timestamp` is
-  // >= triggerClickedAt to find the SMS-trigger ACK response.
+  // validator IMMEDIATELY AFTER the click succeeds, BEFORE the settle
+  // wait. Any 2xx ACK landing during the wait window has its timestamp
+  // ≥ triggerClickedAt and is correctly recognised by isPostClickAck.
+  // (Stamping after the wait would race-filter ACKs as "pre-click" on
+  // fast banks — PR #221 review finding A.1.)
   const triggerClickedAt = Date.now();
+  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
   const diag = { ...input.diagnostics, triggerClickedAt };
   return succeed({ ...input, diagnostics: diag });
 }
@@ -144,18 +147,39 @@ const HTTP_2XX_LO = 200;
 const HTTP_2XX_HI = 299;
 
 /**
- * Predicate: capture occurred since `triggerClickedAt` AND has a 2xx
- * status. Used to detect the bank's SMS-trigger ACK response.
+ * Generic auth-domain URL-scope keywords. The OTP-trigger ACK MUST
+ * match an auth-flow URL pattern; without this constraint the
+ * predicate would promote any post-click 2xx (analytics, dashboard
+ * data, balance fetches, background polling, etc.) to a valid ACK
+ * → false positive on `scopeValidated`. PR #221 review finding A.2.
+ *
+ * <p>Keywords are SPA conventions, not bank-specific markers:
+ *   - `auth` / `authenticate` / `authentication`
+ *   - `otp` (sendOtp, otpPrepare, otpSubmit, …)
+ *   - `sms` (sendSms, smsSubmit, …)
+ *   - `verif` (verification, verify, …)
+ *   - `login` (loginSuccess, login/login, …)
+ * Substring (case-insensitive) — Camel/PascalCase URL segments are
+ * accepted (no `\b` so `sendOtp` matches `otp`).
+ */
+const AUTH_DOMAIN_URL_SCOPE = /auth|otp|sms|verif|login/i;
+
+/**
+ * Predicate: capture occurred since `triggerClickedAt`, has a 2xx
+ * status, AND its URL matches an auth-domain scope keyword. Used to
+ * detect the bank's SMS-trigger ACK response while rejecting
+ * coincidental post-click 2xx traffic (analytics, dashboard, etc.).
  *
  * @param ep - Discovered endpoint to check.
  * @param sinceMs - Lower bound (ms epoch).
- * @returns True when the capture is a post-click 2xx.
+ * @returns True when the capture is a post-click auth-domain 2xx.
  */
 function isPostClickAck(ep: IDiscoveredEndpoint, sinceMs: number): boolean {
   if (ep.timestamp < sinceMs) return false;
   if (ep.status === undefined) return false;
   if (ep.status < HTTP_2XX_LO) return false;
-  return ep.status <= HTTP_2XX_HI;
+  if (ep.status > HTTP_2XX_HI) return false;
+  return AUTH_DOMAIN_URL_SCOPE.test(ep.url);
 }
 
 /**
@@ -195,6 +219,30 @@ async function probeTriggerScope(
 // ── POST: Scope-bound validation (M4) ─────────────────────────────
 
 /**
+ * Emit the POST scope-validation telemetry and stamp the
+ * `triggerScopeValidated` diagnostic. Extracted so the orchestrator
+ * stays under the project's 10-line ceiling.
+ *
+ * @param input - Pipeline context.
+ * @param wasScopeValidated - Outcome of `probeTriggerScope`.
+ * @param triggerClickedAt - Click epoch-ms (logged for trace).
+ * @returns Success with updated diagnostics.
+ */
+function commitTriggerPost(
+  input: IPipelineContext,
+  wasScopeValidated: boolean,
+  triggerClickedAt: number,
+): Procedure<IPipelineContext> {
+  input.logger.debug({
+    event: 'otp-trigger.post.scope',
+    scopeValidated: wasScopeValidated,
+    triggerClickedAtMs: triggerClickedAt,
+  });
+  const diag = { ...input.diagnostics, triggerScopeValidated: wasScopeValidated };
+  return succeed({ ...input, diagnostics: diag });
+}
+
+/**
  * POST: Verify the trigger's scope-bound effect — re-resolve the
  * `otpTriggerTarget` and check post-click captures for a 2xx ACK.
  * Stamps `triggerScopeValidated` in diagnostics; never fails loud
@@ -213,13 +261,7 @@ async function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IP
   }
   const triggerClickedAt = readTriggerClickedAt(input.diagnostics);
   const wasScopeValidated = await probeTriggerScope(input.mediator.value, target, triggerClickedAt);
-  input.logger.debug({
-    event: 'otp-trigger.post.scope',
-    scopeValidated: wasScopeValidated,
-    triggerClickedAtMs: triggerClickedAt,
-  });
-  const diag = { ...input.diagnostics, triggerScopeValidated: wasScopeValidated };
-  return succeed({ ...input, diagnostics: diag });
+  return commitTriggerPost(input, wasScopeValidated, triggerClickedAt);
 }
 
 // ── FINAL: Emit ctx.otpTrigger (M4) ───────────────────────────────
@@ -253,6 +295,45 @@ function readPhoneHint(diag: IPipelineContext['diagnostics']): string {
 }
 
 /**
+ * Build the slim {@link IOtpTrigger} snapshot from the accumulated
+ * diagnostics. Pure — no side effects.
+ *
+ * @param diag - Pipeline diagnostics record.
+ * @returns Slim OTP-TRIGGER value snapshot.
+ */
+function buildOtpTriggerSnapshot(diag: IPipelineContext['diagnostics']): IOtpTrigger {
+  const target = readDiagTarget(diag, 'otpTriggerTarget');
+  return {
+    phoneHint: readPhoneHint(diag),
+    triggered: target !== false,
+    scopeValidated: readScopeValidated(diag),
+  };
+}
+
+/**
+ * Emit the FINAL commit telemetry and bind the snapshot to
+ * `ctx.otpTrigger`. Extracted so the orchestrator stays under the
+ * project's 10-line ceiling.
+ *
+ * @param input - Pipeline context.
+ * @param snapshot - Pre-built OTP-TRIGGER snapshot.
+ * @returns Success with updated context.
+ */
+function commitOtpTrigger(
+  input: IPipelineContext,
+  snapshot: IOtpTrigger,
+): Procedure<IPipelineContext> {
+  input.logger.debug({
+    event: 'otp-trigger.committed',
+    triggered: snapshot.triggered,
+    scopeValidated: snapshot.scopeValidated,
+    phoneHintLength: snapshot.phoneHint.length,
+  });
+  const diag = { ...input.diagnostics, lastAction: 'otp-trigger-final (committed)' };
+  return succeed({ ...input, diagnostics: diag, otpTrigger: some(snapshot) });
+}
+
+/**
  * FINAL: Emit `ctx.otpTrigger` with the slim {@link IOtpTrigger}
  * value type. Mirrors the AUTH-DISCOVERY/ACCOUNT-RESOLVE FINAL
  * pattern — single source of truth for downstream consumers.
@@ -261,29 +342,9 @@ function readPhoneHint(diag: IPipelineContext['diagnostics']): string {
  * @returns Updated context with `otpTrigger` populated.
  */
 function executeTriggerFinal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const phoneHint = readPhoneHint(input.diagnostics);
-  const target = readDiagTarget(input.diagnostics, 'otpTriggerTarget');
-  const wasScopeValidated = readScopeValidated(input.diagnostics);
-  const wasTriggered: boolean = target !== false;
-  const snapshot: IOtpTrigger = {
-    phoneHint,
-    triggered: wasTriggered,
-    scopeValidated: wasScopeValidated,
-  };
-  input.logger.debug({
-    event: 'otp-trigger.committed',
-    triggered: snapshot.triggered,
-    scopeValidated: snapshot.scopeValidated,
-    phoneHintLength: phoneHint.length,
-  });
-  const diag = { ...input.diagnostics, lastAction: 'otp-trigger-final (committed)' };
-  const nextCtx = {
-    ...input,
-    diagnostics: diag,
-    otpTrigger: some(snapshot),
-  };
-  const result = succeed(nextCtx);
-  return Promise.resolve(result);
+  const snapshot = buildOtpTriggerSnapshot(input.diagnostics);
+  const committed = commitOtpTrigger(input, snapshot);
+  return Promise.resolve(committed);
 }
 
 export { executeTriggerAction, executeTriggerFinal, executeTriggerPost, executeTriggerPre };

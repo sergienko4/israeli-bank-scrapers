@@ -120,6 +120,18 @@ export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 3000;
 /** AUTH-DISCOVERY auth-module sessionStorage poll ceiling — TIMING cut from 10000. */
 export const AUTH_POLL_TIMEOUT_MS = 3_000;
 
+/**
+ * AUTH-DISCOVERY.PRE settle ceiling — gives the SPA time to flush
+ * post-login redirect chatter (auth-token endpoints, header-bearer
+ * fetches, redirect navigation) before AUTH-DISCOVERY.PRE inventories
+ * the capture pool. Event-driven via `mediator.waitForNetworkIdle`
+ * (early-exits the moment the network goes idle), so fast banks pay
+ * 0 ms while slow-redirect banks pay up to this ceiling. Starts at
+ * 3 s per architectural review — increase only if a slow-redirect
+ * bank empirically requires it.
+ */
+export const AUTH_DISCOVERY_PRE_SETTLE_MS = 3_000;
+
 // ── ACCOUNT-RESOLVE phase ──────────────────────────────────────────
 
 /**

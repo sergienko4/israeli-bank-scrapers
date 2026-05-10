@@ -74,25 +74,92 @@ function tick(intervalMs: number): Promise<true> {
 }
 
 /**
- * Build a deadline-guard promise that resolves to the
- * {@link DEADLINE_REACHED} sentinel when the wall-clock budget
- * elapses. Used to race against a hung probe.
+ * Bundled deadline-guard handle. Holds the racer promise alongside a
+ * `cancel` closure that clears the underlying `setTimeout` so the
+ * handle does not leak when the probe wins the race.
+ *
+ * <p>PR #221 review finding B.1: previously the `setTimeout` queued
+ * by the deadline guard was never cleared on probe-win, accumulating
+ * pending timers across recursion ticks under frequent polling.
+ */
+interface IDeadlineRace {
+  readonly racer: Promise<typeof DEADLINE_REACHED>;
+  /**
+   * Clear the pending deadline `setTimeout`. Returns `true` so the
+   * helper satisfies the architecture rule against `void` returns.
+   */
+  readonly cancel: () => true;
+}
+
+/**
+ * Build a cancellable deadline-guard race. The returned `racer`
+ * resolves to {@link DEADLINE_REACHED} once `remainingMs` elapses;
+ * `cancel()` clears the pending timer when the probe wins so the
+ * timer queue does not leak.
+ *
+ * <p>The Promise constructor runs its executor synchronously, so
+ * `handle` is always defined by the time `cancel()` can be invoked.
+ * Captured via `let resolveSentinel` so the `setTimeout` is queued
+ * outside the executor and the handle reference is unconditional —
+ * removes a dead `if (handle !== undefined)` branch.
  *
  * @param remainingMs - Milliseconds remaining until the deadline.
- * @returns Promise that resolves to the sentinel after `remainingMs`.
+ * @returns Racer promise + cancellation closure.
  */
-function deadlineGuard(remainingMs: number): Promise<typeof DEADLINE_REACHED> {
+function deadlineGuard(remainingMs: number): IDeadlineRace {
   const safeRemaining = Math.max(remainingMs, 0);
-  return createPromise<typeof DEADLINE_REACHED>((resolve): boolean => {
-    globalThis.setTimeout((): boolean => resolve(DEADLINE_REACHED), safeRemaining);
+  // Definite-init no-op (returns boolean to satisfy the architecture
+  // rule against `void` returns). The createPromise executor runs
+  // synchronously below and overwrites this with the real resolve
+  // before the timer callback can ever fire — no `| undefined`
+  // branch needed.
+  // Definite-assignment assertion (`!:`) — `createPromise` runs its
+  // executor synchronously below, binding the real resolver before
+  // `setTimeout` can ever fire. No placeholder no-op is needed (a
+  // never-called placeholder would show as an uncovered function in
+  // coverage reports).
+  let resolveSentinel!: (v: typeof DEADLINE_REACHED) => boolean;
+  const racer = createPromise<typeof DEADLINE_REACHED>((resolve): boolean => {
+    /**
+     * Sentinel resolver bound to the racer promise. Returns `true`
+     * to satisfy the no-`void` architecture rule.
+     *
+     * @param val - The DEADLINE_REACHED sentinel.
+     * @returns True after resolving the racer.
+     */
+    const realResolve = (val: typeof DEADLINE_REACHED): boolean => {
+      resolve(val);
+      return true;
+    };
+    resolveSentinel = realResolve;
     return true;
   });
+  const handle = globalThis.setTimeout(
+    (): boolean => resolveSentinel(DEADLINE_REACHED),
+    safeRemaining,
+  );
+  return {
+    racer,
+    /**
+     * Cancel the pending timeout when the probe wins the race so the
+     * queued timer does not fire later and waste resources. Returns
+     * truthy to satisfy the no-`void` architecture rule.
+     *
+     * @returns True after the timeout has been cleared.
+     */
+    cancel: (): true => {
+      globalThis.clearTimeout(handle);
+      return true;
+    },
+  };
 }
 
 /**
  * Run the probe once with rejection-as-false absorption AND budget-
  * race protection. A probe that never resolves loses to the deadline
- * guard so the loop never stalls past the configured budget.
+ * guard so the loop never stalls past the configured budget. The
+ * pending guard timer is always cancelled before return — no timer
+ * leak whether probe wins or guard wins (PR #221 review B.1).
  *
  * @param probe - Caller-owned probe.
  * @param deadline - Absolute epoch-ms wall-clock ceiling.
@@ -101,8 +168,9 @@ function deadlineGuard(remainingMs: number): Promise<typeof DEADLINE_REACHED> {
 async function safeProbe<T>(probe: () => Promise<T | false>, deadline: number): Promise<T | false> {
   const probeCall = probe().catch((): false => false);
   const remainingMs = deadline - Date.now();
-  const racer = deadlineGuard(remainingMs);
-  const winner = await Promise.race([probeCall, racer]);
+  const guard = deadlineGuard(remainingMs);
+  const winner = await Promise.race([probeCall, guard.racer]);
+  guard.cancel();
   if (winner === DEADLINE_REACHED) return false;
   return winner;
 }
@@ -148,10 +216,18 @@ async function pollLoop<T>(args: IPollLoopArgs<T>): Promise<T | false> {
  * entry; if truthy, no interval timer is ever set. Probe rejections
  * are absorbed; probe hangs are capped by the deadline guard.
  *
+ * <p>Contract: when `budgetMs <= 0` the budget is already exhausted,
+ * so the function returns `false` synchronously WITHOUT calling the
+ * probe. PR #221 review finding B.2 — without this short-circuit
+ * the probe would still run and could return truthy before the
+ * past-deadline check inside `pollLoop` rejects it, violating
+ * "returns false once exceeded" for exhausted budgets.
+ *
  * @param args - Probe + interval + budget + optional logger.
  * @returns First truthy probe value or `false` on budget elapse.
  */
 export function pollWithBudget<T>(args: IPollArgs<T>): Promise<T | false> {
+  if (args.budgetMs <= 0) return Promise.resolve<T | false>(false);
   const deadline = Date.now() + args.budgetMs;
   return pollLoop({
     probe: args.probe,

@@ -248,6 +248,13 @@ function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
        */
       buildDiscoveredHeaders: (): Promise<IFetchOpts> => Promise.resolve(fetchOpts),
     },
+    /**
+     * No-op settle wait — AUTH-DISCOVERY.PRE awaits this before
+     * inventorying the capture pool. Resolves immediately so the
+     * factory test does not pay a real timer in unit-test land.
+     * @returns Resolved succeed.
+     */
+    waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
   } as unknown as IElementMediator;
 }
 

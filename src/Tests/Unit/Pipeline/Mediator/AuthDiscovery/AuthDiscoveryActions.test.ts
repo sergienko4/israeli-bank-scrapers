@@ -30,6 +30,53 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     expect(wasOk).toBe(true);
   });
 
+  it('PRE awaits a settle wait via mediator.waitForNetworkIdle BEFORE inventorying captures (post-login redirect grace)', async () => {
+    // PR #221 review follow-up: AUTH-DISCOVERY.PRE must give the SPA
+    // up to AUTH_DISCOVERY_PRE_SETTLE_MS to flush the post-login
+    // redirect chatter so the inventory it reads
+    // (`network.getAllEndpoints()`) reflects the final post-login
+    // state, not a mid-redirect snapshot. Event-driven (uses
+    // `waitForNetworkIdle`) so fast banks pay 0ms; slow banks pay
+    // up to the ceiling.
+    let didCallSettleWait = false;
+    let didCaptureBeforeWait = false;
+    const fakeMediator = {
+      /**
+       * Records that the settle wait was invoked AND that the
+       * capture inventory was read AFTER (not before).
+       *
+       * @returns Resolved succeed (no settle pending).
+       */
+      waitForNetworkIdle: () => {
+        didCallSettleWait = true;
+        return Promise.resolve({ success: true as const, value: undefined });
+      },
+      network: {
+        /**
+         * Returns empty captures pool. If `didCallSettleWait` is
+         * still false at this point, the inventory was read BEFORE
+         * the settle wait — assertion fails.
+         *
+         * @returns Empty captures.
+         */
+        getAllEndpoints: (): readonly unknown[] => {
+          didCaptureBeforeWait = !didCallSettleWait;
+          return [];
+        },
+      },
+    } as unknown as IElementMediator;
+    const baseCtx = makeMockContext();
+    const ctx = {
+      ...baseCtx,
+      mediator: { has: true as const, value: fakeMediator },
+    };
+    const result = await executeAuthDiscoveryPre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    expect(didCallSettleWait).toBe(true);
+    expect(didCaptureBeforeWait).toBe(false);
+  });
+
   it('ACTION returns sealed pass-through success on every input shape', async () => {
     const baseCtx = makeMockContext();
     const actionCtx = baseCtx as unknown as IActionContext;

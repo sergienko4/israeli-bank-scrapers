@@ -46,6 +46,8 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { AUTH_DISCOVERY_PRE_SETTLE_MS } from '../Timing/TimingConfig.js';
 import {
   auditSessionCookies,
   collectAuthChannels,
@@ -65,27 +67,59 @@ function isMockModeAuthDiscoveryActive(): boolean {
 }
 
 /**
- * PRE — passive inventory. Logs an entry-state telemetry event so
- * the live `pipeline.log` shows the moment AUTH-DISCOVERY took over
- * from auth (LOGIN or OTP-FILL).
+ * Wait up to {@link AUTH_DISCOVERY_PRE_SETTLE_MS} for the SPA's
+ * network to go idle. Event-driven via `waitForNetworkIdle` —
+ * exits the moment idle is detected (fast banks pay 0 ms; slow-
+ * redirect banks pay up to the ceiling). Single-purpose helper so
+ * `executeAuthDiscoveryPre` can stay a thin orchestrator and keep
+ * within the project's 10-line ceiling.
  *
- * @param input - Pipeline context.
- * @returns Pass-through success.
+ * @param mediator - Element mediator (provides the wait primitive).
+ * @returns True after the wait settles or the budget elapses.
  */
-function executeAuthDiscoveryPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) {
-    const passThrough = succeed(input);
-    return Promise.resolve(passThrough);
-  }
-  const network = input.mediator.value.network;
-  const allEndpoints = network.getAllEndpoints();
-  const captureCount = allEndpoints.length;
+async function settlePostLoginRedirect(mediator: IElementMediator): Promise<true> {
+  await mediator.waitForNetworkIdle(AUTH_DISCOVERY_PRE_SETTLE_MS).catch((): false => false);
+  return true;
+}
+
+/**
+ * Inventory the captured-network pool and emit one telemetry event
+ * naming the count. Single-purpose so `executeAuthDiscoveryPre`
+ * does not mix telemetry with control flow.
+ *
+ * @param input - Pipeline context (logger handle).
+ * @param captureCount - Pool size at PRE entry.
+ * @returns True after the event is emitted.
+ */
+function logInventory(input: IPipelineContext, captureCount: number): true {
   input.logger.debug({
     event: 'auth-discovery.pre.inventory',
     message: `auth-discovery.pre captures=${String(captureCount)}`,
   });
-  const passThrough = succeed(input);
-  return Promise.resolve(passThrough);
+  return true;
+}
+
+/**
+ * PRE — passive inventory after a settle wait. Gives the SPA up to
+ * {@link AUTH_DISCOVERY_PRE_SETTLE_MS} ms to flush post-login
+ * redirect chatter (auth-token endpoints, header-bearer fetches,
+ * redirect navigation) so the inventory it reads reflects the final
+ * post-login state, not a mid-redirect snapshot. Logs an entry-state
+ * telemetry event so the live `pipeline.log` shows the moment
+ * AUTH-DISCOVERY took over from auth (LOGIN or OTP-FILL).
+ *
+ * @param input - Pipeline context.
+ * @returns Pass-through success.
+ */
+async function executeAuthDiscoveryPre(
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (!input.mediator.has) return succeed(input);
+  const mediator = input.mediator.value;
+  await settlePostLoginRedirect(mediator);
+  const allEndpoints = mediator.network.getAllEndpoints();
+  logInventory(input, allEndpoints.length);
+  return succeed(input);
 }
 
 /**
