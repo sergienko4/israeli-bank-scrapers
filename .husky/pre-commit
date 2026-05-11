@@ -210,29 +210,20 @@ else
 fi
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
-# # This is the last gate — if it passes, the commit proceeds. The
-# # Docker-based runner (`docker/run-banks.sh`) gives each bank its
-# # own Camoufox process space, sidestepping upstream bug #386
-# # ("instances interfere with each other") that constrained the
-# # host runner to sequential mode. Banks run in parallel across
-# # worker groups (Rule #16 still applies: Amex + Isracard share a
-# # sequential group). The image `isbs-ci:latest` must be built
-# # first via `docker build -f docker/Dockerfile.ci-mirror -t
-# # isbs-ci:latest .` — the wrapper script prints a clear error if
-# # the image is missing.
-# #
-# # LOCAL_BANKS env override lets the operator restrict the Phase 5
-# # gate to a subset (e.g. `LOCAL_BANKS="OneZero Beinleumi" git
-# # commit`); default is the 6-bank Real-A matrix.
+# # This is the last gate — if it passes, the commit proceeds.
+# # Routes through `scripts/run-real-suite.ts` (gitignored, operator-
+# # controlled bank list — typically OneZero + Beinleumi for local
+# # runs). The Docker-based parallel hook lives in
+# # docker/{Dockerfile.ci-mirror,run-banks.sh} as scaffolding but is
+# # NOT wired in here yet: the in-flight smoke run on commit `cd0db7da`
+# # surfaced a Docker Desktop / vEthernet DNS contention pattern
+# # (5+ parallel Camoufox containers saturating the host resolver,
+# # producing "Server Not Found" on bank URLs) that is tracked for a
+# # follow-up. Until that is resolved, host sequential mode stays.
 run-e2e-happy-path() {
     log ""
-    log "🔴 Phase 5: Live E2E — happy-path via Docker (Rule #16: Amex+Isracard sequential within group)"
-    local banks_arg=""
-    if [ -n "${LOCAL_BANKS:-}" ]; then
-        banks_arg="$LOCAL_BANKS"
-        log "  Restricted to: $banks_arg"
-    fi
-    bash docker/run-banks.sh $banks_arg 2>&1 | tee -a "$LOG_FILE"
+    log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
+    npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         log "❌ Live E2E (happy-path) FAILED"
         exit 1
