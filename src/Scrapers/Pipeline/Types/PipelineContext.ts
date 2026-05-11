@@ -110,6 +110,20 @@ interface IDiagnosticsState {
    * run (test paths or non-OTP banks).
    */
   readonly otpTriggerPreUrl?: string;
+  /**
+   * ACTION timestamp (epoch-ms) used by OTP-TRIGGER.POST to scope
+   * network ACKs to the post-click window. Absent ⇒ POST treats every
+   * capture as a candidate (permissive default for test paths that
+   * don't run the full ACTION → POST sequence).
+   */
+  readonly triggerClickedAt?: number;
+  /**
+   * POST validation outcome for the OTP trigger's scope-bound effect.
+   * `true` when either the trigger target disappeared or a 2xx auth-
+   * domain ACK landed since `triggerClickedAt`. Absent ⇒ POST did not
+   * run or the validation was skipped (test paths).
+   */
+  readonly triggerScopeValidated?: boolean;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */

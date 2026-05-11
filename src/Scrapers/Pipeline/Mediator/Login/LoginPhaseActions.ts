@@ -32,7 +32,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
-import { awaitFramePrelude } from '../Elements/PagePrelude.js';
+import { awaitFramePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
@@ -435,6 +435,26 @@ async function executeDiscoverForm(
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'LOGIN PRE: no browser');
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'LOGIN PRE: no mediator');
   const page = input.browser.value.page;
+  // PR #221 review-fix session 2026-05-11: the HOME → LOGIN navigation
+  // (HOME.ACTION clicks the login-link nav, page lands on the bank's
+  // dedicated login subdomain) can hit Firefox's built-in neterror page
+  // if DNS / TCP / TLS fails for the SECOND domain (Discount lands on
+  // start.telebank.co.il from discountbank.co.il; only the second hop
+  // can flake while the first succeeded). INIT.POST's gate only sees
+  // the first navigation; LOGIN.PRE is the first phase that reads the
+  // post-second-hop content, so it owns the cold-start gate for this
+  // navigation. Fails loud immediately so the 25-30s downstream
+  // cascade (HOME.FINAL → LOGIN.ACTION → LOGIN.POST → AUTH-DISCOVERY)
+  // is short-circuited and the run reports a real diagnosis.
+  const neterrorProbe = await probeFirefoxNeterror(page);
+  if (neterrorProbe.isNeterror) {
+    const currentUrl = page.url();
+    const maskedUrl = maskVisibleText(currentUrl);
+    return fail(
+      ScraperErrorTypes.Generic,
+      `LOGIN PRE: browser error page — title="${neterrorProbe.title}" url=${maskedUrl}`,
+    );
+  }
   const readyCheck = await runCheckReadiness(config, page);
   if (readyCheck) return readyCheck;
   const frameResult = await runPreAction(config, page);
@@ -826,9 +846,17 @@ async function validateActionScopeIntact(
   if (!passwordTarget) return false;
   const stillPresent = await mediator.countBySelector(passwordTarget.selector);
   if (stillPresent === 0) return false;
-  const isOtpRendered = await otpScreenVisible(mediator);
-  if (isOtpRendered) {
+  const otpVisibility = await otpScreenVisible(mediator);
+  if (otpVisibility === true) {
     input.logger.debug({ message: 'POST: scope intact but OTP screen rendered — fall through' });
+    return false;
+  }
+  // PR #221 review (id 3216542548): probe FAILURE is not a credential
+  // verdict — fall through instead of firing a false-positive
+  // INVALID_PASSWORD. A real auth failure surfaces via the upstream
+  // `detectAuthApiFailure` / `detectAsyncLoginErrors` channels first.
+  if (otpVisibility === 'unknown') {
+    input.logger.debug({ message: 'POST: OTP probe failed — fall through (unknown ≠ invalid)' });
     return false;
   }
   const masked = maskVisibleText(passwordTarget.selector);
@@ -843,6 +871,58 @@ async function validateActionScopeIntact(
 }
 
 /**
+ * Tri-state outcome for {@link otpScreenVisible}.
+ * <ul>
+ *   <li>`true` — at least one probe returned a positive "found" signal.</li>
+ *   <li>`false` — both probes returned definitive "not found" results.</li>
+ *   <li>`'unknown'` — at least one probe failed (transient resolver
+ *       error). The caller must NOT treat this as "not visible"
+ *       (would re-create the INVALID_PASSWORD false-positive this
+ *       branch was added to prevent).</li>
+ * </ul>
+ */
+type OtpScreenVisibility = boolean | 'unknown';
+
+/** Outcome of a single OTP detect call — race result or probe failure. */
+type ProbeOutcome = IRaceResult | 'failed';
+
+/** Sentinel for {@link runOtpDetect}'s catch arm. */
+const PROBE_FAILED: ProbeOutcome = 'failed';
+
+/**
+ * Translate a {@link Procedure} into a flat {@link ProbeOutcome}. Pulled
+ * out of {@link runOtpDetect} so the body stays inside the max-depth
+ * ceiling — try/catch + if-branch would otherwise nest beyond 1.
+ *
+ * @param result - Probe-side Procedure result.
+ * @returns Race result on success; `'failed'` on `success: false`.
+ */
+function unwrapOtpProcedure(result: Procedure<IRaceResult>): ProbeOutcome {
+  if (!result.success) return PROBE_FAILED;
+  return result.value;
+}
+
+/**
+ * Run a single OTP detect probe and translate its `Procedure` shape
+ * (or any rejected resolver promise) into a flat {@link ProbeOutcome}.
+ * Rejections of the underlying `resolveVisible` propagate out of
+ * `detectOtpTrigger` / `detectOtpForm` today (they `await` without a
+ * `.catch`), so this wrapper absorbs them here and signals `'failed'`.
+ *
+ * @param probe - OTP-screen detector function reference.
+ * @param mediator - Element mediator threaded through to the detector.
+ * @returns Race result on success; `'failed'` on resolver rejection.
+ */
+async function runOtpDetect(
+  probe: (m: IElementMediator) => Promise<Procedure<IRaceResult>>,
+  mediator: IElementMediator,
+): Promise<ProbeOutcome> {
+  const result = await probe(mediator).catch((): false => false);
+  if (result === false) return PROBE_FAILED;
+  return unwrapOtpProcedure(result);
+}
+
+/**
  * Probes the post-submit DOM for an OTP-trigger or OTP-input element.
  *
  * <p>Mission M4.F2.0 disambiguator for {@link validateActionScopeIntact}:
@@ -853,18 +933,25 @@ async function validateActionScopeIntact(
  * `INVALID_PASSWORD`. Probes run in parallel so the worst-case wait
  * is one `OTP_FORM_PROBE_TIMEOUT_MS` ceiling, not two.
  *
+ * <p>PR #221 review (id 3216542548): probe FAILURES (transient
+ * resolver errors) are NOT the same as probe results of "not found".
+ * Collapsing both into `false` recreates the INVALID_PASSWORD
+ * false-positive on transient flakes. Returns `'unknown'` so the
+ * caller can choose to fall through instead of failing closed.
+ *
  * @param mediator - Element mediator passed through to OTP probes.
- * @returns True when an OTP-trigger or OTP-input element is visible
- *   in the active context; false otherwise.
+ * @returns `true` when an OTP-trigger or OTP-input element is visible;
+ *   `false` when both probes definitively did not find one;
+ *   `'unknown'` when at least one probe failed.
  */
-async function otpScreenVisible(mediator: IElementMediator): Promise<boolean> {
-  const [triggerResult, formResult] = await Promise.all([
-    detectOtpTrigger(mediator),
-    detectOtpForm(mediator),
-  ]);
-  const isTriggerVisible = triggerResult.success && triggerResult.value.found;
-  const isFormVisible = formResult.success && formResult.value.found;
-  return isTriggerVisible || isFormVisible;
+async function otpScreenVisible(mediator: IElementMediator): Promise<OtpScreenVisibility> {
+  const triggerProbe = runOtpDetect(detectOtpTrigger, mediator);
+  const formProbe = runOtpDetect(detectOtpForm, mediator);
+  const [triggerOutcome, formOutcome] = await Promise.all([triggerProbe, formProbe]);
+  if (triggerOutcome !== 'failed' && triggerOutcome.found) return true;
+  if (formOutcome !== 'failed' && formOutcome.found) return true;
+  if (triggerOutcome === 'failed' || formOutcome === 'failed') return 'unknown';
+  return false;
 }
 
 /**

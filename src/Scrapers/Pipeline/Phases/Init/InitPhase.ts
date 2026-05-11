@@ -80,8 +80,7 @@ class InitPhase extends BasePhase {
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'init.post' });
-    const validated = executeValidatePage(input);
-    return Promise.resolve(validated);
+    return executeValidatePage(input);
   }
 
   /** @inheritdoc */

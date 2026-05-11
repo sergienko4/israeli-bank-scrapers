@@ -138,7 +138,7 @@ async function executeTriggerAction(input: IActionContext): Promise<Procedure<IA
  * @returns Click epoch-ms or 0.
  */
 function readTriggerClickedAt(diag: IPipelineContext['diagnostics']): number {
-  const raw = (diag as unknown as { readonly triggerClickedAt?: unknown }).triggerClickedAt;
+  const raw = diag.triggerClickedAt;
   if (typeof raw !== 'number') return 0;
   return raw;
 }
@@ -161,10 +161,33 @@ const HTTP_2XX_HI = 299;
  *   - `sms` (sendSms, smsSubmit, …)
  *   - `verif` (verification, verify, …)
  *   - `login` (loginSuccess, login/login, …)
- * Substring (case-insensitive) — Camel/PascalCase URL segments are
+ *
+ * <p>Substring (case-insensitive) — Camel/PascalCase URL segments are
  * accepted (no `\b` so `sendOtp` matches `otp`).
+ *
+ * <p>Tested against {@link pathnameOf}-extracted URL paths only (NOT
+ * the full URL). PR #221 review (id 3215182688) — rejects false
+ * positives where the keyword lives in the host (`login.example.com`)
+ * or the query string (`?from=login`). Path-shape false positives
+ * (`/sms-templates`) remain acceptable for an observability-only gate.
  */
 const AUTH_DOMAIN_URL_SCOPE = /auth|otp|sms|verif|login/i;
+
+/**
+ * Extract the pathname of a URL. Falls back to the raw input on parse
+ * failure so the caller never sees a thrown exception (the predicate
+ * is observability-only — a malformed URL should NOT crash POST).
+ *
+ * @param url - Endpoint URL.
+ * @returns URL pathname or raw input on failure.
+ */
+function pathnameOf(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
 
 /**
  * Predicate: capture occurred since `triggerClickedAt`, has a 2xx
@@ -181,7 +204,8 @@ function isPostClickAck(ep: IDiscoveredEndpoint, sinceMs: number): boolean {
   if (ep.status === undefined) return false;
   if (ep.status < HTTP_2XX_LO) return false;
   if (ep.status > HTTP_2XX_HI) return false;
-  return AUTH_DOMAIN_URL_SCOPE.test(ep.url);
+  const path = pathnameOf(ep.url);
+  return AUTH_DOMAIN_URL_SCOPE.test(path);
 }
 
 /**
@@ -214,7 +238,11 @@ async function probeTriggerScope(
   const probe = await mediator
     .resolveVisible([candidate], OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS)
     .catch((): false => false);
-  if (probe === false) return true;
+  // PR #221 review finding B.2 (id 3215505993): a rejected/timed-out
+  // re-probe is UNKNOWN, not "target gone". Stamping `true` here would
+  // mark `scopeValidated=true` without ever proving the trigger
+  // disappeared — false positive on transient resolver failures.
+  if (probe === false) return false;
   return !probe.found;
 }
 
@@ -277,10 +305,9 @@ async function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IP
  * @returns Stamped boolean or false.
  */
 function readScopeValidated(diag: IPipelineContext['diagnostics']): boolean {
-  const raw = (diag as unknown as { readonly triggerScopeValidated?: unknown })
-    .triggerScopeValidated;
-  if (typeof raw !== 'boolean') return false;
-  return raw;
+  const wasValidated = diag.triggerScopeValidated;
+  if (typeof wasValidated !== 'boolean') return false;
+  return wasValidated;
 }
 
 /**

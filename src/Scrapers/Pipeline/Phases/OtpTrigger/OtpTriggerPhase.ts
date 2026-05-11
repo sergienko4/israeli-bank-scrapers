@@ -101,15 +101,6 @@ class OtpTriggerPhase extends BasePhase {
    * @param stage - The stage about to execute.
    * @returns DOM prelude for PRE / ACTION; none otherwise.
    */
-  /**
-   * OTP-TRIGGER requires DOM-ready before the phone-hint scan (PRE) and
-   * before the "send code" click (ACTION). DOM parsing is sufficient —
-   * OTP screens are typically already hydrated by the time the pipeline
-   * reaches this phase after LOGIN.POST settled.
-   *
-   * @param stage - The stage about to execute.
-   * @returns DOM prelude for PRE / ACTION; none otherwise.
-   */
   protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
     return this._preludeTable[stage];
   }

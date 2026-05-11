@@ -82,15 +82,6 @@ class DashboardPhase extends BasePhase {
    * @param stage - The stage about to execute.
    * @returns SPA prelude for PRE / ACTION; none otherwise.
    */
-  /**
-   * DASHBOARD requires SPA-ready before scanning navigation targets (PRE)
-   * and before clicking (ACTION). Bank dashboards are SPA-heavy
-   * (Backbase modules on Amex / Isracard); the click must land after JS
-   * hydration so the SPA router responds.
-   *
-   * @param stage - The stage about to execute.
-   * @returns SPA prelude for PRE / ACTION; none otherwise.
-   */
   protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
     return this._preludeTable[stage];
   }

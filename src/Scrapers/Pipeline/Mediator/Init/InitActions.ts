@@ -23,7 +23,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
-import { awaitPagePrelude } from '../Elements/PagePrelude.js';
+import { awaitPagePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';
 import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   INIT_NAV_COMMIT_TIMEOUT_MS,
@@ -102,23 +102,44 @@ async function executeNavigateToBank(
 
 /**
  * POST: Validate the navigation committed — page URL is no longer
- * `about:blank`. Pure observation: zero clicks, zero HTML scan,
- * zero WK lookup. The commit wait already happened in ACTION; POST
- * is the sanity gate that confirms it landed.
+ * `about:blank` AND the page is not Firefox's neterror chrome.
+ * Pure observation: reads URL + title, zero clicks, zero WK lookup.
+ * The commit wait already happened in ACTION; POST is the sanity
+ * gate that confirms a real bank page (not a browser error page)
+ * landed.
+ *
+ * <p>PR #221 review-fix session 2026-05-11 added the title-based
+ * neterror gate via {@link probeFirefoxNeterror}. Without it, a
+ * cold-start DNS / TCP failure cascaded silently through INIT →
+ * HOME → LOGIN and surfaced 25-30s later at AUTH-DISCOVERY.FINAL
+ * as `reveal-missing` — wasting Phase 5 wall time AND obscuring the
+ * actual failure point. The title check fails-loud immediately with
+ * a descriptive message so retry logic (or human re-runs) can target
+ * the real cause.
  *
  * <p>ZERO dependency on other INIT functions. Reads `input.browser`
- * only; emits no new ctx field.
+ * only; emits no new ctx field. `page.title()` rejections are
+ * absorbed inside the helper — the gate is observability-only and
+ * must never crash POST on a transient `evaluate` failure.
  *
  * @param input - Pipeline context with browser.
- * @returns Succeed when URL committed, fail when still blank.
+ * @returns Succeed when URL committed AND title not a Firefox
+ *   neterror page; fail when blank URL or neterror title detected.
  */
-function executeValidatePage(input: IPipelineContext): Procedure<IPipelineContext> {
+async function executeValidatePage(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT POST: no browser');
   const page = input.browser.value.page;
   const currentUrl = page.url();
   input.logger.debug({ url: maskVisibleText(currentUrl) });
   if (currentUrl === 'about:blank') {
     return fail(ScraperErrorTypes.Generic, 'INIT POST: page is blank');
+  }
+  const probe = await probeFirefoxNeterror(page);
+  if (probe.isNeterror) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `INIT POST: browser error page — title="${probe.title}" url=${maskVisibleText(currentUrl)}`,
+    );
   }
   return succeed(input);
 }

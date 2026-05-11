@@ -226,6 +226,76 @@ describe('pollWithBudget', () => {
     }
   });
 
+  it('B.5 — absorbs synchronous throws inside the probe as false', async () => {
+    // PR #221 review (id 3215182691): a probe that THROWS synchronously
+    // (before returning a Promise) used to escape `probe().catch(...)`
+    // because `.catch()` requires the function to return a Promise first.
+    // The sync throw would then reject `pollWithBudget` itself, violating
+    // the documented "rejections are absorbed and treated as `false`"
+    // contract. The safeProbe fix wraps the call in
+    // `Promise.resolve().then(probe).catch(...)` so the sync throw lands
+    // inside the Promise chain where `.catch()` can capture it.
+    let probeCalls = 0;
+    /**
+     * Probe that throws synchronously every call. Must NOT reject
+     * pollWithBudget.
+     *
+     * @returns Never — always throws.
+     */
+    const throwingProbe = (): Promise<string | false> => {
+      probeCalls += 1;
+      throw new TypeError('sync throw before promise');
+    };
+    const result = await pollWithBudget({
+      probe: throwingProbe,
+      intervalMs: 30,
+      budgetMs: 100,
+    });
+    expect(result).toBe(false);
+    // Probe is called at least once; rejection absorbed → loop keeps
+    // polling until budget elapses, so multiple calls are expected.
+    expect(probeCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it('B.5 — never invokes the probe again after the deadline elapsed (stops polling cleanly)', async () => {
+    // PR #221 review (id 3215182691): once the budget runs out the loop
+    // exits — no further probe calls land post-deadline. Defensive
+    // belt-and-suspenders for `safeProbe`'s remainingMs<=0 short-circuit:
+    // even under aggressive clock skew the probe is never re-invoked
+    // past the wall-clock ceiling.
+    jest.useFakeTimers();
+    try {
+      const callTimestamps: number[] = [];
+      /**
+       * Probe always false; records each invocation timestamp so the
+       * test can assert no call occurred after the deadline.
+       *
+       * @returns Always false.
+       */
+      const recordingProbe = (): Promise<false> => {
+        const callMs = Date.now();
+        callTimestamps.push(callMs);
+        return Promise.resolve(false);
+      };
+      const startMs = Date.now();
+      const pending = pollWithBudget({
+        probe: recordingProbe,
+        intervalMs: 20,
+        budgetMs: 100,
+      });
+      // Advance well past the budget — any late tick would land after
+      // startMs + budgetMs.
+      await jest.advanceTimersByTimeAsync(300);
+      const wasHit = await pending;
+      expect(wasHit).toBe(false);
+      const deadline = startMs + 100;
+      const lateCalls = callTimestamps.filter((ts): boolean => ts > deadline);
+      expect(lateCalls).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('caps a hung probe via deadline guard (probe never resolves)', async () => {
     // Probe-hang protection: when a probe returns a Promise that never
     // resolves, the deadline-guard race must fire and pollWithBudget

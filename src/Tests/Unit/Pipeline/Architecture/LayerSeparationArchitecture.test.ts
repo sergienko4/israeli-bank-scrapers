@@ -987,26 +987,57 @@ const OTP_TRIGGER_FORBIDDEN_IMPORTS: readonly string[] = [
 ];
 
 /**
+ * Check whether a (possibly multi-line) import block references any
+ * forbidden phase-mediator zone.
+ *
+ * @param block - Joined text of one full import statement.
+ * @returns True when the block imports from a forbidden zone.
+ */
+function isForbiddenImportBlock(block: string): boolean {
+  return OTP_TRIGGER_FORBIDDEN_IMPORTS.some((zone): boolean => {
+    const fwd = zone.replace(/\\/g, '/');
+    return block.includes(`/${fwd}/`) || block.includes(`'${fwd}/`);
+  });
+}
+
+/**
  * Find import lines in an OTP-TRIGGER-zone file that pull from any
  * forbidden phase-mediator zone.
  *
+ * <p>PR #221 review (id 3215182693): a single-line scan misses formatted
+ * multi-line imports of the form `import {\n  Foo,\n} from '…/Forbidden/Bar.js';`.
+ * The walker buffers consecutive lines starting with `import ` (or
+ * inside an open block) until the terminating `;` lands, then performs
+ * the forbidden-zone check on the joined block. Reported hit line is
+ * the 1-based line where the `import` keyword started so test failures
+ * point at the statement head, not its closing brace.
+ *
  * @param text - Source file text.
- * @returns Matching line numbers (1-based).
+ * @returns Matching line numbers (1-based, statement-start).
  */
 function findOtpTriggerForbiddenImportLines(text: string): readonly number[] {
   const lines = text.split('\n');
   const hits: number[] = [];
+  let importStartLine = 0;
+  let importBlock = '';
+  let isInsideImport = false;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const trimmed = line.trimStart();
-    if (trimmed.startsWith('//')) continue;
-    if (trimmed.startsWith('*')) continue;
-    if (!line.includes('import')) continue;
-    const isForbidden = OTP_TRIGGER_FORBIDDEN_IMPORTS.some((zone): boolean => {
-      const fwd = zone.replace(/\\/g, '/');
-      return line.includes(`/${fwd}/`) || line.includes(`'${fwd}/`);
-    });
-    if (isForbidden) hits.push(i + 1);
+    if (!isInsideImport) {
+      if (trimmed.startsWith('//')) continue;
+      if (trimmed.startsWith('*')) continue;
+      if (!trimmed.startsWith('import ')) continue;
+      isInsideImport = true;
+      importStartLine = i + 1;
+      importBlock = line;
+    } else {
+      importBlock = `${importBlock}\n${line}`;
+    }
+    if (!line.includes(';')) continue;
+    if (isForbiddenImportBlock(importBlock)) hits.push(importStartLine);
+    isInsideImport = false;
+    importBlock = '';
   }
   return hits;
 }

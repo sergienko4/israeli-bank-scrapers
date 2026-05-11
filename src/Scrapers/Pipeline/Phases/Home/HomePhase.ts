@@ -102,16 +102,6 @@ class HomePhase extends BasePhase {
    * @param stage - The stage about to execute.
    * @returns SPA prelude for PRE / ACTION; none otherwise.
    */
-  /**
-   * HOME requires SPA-ready (HTML parsed + JS bundles loaded + network
-   * idle) before PRE scans for the login trigger AND before ACTION
-   * clicks. Without this gate, banks like Visacal whose login button is
-   * `<a href="#" onclick="">` with an async-bound handler fall through
-   * to default hash navigation and the modal never opens.
-   *
-   * @param stage - The stage about to execute.
-   * @returns SPA prelude for PRE / ACTION; none otherwise.
-   */
   protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
     return this._preludeTable[stage];
   }

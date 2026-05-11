@@ -133,6 +133,39 @@ interface IPreludeTelemetry {
 }
 
 /**
+ * Concrete structured-log payload shape for the `prelude` telemetry
+ * event. Mirrors {@link IPreludeTelemetry}'s fields plus `phase` /
+ * `stage` resolved from {@link "../../Types/ActiveState.js"}.
+ */
+interface IPreludeTelemetryPayload {
+  readonly event: 'prelude';
+  readonly phase: string;
+  readonly stage: string;
+  readonly level: PreludeLevel;
+  readonly ready: boolean;
+  readonly elapsedMs: number;
+}
+
+/**
+ * Build the structured `prelude` telemetry payload. Extracted so
+ * {@link emitPreludeEvent} stays inside the project's 10-line ceiling
+ * (PR #221 review id 3217306025).
+ *
+ * @param t - Bundled telemetry args.
+ * @returns Structured payload ready for `logger.debug`.
+ */
+function buildPreludeTelemetry(t: IPreludeTelemetry): IPreludeTelemetryPayload {
+  return {
+    event: 'prelude',
+    phase: getActivePhase(),
+    stage: getActiveStage(),
+    level: t.level,
+    ready: t.wasReady,
+    elapsedMs: t.elapsedMs,
+  };
+}
+
+/**
  * Emit the canonical `prelude` telemetry event so `pipeline.log`
  * carries one structured line per call. Per
  * `logging-pii-guidelines.md` rule 6, no payload data — only
@@ -142,14 +175,8 @@ interface IPreludeTelemetry {
  * @returns True after the event is logged.
  */
 function emitPreludeEvent(t: IPreludeTelemetry): true {
-  t.input.logger.debug({
-    event: 'prelude',
-    phase: getActivePhase(),
-    stage: getActiveStage(),
-    level: t.level,
-    ready: t.wasReady,
-    elapsedMs: t.elapsedMs,
-  });
+  const payload = buildPreludeTelemetry(t);
+  t.input.logger.debug(payload);
   return true;
 }
 
@@ -244,3 +271,8 @@ async function awaitFramePrelude(
 
 export type { IPreludeSpec, PreludeLevel };
 export { awaitFramePrelude, awaitPagePrelude, PRELUDE_NONE };
+// Cross-zone convenience re-export so callers already depending on
+// PagePrelude (INIT.POST, LOGIN.PRE) reach the Firefox-neterror gate
+// without bumping import-x/max-dependencies above the 15 ceiling
+// configured in `eslint.config.mjs`.
+export { default as probeFirefoxNeterror } from '../Browser/BrowserErrorPage.js';

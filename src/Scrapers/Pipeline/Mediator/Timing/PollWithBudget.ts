@@ -161,13 +161,30 @@ function deadlineGuard(remainingMs: number): IDeadlineRace {
  * pending guard timer is always cancelled before return — no timer
  * leak whether probe wins or guard wins (PR #221 review B.1).
  *
+ * <p>Two contract guarantees PR #221 review (id 3215182691) tightened:
+ * <ul>
+ *   <li>An expired budget (`remainingMs <= 0`) short-circuits to
+ *       `false` BEFORE the probe runs. The probe's truthy resolution
+ *       cannot win the race against an already-past deadline.</li>
+ *   <li>Synchronous throws inside the probe function (thrown BEFORE
+ *       a Promise is returned) are absorbed as `false`. Wrapping the
+ *       call in `Promise.resolve().then(probe)` defers the call to a
+ *       microtask so the sync throw lands inside the Promise chain
+ *       where `.catch()` can capture it. Without this, a sync throw
+ *       propagates past `.catch()` and rejects safeProbe — violating
+ *       "rejections are absorbed and treated as `false`".</li>
+ * </ul>
+ *
  * @param probe - Caller-owned probe.
  * @param deadline - Absolute epoch-ms wall-clock ceiling.
  * @returns Probe result, `false` on rejection or timeout.
  */
 async function safeProbe<T>(probe: () => Promise<T | false>, deadline: number): Promise<T | false> {
-  const probeCall = probe().catch((): false => false);
   const remainingMs = deadline - Date.now();
+  if (remainingMs <= 0) return false;
+  const probeCall = Promise.resolve()
+    .then(probe)
+    .catch((): false => false);
   const guard = deadlineGuard(remainingMs);
   const winner = await Promise.race([probeCall, guard.racer]);
   guard.cancel();

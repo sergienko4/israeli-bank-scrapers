@@ -272,6 +272,43 @@ const NON_AUTH_2XX_CAPTURE = {
   status: 200,
 } as const;
 
+/**
+ * PR #221 review (id 3215182688): a 2xx dashboard capture whose
+ * QUERY STRING contains the keyword `login` must NOT promote to ACK.
+ * The path scope (`/dashboard`) is what counts; the query parameter
+ * `?from=login` is incidental UI breadcrumb routing data.
+ */
+const QUERY_STRING_LOGIN_CAPTURE = {
+  url: 'https://api.bank.example/dashboard?from=login',
+  method: 'GET',
+  postData: '',
+  responseBody: {},
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 1000,
+  status: 200,
+} as const;
+
+/**
+ * PR #221 review (id 3215182688): a 2xx capture whose HOST contains
+ * the keyword `login` (e.g. `login.bank.example`) but whose PATH does
+ * NOT must NOT promote to ACK. Common bank topology — the auth subdomain
+ * is named `login.*` but unrelated assets (CSS / images / static pages)
+ * served from it must not falsely satisfy the ACK gate.
+ */
+const HOST_LOGIN_NON_AUTH_PATH_CAPTURE = {
+  url: 'https://login.bank.example/static/main.css',
+  method: 'GET',
+  postData: '',
+  responseBody: '',
+  contentType: 'text/css',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 1000,
+  status: 200,
+} as const;
+
 /** Mixed-status pool exercising every `isPostClickAck` rejection branch. */
 const MIXED_STATUS_CAPTURES = [
   // status=undefined → early-return (line `ep.status === undefined`).
@@ -363,6 +400,22 @@ const POST_SCOPE_SCENARIOS: readonly IPostScopeScenario[] = [
     expectedScopeValidated: false,
   },
   {
+    // PR #221 review id 3215182688 — path-scope tightening.
+    label: 'B.1 — does NOT promote a 2xx whose `login` keyword lives in the query string',
+    captures: [QUERY_STRING_LOGIN_CAPTURE],
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    diagOverrides: { triggerClickedAt: 500 },
+    expectedScopeValidated: false,
+  },
+  {
+    // PR #221 review id 3215182688 — path-scope tightening.
+    label: 'B.1 — does NOT promote a 2xx whose `login` keyword lives in the HOST only',
+    captures: [HOST_LOGIN_NON_AUTH_PATH_CAPTURE],
+    resolveVisible: STUB_RESOLVE_VISIBLE,
+    diagOverrides: { triggerClickedAt: 500 },
+    expectedScopeValidated: false,
+  },
+  {
     label: 'stamps triggerScopeValidated=true when no ACK fired but target is gone (M4)',
     captures: [],
     resolveVisible: STUB_RESOLVE_GONE,
@@ -377,11 +430,16 @@ const POST_SCOPE_SCENARIOS: readonly IPostScopeScenario[] = [
     expectedScopeValidated: false,
   },
   {
-    label: 'treats resolveVisible rejection as "target gone" (catch arrow) (M4 coverage)',
+    // PR #221 review (id 3215505993) — B.2 fix: a probe REJECTION is
+    // UNKNOWN, not "target gone". Previously this scenario stamped
+    // scopeValidated=true; the tightened contract now requires
+    // false. Catch arrow still fires; the difference is what we do
+    // with the resulting `false` sentinel.
+    label: 'B.2 — treats resolveVisible rejection as UNKNOWN (no scope-validated stamp)',
     captures: [],
     resolveVisible: STUB_RESOLVE_REJECT,
     diagOverrides: { triggerClickedAt: 0 },
-    expectedScopeValidated: true,
+    expectedScopeValidated: false,
   },
   {
     label:

@@ -13,6 +13,8 @@
  *   - LOGIN-POST-OTP-003: neither visible → INVALID_PASSWORD (regression guard)
  *   - LOGIN-POST-OTP-004: URL changed → fall through immediately (no probe)
  *   - LOGIN-POST-OTP-005: password absent → fall through immediately (no probe)
+ *   - LOGIN-POST-OTP-006 (PR #221 review id 3216542548): OTP probe REJECTS
+ *     → fall through (probe-failure is unknown, not INVALID_PASSWORD)
  */
 
 import type {
@@ -29,16 +31,19 @@ import type {
 import { LOGIN_FIELDS } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /**
- * Discriminator for the stub's `resolveVisible`: WK_OTP_INPUT's first
- * candidate uses `placeholder` kind; WK_OTP_TRIGGER's first candidate
- * uses `clickableText` kind. Real probe order is fixed in
- * `otpScreenVisible` so the stub can route by candidate kind without
- * coupling to call order.
+ * Scripted answer for a single `resolveVisible` call. PR #221 review
+ * (id 3216542553) — replaces the prior `'placeholder'`/`'clickableText'`
+ * kind-routing that encoded WK probe internals into the test. Each
+ * scenario row lists the answers IN CALL ORDER instead.
+ *
+ * <p>`otpScreenVisible` runs `Promise.all([detectOtpTrigger, detectOtpForm])`
+ * — both calls are dispatched synchronously, so `resolveVisible` is
+ * invoked exactly TWICE per validator entry in the URL-unchanged +
+ * password-present branch. Call #1 ≡ trigger probe, call #2 ≡ form
+ * probe. Each step in {@link IMediatorConfig.probeAnswers} is consumed
+ * in order regardless of how the underlying probes name their kinds.
  */
-const OTP_INPUT_KIND = 'placeholder';
-
-/** First-candidate kind that identifies the OTP-trigger probe. */
-const OTP_TRIGGER_KIND = 'clickableText';
+type ProbeAnswer = 'found' | 'not-found' | 'reject';
 
 /**
  * Stub IRaceResult: a found / not-found pair so the stub mediator
@@ -51,24 +56,45 @@ function raceResult(wasFound: boolean): IRaceResult {
   return { found: wasFound } as unknown as IRaceResult;
 }
 
+/**
+ * Resolve a single scripted answer into the value the stubbed
+ * `resolveVisible` should yield — `Promise.resolve(...)` for the two
+ * boolean-valued outcomes, `Promise.reject(...)` for the probe-failure
+ * variant. Extracted so {@link makeMediator}'s closure stays inside
+ * the project's 10-line ceiling.
+ *
+ * @param answer - Scripted probe outcome.
+ * @returns Promise the stub returns from `resolveVisible`.
+ */
+function answerToRace(answer: ProbeAnswer): Promise<IRaceResult> {
+  if (answer === 'reject') {
+    const stubError = new TypeError('probe failed (test stub)');
+    return Promise.reject(stubError);
+  }
+  const wasFound = answer === 'found';
+  const race = raceResult(wasFound);
+  return Promise.resolve(race);
+}
+
 /** Configuration for the stub mediator's per-call answers. */
 interface IMediatorConfig {
   readonly currentUrl: string;
   readonly passwordCount: number;
-  readonly otpTriggerFound: boolean;
-  readonly otpFormFound: boolean;
+  /** Per-call answers consumed in invocation order. */
+  readonly probeAnswers: readonly ProbeAnswer[];
 }
 
 /**
- * Build a minimal IElementMediator stub that answers the four
- * mediator calls `validateActionScopeIntact` (and its OTP probe)
- * make: `getCurrentUrl`, `countBySelector`, and two `resolveVisible`
- * calls — one for OTP trigger, one for OTP input.
+ * Build a minimal IElementMediator stub. PR #221 review (id 3216542553)
+ * — drives `resolveVisible` via per-call factories instead of routing by
+ * candidate `.kind` literals, so the suite no longer fails on harmless
+ * refactors inside `detectOtpTrigger` / `detectOtpForm`.
  *
  * @param config - Scripted answers for this scenario.
  * @returns IElementMediator stub.
  */
 function makeMediator(config: IMediatorConfig): IElementMediator {
+  let callIndex = 0;
   return {
     /**
      * Returns the scripted current URL.
@@ -84,21 +110,15 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
       return config.passwordCount;
     },
     /**
-     * Routes between OTP-trigger and OTP-input probe answers based on
-     * the first candidate's `kind` field — `placeholder` for input
-     * candidates, `clickableText` for trigger candidates. Mirrors the
-     * registry shape from WK_OTP_INPUT / WK_OTP_TRIGGER.
-     * @param candidates - Candidates passed by the probe.
-     * @returns Race result with the {found} flag set.
+     * Yields the next scripted probe answer in call order. Falls back
+     * to `not-found` once the script is exhausted so a misconfigured
+     * scenario fails as "no OTP" rather than hanging.
+     * @returns Race result per the scripted answer.
      */
-    resolveVisible: async (
-      candidates: readonly { readonly kind: string }[],
-    ): Promise<IRaceResult> => {
-      await Promise.resolve();
-      const kind = candidates[0]?.kind ?? '';
-      if (kind === OTP_TRIGGER_KIND) return raceResult(config.otpTriggerFound);
-      if (kind === OTP_INPUT_KIND) return raceResult(config.otpFormFound);
-      return raceResult(false);
+    resolveVisible: (): Promise<IRaceResult> => {
+      const answer = config.probeAnswers[callIndex] ?? 'not-found';
+      callIndex += 1;
+      return answerToRace(answer);
     },
   } as unknown as IElementMediator;
 }
@@ -153,8 +173,7 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      otpTriggerFound: false,
-      otpFormFound: true,
+      probeAnswers: ['not-found', 'found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
@@ -165,8 +184,7 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      otpTriggerFound: true,
-      otpFormFound: false,
+      probeAnswers: ['found', 'not-found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
@@ -177,8 +195,7 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      otpTriggerFound: false,
-      otpFormFound: false,
+      probeAnswers: ['not-found', 'not-found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
@@ -192,8 +209,7 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const mediator = makeMediator({
       currentUrl: 'https://login.bank.fake.example/dashboard/',
       passwordCount: 1,
-      otpTriggerFound: false,
-      otpFormFound: false,
+      probeAnswers: ['not-found', 'not-found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
@@ -204,8 +220,36 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 0,
-      otpTriggerFound: false,
-      otpFormFound: false,
+      probeAnswers: ['not-found', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-006: probe REJECTS → fall through (probe-failure is unknown ≠ invalid)', async () => {
+    // PR #221 review (id 3216542548): a transient resolver failure on
+    // either probe used to collapse into "not visible" → false-positive
+    // INVALID_PASSWORD. The fix returns `'unknown'` from
+    // `otpScreenVisible`; the validator falls through instead of
+    // firing the credential-failure gate.
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['reject', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-007: BOTH probes REJECT → fall through (unknown, not invalid)', async () => {
+    // Companion case to 006: both probes fail. Symmetric outcome —
+    // unknown means unknown; the validator must not pick a verdict.
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['reject', 'reject'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);

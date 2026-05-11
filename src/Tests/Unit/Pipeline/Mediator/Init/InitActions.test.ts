@@ -150,35 +150,75 @@ describe('executeNavigateToBank', () => {
 });
 
 describe('executeValidatePage', () => {
-  it('fails when no browser', () => {
+  it('fails when no browser', async () => {
     const makeMockContextResult4 = makeMockContext();
-    const result = executeValidatePage(makeMockContextResult4);
+    const result = await executeValidatePage(makeMockContextResult4);
     const isOkResult5 = isOk(result);
     expect(isOkResult5).toBe(false);
   });
 
-  it('succeeds when page URL is not about:blank', () => {
+  it('succeeds when page URL is not about:blank', async () => {
     const page = makePage({ url: 'https://bank.co.il/login' });
     const ctxWithPageResult6 = ctxWithPage(page);
-    const result = executeValidatePage(ctxWithPageResult6);
+    const result = await executeValidatePage(ctxWithPageResult6);
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);
   });
 
-  it('fails when page URL is about:blank', () => {
+  it('fails when page URL is about:blank', async () => {
     const page = makePage({ url: 'about:blank' });
     const ctxWithPageResult8 = ctxWithPage(page);
-    const result = executeValidatePage(ctxWithPageResult8);
+    const result = await executeValidatePage(ctxWithPageResult8);
     const isOkResult9 = isOk(result);
     expect(isOkResult9).toBe(false);
   });
 
-  it('returns success regardless of title — POST is URL-only, no HTML scan', () => {
+  // PR #221 review-fix session (2026-05-11): the earlier contract said
+  // "POST is URL-only, no HTML scan". Empirical evidence under parallel
+  // pre-commit Phase 5 (3 consecutive failures, screenshots captured)
+  // showed Camoufox can render its built-in `Server Not Found` /
+  // `We're having trouble finding that site` neterror page for the
+  // target URL while keeping the URL unchanged. The DOM loads, the
+  // commit fires, but the content is Firefox's local error page —
+  // not the bank's HTML. Without this gate the failure cascaded 25-30s
+  // through HOME → LOGIN → AUTH-DISCOVERY before AUTH-DISCOVERY.FINAL
+  // raised `AUTH_DISCOVERY_DASHBOARD_NOT_READY — reveal-missing`.
+  // Title-based detection is the cheapest reliable signal — Firefox
+  // sets a deterministic title for every neterror sub-type.
+  it('INIT-POST-NETERROR-001: fails when page title is "Server Not Found" (Firefox cold-start DNS)', async () => {
+    const page = makePage({ url: 'https://start.telebank.co.il/login', title: 'Server Not Found' });
+    const ctx = ctxWithPage(page);
+    const result = await executeValidatePage(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('browser error page');
+  });
+
+  it('INIT-POST-NETERROR-002: fails when title contains "trouble finding that site" (Firefox 100+ format)', async () => {
+    const page = makePage({
+      url: 'https://login.bankhapoalim.co.il/ng-portals/auth/he/login',
+      title: "Hmm. We're having trouble finding that site.",
+    });
+    const ctx = ctxWithPage(page);
+    const result = await executeValidatePage(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+  });
+
+  it('INIT-POST-NETERROR-003: succeeds when page title is a legitimate bank title', async () => {
+    const page = makePage({ url: 'https://bank.co.il', title: 'בנק דיסקונט - דף בית' });
+    const ctx = ctxWithPage(page);
+    const result = await executeValidatePage(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+  });
+
+  it('INIT-POST-NETERROR-004: succeeds when title() rejects — observability-only gate, never crashes POST', async () => {
     const page = makePage({ url: 'https://bank.co.il', titleThrows: true });
-    const ctxWithPageResult10 = ctxWithPage(page);
-    const result = executeValidatePage(ctxWithPageResult10);
-    const isOkResult11 = isOk(result);
-    expect(isOkResult11).toBe(true);
+    const ctx = ctxWithPage(page);
+    const result = await executeValidatePage(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
   });
 });
 

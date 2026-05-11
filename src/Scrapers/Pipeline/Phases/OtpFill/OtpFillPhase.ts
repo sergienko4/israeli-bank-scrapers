@@ -100,14 +100,6 @@ class OtpFillPhase extends BasePhase {
    * @param stage - The stage about to execute.
    * @returns DOM prelude for PRE; none otherwise.
    */
-  /**
-   * OTP-FILL requires DOM-ready before the OTP code input is scanned in
-   * PRE. ACTION fills + submits (no nav); POST + FINAL validate. Only
-   * PRE pays the prelude budget.
-   *
-   * @param stage - The stage about to execute.
-   * @returns DOM prelude for PRE; none otherwise.
-   */
   protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
     return this._preludeTable[stage];
   }

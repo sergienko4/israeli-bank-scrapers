@@ -95,16 +95,6 @@ class LoginPhase extends BasePhase {
    * @param stage - The stage about to execute.
    * @returns SPA prelude for POST; none otherwise.
    */
-  /**
-   * LOGIN.POST runs after credential submission — banks redirect / mutate
-   * to the OTP screen or dashboard. POST needs SPA-ready so it reads a
-   * stable URL + DOM, not a transient intermediate. LOGIN.PRE keeps its
-   * own direct `waitForDomReady` call (M4.F2.0) — to be migrated to this
-   * helper in a follow-up.
-   *
-   * @param stage - The stage about to execute.
-   * @returns SPA prelude for POST; none otherwise.
-   */
   protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
     return this._preludeTable[stage];
   }
