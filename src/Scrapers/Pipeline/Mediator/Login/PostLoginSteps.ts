@@ -14,9 +14,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
+import { LOGIN_POST_SUBMIT_SETTLE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 import { waitForPostLoginTraffic } from './PostLoginTrafficProbe.js';
-
-const SETTLE_TIMEOUT = 15000;
 
 /**
  * Wait for networkidle after form submission.
@@ -24,7 +23,7 @@ const SETTLE_TIMEOUT = 15000;
  * @returns Succeed after settling or timeout.
  */
 export async function waitForSubmitToSettle(mediator: IElementMediator): Promise<Procedure<void>> {
-  return mediator.waitForNetworkIdle(SETTLE_TIMEOUT);
+  return mediator.waitForNetworkIdle(LOGIN_POST_SUBMIT_SETTLE_TIMEOUT_MS);
 }
 
 /**

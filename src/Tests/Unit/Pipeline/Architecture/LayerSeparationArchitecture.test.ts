@@ -797,21 +797,26 @@ describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard
  * <p>Allowlist: `ActionExecutors.ts` (`CLICK_TIMEOUT_MS` — Playwright
  * auto-wait), `SelectorResolverConfig.ts` (`CANDIDATE_TIMEOUT_MS` —
  * per-locator), `ElementsInteractionConfig.ts`
- * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe).
+ * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe), and
+ * `Timing/TimingConfig.ts` (the centralized owner).
  */
 const FIXED_WAIT_15S_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Elements', 'ActionExecutors.ts'),
   path.join('Mediator', 'Selector', 'SelectorResolverConfig.ts'),
   path.join('Mediator', 'Elements', 'ElementsInteractionConfig.ts'),
+  path.join('Mediator', 'Timing', 'TimingConfig.ts'),
 ];
 
 /**
- * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000` constant
- * declarations on a single line. Captures both `15000` and `15_000`. The
- * `_TIMEOUT` alternative (without `_MS` suffix) catches names like
- * `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
+ * Match `*_TIMEOUT|*_TIMEOUT_MS|*_WAIT_MS|*_BUDGET_MS = 15_?000`
+ * constant declarations on a single line. Captures both `15000` and
+ * `15_000`. The optional `(?::\s*\w+)?` segment lets the regex match
+ * declarations that carry an explicit type annotation, e.g.
+ * `const X: number = 15000` — without it, those slip past the rule.
+ * The `_TIMEOUT` alternative (without `_MS` suffix) catches names
+ * like `OTP_SUBMIT_TIMEOUT` and `SETTLE_TIMEOUT`.
  */
-const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)\s*=\s*15_?000\b/;
+const FIXED_WAIT_15S_REGEX = /(?:_TIMEOUT_MS?|_WAIT_MS|_BUDGET_MS)(?:\s*:\s*\w+)?\s*=\s*15_?000\b/;
 
 /**
  * Find lines declaring a 15s fixed-wait constant.
@@ -858,6 +863,209 @@ function findFixedWait15sConstants(): readonly IForbiddenCall[] {
 describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constants in Mediator/ outside allowlist', () => {
   it('no Mediator file declares a 15s _TIMEOUT_MS / _WAIT_MS / _BUDGET_MS outside the allowlist', () => {
     const hits = findFixedWait15sConstants();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * dom-ready-everywhere plan — R-NO-DIRECT-LOAD-STATE.
+ *
+ * <p>Forbids direct calls to `<target>.waitForLoadState(...)` outside
+ * the documented allowlist. Every navigating pipeline phase must go
+ * through {@link "../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js"}
+ * `awaitPagePrelude` (Page target) or `awaitFramePrelude` (Frame
+ * target) so lifecycle waits emit canonical telemetry and live behind
+ * one audit point.
+ *
+ * <p>Allowlist:
+ * <ul>
+ *   <li>`Mediator/Elements/PageReadiness.ts` — the primitive itself
+ *       (`waitForDomReady`, `waitForSpaReady`).</li>
+ *   <li>`Mediator/Elements/CreateElementMediator.ts` — internal
+ *       mediator's `waitForNetworkIdle` wrapper.</li>
+ *   <li>`Interceptors/SnapshotFrameCapture.ts` /
+ *       `Interceptors/SnapshotInterceptorIO.ts` — snapshot-capture
+ *       infrastructure outside the phase pipeline.</li>
+ * </ul>
+ */
+const DIRECT_LOAD_STATE_ALLOWLIST: readonly string[] = [
+  path.join('Mediator', 'Elements', 'PageReadiness.ts'),
+  path.join('Mediator', 'Elements', 'CreateElementMediator.ts'),
+  path.join('Interceptors', 'SnapshotFrameCapture.ts'),
+  path.join('Interceptors', 'SnapshotInterceptorIO.ts'),
+];
+
+/** Match `<expr>.waitForLoadState(` invocations in source code. */
+const DIRECT_LOAD_STATE_REGEX = /\.waitForLoadState\s*\(/;
+
+/**
+ * Find lines that call `.waitForLoadState(` in a source file. Skips
+ * comment-only lines so the JSDoc references in {@link awaitPagePrelude}
+ * docstrings do not trip the rule.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findDirectLoadStateLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (DIRECT_LOAD_STATE_REGEX.test(line)) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan every Pipeline source file (outside the allowlist) for direct
+ * `waitForLoadState` calls.
+ *
+ * @returns Forbidden-call hits, empty when the rule holds.
+ */
+function findDirectLoadStateCalls(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (DIRECT_LOAD_STATE_ALLOWLIST.some((allowed): boolean => relPathMatches(rel, allowed)))
+      continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findDirectLoadStateLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'waitForLoadState', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('dom-ready-everywhere — R-NO-DIRECT-LOAD-STATE: only PageReadiness + Interceptors call waitForLoadState', () => {
+  it('no Pipeline file outside the allowlist calls .waitForLoadState directly', () => {
+    const hits = findDirectLoadStateCalls();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
+ * Mission 4 (CI quality hardening plan) — R-OTP-TRIGGER-SEAL.
+ *
+ * <p>Forbids the OTP-TRIGGER zone (`Mediator/OtpTrigger/*`,
+ * `Phases/OtpTrigger/*`) from importing other phase mediator zones.
+ * OTP-TRIGGER is sealed: PRE detects the trigger button + phone
+ * hint, ACTION clicks the trigger and stamps `triggerClickedAt`,
+ * POST validates the scope-bound effect (target gone OR HTTP 2xx
+ * since the click), FINAL emits `ctx.otpTrigger`. Every helper
+ * OTP-TRIGGER needs lives inside `Mediator/OtpTrigger/`,
+ * `Mediator/Otp/OtpShared.ts` (allowlisted shared utilities),
+ * `Mediator/Form/OtpProbe.ts` (form-detection helper), or
+ * `Mediator/Network/` (read-only capture/discovery surface).
+ * Downstream phases (OTP-FILL / AUTH-DISCOVERY / DASHBOARD)
+ * read the slim `ctx.otpTrigger` emit only.
+ *
+ * <p>R-AUTH-DISCOVERY-OWN (Mission 1, shipped) already grep-
+ * forbids the auth/dashboard helper call list from OTP-TRIGGER.
+ * R-OTP-TRIGGER-SEAL adds file-level import enforcement: any new
+ * `import … from '../Dashboard/'`, `'../AuthDiscovery/'`,
+ * `'../Login/'`, `'../OtpFill/'`, or `'../Auth/'` from an
+ * OTP-TRIGGER-zone file fails the build.
+ */
+const OTP_TRIGGER_FORBIDDEN_ZONES: readonly string[] = [
+  path.join('Mediator', 'OtpTrigger'),
+  path.join('Phases', 'OtpTrigger'),
+];
+
+const OTP_TRIGGER_FORBIDDEN_IMPORTS: readonly string[] = [
+  path.join('Mediator', 'Dashboard'),
+  path.join('Mediator', 'AuthDiscovery'),
+  path.join('Mediator', 'Login'),
+  path.join('Mediator', 'OtpFill'),
+  path.join('Mediator', 'Auth'),
+];
+
+/**
+ * Check whether a (possibly multi-line) import block references any
+ * forbidden phase-mediator zone.
+ *
+ * @param block - Joined text of one full import statement.
+ * @returns True when the block imports from a forbidden zone.
+ */
+function isForbiddenImportBlock(block: string): boolean {
+  return OTP_TRIGGER_FORBIDDEN_IMPORTS.some((zone): boolean => {
+    const fwd = zone.replace(/\\/g, '/');
+    return block.includes(`/${fwd}/`) || block.includes(`'${fwd}/`);
+  });
+}
+
+/**
+ * Find import lines in an OTP-TRIGGER-zone file that pull from any
+ * forbidden phase-mediator zone.
+ *
+ * <p>PR #221 review (id 3215182693): a single-line scan misses formatted
+ * multi-line imports of the form `import {\n  Foo,\n} from '…/Forbidden/Bar.js';`.
+ * The walker buffers consecutive lines starting with `import ` (or
+ * inside an open block) until the terminating `;` lands, then performs
+ * the forbidden-zone check on the joined block. Reported hit line is
+ * the 1-based line where the `import` keyword started so test failures
+ * point at the statement head, not its closing brace.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based, statement-start).
+ */
+function findOtpTriggerForbiddenImportLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  let importStartLine = 0;
+  let importBlock = '';
+  let isInsideImport = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (!isInsideImport) {
+      if (trimmed.startsWith('//')) continue;
+      if (trimmed.startsWith('*')) continue;
+      if (!trimmed.startsWith('import ')) continue;
+      isInsideImport = true;
+      importStartLine = i + 1;
+      importBlock = line;
+    } else {
+      importBlock = `${importBlock}\n${line}`;
+    }
+    if (!line.includes(';')) continue;
+    if (isForbiddenImportBlock(importBlock)) hits.push(importStartLine);
+    isInsideImport = false;
+    importBlock = '';
+  }
+  return hits;
+}
+
+/**
+ * Scan OTP-TRIGGER-zone files for cross-phase mediator imports.
+ *
+ * @returns Forbidden-import hits, empty when the rule holds.
+ */
+function findForbiddenOtpTriggerImports(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    const isInZone = OTP_TRIGGER_FORBIDDEN_ZONES.some((zone): boolean => relPathMatches(rel, zone));
+    if (!isInZone) continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findOtpTriggerForbiddenImportLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'otp-trigger-zone forbidden import', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('Mission 4 — R-OTP-TRIGGER-SEAL: OTP-TRIGGER imports nothing from Dashboard / AuthDiscovery / Login / OtpFill / Auth', () => {
+  it('no OtpTrigger-zone file imports from a forbidden cross-phase mediator zone', () => {
+    const hits = findForbiddenOtpTriggerImports();
     const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
     expect(summary).toEqual([]);
   });

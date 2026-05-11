@@ -11,6 +11,7 @@ import {
   executeStartCleanup,
   runAllCleanups,
 } from '../../../../Scrapers/Pipeline/Mediator/Terminate/TerminateActions.js';
+import { createPromise } from '../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IBrowserState } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -152,16 +153,11 @@ describe('executeRunCleanupsFromContext (POST)', () => {
        *
        * @returns Never-resolving promise.
        */
-      (): Promise<Procedure<void>> => {
-        /**
-         * No-op executor: never invokes resolve/reject so the promise
-         * stays pending forever — the budget guard is the only escape.
-         *
-         * @returns True (satisfies the no-`void` lint rule).
-         */
-        const noopExecutor = (): boolean => true;
-        return Reflect.construct(Promise, [noopExecutor]) as Promise<Procedure<void>>;
-      },
+      (): Promise<Procedure<void>> =>
+        // Never resolve — pending forever so the cleanup-budget guard
+        // is the only escape from the LIFO walk. Uses the production
+        // `createPromise` helper for parity with the real cleanups.
+        createPromise<Procedure<void>>((): boolean => true),
     ];
     const browserState = makeMockBrowserState(undefined, cleanups);
     const ctx = makeMockContext({ browser: some(browserState) });

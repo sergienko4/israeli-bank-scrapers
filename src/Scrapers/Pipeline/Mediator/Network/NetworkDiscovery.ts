@@ -22,8 +22,12 @@ import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
-import { hasTxnArray } from '../Scrape/TxnShape.js';
+import { hasTxnArray, isTxnWidgetUrl } from '../Scrape/TxnShape.js';
 import { createPromise } from '../Timing/TimingActions.js';
+import {
+  NETWORK_POST_INTERCEPT_TIMEOUT_MS,
+  NETWORK_WAIT_FIRST_ID_POLL_MS,
+} from '../Timing/TimingConfig.js';
 import { discoverAuthThreeTier } from './AuthDiscovery.js';
 import { createAuthFailureWatcher, createFrozenAuthFailureWatcher } from './AuthFailureWatcher.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from './NetworkDiscoveryTypes.js';
@@ -88,13 +92,21 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
     const text = await response.text();
     const responseBody = JSON.parse(text) as unknown;
     const responseHeaders = response.headers();
+    const status = response.status();
     const captureIndex = dumpResponseBody({
       url: meta.url,
       method: meta.method,
       postData: meta.postData,
       text,
     });
-    return { ...meta, responseHeaders, responseBody, timestamp: Date.now(), captureIndex };
+    return {
+      ...meta,
+      responseHeaders,
+      responseBody,
+      timestamp: Date.now(),
+      captureIndex,
+      status,
+    };
   } catch {
     return false;
   }
@@ -286,6 +298,8 @@ interface ITierPickOutcome {
  * Run the shape-aware tier preference over a single candidate pool
  * (post-click or pre-click). Returns the chosen endpoint with its
  * tier label, or `none` when the pool yields no usable URL.
+ * Rejects dashboard-widget URLs (M4.F2) via {@link isTxnWidgetUrl}
+ * before scoring so widgets never reach SCRAPE.
  *
  * @param pool - Candidate captured endpoints to consider.
  * @param patterns - WellKnown URL patterns to match.
@@ -295,7 +309,9 @@ function tierPick(
   pool: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): ITierPickOutcome {
-  const urlMatches = pool.filter((ep): boolean => patterns.some((p): boolean => p.test(ep.url)));
+  const urlMatches = pool.filter(
+    (ep): boolean => patterns.some((p): boolean => p.test(ep.url)) && !isTxnWidgetUrl(ep.url),
+  );
   if (urlMatches.length === 0) return { endpoint: false, tier: 'none', matches: 0 };
   const matches = urlMatches.length;
   const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
@@ -891,9 +907,6 @@ function findTrafficHit(
   return hit ?? false;
 }
 
-/** Poll interval for `waitForFirstId` (ms). */
-const WAIT_FOR_FIRST_ID_POLL_MS = 250;
-
 /** Predicate signature — caller-owned shape detector. */
 type FirstIdPredicate = (pool: readonly IDiscoveredEndpoint[]) => IDiscoveredEndpoint | false;
 
@@ -909,7 +922,7 @@ interface IPollFirstIdArgs {
  * Promise) so the no-`new Promise` lint rule stays satisfied and the
  * sleep-ban (`sleep()` keyword forbidden by the project lint set)
  * doesn't apply to the local helper.
- * @returns Resolved promise after `WAIT_FOR_FIRST_ID_POLL_MS` ms.
+ * @returns Resolved promise after `NETWORK_WAIT_FIRST_ID_POLL_MS` ms.
  */
 function pollTick(): Promise<true> {
   /**
@@ -923,7 +936,7 @@ function pollTick(): Promise<true> {
      * @returns True to satisfy the typed resolver signature.
      */
     const fire = (): boolean => resolve(true);
-    globalThis.setTimeout(fire, WAIT_FOR_FIRST_ID_POLL_MS);
+    globalThis.setTimeout(fire, NETWORK_WAIT_FIRST_ID_POLL_MS);
     return true;
   };
   return createPromise<true>(arm);
@@ -1006,9 +1019,6 @@ async function awaitTraffic(
  * @param page - Playwright page to observe.
  * @returns Network discovery interface.
  */
-/** Timeout for fire-and-forget POST interceptor (ms). */
-const POST_INTERCEPT_TIMEOUT = 30_000;
-
 /**
  * Intercept POST responses matching WellKnown patterns from any frame.
  * `page.waitForResponse` captures cross-origin iframe traffic that
@@ -1041,7 +1051,7 @@ function interceptPostResponses(page: Page, captured: IDiscoveredEndpoint[]): bo
     return isApiMethod && allPatterns.some((p): boolean => p.test(url));
   };
   page
-    .waitForResponse(isWkApi, { timeout: POST_INTERCEPT_TIMEOUT })
+    .waitForResponse(isWkApi, { timeout: NETWORK_POST_INTERCEPT_TIMEOUT_MS })
     .then(async (resp): Promise<boolean> => {
       const endpoint = await parseResponse(resp);
       if (!endpoint) return false;

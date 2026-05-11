@@ -28,17 +28,15 @@ import type {
   IElementMediator,
   IRaceResult,
 } from '../Elements/ElementMediator.js';
+import {
+  HOME_ENTRY_TIMEOUT_MS,
+  HOME_FORM_READY_TIMEOUT_MS,
+  HOME_MODAL_SETTLE_TIMEOUT_MS,
+  HOME_SETTLE_TIMEOUT_MS,
+  HOME_SPA_NAV_TIMEOUT_MS,
+} from '../Timing/TimingConfig.js';
 import type { IHomeDiscovery } from './HomeResolver.js';
 import { NAV_STRATEGY } from './HomeResolver.js';
-
-/** Timeout ceiling for settle after click — early-exit via waitForNetworkIdle. */
-const SETTLE_TIMEOUT = 8000;
-
-/** Timeout ceiling for login-link/form-gate probe in POST — early-exit via resolveVisible. */
-const ENTRY_TIMEOUT = 5000;
-
-/** Timeout for SPA URL change after click (Angular routing delay). */
-const SPA_NAV_TIMEOUT = 10000;
 
 /** Bundled args for login area validation. */
 interface IValidateLoginAreaArgs {
@@ -64,7 +62,7 @@ async function executeValidateLoginArea(
   const hasFrames = frameCount > 1;
   const formGate = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
   const formProbe = await mediator
-    .resolveVisible(formGate, ENTRY_TIMEOUT)
+    .resolveVisible(formGate, HOME_ENTRY_TIMEOUT_MS)
     .catch((): false => false);
   const hasLoginForm: boolean = formProbe !== false && formProbe.found;
   logger.debug({
@@ -75,9 +73,6 @@ async function executeValidateLoginArea(
   if (didNavigate || hasFrames || hasLoginForm) return succeed(input);
   return fail(ScraperErrorTypes.Generic, 'HOME POST: login area not detected');
 }
-
-/** Timeout for form readiness scan in FINAL (ms). */
-const FORM_READY_TIMEOUT = 15000;
 
 /**
  * FINAL: Prove form ready + store loginUrl → signal to PRE-LOGIN.
@@ -114,7 +109,9 @@ async function waitForFormReady(
   logger: ScraperLogger,
 ): Promise<boolean> {
   const gate = WK_PRELOGIN.FORM_GATE as unknown as readonly SelectorCandidate[];
-  const result = await mediator.resolveVisible(gate, FORM_READY_TIMEOUT).catch((): false => false);
+  const result = await mediator
+    .resolveVisible(gate, HOME_FORM_READY_TIMEOUT_MS)
+    .catch((): false => false);
   const isReady = result !== false && result.found;
   logger.debug({ message: `form-ready: ${String(isReady)}` });
   return isReady;
@@ -140,7 +137,7 @@ async function waitForAnyLoginLink(browserPage: Page): Promise<boolean> {
   const candidates = WK_HOME.ENTRY;
   const locators = candidates.map((c): Locator => browserPage.getByText(c.value).first());
   const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state: 'visible', timeout: ENTRY_TIMEOUT });
+    await loc.waitFor({ state: 'visible', timeout: HOME_ENTRY_TIMEOUT_MS });
     return i;
   });
   const results = await Promise.allSettled(waiters);
@@ -148,7 +145,6 @@ async function waitForAnyLoginLink(browserPage: Page): Promise<boolean> {
 }
 
 /** Timeout for modal iframe content to render. */
-const MODAL_SETTLE_TIMEOUT = 15000;
 
 /**
  * Execute MODAL click — click trigger, wait for iframe content.
@@ -171,7 +167,7 @@ async function executeModalClick(
   const { contextId, selector } = discovery.triggerTarget;
   await executor.clickElement({ contextId, selector }).catch((): false => false);
   logger.debug({ message: 'modal: trigger clicked, waiting for content' });
-  await executor.waitForNetworkIdle(MODAL_SETTLE_TIMEOUT).catch((): false => false);
+  await executor.waitForNetworkIdle(HOME_MODAL_SETTLE_TIMEOUT_MS).catch((): false => false);
   return true;
 }
 
@@ -201,6 +197,34 @@ async function clickResolvedTarget(
 }
 
 /**
+ * Strip the URL fragment (`#...` suffix) for navigation comparison.
+ *
+ * @param url - Absolute or relative URL.
+ * @returns URL without the fragment.
+ */
+function stripFragment(url: string): string {
+  const hashIdx = url.indexOf('#');
+  if (hashIdx === -1) return url;
+  return url.slice(0, hashIdx);
+}
+
+/**
+ * Determine whether a URL change represents real navigation rather than a
+ * hash-only mutation. Visacal `<a href="#" onclick="">` clicks that miss
+ * the bound JS handler add `#` to the URL but do not navigate; treating
+ * that as success caused HOME.ACTION to silently progress to PRE-LOGIN
+ * with no login modal rendered (observed 2026-05-11).
+ *
+ * @param urlBefore - Page URL before the click.
+ * @param urlAfter - Page URL after the click.
+ * @returns True iff the URL path / host / query differs (fragment ignored).
+ */
+function didReallyNavigate(urlBefore: string, urlAfter: string): boolean {
+  if (urlBefore === urlAfter) return false;
+  return stripFragment(urlBefore) !== stripFragment(urlAfter);
+}
+
+/**
  * Wait for SPA route + network settle after click.
  * @param executor - Sealed action mediator.
  * @param isSequential - Whether to settle before URL wait.
@@ -211,10 +235,10 @@ async function settleAfterClick(
   isSequential: boolean,
 ): Promise<boolean> {
   if (isSequential) {
-    await executor.waitForNetworkIdle(SETTLE_TIMEOUT).catch((): false => false);
+    await executor.waitForNetworkIdle(HOME_SETTLE_TIMEOUT_MS).catch((): false => false);
   }
-  await executor.waitForURL('**/login**', SPA_NAV_TIMEOUT).catch((): false => false);
-  await executor.waitForNetworkIdle(SETTLE_TIMEOUT).catch((): false => false);
+  await executor.waitForURL('**/login**', HOME_SPA_NAV_TIMEOUT_MS).catch((): false => false);
+  await executor.waitForNetworkIdle(HOME_SETTLE_TIMEOUT_MS).catch((): false => false);
   return true;
 }
 
@@ -226,7 +250,7 @@ async function settleAfterClick(
  *   • DIRECT / SEQUENTIAL: single click on `triggerTarget`, then
  *     wait for the URL to change. No tier fallback, no `text=`
  *     re-resolution, no href-scan rescue. If the URL doesn't change
- *     within `SETTLE_TIMEOUT`, return false — caller fails loud.
+ *     within `HOME_SETTLE_TIMEOUT_MS`, return false — caller fails loud.
  *
  * Why both strategies use the same single-click path: live cross-
  * validation (2026-05-06) showed every non-OTP bank's HOME click
@@ -253,12 +277,13 @@ async function executeHomeNavigation(
   await clickResolvedTarget(executor, discovery.triggerTarget, isSeq);
   await settleAfterClick(executor, isSeq);
   const currentUrl = executor.getCurrentUrl();
-  const didNavigate = urlBefore !== currentUrl;
+  const didNavigate = didReallyNavigate(urlBefore, currentUrl);
   logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
   return didNavigate;
 }
 
 export {
+  didReallyNavigate,
   executeHomeNavigation,
   executeModalClick,
   executeStoreLoginSignal,

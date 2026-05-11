@@ -35,6 +35,7 @@ describe('PipelineResult branch gap', () => {
       login: some({
         activeFrame: {} as Page,
         persistentOtpToken: some('TOKEN-X' as const),
+        urlBeforeSubmit: '',
       }),
     };
     const succeedResult1 = succeed(withLogin);
@@ -53,6 +54,7 @@ describe('PipelineResult branch gap', () => {
       login: some({
         activeFrame: {} as Page,
         persistentOtpToken: none(),
+        urlBeforeSubmit: '',
       }),
     };
     const succeedResult2 = succeed(withLogin);

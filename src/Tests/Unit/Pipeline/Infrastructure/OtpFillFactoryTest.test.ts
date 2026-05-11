@@ -44,7 +44,7 @@ import {
   OTP_FILL_STEP,
   OtpFillPhase,
 } from '../../../../Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.js';
-import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
+import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
   IPipelineContext,
@@ -198,9 +198,82 @@ describe('executeFillPre — pre-condition guards + MOCK_MODE bypass', () => {
       const wasOk = isOk(result);
       expect(wasOk).toBe(true);
       if (wasOk) expect(result.value.diagnostics.lastAction).toContain('mock-bypass');
+      // M4.F1: even on MOCK bypass, OTP-FILL must emit `ctx.otpFill`
+      // so AUTH-DISCOVERY's precedence walk has a populated slot.
+      if (wasOk) expect(result.value.otpFill.has).toBe(true);
     } finally {
       if (original === undefined) delete process.env.MOCK_MODE;
       else process.env.MOCK_MODE = original;
+    }
+  });
+
+  it('M4.F1 carry-forward: soft-skip OTP-FILL inherits the URL from ctx.otpTrigger when present', async () => {
+    // Flow 5 with OTP-TRIGGER having run earlier — the carry-forward
+    // helper must prefer the OTP-TRIGGER emit over the LOGIN emit
+    // because OTP-TRIGGER is the more recent producer.
+    const page = makeScreenshotPage();
+    const baseCtx = makeContextWithBrowser(page);
+    const ctx = {
+      ...baseCtx,
+      config: { ...baseCtx.config, otp: { enabled: true, required: false } },
+      login: some({
+        activeFrame: page,
+        persistentOtpToken: none(),
+        urlBeforeSubmit: 'https://web.bank/login',
+      }),
+      otpTrigger: some({
+        phoneHint: '',
+        triggered: true,
+        scopeValidated: true,
+        urlBeforeSubmit: 'https://web.bank/otp-trigger',
+      }),
+    };
+    const result = await executeFillPre(ctx, false);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk) {
+      expect(result.value.otpFill.has).toBe(true);
+      if (result.value.otpFill.has) {
+        expect(result.value.otpFill.value.urlBeforeSubmit).toBe('https://web.bank/otp-trigger');
+      }
+    }
+  });
+
+  it('M4.F1 carry-forward: soft-skip OTP-FILL inherits the URL from ctx.login when otpTrigger is none', async () => {
+    // Flow 4 / 5: LOGIN ran but no OTP-TRIGGER. The carry-forward
+    // helper falls back to LOGIN's emit.
+    const page = makeScreenshotPage();
+    const baseCtx = makeContextWithBrowser(page);
+    const ctx = {
+      ...baseCtx,
+      config: { ...baseCtx.config, otp: { enabled: true, required: false } },
+      login: some({
+        activeFrame: page,
+        persistentOtpToken: none(),
+        urlBeforeSubmit: 'https://web.bank/login',
+      }),
+    };
+    const result = await executeFillPre(ctx, false);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk && result.value.otpFill.has) {
+      expect(result.value.otpFill.value.urlBeforeSubmit).toBe('https://web.bank/login');
+    }
+  });
+
+  it('M4.F1 carry-forward: empty fallback when neither LOGIN nor OTP-TRIGGER emitted', async () => {
+    // Test path only — no upstream emit. carryUrlForward returns ''.
+    const page = makeScreenshotPage();
+    const baseCtx = makeContextWithBrowser(page);
+    const ctx = {
+      ...baseCtx,
+      config: { ...baseCtx.config, otp: { enabled: true, required: false } },
+    };
+    const result = await executeFillPre(ctx, false);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk && result.value.otpFill.has) {
+      expect(result.value.otpFill.value.urlBeforeSubmit).toBe('');
     }
   });
 

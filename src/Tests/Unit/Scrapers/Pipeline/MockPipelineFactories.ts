@@ -322,7 +322,7 @@ export function makeMockBrowserState(
  * @returns Mock ILoginState.
  */
 export function makeMockLoginState(frame: Page = makeMockFullPage()): ILoginState {
-  return { activeFrame: frame, persistentOtpToken: none() };
+  return { activeFrame: frame, persistentOtpToken: none(), urlBeforeSubmit: '' };
 }
 
 // ── Fetch strategy mocks ──────────────────────────────────

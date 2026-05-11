@@ -10,7 +10,8 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import { some } from '../../Types/Option.js';
+import type { IActionContext, IOtpFill, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
@@ -19,13 +20,11 @@ import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe.js';
 import { OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import { createPromise } from '../Timing/TimingActions.js';
-
-/** Timeout ceiling for OTP submit settle — early-exit via waitForNetworkIdle. */
-const OTP_SETTLE_TIMEOUT = 5000;
-/** Settle delay before retriever prompt (ms). */
-const RETRIEVER_SETTLE_MS = 500;
-/** Default OTP timeout (ms) — 3 minutes. */
-const DEFAULT_OTP_TIMEOUT_MS = 180_000;
+import {
+  DEFAULT_OTP_TIMEOUT_MS,
+  OTP_PHASE_SETTLE_TIMEOUT_MS,
+  OTP_RETRIEVER_SETTLE_MS,
+} from '../Timing/TimingConfig.js';
 /** Full masked phone pattern (e.g. *****1234 or ******0). */
 const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
 /** Last 1-4 digits extractor. */
@@ -121,7 +120,8 @@ function handleMissingOtpInput(
   // to-end. ACTION/POST/FINAL remain skipped under MockPhasePolicy.
   if (isMockModeOtpActive()) {
     const diag = { ...input.diagnostics, lastAction: 'otp-fill-pre (mock-bypass)' };
-    return succeed({ ...input, diagnostics: diag });
+    const carriedEmit = carryUrlForward(input);
+    return succeed({ ...input, diagnostics: diag, otpFill: some(carriedEmit) });
   }
   // Optional-OTP safety valve — banks like Hapoalim flag OTP as optional
   // (.withOtpFill(false)). When the OTP input cannot be found, proceed to
@@ -133,9 +133,27 @@ function handleMissingOtpInput(
       message: '>>> OTP input missing — withOtpFill(required=false), soft-skipping OTP-FILL',
     });
     const diag = { ...input.diagnostics, lastAction: 'otp-fill-pre (optional-skip)' };
-    return succeed({ ...input, diagnostics: diag });
+    const carriedEmit = carryUrlForward(input);
+    return succeed({ ...input, diagnostics: diag, otpFill: some(carriedEmit) });
   }
   return fail(ScraperErrorTypes.Generic, 'OTP code input not found');
+}
+
+/**
+ * Build the OTP-FILL emit by COPYING the predecessor's
+ * {@link IOtpFill.urlBeforeSubmit} forward (Mission M4.F1 baton).
+ * Picks the latest non-empty source: ctx.otpTrigger ⇒ ctx.login.
+ * Empty string when neither emitted (test paths only). Used by the
+ * soft-skip / MOCK-bypass paths so the next phase always sees a
+ * populated `ctx.otpFill`.
+ *
+ * @param input - Pipeline context (carries the predecessor emit).
+ * @returns OTP-FILL emit with the inherited URL.
+ */
+function carryUrlForward(input: IPipelineContext): IOtpFill {
+  if (input.otpTrigger.has) return { urlBeforeSubmit: input.otpTrigger.value.urlBeforeSubmit };
+  if (input.login.has) return { urlBeforeSubmit: input.login.value.urlBeforeSubmit };
+  return { urlBeforeSubmit: '' };
 }
 
 /**
@@ -176,7 +194,8 @@ async function executeFillPre(
     otpSubmitTarget: submitTarget,
     otpPhoneHint: phoneHint,
   };
-  return succeed({ ...input, diagnostics: diag });
+  const otpFillEmit: IOtpFill = { urlBeforeSubmit: page.url() };
+  return succeed({ ...input, diagnostics: diag, otpFill: some(otpFillEmit) });
 }
 
 // ── OTP Timeout Watchdog ──────────────────────────────────────────
@@ -245,7 +264,7 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
   const executor = input.executor.value;
   const hint: string = readDiagString(input.diagnostics, 'otpPhoneHint');
   input.logger.flush();
-  await executor.waitForNetworkIdle(RETRIEVER_SETTLE_MS).catch((): false => false);
+  await executor.waitForNetworkIdle(OTP_RETRIEVER_SETTLE_MS).catch((): false => false);
   const timeoutMs = input.options.otpTimeoutMs ?? DEFAULT_OTP_TIMEOUT_MS;
   input.logger.info({
     message: `>>> OTP challenge: hint=${hint}. Waiting ${String(timeoutMs)}ms...`,
@@ -275,7 +294,7 @@ async function executeFillAction(input: IActionContext): Promise<Procedure<IActi
       message: `clicked ${submitTarget.kind}="${submitTarget.candidateValue}"`,
     });
   }
-  await executor.waitForNetworkIdle(OTP_SETTLE_TIMEOUT).catch((): false => false);
+  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
   input.logger.debug({ message: 'submit complete' });
   return succeed(input);
 }

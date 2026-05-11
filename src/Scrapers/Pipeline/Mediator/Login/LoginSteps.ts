@@ -74,7 +74,11 @@ async function executePreLogin(
   if (!readiness.success) return readiness;
   const frameResult = await runPreAction(config, browserPage);
   if (!frameResult.success) return frameResult;
-  const loginState = { activeFrame: frameResult.value, persistentOtpToken: none() };
+  const loginState = {
+    activeFrame: frameResult.value,
+    persistentOtpToken: none(),
+    urlBeforeSubmit: browserPage.url(),
+  };
   return succeed({ ...input, login: some(loginState) });
 }
 

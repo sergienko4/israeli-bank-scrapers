@@ -66,6 +66,8 @@ interface IResultSlots {
   readonly txnEndpoint: IPipelineContext['txnEndpoint'];
   readonly dashboardTxnHarvest: IPipelineContext['dashboardTxnHarvest'];
   readonly authDiscovery: IPipelineContext['authDiscovery'];
+  readonly otpTrigger: IPipelineContext['otpTrigger'];
+  readonly otpFill: IPipelineContext['otpFill'];
 }
 
 /**
@@ -76,23 +78,65 @@ function emptyPhaseSlots(): IPhaseSlots {
   return { fetchStrategy: none(), mediator: none(), apiMediator: none(), browser: none() };
 }
 
+/** Phase-state Options (login / dashboard / scrape / api). */
+type PhaseStateOptions = Pick<IResultSlots, 'login' | 'dashboard' | 'scrape' | 'api'>;
+
+/** Discovery Options (preLogin / loginField / scrape / account / txn / harvest). */
+type DiscoveryOptions = Pick<
+  IResultSlots,
+  | 'preLoginDiscovery'
+  | 'loginFieldDiscovery'
+  | 'scrapeDiscovery'
+  | 'accountDiscovery'
+  | 'txnEndpoint'
+  | 'dashboardTxnHarvest'
+>;
+
+/** Phase-emit Options (auth-discovery / otp-trigger / otp-fill). */
+type PhaseEmitOptions = Pick<IResultSlots, 'authDiscovery' | 'otpTrigger' | 'otpFill'>;
+
 /**
- * Build empty result-level Option slots.
- * @returns Result slots set to none().
+ * Phase-state slots — one Option per visible phase output.
+ * @returns Phase-state Options set to none().
  */
-function emptyResultSlots(): IResultSlots {
+function emptyPhaseStateOptions(): PhaseStateOptions {
+  return { login: none(), dashboard: none(), scrape: none(), api: none() };
+}
+
+/**
+ * Discovery slots — one Option per discovery contract committed by
+ * the pipeline's discovery-owning phases.
+ * @returns Discovery Options set to none().
+ */
+function emptyDiscoveryOptions(): DiscoveryOptions {
   return {
-    login: none(),
-    dashboard: none(),
-    scrape: none(),
-    api: none(),
     preLoginDiscovery: none(),
     loginFieldDiscovery: none(),
     scrapeDiscovery: none(),
     accountDiscovery: none(),
     txnEndpoint: none(),
     dashboardTxnHarvest: none(),
-    authDiscovery: none(),
+  };
+}
+
+/**
+ * Phase-emit slots — Options committed by phases sealed under the
+ * CI quality hardening plan (M1 AUTH-DISCOVERY, M4 OTP-TRIGGER).
+ * @returns Phase-emit Options set to none().
+ */
+function emptyPhaseEmitOptions(): PhaseEmitOptions {
+  return { authDiscovery: none(), otpTrigger: none(), otpFill: none() };
+}
+
+/**
+ * Build empty result-level Option slots.
+ * @returns Result slots set to none().
+ */
+function emptyResultSlots(): IResultSlots {
+  return {
+    ...emptyPhaseStateOptions(),
+    ...emptyDiscoveryOptions(),
+    ...emptyPhaseEmitOptions(),
   };
 }
 

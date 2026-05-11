@@ -33,6 +33,15 @@ interface IBrowserState {
 interface ILoginState {
   readonly activeFrame: Page | Frame;
   readonly persistentOtpToken: Option<string>;
+  /**
+   * URL captured at LOGIN.PRE entry — the page where credentials are
+   * about to be submitted. Threaded forward through OTP-TRIGGER /
+   * OTP-FILL emits (each phase carries the latest value on its own
+   * slim contract). AUTH-DISCOVERY.FINAL reads the LATEST slot's
+   * value to compare against the post-auth current URL (Mission M4.F1
+   * dashboard gate). Empty string ⇒ test / mock paths only.
+   */
+  readonly urlBeforeSubmit: string;
 }
 
 /** Dashboard phase result context. */
@@ -94,6 +103,27 @@ interface IDiagnosticsState {
   readonly submitMethod?: 'enter' | 'click' | 'both';
   /** API strategy discovered in LOGIN.FINAL — single value (DIRECT) post .ashx removal. */
   readonly apiStrategy?: ApiStrategyKind;
+  /**
+   * URL captured at OTP-TRIGGER.PRE entry — Mission M4.F1 baton.
+   * OTP-TRIGGER.FINAL reads this to build its own slim emit's
+   * `urlBeforeSubmit` field. Empty / absent ⇒ OTP-TRIGGER did not
+   * run (test paths or non-OTP banks).
+   */
+  readonly otpTriggerPreUrl?: string;
+  /**
+   * ACTION timestamp (epoch-ms) used by OTP-TRIGGER.POST to scope
+   * network ACKs to the post-click window. Absent ⇒ POST treats every
+   * capture as a candidate (permissive default for test paths that
+   * don't run the full ACTION → POST sequence).
+   */
+  readonly triggerClickedAt?: number;
+  /**
+   * POST validation outcome for the OTP trigger's scope-bound effect.
+   * `true` when either the trigger target disappeared or a 2xx auth-
+   * domain ACK landed since `triggerClickedAt`. Absent ⇒ POST did not
+   * run or the validation was skipped (test paths).
+   */
+  readonly triggerScopeValidated?: boolean;
 }
 
 /** Auto-discovered API fetch context — injected by DASHBOARD phase. */
@@ -224,6 +254,13 @@ export interface IActionContext {
    * the option via reads.
    */
   readonly authDiscovery: Option<IAuthDiscovery>;
+  /**
+   * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4.
+   * Populated only when the OTP-TRIGGER phase ran (OTP-gated banks).
+   * Carries `phoneHint`, `triggered`, `scopeValidated`. See
+   * {@link IOtpTrigger} for the value shape.
+   */
+  readonly otpTrigger: Option<IOtpTrigger>;
   /** API context from DASHBOARD. */
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
@@ -302,6 +339,23 @@ interface IPipelineContext {
    * input.
    */
   readonly authDiscovery: Option<IAuthDiscovery>;
+  /**
+   * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4
+   * of the CI quality hardening plan. Populated only when the
+   * OTP-TRIGGER phase ran (OTP-gated banks: Beinleumi, Hapoalim,
+   * OneZero, Pepper). Carries the masked phone hint, the boolean
+   * `triggered` signal that the click landed, and the scope-bound
+   * validation outcome. Mirrors the slim value-type shape of
+   * {@link IAuthDiscovery} and {@link IAccountDiscovery}.
+   */
+  readonly otpTrigger: Option<IOtpTrigger>;
+  /**
+   * OTP-FILL emit — Mission M4.F1. Populated by OTP-FILL.PRE
+   * (whether the form was found, soft-skipped, or MOCK-bypassed).
+   * Carries `urlBeforeSubmit` as a baton so AUTH-DISCOVERY.FINAL
+   * reads the SAME shape across all 5 auth-ladder flows.
+   */
+  readonly otpFill: Option<IOtpFill>;
 }
 
 /**
@@ -393,6 +447,71 @@ const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
   dashboardReady: false,
   sessionCookieNames: [],
 };
+
+/**
+ * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4 of
+ * the CI quality hardening plan. Carries the masked phone hint, the
+ * boolean signal that the trigger click landed, and the scope-bound
+ * validation outcome (target gone OR auth-domain HTTP 2xx since the
+ * click). Mirrors the slim value-type shape used by
+ * {@link IAccountDiscovery} and {@link IAuthDiscovery}: only fields
+ * downstream consumers need; phase-internal artefacts emit via
+ * telemetry events but do NOT travel on `ctx`.
+ */
+interface IOtpTrigger {
+  /** Last 1-4 digits surfaced by PRE's phone-hint extractor. */
+  readonly phoneHint: string;
+  /** True when ACTION's clickElement resolved without throwing. */
+  readonly triggered: boolean;
+  /**
+   * True when POST verified the trigger's scope-bound effect: the
+   * trigger target either disappeared after the click OR a 2xx HTTP
+   * response from the bank's auth domain landed since
+   * `triggerClickedAt`.
+   */
+  readonly scopeValidated: boolean;
+  /**
+   * URL baton (Mission M4.F1) — copied forward from
+   * `ctx.login.value.urlBeforeSubmit` so AUTH-DISCOVERY.FINAL reads
+   * one consistent contract regardless of which auth phase ran last.
+   * OTP-TRIGGER does not re-capture the URL; it preserves the value
+   * the previous phase emitted.
+   */
+  readonly urlBeforeSubmit: string;
+}
+
+/**
+ * Empty default for test paths. Mirrors EMPTY_AUTH_DISCOVERY's role
+ * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
+ */
+const EMPTY_OTP_TRIGGER: IOtpTrigger = {
+  phoneHint: '',
+  triggered: false,
+  scopeValidated: false,
+  urlBeforeSubmit: '',
+};
+
+/**
+ * OTP-FILL slim emit — Mission M4.F1. Always populated when OTP-FILL
+ * ran (whether it actually filled an OTP, soft-skipped because
+ * `required=false`, or bypassed under MOCK_MODE). Carries
+ * {@link urlBeforeSubmit} as a baton so AUTH-DISCOVERY.FINAL reads
+ * the same field regardless of which auth-ladder shape the bank
+ * needed (5 supported flows: LOGIN-only, +OTP-TRIGGER,
+ * +OTP-TRIGGER+OTP-FILL, +OTP-FILL, +optional-OTP-FILL).
+ */
+interface IOtpFill {
+  /**
+   * URL baton — captured at OTP-FILL.PRE entry when the OTP form
+   * was found, OR copied forward from
+   * {@link IOtpTrigger.urlBeforeSubmit} / {@link ILoginState.urlBeforeSubmit}
+   * when OTP-FILL soft-skipped.
+   */
+  readonly urlBeforeSubmit: string;
+}
+
+/** Empty default for test paths. */
+const EMPTY_OTP_FILL: IOtpFill = { urlBeforeSubmit: '' };
 
 /**
  * Empty-harvest sentinel for SCRAPE consumers when DASHBOARD did
@@ -593,6 +712,8 @@ export type {
   IDashboardTxnHarvest,
   IDiagnosticsState,
   ILoginState,
+  IOtpFill,
+  IOtpTrigger,
   IPipelineContext,
   IScrapeDiscovery,
   IScrapeState,
@@ -601,4 +722,4 @@ export type {
   ITxnFieldMap,
   PickerTier,
 };
-export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_TXN_HARVEST };
+export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };

@@ -14,10 +14,14 @@
  */
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_FIELDS } from '../../Registry/WK/ScrapeFieldMappings.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
 
 /** Whether a response body carries a non-empty txn array. */
 type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
+
+/** Whether a URL matches a known dashboard-PREVIEW / widget pattern. */
+type IsTxnWidgetUrl = Brand<boolean, 'IsTxnWidgetUrl'>;
 
 /** Record alias — avoids literal Record<string, unknown> in annotations. */
 type JsonObject = Record<string, unknown>;
@@ -130,4 +134,23 @@ export function hasTxnArray(body: JsonValue): HasTxnArray {
   const initial: IBfsFrontier = { level: [body], found: false };
   const final = depths.reduce((acc): IBfsFrontier => bfsStep(acc), initial);
   return final.found as HasTxnArray;
+}
+
+/**
+ * Reject URLs whose path matches a known dashboard-PREVIEW / status-
+ * page widget pattern from {@link PIPELINE_WELL_KNOWN_API.transactionWidgets}.
+ * The picker uses this BEFORE the shape gate so widget endpoints
+ * (which pass URL-pattern + body trx-array gates but truncate
+ * records at "latest N" per card) never reach SCRAPE. Mission
+ * M4.F2: Isracard run `10-05-2026_23355229` lost 17–20 historical
+ * txns per card to this cap. Pure predicate — no I/O, single
+ * responsibility, bank-agnostic (the WK widget list is the
+ * registry source of truth).
+ *
+ * @param url - Captured endpoint URL.
+ * @returns True when the URL matches any known widget pattern.
+ */
+export function isTxnWidgetUrl(url: string): IsTxnWidgetUrl {
+  const isHit = PIPELINE_WELL_KNOWN_API.transactionWidgets.some((p): boolean => p.test(url));
+  return isHit as IsTxnWidgetUrl;
 }
