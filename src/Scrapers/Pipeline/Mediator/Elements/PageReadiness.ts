@@ -8,6 +8,14 @@
  * `domcontentloaded` gate. Centralising the call shape removes the
  * duplication and yields a single audit point for the wait contract.
  *
+ * <p>The {@link waitForSpaReady} primitive raises the bar one level:
+ * it waits for BOTH `load` and `networkidle` — the signal that the
+ * SPA's JS bundles have executed and event handlers have bound. Stages
+ * that fire clicks (HOME.ACTION, DASHBOARD.ACTION) use this stronger
+ * signal because a click before handler binding falls through to default
+ * browser behaviour (e.g. Visacal `<a href="#">` adds `#` to the URL
+ * but the modal never opens — observed PR #221 / 2026-05-11).
+ *
  * <p>ZERO HTML scanning — Playwright fires the listener from a browser
  * lifecycle event, not a DOM query.
  */
@@ -33,4 +41,30 @@ async function waitForDomReady(target: Page | Frame, timeoutMs: number): Promise
     .catch((): false => false);
 }
 
+/**
+ * Awaits BOTH the `load` lifecycle event AND `networkidle` on a Page or Frame.
+ *
+ * <p>Stronger signal than {@link waitForDomReady}: requires the page's JS
+ * bundles to have finished executing AND the network to have quiesced for
+ * at least 500 ms. This is the gate before firing clicks on SPA banks whose
+ * onclick handlers are bound asynchronously after parse (Visacal
+ * `#ccLoginDesktopBtn` race observed 2026-05-11).
+ *
+ * <p>Resolves true only when both events fired within budget. Resolves
+ * false on any timeout. Non-fatal — caller decides next step.
+ *
+ * @param target - Playwright {@link Page} or {@link Frame} to listen on.
+ * @param timeoutMs - Ceiling for the combined wait in milliseconds.
+ * @returns True when both `load` and `networkidle` fired within budget.
+ */
+async function waitForSpaReady(target: Page | Frame, timeoutMs: number): Promise<boolean> {
+  return Promise.all([
+    target.waitForLoadState('load', { timeout: timeoutMs }),
+    target.waitForLoadState('networkidle', { timeout: timeoutMs }),
+  ])
+    .then((): true => true)
+    .catch((): false => false);
+}
+
 export default waitForDomReady;
+export { waitForDomReady, waitForSpaReady };

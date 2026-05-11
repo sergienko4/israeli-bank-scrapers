@@ -1,12 +1,9 @@
 /**
- * PageReadiness — `waitForDomReady` helper unit tests.
+ * PageReadiness — `waitForDomReady` + `waitForSpaReady` helper unit tests.
  *
  * <p>Test Case IDs:
- *   - PAGE-READY-001: returns true when the listener resolves within budget
- *   - PAGE-READY-002: returns false when the listener throws (timeout)
- *   - PAGE-READY-003: passes the budget through to Playwright as the
- *                     {timeout} option (regression guard for the call shape)
- *   - PAGE-READY-004: works on a Frame target, not only a Page
+ *   - PAGE-READY-001…005: `waitForDomReady` contract.
+ *   - READY-SPA-001…005: `waitForSpaReady` contract (M4.F2.c / dom-ready-everywhere).
  *
  * <p>All inputs are deterministic stubs — no real Playwright launch.
  */
@@ -14,7 +11,9 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import waitForDomReady from '../../../../../Scrapers/Pipeline/Mediator/Elements/PageReadiness.js';
+import waitForDomReady, {
+  waitForSpaReady,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/PageReadiness.js';
 
 /** Recorded call shape from the stub. */
 interface ICapturedCall {
@@ -103,6 +102,86 @@ describe('waitForDomReady — shared cross-phase primitive', () => {
   it('PAGE-READY-005: non-fatal contract — caller decides on timeout', async () => {
     const frame = makeFrameStub(false);
     const wasReady = await waitForDomReady(frame, 1_000);
+    expect(wasReady).toBe(false);
+  });
+});
+
+/** Captured call shape for `waitForSpaReady` tests. */
+interface IMultiCall {
+  readonly state: string;
+  readonly timeout: number;
+}
+
+/**
+ * Build a Playwright target that resolves or rejects PER-STATE so
+ * `waitForSpaReady` tests can exercise the combined `load + networkidle`
+ * race independently. `resolveFor` controls which lifecycle events resolve;
+ * any state outside that set throws to simulate a Playwright timeout.
+ *
+ * @param resolveFor - Set of lifecycle event names that resolve.
+ * @param captured - Sink for the recorded calls.
+ * @returns Page-like stub.
+ */
+function makeMultiStateStub(resolveFor: ReadonlySet<string>, captured: IMultiCall[]): Page {
+  /**
+   * Records the per-state call and throws when the state isn't in the
+   * resolve allowlist (simulates a Playwright timeout).
+   *
+   * @param state - Lifecycle event name the SUT awaits.
+   * @param opts - Playwright options bag carrying the budget.
+   * @param opts.timeout - Wait budget in milliseconds.
+   * @returns Resolves on allowed states; throws otherwise.
+   */
+  async function waitForLoadStateStub(state: string, opts: { timeout: number }): Promise<void> {
+    captured.push({ state, timeout: opts.timeout });
+    await Promise.resolve();
+    if (!resolveFor.has(state)) throw new ScraperError(`Timeout for ${state}`);
+  }
+  return { waitForLoadState: waitForLoadStateStub } as unknown as Page;
+}
+
+const RESOLVE_BOTH: ReadonlySet<string> = new Set(['load', 'networkidle']);
+const RESOLVE_IDLE: ReadonlySet<string> = new Set(['networkidle']);
+const RESOLVE_LOAD: ReadonlySet<string> = new Set(['load']);
+const RESOLVE_NONE: ReadonlySet<string> = new Set<string>();
+
+describe('waitForSpaReady — load + networkidle race for SPA hydration', () => {
+  it('READY-SPA-001: returns true when BOTH load AND networkidle fire within budget', async () => {
+    const captured: IMultiCall[] = [];
+    const page = makeMultiStateStub(RESOLVE_BOTH, captured);
+    const wasReady = await waitForSpaReady(page, 10_000);
+    expect(wasReady).toBe(true);
+    const seen = captured.map((c): string => c.state);
+    const sorted = [...seen].sort((a, b): number => a.localeCompare(b));
+    expect(sorted).toEqual(['load', 'networkidle']);
+  });
+
+  it('READY-SPA-002: returns false when load times out (networkidle alone insufficient)', async () => {
+    const captured: IMultiCall[] = [];
+    const page = makeMultiStateStub(RESOLVE_IDLE, captured);
+    const wasReady = await waitForSpaReady(page, 5_000);
+    expect(wasReady).toBe(false);
+  });
+
+  it('READY-SPA-003: returns false when networkidle times out (load alone insufficient)', async () => {
+    const captured: IMultiCall[] = [];
+    const page = makeMultiStateStub(RESOLVE_LOAD, captured);
+    const wasReady = await waitForSpaReady(page, 5_000);
+    expect(wasReady).toBe(false);
+  });
+
+  it('READY-SPA-004: forwards budget to BOTH lifecycle calls via the {timeout} option', async () => {
+    const captured: IMultiCall[] = [];
+    const page = makeMultiStateStub(RESOLVE_BOTH, captured);
+    await waitForSpaReady(page, 7_500);
+    const didMatch = captured.every((c): boolean => c.timeout === 7_500);
+    expect(didMatch).toBe(true);
+  });
+
+  it('READY-SPA-005: swallows Playwright rejection — never throws', async () => {
+    const captured: IMultiCall[] = [];
+    const page = makeMultiStateStub(RESOLVE_NONE, captured);
+    const wasReady = await waitForSpaReady(page, 1_000);
     expect(wasReady).toBe(false);
   });
 });

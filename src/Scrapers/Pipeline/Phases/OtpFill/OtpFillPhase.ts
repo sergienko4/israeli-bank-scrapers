@@ -6,12 +6,15 @@
  * FINAL:  cookie audit + handoff to DASHBOARD
  */
 
+import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
+import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
 import {
   executeFillAction,
   executeFillFinal,
   executeFillPost,
   executeFillPre,
 } from '../../Mediator/OtpFill/OtpFillPhaseActions.js';
+import { OTP_FILL_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -37,12 +40,22 @@ const OTP_FILL_STEP = {
   execute: otpFillStepExec,
 };
 
+/** OTP-FILL prelude table — PRE waits for DOM-ready; others no-op. */
+const OTP_FILL_PRELUDE_TABLE: Record<'PRE' | 'ACTION' | 'POST' | 'FINAL', IPreludeSpec> = {
+  PRE: { level: 'dom', timeoutMs: OTP_FILL_PRELUDE_TIMEOUT_MS },
+  ACTION: PRELUDE_NONE,
+  POST: PRELUDE_NONE,
+  FINAL: PRELUDE_NONE,
+};
+
 /** OTP Fill phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class OtpFillPhase extends BasePhase {
   public readonly name = 'otp-fill' as const;
 
   /** Whether OTP is mandatory; false enables soft-skip on missing input. */
   public required = true;
+
+  private readonly _preludeTable = OTP_FILL_PRELUDE_TABLE;
 
   /** @inheritdoc */
   public async pre(
@@ -77,6 +90,26 @@ class OtpFillPhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'otp-fill.final' });
     return executeFillFinal(input);
+  }
+
+  /**
+   * OTP-FILL requires DOM-ready before the OTP code input is scanned in
+   * PRE. ACTION fills + submits (no nav); POST + FINAL validate. Only
+   * PRE pays the prelude budget.
+   *
+   * @param stage - The stage about to execute.
+   * @returns DOM prelude for PRE; none otherwise.
+   */
+  /**
+   * OTP-FILL requires DOM-ready before the OTP code input is scanned in
+   * PRE. ACTION fills + submits (no nav); POST + FINAL validate. Only
+   * PRE pays the prelude budget.
+   *
+   * @param stage - The stage about to execute.
+   * @returns DOM prelude for PRE; none otherwise.
+   */
+  protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
+    return this._preludeTable[stage];
   }
 }
 

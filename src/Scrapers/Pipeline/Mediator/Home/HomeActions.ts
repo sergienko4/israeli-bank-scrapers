@@ -197,6 +197,34 @@ async function clickResolvedTarget(
 }
 
 /**
+ * Strip the URL fragment (`#...` suffix) for navigation comparison.
+ *
+ * @param url - Absolute or relative URL.
+ * @returns URL without the fragment.
+ */
+function stripFragment(url: string): string {
+  const hashIdx = url.indexOf('#');
+  if (hashIdx === -1) return url;
+  return url.slice(0, hashIdx);
+}
+
+/**
+ * Determine whether a URL change represents real navigation rather than a
+ * hash-only mutation. Visacal `<a href="#" onclick="">` clicks that miss
+ * the bound JS handler add `#` to the URL but do not navigate; treating
+ * that as success caused HOME.ACTION to silently progress to PRE-LOGIN
+ * with no login modal rendered (observed 2026-05-11).
+ *
+ * @param urlBefore - Page URL before the click.
+ * @param urlAfter - Page URL after the click.
+ * @returns True iff the URL path / host / query differs (fragment ignored).
+ */
+function didReallyNavigate(urlBefore: string, urlAfter: string): boolean {
+  if (urlBefore === urlAfter) return false;
+  return stripFragment(urlBefore) !== stripFragment(urlAfter);
+}
+
+/**
  * Wait for SPA route + network settle after click.
  * @param executor - Sealed action mediator.
  * @param isSequential - Whether to settle before URL wait.
@@ -249,12 +277,13 @@ async function executeHomeNavigation(
   await clickResolvedTarget(executor, discovery.triggerTarget, isSeq);
   await settleAfterClick(executor, isSeq);
   const currentUrl = executor.getCurrentUrl();
-  const didNavigate = urlBefore !== currentUrl;
+  const didNavigate = didReallyNavigate(urlBefore, currentUrl);
   logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
   return didNavigate;
 }
 
 export {
+  didReallyNavigate,
   executeHomeNavigation,
   executeModalClick,
   executeStoreLoginSignal,

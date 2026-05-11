@@ -17,6 +17,16 @@
  * redirect / mobile-app push (Isracard CI run `25633964342`,
  * runId `10-05-2026_16381614`).
  *
+ * <p>M4.F1.fix relaxes the URL-change requirement when strong auth
+ * corroboration is present. Same-URL SPAs (Isracard `/StatusPage`)
+ * legitimately serve both login and dashboard from one URL — but
+ * an interstitial would not also produce a discovered Bearer token
+ * or a multi-cookie session. So when REVEAL matched AND either an
+ * authToken exists OR ≥ {@link STRONG_AUTH_COOKIE_FLOOR} session
+ * cookies were captured, URL-change is no longer required. PR #221
+ * CI run `25652060222` evidenced 60 post-auth cookies + authToken
+ * + REVEAL all agreeing while currentUrl===preAuthUrl.
+ *
  * <p>Pure predicate — no I/O, no side effects. Caller resolves the
  * URL inputs (mediator + LOGIN emit) and threads them in. Mock /
  * test paths supply `preAuthUrl === ''` to opt out of the URL gate
@@ -29,10 +39,35 @@ import type { IAuthDiscovery } from '../../Types/PipelineContext.js';
 type DashboardGateReason = 'open' | 'reveal-missing' | 'url-stuck';
 
 /**
+ * Minimum count of post-auth session cookies that, combined with
+ * REVEAL=true, is considered sufficient corroboration to override
+ * the URL-change requirement on same-URL SPAs. Sized below the live
+ * P5 across 6 banks (Discount ≈ 12, Isracard ≈ 54-60) and above the
+ * typical interstitial tracking-cookie count (2-3: `is_eu`,
+ * `tt_sessionId`, etc.) observed in the CI evidence.
+ */
+const STRONG_AUTH_COOKIE_FLOOR = 5;
+
+/**
+ * Returns true when the slim snapshot carries either a discovered
+ * Bearer token OR enough post-auth session cookies that the REVEAL
+ * match cannot plausibly come from an interstitial. Defence-in-depth
+ * companion to the URL-change signal — required only when
+ * `currentUrl === preAuthUrl` for the gate to still open.
+ *
+ * @param snap - Slim {@link IAuthDiscovery} value committed by POST.
+ * @returns True iff at least one strong auth signal is present.
+ */
+function hasStrongAuthCorroboration(snap: IAuthDiscovery): boolean {
+  if (snap.authToken !== false) return true;
+  return snap.sessionCookieNames.length >= STRONG_AUTH_COOKIE_FLOOR;
+}
+
+/**
  * Diagnostic version of {@link passesDashboardGate}. Returns the
  * specific reason the gate decided open / closed so the FINAL
  * orchestrator can log a targeted telemetry line without a second
- * conditional. `'open'` means both signals agreed.
+ * conditional. `'open'` means signals agreed.
  *
  * @param snap - Slim {@link IAuthDiscovery} value committed by POST.
  * @param currentUrl - Page URL at AUTH-DISCOVERY.FINAL entry.
@@ -46,8 +81,9 @@ function dashboardGateReason(
 ): DashboardGateReason {
   if (!snap.dashboardReady) return 'reveal-missing';
   if (preAuthUrl === '') return 'open';
-  if (currentUrl === preAuthUrl) return 'url-stuck';
-  return 'open';
+  if (currentUrl !== preAuthUrl) return 'open';
+  if (hasStrongAuthCorroboration(snap)) return 'open';
+  return 'url-stuck';
 }
 
 /**

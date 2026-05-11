@@ -165,15 +165,18 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     }
   });
 
-  it('FINAL fails loud AUTH_DISCOVERY_DASHBOARD_NOT_READY when URL never changed from the pre-auth baton', async () => {
+  it('FINAL fails loud AUTH_DISCOVERY_DASHBOARD_NOT_READY when URL never changed AND auth signals are weak', async () => {
+    // M4.F1.fix: url-stuck is only fatal when the corroboration is
+    // also weak (no authToken, < 5 session cookies). Strong signals
+    // (Bearer token or multi-cookie session) override URL-change.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
-      authToken: 'fake-bearer',
-      origin: 'https://web.isracard.co.il',
+      authToken: false,
+      origin: false,
       siteId: false,
       headers: {},
       dashboardReady: true,
-      sessionCookieNames: ['JSESSIONID'],
+      sessionCookieNames: [],
     };
     const fakeMediator = {
       /**
@@ -249,14 +252,19 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     // otpFill > otpTrigger > login. The OTP-FILL emit is always set
     // when OTP-FILL ran (form-found / soft-skip / MOCK_MODE), so it
     // is the freshest baton available.
+    //
+    // M4.F1.fix: snap uses weak corroboration (no authToken, no
+    // session cookies) so the url-stuck path is reachable — that
+    // is the failure the test asserts to prove the right baton URL
+    // was read.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
-      authToken: 'fake-bearer',
-      origin: 'https://web.bank',
+      authToken: false,
+      origin: false,
       siteId: false,
       headers: {},
       dashboardReady: true,
-      sessionCookieNames: ['JSESSIONID'],
+      sessionCookieNames: [],
     };
     const fakeMediator = {
       /**
@@ -297,14 +305,17 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     // Flow 2: LOGIN → OTP-TRIGGER → AUTH-DISCOVERY (no OTP-FILL).
     // OTP-TRIGGER carried LOGIN's urlBeforeSubmit forward; the gate
     // must read it (not LOGIN's directly).
+    //
+    // M4.F1.fix: weak corroboration keeps the url-stuck failure path
+    // reachable (see the otpFill precedence test above).
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
-      authToken: 'fake-bearer',
-      origin: 'https://web.bank',
+      authToken: false,
+      origin: false,
       siteId: false,
       headers: {},
       dashboardReady: true,
-      sessionCookieNames: ['JSESSIONID'],
+      sessionCookieNames: [],
     };
     const fakeMediator = {
       /**

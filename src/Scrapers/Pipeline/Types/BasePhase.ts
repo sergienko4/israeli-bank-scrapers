@@ -9,6 +9,8 @@
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
+import type { IPreludeSpec } from '../Mediator/Elements/PagePrelude.js';
+import { awaitPagePrelude, PRELUDE_NONE } from '../Mediator/Elements/PagePrelude.js';
 import { setActivePhase, setActiveStage } from './ActiveState.js';
 import type { Brand } from './Brand.js';
 import { isMockTimingActive } from './Debug.js';
@@ -219,6 +221,14 @@ abstract class BasePhase {
   /** Phase identifier — must match the pipeline execution order. */
   public abstract readonly name: PhaseName;
 
+  /** Per-stage prelude table — subclasses override `prelude` to opt in. */
+  private readonly _basePreludeSpecs: Record<'PRE' | 'ACTION' | 'POST' | 'FINAL', IPreludeSpec> = {
+    PRE: PRELUDE_NONE,
+    ACTION: PRELUDE_NONE,
+    POST: PRELUDE_NONE,
+    FINAL: PRELUDE_NONE,
+  };
+
   /**
    * ACTION — the core execution. Receives SEALED context (no discovery).
    * Subclasses MUST implement. Compiler rejects resolveField/resolveVisible.
@@ -324,6 +334,22 @@ abstract class BasePhase {
   }
 
   /**
+   * Declarative page-readiness opt-in per stage. Override to request a
+   * `'dom'` or `'spa'` prelude wait before this phase's PRE / ACTION /
+   * POST / FINAL handler executes. Default {@link PRELUDE_NONE} keeps
+   * phases that do not navigate at zero overhead. The
+   * {@link "../Mediator/Elements/PagePrelude.js"} `awaitPagePrelude`
+   * helper fires the wait + emits structured telemetry — phases do
+   * not call it directly.
+   *
+   * @param stage - The stage about to execute (uppercase enum tag).
+   * @returns Prelude specification for this stage; default `PRELUDE_NONE`.
+   */
+  protected prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
+    return this._basePreludeSpecs[stage];
+  }
+
+  /**
    * Drive the 4-stage protocol — split out so run() can bookend
    * screenshots without losing readability.
    * @param ctx - Pipeline context at phase entry.
@@ -424,6 +450,8 @@ abstract class BasePhase {
       log.debug({ event: 'phase-stage', phase: this.name, stage: 'PRE', result: 'OK' });
       return mocked;
     }
+    const preSpec = this.prelude('PRE');
+    await awaitPagePrelude(ctx, preSpec);
     const result = await this.pre(ctx, ctx);
     log.debug({ event: 'phase-stage', phase: this.name, stage: 'PRE', result: traceTag(result) });
     return result;
@@ -456,6 +484,8 @@ abstract class BasePhase {
       log.debug({ event: 'phase-stage', phase: this.name, stage: 'ACTION', result: 'OK' });
       return succeed(preVal);
     }
+    const actionSpec = this.prelude('ACTION');
+    await awaitPagePrelude(preVal, actionSpec);
     const actionCtx = buildActionContext(preVal);
     const result = await this.action(actionCtx, actionCtx);
     log.debug({
@@ -486,6 +516,8 @@ abstract class BasePhase {
       log.debug({ event: 'phase-stage', phase: this.name, stage: 'POST', result: 'OK' });
       return succeed(restored);
     }
+    const postSpec = this.prelude('POST');
+    await awaitPagePrelude(restored, postSpec);
     const result = await this.post(restored, restored);
     log.debug({ event: 'phase-stage', phase: this.name, stage: 'POST', result: traceTag(result) });
     return result;
@@ -508,6 +540,8 @@ abstract class BasePhase {
       log.debug({ event: 'phase-stage', phase: this.name, stage: 'FINAL', result: 'OK' });
       return succeed(postVal);
     }
+    const finalSpec = this.prelude('FINAL');
+    await awaitPagePrelude(postVal, finalSpec);
     const result = await this.final(postVal, postVal);
     log.debug({ event: 'phase-stage', phase: this.name, stage: 'FINAL', result: traceTag(result) });
     return result;

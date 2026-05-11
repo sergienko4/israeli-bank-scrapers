@@ -71,6 +71,16 @@ export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
 
 // ── HOME phase ─────────────────────────────────────────────────────
 
+/**
+ * HOME prelude — SPA-ready ceiling for HOME.PRE + HOME.ACTION.
+ *
+ * <p>`waitForSpaReady` budget: page must be `load`+`networkidle` before
+ * the resolver scans for the login trigger and before ACTION fires the
+ * click. Sized below {@link HOME_FORM_READY_TIMEOUT_MS} so the total
+ * per-phase wall stays unchanged.
+ */
+export const HOME_PRELUDE_TIMEOUT_MS = 10_000;
+
 /** HOME settle ceiling after click — TIMING mission cut from 15000. */
 export const HOME_SETTLE_TIMEOUT_MS = 8000;
 
@@ -117,6 +127,15 @@ export const LOGIN_PER_FRAME_SCAN_TIMEOUT_MS = 3000;
 /** LOGIN post-submit settle ceiling. */
 export const LOGIN_POST_SUBMIT_SETTLE_TIMEOUT_MS = 15000;
 
+/**
+ * LOGIN.POST prelude — SPA-ready ceiling for the post-submit redirect.
+ *
+ * <p>After form submission, banks redirect / mutate to OTP screen or
+ * dashboard. The prelude waits for `load`+`networkidle` so the POST
+ * validator reads a stable URL + DOM, not a transient intermediate.
+ */
+export const LOGIN_PRELUDE_POST_TIMEOUT_MS = 8_000;
+
 /** LOGIN traffic-wait ceiling for organic SPA traffic — TIMING cut from 30000. */
 export const LOGIN_TRAFFIC_WAIT_TIMEOUT_MS = 10000;
 
@@ -124,6 +143,25 @@ export const LOGIN_TRAFFIC_WAIT_TIMEOUT_MS = 10000;
 export const LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS = 10000;
 
 // ── OTP phases (TRIGGER + FILL + form probe) ───────────────────────
+
+/**
+ * OTP-TRIGGER prelude — DOM-ready ceiling for phone-hint scan + click.
+ *
+ * <p>`waitForDomReady` budget before OTP-TRIGGER.PRE scans for the phone
+ * hint / send-code button and before ACTION fires the click. DOM parsing
+ * is sufficient — OTP screens are typically server-rendered or already
+ * hydrated by the time this phase runs.
+ */
+export const OTP_TRIGGER_PRELUDE_TIMEOUT_MS = 6_000;
+
+/**
+ * OTP-FILL prelude — DOM-ready ceiling for OTP input discovery.
+ *
+ * <p>OTP-FILL.PRE budget before scanning for the OTP code input. DOM
+ * parsing is sufficient (the OTP input is typically present from the
+ * moment the screen renders).
+ */
+export const OTP_FILL_PRELUDE_TIMEOUT_MS = 6_000;
 
 /** OTP trigger / fill post-action settle ceiling — TIMING cut from 10000. */
 export const OTP_PHASE_SETTLE_TIMEOUT_MS = 5000;
@@ -197,6 +235,16 @@ export const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;
 export const ACCOUNT_RESOLVE_POLL_MS = 250;
 
 // ── DASHBOARD phase ────────────────────────────────────────────────
+
+/**
+ * DASHBOARD prelude — SPA-ready ceiling for PRE + ACTION.
+ *
+ * <p>`waitForSpaReady` budget before DASHBOARD.PRE resolves account /
+ * navigation targets and before ACTION fires the click. Dashboard pages
+ * are SPA-heavy (Backbase modules on Amex / Isracard); the click must
+ * land after JS hydration so the bank's SPA router responds.
+ */
+export const DASHBOARD_PRELUDE_TIMEOUT_MS = 10_000;
 
 /** DASHBOARD SPA transaction-link probe ceiling. */
 export const DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS = 15000;

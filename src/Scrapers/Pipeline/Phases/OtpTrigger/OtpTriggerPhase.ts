@@ -6,12 +6,15 @@
  * FINAL:  handoff contextId + phoneHint to OtpFill phase
  */
 
+import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
+import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
 import {
   executeTriggerAction,
   executeTriggerFinal,
   executeTriggerPost,
   executeTriggerPre,
 } from '../../Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
+import { OTP_TRIGGER_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -37,9 +40,21 @@ const OTP_TRIGGER_STEP = {
   execute: otpTriggerStepExec,
 };
 
+/** OTP-TRIGGER prelude spec — DOM-ready for PRE + ACTION. */
+const OTP_TRIGGER_DOM: IPreludeSpec = { level: 'dom', timeoutMs: OTP_TRIGGER_PRELUDE_TIMEOUT_MS };
+
+/** OTP-TRIGGER prelude table — PRE/ACTION wait for DOM-ready; POST/FINAL no-op. */
+const OTP_TRIGGER_PRELUDE_TABLE: Record<'PRE' | 'ACTION' | 'POST' | 'FINAL', IPreludeSpec> = {
+  PRE: OTP_TRIGGER_DOM,
+  ACTION: OTP_TRIGGER_DOM,
+  POST: PRELUDE_NONE,
+  FINAL: PRELUDE_NONE,
+};
+
 /** OTP Trigger phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class OtpTriggerPhase extends BasePhase {
   public readonly name = 'otp-trigger' as const;
+  private readonly _preludeTable = OTP_TRIGGER_PRELUDE_TABLE;
 
   /** @inheritdoc */
   public async pre(
@@ -75,6 +90,28 @@ class OtpTriggerPhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'otp-trigger.final' });
     return executeTriggerFinal(input);
+  }
+
+  /**
+   * OTP-TRIGGER requires DOM-ready before the phone-hint scan (PRE) and
+   * before the "send code" click (ACTION). DOM parsing is sufficient —
+   * OTP screens are typically already hydrated by the time the pipeline
+   * reaches this phase after LOGIN.POST settled.
+   *
+   * @param stage - The stage about to execute.
+   * @returns DOM prelude for PRE / ACTION; none otherwise.
+   */
+  /**
+   * OTP-TRIGGER requires DOM-ready before the phone-hint scan (PRE) and
+   * before the "send code" click (ACTION). DOM parsing is sufficient —
+   * OTP screens are typically already hydrated by the time the pipeline
+   * reaches this phase after LOGIN.POST settled.
+   *
+   * @param stage - The stage about to execute.
+   * @returns DOM prelude for PRE / ACTION; none otherwise.
+   */
+  protected override prelude(stage: 'PRE' | 'ACTION' | 'POST' | 'FINAL'): IPreludeSpec {
+    return this._preludeTable[stage];
   }
 }
 
