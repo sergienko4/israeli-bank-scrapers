@@ -17,6 +17,7 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import { fetchOtpFromTelegram } from './TelegramOtpFetcher.js';
 
 const POLL_INTERVAL_MS = 1000;
 /**
@@ -40,7 +41,35 @@ interface ICreateOtpPollerArgs {
   readonly log: ScraperLogger;
   /** Optional custom timeout (ms) — defaults to 120s. */
   readonly timeoutMs?: number;
+  /**
+   * Optional digits-extraction regex used against the user's reply
+   * text in the Telegram tier. When set AND `TELEGRAM_BOT_TOKEN` +
+   * `TELEGRAM_CHAT_ID` env vars are populated AND `bankName` is set,
+   * the poller consults Telegram between the env-var tier and the
+   * poll-file tier. MUST contain exactly one capture group that
+   * matches the OTP digits — typically `/(\d{4,8})/` since the
+   * fetcher relies on `reply_to_message_id` for attribution, not
+   * regex content. When omitted (or env vars unset), the poller's
+   * behaviour is byte-identical to the pre-extension env → file →
+   * readline ladder.
+   */
+  readonly bankRegex?: RegExp;
+  /**
+   * Display name surfaced to the user when the bot sends the
+   * proactive prompt ("🔔 [bankName] CI is waiting for OTP …").
+   * Required when the Telegram tier engages — without it the tier
+   * silently skips with reason `'missing-bank-name'`.
+   */
+  readonly bankName?: string;
 }
+
+// Telegram tier inherits the full poller budget (DEFAULT_POLL_TIMEOUT_MS
+// = 180 s, aligned to OtpFillPhaseActions.DEFAULT_OTP_TIMEOUT_MS). The
+// budget flows via the `timeoutMs` param of `tryTelegramTier`. There is
+// NO separate Telegram fetch timeout: a smaller budget would silently
+// drop OTPs that arrive late (SMS dispatch + forwarder hop + reply can
+// easily exceed 30 s), and a fall-through to file-poll would burn
+// another 180 s on a poll no human is going to satisfy in CI.
 
 /**
  * Read the poll file if present and non-empty, else empty string.
@@ -135,11 +164,132 @@ function promptViaReadline(phoneHint: string): Promise<string> {
 }
 
 /**
- * Build a no-arg OTP retriever bound to the given env var + poll file.
- * The returned function is the shape expected by ScraperCredentials
+ * Are the caller-supplied args complete enough for the tier?
+ * @param args - Poller args.
+ * @returns True when bankRegex + bankName both present.
+ */
+function hasTelegramArgs(args: ICreateOtpPollerArgs): boolean {
+  if (!args.bankRegex) return false;
+  if ((args.bankName ?? '').length === 0) return false;
+  return true;
+}
+
+/**
+ * Is the runtime environment a CI runner? GitHub Actions / GitLab
+ * CI / CircleCI / Travis all set `CI=true`. Never set on a
+ * developer workstation unless explicitly opted-in via
+ * `CI=true npm run test:e2e:real`.
+ * @returns True when running on a CI runner.
+ */
+function isCiEnvironment(): boolean {
+  const ciFlag = process.env.CI ?? '';
+  return ciFlag === 'true' || ciFlag === '1';
+}
+
+/**
+ * Are the Telegram secrets populated in the environment?
+ * @returns True when both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+ *   are non-empty.
+ */
+function hasTelegramSecrets(): boolean {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+  const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
+  return botToken.length > 0 && chatId.length > 0;
+}
+
+/**
+ * Pre-flight check for the Telegram tier. Returns `true` when the
+ * tier MAY engage; returns `false` to short-circuit silently.
+ * Extracted so {@link tryTelegramTier} stays inside the project's
+ * cyclomatic-complexity budget (10).
+ *
+ * @param args - Poller args.
+ * @returns True to proceed with the fetch.
+ */
+function shouldEngageTelegramTier(args: ICreateOtpPollerArgs): boolean {
+  if (!hasTelegramArgs(args)) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'missing-args', bankName: args.bankName },
+      'Telegram OTP tier skipped — bankName missing from poller args',
+    );
+    return false;
+  }
+  if (!isCiEnvironment()) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'not-ci', bankName: args.bankName },
+      'Telegram OTP tier skipped — not running in CI',
+    );
+    return false;
+  }
+  if (!hasTelegramSecrets()) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'missing-secrets', bankName: args.bankName },
+      'Telegram OTP tier skipped — TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID empty',
+    );
+    return false;
+  }
+  return true;
+}
+
+/** Telegram-tier outcome — distinguishes "skipped" from "engaged but empty". */
+interface ITelegramTierOutcome {
+  /**
+   * True when {@link shouldEngageTelegramTier} returned true AND
+   * {@link fetchOtpFromTelegram} ran to completion (regardless of
+   * whether it produced a code). The retriever uses this flag to
+   * decide whether to fall through to the file/readline tiers:
+   * when Telegram is engaged in CI, the file tier is dead-weight
+   * (no human writes to `/tmp/<bank>-otp.txt` on a CI runner) and
+   * the readline tier is non-TTY-skipped, so an empty result
+   * means the run cannot deliver an OTP and must fail loud
+   * immediately rather than burn another `timeoutMs` on a poll
+   * that will never see a file.
+   */
+  readonly engaged: boolean;
+  /** Captured digits, or empty string when the fetcher returned false. */
+  readonly code: string;
+}
+
+/**
+ * Try the Telegram OTP tier when opted-in and configured. Returns
+ * an outcome that distinguishes the skip path (`engaged: false`)
+ * from the run-to-completion path (`engaged: true`, with `code`
+ * populated on match or empty on timeout / transport failure).
+ *
+ * @param args - Poller args (forward `bankRegex` + bankName + logger).
+ * @param timeoutMs - Budget granted to the Telegram fetcher.
+ * @returns Tier outcome.
+ */
+async function tryTelegramTier(
+  args: ICreateOtpPollerArgs,
+  timeoutMs: number,
+): Promise<ITelegramTierOutcome> {
+  if (!shouldEngageTelegramTier(args)) return { engaged: false, code: '' };
+  const regex = args.bankRegex;
+  if (!regex) return { engaged: false, code: '' };
+  const bankName = args.bankName ?? '';
+  const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+  const chatId = process.env.TELEGRAM_CHAT_ID ?? '';
+  const result = await fetchOtpFromTelegram({
+    botToken,
+    chatId,
+    bankName,
+    bankRegex: regex,
+    timeoutMs,
+    log: args.log,
+  });
+  return { engaged: true, code: result === false ? '' : result };
+}
+
+/**
+ * Build a no-arg OTP retriever bound to the given env var, poll
+ * file basename, and (optional) per-bank Telegram regex. The
+ * returned function is the shape expected by `ScraperCredentials`
  * (phone-hint is wrapped in via closure).
- * @param args - bank-specific env var, poll file basename, logger, timeout
- * @returns () => Promise<string> retriever
+ *
+ * @param args - bank-specific env var, poll file basename, logger,
+ *   timeout, and optional bankRegex enabling the Telegram tier.
+ * @returns `(hint?) => Promise<string>` retriever.
  */
 function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise<string> {
   const tmp = os.tmpdir();
@@ -149,17 +299,65 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   const timeoutMs = args.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
   return async (hint?: string): Promise<string> => {
     const phoneHint = hint ?? '';
+    // Tier 1: env var (CI preset / local override).
     const fromEnv = process.env[envVar];
     if (fromEnv && fromEnv.length > 0) {
       log.info({ phoneHint: phoneHint || 'unknown', envVar }, `Using ${envVar} env var`);
       return fromEnv;
     }
+    // Tier 2: Telegram bot (CI default; opt-in via bankRegex + env
+    // vars). When engaged, Telegram consumes the FULL `timeoutMs`
+    // budget — file/readline tiers are dead-weight in CI and a
+    // fall-through would only waste another `timeoutMs` on a poll
+    // that no one is going to satisfy.
+    const tg = await tryTelegramTier(args, timeoutMs);
+    if (tg.code.length > 0) return tg.code;
+    if (tg.engaged) {
+      throw new ScraperError(
+        `Telegram OTP tier exhausted ${String(timeoutMs)}ms — no reply received (or transport failure). File/readline tiers skipped because Telegram was the configured channel.`,
+      );
+    }
+    // Tier 3: poll file (interactive local).
     if (!process.stdin.isTTY) {
       return pollForCode({ filePath, log, phoneHint, timeoutMs });
     }
+    // Tier 4: readline TTY.
     return promptViaReadline(phoneHint);
   };
 }
 
-export { createOtpPoller, DEFAULT_POLL_TIMEOUT_MS };
+/** Digits-only regex used by every bank — attribution comes from the
+ *  Telegram reply-id, not from per-bank text matching. */
+const DIGITS_ONLY_REGEX = /(\d{4,8})/;
+
+/**
+ * Factory wrapper around {@link createOtpPoller} that derives the
+ * `envVar` (`<UPPER>_OTP`) and `fileName` (`<lower>-otp.txt`) from
+ * the bank name, sets the standard `bankRegex`, and forwards the
+ * `bankName` to the Telegram tier. Every E2E Real bank test that
+ * needs OTP delivery uses this — saves ~6 lines per bank vs the
+ * raw `createOtpPoller` form.
+ *
+ * @param bankName - Display name used in the Telegram prompt
+ *   (e.g. "Beinleumi"). Becomes the env-var prefix (uppercased)
+ *   and the poll-file basename (lowercased).
+ * @param log - Pino-shaped logger.
+ * @returns OTP retriever (`(hint?) => Promise<string>`).
+ */
+function createBankOtpPoller(
+  bankName: string,
+  log: ScraperLogger,
+): (hint?: string) => Promise<string> {
+  const upper = bankName.toUpperCase();
+  const lower = bankName.toLowerCase();
+  return createOtpPoller({
+    envVar: `${upper}_OTP`,
+    fileName: `${lower}-otp.txt`,
+    log,
+    bankName,
+    bankRegex: DIGITS_ONLY_REGEX,
+  });
+}
+
+export { createBankOtpPoller, createOtpPoller, DEFAULT_POLL_TIMEOUT_MS };
 export default createOtpPoller;

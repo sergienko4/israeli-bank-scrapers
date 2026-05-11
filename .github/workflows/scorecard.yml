@@ -6,8 +6,12 @@ on:
 
 permissions: {}
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# NOTE: workflow-root `env:` and `defaults:` are forbidden by the
+# OSSF scorecard-action signature verifier. Any flag formerly set
+# here MUST move to step-level env, otherwise the signature step
+# rejects the workflow with "workflow contains global env vars or
+# defaults". See:
+#   https://github.com/ossf/scorecard-action#workflow-restrictions
 
 jobs:
   analysis:
