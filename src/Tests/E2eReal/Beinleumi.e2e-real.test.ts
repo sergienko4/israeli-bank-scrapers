@@ -13,7 +13,7 @@ import {
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
 } from './Helpers.js';
-import { createOtpPoller } from './OtpPoller.js';
+import { createBankOtpPoller } from './OtpPoller.js';
 
 dotenv.config();
 
@@ -28,11 +28,7 @@ DESCRIBE_IF('E2E: Beinleumi (real credentials)', () => {
   });
 
   it('scrapes transactions successfully (OTP via BEINLEUMI_OTP env or poll file)', async () => {
-    const retrieve = createOtpPoller({
-      envVar: 'BEINLEUMI_OTP',
-      fileName: 'beinleumi-otp.txt',
-      log: LOG,
-    });
+    const retrieve = createBankOtpPoller('Beinleumi', LOG);
     const scraper = createScraper({
       companyId: CompanyTypes.Beinleumi,
       startDate: defaultStartDate(),
