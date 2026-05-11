@@ -1,0 +1,86 @@
+# CI mirror — Ubuntu 24.04 + Node 22.14.0 + Camoufox v135.0.1-beta.24.
+# Built to match GitHub's `ubuntu-latest` (= 24.04) runner image so local
+# repro of the E2E Real A jobs matches the CI environment byte-for-byte
+# above the OS level. Used for two purposes:
+#   1. Reproduce CI-only flakes locally (e.g. Beinleumi HOME load
+#      variance, Hapoalim auth-API rejections) for root-cause analysis.
+#   2. Replace the host-Camoufox parallel-launch workaround
+#      (sequential 6/6 in scripts/run-real-suite.ts) with per-bank
+#      container isolation — each container has its own Camoufox
+#      process space, so upstream bug #386 ("instances interfere
+#      with each other") is sidestepped and all banks can run in
+#      parallel, dropping wall time from ~29 min to ~5 min.
+#
+# Build:   docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
+# Single:  bash docker/run-banks.sh Beinleumi
+# Parallel: bash docker/run-banks.sh   (no args = all 6)
+
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG NODE_VERSION=22.14.0
+ARG CAMOUFOX_VERSION=v135.0.1-beta.24
+
+# Mirror the apt set that the GitHub `ubuntu-24.04` runner image carries
+# that Camoufox / Firefox needs at runtime. Source list cross-checked
+# against `actions/runner-images` Ubuntu2404-Readme.md.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git unzip xz-utils gnupg \
+        libgtk-3-0t64 libgbm1 libxt6 libdbus-glib-1-2 \
+        libasound2t64 libnss3 libxss1 libxrandr2 \
+        libpangocairo-1.0-0 libatk1.0-0t64 libatk-bridge2.0-0t64 \
+        libcups2t64 libxcomposite1 libxdamage1 libxkbcommon0 \
+        fonts-liberation libdrm2 libxshmfence1 \
+        # gh CLI for Camoufox fallback download path
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh) — Camoufox install-action's fallback uses it.
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node from the prebuilt tarball — same channel that
+# actions/setup-node uses when given a `.nvmrc` containing v22.14.0.
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+        | tar -xJ -C /opt \
+    && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/node /usr/local/bin/node \
+    && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/npm  /usr/local/bin/npm \
+    && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/npx  /usr/local/bin/npx
+
+# Project deps — cached layer keyed on package*.json. Installed
+# BEFORE Camoufox because the canonical install path uses
+# `@hieutran094/camoufox-js` from devDependencies (same module
+# `.github/actions/install-camoufox` calls; lets the action handle
+# whatever zip-internal directory layout the upstream release uses).
+#
+# `--ignore-scripts` skips the project's `prepare` hook (tsup build +
+# `rimraf lib/...`) which would fail at image-build time because the
+# `src/` tree isn't in the layer yet (it's volume-mounted at run
+# time, NOT COPYed — keeps iteration fast). Tests don't need `lib/`;
+# they run from `src/` via Jest's ESM/Babel transform.
+WORKDIR /work
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline --ignore-scripts
+
+# Camoufox — mirror the install-camoufox composite action. Uses the
+# camoufox-js fetch CLI which knows the layout of the upstream zip
+# (a raw `unzip` produces a `camoufox-<ver>/` subdirectory; the CLI
+# normalises to the `~/.cache/camoufox/camoufox-bin` path that the
+# tests expect). The image bundles the browser so per-bank containers
+# don't re-download on every run; ~705 MB cache lives at
+# `/root/.cache/camoufox`.
+RUN npx @hieutran094/camoufox-js fetch \
+    && test -f /root/.cache/camoufox/camoufox-bin
+
+# Source tree is volume-mounted at runtime so iteration is fast (no
+# rebuild on edits). The Dockerfile only bakes deps + Camoufox, not
+# the source — same model as the CI runner's checkout + cached deps.
+
+# Default entry: run a single bank's happy-path test. The wrapper
+# script chooses which bank by passing --testPathPatterns.
+ENV CI=true
+CMD ["bash", "-c", "echo 'Use docker/run-banks.sh to invoke this image.'"]

@@ -5,6 +5,7 @@
 
 import {
   logForensicAudit,
+  resolveAuditLabel,
   scrapePostDiagnostics,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
@@ -242,6 +243,43 @@ describe('logForensicAudit', () => {
     });
     const didLog = logForensicAudit(ctx);
     expect(didLog).toBe(true);
+  });
+});
+
+describe('resolveAuditLabel — M4.F4 (Visacal AUDIT mislabel)', () => {
+  // M4.F4 evidence: Visacal CI run 15180979 logged 48 HTTP-500 responses
+  // all labelled `API Success`. fetchSequential is fail-fast — a 5xx
+  // propagates and short-circuits SCRAPE, so the qualified card never
+  // gets an account record. `accounts.find()` returns nothing → caller
+  // passes `false` into resolveAuditLabel and the audit label surfaces
+  // `API Error` (same vocabulary as the pruned-card branch on line 189
+  // of ForensicAuditAction.ts) instead of the misleading `API Success`.
+  it('AUDIT-HTTP-5XX-LABEL-001: scrapeSucceeded=false → API Error', () => {
+    const label = resolveAuditLabel(false);
+    expect(label).toBe('API Error');
+  });
+
+  it('AUDIT-HTTP-5XX-LABEL-001b: scrapeSucceeded=true → API Success', () => {
+    const label = resolveAuditLabel(true);
+    expect(label).toBe('API Success');
+  });
+
+  it('AUDIT-HTTP-5XX-LABEL-001c: caller distinguishes "no account" from "0 txns"', () => {
+    // The boolean signal MUST come from "did `accounts.find` return a
+    // record?", NOT from "is the txns array empty?". A legitimately-
+    // empty account (Amex/Isracard dormant-card case from
+    // dom-ready-everywhere/status.txt §v9) is still a successful
+    // SCRAPE that just had nothing to return; only an ABSENT account
+    // record qualifies as API Error.
+    const acctWithTxns = makeAccount('A1', 3);
+    const acctEmpty = makeAccount('A1', 0);
+    // Both produce a defined record → scrapeSucceeded should be true.
+    const hasTxnAcct = Boolean(acctWithTxns);
+    const hasEmptyAcct = Boolean(acctEmpty);
+    const haveTxnsLabel = resolveAuditLabel(hasTxnAcct);
+    const haveEmptyLabel = resolveAuditLabel(hasEmptyAcct);
+    expect(haveTxnsLabel).toBe('API Success');
+    expect(haveEmptyLabel).toBe('API Success');
   });
 });
 
