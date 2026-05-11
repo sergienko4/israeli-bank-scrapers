@@ -133,6 +133,22 @@ function tailMask(value: string): string {
 }
 
 /**
+ * Escape the four Telegram Markdown (legacy mode) special characters
+ * so a user-controlled string (e.g. a future bank display name with
+ * `_` or `*`) can't break the parsed prompt. Today's caller set is
+ * hardcoded to four banks without special chars, but a future
+ * addition would silently abort the fetcher via the
+ * `logPromptFailed` path otherwise (Telegram returns `ok: false`
+ * on a parse error). Per CodeRabbit PR #215 review.
+ *
+ * @param value - Raw string to interpolate into a Markdown payload.
+ * @returns Markdown-escaped string.
+ */
+function escapeMarkdown(value: string): string {
+  return value.replaceAll(/[_*`[]/g, String.raw`\$&`);
+}
+
+/**
  * Validate args before any HTTP call. Returns the skip reason
  * when validation fails, or `false` when args are sound.
  *
@@ -166,7 +182,8 @@ function detectSkipReason(args: ITelegramFetchArgs): TelegramSkipReason | false 
  */
 async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | false> {
   const url = `https://api.telegram.org/bot${args.botToken}/sendMessage`;
-  const promptHeader = `🔔 *${args.bankName}* CI run is waiting for an OTP code.\n\n`;
+  const safeBankName = escapeMarkdown(args.bankName);
+  const promptHeader = `🔔 *${safeBankName}* CI run is waiting for an OTP code.\n\n`;
   const promptBody =
     'Please *reply to this message* with the code from the SMS ' +
     "(e.g. '123456'). The reply MUST use Telegram's Reply feature " +

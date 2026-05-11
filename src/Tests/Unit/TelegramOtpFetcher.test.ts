@@ -205,6 +205,22 @@ function getSendMessageCalls(spy: jest.Mock): FetchCalls {
 }
 
 /**
+ * Filter the spy's calls down to those targeting `/getUpdates`.
+ * Symmetric helper to {@link getSendMessageCalls}; tests use both to
+ * avoid re-deriving the URL-filter inline (per CodeRabbit PR #215
+ * review on TF-7).
+ * @param spy - The installed fetch spy.
+ * @returns Subset of calls whose URL contains `/getUpdates`.
+ */
+function getGetUpdatesCalls(spy: jest.Mock): FetchCalls {
+  const all = readFetchCalls(spy);
+  return all.filter((call: IFetchCallArgs): boolean => {
+    const url = getCallUrl(call);
+    return url.includes('/getUpdates');
+  });
+}
+
+/**
  * Parse the JSON body of a fetch RequestInit. Tests guard against
  * missing-call cases by asserting `length` first, so this helper
  * trusts the call exists.
@@ -457,19 +473,12 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
-    const allCalls: readonly unknown[][] = fetchSpy.mock.calls;
-    const sendCount = allCalls.filter((c): boolean => {
-      const u = typeof c[0] === 'string' ? c[0] : '';
-      return u.includes('/sendMessage');
-    }).length;
-    const getCount = allCalls.filter((c): boolean => {
-      const u = typeof c[0] === 'string' ? c[0] : '';
-      return u.includes('/getUpdates');
-    }).length;
-    expect(sendCount).toBe(1);
+    const sendCalls = getSendMessageCalls(fetchSpy);
+    const updateCalls = getGetUpdatesCalls(fetchSpy);
+    expect(sendCalls).toHaveLength(1);
     // Floor probe (1) + zero poll cycles (sendMessage failed before
     // poll loop entered).
-    expect(getCount).toBe(1);
+    expect(updateCalls).toHaveLength(1);
   });
 
   it('TF-8 race-free order — floor probe runs BEFORE sendMessage', async () => {

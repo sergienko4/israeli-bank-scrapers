@@ -98,6 +98,18 @@ if [ -n "$CACHE_KEY" ]; then
     log "🔑 cache key: $CACHE_KEY"
 fi
 
+# Guard: CACHE_KEY reflects the STAGED tree (`git write-tree`), but
+# gates run against the WORKING tree. When unstaged changes exist in
+# directories the gates inspect (src/, .github/, .husky/, etc.), the
+# working tree diverges from the index — a cache HIT would then skip
+# a gate that should run against different content than the key
+# represents. Clear CACHE_KEY when unstaged changes exist to force
+# fresh runs for the whole ladder (per CodeRabbit PR #215 review).
+if [ -n "$CACHE_KEY" ] && ! git diff --quiet 2>/dev/null; then
+    log "⚠️  unstaged changes detected — cache disabled for this run"
+    CACHE_KEY=""
+fi
+
 # Trim cache: keep only markers for the current key — older entries are
 # stale (they reference content that's no longer on disk anywhere).
 if [ -n "$CACHE_KEY" ]; then

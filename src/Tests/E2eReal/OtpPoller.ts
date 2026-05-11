@@ -207,7 +207,13 @@ function hasTelegramSecrets(): boolean {
  * @returns True to proceed with the fetch.
  */
 function shouldEngageTelegramTier(args: ICreateOtpPollerArgs): boolean {
-  if (!hasTelegramArgs(args)) return false;
+  if (!hasTelegramArgs(args)) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'missing-args', bankName: args.bankName },
+      'Telegram OTP tier skipped — bankName missing from poller args',
+    );
+    return false;
+  }
   if (!isCiEnvironment()) {
     args.log.debug(
       { event: 'telegram.otp.tier.skip', reason: 'not-ci', bankName: args.bankName },
@@ -215,7 +221,13 @@ function shouldEngageTelegramTier(args: ICreateOtpPollerArgs): boolean {
     );
     return false;
   }
-  if (!hasTelegramSecrets()) return false;
+  if (!hasTelegramSecrets()) {
+    args.log.debug(
+      { event: 'telegram.otp.tier.skip', reason: 'missing-secrets', bankName: args.bankName },
+      'Telegram OTP tier skipped — TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID empty',
+    );
+    return false;
+  }
   return true;
 }
 
