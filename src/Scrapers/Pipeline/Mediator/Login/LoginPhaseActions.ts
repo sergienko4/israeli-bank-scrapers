@@ -31,7 +31,8 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
-import waitForDomReady from '../Elements/PageReadiness.js';
+import type { IPreludeSpec } from '../Elements/PagePrelude.js';
+import { awaitFramePrelude } from '../Elements/PagePrelude.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
@@ -410,6 +411,17 @@ function buildSubmitSelector(result: IRaceResult, formAnchor: string): string {
 }
 
 /**
+ * LOGIN.PRE prelude spec — DOM-ready ceiling for the iframe-hosted
+ * login form. Frame-targeted variant of the BasePhase hook because
+ * LOGIN.PRE must wait on the active iframe (Hapoalim-group banks),
+ * not the top-level page.
+ */
+const LOGIN_PRE_FRAME_PRELUDE: IPreludeSpec = {
+  level: 'dom',
+  timeoutMs: ELEMENTS_DOM_READY_TIMEOUT_MS,
+};
+
+/**
  * PRE: Discover credential form — run checkReadiness + preAction + field discovery.
  * Sets login.activeFrame AND loginFieldDiscovery for ACTION.
  * @param config - Login config.
@@ -436,13 +448,15 @@ async function executeDiscoverForm(
   input.logger.debug({
     message: maskVisibleText(`activeFrame=${activeFrame.url()}`),
   });
-  // Mission M4.F2.0: SPA-render wait — without it, fast SPAs that
-  // navigate via push-state after `preAction` (Visacal, Amex, Max
-  // observed today 2026-05-11) reach `executeDiscoverFields` before
-  // the password input is parsed, and the resolver reports
-  // "no password field". Best-effort wait — the per-frame scan
-  // retry absorbs slow SPAs, so a timeout is non-fatal.
-  const wasReady = await waitForDomReady(activeFrame, ELEMENTS_DOM_READY_TIMEOUT_MS);
+  // Mission M4.F2.0 + dom-ready-everywhere P-7b: SPA-render wait on
+  // the active iframe (Hapoalim-group banks host login inside an
+  // iframe; the parent page fires `domcontentloaded` before the
+  // iframe's JS bundle hydrates). Without this gate, fast SPAs
+  // (Visacal / Amex / Max observed 2026-05-11) reach
+  // `executeDiscoverFields` before the password input is parsed and
+  // the resolver reports "no password field". Best-effort wait — the
+  // per-frame scan retry absorbs slow SPAs, so a timeout is non-fatal.
+  const wasReady = await awaitFramePrelude(input, activeFrame, LOGIN_PRE_FRAME_PRELUDE);
   input.logger.debug({ message: `LOGIN PRE: domReady=${String(wasReady)}` });
   const discovery = await executeDiscoverFields({
     mediator: input.mediator.value,

@@ -13,10 +13,11 @@
  * <p>All inputs deterministic stubs — no real Playwright launch.
  */
 
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import type { IPreludeSpec } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import {
+  awaitFramePrelude,
   awaitPagePrelude,
   PRELUDE_NONE,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
@@ -201,5 +202,117 @@ describe('awaitPagePrelude — phase-aware readiness gate', () => {
     expect(typeof preludeEvent?.stage).toBe('string');
     expect(preludeEvent?.level).toBe('dom');
     expect(typeof preludeEvent?.elapsedMs).toBe('number');
+  });
+});
+
+/**
+ * Build a Frame-like stub that records every waitForLoadState call.
+ *
+ * @param stateCalls - Sink that captures the lifecycle event name on each call.
+ * @param resolveFor - Set of lifecycle events that should resolve (others throw).
+ * @returns Frame-like stub.
+ */
+function makeListeningFrame(stateCalls: string[], resolveFor: ReadonlySet<string>): Frame {
+  /**
+   * Records the awaited state name then either resolves or throws —
+   * Frame variant of the page stub above.
+   *
+   * @param state - Lifecycle event name the SUT awaits.
+   * @returns Resolves when state is in resolveFor; throws otherwise.
+   */
+  async function waitForLoadStateStub(state: string): Promise<void> {
+    stateCalls.push(state);
+    await Promise.resolve();
+    if (!resolveFor.has(state)) {
+      throw new TypeError(`frame-prelude-test timeout simulated for ${state}`);
+    }
+  }
+  return { waitForLoadState: waitForLoadStateStub } as unknown as Frame;
+}
+
+/**
+ * Build a logger-only context (no browser) for Frame-prelude callers
+ * who supply the target directly.
+ *
+ * @param logger - Recording logger.
+ * @returns Minimal context with `browser: none()` + logger.
+ */
+function makeLoggerOnlyCtx(logger: ScraperLogger): {
+  readonly browser: ReturnType<typeof none>;
+  readonly logger: ScraperLogger;
+} {
+  return { browser: none(), logger };
+}
+
+describe('awaitFramePrelude — Frame/Page-target readiness gate', () => {
+  it("FRAME-PRELUDE-NONE-001: 'none' short-circuits true without touching the frame", async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, NEVER_RESOLVE);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    const wasReady = await awaitFramePrelude(ctx, frame, PRELUDE_NONE);
+    expect(wasReady).toBe(true);
+    expect(stateCalls).toEqual([]);
+    const emitted = preludeOnly(events);
+    expect(emitted).toEqual([]);
+  });
+
+  it("FRAME-PRELUDE-DOM-002: 'dom' delegates waitForDomReady to the FRAME (not a page)", async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, DOM_ONLY);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    const wasReady = await awaitFramePrelude(ctx, frame, DOM_SPEC);
+    expect(wasReady).toBe(true);
+    expect(stateCalls).toEqual(['domcontentloaded']);
+  });
+
+  it("FRAME-PRELUDE-SPA-003: 'spa' delegates load + networkidle to the frame", async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, LOAD_AND_IDLE);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    const wasReady = await awaitFramePrelude(ctx, frame, SPA_SPEC);
+    expect(wasReady).toBe(true);
+    const sortedCalls = [...stateCalls].sort((a, b): number => a.localeCompare(b));
+    expect(sortedCalls).toEqual(['load', 'networkidle']);
+  });
+
+  it('FRAME-PRELUDE-TIMEOUT-004: returns false when the lifecycle event times out', async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, NEVER_RESOLVE);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    const wasReady = await awaitFramePrelude(ctx, frame, DOM_SPEC);
+    expect(wasReady).toBe(false);
+    const emitted = preludeOnly(events);
+    expect(emitted[0].ready).toBe(false);
+  });
+
+  it('FRAME-PRELUDE-TELEMETRY-005: emits structured event with phase, stage, level, elapsedMs', async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, DOM_ONLY);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    await awaitFramePrelude(ctx, frame, DOM_SPEC);
+    const preludeEvent = events.find((e): boolean => e.event === 'prelude');
+    expect(preludeEvent).toBeDefined();
+    expect(preludeEvent?.level).toBe('dom');
+    expect(typeof preludeEvent?.elapsedMs).toBe('number');
+  });
+
+  it('FRAME-PRELUDE-NO-BROWSER-OK-006: works with logger-only context (no browser dependency)', async () => {
+    const stateCalls: string[] = [];
+    const events: LogEvent[] = [];
+    const frame = makeListeningFrame(stateCalls, DOM_ONLY);
+    const logger = makeRecordingLogger(events);
+    const ctx = makeLoggerOnlyCtx(logger);
+    const wasReady = await awaitFramePrelude(ctx, frame, DOM_SPEC);
+    expect(wasReady).toBe(true);
   });
 });

@@ -869,6 +869,88 @@ describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constant
 });
 
 /**
+ * dom-ready-everywhere plan — R-NO-DIRECT-LOAD-STATE.
+ *
+ * <p>Forbids direct calls to `<target>.waitForLoadState(...)` outside
+ * the documented allowlist. Every navigating pipeline phase must go
+ * through {@link "../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js"}
+ * `awaitPagePrelude` (Page target) or `awaitFramePrelude` (Frame
+ * target) so lifecycle waits emit canonical telemetry and live behind
+ * one audit point.
+ *
+ * <p>Allowlist:
+ * <ul>
+ *   <li>`Mediator/Elements/PageReadiness.ts` — the primitive itself
+ *       (`waitForDomReady`, `waitForSpaReady`).</li>
+ *   <li>`Mediator/Elements/CreateElementMediator.ts` — internal
+ *       mediator's `waitForNetworkIdle` wrapper.</li>
+ *   <li>`Interceptors/SnapshotFrameCapture.ts` /
+ *       `Interceptors/SnapshotInterceptorIO.ts` — snapshot-capture
+ *       infrastructure outside the phase pipeline.</li>
+ * </ul>
+ */
+const DIRECT_LOAD_STATE_ALLOWLIST: readonly string[] = [
+  path.join('Mediator', 'Elements', 'PageReadiness.ts'),
+  path.join('Mediator', 'Elements', 'CreateElementMediator.ts'),
+  path.join('Interceptors', 'SnapshotFrameCapture.ts'),
+  path.join('Interceptors', 'SnapshotInterceptorIO.ts'),
+];
+
+/** Match `<expr>.waitForLoadState(` invocations in source code. */
+const DIRECT_LOAD_STATE_REGEX = /\.waitForLoadState\s*\(/;
+
+/**
+ * Find lines that call `.waitForLoadState(` in a source file. Skips
+ * comment-only lines so the JSDoc references in {@link awaitPagePrelude}
+ * docstrings do not trip the rule.
+ *
+ * @param text - Source file text.
+ * @returns Matching line numbers (1-based).
+ */
+function findDirectLoadStateLines(text: string): readonly number[] {
+  const lines = text.split('\n');
+  const hits: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('*')) continue;
+    if (DIRECT_LOAD_STATE_REGEX.test(line)) hits.push(i + 1);
+  }
+  return hits;
+}
+
+/**
+ * Scan every Pipeline source file (outside the allowlist) for direct
+ * `waitForLoadState` calls.
+ *
+ * @returns Forbidden-call hits, empty when the rule holds.
+ */
+function findDirectLoadStateCalls(): readonly IForbiddenCall[] {
+  const files = listTsFiles(PIPELINE_ROOT);
+  const hits: IForbiddenCall[] = [];
+  for (const full of files) {
+    const rel = path.relative(PIPELINE_ROOT, full);
+    if (DIRECT_LOAD_STATE_ALLOWLIST.some((allowed): boolean => relPathMatches(rel, allowed)))
+      continue;
+    const text = fs.readFileSync(full, 'utf-8');
+    const lines = findDirectLoadStateLines(text);
+    if (lines.length > 0) {
+      hits.push({ callee: 'waitForLoadState', relPath: rel, lines });
+    }
+  }
+  return hits;
+}
+
+describe('dom-ready-everywhere — R-NO-DIRECT-LOAD-STATE: only PageReadiness + Interceptors call waitForLoadState', () => {
+  it('no Pipeline file outside the allowlist calls .waitForLoadState directly', () => {
+    const hits = findDirectLoadStateCalls();
+    const summary = hits.map((h): string => `${h.relPath} @ lines ${h.lines.join(',')}`);
+    expect(summary).toEqual([]);
+  });
+});
+
+/**
  * Mission 4 (CI quality hardening plan) — R-OTP-TRIGGER-SEAL.
  *
  * <p>Forbids the OTP-TRIGGER zone (`Mediator/OtpTrigger/*`,

@@ -22,7 +22,8 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
-import waitForDomReady from '../Elements/PageReadiness.js';
+import type { IPreludeSpec } from '../Elements/PagePrelude.js';
+import { awaitPagePrelude } from '../Elements/PagePrelude.js';
 import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   INIT_NAV_COMMIT_TIMEOUT_MS,
@@ -123,6 +124,14 @@ function executeValidatePage(input: IPipelineContext): Procedure<IPipelineContex
 }
 
 /**
+ * INIT.FINAL prelude spec — DOM-ready ceiling for the post-launch
+ * wait before wiring fetchStrategy + mediator. Migrated to the
+ * centralised {@link "../Elements/PagePrelude.js"} helper so
+ * lifecycle waits live behind a single audit point.
+ */
+const INIT_FINAL_PRELUDE: IPreludeSpec = { level: 'dom', timeoutMs: ELEMENTS_DOM_READY_TIMEOUT_MS };
+
+/**
  * FINAL: Validate the DOM finished parsing
  * (`page.waitForLoadState('domcontentloaded')`), then wire
  * `fetchStrategy` + `mediator` + `diagnostics.loginUrl` so HOME
@@ -136,7 +145,7 @@ function executeValidatePage(input: IPipelineContext): Procedure<IPipelineContex
  * reads `window.onload`, so waiting for it adds latency without
  * value. `domcontentloaded` is the right "page is usable" signal.
  *
- * <p>ZERO HTML scanning — `waitForLoadState` is a browser-event
+ * <p>ZERO HTML scanning — `awaitPagePrelude` is a browser-event
  * listener, not a DOM query. ZERO dependency on other INIT
  * functions. Reads `input.browser` + `input.diagnostics`; emits
  * the new fields above.
@@ -149,7 +158,7 @@ async function executeWireComponents(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT FINAL: no browser');
   const page = input.browser.value.page;
-  const wasReady = await waitForDomReady(page, ELEMENTS_DOM_READY_TIMEOUT_MS);
+  const wasReady = await awaitPagePrelude(input, INIT_FINAL_PRELUDE);
   if (!wasReady) {
     return fail(ScraperErrorTypes.Generic, 'INIT FINAL: domcontentloaded not observed');
   }

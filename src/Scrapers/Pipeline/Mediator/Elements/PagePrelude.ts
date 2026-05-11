@@ -32,12 +32,13 @@
  * truth — prelude is a hint to maximise probe success, not a gate.
  */
 
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { isMockTimingActive } from '../../Types/Debug.js';
 import type { Option } from '../../Types/Option.js';
+import { PRELUDE_NONE_BUDGET_MS } from '../Timing/TimingConfig.js';
 import { waitForDomReady, waitForSpaReady } from './PageReadiness.js';
 
 /** Closed enum of readiness levels — matches the OCP pattern used by AuthDiscoveryFailCode. */
@@ -49,13 +50,11 @@ interface IPreludeSpec {
   readonly timeoutMs: number;
 }
 
-/** Sentinel budget for `'none'` prelude — never consulted (short-circuit). */
-const PRELUDE_NONE_BUDGET_MS = 0;
-
 /**
  * Sentinel for "no prelude required". Default returned by
  * {@link "../../Types/BasePhase.js"} `BasePhase.prelude` so phases
- * inherit the no-op without per-stage overrides.
+ * inherit the no-op without per-stage overrides. Budget value is
+ * centralised in `TimingConfig.PRELUDE_NONE_BUDGET_MS`.
  */
 const PRELUDE_NONE: IPreludeSpec = { level: 'none', timeoutMs: PRELUDE_NONE_BUDGET_MS };
 
@@ -75,9 +74,12 @@ interface IPreludeContext {
   readonly logger: ScraperLogger;
 }
 
+/** Readiness target — Playwright Page or Frame. Both expose `waitForLoadState`. */
+type ReadinessTarget = Page | Frame;
+
 /**
  * Short-circuit handler for `'none'` level — resolves true without
- * touching the page. Used when a stage opts out of any wait.
+ * touching the target. Used when a stage opts out of any wait.
  *
  * @returns Promise resolving to true.
  */
@@ -87,14 +89,16 @@ function handleNonePrelude(): Promise<boolean> {
 
 /**
  * DOM-level handler — delegates to {@link waitForDomReady}. Used by
- * stages that only need the HTML parser to have finished.
+ * stages that only need the HTML parser to have finished. Accepts
+ * Page or Frame; iframe-hosted login forms (LOGIN.PRE on hapoalim-
+ * group banks) need this on the Frame, not the parent Page.
  *
- * @param page - Active Playwright page.
+ * @param target - Active Playwright page or frame.
  * @param timeoutMs - Wait budget in milliseconds.
  * @returns Promise resolving to true when `domcontentloaded` fired.
  */
-function handleDomPrelude(page: Page, timeoutMs: number): Promise<boolean> {
-  return waitForDomReady(page, timeoutMs);
+function handleDomPrelude(target: ReadinessTarget, timeoutMs: number): Promise<boolean> {
+  return waitForDomReady(target, timeoutMs);
 }
 
 /**
@@ -102,16 +106,19 @@ function handleDomPrelude(page: Page, timeoutMs: number): Promise<boolean> {
  * stages that fire clicks (HOME / DASHBOARD ACTION) needing JS-bound
  * handlers.
  *
- * @param page - Active Playwright page.
+ * @param target - Active Playwright page or frame.
  * @param timeoutMs - Wait budget in milliseconds.
  * @returns Promise resolving to true when load + networkidle both fired.
  */
-function handleSpaPrelude(page: Page, timeoutMs: number): Promise<boolean> {
-  return waitForSpaReady(page, timeoutMs);
+function handleSpaPrelude(target: ReadinessTarget, timeoutMs: number): Promise<boolean> {
+  return waitForSpaReady(target, timeoutMs);
 }
 
 /** Lookup table mapping prelude levels to the primitive that implements them. */
-const LEVEL_HANDLERS: Record<PreludeLevel, (page: Page, timeoutMs: number) => Promise<boolean>> = {
+const LEVEL_HANDLERS: Record<
+  PreludeLevel,
+  (target: ReadinessTarget, timeoutMs: number) => Promise<boolean>
+> = {
   none: handleNonePrelude,
   dom: handleDomPrelude,
   spa: handleSpaPrelude,
@@ -147,6 +154,38 @@ function emitPreludeEvent(t: IPreludeTelemetry): true {
 }
 
 /**
+ * Bundled args for the shared run-with-telemetry path — fits the
+ * 3-param ceiling and keeps the call sites symmetric across Page and
+ * Frame variants.
+ */
+interface IReadinessRun {
+  readonly input: IPreludeContext;
+  readonly target: ReadinessTarget;
+  readonly spec: IPreludeSpec;
+}
+
+/**
+ * Shared core — dispatches to the right primitive, measures elapsed,
+ * emits telemetry. Used by both {@link awaitPagePrelude} (page-level)
+ * and {@link awaitFramePrelude} (frame-level) so the telemetry shape
+ * is identical regardless of the readiness target.
+ *
+ * @param run - Bundled run args (context + target + spec).
+ * @returns True when ready within budget, false on timeout.
+ */
+async function runReadinessWithTelemetry(run: IReadinessRun): Promise<boolean> {
+  const startMs = Date.now();
+  const wasReady = await LEVEL_HANDLERS[run.spec.level](run.target, run.spec.timeoutMs);
+  emitPreludeEvent({
+    input: run.input,
+    level: run.spec.level,
+    wasReady,
+    elapsedMs: Date.now() - startMs,
+  });
+  return wasReady;
+}
+
+/**
  * Phase-aware page-readiness prelude. Reads the active page from the
  * context, dispatches to the right primitive based on `spec.level`,
  * emits structured telemetry, and returns the result.
@@ -168,12 +207,40 @@ async function awaitPagePrelude(input: IPreludeContext, spec: IPreludeSpec): Pro
   if (spec.level === 'none') return true;
   if (isMockTimingActive()) return true;
   if (!input.browser.has) return false;
-  const page = input.browser.value.page;
-  const startMs = Date.now();
-  const wasReady = await LEVEL_HANDLERS[spec.level](page, spec.timeoutMs);
-  emitPreludeEvent({ input, level: spec.level, wasReady, elapsedMs: Date.now() - startMs });
-  return wasReady;
+  return runReadinessWithTelemetry({ input, target: input.browser.value.page, spec });
+}
+
+/**
+ * Frame-targeted readiness prelude — sibling of {@link awaitPagePrelude}
+ * for stages that need to wait on a specific iframe rather than the
+ * top-level page. LOGIN.PRE on hapoalim-group banks (Hapoalim / Massad
+ * / OtsarHahayal / Pagi) is the primary caller — the login form lives
+ * inside an iframe whose JS bundle hydrates asynchronously after the
+ * parent page fires `domcontentloaded`. Without this gate, the
+ * resolver scans the iframe before its handlers bind and reports
+ * "no password field".
+ *
+ * <p>Accepts `Page | Frame` so callers like LOGIN.PRE whose
+ * `activeFrame` may be either (top-level form vs iframe-hosted form)
+ * thread the same value through without a type narrow.
+ *
+ * <p>Same short-circuit / telemetry contract as {@link awaitPagePrelude}.
+ * Caller supplies the target directly — no context-extraction step.
+ *
+ * @param input - Any context carrying `logger` (for telemetry).
+ * @param target - Active Playwright Page or Frame target.
+ * @param spec - Declarative prelude specification.
+ * @returns True when ready within budget, false on timeout.
+ */
+async function awaitFramePrelude(
+  input: IPreludeContext,
+  target: ReadinessTarget,
+  spec: IPreludeSpec,
+): Promise<boolean> {
+  if (spec.level === 'none') return true;
+  if (isMockTimingActive()) return true;
+  return runReadinessWithTelemetry({ input, target, spec });
 }
 
 export type { IPreludeSpec, PreludeLevel };
-export { awaitPagePrelude, PRELUDE_NONE };
+export { awaitFramePrelude, awaitPagePrelude, PRELUDE_NONE };

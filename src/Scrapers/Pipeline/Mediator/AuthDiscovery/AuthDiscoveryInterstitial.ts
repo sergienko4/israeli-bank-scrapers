@@ -34,19 +34,10 @@
  */
 
 import type { IAuthDiscovery } from '../../Types/PipelineContext.js';
+import { STRONG_AUTH_COOKIE_FLOOR } from '../Timing/TimingConfig.js';
 
 /** Closed list of reasons the gate emits — matches the closed list pattern used by AuthDiscoveryFailCode. */
 type DashboardGateReason = 'open' | 'reveal-missing' | 'url-stuck';
-
-/**
- * Minimum count of post-auth session cookies that, combined with
- * REVEAL=true, is considered sufficient corroboration to override
- * the URL-change requirement on same-URL SPAs. Sized below the live
- * P5 across 6 banks (Discount ≈ 12, Isracard ≈ 54-60) and above the
- * typical interstitial tracking-cookie count (2-3: `is_eu`,
- * `tt_sessionId`, etc.) observed in the CI evidence.
- */
-const STRONG_AUTH_COOKIE_FLOOR = 5;
 
 /**
  * Returns true when the slim snapshot carries either a discovered
