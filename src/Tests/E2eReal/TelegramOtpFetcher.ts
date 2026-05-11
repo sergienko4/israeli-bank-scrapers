@@ -2,21 +2,34 @@
  * Telegram-side OTP delivery for CI E2E Real jobs.
  *
  * <p>The fetcher polls the Telegram Bot API's `getUpdates` endpoint
- * with `offset=-100` (read-only window of the last 100 updates),
- * filters by per-bank regex + chat id + message date, and resolves
- * with the captured digits. **It never advances the bot's confirmed
- * offset.** This is critical for the parallel-banks scenario: when
- * Hapoalim, Beinleumi, and OneZero all request OTPs in the same
- * matrix run, each fetcher reads the same shared queue and picks
- * out only its own bank's message via the regex. If any fetcher
- * called `getUpdates?offset=N` with a positive N, Telegram would
- * confirm-and-drop every update with id < N — purging another
- * bank's pending OTP. Read-only mode prevents that.
+ * with a positive offset (`offset=minUpdateId+1`), filters by
+ * `reply_to_message.message_id === promptMessageId` + chat id +
+ * per-bank regex, and resolves with the captured digits. Positive
+ * offset is REQUIRED so Telegram's long-poll short-circuits on
+ * NEW data — with a negative offset (`offset=-N`) Telegram returns
+ * the static last-N snapshot and never wakes early, so a reply that
+ * lands mid-cycle stays unseen until the next polling tick (CI run
+ * `25690651046` Beinleumi: user replied 12s after prompt; the
+ * `offset=-100`/`timeout=1` poll never returned that reply within
+ * the 180s budget). See CodeRabbit thread on commit `7b9a1a69`.
  *
- * <p>The trade-off is that the chat accumulates messages until
- * Telegram's 24-hour retention reaps them. For OTP volumes (a few
- * messages per hour at most) the 100-update window is more than
- * sufficient.
+ * <p>Per-prompt isolation is preserved via the `reply_to_message`
+ * filter, not via the offset. Each fetcher sends its own prompt
+ * with a unique `message_id`; only replies pointing at THAT id
+ * qualify. With this isolation guarantee in place, advancing the
+ * bot's confirmed cursor (an unavoidable side effect of positive
+ * offsets) is safe for our test workload.
+ *
+ * <p>Known limitation — `readInitialUpdateId` still uses
+ * `offset=-1` which "forgets all previous" (Telegram Bot API
+ * semantics). In a multi-fetcher matrix this MAY purge another
+ * fetcher's pending reply if both fetchers' `readInitialUpdateId`
+ * fire while the other's reply is queued. Tracked as a Phase
+ * A.fix-2 follow-up: replace the probe with a queue-introspection
+ * call that doesn't advance the cursor (or move to a shared poll
+ * proxy / per-bank bots). For OTP volumes observed in practice
+ * (1-2 messages per fetcher-minute) the risk is small enough to
+ * accept here.
  *
  * <p>Live only inside `src/Tests/E2eReal/` — never imported from
  * `src/Scrapers/**`. The npm package's `files: ['lib/**']` field
@@ -92,32 +105,20 @@ type TelegramSkipReason =
   | 'missing-token'
   | 'missing-chat'
   | 'missing-bank-name'
+  | 'non-numeric-chat-id'
   | 'invalid-timeout'
   | 'invalid-regex';
 
 /**
  * Per-cycle long-poll budget (seconds). Capped well below Telegram's
- * 50 s ceiling.
- *
- * The natural choice would be 10 s, but live measurement on PR #215
- * (run 08-05-2026 23:54:11 → match at 23:56:13) showed the fetcher
- * sees the user's reply ~52 s AFTER it landed in Telegram's queue —
- * five 10-second cycles in which the reply was visible but the cycle
- * had not yet returned. With a `offset=-N` (read-only) request,
- * Telegram does NOT guarantee an early return on new data the way it
- * does for positive-offset polling, so the per-cycle wait is the
- * dominant component of detection latency.
- *
- * 1 s gives the user a sub-second ack experience (worst case ~1 s
- * after their reply lands in the queue) and stays at ~1 req/s over
- * the 180 s budget — well below Telegram's per-bot rate ceiling.
- * Going below 1 s would require explicit short-polling + a sleep
- * loop, which adds code complexity for a small UX gain. Positive-
- * offset polling would be even more responsive but breaks parallel-
- * fetcher safety in the matrix scenario (Hapoalim/Beinleumi/OneZero
- * in one Group A run).
+ * 50 s ceiling. With positive-offset polling Telegram early-returns
+ * on new data, so the cycle wall is the worst-case detection latency
+ * when no new updates arrive. 10 s keeps polling pressure at ~6 RPS
+ * over the 180 s budget — within rate ceilings — and gives the user
+ * a sub-second ack as soon as the reply lands (the call wakes
+ * immediately on new updates).
  */
-const TELEGRAM_LONG_POLL_S = 1;
+const TELEGRAM_LONG_POLL_S = 10;
 /** HTTP client timeout — Telegram's long-poll + 5 s headroom. */
 const HTTP_TIMEOUT_MS = 15_000;
 
@@ -142,6 +143,12 @@ function detectSkipReason(args: ITelegramFetchArgs): TelegramSkipReason | false 
   if (args.botToken.length === 0) return 'missing-token';
   if (args.chatId.length === 0) return 'missing-chat';
   if (args.bankName.length === 0) return 'missing-bank-name';
+  // Reply matcher compares `Number(chatId)` to numeric `message.chat.id`.
+  // `@channel` form parses to NaN and the strict-eq check always rejects,
+  // so reject upfront with a clear skip reason instead of silently
+  // never matching anything. Callers using a `@channel` chat must
+  // resolve to the numeric id (e.g. via `getChat`) before invoking.
+  if (!/^-?\d+$/.test(args.chatId)) return 'non-numeric-chat-id';
   if (args.timeoutMs <= 0) return 'invalid-timeout';
   if (!args.bankRegex.source.includes('(')) return 'invalid-regex';
   return false;
@@ -416,18 +423,21 @@ function computeLongPollSeconds(deadline: number): number {
 }
 
 /**
- * Single Telegram long-poll iteration. Always reads the last
- * `RECENT_WINDOW_LIMIT` updates with `offset=-N` (read-only —
- * Telegram does NOT advance the bot's confirmed cursor when offset
- * is negative). This guarantees parallel fetchers in the same
- * matrix don't accidentally purge each other's pending OTPs.
+ * Single Telegram long-poll iteration. Uses positive offset
+ * (`offset=minUpdateId+1`) so Telegram short-circuits the long-poll
+ * as soon as a new update arrives — the design property that fixes
+ * the Beinleumi CI miss (CI run `25690651046`, where `offset=-N`
+ * with a 1 s cycle never returned the user's reply that arrived 12 s
+ * after the prompt). The offset stays stable across cycles (we do
+ * NOT advance it past `minUpdateId+1`) so this fetcher's own floor
+ * remains the only side effect on the bot's confirmed cursor.
  *
  * @param state - Poll state.
  * @returns Match payload or `false`.
  */
 async function pollOnce(state: IPollState): Promise<MatchResult> {
   const longPoll = computeLongPollSeconds(state.deadline);
-  const offsetParam = `offset=-${String(RECENT_WINDOW_LIMIT)}`;
+  const offsetParam = `offset=${String(state.minUpdateId + 1)}`;
   const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=${String(longPoll)}`;
   const url = buildUpdatesUrl(state.args.botToken, `${offsetParam}&${otherParams}`);
   const res = await safeFetchUpdates(url);
@@ -463,7 +473,132 @@ async function runPollLoop(state: IPollState): Promise<MatchResult> {
 }
 
 /**
- * Fetch the next OTP from Telegram for a given bank.
+ * Skip-tier log emission (debug-level) — never makes a network call.
+ * @param args - Fetcher args.
+ * @param reason - Why the fetcher is skipping.
+ * @returns Always `true` — the project's architecture rule forbids
+ *   bare `void` returns, so callers can chain or ignore at will.
+ */
+function logSkip(args: ITelegramFetchArgs, reason: TelegramSkipReason): true {
+  args.log.debug({ event: 'telegram.otp.fetch.skip', reason }, 'Telegram OTP tier skipped');
+  return true;
+}
+
+/**
+ * Sent-message-failed log emission (warn-level).
+ * @param args - Fetcher args.
+ * @returns Always `true` (matches the project's no-void return rule).
+ */
+function logPromptFailed(args: ITelegramFetchArgs): true {
+  args.log.warn(
+    {
+      event: 'telegram.otp.fetch.prompt-failed',
+      chatIdSuffix: tailMask(args.chatId),
+      bankName: args.bankName,
+    },
+    'Telegram sendMessage failed — cannot prompt user; aborting fetcher',
+  );
+  return true;
+}
+
+/** Bundle for the start-log emission — preserves the 3-param ceiling. */
+interface ILogFetchStartArgs {
+  readonly args: ITelegramFetchArgs;
+  readonly promptMessageId: number;
+  readonly minUpdateId: number;
+}
+
+/**
+ * Start-log emission (info-level) — fired once after the prompt
+ * lands and before the poll loop spins up.
+ * @param bundle - Bundled args.
+ * @returns Always `true` (matches the project's no-void return rule).
+ */
+function logFetchStart(bundle: ILogFetchStartArgs): true {
+  bundle.args.log.info(
+    {
+      event: 'telegram.otp.fetch.start',
+      chatIdSuffix: tailMask(bundle.args.chatId),
+      bankName: bundle.args.bankName,
+      promptMessageId: bundle.promptMessageId,
+      minUpdateId: bundle.minUpdateId,
+      timeoutMs: bundle.args.timeoutMs,
+    },
+    'Telegram OTP fetch — prompt sent; polling for reply',
+  );
+  return true;
+}
+
+/**
+ * Timeout handler — emits the warn log AND a user-visible ack so
+ * the operator knows the prior prompt is stale.
+ * @param args - Fetcher args.
+ * @param promptMessageId - Bot's prompt message id (for reply scope).
+ * @returns Always `true` (no-void return rule).
+ */
+async function handleFetchTimeout(
+  args: ITelegramFetchArgs,
+  promptMessageId: number,
+): Promise<true> {
+  args.log.warn(
+    {
+      event: 'telegram.otp.fetch.timeout',
+      chatIdSuffix: tailMask(args.chatId),
+      bankName: args.bankName,
+      promptMessageId,
+      waitedMs: args.timeoutMs,
+    },
+    'Telegram OTP fetch timed out — user did not reply within budget',
+  );
+  const seconds = String(args.timeoutMs / 1000);
+  await sendAckMessage({
+    botToken: args.botToken,
+    chatId: args.chatId,
+    text: `⚠️ *${args.bankName}* — no reply received within ${seconds}s. Re-run the pipeline to retry.`,
+    replyToMessageId: promptMessageId,
+  });
+  return true;
+}
+
+/** Bundle for the match handler — preserves the 3-param ceiling. */
+interface IHandleMatchArgs {
+  readonly args: ITelegramFetchArgs;
+  readonly promptMessageId: number;
+  readonly match: { readonly code: string; readonly updateId: number };
+}
+
+/**
+ * Match handler — emits the info log AND a user-visible ack so
+ * the operator sees their reply was accepted.
+ * @param bundle - Bundled args.
+ * @returns Always `true` (no-void return rule).
+ */
+async function handleFetchMatch(bundle: IHandleMatchArgs): Promise<true> {
+  bundle.args.log.info(
+    {
+      event: 'telegram.otp.fetch.match',
+      chatIdSuffix: tailMask(bundle.args.chatId),
+      bankName: bundle.args.bankName,
+      promptMessageId: bundle.promptMessageId,
+      codeLength: bundle.match.code.length,
+      updateId: bundle.match.updateId,
+    },
+    'Telegram OTP fetch — matched (reply-scoped, parallel-safe)',
+  );
+  const len = String(bundle.match.code.length);
+  await sendAckMessage({
+    botToken: bundle.args.botToken,
+    chatId: bundle.args.chatId,
+    text: `✅ *${bundle.args.bankName}* — OTP received (${len} digits). Continuing the scrape.`,
+    replyToMessageId: bundle.promptMessageId,
+  });
+  return true;
+}
+
+/**
+ * Fetch the next OTP from Telegram for a given bank. Orchestrator —
+ * each branch delegates to a single-purpose helper to keep this
+ * method under the 10-line ceiling.
  *
  * @param args - See {@link ITelegramFetchArgs}.
  * @returns Captured digits group on match, or `false` on timeout
@@ -472,88 +607,23 @@ async function runPollLoop(state: IPollState): Promise<MatchResult> {
 async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | false> {
   const skip = detectSkipReason(args);
   if (skip !== false) {
-    args.log.debug({ event: 'telegram.otp.fetch.skip', reason: skip }, 'Telegram OTP tier skipped');
+    logSkip(args, skip);
     return false;
   }
-  // 1. Capture the per-fetcher update_id floor BEFORE the prompt
-  //    is sent. With a fast SMS-to-Telegram forwarder (the CI use
-  //    case described in the PR), the user's reply can land before
-  //    `readInitialUpdateId` returns, which would let the floor
-  //    swallow the very update we are waiting for. Reading the
-  //    floor first guarantees by construction that every reply to
-  //    our prompt has `update_id > minUpdateId`. Per-prompt
-  //    isolation comes from the `reply_to_message.message_id ===
-  //    promptMessageId` filter, not from this floor.
   const minUpdateId = await readInitialUpdateId(args.botToken);
-  // 2. Send the proactive prompt and capture the bot's sent
-  //    `message_id` — the value the reply-scoped filter pins on.
   const promptMessageId = await sendPromptMessage(args);
   if (promptMessageId === false) {
-    args.log.warn(
-      {
-        event: 'telegram.otp.fetch.prompt-failed',
-        chatIdSuffix: tailMask(args.chatId),
-        bankName: args.bankName,
-      },
-      'Telegram sendMessage failed — cannot prompt user; aborting fetcher',
-    );
+    logPromptFailed(args);
     return false;
   }
-  args.log.info(
-    {
-      event: 'telegram.otp.fetch.start',
-      chatIdSuffix: tailMask(args.chatId),
-      bankName: args.bankName,
-      promptMessageId,
-      minUpdateId,
-      timeoutMs: args.timeoutMs,
-    },
-    'Telegram OTP fetch — prompt sent; polling for reply',
-  );
-  // 3. Poll until a reply to our prompt arrives or deadline passes.
-  const state: IPollState = {
-    args,
-    deadline: Date.now() + args.timeoutMs,
-    minUpdateId,
-    promptMessageId,
-  };
-  const match = await runPollLoop(state);
+  logFetchStart({ args, promptMessageId, minUpdateId });
+  const deadline = Date.now() + args.timeoutMs;
+  const match = await runPollLoop({ args, deadline, minUpdateId, promptMessageId });
   if (match === false) {
-    args.log.warn(
-      {
-        event: 'telegram.otp.fetch.timeout',
-        chatIdSuffix: tailMask(args.chatId),
-        bankName: args.bankName,
-        promptMessageId,
-        waitedMs: args.timeoutMs,
-      },
-      'Telegram OTP fetch timed out — user did not reply within budget',
-    );
-    await sendAckMessage({
-      botToken: args.botToken,
-      chatId: args.chatId,
-      text: `⚠️ *${args.bankName}* — no reply received within ${String(args.timeoutMs / 1000)}s. Re-run the pipeline to retry.`,
-      replyToMessageId: promptMessageId,
-    });
+    await handleFetchTimeout(args, promptMessageId);
     return false;
   }
-  args.log.info(
-    {
-      event: 'telegram.otp.fetch.match',
-      chatIdSuffix: tailMask(args.chatId),
-      bankName: args.bankName,
-      promptMessageId,
-      codeLength: match.code.length,
-      updateId: match.updateId,
-    },
-    'Telegram OTP fetch — matched (reply-scoped, parallel-safe)',
-  );
-  await sendAckMessage({
-    botToken: args.botToken,
-    chatId: args.chatId,
-    text: `✅ *${args.bankName}* — OTP received (${String(match.code.length)} digits). Continuing the scrape.`,
-    replyToMessageId: promptMessageId,
-  });
+  await handleFetchMatch({ args, promptMessageId, match });
   return match.code;
 }
 

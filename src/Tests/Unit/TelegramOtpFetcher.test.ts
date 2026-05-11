@@ -316,23 +316,30 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe('222222');
   });
 
-  it('TF-4 read-only-offset — getUpdates calls only use offset=-1 or offset=-100', async () => {
+  it('TF-4 positive-offset polling — readInitial uses offset=-1, pollOnce uses offset=minUpdateId+1', async () => {
+    // Probe returns update_id=9 → fetcher's minUpdateId=9 → all
+    // pollOnce calls MUST use offset=10. The negative-offset window
+    // (`offset=-N`) was the root cause of the Beinleumi CI miss
+    // (CI run 25690651046): with negative offset, Telegram does NOT
+    // short-circuit the long-poll on new data, so a reply landing
+    // mid-cycle stays unseen until the next tick. Positive offset
+    // fixes that — see TelegramOtpFetcher.ts top-of-file JSDoc.
     installFetchWithDefaultPrompt([
       { ok: true, result: [{ update_id: 9 }] },
       { ok: true, result: [makeReplyUpdate(10, '333333')] },
     ]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
-    const calls: readonly unknown[][] = fetchSpy.mock.calls;
-    const allowedOffsets: readonly string[] = ['offset=-1', 'offset=-100'];
-    for (const callArgs of calls) {
-      const firstArg = callArgs[0];
-      const url = typeof firstArg === 'string' ? firstArg : '';
-      // sendMessage URL has no offset; only check getUpdates URLs.
-      if (!url.includes('/getUpdates')) continue;
-      const isAllowed = allowedOffsets.some((token): boolean => url.includes(token));
-      expect(isAllowed).toBe(true);
-    }
+    const getUpdatesUrls = readFetchCalls(fetchSpy)
+      .map(getCallUrl)
+      .filter((u): boolean => u.includes('/getUpdates'));
+    // Exactly two getUpdates calls expected: readInitial + 1 poll.
+    expect(getUpdatesUrls).toHaveLength(2);
+    expect(getUpdatesUrls[0]).toContain('offset=-1');
+    expect(getUpdatesUrls[1]).toContain('offset=10');
+    // No call uses the legacy negative-N window.
+    const negativeOffsets = getUpdatesUrls.filter((u): boolean => /offset=-\d{2,}/.test(u));
+    expect(negativeOffsets).toHaveLength(0);
   });
 
   it('TF-4b strict-floor — rejects replies with update_id <= minUpdateId', async () => {
@@ -398,11 +405,12 @@ describe('fetchOtpFromTelegram', () => {
     { label: 'TF-5 missing token', overrides: { botToken: '' } },
     { label: 'TF-5b missing chatId', overrides: { chatId: '' } },
     { label: 'TF-5b2 missing bankName', overrides: { bankName: '' } },
+    { label: 'TF-5b3 non-numeric chatId (@channel form)', overrides: { chatId: '@some_channel' } },
     { label: 'TF-5c invalid regex (no capture group)', overrides: { bankRegex: /Beinleumi/ } },
     { label: 'TF-5d invalid timeout (zero)', overrides: { timeoutMs: 0 } },
   ];
 
-  for (const sc of skipReasonScenarios) {
+  skipReasonScenarios.map((sc): true => {
     it(`${sc.label} — returns false synchronously, no network call`, async () => {
       installFetchWithDefaultPrompt([]);
       const args = makeArgs(sc.overrides);
@@ -410,7 +418,8 @@ describe('fetchOtpFromTelegram', () => {
       expect(result).toBe(false);
       expect(fetchSpy).not.toHaveBeenCalled();
     });
-  }
+    return true;
+  });
 
   it('TF-6 wrong-chat — returns false; never picks the off-chat reply', async () => {
     installFetchWithDefaultPrompt([
