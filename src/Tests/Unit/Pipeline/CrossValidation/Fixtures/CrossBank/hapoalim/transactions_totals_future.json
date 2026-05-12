@@ -1,0 +1,18 @@
+// GET https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?accountId=FAKE_ACCT_HAPOALIM&type=totals&view=future&lang=he
+{
+  "startDate": 20260511,
+  "formattedStartDate": "2026-05-11T00:00:00.000Z",
+  "endDate": 20260531,
+  "formattedEndDate": "2026-05-31T00:00:00.000Z",
+  "validityDate": 20260510,
+  "formattedValidityDate": "2026-05-10T00:00:00.000Z",
+  "incomeAmount": 0,
+  "creditEventCounter": 0,
+  "expenseAmount": 0,
+  "debitEventCounter": 0,
+  "currentBalance": 150,
+  "currentAccountLimitsAmount": 0,
+  "endMonthEstimatedContemporaryBalance": 150,
+  "displayAmountManagmentCode": 1,
+  "messages": [{ "messageDescription": "FAKE_HEB_59:", "messageCode": 8 }]
+}

@@ -1,0 +1,63 @@
+// POST https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview
+// POST_BODY: {"monthRange":6,"cards":[{"last4digits":"FAKE_C01","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C02","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C03","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C04","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C05","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C06","companyCode":11,"isPartner":false},{"last4digits":"FAKE_C07","companyCode":77,"isPartner":false},{"last4digits":"FAKE_C08","companyCode":77,"isPartner":false}]}
+{
+  "data": [
+    {
+      "billingDate": "06/2026",
+      "isFinalBillingDate": false,
+      "billingAmounts": {
+        "billingAmountIls": 708,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    },
+    {
+      "billingDate": "05/2026",
+      "isFinalBillingDate": true,
+      "billingAmounts": {
+        "billingAmountIls": 865.77,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    },
+    {
+      "billingDate": "04/2026",
+      "isFinalBillingDate": true,
+      "billingAmounts": {
+        "billingAmountIls": 302.84,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    },
+    {
+      "billingDate": "03/2026",
+      "isFinalBillingDate": true,
+      "billingAmounts": {
+        "billingAmountIls": 512.84,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    },
+    {
+      "billingDate": "02/2026",
+      "isFinalBillingDate": true,
+      "billingAmounts": {
+        "billingAmountIls": 882.45,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    },
+    {
+      "billingDate": "01/2026",
+      "isFinalBillingDate": true,
+      "billingAmounts": {
+        "billingAmountIls": 10455.02,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    }
+  ],
+  "errorCode": "00",
+  "errorDescription": null,
+  "isSuccess": true
+}

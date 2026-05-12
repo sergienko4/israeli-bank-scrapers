@@ -297,6 +297,58 @@ describe('executeAccountResolvePost — cross-bank fixtures (PURE GENERIC)', () 
       expect(result.errorMessage).toContain('ACCOUNT_RESOLUTION_FAILED');
     }
   });
+
+  it('[ACCOUNT-RESOLVE-CATALOG] commits billingCycleCatalog when pre-nav buffer carries Backbase cycle shape', async () => {
+    const cardsCapture = makeCapture({
+      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+      method: 'POST',
+      responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
+    });
+    const cycleCapture = makeCapture({
+      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
+      method: 'POST',
+      responseBody: {
+        data: [
+          { billingDate: '06/2026', isFinalBillingDate: false },
+          { billingDate: '05/2026', isFinalBillingDate: true },
+        ],
+      },
+    });
+    const mediator = makePoolMediator({ captures: [cardsCapture, cycleCapture] });
+    const baseCtx = makeMockContext();
+    const ctx = {
+      ...baseCtx,
+      mediator: { has: true, value: mediator },
+    } as IPipelineContext;
+    const result = await executeAccountResolvePost(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(true);
+    if (isOk(result) && result.value.accountDiscovery.has) {
+      const catalog = result.value.accountDiscovery.value.billingCycleCatalog;
+      expect(catalog).toBeDefined();
+      expect(catalog?.cycles.length).toBe(2);
+    }
+  });
+
+  it('[ACCOUNT-RESOLVE-NO-CATALOG] omits billingCycleCatalog when pre-nav buffer carries no cycle shape', async () => {
+    const cardsCapture = makeCapture({
+      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+      method: 'POST',
+      responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
+    });
+    const mediator = makePoolMediator({ captures: [cardsCapture] });
+    const baseCtx = makeMockContext();
+    const ctx = {
+      ...baseCtx,
+      mediator: { has: true, value: mediator },
+    } as IPipelineContext;
+    const result = await executeAccountResolvePost(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(true);
+    if (isOk(result) && result.value.accountDiscovery.has) {
+      expect(result.value.accountDiscovery.value.billingCycleCatalog).toBeUndefined();
+    }
+  });
 });
 
 describe('executeAccountResolveFinal', () => {

@@ -1,0 +1,93 @@
+// GET https://www.max.co.il/api/registered/getHomePageData?disableDefaultSpinnerBehavior=true&v=V4.212-RC.7.73
+{
+  "Result": {
+    "UserCards": {
+      "Summary": [
+        { "Currency": 124, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "C$" },
+        {
+          "Currency": 376,
+          "ActualDebitSum": 13.84,
+          "TotalDebitSum": 13.84,
+          "CurrencySymbol": " ₪"
+        },
+        { "Currency": 826, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "p" },
+        { "Currency": 840, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "$" },
+        { "Currency": 978, "ActualDebitSum": 0, "TotalDebitSum": 0, "CurrencySymbol": "€" }
+      ],
+      "Cards": [
+        {
+          "CatalogId": "640005",
+          "Last4Digits": "FAKE_C09",
+          "ExpirationDate": "11/29",
+          "OwnerFullName": "FAKE_HEB_15",
+          "CardName": "max executive",
+          "CardImage": "https://www.max.co.il/SharedMedia/20779/max-executive-business-visa.png",
+          "CreditLimit": 34000,
+          "OpenToBuy": 33986.16,
+          "FixedDebit": 34000,
+          "CycleSummary": [
+            {
+              "Date": "2026-06-02T00:00:00",
+              "Currency": 124,
+              "ActualDebitSum": 0,
+              "TotalDebitSum": 0,
+              "IsFinnal": false,
+              "CurrencySymbol": "C$"
+            },
+            {
+              "Date": "2026-06-02T00:00:00",
+              "Currency": 376,
+              "ActualDebitSum": 13.84,
+              "TotalDebitSum": 13.84,
+              "IsFinnal": false,
+              "CurrencySymbol": " ₪"
+            },
+            {
+              "Date": "2026-06-02T00:00:00",
+              "Currency": 826,
+              "ActualDebitSum": 0,
+              "TotalDebitSum": 0,
+              "IsFinnal": false,
+              "CurrencySymbol": "p"
+            },
+            {
+              "Date": "2026-06-02T00:00:00",
+              "Currency": 840,
+              "ActualDebitSum": 0,
+              "TotalDebitSum": 0,
+              "IsFinnal": false,
+              "CurrencySymbol": "$"
+            },
+            {
+              "Date": "2026-06-02T00:00:00",
+              "Currency": 978,
+              "ActualDebitSum": 0,
+              "TotalDebitSum": 0,
+              "IsFinnal": false,
+              "CurrencySymbol": "€"
+            }
+          ],
+          "CycleSummaryInfo": null,
+          "ReturnCode": 0,
+          "CardLogo": 1,
+          "Index": 0,
+          "CreditLimitType": 0,
+          "IsActiveDigitalCard": false,
+          "IsOwnerDigitalCard": false,
+          "IsViewCardDetailsOK": true,
+          "ShowMonthlyBillingLayout": false,
+          "IsControlsBiZCardSubscribe": false,
+          "ClearingAmtForOtb": null,
+          "IsMyMAX": false,
+          "MyMaxHebrewName": "",
+          "IsTempBlocked": false
+        }
+      ],
+      "IsMultUsers": false,
+      "IsMultAccounts": false
+    }
+  },
+  "CorrelationID": "00000000-0000-0000-0000-000000000001",
+  "ReturnCode": 0,
+  "RcDesc": null
+}

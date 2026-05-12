@@ -1,0 +1,292 @@
+// POST https://api.cal-online.co.il/Transactions/api/financeDashboard/getMonthlyDebitsSummary
+// POST_BODY: {"bankAccountUniqueId":"FAKE_ACCT_VISACAL"}
+{
+  "result": {
+    "bankAccounts": [
+      {
+        "bankName": "FAKE_HEB_53",
+        "bankAccountNum": "93-190691",
+        "currentBankAccountInd": true,
+        "months": [
+          {
+            "month": "2024-12-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-01-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-02-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-03-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-04-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-05-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-06-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-07-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-08-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-09-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-10-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-11-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2025-12-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-01-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-02-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-03-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-04-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-05-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-06-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-07-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          },
+          {
+            "month": "2026-08-01T00:00:00",
+            "totalDebits": [
+              {
+                "currencySymbol": "₪",
+                "totalDebit": 0,
+                "sumOfDebitDates": 0,
+                "sumOfImmediateDebits": 0,
+                "sumOfExternalDebits": 0
+              }
+            ],
+            "debitDays": []
+          }
+        ]
+      }
+    ]
+  },
+  "statusDescription": "FAKE_HEB_52",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000005"
+}

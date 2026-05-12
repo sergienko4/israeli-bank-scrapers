@@ -25,14 +25,20 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { some } from '../../Types/Option.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import { isSome, some } from '../../Types/Option.js';
+import type {
+  IAccountDiscovery,
+  IActionContext,
+  IBillingCycleCatalog,
+  IPipelineContext,
+} from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
 import { discoverAccountsInPool, poolMaxContainer } from './AccountFromPool.js';
+import { detectBillingCycleCatalog } from './BillingCycleCatalogDetector.js';
 
 /**
  * True when MOCK_MODE is active — lets ACCOUNT-RESOLVE skip its
@@ -265,14 +271,45 @@ function executeAccountResolvePost(input: IPipelineContext): Promise<Procedure<I
     return Promise.resolve(failure);
   }
   const captureIndex = resolveCaptureIndex(result.endpoint);
-  const accountDiscovery = some({
+  const discoveryPayload = buildDiscoveryPayload(pool, result, captureIndex);
+  const accountDiscovery = some(discoveryPayload);
+  const success = succeed({ ...input, accountDiscovery });
+  return Promise.resolve(success);
+}
+
+/** Args bundle for {@link buildDiscoveryPayload}. */
+interface IDiscoveryResult {
+  readonly ids: readonly string[];
+  readonly records: readonly Record<string, unknown>[];
+  readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
+
+/**
+ * Assemble the {@link IAccountDiscovery} payload committed onto
+ * `ctx.accountDiscovery`. Adds the optional billing-cycle catalog
+ * when the detector recognises a known shape in the pre-nav pool;
+ * omits the field for non-cycling banks (current accounts).
+ *
+ * @param pool - Pre-nav capture pool from the mediator.
+ * @param result - Account-resolution outcome from `discoverAccountsInPool`.
+ * @param captureIndex - Index of the capture that surfaced the account ids.
+ * @returns Fully-populated discovery record ready to wrap in `some()`.
+ */
+function buildDiscoveryPayload(
+  pool: readonly IDiscoveredEndpoint[],
+  result: IDiscoveryResult,
+  captureIndex: number,
+): IAccountDiscovery {
+  const catalogOption = detectBillingCycleCatalog(pool);
+  const base: IAccountDiscovery = {
     ids: result.ids,
     records: result.records,
     containers: result.containers,
     endpointCaptureIndex: captureIndex,
-  });
-  const success = succeed({ ...input, accountDiscovery });
-  return Promise.resolve(success);
+  };
+  if (!isSome(catalogOption)) return base;
+  const billingCycleCatalog: IBillingCycleCatalog = catalogOption.value;
+  return { ...base, billingCycleCatalog };
 }
 
 /** First-id label lookup — no `''` fallbacks per project rules. */
