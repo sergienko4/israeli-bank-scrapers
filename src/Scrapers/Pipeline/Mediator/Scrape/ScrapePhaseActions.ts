@@ -21,6 +21,7 @@ import { some } from '../../Types/Option.js';
 import {
   EMPTY_TXN_HARVEST,
   type IActionContext,
+  type IBillingCycleCatalog,
   type IDashboardTxnHarvest,
   type IPipelineContext,
   type ITxnEndpoint,
@@ -132,9 +133,31 @@ function readDashboardTxnHarvest(input: IPipelineContext | IActionContext): IDas
   return opt.value;
 }
 
+/** Empty catalog sentinel — used as the "no catalog" return value. */
+const EMPTY_CATALOG: IBillingCycleCatalog = { cycles: [] };
+
+/**
+ * Reads the billing-cycle catalog committed by ACCOUNT-RESOLVE.POST
+ * on `ctx.accountDiscovery.value.billingCycleCatalog`. Mirror of
+ * {@link readDashboardTxnHarvest} — pure read, no adapter. Returns
+ * the {@link EMPTY_CATALOG} sentinel when the option is absent or
+ * when ACCOUNT-RESOLVE found no recognised cycle shape; SCRAPE
+ * consumers branch on `cycles.length` and fall back to month-chunk
+ * iteration when the catalog is empty.
+ *
+ * @param input - Pipeline context.
+ * @returns Catalog when present; empty sentinel otherwise.
+ */
+function readBillingCycleCatalog(input: IPipelineContext | IActionContext): IBillingCycleCatalog {
+  const opt = (input as { readonly accountDiscovery?: IPipelineContext['accountDiscovery'] })
+    .accountDiscovery;
+  if (!opt?.has) return EMPTY_CATALOG;
+  return opt.value.billingCycleCatalog ?? EMPTY_CATALOG;
+}
+
 export { EMPTY_TXN_ENDPOINT } from '../../Strategy/Scrape/ScrapeTypes.js';
 export { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
-export { readDashboardTxnHarvest, readPreDiscoveredTxn };
+export { readBillingCycleCatalog, readDashboardTxnHarvest, readPreDiscoveredTxn };
 
 /**
  * DIRECT path: discover endpoints + load accounts + freeze network.
@@ -175,6 +198,7 @@ async function executeDirectDiscovery(
   // DASHBOARD.FINAL (Phase 7e); SCRAPE.PRE consumes ctx.txnEndpoint.
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
+  const billingCycleCatalog = readBillingCycleCatalog(input);
   const fc: IAccountFetchCtx = {
     api,
     network,
@@ -182,6 +206,7 @@ async function executeDirectDiscovery(
     futureMonths,
     txnEndpoint,
     dashboardTxnHarvest: harvest,
+    billingCycleCatalog,
   };
   const preDiscovered = readPreDiscoveredAccounts(input);
   const loadCtx = buildLoadCtxFromPreDiscovered({

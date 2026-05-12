@@ -16,6 +16,7 @@ import {
 import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildAccountResult, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
@@ -119,12 +120,103 @@ async function tryMatrixLoop(
       `MatrixLoop: activated — url=${maskVisibleText(txnEndpoint.url)} ` +
       `postData=${String(postDataLen)} chars`,
   });
-  const startDate = parseStartDate(args.fc.startDate);
-  const chunks = generateMonthChunks(startDate, new Date(), args.fc.futureMonths);
+  const chunks = resolveChunkPlan(args.fc);
   LOG.debug({
     message: `MatrixLoop: chunks=${String(chunks.length)} startDate=${args.fc.startDate}`,
   });
   const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template };
+  const allTxns = await collectChunkTxns(ctx, chunks);
+  LOG.debug({ accounts: 1, txns: allTxns.length });
+  const assembly: IAccountAssemblyCtx = {
+    fc: args.fc,
+    accountId: args.accountId,
+    displayId: args.displayId,
+  };
+  return buildAccountResult(assembly, allTxns);
+}
+
+/**
+ * Resolve the per-card month-iteration plan from the most
+ * authoritative source available — the bank-reported cycle catalog
+ * when present, the blind month-chunk fallback otherwise.
+ *
+ * <p>Catalog-driven iteration covers the OPEN cycle the blind
+ * month-chunk plan can miss (the bank's billing date may fall in a
+ * future month outside the `futureMonths` window). Non-cycling
+ * banks (Hapoalim / Beinleumi / Discount / OneZero / Pepper) carry
+ * no catalog — fallback path keeps current behaviour.
+ *
+ * @param fc - Per-account fetch context plumbed by SCRAPE.PRE.
+ * @returns Ordered month chunks for {@link collectChunkTxns}.
+ */
+function resolveChunkPlan(fc: IAccountFetchCtx): readonly IMonthChunkLike[] {
+  const catalog = fc.billingCycleCatalog;
+  const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
+  if (!hasCatalog) {
+    const startDate = parseStartDate(fc.startDate);
+    return generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  }
+  const cycleCount = catalog.cycles.length;
+  LOG.debug({
+    message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,
+  });
+  return catalog.cycles.map(cycleToChunk);
+}
+
+/**
+ * Project one canonical {@link IBillingCycle} onto the
+ * {@link IMonthChunkLike} shape consumed by {@link fetchMatrixChunk}.
+ * The chunk start is parsed from the cycle's `billingDate` (Backbase
+ * `MM/YYYY`, Max ISO, VisaCal ISO). Unparseable dates fall back to
+ * the current month so the iteration still emits SOMETHING and the
+ * fail-loud guard at SCRAPE.POST catches a true regression.
+ *
+ * @param cycle - One canonical cycle from the catalog.
+ * @returns Month-chunk with ISO `start` consumed by the fetcher.
+ */
+function cycleToChunk(cycle: IBillingCycle): IMonthChunkLike {
+  const parsed = parseCycleDate(cycle.billingDate);
+  return { start: parsed.toISOString() };
+}
+
+/**
+ * Parse a cycle billing-date across all known per-bank shapes —
+ * Backbase `MM/YYYY`, Max ISO `YYYY-MM-DD`, VisaCal ISO same.
+ * Returns the first-of-month derived from the parsed value so the
+ * fetcher's `getMonth()` / `getFullYear()` reads land on the right
+ * cycle. Falls back to the current month-start on parse failure.
+ *
+ * @param raw - Raw billing-date string.
+ * @returns Parsed first-of-month Date.
+ */
+function parseCycleDate(raw: string): Date {
+  const backbaseMatch = /^(\d{2})\/(\d{4})$/.exec(raw);
+  if (backbaseMatch) {
+    const month = Number(backbaseMatch[1]);
+    const year = Number(backbaseMatch[2]);
+    return new Date(year, month - 1, 1);
+  }
+  const isoDate = new Date(raw);
+  const isoMs = isoDate.getTime();
+  if (Number.isNaN(isoMs)) {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  return new Date(isoDate.getFullYear(), isoDate.getMonth(), 1);
+}
+
+/**
+ * Sequentially fetch every chunk, rate-limiting between calls so
+ * the bank's per-card endpoint cannot trigger anti-bot throttling.
+ *
+ * @param ctx - Chunk-fetch context.
+ * @param chunks - Ordered chunks resolved by {@link resolveChunkPlan}.
+ * @returns Concatenated transactions across all chunks.
+ */
+async function collectChunkTxns(
+  ctx: IChunkFetchArgs,
+  chunks: readonly IMonthChunkLike[],
+): Promise<readonly ITransaction[]> {
   const allTxns: ITransaction[] = [];
   const seed = Promise.resolve(true as const);
   const chain = chunks.reduce(
@@ -137,13 +229,12 @@ async function tryMatrixLoop(
     seed,
   );
   await chain;
-  LOG.debug({ accounts: 1, txns: allTxns.length });
-  const assembly: IAccountAssemblyCtx = {
-    fc: args.fc,
-    accountId: args.accountId,
-    displayId: args.displayId,
-  };
-  return buildAccountResult(assembly, allTxns);
+  return allTxns;
+}
+
+/** Minimal chunk shape — only the `start` field {@link fetchMatrixChunk} reads. */
+interface IMonthChunkLike {
+  readonly start: string;
 }
 
 export default tryMatrixLoop;
