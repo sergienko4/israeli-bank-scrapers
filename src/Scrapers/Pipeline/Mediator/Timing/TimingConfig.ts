@@ -212,8 +212,18 @@ export const DEFAULT_OTP_TIMEOUT_MS = 180_000;
 
 // ── AUTH-DISCOVERY phase ───────────────────────────────────────────
 
-/** AUTH-DISCOVERY dashboard reveal probe budget — TIMING cut from 8000. */
-export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 3000;
+/**
+ * AUTH-DISCOVERY dashboard reveal probe budget.
+ *
+ * <p>PR #220 cut this to 3000 ms in the TIMING mission, but the cut
+ * left slow Azure-CI runners short of the time the bank's SPA needs
+ * to commit a REVEAL anchor in DOM. Phase E (PR-α') restores the
+ * pre-cut budget of 8000 ms; combined with the catalog-driven
+ * iteration in `MatrixLoopStrategy`, this eliminates the silent
+ * Isracard `AUTH_DISCOVERY_DASHBOARD_NOT_READY` family of failures
+ * the CI mask had been hiding.
+ */
+export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 8000;
 
 /** AUTH-DISCOVERY auth-module sessionStorage poll ceiling — TIMING cut from 10000. */
 export const AUTH_POLL_TIMEOUT_MS = 3_000;
@@ -276,11 +286,27 @@ export const DASHBOARD_MENU_SETTLE_MS = 5000;
 /** DASHBOARD post-login redirect settle — TIMING cut from 15000. */
 export const DASHBOARD_SETTLE_MS = 5000;
 
-/** DASHBOARD success-probe resolveVisible ceiling — TIMING cut from 30000. */
-export const DASHBOARD_SUCCESS_TIMEOUT_MS = 8000;
+/**
+ * DASHBOARD success-probe resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 8000 ms; Phase E (PR-α') restores the
+ * pre-cut 30000 ms so slow Azure-CI runners have the same envelope
+ * as the host runs. SPA-bound success-probes that race a 8 s
+ * window legitimately need this budget when the bank's hydration
+ * window is long (Backbase modules on Amex / Isracard).
+ */
+export const DASHBOARD_SUCCESS_TIMEOUT_MS = 30000;
 
-/** DASHBOARD reveal-string resolveVisible ceiling — TIMING cut from 15000. */
-export const DASHBOARD_REVEAL_TIMEOUT_MS = 3000;
+/**
+ * DASHBOARD reveal-string resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 3000 ms; Phase E (PR-α') restores the
+ * pre-cut 15000 ms to give the reveal probe the same envelope as
+ * the original design. Combined with the longer
+ * {@link AUTH_DISCOVERY_DASHBOARD_WAIT_MS} this closes the CI race
+ * window the Isracard mask had been hiding.
+ */
+export const DASHBOARD_REVEAL_TIMEOUT_MS = 15000;
 
 /** DASHBOARD SPA-render timeout for href-extraction probe. */
 export const DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS = 10000;
@@ -302,8 +328,17 @@ export const DASHBOARD_CHANGE_PWD_TIMEOUT_MS = 3000;
 
 // ── NETWORK ────────────────────────────────────────────────────────
 
-/** Fire-and-forget POST interceptor timeout — TIMING cut from 120000. */
-export const NETWORK_POST_INTERCEPT_TIMEOUT_MS = 30_000;
+/**
+ * Fire-and-forget POST interceptor timeout.
+ *
+ * <p>PR #220 cut this to 30000 ms; Phase E (PR-α') restores the
+ * pre-cut 120000 ms. The interceptor watches for per-card txn
+ * POSTs throughout the dashboard hydration window; cycling-card
+ * banks (Amex / Isracard) issue these lazily as the user lands on
+ * each card view, and on slow CI runners the issuance can drag
+ * past 30 s.
+ */
+export const NETWORK_POST_INTERCEPT_TIMEOUT_MS = 120_000;
 
 /** Network capture poll interval for `waitForFirstId`. */
 export const NETWORK_WAIT_FIRST_ID_POLL_MS = 250;
