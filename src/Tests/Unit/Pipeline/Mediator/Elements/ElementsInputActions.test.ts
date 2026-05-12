@@ -95,6 +95,58 @@ interface ITrackedEvaluations {
 }
 
 /**
+ * Build a counting Locator. First `evaluate` call serves the
+ * sibling-count check (returns `script.siblingCount`); subsequent
+ * calls are the Angular-sync helper invocation (return `true`).
+ * The tracker accumulates the call count so tests can assert both
+ * invocations happened on the single-input success path.
+ *
+ * @param script - Behaviour toggles.
+ * @param tracker - Mutable counter object the caller inspects.
+ * @returns Locator wired to the tracker.
+ */
+function makeCountingLocator(script: ILocScript, tracker: ITrackedEvaluations): Locator {
+  let locatorEvalCount = 0;
+  const self = {
+    /**
+     * first.
+     * @returns Self.
+     */
+    first: (): Locator => self as unknown as Locator,
+    /**
+     * fill.
+     * @returns Script-controlled fill.
+     */
+    fill: (): Promise<boolean> => {
+      if (script.fillOk) return Promise.resolve(true);
+      return Promise.reject(new Error('fill fail'));
+    },
+    /**
+     * focus.
+     * @returns Resolved.
+     */
+    focus: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * pressSequentially.
+     * @returns Resolved.
+     */
+    pressSequentially: (): Promise<boolean> => Promise.resolve(true),
+    /**
+     * evaluate — first call serves the sibling-count check,
+     * subsequent calls (Angular sync helper invocation) are counted.
+     * @returns Sibling count or true.
+     */
+    evaluate: (): Promise<number | boolean> => {
+      locatorEvalCount += 1;
+      tracker.locatorEvaluateCount = locatorEvalCount;
+      if (locatorEvalCount === 1) return Promise.resolve(script.siblingCount);
+      return Promise.resolve(true);
+    },
+  };
+  return self as unknown as Locator;
+}
+
+/**
  * Build a counting Page + Locator pair. Tests on the single-input success
  * path use this to assert that `ensureAngularHelper(ctx)` (which calls
  * `ctx.evaluate(SCRIPT)`) AND `syncAngularModel(ctx, sel, val)` (which calls
@@ -106,45 +158,7 @@ interface ITrackedEvaluations {
  * @returns Page wired up with the counting locator.
  */
 function makeCountingPage(script: ILocScript, tracker: ITrackedEvaluations): Page {
-  /** Locator-evaluate hits. */
-  let locatorEvalCount = 0;
-  const self = {
-    /**
-     * First.
-     * @returns Self.
-     */
-    first: (): Locator => self as unknown as Locator,
-    /**
-     * Fill.
-     * @returns Script-controlled fill.
-     */
-    fill: (): Promise<boolean> => {
-      if (script.fillOk) return Promise.resolve(true);
-      return Promise.reject(new Error('fill fail'));
-    },
-    /**
-     * Focus.
-     * @returns Resolved.
-     */
-    focus: (): Promise<boolean> => Promise.resolve(true),
-    /**
-     * pressSequentially.
-     * @returns Resolved.
-     */
-    pressSequentially: (): Promise<boolean> => Promise.resolve(true),
-    /**
-     * Evaluate — first call serves the sibling-count check, subsequent
-     * calls (Angular sync helper invocation) are counted.
-     * @returns Sibling count or true.
-     */
-    evaluate: (): Promise<number | boolean> => {
-      locatorEvalCount += 1;
-      tracker.locatorEvaluateCount = locatorEvalCount;
-      if (locatorEvalCount === 1) return Promise.resolve(script.siblingCount);
-      return Promise.resolve(true);
-    },
-  };
-  const loc = self as unknown as Locator;
+  const loc = makeCountingLocator(script, tracker);
   return {
     /**
      * locator.

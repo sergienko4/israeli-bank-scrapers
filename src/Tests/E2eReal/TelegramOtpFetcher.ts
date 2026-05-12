@@ -6,10 +6,17 @@
  * returns the earliest unconfirmed update WITHOUT advancing the bot's
  * confirmed cursor. Per-prompt isolation comes from the
  * `reply_to_message.message_id === promptMessageId` filter alone.
- * No fetcher advances the cursor past RECENT updates (≤
- * {@link RECENT_MESSAGE_WINDOW_S} seconds old); only stale updates
- * are confirmed by {@link pruneOldUpdates} to bound queue size,
- * and Telegram's 24h retention is the long-tail safety net.
+ *
+ * <p>Post-resolution queue cleanup happens via two complementary
+ * paths: {@link confirmCursorPastMatch} on the MATCH path
+ * (advances `offset=match.update_id + 1` — safe because the CI
+ * serial-OTP workflow `e2e-real-otp` with `max-parallel: 1`
+ * guarantees only one fetcher is ever active at a time, so no
+ * concurrent fetcher's reply can be in the matched-id range), and
+ * {@link pruneOldUpdates} on the TIMEOUT path (10-min time-window
+ * GC — preserves any RECENT pending replies on host pre-commit
+ * sequential runs where a brand-new fetcher may start within the
+ * window). Telegram's 24h retention is the long-tail safety net.
  *
  * <p>Multiple fetchers (e.g. parallel CI matrix runners on separate
  * GitHub-hosted VMs) safely share the bot's queue: each filters by
@@ -634,9 +641,13 @@ function computePruneOffset(
  * transport failures here never affect the OTP outcome (the caller
  * has already returned its result before this fires).
  *
- * <p>Concurrent parallel-matrix fetchers' RECENT pending replies
- * survive because their `message.date` is also within the window
- * (their prompts were sent <10 min ago too).
+ * <p>Used by the TIMEOUT path. The MATCH path uses
+ * {@link confirmCursorPastMatch} instead — it advances past the
+ * matched update_id directly, which is safe under the CI serial-OTP
+ * workflow (`e2e-real-otp` with `max-parallel: 1`) where only one
+ * fetcher is ever active at a time. The 10-min window stays as the
+ * safety net for host pre-commit sequential runs and the timeout
+ * branch (no matched update_id to advance past).
  *
  * @param args - Fetcher args (for log + bot token).
  * @returns Always `true` after attempting GC.
@@ -654,6 +665,39 @@ async function pruneOldUpdates(args: ITelegramFetchArgs): Promise<true> {
   const confirmUrl = buildUpdatesUrl(
     args.botToken,
     `offset=${String(advanceTo)}&limit=1&timeout=0`,
+  );
+  await safeFetchUpdates(confirmUrl);
+  return true;
+}
+
+/**
+ * Confirm Telegram's update cursor PAST the matched update_id so the
+ * `offset=0&limit=100` polling window never starves. The serial CI
+ * job `e2e-real-otp` (`max-parallel: 1`) guarantees only one fetcher
+ * is active at a time, so confirming `match.update_id + 1` cannot
+ * purge a concurrent fetcher's pending reply. Used ONLY on the match
+ * path — the timeout path keeps the 10-min window GC because there
+ * is no `match.update_id` to advance past.
+ *
+ * <p>Why this exists: live CI run `25732939617` Beinleumi failed
+ * with two 180s OTP timeouts even though the user replied. The
+ * cumulative queue had 100+ recent updates (within the 10-min
+ * window) from preceding OneZero + earlier test cycles, so the
+ * `offset=0&limit=100` poll returned only the OLDEST 100 — pushing
+ * Beinleumi's actual reply past the response window. This call
+ * keeps the queue trimmed to a tight per-bank slice.
+ *
+ * @param args - Fetcher args (for bot token).
+ * @param matchedUpdateId - update_id of the user's matched reply.
+ * @returns Always `true` after attempting the confirm.
+ */
+async function confirmCursorPastMatch(
+  args: ITelegramFetchArgs,
+  matchedUpdateId: number,
+): Promise<true> {
+  const confirmUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=${String(matchedUpdateId + 1)}&limit=1&timeout=0`,
   );
   await safeFetchUpdates(confirmUrl);
   return true;
@@ -713,8 +757,8 @@ function dispatchTimeoutSideEffects(args: ITelegramFetchArgs, promptMessageId: n
 function dispatchMatchSideEffects(bundle: IHandleMatchArgs): string {
   const matchPromise = handleFetchMatch(bundle);
   detachSideEffect(matchPromise);
-  const prunePromise = pruneOldUpdates(bundle.args);
-  detachSideEffect(prunePromise);
+  const confirmPromise = confirmCursorPastMatch(bundle.args, bundle.match.updateId);
+  detachSideEffect(confirmPromise);
   return bundle.match.code;
 }
 

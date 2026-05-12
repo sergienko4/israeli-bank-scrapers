@@ -351,6 +351,33 @@ function flushDetachedSideEffects(
   );
 }
 
+/**
+ * Content-based companion to {@link flushDetachedSideEffects}. The
+ * poll loop can produce thousands of getUpdates calls under a
+ * sticky mock, so a count-based flush returns immediately while the
+ * detached prune chain hasn't fired yet. This helper yields
+ * microtask ticks until a fetch URL matching the supplied regex
+ * appears in the spy — letting tests wait for the SPECIFIC call
+ * that confirms the side-effect they care about.
+ *
+ * @param spy - The installed fetch spy.
+ * @param urlRegex - Pattern the awaited URL must match.
+ * @param maxTicks - Recursion ceiling — guards against a hung detach.
+ * @returns True when a URL matches, false on ceiling.
+ */
+function flushUntilUrlPresent(spy: jest.Mock, urlRegex: RegExp, maxTicks = 200): Promise<boolean> {
+  const calls = spy.mock.calls as readonly (readonly [unknown, unknown?])[];
+  const isPresent = calls.some((call): boolean => {
+    const url = typeof call[0] === 'string' ? call[0] : '';
+    return urlRegex.test(url);
+  });
+  if (isPresent) return Promise.resolve(true);
+  if (maxTicks <= 0) return Promise.resolve(false);
+  return Promise.resolve().then(
+    (): Promise<boolean> => flushUntilUrlPresent(spy, urlRegex, maxTicks - 1),
+  );
+}
+
 afterEach(async (): Promise<void> => {
   // Drain any detached ack/GC chains BEFORE tearing the fetch mock
   // down. Otherwise late-firing detached promises would hit the
@@ -420,17 +447,27 @@ describe('fetchOtpFromTelegram', () => {
     installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(10, '333333')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
-    // GC inspect is detached post-match; flush so the inspect call is
-    // captured before we read the spy. Total: prompt + poll + ack +
-    // GC inspect = 4 (no confirm — mock default returns empty queue).
+    // After R2 (commit 9684be50+1) the match path runs:
+    //   prompt sendMessage + poll getUpdates + (detached) ack
+    //   sendMessage + (detached) confirmCursorPastMatch getUpdates
+    // = 4 total calls. The confirm uses offset=match.update_id+1
+    // (=11 here), NOT offset=0 — that's the per-fetcher queue-cleanup
+    // step that fixes the Beinleumi CI starvation from run
+    // 25732939617. So this test asserts:
+    //   1. Initial poll uses offset=0 (non-destructive read)
+    //   2. NO negative offset (no offset=-1 purge)
+    //   3. Confirm uses offset=11 (boundary-precise)
     await flushDetachedSideEffects(fetchSpy, 4);
     const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
-    // 1 poll cycle + 1 GC inspect (pruneOldUpdates post-match) = 2 calls.
     expect(getUpdatesUrls).toHaveLength(2);
-    const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
-    expect(isAllOffsetZero).toBe(true);
+    const hasInspectOffsetZero = getUpdatesUrls.some((u: string): boolean =>
+      /offset=0(?!\d)/.test(u),
+    );
+    expect(hasInspectOffsetZero).toBe(true);
     const negativeOffsets = getUpdatesUrls.filter((u: string): boolean => /offset=-\d+/.test(u));
     expect(negativeOffsets).toHaveLength(0);
+    const hasConfirmAt11 = getUpdatesUrls.some((u: string): boolean => /offset=11(?!\d)/.test(u));
+    expect(hasConfirmAt11).toBe(true);
   });
 
   it('TF-4c reply-scoped — rejects messages that are NOT replies to our prompt', async () => {
@@ -459,25 +496,32 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TELEGRAM-OFFSET-001 non-destructive offset=0 polling — picks own reply AND leaves the other bank in the queue', async () => {
-    // A.fix-2 contract per spec.txt §"Phase A.fix-2 — Telegram
-    // non-destructive `getUpdates`": every getUpdates call uses
-    // offset=0 (Telegram-documented non-destructive read) so multiple
-    // parallel fetchers (CI matrix runners) safely share the bot's
-    // queue. Each fetcher filters by reply_to_message.message_id and
-    // picks ONLY its own reply. NO call uses offset=-1 (the documented
-    // purge trigger that caused the cross-fetcher Beinleumi-during-
-    // Hapoalim symptom 2026-05-12).
+  it('TELEGRAM-OFFSET-001 — poll uses offset=0, confirm uses match.update_id+1, no negative offset', async () => {
+    // A.fix-2 design (commit c0a45f27) used `offset=0` non-destructive
+    // reads everywhere to avoid cross-fetcher purges. Live CI run
+    // 25732939617 (HEAD 9684be50) Beinleumi proved that design starves
+    // the response window once the queue has ≥100 recent updates: the
+    // user's reply sat past position 100 and never came back from
+    // `getUpdates?offset=0&limit=100`. R2 (commit 9684be50+1) flips
+    // the match path back to `offset=match.update_id + 1` — safe
+    // because the CI serial-OTP workflow `e2e-real-otp` with
+    // `max-parallel: 1` guarantees only one fetcher is ever active
+    // at a time, so the confirm cannot purge a concurrent fetcher's
+    // reply. The initial poll still uses non-destructive `offset=0`
+    // so a brand-new fetcher starting WITHOUT a prior match doesn't
+    // depend on cursor state from an earlier process.
     //
-    // Per CodeRabbit PR #226 review on this test: also assert the
-    // CROSS-FETCHER invariant — after the first fetcher returns,
-    // an independent second poll of the same queue still observes
-    // the other bank's reply (`reply_to_message.message_id=9999`).
-    // Without this assertion the test passes even against a hypothetical
-    // implementation that destructively confirmed `match.update_id+1`,
-    // which is the exact regression class A.fix-2 prevents. Recent
-    // dates keep `pruneOldUpdates` on its early-return branch so the
-    // detached GC never advances the cursor on this fixture.
+    // Assertions:
+    //   1. NO call uses a negative offset (rules out the original
+    //      `offset=-1` purge that caused the 2026-05-12
+    //      Beinleumi-during-Hapoalim symptom).
+    //   2. The poll cycle uses `offset=0`.
+    //   3. The match-path confirm advances to exactly
+    //      `match.update_id + 1` (boundary-precise — catches
+    //      off-by-one regressions where the code returns
+    //      `match.update_id` or `match.update_id + 10`).
+    //   4. The fetcher correctly ignored the other-bank reply
+    //      (`reply_to_message.message_id=9999`) and picked our own.
     const recentDateSec = Math.floor(Date.now() / 1000) - 60;
     const otherBankReply = makeReplyUpdateAt({
       updateId: 50,
@@ -491,16 +535,7 @@ describe('fetchOtpFromTelegram', () => {
       replyToId: DEFAULT_PROMPT_ID,
       dateSec: recentDateSec,
     });
-    const sharedQueue = [otherBankReply, ourReply];
-    installFetchWithDefaultPrompt([
-      // Slot 1 — fetcher's poll cycle.
-      { ok: true, result: sharedQueue },
-      // Slot 2 — detached pruneOldUpdates inspect call.
-      { ok: true, result: sharedQueue },
-      // Slot 3 — simulated second-fetcher offset=0 read (cross-fetcher
-      // invariant: non-destructive, so still sees the 9999 reply).
-      { ok: true, result: sharedQueue },
-    ]);
+    installFetchWithDefaultPrompt([{ ok: true, result: [otherBankReply, ourReply] }]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('1234');
@@ -508,24 +543,15 @@ describe('fetchOtpFromTelegram', () => {
     const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
     const hasNegativeOffset = getUpdatesUrls.some((u: string): boolean => /offset=-\d+/.test(u));
     expect(hasNegativeOffset).toBe(false);
-    const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
-    expect(isAllOffsetZero).toBe(true);
-    // Cross-fetcher invariant: a second offset=0 poll (concurrent fetcher
-    // on a separate CI matrix runner) STILL sees the other-bank reply
-    // since the first fetcher never advanced the cursor past it.
-    const secondReadUrl =
-      'https://api.telegram.org/botTEST_TOKEN/getUpdates?offset=0&limit=100&timeout=1';
-    const fetchProbe = fetchSpy as unknown as (u: string) => Promise<Response>;
-    const secondReadRaw = await fetchProbe(secondReadUrl);
-    const secondReadBody = (await secondReadRaw.json()) as {
-      readonly result: readonly {
-        readonly message?: { readonly reply_to_message?: { readonly message_id: number } };
-      }[];
-    };
-    const hasOtherBankReply = secondReadBody.result.some(
-      (u): boolean => u.message?.reply_to_message?.message_id === 9999,
+    const hasInspectOffsetZero = getUpdatesUrls.some((u: string): boolean =>
+      /offset=0(?!\d)/.test(u),
     );
-    expect(hasOtherBankReply).toBe(true);
+    expect(hasInspectOffsetZero).toBe(true);
+    // Boundary-precise: matches offset=52 exactly, NOT offset=520/521/etc.
+    const hasConfirmPastMatch = getUpdatesUrls.some((u: string): boolean =>
+      /offset=52(?!\d)/.test(u),
+    );
+    expect(hasConfirmPastMatch).toBe(true);
   });
 
   it('TF-4d cross-prompt — rejects replies to a DIFFERENT prompt id', async () => {
@@ -672,49 +698,93 @@ describe('fetchOtpFromTelegram', () => {
     expect(ackText).toMatch(/no reply/);
   });
 
-  it('TF-11 prune-old-updates — confirms updates older than the 10-min window', async () => {
-    // CodeRabbit PR #226 #7 + user direction 2026-05-12. After
-    // fetchOtpFromTelegram resolves (match OR timeout), it confirms
-    // every queued update whose `message.date` is older than
-    // `now - 600s`. Concurrent fetchers' RECENT replies (date >= now
-    // - 600) survive because their prompts are also <10 min old.
-    // This bounds the queue size so the offset=0&limit=100 read
-    // window never starves an in-flight reply.
-    const nowSec = Math.floor(Date.now() / 1000);
-    const ancientDate = nowSec - 1200; // 20 min old → stale, prune
-    const recentDate = nowSec - 100; // <2 min old → keep
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [makeReplyUpdate(50, '111111')] },
-      // After match: GC inspect call returns mixed queue.
-      {
-        ok: true,
-        result: [
-          { update_id: 10, message: { chat: { id: -100456789 }, text: 'old', date: ancientDate } },
-          { update_id: 11, message: { chat: { id: -100456789 }, text: 'old2', date: ancientDate } },
-          {
-            update_id: 12,
-            message: { chat: { id: -100456789 }, text: 'recent', date: recentDate },
-          },
-        ],
-      },
-    ]);
+  it('TF-11 confirm-past-match — advances cursor past matched update_id on the match path', async () => {
+    // Live CI evidence: run 25732939617 Beinleumi failed with TWO
+    // 180s OTP timeouts even though the user replied — the queue
+    // had ≥100 recent (≤ 10 min) updates from prior OneZero +
+    // earlier test cycles, so the `offset=0&limit=100` poll
+    // returned only the oldest 100 entries and Beinleumi's reply
+    // sat past the response window. Fix: on the MATCH path,
+    // confirm `offset=match.update_id + 1` so each fetcher cleans
+    // up after itself and the next fetcher starts with a trimmed
+    // queue. Safe under the CI serial-OTP workflow
+    // (`e2e-real-otp`, `max-parallel: 1`) because only one
+    // fetcher is ever active at a time — no concurrent reply can
+    // be in the matched-id range. Replaces the prior `TF-11
+    // prune-old-updates` test that exercised pruneOldUpdates on
+    // the match path; that helper now fires on the TIMEOUT path
+    // only, asserted by TF-12.
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(50, '111111')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
-    // prompt + poll + ack + GC inspect + GC confirm = 5
-    await flushDetachedSideEffects(fetchSpy, 5);
+    // prompt + poll + ack + confirm-past-match = 4
+    await flushDetachedSideEffects(fetchSpy, 4);
     const getUpdatesCalls = getGetUpdatesCalls(fetchSpy);
     const urls = getUpdatesCalls.map(getCallUrl);
-    // Boundary-aware regex per CodeRabbit PR #226 review on TF-11.
-    // The previous substring `u.includes('offset=12')` would also
-    // match `offset=120 / 121 / 125 …`, so an off-by-one regression
-    // in `computePruneOffset` (e.g. all-stale branch returning
-    // `update_id` instead of `update_id + 1`) could silently pass.
-    // `/offset=12(?!\d)/` pins the value to exactly 12, and the
-    // companion `offset=0` pin verifies that GC inspect precedes
-    // confirm and uses the non-destructive read.
-    const hasConfirmCall = urls.some((u: string): boolean => /offset=12(?!\d)/.test(u));
+    // Boundary-aware regex per CodeRabbit PR #226 R2 review.
+    // Substring `u.includes('offset=51')` would also accept
+    // `offset=510 / 511 / 515 …`, so an off-by-one regression
+    // returning `match.update_id` (=50) or `match.update_id + 10`
+    // (=60) could silently pass. The `/offset=51(?!\d)/` pin
+    // catches it.
+    const hasConfirmCall = urls.some((u: string): boolean => /offset=51(?!\d)/.test(u));
     expect(hasConfirmCall).toBe(true);
+    // Initial poll must use offset=0 (non-destructive read).
     const hasInspectCall = urls.some((u: string): boolean => /offset=0(?!\d)/.test(u));
     expect(hasInspectCall).toBe(true);
+  });
+
+  it('TF-12 prune-all-stale — confirms past last update_id when entire queue is stale', async () => {
+    // CodeRabbit PR #226 R2 review: TF-11 covered the "recent
+    // boundary mid-queue" path of computePruneOffset, but the
+    // ALL-STALE branch (return `updates[len-1].update_id + 1`)
+    // was uncovered — exactly the off-by-one site flagged in the
+    // R1 review. This test exercises the TIMEOUT path (where
+    // pruneOldUpdates still fires) with an all-stale queue, then
+    // asserts the confirm call uses the boundary-precise
+    // `offset=<lastId + 1>`.
+    //
+    // The poll loop spins tightly under the mock (each fetch
+    // resolves in microseconds) — thousands of iterations per
+    // 500 ms timeout — so a slot-array fixture would drain
+    // before pruneOldUpdates fires on the timeout. Use a sticky
+    // mock that returns the same staleResp for every getUpdates
+    // call regardless of slot. sendMessage still uses the
+    // queue-driven default.
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ancientDate = nowSec - 1800; // 30 min old → stale
+    const staleResp = {
+      ok: true,
+      result: [
+        { update_id: 70, message: { chat: { id: -100456789 }, text: 'a', date: ancientDate } },
+        { update_id: 71, message: { chat: { id: -100456789 }, text: 'b', date: ancientDate } },
+        { update_id: 72, message: { chat: { id: -100456789 }, text: 'c', date: ancientDate } },
+      ],
+    };
+    /**
+     * Sticky fetch — sendMessage routes to defaultPromptResponse,
+     * getUpdates ALWAYS returns staleResp regardless of call count.
+     * Keeps the queue-drain problem out of the prune assertion.
+     * @param url - Telegram API URL.
+     * @returns Response stub.
+     */
+    const stickyImpl = (url: unknown): Promise<Response> => {
+      const u = typeof url === 'string' ? url : '';
+      const body = u.includes('/sendMessage') ? defaultPromptResponse() : staleResp;
+      const response = makeFetchResponse(body);
+      return Promise.resolve(response);
+    };
+    fetchSpy = jest.fn(stickyImpl);
+    originalFetch = globalThis.fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = fetchSpy;
+    const args = makeArgs({ timeoutMs: 500 });
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    // Content-based wait: the poll loop emits thousands of calls
+    // under the sticky mock, so a count-based flush returns instantly
+    // while the detached prune chain hasn't yet fired the confirm
+    // call. Wait until offset=73 specifically appears.
+    const didConfirmAt73 = await flushUntilUrlPresent(fetchSpy, /offset=73(?!\d)/);
+    expect(didConfirmAt73).toBe(true);
   });
 });
