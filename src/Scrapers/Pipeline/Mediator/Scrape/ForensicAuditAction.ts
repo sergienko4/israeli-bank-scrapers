@@ -25,6 +25,10 @@ interface IAuditAccount {
 
 const LOG = createLogger('scrape-phase');
 
+const AUDIT_LABEL_SUCCESS = 'API Success' as const;
+const AUDIT_LABEL_ERROR = 'API Error' as const;
+type AuditLabel = typeof AUDIT_LABEL_SUCCESS | typeof AUDIT_LABEL_ERROR;
+
 /**
  * Log one qualified card's audit entry.
  * @param card - Card ID.
@@ -118,33 +122,56 @@ function isAccountIdMatch(accountNumber: string, card: string): boolean {
 }
 
 /**
- * Emit one `[AUDIT] | <card> | QUALIFIED | API Success | <N> txns |`
- * line per qualified card. Looks up the matching account via
+ * Map a qualified card's SCRAPE outcome to the AUDIT label. Returns
+ * `'API Error'` when SCRAPE failed entirely for the card (no account
+ * record produced — typically an HTTP 5xx propagated through
+ * `fetchSequential` and short-circuited the pipeline). Otherwise
+ * returns the existing `'API Success'` literal so happy-path callers
+ * + downstream log-parsing greps stay compatible.
+ *
+ * <p>The pruned-card branch in {@link logCardClassification} already
+ * emits the same `API Error` token; sharing the vocabulary keeps the
+ * audit surface a closed two-value enum (`API Success` | `API Error`)
+ * rather than introducing a third token. M4.F4 evidence: Visacal CI
+ * run `15180979` logged 48 HTTP-500 responses all labelled
+ * `API Success` pre-fix.
+ *
+ * @param scrapeSucceeded - True when an account record exists for the
+ *   qualified card; false when SCRAPE failed (no record).
+ * @returns Stable label literal — same vocabulary as the pruned-card
+ *   branch in {@link logCardClassification}.
+ */
+function resolveAuditLabel(scrapeSucceeded: boolean): AuditLabel {
+  if (!scrapeSucceeded) return AUDIT_LABEL_ERROR;
+  return AUDIT_LABEL_SUCCESS;
+}
+
+/**
+ * Emit one `[AUDIT] | <card> | QUALIFIED | <label> | <N> txns |` line
+ * per qualified card. Looks up the matching account via
  * {@link isAccountIdMatch} so VisaCal-class banks (long-form
  * `cardUniqueId` qualified, short-form `last4Digits` accountNumber)
- * report the right txn count instead of always 0.
+ * report the right txn count instead of always 0. The `<label>`
+ * field comes from {@link resolveAuditLabel} so a qualified card
+ * whose SCRAPE failed (no account record produced) surfaces
+ * `API Error` instead of the misleading `API Success` — M4.F4.
  *
  * @param card - Qualified-card identifier from scrapeDiscovery.
  * @param accounts - Scraped accounts for txn-count lookup.
  * @returns True after logging.
  */
 function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): boolean {
-  // Bidirectional suffix match — VisaCal-class banks expose long-form
-  // `cardUniqueId` (e.g. `198302041582022213`) on `qualifiedCards`
-  // while the resolved `account.accountNumber` is the short last4
-  // form (`3020`). Pre-fix the audit always reported 0 txns for those
-  // banks because `accountNumber === card` never held; the bidirectional
-  // suffix-match generalises across both directions without bank-
-  // specific branches.
   const acct = accounts.find((a): boolean => isAccountIdMatch(a.accountNumber, card));
+  const didScrapeSucceed = Boolean(acct);
   let txnCount = '0';
   if (acct) {
     txnCount = String(acct.txns.length);
   }
   const cardLabel = showLastDigits(card);
+  const label = resolveAuditLabel(didScrapeSucceed);
   LOG.debug({
     stage: 'POST',
-    message: `[AUDIT] | ${cardLabel} | QUALIFIED | API Success | ${txnCount} txns |`,
+    message: `[AUDIT] | ${cardLabel} | QUALIFIED | ${label} | ${txnCount} txns |`,
   });
   return true;
 }
@@ -186,7 +213,7 @@ function logCardClassification(
     const prunedLabel = showLastDigits(card);
     LOG.debug({
       stage: 'POST',
-      message: `[AUDIT] | ${prunedLabel} | PRUNED | API Error | 0 |`,
+      message: `[AUDIT] | ${prunedLabel} | PRUNED | ${AUDIT_LABEL_ERROR} | 0 |`,
     });
     return true;
   });
@@ -244,4 +271,4 @@ const SCRAPE_POST_STEP: IPipelineStep<IPipelineContext, IPipelineContext> = {
   execute: scrapePostDiagnostics,
 };
 
-export { logForensicAudit, SCRAPE_POST_STEP, scrapePostDiagnostics };
+export { logForensicAudit, resolveAuditLabel, SCRAPE_POST_STEP, scrapePostDiagnostics };

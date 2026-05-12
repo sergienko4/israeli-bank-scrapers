@@ -160,9 +160,32 @@ JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=2"
 bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=2"
 bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=4"
-bg_gate "test:e2e:mock"     "yes" bash -c "npm run test:e2e:mock -- --maxWorkers=2"
 
 wait_all
+
+# ── Phase 2b: test:e2e:mock (sequential, CI-parity) ───────────────────
+# test:e2e:mock spawns Camoufox; running it in parallel with the other
+# three Camoufox-spawning gates above triggers upstream bug #386
+# ("instances interfere with each other") — the AntiDetection fixture
+# `beforeAll` hits its 30 s timeout under the concurrent launch load.
+# CI's Validate job runs test:e2e:mock as its own sequential step;
+# mirror that here for stability. CI evidence: PR #215 Validate job
+# in 25698550388 completed in 370 s wall with test:e2e:mock passing
+# every time.
+log ""
+log "🎭 Phase 2b: test:e2e:mock (sequential, CI-parity)..."
+if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:e2e:mock")" ]; then
+    log "  ⚡ test:e2e:mock cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+else
+    npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ test:e2e:mock FAILED"
+        exit 1
+    fi
+    if [ -n "$CACHE_KEY" ]; then
+        touch "$(cache_marker "test:e2e:mock")"
+    fi
+fi
 
 # ── Phase 3: e2e-factory-tests (network-bound, sequential) ────────────
 # Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
@@ -188,6 +211,15 @@ fi
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
+# # Routes through `scripts/run-real-suite.ts` (gitignored, operator-
+# # controlled bank list — typically OneZero + Beinleumi for local
+# # runs). The Docker-based parallel hook lives in
+# # docker/{Dockerfile.ci-mirror,run-banks.sh} as scaffolding but is
+# # NOT wired in here yet: the in-flight smoke run on commit `cd0db7da`
+# # surfaced a Docker Desktop / vEthernet DNS contention pattern
+# # (5+ parallel Camoufox containers saturating the host resolver,
+# # producing "Server Not Found" on bank URLs) that is tracked for a
+# # follow-up. Until that is resolved, host sequential mode stays.
 run-e2e-happy-path() {
     log ""
     log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
